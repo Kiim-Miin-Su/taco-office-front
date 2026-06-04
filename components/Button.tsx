@@ -11,7 +11,6 @@ const sizeMap: Record<ButtonSize, string> = {
 
 export default function Button({
   size = "md",
-  name,
   label,
   onClick,
   disabled = false,
@@ -19,7 +18,6 @@ export default function Button({
   return (
     <button
       type="button"
-      name={name}
       onClick={onClick}
       disabled={disabled}
       className={`
