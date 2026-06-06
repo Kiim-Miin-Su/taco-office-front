@@ -1,19 +1,11 @@
-export const PERMISSIONS = {
-  dashboardRead: "dashboard:read",
-  attendanceRead: "attendance:read",
-  studentsRead: "students:read",
-  instructorsRead: "instructors:read",
-  staffRead: "staff:read",
-  roadmapRead: "roadmap:read",
-  classesRead: "classes:read",
-  scheduleRead: "schedule:read",
-  homeworkRead: "homework:read",
-  usersManage: "users:manage",
-} as const;
+import {
+  ASIDE_PERMISSIONS,
+  ROLE_ASIDE_PERMISSIONS,
+  UserRole,
+  type AsidePermission,
+} from "./aside_permission";
 
-// 뒤에 :read는 왜 붙인겨?
-
-export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]; // (all type of PERMISSIONS)[ALL KEY] = | val1 | val2 | ...
+export type Permission = AsidePermission;
 
 export type NavigationIcon =
   | "dashboard"
@@ -51,14 +43,14 @@ export const NAVIGATION_SECTIONS = [
         label: "Dashboard",
         href: "/",
         icon: "dashboard",
-        permission: PERMISSIONS.dashboardRead,
+        permission: ASIDE_PERMISSIONS.dashboardRead,
       },
       {
         id: "attendance",
         label: "Attendance",
         href: "/attendance",
         icon: "attendance",
-        permission: PERMISSIONS.attendanceRead,
+        permission: ASIDE_PERMISSIONS.attendanceRead,
       },
     ],
   },
@@ -71,21 +63,21 @@ export const NAVIGATION_SECTIONS = [
         label: "Students",
         href: "/students",
         icon: "students",
-        permission: PERMISSIONS.studentsRead,
+        permission: ASIDE_PERMISSIONS.studentsRead,
       },
       {
         id: "instructors",
         label: "Instructors",
         href: "/instructors",
         icon: "instructors",
-        permission: PERMISSIONS.instructorsRead,
+        permission: ASIDE_PERMISSIONS.instructorsRead,
       },
       {
         id: "staff",
         label: "Staff",
         href: "/staff",
         icon: "staff",
-        permission: PERMISSIONS.staffRead,
+        permission: ASIDE_PERMISSIONS.staffRead,
       },
     ],
   },
@@ -98,28 +90,28 @@ export const NAVIGATION_SECTIONS = [
         label: "Roadmap",
         href: "/roadmap",
         icon: "roadmap",
-        permission: PERMISSIONS.roadmapRead,
+        permission: ASIDE_PERMISSIONS.roadmapRead,
       },
       {
         id: "classes",
         label: "Classes",
         href: "/classes",
         icon: "classes",
-        permission: PERMISSIONS.classesRead,
+        permission: ASIDE_PERMISSIONS.classesRead,
       },
       {
         id: "schedule",
         label: "Schedule",
         href: "/schedule",
         icon: "schedule",
-        permission: PERMISSIONS.scheduleRead,
+        permission: ASIDE_PERMISSIONS.scheduleRead,
       },
       {
         id: "homework",
         label: "Homework",
         href: "/homework",
         icon: "homework",
-        permission: PERMISSIONS.homeworkRead,
+        permission: ASIDE_PERMISSIONS.homeworkRead,
       },
     ],
   },
@@ -132,11 +124,11 @@ export const NAVIGATION_SECTIONS = [
         label: "Users",
         href: "/management/users",
         icon: "users",
-        permission: PERMISSIONS.usersManage,
+        permission: ASIDE_PERMISSIONS.usersManage,
       },
     ],
   },
 ] as const satisfies readonly NavigationSection[]; // check structure of NavigationSection[]
 
 // Replace this preview fixture with permissions from the authenticated session.
-export const DEMO_PERMISSIONS = Object.values(PERMISSIONS) as Permission[]; // array of Permissions value
+export const DEMO_PERMISSIONS = ROLE_ASIDE_PERMISSIONS[UserRole.Super];
