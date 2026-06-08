@@ -1,10 +1,4 @@
-export enum UserRole {
-  Super = "super",
-  Staff = "staff",
-  Student = "student",
-  Parent = "parent",
-  Instructor = "instructor",
-}
+import { UserRole, UserRoleType } from "@/entity/user.entity";
 
 export const ASIDE_PERMISSIONS = {
   dashboardRead: "dashboard:read",
@@ -37,7 +31,7 @@ const {
 
 export const ROLE_ASIDE_PERMISSIONS = {
   // 객체의 key를 변수/표현식으로 쓸 때 [UserRole.Super] == "super"
-  [UserRole.Super]: [
+  [UserRole.super]: [
     dashboardRead,
     attendanceRead,
     studentsRead,
@@ -49,7 +43,7 @@ export const ROLE_ASIDE_PERMISSIONS = {
     homeworkRead,
     usersManage,
   ],
-  [UserRole.Staff]: [
+  [UserRole.staff]: [
     dashboardRead,
     attendanceRead,
     studentsRead,
@@ -60,7 +54,7 @@ export const ROLE_ASIDE_PERMISSIONS = {
     scheduleRead,
     homeworkRead,
   ],
-  [UserRole.Instructor]: [
+  [UserRole.instructor]: [
     dashboardRead,
     attendanceRead,
     studentsRead,
@@ -69,7 +63,7 @@ export const ROLE_ASIDE_PERMISSIONS = {
     scheduleRead,
     homeworkRead,
   ],
-  [UserRole.Student]: [
+  [UserRole.student]: [
     dashboardRead,
     attendanceRead,
     roadmapRead,
@@ -77,7 +71,7 @@ export const ROLE_ASIDE_PERMISSIONS = {
     scheduleRead,
     homeworkRead,
   ],
-  [UserRole.Parent]: [
+  [UserRole.parent]: [
     dashboardRead,
     attendanceRead,
     studentsRead,
@@ -86,8 +80,11 @@ export const ROLE_ASIDE_PERMISSIONS = {
     scheduleRead,
     homeworkRead,
   ],
-} as const satisfies Record<UserRole, readonly AsidePermission[]>;
+  [UserRole.guest]: [dashboardRead, roadmapRead, classesRead, scheduleRead], // TODO: make it when who's guest
+} as const satisfies Record<UserRoleType, readonly AsidePermission[]>;
 
-export function getAsidePermissionsByRole(role: UserRole) {
+export function getAsidePermissionsByRole(
+  role: UserRoleType,
+): readonly AsidePermission[] {
   return ROLE_ASIDE_PERMISSIONS[role];
 }

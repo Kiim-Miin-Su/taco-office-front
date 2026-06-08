@@ -1,11 +1,6 @@
-import {
-  ASIDE_PERMISSIONS,
-  ROLE_ASIDE_PERMISSIONS,
-  UserRole,
-  type AsidePermission,
-} from "./aside_permission";
+import { UserRole } from "../../../entity/user.entity";
 
-export type Permission = AsidePermission;
+import { ASIDE_PERMISSIONS, type AsidePermission } from "../../../constants/asidePermission";
 
 export type NavigationIcon =
   | "dashboard"
@@ -24,7 +19,7 @@ export type NavigationItem = {
   label: string;
   href: string;
   icon: NavigationIcon;
-  permission: Permission;
+  permission: AsidePermission;
 };
 
 export type NavigationSection = {
@@ -131,4 +126,4 @@ export const NAVIGATION_SECTIONS = [
 ] as const satisfies readonly NavigationSection[]; // check structure of NavigationSection[]
 
 // Replace this preview fixture with permissions from the authenticated session.
-export const DEMO_PERMISSIONS = ROLE_ASIDE_PERMISSIONS[UserRole.Super];
+export const DEMO_USER = UserRole.super; // FIXME: !delete after dev

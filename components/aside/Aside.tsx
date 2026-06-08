@@ -2,53 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BookOpen,
-  BriefcaseBusiness,
-  CalendarCheck2,
-  CalendarDays,
-  ChevronDown,
-  ClipboardList,
-  EllipsisVertical,
-  GraduationCap,
-  LayoutDashboard,
-  Map,
-  Presentation,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
-import {
-  NAVIGATION_SECTIONS,
-  type NavigationIcon,
-  type Permission,
-} from "@/constants/navigation";
+import isActiveRoute from "../../util/isActiveRoute";
+import { MenuIcons } from "../../constants/menuIcon";
+import { ChevronDown, EllipsisVertical } from "lucide-react";
+import { AsidePermission } from "../../constants/asidePermission";
+
+import { getAsidePermissionsByRole } from "../../constants/asidePermission";
+
+import { NAVIGATION_SECTIONS } from "@/components/aside/types/navigationSection";
+import { User } from "@/entity/user.entity";
 
 type AsideProps = {
-  permissions: readonly Permission[];
+  user: Pick<User, "role" | "username">;
 };
 
-const menuIcons: Record<NavigationIcon, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  attendance: CalendarCheck2,
-  students: GraduationCap,
-  instructors: Presentation,
-  staff: BriefcaseBusiness,
-  roadmap: Map,
-  classes: BookOpen,
-  schedule: CalendarDays,
-  homework: ClipboardList,
-  users: Users,
-};
-
-function isActiveRoute(pathname: string, href: string) {
-  return href === "/"
-    ? pathname === href
-    : pathname.startsWith(`${href}/`) || pathname === href;
-}
-
-export default function Aside({ permissions }: AsideProps) {
+export default function Aside({ user }: AsideProps) {
   const pathname = usePathname();
-  const permissionSet = new Set<Permission>(permissions);
+  const permissionSet = new Set<AsidePermission>(
+    getAsidePermissionsByRole(user.role),
+  );
   const visibleSections = NAVIGATION_SECTIONS.map((section) => ({
     ...section, // 기존 const NAVIGATION_SECTIONS 값 복사
     items: section.items.filter((item) => permissionSet.has(item.permission)), // 덮어쓰기 (권한 소유 배열)
@@ -102,7 +74,7 @@ export default function Aside({ permissions }: AsideProps) {
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = isActiveRoute(pathname, item.href);
-                const MenuIcon = menuIcons[item.icon];
+                const MenuIcon = MenuIcons[item.icon];
 
                 return (
                   <Link
