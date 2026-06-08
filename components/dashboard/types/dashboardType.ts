@@ -7,14 +7,14 @@ export type DashboardItem = {
   id: string;
   label: string;
   // href: string; // FIXME: delete if not used
-  roles: UserRoleType;
   permission: DashboardPermission;
-  options: DashboardPermission[];
 };
 
 export type DashboardItems = {
   id: string;
   label: string;
+  roles: UserRoleType;
+  options: DashboardPermission[];
   items: readonly DashboardItem[];
 };
 
