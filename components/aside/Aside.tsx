@@ -9,7 +9,7 @@ import { AsidePermission } from "../../constants/asidePermission";
 
 import { getAsidePermissionsByRole } from "../../constants/asidePermission";
 
-import { NAVIGATION_SECTIONS } from "@/components/aside/types/navigationSection";
+import { NAVIGATION_SECTIONS } from "@/components/aside/types/navigationType";
 import { User } from "@/entity/user.entity";
 
 type AsideProps = {
@@ -123,10 +123,10 @@ export default function Aside({ user }: AsideProps) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-semibold text-foreground">
-              Admin Kim
+              {user.role} {user.username}
             </span>
             <span className="mt-0.5 block truncate text-[10px] text-foreground-muted">
-              Administrator
+              {user.role}
             </span>
           </span>
           <EllipsisVertical

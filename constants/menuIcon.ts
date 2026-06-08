@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { NavigationIcon } from "@/components/aside/types/navigationSection";
+import { NavigationIcon } from "@/components/aside/types/navigationType";
 
 export const MenuIcons: Record<NavigationIcon, LucideIcon> = {
   dashboard: LayoutDashboard,

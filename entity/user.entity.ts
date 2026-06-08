@@ -7,7 +7,7 @@ export const UserStatus = {
 export type UserStatusType = (typeof UserStatus)[keyof typeof UserStatus];
 
 export const UserRole = {
-  super: "super",
+  admin: "admin",
   staff: "staff",
   student: "student",
   parent: "parent",
@@ -30,6 +30,6 @@ export interface User {
 export const DemoUser: User = {
   id: 123,
   username: "김사과",
-  role: UserRole.super,
+  role: UserRole.admin,
   status: UserStatus.active,
 };

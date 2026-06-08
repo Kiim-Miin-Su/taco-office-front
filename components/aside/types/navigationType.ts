@@ -126,4 +126,4 @@ export const NAVIGATION_SECTIONS = [
 ] as const satisfies readonly NavigationSection[]; // check structure of NavigationSection[]
 
 // Replace this preview fixture with permissions from the authenticated session.
-export const DEMO_USER = UserRole.super; // FIXME: !delete after dev
+export const DEMO_USER = UserRole.admin; // FIXME: !delete after dev

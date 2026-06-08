@@ -1,0 +1,60 @@
+{
+  "todo-tree.general.tags": [
+    "TODO",
+    "FIXME",
+    "BUG",
+    "HACK",
+    "XXX"
+  ],
+  "todo-tree.highlights.enabled": true,
+  "todo-tree.highlights.defaultHighlight": {
+    "type": "tag",
+    "icon": "check",
+    "foreground": "#1f2937",
+    "background": "#fde047",
+    "iconColour": "#f59e0b",
+    "gutterIcon": true
+  },
+  "todo-tree.highlights.customHighlight": {
+    "TODO": {
+      "type": "tag",
+      "foreground": "#1f2937",
+      "background": "#fde047",
+      "icon": "check",
+      "iconColour": "#f59e0b",
+      "gutterIcon": true
+    },
+    "FIXME": {
+      "type": "tag",
+      "foreground": "#ffffff",
+      "background": "#dc2626",
+      "icon": "flame",
+      "iconColour": "#dc2626",
+      "gutterIcon": true
+    },
+    "BUG": {
+      "type": "tag",
+      "foreground": "#ffffff",
+      "background": "#b91c1c",
+      "icon": "bug",
+      "iconColour": "#b91c1c",
+      "gutterIcon": true
+    },
+    "HACK": {
+      "type": "tag",
+      "foreground": "#ffffff",
+      "background": "#7c3aed",
+      "icon": "zap",
+      "iconColour": "#7c3aed",
+      "gutterIcon": true
+    },
+    "XXX": {
+      "type": "tag",
+      "foreground": "#ffffff",
+      "background": "#ea580c",
+      "icon": "alert",
+      "iconColour": "#ea580c",
+      "gutterIcon": true
+    }
+  }
+}

@@ -31,7 +31,7 @@ const {
 
 export const ROLE_ASIDE_PERMISSIONS = {
   // 객체의 key를 변수/표현식으로 쓸 때 [UserRole.Super] == "super"
-  [UserRole.super]: [
+  [UserRole.admin]: [
     dashboardRead,
     attendanceRead,
     studentsRead,
