@@ -4,6 +4,9 @@ export const UserStatus = {
   suspended: "suspended",
 } as const;
 
+// TODO: make detail
+export type StaffRole = "CEO" | "CFO" | "CTO" | "Staff" | "Instructor";
+
 export type UserStatusType = (typeof UserStatus)[keyof typeof UserStatus];
 
 export const UserRole = {
@@ -17,19 +20,21 @@ export const UserRole = {
 
 export type UserRoleType = (typeof UserRole)[keyof typeof UserRole];
 
-export interface User {
+export type User = {
   id: number;
   username: string;
-  role: UserRoleType;
+  userRole: UserRoleType;
+  staffRole?: StaffRole;
   status: UserStatusType;
   email?: string;
   phone?: string;
-}
+};
 
 // FIXME: delete after test
 export const DemoUser: User = {
   id: 123,
   username: "김사과",
-  role: UserRole.admin,
+  userRole: UserRole.admin,
+  staffRole: "CTO",
   status: UserStatus.active,
-};
+} as const;

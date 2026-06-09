@@ -9,12 +9,7 @@ const sizeMap: Record<ButtonSize, string> = {
   lg: "px-6 py-3 text-base",
 };
 
-export default function Button({
-  size = "md",
-  label,
-  onClick,
-  disabled = false,
-}: ButtonProps) {
+export default function Button({ size = "md", label, onClick, disabled = false }: ButtonProps) {
   return (
     <button
       type="button"
