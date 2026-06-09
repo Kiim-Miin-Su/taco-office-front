@@ -1,7 +1,13 @@
 "use client";
 
-import type ButtonProps from "./props/button_props";
-import type { ButtonSize } from "./props/button_props";
+export type ButtonSize = "sm" | "md" | "lg";
+
+type ButtonProps = {
+  size?: ButtonSize;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+};
 
 const sizeMap: Record<ButtonSize, string> = {
   sm: "px-3 py-1.5 text-xs",
