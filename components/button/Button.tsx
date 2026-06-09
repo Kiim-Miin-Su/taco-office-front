@@ -5,7 +5,7 @@ export type ButtonSize = "sm" | "md" | "lg";
 type ButtonProps = {
   size?: ButtonSize;
   label: string;
-  onClick?: () => void;
+  onClick?: (event:React.MouseEvent) => void;
   disabled?: boolean;
 };
 
