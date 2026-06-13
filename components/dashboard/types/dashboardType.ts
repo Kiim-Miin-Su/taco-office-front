@@ -6,7 +6,6 @@ export type DashboardOptions = "";
 export type DashboardItem = {
   id: string;
   label: string;
-  // href: string; // FIXME: delete if not used
   permission: DashboardPermission;
 };
 

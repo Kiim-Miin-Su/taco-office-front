@@ -56,5 +56,13 @@
       "iconColour": "#ea580c",
       "gutterIcon": true
     }
+  },
+  "chat.mcp.serverSampling": {
+    "taco-office-front/.mcp.json: figma": {
+      "allowedModels": [
+        "copilot/auto",
+        "copilotcli/claude-haiku-4.5"
+      ]
+    }
   }
 }

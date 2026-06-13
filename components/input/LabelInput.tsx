@@ -1,15 +1,12 @@
-export type InputType = "text" | "email";
-export type TextInfoType = "email" | "name";
-
+import { InterestType, PreferTimeType, TextInfoType } from '../../app/form/formAction';
 type InputProps = {
-  inputType: InputType;
-  infoType: TextInfoType;
-  placeHolder: string;
+  inputType: InterestType | PreferTimeType;
+  infoType: "label";
   value: string;
   onChange: (name: TextInfoType, value: string) => void;
 };
 
-export default function Input({ inputType, infoType, placeHolder, value, onChange }: InputProps) {
+export default function LabelInput({ inputType, infoType, placeHolder, value, onChange }: InputProps) {
 
   return (
     <>

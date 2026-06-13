@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.mcp.json
 
 # vercel
 .vercel
@@ -44,3 +45,9 @@ next-env.d.ts
 # .md
 INSTRUCTION.md
 dashboard.md
+SKILL.md
+.config.toml
+
+# draw
+.excalidraw
+.drawio
