@@ -1,0 +1,21 @@
+@import '../styles/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 전역과 레이아웃은 여기 · 컴포넌트 낱개는 Tailwind (D-R41 · STACK.md §2.2) */
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--f-sans);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
