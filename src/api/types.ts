@@ -27,6 +27,19 @@ export type Occurrence = S['OccurrenceDto'];
 export type OccurrenceList = S['OccurrenceListDto'];
 export type OccStudent = S['OccStudentDto'];
 
+/** 리포트 */
+export type ReportRow = S['ReportRowDto'];
+export type ReportList = S['ReportListDto'];
+export type Unwritten = S['UnwrittenDto'];
+export type UnwrittenByTeacher = S['UnwrittenByTeacherDto'];
+
+/** 회계 — 금액은 canSeeProfit 이 아니면 서버가 null 로 내려준다 (D-R39) */
+export type Accounting = S['AccountingDto'];
+export type Invoice = S['InvoiceDto'];
+export type Payment = S['PaymentDto'];
+export type Payout = S['PayoutDto'];
+export type MoneySummary = S['MoneySummaryDto'];
+
 /** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
 export type RepState = Occurrence['repState'];
 export type LoginBody = S['LoginDto'];

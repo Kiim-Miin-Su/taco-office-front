@@ -123,6 +123,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 리포트 목록 */
+        get: operations["ReportsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/unwritten": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** §47 안 쓴 리포트 — 강사별 밀린 건수와 예상 차감 */
+        get: operations["ReportsController_unwritten"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 회계 — 청구서 · 입금 · 정산. 금액은 대표만 값이 채워진다 */
+        get: operations["AccountingController_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -254,6 +305,117 @@ export interface components {
             /** @example 2026-08-30 */
             to: string;
             items: components["schemas"]["OccurrenceDto"][];
+        };
+        ReportStudentDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+        };
+        ReportRowDto: {
+            id: number;
+            serId: number;
+            /** @example 2026-08-27 */
+            date: string;
+            startMin: number;
+            subKey?: string | null;
+            kindKey: string;
+            teacherId?: number | null;
+            teacherName?: string | null;
+            /** @enum {string} */
+            state: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            /** @description 썼는가 — 정산 조건 (D-R7) */
+            written: boolean;
+            students: components["schemas"]["ReportStudentDto"][];
+            /** @description 수업이 끝난 뒤 지난 분. 음수면 아직 안 끝났다 */
+            minutesSinceEnd: number;
+            /** @description 지금 확정하면 깎이는 금액 (D-R32) */
+            penalty: number;
+        };
+        ReportListDto: {
+            items: components["schemas"]["ReportRowDto"][];
+        };
+        UnwrittenByTeacherDto: {
+            teacherId: number;
+            teacherName: string;
+            count: number;
+            /** @description 가장 오래된 것 */
+            oldestDate?: string | null;
+            /** @description 1시간 넘긴 건수 */
+            over1h: number;
+            /** @description 4시간 넘긴 건수 */
+            over4h: number;
+            /** @description 예상 차감 합계 */
+            penalty: number;
+        };
+        UnwrittenDto: {
+            byTeacher: components["schemas"]["UnwrittenByTeacherDto"][];
+            total: number;
+            penaltyTotal: number;
+            items: components["schemas"]["ReportRowDto"][];
+        };
+        MoneySummaryDto: {
+            invoiceCount: number;
+            billed: number | null;
+            collected: number | null;
+            outstanding: number | null;
+            overdueCount: number;
+            /** @description 금액을 볼 수 있는가 (D-R39 canSeeProfit) */
+            canSeeAmounts: boolean;
+        };
+        InvoiceLineDto: {
+            subKey?: string | null;
+            label: string;
+            count: number;
+            unitPrice: number;
+            amount: number;
+        };
+        InvoiceDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            grade?: string | null;
+            yearMonth: string;
+            title: string;
+            /** @description 금액 — canSeeProfit 이 아니면 null 로 내려간다 (D-R39) */
+            amount: number | null;
+            paidAmount: number | null;
+            /** @enum {string} */
+            state: "draft" | "sent" | "unpaid" | "partial" | "paid" | "void";
+            issuedOn?: string | null;
+            dueOn?: string | null;
+            paidAt?: string | null;
+            /** @description 예정일이 지났는데 안 들어온 날 수. 0이면 연체 아님 */
+            overdueDays: number;
+            lines: components["schemas"]["InvoiceLineDto"][];
+        };
+        PaymentDto: {
+            id: number;
+            paidOn: string;
+            studentId?: number | null;
+            studentName?: string | null;
+            amount: number | null;
+            method?: string | null;
+            invId?: number | null;
+        };
+        PayoutDto: {
+            id: number;
+            staffId: number;
+            staffName: string;
+            yearMonth: string;
+            hours: string;
+            gross: number | null;
+            /** @description 리포트 지연 차감 (D-R32) */
+            lateRepCut: number | null;
+            incomeTax: number | null;
+            localTax: number | null;
+            net: number | null;
+            state: string;
+        };
+        AccountingDto: {
+            summary: components["schemas"]["MoneySummaryDto"];
+            invoices: components["schemas"]["InvoiceDto"][];
+            payments: components["schemas"]["PaymentDto"][];
+            payouts: components["schemas"]["PayoutDto"][];
         };
     };
     responses: never;
@@ -399,6 +561,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OccurrenceListDto"];
+                };
+            };
+        };
+    };
+    ReportsController_list: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                teacherId?: string;
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportListDto"];
+                };
+            };
+        };
+    };
+    ReportsController_unwritten: {
+        parameters: {
+            query?: {
+                teacherId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnwrittenDto"];
+                };
+            };
+        };
+    };
+    AccountingController_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingDto"];
                 };
             };
         };
