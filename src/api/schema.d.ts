@@ -89,6 +89,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 코드표 — 수업 종류 · 과목 · 강의실 · 줌 · 구성원 · 학생 */
+        get: operations["MetaController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/occurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 회차 목록 — 일간·주간·월간·학생별·선생님별이 모두 이것을 쓴다 */
+        get: operations["ScheduleController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -127,6 +161,99 @@ export interface components {
         };
         RefreshResultDto: {
             accessToken: string;
+        };
+        KindDto: {
+            key: string;
+            name: string;
+            /** @description 토큰과 같은 값 — 화면은 이 색을 쓰기만 한다 */
+            color: string;
+            cap: number;
+            /** @enum {string} */
+            grp: "lesson" | "intake" | "meeting";
+            /** @description 리포트 대상인가 (D-4) */
+            rep: boolean;
+        };
+        SubDto: {
+            key: string;
+            name: string;
+            color: string;
+        };
+        RoomDto: {
+            id: number;
+            branch: string;
+            name: string;
+            capacity?: number | null;
+        };
+        ZaccDto: {
+            id: number;
+            label: string;
+            meetingId?: string | null;
+        };
+        StaffBriefDto: {
+            id: number;
+            name: string;
+            /** @enum {string} */
+            role: "teacher" | "manager" | "admin" | "ceo";
+            /** @description 표시용 직함 — 권한과 무관하다 (D-R39) */
+            title?: string | null;
+        };
+        StudentBriefDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            school?: string | null;
+        };
+        MetaDto: {
+            kinds: components["schemas"]["KindDto"][];
+            subs: components["schemas"]["SubDto"][];
+            rooms: components["schemas"]["RoomDto"][];
+            zaccs: components["schemas"]["ZaccDto"][];
+            staff: components["schemas"]["StaffBriefDto"][];
+            students: components["schemas"]["StudentBriefDto"][];
+        };
+        OccStudentDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            /** @description 그날만 빠진 학생인가 (D-R21) */
+            droppedOnce: boolean;
+        };
+        OccurrenceDto: {
+            /** @description 반복 규칙 id */
+            serId: number;
+            /** @example 2026-08-28 */
+            date: string;
+            /** @description 자정부터 분 */
+            startMin: number;
+            endMin: number;
+            kindKey: string;
+            subKey?: string | null;
+            title?: string | null;
+            teacherId?: number | null;
+            teacherName?: string | null;
+            roomId?: number | null;
+            roomName?: string | null;
+            zaccId?: number | null;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            canceled: boolean;
+            /** @description 이 회차에 예외가 붙었는가 */
+            hasException: boolean;
+            /**
+             * @description 리포트 상태. 캘린더 블록 색이 이 값에서 나온다 (D-R7 · V26 §2.3)
+             * @enum {string}
+             */
+            repState: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            /** @description 리포트를 썼는가 — 정산에 들어가는 조건 하나 (D-R7) */
+            written: boolean;
+            students: components["schemas"]["OccStudentDto"][];
+        };
+        OccurrenceListDto: {
+            /** @example 2026-08-24 */
+            from: string;
+            /** @example 2026-08-30 */
+            to: string;
+            items: components["schemas"]["OccurrenceDto"][];
         };
     };
     responses: never;
@@ -228,6 +355,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeDto"];
+                };
+            };
+        };
+    };
+    MetaController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_list: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                teacherId?: string;
+                studentId?: string;
+                roomId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OccurrenceListDto"];
                 };
             };
         };

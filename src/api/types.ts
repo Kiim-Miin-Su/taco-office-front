@@ -12,6 +12,23 @@ import type { components } from './schema';
 type S = components['schemas'];
 
 export type Me = S['MeDto'];
+
+/** 코드표 — 색과 이름의 유일한 출처. 프론트에 KIND/SUB 를 복사해 두지 않는다 (D-R18) */
+export type Meta = S['MetaDto'];
+export type Kind = S['KindDto'];
+export type Sub = S['SubDto'];
+export type Room = S['RoomDto'];
+export type Zacc = S['ZaccDto'];
+export type StaffBrief = S['StaffBriefDto'];
+export type StudentBrief = S['StudentBriefDto'];
+
+/** 스케줄 — 탭 01 의 다섯 화면이 이 한 모양을 쓰고 묶는 방법만 다르다 */
+export type Occurrence = S['OccurrenceDto'];
+export type OccurrenceList = S['OccurrenceListDto'];
+export type OccStudent = S['OccStudentDto'];
+
+/** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
+export type RepState = Occurrence['repState'];
 export type LoginBody = S['LoginDto'];
 export type LoginResult = S['LoginResultDto'];
 export type RefreshResult = S['RefreshResultDto'];

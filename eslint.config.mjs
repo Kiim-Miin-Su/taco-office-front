@@ -27,4 +27,10 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // 토큰이 v2 값인지 **검사하는** 파일은 hex 를 적어야 한다.
+    // 여기까지 막으면 「색이 두 벌인지」를 확인할 방법이 없어진다 — 규칙의 목적과 반대다.
+    files: ['src/**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': 'off' },
+  },
 );
