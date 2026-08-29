@@ -174,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
+        get: operations["OpsController_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -417,6 +434,101 @@ export interface components {
             payments: components["schemas"]["PaymentDto"][];
             payouts: components["schemas"]["PayoutDto"][];
         };
+        LeadDto: {
+            id: number;
+            name: string;
+            school?: string | null;
+            /** @description first | wait2nd | second | hold | enrolled | failed */
+            stage: string;
+            ownerName?: string | null;
+            /** @description 실패한 경우 어디서 멈췄나 (§24) */
+            stopAt?: string | null;
+            reason?: string | null;
+            createdAt: string;
+            /** @description 접수한 지 며칠 */
+            ageDays: number;
+        };
+        ComplaintDto: {
+            id: number;
+            /** @enum {string} */
+            area: "lesson" | "intake" | "book" | "schedule" | "teacher";
+            studentName?: string | null;
+            /** @description received | acting | closed */
+            stage: string;
+            body: string;
+            action?: string | null;
+            result?: string | null;
+            createdAt: string;
+            ageDays: number;
+        };
+        TodoDto: {
+            id: number;
+            title: string;
+            toName?: string | null;
+            dueOn?: string | null;
+            done: boolean;
+            /** @enum {string} */
+            src: "meeting" | "complaint" | "consulting" | "plan" | "manual";
+            /** @description 기한이 지난 날 수. 0이면 안 지남 */
+            overdueDays: number;
+        };
+        PlanDto: {
+            id: number;
+            title: string;
+            /** @description draft | review | rework | approved | done */
+            stage: string;
+            goal?: string | null;
+            ask?: string | null;
+            dueOn?: string | null;
+            ownerName?: string | null;
+            overdueDays: number;
+        };
+        MeetingDto: {
+            id: number;
+            mtType: string;
+            title?: string | null;
+            onDate?: string | null;
+            attendees: number;
+            confirmed: number;
+            /** @description 속기록을 썼는가 — 안 쓰면 회의가 끝난 것이 아니다 */
+            hasMinutes: boolean;
+        };
+        MarketingDto: {
+            id: number;
+            channel: string;
+            item: string;
+            url?: string | null;
+            impressions?: number | null;
+            clicks?: number | null;
+            inquiries?: number | null;
+            enrolled?: number | null;
+            /** @description 집행 비용 — 대표만 (D-R39) */
+            cost?: number | null;
+            /** @description 등록당 비용 */
+            costPerEnroll?: number | null;
+        };
+        SuggestionDto: {
+            id: number;
+            staffName: string;
+            /** @enum {string} */
+            category: "lesson" | "pay" | "schedule" | "etc";
+            body: string;
+            /** @enum {string} */
+            state: "open" | "reviewing" | "done";
+            reply?: string | null;
+            createdAt: string;
+        };
+        OpsDto: {
+            leads: components["schemas"]["LeadDto"][];
+            complaints: components["schemas"]["ComplaintDto"][];
+            todos: components["schemas"]["TodoDto"][];
+            plans: components["schemas"]["PlanDto"][];
+            meetings: components["schemas"]["MeetingDto"][];
+            marketing: components["schemas"]["MarketingDto"][];
+            suggestions: components["schemas"]["SuggestionDto"][];
+            /** @description 집행 비용을 볼 수 있는가 */
+            canSeeAmounts: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -625,6 +737,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountingDto"];
+                };
+            };
+        };
+    };
+    OpsController_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsDto"];
                 };
             };
         };

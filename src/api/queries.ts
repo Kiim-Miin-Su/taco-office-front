@@ -7,7 +7,7 @@
  */
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { api } from './client';
-import type { Accounting, Meta, OccurrenceList, ReportList, Unwritten } from './types';
+import type { Accounting, Meta, OccurrenceList, Ops, ReportList, Unwritten } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
 export const qk = {
@@ -16,6 +16,7 @@ export const qk = {
   reports: (p: ReportParams) => ['reports', p] as const,
   unwritten: (teacherId?: number) => ['reports', 'unwritten', teacherId ?? 'all'] as const,
   accounting: ['accounting'] as const,
+  ops: ['ops'] as const,
 };
 
 export interface OccParams {
@@ -74,6 +75,14 @@ export function useAccounting(): UseQueryResult<Accounting> {
   return useQuery({
     queryKey: qk.accounting,
     queryFn: async () => (await api.get<Accounting>('/accounting')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useOps(): UseQueryResult<Ops> {
+  return useQuery({
+    queryKey: qk.ops,
+    queryFn: async () => (await api.get<Ops>('/ops')).data,
     staleTime: 60 * 1000,
   });
 }

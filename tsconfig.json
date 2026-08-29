@@ -34,10 +34,11 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    "/sessions/rcw-01wdrsjamayjlzrgm4aqdkyt/nextdist/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next",
+    "_to_delete"
   ]
 }

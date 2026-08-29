@@ -6,3 +6,4 @@ out/
 *.tsbuildinfo
 .vercel/
 coverage/
+_to_delete/

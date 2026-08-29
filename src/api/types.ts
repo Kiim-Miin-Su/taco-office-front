@@ -40,6 +40,16 @@ export type Payment = S['PaymentDto'];
 export type Payout = S['PayoutDto'];
 export type MoneySummary = S['MoneySummaryDto'];
 
+/** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
+export type Ops = S['OpsDto'];
+export type Lead = S['LeadDto'];
+export type Complaint = S['ComplaintDto'];
+export type Todo = S['TodoDto'];
+export type Plan = S['PlanDto'];
+export type Meeting = S['MeetingDto'];
+export type Marketing = S['MarketingDto'];
+export type Suggestion = S['SuggestionDto'];
+
 /** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
 export type RepState = Occurrence['repState'];
 export type LoginBody = S['LoginDto'];

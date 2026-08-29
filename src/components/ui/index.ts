@@ -7,6 +7,7 @@ export { Banner } from './Banner';
 export { Table, type Column } from './Table';
 export { PageHeader } from './PageHeader';
 export { Panel, LevelBar } from './Panel';
+export { Board, type BoardColumn } from './Board';
 export { Segmented, Tabs } from './Segmented';
 export { Label, FieldError, Input, Select, Textarea, Checkbox, CountedTextarea } from './Field';
 export { Drawer, Dialog, RecurrenceScope, ConflictGuard, Toast, type Scope } from './Overlay';
