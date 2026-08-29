@@ -2,7 +2,8 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['.next/**', 'node_modules/**', '_to_delete/**', 'src/api/schema.d.ts'] },
+  // 생성물은 검사하지 않는다 — next-env.d.ts 와 schema.d.ts 는 우리가 쓴 코드가 아니다.
+  { ignores: ['.next/**', 'node_modules/**', '_to_delete/**', 'sessions/**', 'next-env.d.ts', 'src/api/schema.d.ts'] },
   ...tseslint.configs.recommended,
   {
     files: ['src/**/*.{ts,tsx}'],
