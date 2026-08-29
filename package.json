@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "TACO ERP 화면 — Next.js 15 · CSS Modules + Tailwind",
-  "engines": { "node": ">=22 <25" },
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

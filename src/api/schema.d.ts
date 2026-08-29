@@ -191,6 +191,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consulting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 컨설팅 — 건 · 학생 · 회차 기록 (§29 · §30) */
+        get: operations["ConsultingController_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 수업 현황판 — 교재·안내·줌·리포트 4마크를 매번 계산한다 (§34 · D-R4) */
+        get: operations["BoardController_range"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 교재 — 코드 · 과목 · 쪽수 · SE/TE (§36) */
+        get: operations["BooksController_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 수업 안내 — 한 번만(GUIDE) · 회차마다(PNOTI) (§41 · §42) */
+        get: operations["GuidesController_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 대표 보고 — 집계는 저장하지 않는다 (§69 · D-R4 · D-R39) */
+        get: operations["ExecController_range"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -529,6 +614,188 @@ export interface components {
             /** @description 집행 비용을 볼 수 있는가 */
             canSeeAmounts: boolean;
         };
+        ConsultingSessionDto: {
+            id: number;
+            /** @description 몇 번째 회차 */
+            seq: number;
+            onDate: string;
+            who?: string | null;
+            what?: string | null;
+            why?: string | null;
+            how?: string | null;
+            /** @description 연결된 수업이 있으면 그 SER */
+            serId?: number | null;
+        };
+        ConsultingDto: {
+            id: number;
+            /**
+             * @description 종류 10종 중 시드에 있는 것
+             * @enum {string}
+             */
+            consType: "admissions" | "essay" | "roadmap";
+            /**
+             * @description 계약 → 진행 → 종료
+             * @enum {string}
+             */
+            stage: "contract" | "running" | "done";
+            /** @description 계약 5단계 — 계약서 → 피드백 → 학부모 전달 → 서명본 → 수납 */
+            contractStep?: number | null;
+            studentNames: string[];
+            ownerName?: string | null;
+            sessions?: number | null;
+            endOn?: string | null;
+            createdAt: string;
+            /** @description 대표가 아니면 null */
+            amount?: number | null;
+            /**
+             * @description 전체 공개 · 수납만 공개 · 지정 공개 · 전체 비공개
+             * @enum {string}
+             */
+            share: "all" | "money_only" | "picked" | "private";
+            /** @description 내용(회차 기록)을 열 수 있는가 — csCanFull() */
+            canOpen: boolean;
+            sessionsLog: components["schemas"]["ConsultingSessionDto"][];
+        };
+        ConsultingListDto: {
+            items: components["schemas"]["ConsultingDto"][];
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
+        };
+        CheckMarkDto: {
+            /** @enum {string} */
+            key: "book" | "guide" | "zoom" | "report";
+            /** @description 지금 이 순간의 판정 */
+            done: boolean;
+            /** @description 해당 없음이면 판정하지 않는다 — 오프라인 수업의 줌 같은 것 */
+            na: boolean;
+            /** @description 왜 이렇게 판정했는지 한 줄 */
+            note?: string | null;
+        };
+        BoardRowDto: {
+            occId: number;
+            serId: number;
+            onDate: string;
+            /** @description HH:MM */
+            startAt: string;
+            /** @description HH:MM */
+            endAt: string;
+            teacherName?: string | null;
+            roomName?: string | null;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            kindKey: string;
+            kindName?: string | null;
+            studentNames: string[];
+            canceled: boolean;
+            /** @description 교재 · 안내 · 줌 · 리포트 */
+            marks: components["schemas"]["CheckMarkDto"][];
+            /** @description 판정 대상 중 덜 된 개수. 0이면 다 됐다 */
+            missing: number;
+        };
+        BoardDto: {
+            from: string;
+            to: string;
+            rows: components["schemas"]["BoardRowDto"][];
+            /** @description 덜 된 수업 수 — 화면 위 배지 */
+            missingCount: number;
+            /** @description 저장하지 않는다는 사실을 화면이 그대로 적을 수 있게 (D-R4) */
+            computedAt: string;
+        };
+        BookDto: {
+            /** @description 교재 코드 — 카드에 그대로 보인다 */
+            code: string;
+            id: number;
+            title: string;
+            subKey?: string | null;
+            subName?: string | null;
+            level?: string | null;
+            grade?: string | null;
+            pages?: number | null;
+            /** @description SE 학생용 · TE 교사용 */
+            seTe?: string | null;
+        };
+        BooksDto: {
+            items: components["schemas"]["BookDto"][];
+            /** @description 과목별 권수 — 필터 칩에 쓴다 */
+            bySub: {
+                [key: string]: number;
+            };
+        };
+        GuideDto: {
+            id: number;
+            /** @description new(첫 수업) | teacher_change(강사 교체) */
+            reason: string;
+            /**
+             * @description draft·ready 가 아직 안 보낸 것
+             * @enum {string}
+             */
+            state: "draft" | "ready" | "sent" | "read";
+            studentName?: string | null;
+            teacherName?: string | null;
+            serTitle?: string | null;
+            body?: string | null;
+            dueOn?: string | null;
+            createdAt: string;
+            /** @description 기한이 지난 날 수. 0이면 안 지남 */
+            overdueDays: number;
+        };
+        PerLessonNoticeDto: {
+            id: number;
+            onDate: string;
+            /** @enum {string} */
+            channel: "sms" | "kakao" | "email" | "app";
+            studentName?: string | null;
+            serTitle?: string | null;
+            body: string;
+            /** @description 아직 안 보냈으면 null */
+            sentAt?: string | null;
+        };
+        GuidesDto: {
+            /** @description 한 번만 나가는 안내 */
+            guides: components["schemas"]["GuideDto"][];
+            /** @description 회차마다 나가는 안내 */
+            perLesson: components["schemas"]["PerLessonNoticeDto"][];
+            /** @description 아직 안 보낸 안내 수 */
+            todoCount: number;
+            /** @description 강사면 자기 것만 본다 — 그 강사 id */
+            scopedTeacherId?: number | null;
+        };
+        ExecStatDto: {
+            key: string;
+            label: string;
+            /** @description 볼 권한이 없으면 null (D-R39) */
+            value?: number | null;
+            unit?: string | null;
+            /** @description 금액이라 권한을 타는 칸인가 */
+            money: boolean;
+        };
+        ExecReportDto: {
+            id: number;
+            /** @enum {string} */
+            rptType: "day" | "week" | "month";
+            onDate: string;
+            /**
+             * @description rep_state_t 를 그대로 쓴다
+             * @enum {string}
+             */
+            state: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            /** @description D-R14 — 한 줄이라도 적어야 제출된다. jsonb 의 note 를 꺼내 문자열로 내린다 */
+            memo: string;
+            sentAt?: string | null;
+            reviewedAt?: string | null;
+            /** @description D-R13 — 반려(rej)하면 사유가 반드시 있다 */
+            rejectReason?: string | null;
+        };
+        ExecDto: {
+            from: string;
+            to: string;
+            stats: components["schemas"]["ExecStatDto"][];
+            reports: components["schemas"]["ExecReportDto"][];
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
+            /** @description 저장하지 않는다 — 이 시각에 센 값이다 (D-R4) */
+            computedAt: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -756,6 +1023,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpsDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultingListDto"];
+                };
+            };
+        };
+    };
+    BoardController_range: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardDto"];
+                };
+            };
+        };
+    };
+    BooksController_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BooksDto"];
+                };
+            };
+        };
+    };
+    GuidesController_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuidesDto"];
+                };
+            };
+        };
+    };
+    ExecController_range: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecDto"];
                 };
             };
         };

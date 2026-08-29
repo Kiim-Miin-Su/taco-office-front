@@ -7,7 +7,10 @@
  */
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { api } from './client';
-import type { Accounting, Meta, OccurrenceList, Ops, ReportList, Unwritten } from './types';
+import type {
+  Accounting, Board, Books, Exec, Guides, Meta,
+  OccurrenceList, Ops, ReportList, ConsultingList, Unwritten,
+} from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
 export const qk = {
@@ -17,7 +20,18 @@ export const qk = {
   unwritten: (teacherId?: number) => ['reports', 'unwritten', teacherId ?? 'all'] as const,
   accounting: ['accounting'] as const,
   ops: ['ops'] as const,
+  consulting: ['consulting'] as const,
+  books: ['books'] as const,
+  guides: ['guides'] as const,
+  board: (p: RangeParams) => ['board', p] as const,
+  exec: (p: RangeParams) => ['exec', p] as const,
 };
+
+/** from · to 만 받는 화면들이 같은 모양을 쓴다 */
+export interface RangeParams {
+  from: string;
+  to: string;
+}
 
 export interface OccParams {
   from: string;
@@ -84,5 +98,53 @@ export function useOps(): UseQueryResult<Ops> {
     queryKey: qk.ops,
     queryFn: async () => (await api.get<Ops>('/ops')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/** §29 컨설팅 — 금액은 canSeeAmounts 가 false 면 서버가 null 로 내려준다 */
+export function useConsulting(): UseQueryResult<ConsultingList> {
+  return useQuery({
+    queryKey: qk.consulting,
+    queryFn: async () => (await api.get<ConsultingList>('/consulting')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** §36 교재 — 거의 안 바뀐다 */
+export function useBooks(): UseQueryResult<Books> {
+  return useQuery({
+    queryKey: qk.books,
+    queryFn: async () => (await api.get<Books>('/books')).data,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** §41·§42 안내 — 강사면 서버가 자기 것만 내려준다 */
+export function useGuides(): UseQueryResult<Guides> {
+  return useQuery({
+    queryKey: qk.guides,
+    queryFn: async () => (await api.get<Guides>('/guides')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * §34 수업 현황판 — 저장하지 않는 값이라 **오래 들고 있으면 안 된다** (D-R4).
+ * 교재를 방금 배부했는데 마크가 그대로면 화면을 아무도 안 믿는다.
+ */
+export function useBoard(p: RangeParams): UseQueryResult<Board> {
+  return useQuery({
+    queryKey: qk.board(p),
+    queryFn: async () => (await api.get<Board>('/board', { params: p })).data,
+    staleTime: 10 * 1000,
+  });
+}
+
+/** §69 대표 보고 — 여기도 집계는 저장하지 않는다 (D-R4) */
+export function useExec(p: RangeParams): UseQueryResult<Exec> {
+  return useQuery({
+    queryKey: qk.exec(p),
+    queryFn: async () => (await api.get<Exec>('/exec', { params: p })).data,
+    staleTime: 30 * 1000,
   });
 }

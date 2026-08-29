@@ -50,6 +50,30 @@ export type Meeting = S['MeetingDto'];
 export type Marketing = S['MarketingDto'];
 export type Suggestion = S['SuggestionDto'];
 
+/** 컨설팅 — 금액은 대표만 (D-R39) */
+export type ConsultingList = S['ConsultingListDto'];
+export type Consulting = S['ConsultingDto'];
+export type ConsultingSession = S['ConsultingSessionDto'];
+
+/** 교재 */
+export type Books = S['BooksDto'];
+export type Book = S['BookDto'];
+
+/** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */
+export type Guides = S['GuidesDto'];
+export type Guide = S['GuideDto'];
+export type PerLessonNotice = S['PerLessonNoticeDto'];
+
+/** 수업 현황판 — 저장하지 않는다. 매번 계산된 값이 내려온다 (D-R4) */
+export type Board = S['BoardDto'];
+export type BoardRow = S['BoardRowDto'];
+export type CheckMark = S['CheckMarkDto'];
+
+/** 대표 보고 — 집계도 저장하지 않는다 (D-R4) */
+export type Exec = S['ExecDto'];
+export type ExecStat = S['ExecStatDto'];
+export type ExecReport = S['ExecReportDto'];
+
 /** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
 export type RepState = Occurrence['repState'];
 export type LoginBody = S['LoginDto'];

@@ -43,7 +43,7 @@ export interface ChipProps {
 export function Chip({ tone = 'neutral', styleKind = 'soft', children, className }: ChipProps) {
   const look = styleKind === 'solid' ? SOLID[tone] : styleKind === 'outline' ? OUTLINE[tone] : SOFT[tone];
   return (
-    <span className={cn('inline-flex h-[22px] items-center rounded-full px-2 text-[11px] font-bold', look, className)}>
+    <span className={cn('inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-bold', look, className)}>
       {children}
     </span>
   );
