@@ -5,8 +5,10 @@
 'use client';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '../ui/cn';
+import { useSession } from '@/store/useSession';
+import { api } from '@/api/client';
 
 const TABS = [
   { href: '/schedule', label: '스케줄' },
@@ -21,8 +23,17 @@ const TABS = [
   { href: '/exec', label: '대표 보고' },
 ];
 
-export function AppShell({ children, userLabel }: { children: ReactNode; userLabel?: string }) {
+export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const me = useSession((s) => s.me);
+  const signOut = useSession((s) => s.signOut);
+
+  async function out() {
+    try { await api.post('/auth/logout'); } catch { /* 쿠키가 이미 없을 수 있다 */ }
+    signOut();
+    router.replace('/login');
+  }
   return (
     <div className="min-h-screen bg-bg">
       <header className="flex h-[50px] items-center gap-1 bg-fg px-4">
@@ -44,7 +55,15 @@ export function AppShell({ children, userLabel }: { children: ReactNode; userLab
             );
           })}
         </nav>
-        <span className="ml-3 text-[11px] text-line-2">{userLabel ?? ''}</span>
+        <span className="ml-3 whitespace-nowrap text-[11px] text-line-2">
+          {me ? `${me.name} · ${me.title ?? ''}` : ''}
+        </span>
+        <button
+          type="button" onClick={out}
+          className="ml-2 rounded-md px-2 py-1 text-[11px] font-bold text-line-2 hover:bg-white/10"
+        >
+          로그아웃
+        </button>
       </header>
       <main className="mx-auto max-w-[1440px] p-6">{children}</main>
     </div>

@@ -7,12 +7,17 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
+import { RequireAuth } from '@/components/shell/RequireAuth';
 import { EventBlock } from '@/components/cal/EventBlock';
 import { Banner, Button, Chip, PageHeader, StatCard } from '@/components/ui';
 import { useMeta, useOccurrences } from '@/api/queries';
 
-/** 시드 기준일 — 서버가 들고 있는 데이터가 이 근처다 */
-const TODAY = '2026-08-28';
+/**
+ * 오늘(KST). 고정 문자열로 두면 시간이 지나면서 화면이 과거를 가리킨다 —
+ * 시드도 같은 기준으로 「오늘」을 잡는다.
+ */
+const todayKst = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+const TODAY = todayKst();
 const addDays = (iso: string, n: number) => {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -43,7 +48,7 @@ export default function SchedulePage() {
   const unwritten = items.filter((o) => !o.written && !o.canceled && o.repState !== 'na').length;
 
   return (
-    <AppShell userLabel="개발 시드 데이터">
+    <RequireAuth><AppShell>
       <PageHeader
         title="전체 시간표 · 일간"
         sub="선생님별로 세로로 끊어 봅니다. 블록 색은 리포트를 썼는가이고, 점선은 비대면입니다."
@@ -95,6 +100,6 @@ export default function SchedulePage() {
         블록 색은 <b>리포트를 썼는가</b> 하나만 말합니다 — 정산에 들어가는 조건도 같습니다 (D-R7).
         승인 여부는 색을 바꾸지 않습니다.
       </Banner>
-    </AppShell>
+    </AppShell></RequireAuth>
   );
 }
