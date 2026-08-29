@@ -7,3 +7,6 @@ out/
 .vercel/
 coverage/
 _to_delete/
+
+# NEXT_DIST_DIR 에 절대경로를 주면 여기에 폴더가 생긴다 (상대경로만 허용)
+/sessions/
