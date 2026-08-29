@@ -22,11 +22,11 @@ export function Panel({ title, sub, right, children, className }: {
 }
 
 /** Data/Level Bar — 진행률 막대 */
-export function LevelBar({ value, tone = 'blue', label }: { value: number; tone?: 'blue' | 'green' | 'amber' | 'red'; label?: ReactNode }) {
+export function LevelBar({ value, tone = 'blue', label, className }: { value: number; tone?: 'blue' | 'green' | 'amber' | 'red'; label?: ReactNode; className?: string }) {
   const pct = Math.max(0, Math.min(1, value));
   const bar = { blue: 'bg-blue', green: 'bg-green', amber: 'bg-amber', red: 'bg-red' }[tone];
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn('flex items-center gap-2', className)}>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
         <div className={cn('h-full rounded-full', bar)} style={{ width: `${pct * 100}%` }} />
       </div>

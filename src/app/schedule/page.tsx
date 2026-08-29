@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { EventBlock } from '@/components/cal/EventBlock';
+import { Legend } from '@/components/cal/Legend';
 import { Banner, Button, Chip, PageHeader, StatCard } from '@/components/ui';
 import { useMeta, useOccurrences } from '@/api/queries';
 
@@ -68,6 +69,8 @@ export default function SchedulePage() {
         <StatCard label="안 씀" value={unwritten} tone={unwritten ? 'danger' : 'neutral'} />
         <StatCard label="취소" value={items.filter((o) => o.canceled).length} tone="neutral" />
       </div>
+
+      <Legend />
 
       {occ.isLoading ? (
         <Banner tone="neutral">불러오는 중…</Banner>

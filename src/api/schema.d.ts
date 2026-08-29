@@ -207,7 +207,7 @@ export interface components {
             /** @enum {string} */
             role: "teacher" | "manager" | "admin" | "ceo";
             /** @description 직함 — 권한과 무관 */
-            title: Record<string, never> | null;
+            title: string | null;
             /** @description 관리자 백오피스 진입 */
             canAdminPage: boolean;
             /** @description 전 항목 CRUD */

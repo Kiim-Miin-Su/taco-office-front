@@ -21,6 +21,7 @@ const TABS = [
   { href: '/accounting', label: '회계' },
   { href: '/ops', label: '운영' },
   { href: '/exec', label: '대표 보고' },
+  { href: '/permissions', label: '권한' },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
