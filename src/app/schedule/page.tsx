@@ -188,7 +188,15 @@ export default function SchedulePage() {
                       {people.find((p) => p.id === s.personId)?.name}
                     </span>
                     <Chip tone="info">{items.filter((o) => !o.canceled).length}회</Chip>
-                    <Chip>시수 {(people.find((p) => p.id === s.personId)?.hours ?? 0).toFixed(1)}시간</Chip>
+                    {/*
+                      「시수」라는 낱말이 회계 탭에도 있다. 그쪽은 **그 달의 확정된 정산 시수**
+                      (PAYOUT 에 저장된 스냅숏)이고, 이것은 **지금 보고 있는 기간**의 합계다.
+                      숫자가 다를 수밖에 없으므로 무엇을 센 것인지 적어 둔다 —
+                      안 적으면 강사가 두 숫자를 맞춰 보다가 어느 쪽이 틀렸는지 묻게 된다.
+                    */}
+                    <Chip title="이 기간 · 취소 제외 (D-R11). 정산 시수는 회계 탭에서 월 단위로 확정됩니다">
+                      이 기간 시수 {(people.find((p) => p.id === s.personId)?.hours ?? 0).toFixed(1)}시간
+                    </Chip>
                     <span className="text-[11px] text-fg-subtle">취소·휴강은 시수에서 뺍니다 (D-R11)</span>
                   </div>
                 ) : null}

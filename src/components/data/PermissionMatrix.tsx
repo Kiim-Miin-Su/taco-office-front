@@ -4,7 +4,7 @@
  * 역할은 넷뿐이고 판정은 **세 줄**에서 나온다 (D-R39).
  * 이 표는 서버가 내려준 플래그를 **보여 주기만** 한다 — 화면이 role 을 비교하지 않는다.
  */
-import { Chip, Panel } from '../ui';
+import { Chip, Panel, Table, type Column } from '../ui';
 import { ROLES } from '@/lib/roles';
 import { cn } from '../ui/cn';
 
@@ -29,6 +29,25 @@ const cell = (v: string) =>
       : <span className="font-bold text-amber">{v}</span>;
 
 export function PermissionMatrix({ myRole }: { myRole?: string }) {
+  type Row = (typeof MATRIX)[number];
+  const columns: Array<Column<Row>> = [
+    {
+      key: 'what', head: '무엇을',
+      cell: (m) => (
+        <>
+          <span className="font-bold text-fg">{m.what}</span>
+          {m.rule ? <span className="ml-2 text-[10px] text-fg-subtle">{m.rule}</span> : null}
+        </>
+      ),
+    },
+    ...ROLES.map((r, i) => ({
+      key: r.key,
+      // 내 역할의 열만 파랗게 — 표에서 내 줄을 먼저 찾게
+      head: <span className={cn(r.key === myRole && 'text-blue')}>{r.key}</span>,
+      cell: (m: Row) => cell(m.by[i]),
+    })),
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl bg-fg p-4">
@@ -57,31 +76,12 @@ export function PermissionMatrix({ myRole }: { myRole?: string }) {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-line bg-card">
-        <table className="w-full border-collapse text-[12px]">
-          <thead>
-            <tr className="bg-inset">
-              <th className="border-b border-line px-3 py-2 text-left text-[11px] font-bold text-fg-subtle">무엇을</th>
-              {ROLES.map((r) => (
-                <th key={r.key} className={cn('border-b border-line px-3 py-2 text-left text-[11px] font-bold', r.key === myRole ? 'text-blue' : 'text-fg-subtle')}>
-                  {r.key}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MATRIX.map((m) => (
-              <tr key={m.what} className="border-b border-line last:border-0">
-                <td className="px-3 py-2.5">
-                  <span className="font-bold text-fg">{m.what}</span>
-                  {m.rule ? <span className="ml-2 text-[10px] text-fg-subtle">{m.rule}</span> : null}
-                </td>
-                {m.by.map((v, i) => <td key={ROLES[i].key} className="px-3 py-2.5">{cell(v)}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* 표는 ui/Table 하나만 쓴다 — 손으로 그렸다가 줄 높이와 테두리가 여기만 달라져 있었다 */}
+      <Table
+        columns={columns}
+        rows={MATRIX}
+        rowKey={(m) => m.what}
+      />
 
       <Panel title="직함은 권한이 아닙니다" sub="교수실장 · 상담실장 · 코디네이터는 STAFF.title 에 들어가는 이름표일 뿐입니다.">
         <div className="flex gap-2">

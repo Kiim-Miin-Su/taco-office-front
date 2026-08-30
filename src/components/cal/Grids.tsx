@@ -9,7 +9,11 @@
  * `EventBlock` 하나가 정하고, 오늘 표시·빈 칸 클릭·넘침 접기는 `CalCell` 하나가 정한다.
  */
 'use client';
+import { useMemo } from 'react';
 import { CalCell } from './CalCell';
+
+/** 빈 칸이 매번 새 배열을 만들면 CalCell 이 매번 다시 그려진다 */
+const EMPTY: Occurrence[] = [];
 import { cn } from '../ui/cn';
 import { KO_DOW, dowOf, hhmm, nowMinKst, timeRange, todayKst, weekDays } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
@@ -42,9 +46,27 @@ export interface DayGridProps extends GridProps {
 }
 
 export function DayGrid({ date, items, columns, columnOf, subName, onOpen, onAdd }: DayGridProps) {
-  const today = items.filter((o) => o.date === date);
+  const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
   const { from, to } = timeRange(today);
   const hours = Math.ceil((to - from) / 60);
+
+  /**
+   * 칸마다 하루치를 다시 훑지 않는다.
+   *
+   * 원래는 `today.filter(...)` 가 `시각 × 열` 안에 있어서 (13시간 × 7열 ≈ 91번)
+   * 한 번 그릴 때마다 하루치를 91번 스캔했다. 서랍을 여닫기만 해도 그 일이 다시 돌았다.
+   * 한 번 훑어 `열-시각` 칸으로 나눠 두면 각 칸은 자기 배열을 꺼내 쓰기만 하면 된다.
+   */
+  const cells = useMemo(() => {
+    const m = new Map<string, Occurrence[]>();
+    for (const o of today) {
+      const slot = from + Math.floor((o.startMin - from) / 60) * 60;
+      const k = `${columnOf(o)}-${slot}`;
+      const arr = m.get(k);
+      if (arr) arr.push(o); else m.set(k, [o]);
+    }
+    return m;
+  }, [today, from, columnOf]);
   const now = nowMinKst();
   const showNow = date === todayKst() && now >= from && now <= to;
 
@@ -70,7 +92,7 @@ export function DayGrid({ date, items, columns, columnOf, subName, onOpen, onAdd
                   <CalCell
                     key={`${c.id}-${min}`}
                     date={date}
-                    items={today.filter((o) => columnOf(o) === c.id && o.startMin >= min && o.startMin < min + 60)}
+                    items={cells.get(`${c.id}-${min}`) ?? EMPTY}
                     subName={subName}
                     onOpen={onOpen}
                     onAdd={onAdd}

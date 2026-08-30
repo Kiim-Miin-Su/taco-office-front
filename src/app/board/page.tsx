@@ -12,33 +12,33 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table } from '@/components/ui';
 import { useBoard } from '@/api/queries';
 import type { BoardRow, CheckMark } from '@/api/types';
+// 「오늘」과 날짜 더하기는 lib/calendar.ts 가 갖는다 — 화면마다 KST 를 다시 적지 않는다 (D-R12)
+import { addDays as plusDays, todayKst } from '@/lib/calendar';
 
 const MARK_LABEL: Record<string, string> = { book: '교재', guide: '안내', zoom: '줌', report: '리포트' };
 type Span = 'today' | 'week';
 
-/** KST 기준 오늘. 화면 시각은 전부 KST 고정입니다 (D-R12). */
-function todayKst(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-}
-function plusDays(d: string, n: number): string {
-  return new Date(new Date(`${d}T00:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
-}
 
+/**
+ * 4마크 — 교재 · 안내 · 줌 · 리포트 (§34 · D-R4).
+ *
+ * `Chip` 을 쓴다. 손으로 그렸다가 **없는 색 이름**(`bg-green-weak` · `bg-red-weak`)을 적어
+ * 칠이 통째로 빠져 있었다 — 「됨」과 「안 됨」이 가는 테두리 하나로만 갈렸다.
+ * 한눈에 보라고 있는 화면인데 그 한눈이 안 됐다. 있는 컴포넌트를 쓰면 이런 일이 안 생긴다.
+ */
 function Marks({ marks }: { marks: CheckMark[] }) {
   return (
     <div className="flex gap-1">
       {marks.map((m) => (
-        <span
+        <Chip
           key={m.key}
+          tone={m.na ? 'neutral' : m.done ? 'success' : 'danger'}
+          styleKind={m.na ? 'outline' : 'soft'}
+          className={m.na ? 'opacity-60' : undefined}
           title={m.note ?? MARK_LABEL[m.key]}
-          className={
-            m.na ? 'rounded border border-line px-1.5 py-0.5 text-[10px] text-line-2'
-              : m.done ? 'rounded border border-green bg-green-weak px-1.5 py-0.5 text-[10px] font-bold text-green'
-              : 'rounded border border-red bg-red-weak px-1.5 py-0.5 text-[10px] font-bold text-red'
-          }
         >
           {MARK_LABEL[m.key] ?? m.key}
-        </span>
+        </Chip>
       ))}
     </div>
   );

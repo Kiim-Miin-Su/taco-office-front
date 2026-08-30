@@ -12,6 +12,8 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table } from '@/components/ui';
 import { useExec } from '@/api/queries';
 import type { ExecReport } from '@/api/types';
+import { won } from '@/lib/money';
+import { addDays as plusDays, todayKst } from '@/lib/calendar';
 
 type Span = 'week' | 'month';
 
@@ -25,12 +27,6 @@ const STATE: Record<string, { label: string; tone: 'neutral' | 'info' | 'success
   rej: { label: '반려', tone: 'danger' },
 };
 
-function todayKst(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-}
-function plusDays(d: string, n: number): string {
-  return new Date(new Date(`${d}T00:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
-}
 
 export default function ExecPage() {
   const [span, setSpan] = useState<Span>('month');
@@ -110,7 +106,7 @@ export default function ExecPage() {
                 value={
                   s.value === null || s.value === undefined
                     ? <span className="text-[14px] text-fg-subtle">가려짐</span>
-                    : `${s.value.toLocaleString('ko-KR')}원`
+                    : won(s.value)
                 }
                 tone={s.key === 'profit' ? ((s.value ?? 0) >= 0 ? 'success' : 'danger') : s.key === 'expense' ? 'warning' : 'info'}
               />

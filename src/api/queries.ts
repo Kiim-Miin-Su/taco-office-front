@@ -193,6 +193,9 @@ export function useScheduleWrite(): UseMutationResult<WriteResult, unknown, Sche
       void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
       // 현황판은 같은 회차를 매번 다시 판정하므로 같이 무효화한다 (D-R4)
       void qc.invalidateQueries({ queryKey: ['board'] });
+      // 쓰기가 회차를 다시 펼치므로 펼친 기간도 달라진다. 안 지우면 staleTime 1시간 동안
+      // 「이 범위는 아직 펼쳐지지 않았습니다」가 이미 그려진 수업 위에 계속 떠 있는다.
+      void qc.invalidateQueries({ queryKey: qk.horizon });
     },
   });
 }

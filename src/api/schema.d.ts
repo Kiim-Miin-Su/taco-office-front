@@ -671,7 +671,7 @@ export interface components {
             collected: number | null;
             outstanding: number | null;
             overdueCount: number;
-            /** @description 금액을 볼 수 있는가 (D-R39 canSeeProfit) */
+            /** @description 금액을 볼 수 있는가 (D-R39 · 사람별 예외까지 반영된 canMoney) */
             canSeeAmounts: boolean;
         };
         InvoiceLineDto: {
@@ -688,7 +688,7 @@ export interface components {
             grade?: string | null;
             yearMonth: string;
             title: string;
-            /** @description 금액 — canSeeProfit 이 아니면 null 로 내려간다 (D-R39) */
+            /** @description 금액 — canMoney 가 아니면 null 로 내려간다 (D-R39) */
             amount: number | null;
             paidAmount: number | null;
             /** @enum {string} */
@@ -985,10 +985,10 @@ export interface components {
             rptType: "day" | "week" | "month";
             onDate: string;
             /**
-             * @description rep_state_t 를 그대로 쓴다
+             * @description **RPT(대표 보고)의 낱말**이다. 수업 리포트(REP)의 rep_state_t 와 다르다 — 한동안 그것을 적어 두어 실제로 내려가는 sent 가 목록에 없었다
              * @enum {string}
              */
-            state: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            state: "draft" | "sent" | "ok" | "rej";
             /** @description D-R14 — 한 줄이라도 적어야 제출된다. jsonb 의 note 를 꺼내 문자열로 내린다 */
             memo: string;
             sentAt?: string | null;
@@ -1094,7 +1094,7 @@ export interface components {
         ChangeReqDto: {
             id: number;
             /** @enum {string} */
-            reqType: "time" | "teacher" | "room" | "cancel";
+            reqType: "wage_change" | "unav_add" | "doc" | "time" | "time_move" | "teacher" | "room" | "off" | "cancel";
             serId?: number | null;
             onDate?: string | null;
             reason?: string | null;
@@ -1140,8 +1140,11 @@ export interface components {
             done: boolean;
         };
         ChangeReqCreateDto: {
-            /** @enum {string} */
-            reqType: "time" | "teacher" | "room" | "off";
+            /**
+             * @description 수업을 바꿔 달라는 요청의 종류
+             * @enum {string}
+             */
+            reqType: "time_move" | "teacher" | "room" | "cancel";
             /** @description 어느 수업인지 */
             serId?: number;
             /**

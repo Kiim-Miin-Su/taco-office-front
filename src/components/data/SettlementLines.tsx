@@ -3,6 +3,7 @@
  * 「왜 이 금액인가」를 강사가 직접 검산할 수 있어야 한다.
  */
 import { cn } from '../ui/cn';
+import { won } from '@/lib/money';
 
 export type LineType = 'item' | 'bonus' | 'cut' | 'sub' | 'tax' | 'total';
 
@@ -13,7 +14,6 @@ export interface SettlementLine {
   amount: number | null;
 }
 
-const won = (v: number | null) => (v === null ? '가려짐' : `${v.toLocaleString('ko-KR')}원`);
 
 export function SettlementLines({ lines }: { lines: SettlementLine[] }) {
   return (

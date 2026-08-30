@@ -38,12 +38,17 @@ export interface ChipProps {
   styleKind?: ChipStyle;
   children: ReactNode;
   className?: string;
+  /** 마우스를 올렸을 때의 설명. 칩은 좁아서 한 줄이 더 필요할 때가 있다 */
+  title?: string;
 }
 
-export function Chip({ tone = 'neutral', styleKind = 'soft', children, className }: ChipProps) {
+export function Chip({ tone = 'neutral', styleKind = 'soft', children, className, title }: ChipProps) {
   const look = styleKind === 'solid' ? SOLID[tone] : styleKind === 'outline' ? OUTLINE[tone] : SOFT[tone];
   return (
-    <span className={cn('inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-bold', look, className)}>
+    <span
+      title={title}
+      className={cn('inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-bold', look, className)}
+    >
       {children}
     </span>
   );

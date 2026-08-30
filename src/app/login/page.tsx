@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/api/client';
 import { useSession } from '@/store/useSession';
-import { Banner, Button } from '@/components/ui';
+import { Banner, Button, Input, Label } from '@/components/ui';
 import type { Me } from '@/api/types';
 
 /** 개발 시드 계정 — 역할별로 화면이 어떻게 갈리는지 바로 볼 수 있게 */
@@ -48,19 +48,22 @@ export default function LoginPage() {
         <h1 className="text-[20px] font-bold text-fg">TACO ERP</h1>
         <p className="mt-1 text-[12px] text-fg-subtle">티엔아카데미 학원 운영 백오피스</p>
 
-        <label className="mt-5 block text-[11px] font-bold text-fg-subtle" htmlFor="email">이메일</label>
-        <input
-          id="email" type="email" value={email} autoComplete="username"
-          onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 h-10 w-full rounded-lg border border-line bg-card px-3 text-[13px] text-fg outline-none focus:border-blue"
-        />
+        {/* 폼 요소는 ui/Field 를 쓴다 — 손으로 그리면 포커스 링과 잠김 표시가 여기만 따로 논다 */}
+        <div className="mt-5">
+          <Label htmlFor="email">이메일</Label>
+          <Input
+            id="email" type="email" value={email} autoComplete="username"
+            onChange={(e) => setEmail(e.currentTarget.value)}
+          />
+        </div>
 
-        <label className="mt-3 block text-[11px] font-bold text-fg-subtle" htmlFor="pw">비밀번호</label>
-        <input
-          id="pw" type="password" value={password} autoComplete="current-password"
-          onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 h-10 w-full rounded-lg border border-line bg-card px-3 text-[13px] text-fg outline-none focus:border-blue"
-        />
+        <div className="mt-3">
+          <Label htmlFor="pw">비밀번호</Label>
+          <Input
+            id="pw" type="password" value={password} autoComplete="current-password"
+            onChange={(e) => setPassword(e.currentTarget.value)}
+          />
+        </div>
 
         {err ? <Banner tone="danger" className="mt-3">{err}</Banner> : null}
 

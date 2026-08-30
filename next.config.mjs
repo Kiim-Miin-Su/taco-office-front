@@ -1,8 +1,11 @@
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
-  // API 는 별도 레포·별도 Vercel 프로젝트다 (D-R42). 여기서 프록시하지 않는다.
+
+  // API 는 별도 레포·별도 Vercel 프로젝트다 (D-R42). 여기서 프록시하지 않는다 —
+  // 대신 **같은 도메인 아래**(app.tn.kr · api.tn.kr)에 두어 쿠키가 1st-party 로 실리게 한다.
   env: { NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE },
+
   /**
    * 빌드 산출물 위치. 기본은 .next 다.
    *
@@ -14,4 +17,31 @@ export default {
    *    적어 넣고, 그 폴더가 사라지면 다음 실행이 「Starting…」에서 멈춘다. 한 번 겪었다.
    */
   distDir: process.env.NEXT_DIST_DIR ?? '.next',
+
+  // 배포 게이트는 release.zsh 가 돈다. 빌드가 조용히 통과하게 두지 않는다 —
+  // 여기서 무시하면 타입 오류가 있는 채로 운영에 올라간다.
+  eslint: { ignoreDuringBuilds: false },
+  typescript: { ignoreBuildErrors: false },
+
+  poweredByHeader: false,
+
+  /**
+   * 보안 헤더. 관리자 백오피스이므로 기본을 조인다.
+   *
+   * CSP 는 아직 넣지 않는다 — Next 의 인라인 스크립트에 nonce 를 붙이는 작업이 따로 필요하고,
+   * 반쯤 적용한 CSP 는 화면을 깨뜨리기만 하고 막지는 못한다. TBO-37(인증)에서 함께 한다.
+   */
+  async headers() {
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        // 학생 개인정보가 보이는 화면이다 — 브라우저·프록시 캐시에 남기지 않는다
+        { key: 'Cache-Control', value: 'no-store' },
+      ],
+    }];
+  },
 };

@@ -9,11 +9,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  Banner, Button, Chip, ConflictGuard, Input, Label, Select, Table, Textarea,
+  Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, Table, Textarea,
   type Column, type Tone,
 } from '@/components/ui';
 import type {
-  ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo,
+  ApFlow, ApRow, ChangeReq, ChangeReqCreate, ConflictRow, Drawer as DrawerData, DrawerTodo,
   KindRow, Member, Noti, TzGroup, ZoomAccount,
 } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
@@ -116,17 +116,16 @@ export function TodosPane({ todos, meId, box, onBox, onToggle, busy }: {
   return (
     <>
       <div className="mb-3 flex items-center gap-2">
-        <div className="inline-flex rounded-lg bg-inset p-0.5">
-          {([['in', '수신함'], ['out', '발신함'], ['all', '전체']] as Array<[TodoBox, string]>).map(([v, l]) => (
-            <button
-              key={v} type="button" onClick={() => onBox(v)}
-              className={`rounded-md px-3 py-1.5 text-[12px] font-bold transition-colors ${
-                v === box ? 'bg-card text-fg shadow-sm' : 'text-fg-subtle hover:text-fg-2'}`}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
+        {/* 보기 전환은 Segmented 하나만 쓴다 — 여기서 손으로 그렸다가 활성 알약 모양이 두 벌이 됐다 */}
+        <Segmented
+          value={box}
+          onChange={onBox}
+          options={[
+            { value: 'in', label: '수신함' },
+            { value: 'out', label: '발신함' },
+            { value: 'all', label: '전체' },
+          ]}
+        />
         <span className="ml-auto text-[11px] text-fg-subtle">남은 것 {left}건</span>
       </div>
 
@@ -134,10 +133,10 @@ export function TodosPane({ todos, meId, box, onBox, onToggle, busy }: {
         <ul className="flex flex-col gap-1.5">
           {rows.map((t) => (
             <li key={t.id} className="flex items-start gap-2 rounded-lg border border-line bg-card p-2.5">
-              <input
-                type="checkbox" checked={t.done} disabled={busy}
+              <Checkbox
+                checked={t.done} disabled={busy}
                 onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-blue"
+                className="mt-0.5 shrink-0"
                 aria-label={`${t.title} 완료`}
               />
               <div className="min-w-0 flex-1">
@@ -263,23 +262,33 @@ export function KindsPane({ kinds }: { kinds: KindRow[] }) {
 
 /* ── §19 변경 요청 넣기 ──────────────────────────────────────────── */
 
+/**
+ * 종류의 낱말은 **서버가 정한다** (`ChangeReqCreate['reqType']` → `lib/approval.ts`).
+ * 여기서 손으로 적었다가 DB(`time_move`)·읽기 DTO(`time`)·이 폼(`off`)이 세 벌로 갈렸고,
+ * 시간 이동 요청이 400 으로 튕기고 있었다. 생성 타입에서 뽑으면 다시는 안 갈린다.
+ */
+export type ChreqType = NonNullable<ChangeReqCreate['reqType']>;
+
 export interface ChangeReqDraft {
-  reqType: 'time' | 'teacher' | 'room' | 'off';
+  reqType: ChreqType;
   serId: string; onDate: string; startMin: string; endMin: string; reason: string;
 }
 
 export const EMPTY_DRAFT: ChangeReqDraft = {
-  reqType: 'time', serId: '', onDate: '', startMin: '', endMin: '', reason: '',
+  reqType: 'time_move', serId: '', onDate: '', startMin: '', endMin: '', reason: '',
 };
+
+/** 화면에 보이는 이름 — 서버의 REQ_TYPE_LABEL 과 같은 표에서 온다 */
+const CHREQ_TYPE_OPTIONS: ChreqType[] = ['time_move', 'teacher', 'room', 'cancel'];
 
 export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent }: {
   draft: ChangeReqDraft; onDraft: (d: ChangeReqDraft) => void;
   onSubmit: () => void; conflicts: ConflictRow[]; busy: boolean; sent: boolean;
 }) {
   const set = <K extends keyof ChangeReqDraft>(k: K, v: ChangeReqDraft[K]) => onDraft({ ...draft, [k]: v });
-  const needsTime = draft.reqType === 'time';
+  const needsTime = draft.reqType === 'time_move';
   // 사유가 없으면 뒤에서 판단할 사람이 근거 없이 판단하게 된다 — 서버도 같은 것을 막는다
-  const ready = draft.reason.trim().length > 0 && (draft.reqType === 'off' || draft.serId !== '');
+  const ready = draft.reason.trim().length > 0 && (draft.reqType === 'cancel' || draft.serId !== '');
 
   return (
     <div className="flex flex-col gap-3">
@@ -287,10 +296,10 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent 
         <Label>무엇을 바꾸나요</Label>
         <Select
           value={draft.reqType}
-          onChange={(e) => set('reqType', e.currentTarget.value as ChangeReqDraft['reqType'])}
+          onChange={(e) => set('reqType', e.currentTarget.value as ChreqType)}
         >
-          {(['time', 'teacher', 'room', 'off'] as const).map((v) => (
-            <option key={v} value={v}>{REQ_TYPE_LABEL[v]}</option>
+          {CHREQ_TYPE_OPTIONS.map((v) => (
+            <option key={v} value={v}>{REQ_TYPE_LABEL[v] ?? v}</option>
           ))}
         </Select>
       </div>

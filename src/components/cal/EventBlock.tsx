@@ -8,9 +8,15 @@
  * 한 채널에 두 뜻을 실으면 읽을 수 없게 된다.
  */
 import { cn } from '../ui/cn';
+import { hhmm } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 
-const STATUS: Record<string, string> = {
+/**
+ * 리포트 상태 → 블록 색. **범례(`Legend`)도 이 표를 읽는다** —
+ * 두 벌로 두었더니 범례가 옛 색을 계속 보여 주고 있었다.
+ * 범례의 일이 「블록 색을 설명하는 것」인데 다른 색을 설명하면 안 읽느니만 못하다.
+ */
+export const STATUS_LOOK: Record<string, string> = {
   na: 'bg-inset text-fg-2 border-line',
   plan: 'bg-blue/10 text-blue border-blue/35',
   none: 'bg-red/10 text-red border-red/40',
@@ -20,7 +26,10 @@ const STATUS: Record<string, string> = {
   rej: 'bg-violet/10 text-violet border-violet/40',
 };
 
-const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+/** 범례에 쓰는 이름 — 순서가 곧 「안 씀 → 승인」 흐름이다 */
+export const STATUS_LABEL: Array<[keyof typeof STATUS_LOOK, string]> = [
+  ['none', '안 씀'], ['plan', '예정'], ['wait', '승인 대기'], ['ok', '승인'], ['rej', '반려'],
+];
 
 export interface EventBlockProps {
   occ: Occurrence;
@@ -30,7 +39,7 @@ export interface EventBlockProps {
 }
 
 export function EventBlock({ occ, subName, compact, onClick }: EventBlockProps) {
-  const look = STATUS[occ.repState] ?? STATUS.na;
+  const look = STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na;
   const names = occ.students.map((s) => s.name).join(' · ');
   return (
     <button

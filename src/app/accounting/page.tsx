@@ -11,11 +11,12 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
 import { useAccounting } from '@/api/queries';
 import type { Invoice, Payment, Payout } from '@/api/types';
+import { won } from '@/lib/money';
 
 /** 금액 칸 하나 — null 이면 볼 권한이 없다는 뜻이다. 0 으로 바꿔 쓰지 않는다. */
 function Won({ v, bold }: { v: number | null; bold?: boolean }) {
   if (v === null) return <span className="text-[11px] text-fg-subtle">가려짐</span>;
-  return <span className={bold ? 'font-bold' : undefined}>{v.toLocaleString('ko-KR')}원</span>;
+  return <span className={bold ? 'font-bold' : undefined}>{won(v)}</span>;
 }
 
 const STATE: Record<string, { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }> = {
@@ -59,7 +60,7 @@ export default function AccountingPage() {
     { key: 'h', head: '시수', width: 80, align: 'right', cell: (r) => r.hours },
     { key: 'g', head: '지급 총액', width: 120, align: 'right', cell: (r) => <Won v={r.gross} /> },
     { key: 'c', head: '지연 차감', width: 110, align: 'right',
-      cell: (r) => (r.lateRepCut === null ? <Won v={null} /> : <span className={r.lateRepCut ? 'font-bold text-red' : 'text-fg-subtle'}>{r.lateRepCut ? `-${r.lateRepCut.toLocaleString('ko-KR')}원` : '0원'}</span>) },
+      cell: (r) => (r.lateRepCut === null ? <Won v={null} /> : <span className={r.lateRepCut ? 'font-bold text-red' : 'text-fg-subtle'}>{won(r.lateRepCut ? -r.lateRepCut : 0, { signed: true })}</span>) },
     { key: 'n2', head: '실지급', width: 130, align: 'right', cell: (r) => <Won v={r.net} bold /> },
     { key: 's', head: '상태', width: 90,
       cell: (r) => <Chip tone={r.state === 'confirmed' ? 'success' : 'warning'}>{r.state === 'confirmed' ? '확정' : '대기'}</Chip> },
@@ -71,9 +72,9 @@ export default function AccountingPage() {
 
       <div className="mb-4 grid grid-cols-4 gap-3">
         <StatCard label="청구서" value={s?.invoiceCount ?? '—'} note="전체" />
-        <StatCard label="청구 합계" value={s?.billed === null ? '가려짐' : (s?.billed ?? 0).toLocaleString('ko-KR')} tone="info" />
-        <StatCard label="수납" value={s?.collected === null ? '가려짐' : (s?.collected ?? 0).toLocaleString('ko-KR')} tone="success" />
-        <StatCard label="연체" value={s?.overdueCount ?? '—'} note={s?.outstanding === null ? '금액은 대표만' : `미수 ${(s?.outstanding ?? 0).toLocaleString('ko-KR')}원`} tone="danger" />
+        <StatCard label="청구 합계" value={won(s?.billed)} tone="info" />
+        <StatCard label="수납" value={won(s?.collected)} tone="success" />
+        <StatCard label="연체" value={s?.overdueCount ?? '—'} note={s?.outstanding === null ? '금액은 대표만' : `미수 ${won(s?.outstanding ?? 0)}`} tone="danger" />
       </div>
 
       {s && !s.canSeeAmounts ? (

@@ -53,7 +53,7 @@ export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => voi
         serId: draft.serId ? Number(draft.serId) : undefined,
         onDate: draft.onDate || undefined,
         reason: draft.reason,
-        payload: draft.reqType === 'time' && draft.startMin && draft.endMin
+        payload: draft.reqType === 'time_move' && draft.startMin && draft.endMin
           ? { startMin: Number(draft.startMin), endMin: Number(draft.endMin) }
           : undefined,
       },

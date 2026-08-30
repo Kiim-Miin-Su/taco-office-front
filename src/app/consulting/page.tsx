@@ -9,6 +9,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, Panel, StatCard, Table } from '@/components/ui';
 import { useConsulting } from '@/api/queries';
 import type { Consulting } from '@/api/types';
+import { MASKED, won } from '@/lib/money';
 
 /** 서버가 내려주는 낱말 그대로 — 화면이 제 낱말을 만들면 새 값이 들어올 때 원문이 그대로 뜬다. */
 const TYPE: Record<string, string> = { admissions: '입시', essay: '에세이', roadmap: '로드맵' };
@@ -27,8 +28,6 @@ const SHARE: Record<string, { label: string; tone: 'neutral' | 'info' | 'warning
 /** 계약 5단계 — 계약서 → 피드백 → 학부모 전달 → 서명본 → 수납 */
 const CONTRACT_STEPS = ['계약서', '피드백', '학부모 전달', '서명본', '수납'];
 
-const won = (v?: number | null) =>
-  v === null || v === undefined ? null : `${v.toLocaleString('ko-KR')}원`;
 
 export default function ConsultingPage() {
   const q = useConsulting();
@@ -71,7 +70,9 @@ export default function ConsultingPage() {
     { key: 'o', head: '담당', width: 90, cell: (r) => r.ownerName ?? '—' },
     {
       key: 'a', head: '금액', width: 120, align: 'right',
-      cell: (r) => won(r.amount) ?? <span className="text-[11px] text-fg-subtle">가려짐</span>,
+      cell: (r) => (r.amount === null || r.amount === undefined
+        ? <span className="text-[11px] text-fg-subtle">{MASKED}</span>
+        : won(r.amount)),
     },
   ];
 

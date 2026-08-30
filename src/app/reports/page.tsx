@@ -13,9 +13,9 @@ import {
 } from '@/components/ui';
 import { useMeta, useUnwritten } from '@/api/queries';
 import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
+import { hhmm } from '@/lib/calendar';
+import { won } from '@/lib/money';
 
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
-const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const sinceText = (min: number) => {
   if (min < 60) return `${min}분`;
   if (min < 60 * 24) return `${Math.floor(min / 60)}시간`;

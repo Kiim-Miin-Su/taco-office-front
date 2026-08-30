@@ -9,6 +9,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { useOps } from '@/api/queries';
 import type { Complaint, Marketing, Meeting, Plan, Todo } from '@/api/types';
+import { won } from '@/lib/money';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
@@ -57,19 +58,19 @@ export default function OpsPage() {
   const mktCols: Array<Column<Marketing>> = [
     { key: 'c', head: '채널', width: 120, cell: (r) => <span className="font-bold">{r.channel}</span> },
     { key: 'i', head: '항목', width: 90, cell: (r) => r.item },
-    { key: 'im', head: '노출', width: 100, align: 'right', cell: (r) => r.impressions?.toLocaleString('ko-KR') ?? '—' },
+    { key: 'im', head: '노출', width: 100, align: 'right', cell: (r) => won(r.impressions, { unit: false, empty: '—' }) },
     { key: 'iq', head: '문의', width: 80, align: 'right', cell: (r) => r.inquiries ?? '—' },
     { key: 'e', head: '등록', width: 80, align: 'right',
       cell: (r) => <span className={r.enrolled ? 'font-bold text-green' : 'text-fg-subtle'}>{r.enrolled}</span> },
     { key: 'co', head: '비용', width: 110, align: 'right',
       cell: (r) => (r.cost ?? null) === null
         ? <span className="text-[11px] text-fg-subtle">가려짐</span>
-        : `${(r.cost as number).toLocaleString('ko-KR')}원` },
+        : won(r.cost as number) },
     { key: 'cpe', head: '등록당', width: 120, align: 'right',
       cell: (r) => {
         const c = r.costPerEnroll ?? null;
         if (c === null) return <span className="text-[11px] text-fg-subtle">{(r.cost ?? null) === null ? '가려짐' : '—'}</span>;
-        return <span className={c > 100000 ? 'font-bold text-red' : 'font-bold'}>{c.toLocaleString('ko-KR')}원</span>;
+        return <span className={c > 100000 ? 'font-bold text-red' : 'font-bold'}>{won(c)}</span>;
       } },
   ];
 
