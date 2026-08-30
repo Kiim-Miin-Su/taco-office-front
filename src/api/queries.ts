@@ -5,11 +5,15 @@
  * 그 행이 API 로 내려오고, 화면은 그것만 본다. 운영 데이터로 바뀌어도
  * 이 파일도 화면도 한 줄 안 바뀐다.
  */
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useMutation, useQuery, useQueryClient,
+  type UseMutationResult, type UseQueryResult,
+} from '@tanstack/react-query';
 import { api } from './client';
 import type {
-  Accounting, Board, Books, Exec, Guides, Meta,
-  OccurrenceList, Ops, ReportList, ConsultingList, Unwritten,
+  Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
+  OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrencePatch,
+  Ops, ReportList, RosterPatch, Unwritten, WriteResult,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -25,6 +29,7 @@ export const qk = {
   guides: ['guides'] as const,
   board: (p: RangeParams) => ['board', p] as const,
   exec: (p: RangeParams) => ['exec', p] as const,
+  horizon: ['schedule', 'horizon'] as const,
 };
 
 /** from · to 만 받는 화면들이 같은 모양을 쓴다 */
@@ -146,5 +151,46 @@ export function useExec(p: RangeParams): UseQueryResult<Exec> {
     queryKey: qk.exec(p),
     queryFn: async () => (await api.get<Exec>('/exec', { params: p })).data,
     staleTime: 30 * 1000,
+  });
+}
+
+/* ══ 쓰기 ═══════════════════════════════════════════════════════════════
+   성공하면 **그 범위만** 무효화한다. 전체 invalidate 는 화면 전체를 다시 요청하게 만든다
+   (`AGENT.md §6.1-2`). 서버가 영향받은 규칙 id 를 돌려주므로 그것만 믿는다.          */
+
+/** 펼쳐 둔 기간 — 화면이 「비었다」와 「아직 안 펼쳤다」를 구분하려고 읽는다 */
+export function useHorizon(): UseQueryResult<Horizon> {
+  return useQuery({
+    queryKey: qk.horizon,
+    queryFn: async () => (await api.get<Horizon>('/schedule/horizon')).data,
+    staleTime: 60 * 60 * 1000,
+  });
+}
+
+/**
+ * 스케줄 쓰기 세 갈래를 **한 훅**으로 둔다.
+ * 만들기·고치기·지우기·명단이 각자 훅을 가지면 무효화 규칙이 네 벌로 갈라진다.
+ */
+export type ScheduleWrite =
+  | { kind: 'create'; body: OccurrenceCreate }
+  | { kind: 'patch'; serId: number; body: OccurrencePatch }
+  | { kind: 'delete'; serId: number; body: OccurrenceDelete }
+  | { kind: 'roster'; serId: number; body: RosterPatch };
+
+export function useScheduleWrite(): UseMutationResult<WriteResult, unknown, ScheduleWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w: ScheduleWrite) => {
+      if (w.kind === 'create') return (await api.post<WriteResult>('/schedule', w.body)).data;
+      if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
+      if (w.kind === 'roster') return (await api.patch<WriteResult>(`/schedule/${w.serId}/roster`, w.body)).data;
+      return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;
+    },
+    onSuccess: () => {
+      // 회차 목록만 다시 읽는다. 코드표·회계·운영은 이 쓰기로 바뀌지 않는다.
+      void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+      // 현황판은 같은 회차를 매번 다시 판정하므로 같이 무효화한다 (D-R4)
+      void qc.invalidateQueries({ queryKey: ['board'] });
+    },
   });
 }

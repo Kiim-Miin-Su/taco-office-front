@@ -50,6 +50,17 @@ export type Meeting = S['MeetingDto'];
 export type Marketing = S['MarketingDto'];
 export type Suggestion = S['SuggestionDto'];
 
+/** 스케줄 쓰기 — 자원 + scope 한 형태 (D-R16 · D-R21) */
+export type OccurrenceCreate = S['OccurrenceCreateDto'];
+export type OccurrencePatch = S['OccurrencePatchDto'];
+export type OccurrenceDelete = S['OccurrenceDeleteDto'];
+export type RosterPatch = S['RosterPatchDto'];
+export type WriteResult = S['WriteResultDto'];
+export type Horizon = S['HorizonDto'];
+/** 'this' | 'future' | 'all' — 화면이 문자열을 다시 적지 않게 DTO 에서 가져온다 */
+export type Scope = OccurrencePatch['scope'];
+export type RosterOp = RosterPatch['op'];
+
 /** 컨설팅 — 금액은 대표만 (D-R39) */
 export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];

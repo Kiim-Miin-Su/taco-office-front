@@ -123,6 +123,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/horizon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 펼쳐 둔 기간 — 화면이 「비었다」와 「아직 안 펼쳤다」를 구분한다 */
+        get: operations["ScheduleController_bounds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 수업 만들기 — 겹치면 DB 가 409 로 막는다 (D-R43) */
+        post: operations["ScheduleController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/{serId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 수업 취소·휴강 — 참조가 있으면 지우지 않고 기간을 마감한다 */
+        delete: operations["ScheduleController_remove"];
+        options?: never;
+        head?: never;
+        /** 수업 고치기 — scope 로 이번만·향후·모두를 가른다 (D-R16) */
+        patch: operations["ScheduleController_patch"];
+        trace?: never;
+    };
+    "/schedule/{serId}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 수강 학생 넣고 빼기 — 「그날만 빼기」가 D-R21 이다 (§12 · §79) */
+        patch: operations["ScheduleController_roster"];
+        trace?: never;
+    };
     "/reports": {
         parameters: {
             query?: never;
@@ -374,8 +443,16 @@ export interface components {
         OccurrenceDto: {
             /** @description 반복 규칙 id */
             serId: number;
-            /** @example 2026-08-28 */
+            /**
+             * @description 화면에 그려질 날짜
+             * @example 2026-08-28
+             */
             date: string;
+            /**
+             * @description 규칙상 원래 날짜 — **EXC 의 키**다. 쓰기(PATCH·DELETE)는 이 값으로 회차를 찾는다
+             * @example 2026-08-28
+             */
+            onDate: string;
             /** @description 자정부터 분 */
             startMin: number;
             endMin: number;
@@ -407,6 +484,71 @@ export interface components {
             /** @example 2026-08-30 */
             to: string;
             items: components["schemas"]["OccurrenceDto"][];
+        };
+        HorizonDto: {
+            /** @description 펼쳐 둔 기간의 시작 */
+            from: string;
+            /** @description 펼쳐 둔 기간의 끝 */
+            to: string;
+            /** @description 요청 범위가 이 밖으로 나갔는가 — 화면이 「비었다」와 「아직 안 펼쳤다」를 구분한다 */
+            clamped: boolean;
+        };
+        OccurrenceCreateDto: {
+            kindKey: string;
+            subKey?: string | null;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            /** @description 첫 회차 날짜 */
+            fromDate: string;
+            /** @description 없으면 열린 반복 */
+            toDate?: string | null;
+            /** @description ONCE | DAILY[/n] | WEEKLY:MO,WE[/n] — formatRule() 이 정한 형식만 받는다 */
+            rrule: string;
+            startMin: number;
+            endMin: number;
+            teacherId?: number | null;
+            roomId?: number | null;
+            title?: string | null;
+            /** @description 정식 명단 */
+            studentIds?: number[];
+        };
+        WriteResultDto: {
+            /** @description 실제로 적용된 범위 — 「향후」가 「모두」로 강등되면 여기서 드러난다 (D-R17) */
+            effScope: string;
+            /** @description 사람이 읽는 변경 기록. 화면이 그대로 보여 준다 */
+            log: string[];
+            /** @description 다시 펼친 회차 수 */
+            projected: number;
+            /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
+            serIds: number[];
+        };
+        OccurrencePatchDto: {
+            /**
+             * @description 이번만 · 향후 · 모두 (D-R16). 첫 회차의 future 는 all 로 강등된다 (D-R17)
+             * @enum {string}
+             */
+            scope: "this" | "future" | "all";
+            /** @description 규칙상 원래 날짜 — EXC 의 키다. 옮긴 회차도 이 값으로 찾는다 */
+            onDate: string;
+            /** @description 0~1439 */
+            startMin?: number | null;
+            endMin?: number | null;
+            teacherId?: number | null;
+            roomId?: number | null;
+            /** @description 다른 날로 옮길 때만 */
+            date?: string | null;
+            reason?: string | null;
+        };
+        OccurrenceDeleteDto: {
+            /** @enum {string} */
+            scope: "this" | "future" | "all";
+            onDate: string;
+        };
+        RosterPatchDto: {
+            /** @enum {string} */
+            op: "add" | "dropOnce" | "undoOnce" | "dropAll";
+            onDate: string;
+            studentId: number;
         };
         ReportStudentDto: {
             id: number;
@@ -940,6 +1082,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OccurrenceListDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_bounds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HorizonDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OccurrenceCreateDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OccurrenceDeleteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OccurrencePatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_roster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
         };
