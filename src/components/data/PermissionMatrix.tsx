@@ -5,14 +5,11 @@
  * 이 표는 서버가 내려준 플래그를 **보여 주기만** 한다 — 화면이 role 을 비교하지 않는다.
  */
 import { Chip, Panel } from '../ui';
+import { ROLES } from '@/lib/roles';
 import { cn } from '../ui/cn';
 
-export const ROLES = [
-  { key: 'teacher', label: '강사', desc: '수업과 자기 리포트만' },
-  { key: 'manager', label: '매니저', desc: '관리 화면 전부 · 돈 숫자만 잠김' },
-  { key: 'admin', label: '관리자', desc: '매니저와 같음 · 계정 관리 추가' },
-  { key: 'ceo', label: '대표', desc: '전부 · 손익과 단가까지' },
-] as const;
+// 역할 이름표는 lib/roles.ts 한 곳에서만 온다 — 서랍 §17 도 같은 것을 읽는다
+export { ROLES } from '@/lib/roles';
 
 /** 세 줄에서 파생되는 결과를 표로 편 것. 값을 여기서 다시 정하지 않는다. */
 const MATRIX: Array<{ what: string; rule?: string; by: [string, string, string, string] }> = [

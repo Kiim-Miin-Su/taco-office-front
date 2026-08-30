@@ -14,6 +14,7 @@ import type {
   Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrencePatch,
   Ops, ReportList, RosterPatch, Unwritten, WriteResult,
+  ChangeReqCreate, ChangeReqResult, Drawer,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -30,6 +31,7 @@ export const qk = {
   board: (p: RangeParams) => ['board', p] as const,
   exec: (p: RangeParams) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
+  drawer: ['drawer'] as const,
 };
 
 /** from · to 만 받는 화면들이 같은 모양을 쓴다 */
@@ -191,6 +193,48 @@ export function useScheduleWrite(): UseMutationResult<WriteResult, unknown, Sche
       void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
       // 현황판은 같은 회차를 매번 다시 판정하므로 같이 무효화한다 (D-R4)
       void qc.invalidateQueries({ queryKey: ['board'] });
+    },
+  });
+}
+
+/* ══ 서랍 — §14~§21 ══════════════════════════════════════════════════════
+   여덟 칸을 **한 번에** 읽는다. 칸마다 훅을 두면 배지 숫자와 목록이 서로 다른
+   시각의 데이터를 보게 된다 — 「3건이라는데 두 줄뿐」이 정확히 그렇게 생긴다. */
+
+export function useDrawer(enabled = true): UseQueryResult<Drawer> {
+  return useQuery({
+    queryKey: qk.drawer,
+    queryFn: async () => (await api.get<Drawer>('/drawer')).data,
+    enabled,
+    // 결재·알림은 남이 바꾼다. 서랍을 다시 열면 다시 읽는다.
+    staleTime: 30 * 1000,
+  });
+}
+
+/** 서랍에서 하는 쓰기 셋 — 승인·반려는 없다 (D-R27) */
+export type DrawerWrite =
+  | { kind: 'todo'; id: number; done: boolean }
+  | { kind: 'notiRead'; id: number }
+  | { kind: 'changeReq'; body: ChangeReqCreate };
+
+export function useDrawerWrite(): UseMutationResult<
+  { ok: true } | ChangeReqResult, unknown, DrawerWrite
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w: DrawerWrite) => {
+      if (w.kind === 'todo') {
+        return (await api.patch<{ ok: true }>(`/drawer/todos/${w.id}`, { done: w.done })).data;
+      }
+      if (w.kind === 'notiRead') {
+        return (await api.patch<{ ok: true }>(`/drawer/notis/${w.id}/read`)).data;
+      }
+      return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
+    },
+    onSuccess: (_r, w) => {
+      void qc.invalidateQueries({ queryKey: qk.drawer });
+      // 할 일은 운영 탭(§62)에도 같은 행이 보인다
+      if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: qk.ops });
     },
   });
 }

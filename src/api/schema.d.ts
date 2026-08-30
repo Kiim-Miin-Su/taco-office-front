@@ -345,6 +345,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/drawer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 서랍 여덟 칸을 한 번에 — 결재 5종 정규화 포함 (D-R26 · D-R34) */
+        get: operations["DrawerController_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drawer/todos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** §15 할 일 체크 — 내가 주고받은 것만 */
+        patch: operations["DrawerController_todoDone"];
+        trace?: never;
+    };
+    "/drawer/notis/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** §16 알림 읽음 */
+        patch: operations["DrawerController_notiRead"];
+        trace?: never;
+    };
+    "/drawer/change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** §19 변경 요청 넣기 — 겹치면 **누구와** 겹치는지 돌려주고 넣지 않는다 */
+        post: operations["DrawerController_createChangeReq"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -938,6 +1006,178 @@ export interface components {
             /** @description 저장하지 않는다 — 이 시각에 센 값이다 (D-R4) */
             computedAt: string;
         };
+        ApRowDto: {
+            /** @enum {string} */
+            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            id: number;
+            title: string;
+            sub?: string | null;
+            byId?: number | null;
+            byName?: string | null;
+            at: string;
+            /** @enum {string} */
+            state: "waiting" | "back" | "done";
+            /** @description 반려면 반드시 있다 (D-R13) */
+            why?: string | null;
+            /** @description 누르면 갈 곳 — 오버레이에서 승인하지 않는다 (D-R27) */
+            go: string;
+        };
+        ApFlowDto: {
+            /** @description 되돌아온 것 — 맨 위 (§75) */
+            back: components["schemas"]["ApRowDto"][];
+            /** @description 기다리는 것 */
+            waiting: components["schemas"]["ApRowDto"][];
+            /** @description 내가 올린 것 */
+            mine: components["schemas"]["ApRowDto"][];
+            /** @description 배지 숫자 — 손이 가야 하는 것만 센다 */
+            count: number;
+            /** @description 아직 표가 없어 못 세는 갈래 (N-13 대기) */
+            missingKinds: string[];
+        };
+        DrawerTodoDto: {
+            id: number;
+            title: string;
+            fromName?: string | null;
+            toName?: string | null;
+            fromId?: number | null;
+            toId?: number | null;
+            dueOn?: string | null;
+            done: boolean;
+            /** @enum {string} */
+            src: "meeting" | "complaint" | "consulting" | "plan" | "manual";
+            /** @description 기한이 지난 날 수. 0이면 안 지남 */
+            overdueDays: number;
+            /** @description 출처가 있으면 원본으로 갈 곳 */
+            go?: string | null;
+        };
+        NotiDto: {
+            id: number;
+            body: string;
+            fromName?: string | null;
+            toId?: number | null;
+            link?: string | null;
+            read: boolean;
+            at: string;
+            /**
+             * @description 표에 색 컬럼이 없어 링크로 파생한다 — lib/noti.ts 한 곳에서만
+             * @enum {string}
+             */
+            tone: "alarm" | "ok" | "warn";
+        };
+        MemberDto: {
+            id: number;
+            name: string;
+            email: string;
+            /** @enum {string} */
+            role: "teacher" | "manager" | "admin" | "ceo";
+            /** @description 직함은 권한이 아니다 (D-R39) */
+            title?: string | null;
+            tz?: string | null;
+            active: boolean;
+        };
+        TzGroupDto: {
+            id: number;
+            name: string;
+            tz: string;
+        };
+        KindRowDto: {
+            key: string;
+            name: string;
+            color: string;
+            /** @description 정원 */
+            cap: number;
+            /** @enum {string} */
+            grp: "lesson" | "intake" | "meeting";
+            /** @description true 인 종류만 리포트 대상 (D-R6) */
+            rep: boolean;
+        };
+        ChangeReqDto: {
+            id: number;
+            /** @enum {string} */
+            reqType: "time" | "teacher" | "room" | "cancel";
+            serId?: number | null;
+            onDate?: string | null;
+            reason?: string | null;
+            state: string;
+            byName?: string | null;
+            /** @description 정기 수업이면 이후 전체 적용 */
+            applyAll: boolean;
+            at: string;
+        };
+        ZoomAccountDto: {
+            id: number;
+            label: string;
+            /** @description 학생 참가 링크. 로그인 정보와 같은 화면에 두지 않는다 */
+            joinUrl?: string | null;
+            active: boolean;
+            /** @description 이 계정이 잡고 있는 회차 수 */
+            assigned: number;
+            /** @description 같은 시간에 두 수업에 배정된 건수 — 0이어야 한다 */
+            overlaps: number;
+        };
+        DrawerDto: {
+            /** @description §14 승인 대기함 */
+            approvals: components["schemas"]["ApFlowDto"];
+            /** @description §15 할 일 */
+            todos: components["schemas"]["DrawerTodoDto"][];
+            /** @description §16 알림 */
+            notis: components["schemas"]["NotiDto"][];
+            /** @description §17 구성원 */
+            members: components["schemas"]["MemberDto"][];
+            /** @description §17 시간대 그룹 */
+            tzGroups: components["schemas"]["TzGroupDto"][];
+            /** @description §18 수업 종류 */
+            kinds: components["schemas"]["KindRowDto"][];
+            /** @description §20 변경 요청 */
+            changeReqs: components["schemas"]["ChangeReqDto"][];
+            /** @description §21 줌 계정 */
+            zoomAccounts: components["schemas"]["ZoomAccountDto"][];
+            /** @description 관리자 화면의 모든 시각은 KST 다 (D-R12) */
+            tz: string;
+        };
+        TodoDoneDto: {
+            /** @description 완료로 바꿀지 여부 */
+            done: boolean;
+        };
+        ChangeReqCreateDto: {
+            /** @enum {string} */
+            reqType: "time" | "teacher" | "room" | "off";
+            /** @description 어느 수업인지 */
+            serId?: number;
+            /**
+             * @description 어느 날짜인지
+             * @example 2026-09-01
+             */
+            onDate?: string;
+            /** @description 바꾸려는 내용 — 종류에 따라 startMin · endMin · teacherId · roomId · zaccId */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** @description 사유는 비워 둘 수 없다 (D-R13 과 같은 이유) */
+            reason: string;
+            /** @description 정기 수업이면 이후 전체 적용 (D-R16) */
+            applyAll?: boolean;
+        };
+        ConflictRowDto: {
+            serId: number;
+            onDate: string;
+            startMin: number;
+            endMin: number;
+            title?: string | null;
+            /**
+             * @description 무엇이 겹치는가
+             * @enum {string}
+             */
+            with: "teacher" | "room" | "zoom";
+            /** @description 누구와 겹치는가 — 이름을 보여 준다 */
+            whoName?: string | null;
+        };
+        ChangeReqResultDto: {
+            /** @description 만들어진 요청 id. 겹쳐서 막혔으면 없다 */
+            id?: number | null;
+            /** @description 비어 있지 않으면 제출이 막힌 것이다 */
+            conflicts: components["schemas"]["ConflictRowDto"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -1383,6 +1623,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExecDto"];
+                };
+            };
+        };
+    };
+    DrawerController_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawerDto"];
+                };
+            };
+        };
+    };
+    DrawerController_todoDone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoDoneDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DrawerController_notiRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DrawerController_createChangeReq: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeReqCreateDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeReqResultDto"];
                 };
             };
         };

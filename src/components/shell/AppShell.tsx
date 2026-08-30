@@ -3,12 +3,13 @@
  * 61컷이 전부 이 껍데기를 쓴다. 화면은 본문만 그린다.
  */
 'use client';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '../ui/cn';
 import { useSession } from '@/store/useSession';
 import { api } from '@/api/client';
+import { AppDrawer, DrawerButton } from '@/components/drawer/AppDrawer';
 
 const TABS = [
   { href: '/schedule', label: '스케줄' },
@@ -29,6 +30,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const me = useSession((s) => s.me);
   const signOut = useSession((s) => s.signOut);
+  // 서랍은 **전역**이다 — 탭마다 따로 두면 탭을 옮길 때 닫힌다
+  const [drawer, setDrawer] = useState(false);
 
   async function out() {
     try { await api.post('/auth/logout'); } catch { /* 쿠키가 이미 없을 수 있다 */ }
@@ -59,6 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <span className="ml-3 whitespace-nowrap text-[11px] text-line-2">
           {me ? `${me.name} · ${me.title ?? ''}` : ''}
         </span>
+        <DrawerButton onOpen={() => setDrawer(true)} />
         <button
           type="button" onClick={out}
           className="ml-2 rounded-md px-2 py-1 text-[11px] font-bold text-line-2 hover:bg-white/10"
@@ -67,6 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </header>
       <main className="mx-auto max-w-[1440px] p-6">{children}</main>
+      <AppDrawer open={drawer} onClose={() => setDrawer(false)} />
     </div>
   );
 }

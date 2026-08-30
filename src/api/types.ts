@@ -95,3 +95,18 @@ export type RefreshResult = S['RefreshResultDto'];
 export type PermName = {
   [K in keyof Me]: Me[K] extends boolean ? K : never;
 }[keyof Me];
+
+/** 서랍 — §14~§21 여덟 칸이 한 응답으로 온다 */
+export type Drawer = S['DrawerDto'];
+export type ApRow = S['ApRowDto'];
+export type ApFlow = S['ApFlowDto'];
+export type DrawerTodo = S['DrawerTodoDto'];
+export type Noti = S['NotiDto'];
+export type Member = S['MemberDto'];
+export type TzGroup = S['TzGroupDto'];
+export type KindRow = S['KindRowDto'];
+export type ChangeReq = S['ChangeReqDto'];
+export type ZoomAccount = S['ZoomAccountDto'];
+export type ChangeReqCreate = S['ChangeReqCreateDto'];
+export type ChangeReqResult = S['ChangeReqResultDto'];
+export type ConflictRow = S['ConflictRowDto'];
