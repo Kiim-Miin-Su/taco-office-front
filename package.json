@@ -21,10 +21,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@hookform/resolvers": "^3.10.0",
     "@tanstack/react-query": "^5.62.0",
-    "@tanstack/react-virtual": "^3.11.0",
     "axios": "^1.7.9",
-    "date-fns": "^4.1.0",
-    "date-fns-tz": "^3.2.0",
     "html-to-image": "^1.11.11",
     "lucide-react": "^0.468.0",
     "next": "^15.1.0",
@@ -52,5 +49,37 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
     "vitest": "^2.1.8"
+  },
+  "depCheck": {
+    "runtime": {
+      "react-dom": "Next 가 렌더러로 쓴다 — 직접 import 하지 않는다"
+    },
+    "tooling": {
+      "typescript": "tsc",
+      "eslint": "npm run lint",
+      "eslint-config-next": "eslint 설정",
+      "prettier": "포맷",
+      "prettier-plugin-tailwindcss": "클래스 정렬",
+      "postcss": "tailwind 빌드",
+      "autoprefixer": "postcss 플러그인",
+      "tailwindcss": "postcss 가 설정 파일로 부른다 — 코드에서 import 하지 않는다",
+      "openapi-typescript": "npm run types:gen — 백엔드 openapi.json 에서 타입 생성",
+      "vitest": "npm test",
+      "jsdom": "vitest 환경",
+      "@vitejs/plugin-react": "vitest 트랜스폼",
+      "@testing-library/react": "컴포넌트 테스트",
+      "@types/node": "타입만",
+      "@types/react": "타입만",
+      "@types/react-dom": "타입만"
+    },
+    "reserved": {
+      "react-hook-form": "TBO-29I 변경 요청 폼 · 30G 청구서 · 32D 컨설팅 시작",
+      "zod": "위 폼들의 스키마 — 서버 DTO 와 규칙이 겹치지 않게 입력 형식만 본다",
+      "@hookform/resolvers": "react-hook-form ↔ zod 연결",
+      "@dnd-kit/core": "28N1 캘린더 드래그 이동",
+      "@dnd-kit/modifiers": "28N1 — 격자에 스냅",
+      "html-to-image": "TBO-31 §50 리포트 PNG — D-R33 이 프론트에서 만들라고 정한다",
+      "lucide-react": "TBO-29 우측 서랍 8종 아이콘"
+    }
   }
 }
