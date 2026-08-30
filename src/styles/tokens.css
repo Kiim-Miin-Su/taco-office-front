@@ -72,6 +72,8 @@
   --top-h: 56px;
 
   /* ── 글꼴 ────────────────────────────────────────────────── */
-  --f-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Pretendard 는 next/font 가 실어 나른다 (app/layout.tsx) — 여기서는 그 변수를 맨 앞에 둔다.
+     폰트가 아직 안 왔거나 못 읽어도 뒤의 시스템 글꼴로 떨어지므로 화면이 깨지지 않는다. */
+  --f-sans: var(--f-pretendard), 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --f-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 }

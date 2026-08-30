@@ -1,4 +1,5 @@
 export { cn } from './cn';
+export { Logo, type LogoProps } from './Logo';
 export { Button, type ButtonVariant, type ButtonSize } from './Button';
 export { Chip, type Tone, type ChipStyle } from './Chip';
 export { StatusBadge } from './StatusBadge';

@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/api/client';
 import { useSession } from '@/store/useSession';
-import { Banner, Button, Input, Label } from '@/components/ui';
+import { Banner, Button, Input, Label, Logo } from '@/components/ui';
 import type { Me } from '@/api/types';
 
 /** 개발 시드 계정 — 역할별로 화면이 어떻게 갈리는지 바로 볼 수 있게 */
@@ -45,8 +45,8 @@ export default function LoginPage() {
   return (
     <div className="grid min-h-screen place-items-center bg-bg p-6">
       <form onSubmit={submit} className="w-full max-w-[380px] rounded-2xl border border-line bg-card p-6">
-        <h1 className="text-[20px] font-bold text-fg">TACO ERP</h1>
-        <p className="mt-1 text-[12px] text-fg-subtle">티엔아카데미 학원 운영 백오피스</p>
+        <Logo size={34} />
+        <p className="mt-2 text-[12px] text-fg-subtle">티엔아카데미 학원 운영 백오피스</p>
 
         {/* 폼 요소는 ui/Field 를 쓴다 — 손으로 그리면 포커스 링과 잠김 표시가 여기만 따로 논다 */}
         <div className="mt-5">

@@ -1,0 +1,10 @@
+<!--
+  ⚠ 임시 마크입니다. 대표님이 주실 tn-mark.svg 로 **이 파일만** 갈아 끼우면
+     상단 바 · 로그인 화면 · 브라우저 탭이 함께 바뀝니다 (components/ui/Logo.tsx).
+     정사각형에 가깝게 만들어 주시면 어디에 놓아도 비율이 안 흔들립니다.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TN">
+  <rect width="32" height="32" rx="8" fill="#2F6BFF"/>
+  <path d="M7 11h8v2.4h-2.7V22h-2.6v-8.6H7V11z" fill="#fff"/>
+  <path d="M17 11h2.3l3.4 5.5V11H25v11h-2.3l-3.4-5.5V22H17V11z" fill="#fff"/>
+</svg>

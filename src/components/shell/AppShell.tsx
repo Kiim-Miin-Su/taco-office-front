@@ -10,6 +10,7 @@ import { cn } from '../ui/cn';
 import { useSession } from '@/store/useSession';
 import { api } from '@/api/client';
 import { AppDrawer, DrawerButton } from '@/components/drawer/AppDrawer';
+import { Logo } from '@/components/ui';
 
 const TABS = [
   { href: '/schedule', label: '스케줄' },
@@ -41,7 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-bg">
       <header className="flex h-[50px] items-center gap-1 bg-fg px-4">
-        <span className="mr-3 text-[13px] font-bold text-white">TACO ERP</span>
+        <Logo size={22} onDark className="mr-3" />
         <nav className="flex flex-1 items-center gap-0.5 overflow-x-auto">
           {TABS.map((t) => {
             const on = path?.startsWith(t.href);
