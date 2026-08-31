@@ -10,7 +10,7 @@
  *   ③ 도메인 판정은 서버와 `lib/` 가 갖는다 — 여기서 다시 계산하지 않는다
  */
 'use client';
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
@@ -28,10 +28,10 @@ import { useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/que
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  HOUR_PX, boundsOf, label, monthGrid, movePatch, occurrenceKey, resizePatch,
+  HOUR_PX, boundsOf, label, monthGrid, movePatch, movePlacements, occurrenceKey, resizePatch,
   selectOccurrenceKeys, selectedOccurrences, step, todayKst, type SelectMode, type View,
 } from '@/lib/calendar';
-import type { Occurrence, OccurrencePatch, Scope } from '@/api/types';
+import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
 
 /* ── 상태 — 명시적 action + 순수 reducer (§6.1-3) ────────────────────── */
 
@@ -45,6 +45,15 @@ interface S {
   selected: string[];
   /** 브라우저 clipboard 와 섞지 않는 앱 내부 상태 (§5.2). */
   clipboard: { items: Occurrence[]; cut: boolean } | null;
+  /** Ctrl/⌘+V가 붙을 리프 칸. 선택과 별개라 reducer에 명시한다. */
+  cursor: PasteCursor | null;
+}
+
+interface PasteCursor {
+  date: string;
+  startMin: number;
+  colAxis?: 'room' | 'teacher';
+  colId?: number | null;
 }
 
 type A =
@@ -55,7 +64,8 @@ type A =
   | { t: 'person'; id: number | null }
   | { t: 'open'; o: Occurrence | null }
   | { t: 'selected'; keys: string[] }
-  | { t: 'clipboard'; value: S['clipboard'] };
+  | { t: 'clipboard'; value: S['clipboard'] }
+  | { t: 'cursor'; value: PasteCursor | null };
 
 function reducer(s: S, a: A): S {
   switch (a.t) {
@@ -68,7 +78,8 @@ function reducer(s: S, a: A): S {
     case 'person': return { ...s, personId: a.id };
     case 'open': return { ...s, open: a.o };
     case 'selected': return { ...s, selected: a.keys };
-    case 'clipboard': return { ...s, clipboard: a.value };
+    case 'clipboard': return { ...s, clipboard: a.value, cursor: a.value ? s.cursor : null };
+    case 'cursor': return { ...s, cursor: a.value };
   }
 }
 
@@ -82,6 +93,12 @@ const VIEWS: Array<{ value: View; label: string }> = [
 
 /** PATCH 본문에서 scope·onDate 를 뺀 것 — 드롭이 계산하고, 범위는 사람이 고른다 */
 type PendingPatch = Omit<OccurrencePatch, 'scope' | 'onDate'>;
+type PendingPaste = {
+  items: Occurrence[];
+  target: Omit<OccurrencePaste, 'sources' | 'scope'>;
+  fromClipboard: boolean;
+};
+type PendingMoveMany = { occurrences: Occurrence[]; items: OccurrenceMove['items'] };
 
 /** 텍스트 입력에서 Ctrl+C 같은 기본 동작을 가로채지 않는다 (§5A.6). */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -91,7 +108,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export default function SchedulePage() {
   const [s, go] = useReducer(reducer, {
-    view: 'day', date: todayKst(), personId: null, open: null, selected: [], clipboard: null,
+    view: 'day', date: todayKst(), personId: null, open: null,
+    selected: [], clipboard: null, cursor: null,
   });
   const meta = useMeta();
   const hz = useHorizon();
@@ -100,8 +118,13 @@ export default function SchedulePage() {
 
   /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
   const [dragging, setDragging] = useState<Occurrence | null>(null);
+  const [dragCopy, setDragCopy] = useState(false);
+  const dragCopyRef = useRef(false);
   /** 반복이면 저장 직전 1회만 묻는다 (§5A.0). 낙관 반영은 mutate 가 한다 */
   const [ask, setAsk] = useState<{ occ: Occurrence; body: PendingPatch } | null>(null);
+  /** Ctrl+드래그와 Ctrl/⌘+V가 같은 paste 다이얼로그·mutation을 쓴다. */
+  const [pasteAsk, setPasteAsk] = useState<PendingPaste | null>(null);
+  const [moveAsk, setMoveAsk] = useState<PendingMoveMany | null>(null);
   const [err, setErr] = useState<string | null>(null);
   /** 빈 칸에서 시작하는 새 일정 (C-5) — 새 일정은 범위를 묻지 않는다 */
   const [draft, setDraft] = useState<SessionDraft | null>(null);
@@ -123,15 +146,91 @@ export default function SchedulePage() {
     else submit(occ, body, 'this');
   };
 
+  const submitPaste = (pending: PendingPaste, scope: Scope) => {
+    write.mutate(
+      {
+        kind: 'paste',
+        body: {
+          sources: pending.items.map((o) => ({ serId: o.serId, date: o.date, onDate: o.onDate })),
+          scope,
+          ...pending.target,
+        },
+      },
+      {
+        onError: (e) => setErr(apiMessage(e)),
+        onSuccess: () => {
+          setErr(null);
+          setPasteAsk(null);
+          go({ t: 'cursor', value: null });
+          if (pending.fromClipboard) {
+            go({ t: 'clipboard', value: null });
+            go({ t: 'selected', keys: [] });
+          }
+        },
+      },
+    );
+  };
+
+  /** 단발은 즉시, 반복 원본이 하나라도 있으면 붙여넣기 직전에 한 번만 범위를 묻는다. */
+  const requestPaste = (pending: PendingPaste) => {
+    if (pending.items.some((o) => o.recurring)) setPasteAsk(pending);
+    else submitPaste(pending, 'this');
+  };
+
+  const submitMoveMany = (pending: PendingMoveMany, scope: Scope) => {
+    write.mutate(
+      { kind: 'moveMany', body: { items: pending.items, scope } },
+      {
+        onError: (e) => setErr(apiMessage(e)),
+        onSuccess: () => { setErr(null); setMoveAsk(null); },
+      },
+    );
+  };
+
+  /** 두 건 이상 선택된 드래그만 가로채며 날짜·시각 delta와 드롭한 자원 축을 함께 적용한다. */
+  const requestMoveMany = (
+    anchor: Occurrence,
+    targetDate: string,
+    targetStartMin: number,
+    resource: { teacherId?: number | null; roomId?: number | null } = {},
+  ): boolean => {
+    const occurrences = selectedOccurrences(all, s.selected);
+    if (occurrences.length < 2) return false;
+    const placed = movePlacements(occurrences, anchor, targetDate, targetStartMin);
+    if (!placed) {
+      setErr('선택한 일정 중 자정을 넘는 항목이 있어 함께 옮길 수 없습니다.');
+      return true;
+    }
+    const pending: PendingMoveMany = {
+      occurrences,
+      items: placed.map((x) => ({
+        source: { serId: x.source.serId, date: x.source.date, onDate: x.source.onDate },
+        date: x.date,
+        startMin: x.startMin,
+        endMin: x.endMin,
+        ...resource,
+      })),
+    };
+    if (occurrences.some((o) => o.recurring)) setMoveAsk(pending);
+    else submitMoveMany(pending, 'this');
+    return true;
+  };
+
   const onDragStart = (e: DragStartEvent) => {
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
     if (!s.selected.includes(occurrenceKey(d.occ))) go({ t: 'selected', keys: [occurrenceKey(d.occ)] });
+    const activator = e.activatorEvent as MouseEvent;
+    dragCopyRef.current = d.type === 'move' && (activator.ctrlKey || activator.metaKey);
+    setDragCopy(dragCopyRef.current);
     if (d.type === 'move') setDragging(d.occ);
   };
 
   const onDragEnd = (e: DragEndEvent) => {
     setDragging(null);
+    setDragCopy(false);
+    const copy = dragCopyRef.current;
+    dragCopyRef.current = false;
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
     if (d.type === 'resize') {
@@ -143,7 +242,14 @@ export default function SchedulePage() {
     if (!over) return;
     if (over.type === 'day') {
       // 주간·월간 — 칸이 곧 날짜다. 시각은 그대로 간다
-      request(d.occ, movePatch(d.occ, { date: over.date }));
+      if (copy) {
+        requestPaste({
+          items: [d.occ], fromClipboard: false,
+          target: { targetDate: over.date, targetStartMin: d.occ.startMin, cut: false },
+        });
+      } else if (!requestMoveMany(d.occ, over.date, d.occ.startMin)) {
+        request(d.occ, movePatch(d.occ, { date: over.date }));
+      }
       return;
     }
     // 일간 — 시각은 움직인 거리에서, 컬럼은 드롭한 칸에서 (§4.4 — 축이 무엇을 바꾸나)
@@ -152,7 +258,25 @@ export default function SchedulePage() {
       startMin: d.occ.startMin + (e.delta.y / HOUR_PX) * 60,
       ...(over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId }),
     };
-    request(d.occ, movePatch(d.occ, t));
+    const patch = movePatch(d.occ, t);
+    if (copy) {
+      requestPaste({
+        items: [d.occ], fromClipboard: false,
+        target: {
+          targetDate: over.date,
+          targetStartMin: patch?.startMin ?? d.occ.startMin,
+          cut: false,
+          ...(over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId }),
+        },
+      });
+    } else if (!requestMoveMany(
+      d.occ,
+      over.date,
+      patch?.startMin ?? d.occ.startMin,
+      over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId },
+    )) {
+      request(d.occ, patch);
+    }
   };
 
   // ② 보기가 무엇이든 **범위 하나**만 읽는다.
@@ -173,6 +297,30 @@ export default function SchedulePage() {
     const picked = selectedOccurrences(all, s.selected);
     if (!picked.length) return;
     go({ t: 'clipboard', value: { items: picked, cut } });
+    go({ t: 'cursor', value: null });
+  };
+
+  const pasteAtCursor = () => {
+    if (!s.clipboard) {
+      setErr('클립보드가 비어 있습니다. 먼저 일정을 선택하고 Ctrl/⌘ + C를 누르세요.');
+      return;
+    }
+    if (!s.cursor) {
+      setErr('붙여넣을 빈 칸을 먼저 선택하세요.');
+      return;
+    }
+    const c = s.cursor;
+    requestPaste({
+      items: s.clipboard.items,
+      fromClipboard: true,
+      target: {
+        targetDate: c.date,
+        targetStartMin: c.startMin,
+        cut: s.clipboard.cut,
+        ...(c.colAxis === 'teacher' ? { teacherId: c.colId } : {}),
+        ...(c.colAxis === 'room' ? { roomId: c.colId } : {}),
+      },
+    });
   };
 
   useEffect(() => {
@@ -185,14 +333,34 @@ export default function SchedulePage() {
         copySelection(key === 'x');
         return;
       }
+      if (mod && key === 'v') {
+        e.preventDefault();
+        pasteAtCursor();
+        return;
+      }
       if (e.key === 'Escape') {
         if (s.selected.length) go({ t: 'selected', keys: [] });
         else if (s.clipboard) go({ t: 'clipboard', value: null });
+        else if (pasteAsk) setPasteAsk(null);
+        else if (moveAsk) setMoveAsk(null);
+        else if (ask) setAsk(null);
+        else return;
+        // Overlay의 별도 Escape 리스너까지 같은 키를 처리하지 않게 한 단계에서 끊는다.
+        e.stopPropagation();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   });
+
+  const chooseSlot = (date: string, startMin: number, colAxis?: 'room' | 'teacher', colId?: number | null) => {
+    if (s.clipboard) {
+      go({ t: 'cursor', value: { date, startMin, colAxis, colId } });
+      setErr(null);
+      return;
+    }
+    setDraft({ date, startMin, roomId: colAxis === 'room' ? (colId ?? null) : null });
+  };
 
   /** ③ 사람 필터는 selector 로 — 같은 응답을 나눠 쓴다 */
   const items = useMemo(() => {
@@ -284,6 +452,7 @@ export default function SchedulePage() {
           <Button size="sm" onClick={() => go({ t: 'step', dir: 1 })}>›</Button>
           <span className="ml-1 text-[14px] font-bold text-fg">{head}</span>
           <span className="text-[12px] text-fg-subtle">{items.length}건</span>
+          {s.cursor ? <Chip tone="info">붙여넣기 위치 {label(s.cursor.date)} · {Math.floor(s.cursor.startMin / 60)}:{String(s.cursor.startMin % 60).padStart(2, '0')}</Chip> : null}
           <div className="ml-auto"><Legend /></div>
         </div>
 
@@ -340,6 +509,8 @@ export default function SchedulePage() {
                 ) : null}
                 <WeekGrid date={s.date} items={items} subName={subName} interactive={canEdit}
                   onSelect={select} selected={selectedSet}
+                  cursorDate={s.cursor?.date}
+                  onAdd={canEdit && s.clipboard ? (d) => chooseSlot(d, 10 * 60) : undefined}
                   onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })} />
               </div>
             ) : (
@@ -355,17 +526,20 @@ export default function SchedulePage() {
             columnOf={(o) => o.roomId ?? null}
             subName={subName} onOpen={(o) => go({ t: 'open', o })}
             onSelect={select} selected={selectedSet} interactive={canEdit}
-            onAddAt={(date, startMin, roomId) => setDraft({ date, startMin, roomId })} />
+            cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
+            onAddAt={(date, startMin, roomId) => chooseSlot(date, startMin, 'room', roomId)} />
         ) : s.view === 'week' ? (
           <WeekGrid date={s.date} items={items} subName={subName} interactive={canEdit}
             onSelect={select} selected={selectedSet}
+            cursorDate={s.cursor?.date}
             onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })}
-            onAdd={canEdit ? (d) => setDraft({ date: d, startMin: 10 * 60, roomId: null }) : undefined} />
+            onAdd={canEdit ? (d) => chooseSlot(d, 10 * 60) : undefined} />
         ) : (
           <MonthGrid date={s.date} items={items} grid={grid} subName={subName} interactive={canEdit}
             onSelect={select} selected={selectedSet}
+            cursorDate={s.cursor?.date}
             onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })}
-            onAdd={canEdit ? (d) => setDraft({ date: d, startMin: 10 * 60, roomId: null }) : undefined} />
+            onAdd={canEdit ? (d) => chooseSlot(d, 10 * 60) : undefined} />
         )}
 
         {q.isLoading ? <p className="mt-3 text-[12px] text-fg-subtle">불러오는 중…</p> : null}
@@ -382,7 +556,7 @@ export default function SchedulePage() {
         <ClipboardBar
           count={s.clipboard?.items.length ?? 0}
           cut={s.clipboard?.cut ?? false}
-          onClear={() => go({ t: 'clipboard', value: null })}
+          onClear={() => { go({ t: 'clipboard', value: null }); go({ t: 'cursor', value: null }); }}
         />
 
         <LessonDetail
@@ -397,8 +571,10 @@ export default function SchedulePage() {
         {/* 드래그 고스트 — 원본은 흐려지고 이것이 손을 따라간다 (§5.1) */}
         <DragOverlay dropAnimation={null}>
           {dragging ? (
-            <div className="w-40 rounded-md border border-blue bg-blue/10 px-2 py-1 text-[11px] font-bold text-blue shadow-lg">
-              {subName(dragging) ?? dragging.title ?? dragging.kindKey}
+            <div className={`w-40 rounded-md border px-2 py-1 text-[11px] font-bold shadow-lg ${
+              dragCopy ? 'border-violet bg-violet/10 text-violet' : 'border-blue bg-blue/10 text-blue'
+            }`}>
+              {dragCopy ? '복제 · ' : ''}{subName(dragging) ?? dragging.title ?? dragging.kindKey}
               <span className="ml-1 opacity-70">{dragging.students.length ? `· ${dragging.students.length}명` : ''}</span>
             </div>
           ) : null}
@@ -412,6 +588,20 @@ export default function SchedulePage() {
           mode="edit"
           onPick={(scope) => { if (ask) submit(ask.occ, ask.body, scope); setAsk(null); }}
           onClose={() => setAsk(null)}
+        />
+        <RecurrenceScope
+          open={!!pasteAsk}
+          mode="paste"
+          warning={pasteAsk?.items.some((o) => o.hasException) ? '원본에 적용된 예외는 복사되지 않고, 현재 보이는 값과 반복 규칙만 새 SER로 복제됩니다.' : undefined}
+          onPick={(scope) => { if (pasteAsk) submitPaste(pasteAsk, scope); }}
+          onClose={() => setPasteAsk(null)}
+        />
+        <RecurrenceScope
+          open={!!moveAsk}
+          mode="edit"
+          warning={moveAsk ? `${moveAsk.occurrences.length}건을 같은 범위로 함께 옮깁니다. 같은 반복 규칙의 여러 회차에는 「이번만」을 선택하세요.` : undefined}
+          onPick={(scope) => { if (moveAsk) submitMoveMany(moveAsk, scope); }}
+          onClose={() => setMoveAsk(null)}
         />
         </DndContext>
       </AppShell>

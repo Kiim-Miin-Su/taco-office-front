@@ -70,24 +70,38 @@ export function Dialog({ open, onClose, title, children, footer, width = 460 }: 
  * 단발이면 묻지 않는다 — 확인창은 반복일 때 저장 직전 한 번뿐이다.
  */
 export type Scope = 'this' | 'future' | 'all';
-const SCOPE_TEXT: Record<Scope, { label: string; help: string }> = {
-  this: { label: '이번만', help: '그날 회차만 바뀝니다. 다음 주는 그대로입니다.' },
-  future: { label: '향후', help: '이번 회차부터 뒤로 전부 바뀝니다. 규칙이 둘로 갈립니다.' },
-  all: { label: '모두', help: '지난 회차까지 포함해 규칙 전체가 바뀝니다.' },
+const SCOPE_TEXT: Record<'edit' | 'paste' | 'delete', Record<Scope, { label: string; help: string }>> = {
+  edit: {
+    this: { label: '이번만', help: '그날 회차만 바뀝니다. 다음 주는 그대로입니다.' },
+    future: { label: '향후', help: '이번 회차부터 뒤로 전부 바뀝니다. 규칙이 둘로 갈립니다.' },
+    all: { label: '모두', help: '지난 회차까지 포함해 규칙 전체가 바뀝니다.' },
+  },
+  paste: {
+    this: { label: '이번만', help: '붙인 날 하루짜리 단발 일정이 새로 생깁니다.' },
+    future: { label: '향후', help: '원본 반복 규칙을 가져와 붙인 날부터 이어집니다.' },
+    all: { label: '모두', help: '원본 반복 구간 전체가 날짜 차이만큼 평행 이동해 복제됩니다.' },
+  },
+  delete: {
+    this: { label: '이번만', help: '그날 회차만 휴강 처리합니다.' },
+    future: { label: '향후', help: '이 회차 전날로 반복 기간을 마감합니다.' },
+    all: { label: '모두', help: '참조가 없으면 규칙 전체를 지우고, 있으면 기간을 마감합니다.' },
+  },
 };
 
-export function RecurrenceScope({ open, mode, onPick, onClose }: {
-  open: boolean; mode: 'edit' | 'paste' | 'delete'; onPick: (s: Scope) => void; onClose: () => void;
+export function RecurrenceScope({ open, mode, warning, onPick, onClose }: {
+  open: boolean; mode: 'edit' | 'paste' | 'delete'; warning?: ReactNode;
+  onPick: (s: Scope) => void; onClose: () => void;
 }) {
   const verb = { edit: '고칩니다', paste: '붙여넣습니다', delete: '지웁니다' }[mode];
   return (
     <Dialog open={open} onClose={onClose} title={`반복 수업입니다 — 어디까지 ${verb}?`}>
+      {warning ? <div className="mb-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[11px] text-fg-2">{warning}</div> : null}
       <div className="flex flex-col gap-2">
         {(['this', 'future', 'all'] as Scope[]).map((s) => (
-          <button key={s} type="button" onClick={() => onPick(s)}
+          <button key={s} type="button" autoFocus={s === 'this'} onClick={() => onPick(s)}
             className="rounded-lg border border-line p-3 text-left transition-colors hover:border-blue hover:bg-blue/5">
-            <div className="text-[13px] font-bold text-fg">{SCOPE_TEXT[s].label}</div>
-            <div className="mt-0.5 text-[11px] text-fg-subtle">{SCOPE_TEXT[s].help}</div>
+            <div className="text-[13px] font-bold text-fg">{SCOPE_TEXT[mode][s].label}</div>
+            <div className="mt-0.5 text-[11px] text-fg-subtle">{SCOPE_TEXT[mode][s].help}</div>
           </button>
         ))}
       </div>

@@ -37,6 +37,8 @@ export interface CalCellProps {
   className?: string;
   /** 이 달 밖의 날짜 — 월간 격자에서 흐리게 */
   muted?: boolean;
+  /** 앱 내부 붙여넣기 커서가 놓인 날짜 */
+  active?: boolean;
   /** 날짜 드롭 타깃으로 등록한다 — 주간·월간은 칸이 곧 날짜다 (TBO-41 · §5) */
   droppable?: boolean;
   /** 칸 안의 블록을 잡을 수 있는가 */
@@ -45,7 +47,7 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, max, onOpen, onSelect, selected, onAdd, onMore, compact, className, muted,
+  date, head, items, subName, max, onOpen, onSelect, selected, onAdd, onMore, compact, className, muted, active,
   droppable, draggable, children,
 }: CalCellProps) {
   const drop = useDroppable({
@@ -64,6 +66,7 @@ export function CalCell({
         'relative flex min-h-[78px] flex-col gap-1 border-b border-r border-line p-1.5',
         muted && 'bg-inset/40',
         isToday && 'bg-blue/[0.04]',
+        active && 'z-[1] ring-2 ring-inset ring-blue',
         onAdd && 'cursor-cell',
         drop.isOver && 'bg-blue/10',
         className,

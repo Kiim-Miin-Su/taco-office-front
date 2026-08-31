@@ -38,6 +38,8 @@ export interface GridProps {
   onOpen?: (o: Occurrence) => void;
   onSelect?: (o: Occurrence, mode: SelectMode) => void;
   selected?: ReadonlySet<string>;
+  /** 붙여넣기 커서가 놓인 날짜 — 목록형 보기의 대상 링 */
+  cursorDate?: string | null;
   onAdd?: (date: string) => void;
   onPickDate?: (date: string) => void;
   /** 잡아서 옮길 수 있는가 — 권한(canCrudAll)을 페이지가 여기로 내린다 */
@@ -64,11 +66,13 @@ export interface DayGridProps extends GridProps {
   colAxis: ColAxis;
   /** 빈 슬롯을 누르면 그 시각으로 새 일정 (C-5 진입점) */
   onAddAt?: (date: string, startMin: number, colId: number | null) => void;
+  cursor?: { date: string; startMin: number; colAxis: ColAxis; colId: number | null } | null;
 }
 
 /** 30분 슬롯 하나 — **실제 노드**다. 드롭 타깃이자 셀 상태의 자리 (§2.5) */
-function Slot({ date, colAxis, colId, slotMin, hourLine, onAddAt }: {
+function Slot({ date, colAxis, colId, slotMin, hourLine, active, onAddAt }: {
   date: string; colAxis: ColAxis; colId: number | null; slotMin: number; hourLine: boolean;
+  active?: boolean;
   onAddAt?: (date: string, startMin: number, colId: number | null) => void;
 }) {
   const d = useDroppable({
@@ -84,6 +88,7 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, onAddAt }: {
         // 정시는 실선, 30분은 옅은 선 — 15분에는 선을 긋지 않는다 (§2.5)
         hourLine ? 'border-b border-b-line' : 'border-b border-b-line/40',
         onAddAt && 'cursor-cell hover:bg-blue/[0.04]',
+        active && 'bg-blue/10 ring-2 ring-inset ring-blue',
         d.isOver && 'bg-blue/10',
       )}
       style={{ height: HOUR_PX / 2 }}
@@ -92,7 +97,7 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, onAddAt }: {
 }
 
 export function DayGrid({
-  date, items, columns, columnOf, colAxis, subName, onOpen, onSelect, selected, onAddAt, interactive,
+  date, items, columns, columnOf, colAxis, subName, onOpen, onSelect, selected, onAddAt, cursor, interactive,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
   const { from, to } = timeRange(today);
@@ -152,6 +157,7 @@ export function DayGrid({
                 {slots.map((m) => (
                   <Slot key={m} date={date} colAxis={colAxis} colId={c.id} slotMin={m}
                         hourLine={(m + SLOT_MIN) % 60 === 0}
+                        active={cursor?.date === date && cursor.startMin === m && cursor.colAxis === colAxis && cursor.colId === c.id}
                         onAddAt={interactive ? onAddAt : undefined} />
                 ))}
 
@@ -214,7 +220,7 @@ export function DayGrid({
 /* ── §8 주간 — 요일 7칸 ──────────────────────────────────────────────── */
 
 export function WeekGrid({
-  date, items, subName, onOpen, onSelect, selected, onAdd, onPickDate, interactive,
+  date, items, subName, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
 }: GridProps) {
   const days = weekDays(date);
   const map = byDate(items);
@@ -239,6 +245,7 @@ export function WeekGrid({
         {days.map((d) => (
           <CalCell key={d} date={d} items={map.get(d) ?? EMPTY} subName={subName}
                    onSelect={onSelect} selected={selected}
+                   active={cursorDate === d}
                    onOpen={onOpen} onAdd={onAdd} className="min-h-[220px]" compact
                    droppable={interactive} draggable={interactive} />
         ))}
@@ -250,7 +257,7 @@ export function WeekGrid({
 /* ── §9 월간 — 달력 · 최대 3건 ───────────────────────────────────────── */
 
 export function MonthGrid({
-  date, items, grid, subName, onOpen, onSelect, selected, onAdd, onPickDate, interactive,
+  date, items, grid, subName, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
 }: GridProps & { grid: string[] }) {
   const map = byDate(items);
   const mon = date.slice(0, 7);
@@ -266,6 +273,7 @@ export function MonthGrid({
         {grid.map((d) => (
           <CalCell key={d} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
                    subName={subName} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
+                   active={cursorDate === d}
                    onAdd={onAdd} onMore={onPickDate}
                    muted={d.slice(0, 7) !== mon} compact
                    droppable={interactive} draggable={interactive} />

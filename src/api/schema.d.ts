@@ -157,6 +157,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/paste": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 회차 1~50건 복제 — 결과는 새 SER, EXC는 따라오지 않는다 (D-R19) */
+        post: operations["ScheduleController_paste"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 다중 선택 회차 이동 — 전부 저장되거나 전부 되돌아간다 (C-7) */
+        post: operations["ScheduleController_moveMany"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/{serId}": {
         parameters: {
             query?: never;
@@ -591,6 +625,43 @@ export interface components {
             projected: number;
             /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
             serIds: number[];
+        };
+        OccurrenceRefDto: {
+            serId: number;
+            /** @description 화면에 보이던 날짜. 이동 EXC를 찾고 상대 날짜 간격을 보존한다 */
+            date: string;
+            /** @description 규칙상 원래 날짜 — EXC 키 */
+            onDate: string;
+        };
+        OccurrencePasteDto: {
+            sources: components["schemas"]["OccurrenceRefDto"][];
+            /** @enum {string} */
+            scope: "this" | "future" | "all";
+            targetDate: string;
+            /** @description 붙여넣기 기준 시각 — 자정부터 분 */
+            targetStartMin: number;
+            /** @description 대상 강사 축이면 덮어쓴다 */
+            teacherId?: number | null;
+            /** @description 대상 강의실 축이면 덮어쓴다 */
+            roomId?: number | null;
+            /**
+             * @description true면 붙여넣기 성공과 같은 트랜잭션에서 원본 회차를 취소한다
+             * @default false
+             */
+            cut: boolean;
+        };
+        OccurrenceMoveItemDto: {
+            source: components["schemas"]["OccurrenceRefDto"];
+            date: string;
+            startMin: number;
+            endMin: number;
+            teacherId?: number | null;
+            roomId?: number | null;
+        };
+        OccurrenceMoveDto: {
+            items: components["schemas"]["OccurrenceMoveItemDto"][];
+            /** @enum {string} */
+            scope: "this" | "future" | "all";
         };
         OccurrencePatchDto: {
             /**
@@ -1360,6 +1431,52 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OccurrenceCreateDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_paste: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OccurrencePasteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_moveMany: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OccurrenceMoveDto"];
             };
         };
         responses: {

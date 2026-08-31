@@ -52,6 +52,10 @@ export type Suggestion = S['SuggestionDto'];
 
 /** 스케줄 쓰기 — 자원 + scope 한 형태 (D-R16 · D-R21) */
 export type OccurrenceCreate = S['OccurrenceCreateDto'];
+export type OccurrenceRef = S['OccurrenceRefDto'];
+export type OccurrencePaste = S['OccurrencePasteDto'];
+export type OccurrenceMove = S['OccurrenceMoveDto'];
+export type OccurrenceMoveItem = S['OccurrenceMoveItemDto'];
 export type OccurrencePatch = S['OccurrencePatchDto'];
 export type OccurrenceDelete = S['OccurrenceDeleteDto'];
 export type RosterPatch = S['RosterPatchDto'];

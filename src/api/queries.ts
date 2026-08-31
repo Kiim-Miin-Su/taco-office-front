@@ -12,7 +12,7 @@ import {
 import { api } from './client';
 import type {
   Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
-  OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrencePatch,
+  OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
   Ops, ReportList, RosterPatch, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer,
 } from './types';
@@ -175,6 +175,8 @@ export function useHorizon(): UseQueryResult<Horizon> {
  */
 export type ScheduleWrite =
   | { kind: 'create'; body: OccurrenceCreate }
+  | { kind: 'paste'; body: OccurrencePaste }
+  | { kind: 'moveMany'; body: OccurrenceMove }
   | { kind: 'patch'; serId: number; body: OccurrencePatch }
   | { kind: 'delete'; serId: number; body: OccurrenceDelete }
   | { kind: 'roster'; serId: number; body: RosterPatch };
@@ -188,6 +190,8 @@ export function useScheduleWrite(): UseMutationResult<
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
       if (w.kind === 'create') return (await api.post<WriteResult>('/schedule', w.body)).data;
+      if (w.kind === 'paste') return (await api.post<WriteResult>('/schedule/paste', w.body)).data;
+      if (w.kind === 'moveMany') return (await api.post<WriteResult>('/schedule/move', w.body)).data;
       if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
       if (w.kind === 'roster') return (await api.patch<WriteResult>(`/schedule/${w.serId}/roster`, w.body)).data;
       return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;
@@ -199,7 +203,7 @@ export function useScheduleWrite(): UseMutationResult<
      * 다시 계산하면 판정이 두 벌이 된다.
      */
     onMutate: async (w) => {
-      if (w.kind === 'create' || w.kind === 'roster') return undefined;
+      if (w.kind === 'create' || w.kind === 'paste' || w.kind === 'roster') return undefined;
       await qc.cancelQueries({ queryKey: ['schedule', 'occurrences'] });
       const snaps = qc.getQueriesData<OccurrenceList>({ queryKey: ['schedule', 'occurrences'] }) as OccSnapshots;
       for (const [key, list] of snaps) {
@@ -207,6 +211,19 @@ export function useScheduleWrite(): UseMutationResult<
         qc.setQueryData(key, {
           ...list,
           items: list.items.map((o) => {
+            if (w.kind === 'moveMany') {
+              const item = w.body.items.find((x) =>
+                x.source.serId === o.serId && x.source.onDate === o.onDate,
+              );
+              return item ? {
+                ...o,
+                date: item.date,
+                startMin: item.startMin,
+                endMin: item.endMin,
+                teacherId: item.teacherId === undefined ? o.teacherId : item.teacherId,
+                roomId: item.roomId === undefined ? o.roomId : item.roomId,
+              } : o;
+            }
             if (o.serId !== w.serId || o.onDate !== w.body.onDate) return o;
             if (w.kind === 'delete') return { ...o, canceled: true };
             const b = w.body;

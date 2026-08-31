@@ -275,3 +275,25 @@ export function relativePlacements<T extends OccurrenceIdentity>(
     };
   });
 }
+
+/** C-7 다중 이동 — 잡은 블록 대비 날짜·분 delta를 선택 전체에 같은 값으로 적용한다. */
+export function movePlacements<T extends OccurrenceIdentity>(
+  items: T[],
+  anchor: T,
+  targetDate: string,
+  targetStartMin: number,
+): RelativePlacement<T>[] | null {
+  const deltaDays = Math.round(
+    (new Date(`${targetDate}T00:00:00Z`).getTime() - new Date(`${anchor.date}T00:00:00Z`).getTime()) / 86400000,
+  );
+  const deltaMinutes = snap15(targetStartMin) - anchor.startMin;
+  const placed = items.map((source) => ({
+    source,
+    date: addDays(source.date, deltaDays),
+    startMin: source.startMin + deltaMinutes,
+    endMin: source.endMin + deltaMinutes,
+    offsetDays: deltaDays,
+    offsetMinutes: deltaMinutes,
+  }));
+  return placed.some((x) => x.startMin < 0 || x.endMin > 24 * 60) ? null : placed;
+}

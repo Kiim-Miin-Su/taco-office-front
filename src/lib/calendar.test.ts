@@ -45,7 +45,7 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
 
 /* ── TBO-41 상호작용 산수 ─────────────────────────────────────────── */
 import {
-  clampEnd, minutesFromPx, movePatch, occurrenceKey, overlapClusters, relativePlacements,
+  clampEnd, minutesFromPx, movePatch, movePlacements, occurrenceKey, overlapClusters, relativePlacements,
   resizePatch, selectOccurrenceKeys, selectedOccurrences, snap15,
 } from './calendar';
 
@@ -125,5 +125,15 @@ describe('선택·클립보드 산수 (§5.2)', () => {
       { date: '2026-09-07', startMin: 720, endMin: 780 },
       { date: '2026-09-12', startMin: 540, endMin: 630 },
     ]);
+  });
+
+  it('다중 이동은 잡은 회차의 delta를 전체에 적용하고 자정을 넘으면 거절한다', () => {
+    const moved = movePlacements(items, items[1], '2026-08-20', 810);
+    expect(moved?.map((x) => ({ date: x.date, startMin: x.startMin }))).toEqual([
+      { date: '2026-08-20', startMin: 630 },
+      { date: '2026-08-20', startMin: 810 },
+      { date: '2026-08-25', startMin: 630 },
+    ]);
+    expect(movePlacements(items, items[0], '2026-08-19', -15)).toBeNull();
   });
 });
