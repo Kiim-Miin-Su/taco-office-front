@@ -6,7 +6,11 @@
  *   테두리 = 어디서 하는가 (실선 대면 / 점선 줌)
  *   빗금   = 취소
  * 한 채널에 두 뜻을 실으면 읽을 수 없게 된다.
+ *
+ * 드래그(TBO-41 · §5): `dragData` 를 주면 잡아서 옮길 수 있고, `resizable` 이면
+ * 하단 6px 핸들로 길이를 바꾼다. **판정과 저장은 페이지가 한다** — 블록은 잡히기만 한다.
  */
+import { useDraggable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { hhmm } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
@@ -31,26 +35,58 @@ export const STATUS_LABEL: Array<[keyof typeof STATUS_LOOK, string]> = [
   ['none', '안 씀'], ['plan', '예정'], ['wait', '승인 대기'], ['ok', '승인'], ['rej', '반려'],
 ];
 
+/** 드래그 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
+export interface DragData {
+  type: 'move' | 'resize';
+  occ: Occurrence;
+}
+
 export interface EventBlockProps {
   occ: Occurrence;
   subName?: string;
   compact?: boolean;
   onClick?: () => void;
+  /** 주면 잡을 수 있다 — 권한(canCrudAll)은 페이지가 판단해서 안 주는 것으로 표현한다 */
+  draggable?: boolean;
+  /** 시간 비례 격자에서만 켠다 (C-3) — 목록형 칸에는 길이 개념이 없다 */
+  resizable?: boolean;
 }
 
-export function EventBlock({ occ, subName, compact, onClick }: EventBlockProps) {
+export function EventBlock({ occ, subName, compact, onClick, draggable, resizable }: EventBlockProps) {
+  const key = `${occ.serId}|${occ.onDate}`;
+  const move = useDraggable({
+    id: `move|${key}`,
+    data: { type: 'move', occ } satisfies DragData,
+    disabled: !draggable,
+  });
+  const resize = useDraggable({
+    id: `resize|${key}`,
+    data: { type: 'resize', occ } satisfies DragData,
+    disabled: !resizable,
+  });
+
   const look = STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na;
   const names = occ.students.map((s) => s.name).join(' · ');
+  const dragging = move.isDragging || resize.isDragging;
+
   return (
-    <button
-      type="button"
+    <div
+      ref={move.setNodeRef}
+      {...move.listeners}
+      {...move.attributes}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(); }}
       title={`${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subName ?? occ.kindKey}${names ? ` · ${names}` : ''}`}
       className={cn(
-        'w-full rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
+        'relative flex h-full w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
         // 점선 = 비대면. 모양이 아니라 테두리로만 말한다.
         occ.mode === 'online' ? 'border-dashed' : 'border-solid',
         occ.canceled && 'opacity-45 line-through',
+        draggable && 'cursor-grab active:cursor-grabbing',
+        // 낙관 반영 중인 원본 자리 — 고스트는 DragOverlay 가 그린다 (§5.1)
+        dragging && 'opacity-40',
         look,
       )}
     >
@@ -64,6 +100,18 @@ export function EventBlock({ occ, subName, compact, onClick }: EventBlockProps) 
       {!compact && occ.hasException ? (
         <div className="mt-0.5 text-[10px] font-bold opacity-90">예외 있음</div>
       ) : null}
-    </button>
+
+      {resizable ? (
+        <div
+          ref={resize.setNodeRef}
+          {...resize.listeners}
+          {...resize.attributes}
+          // 블록 클릭(상세 열기)과 겹치지 않게 이벤트를 여기서 끊는다
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-x-0 bottom-0 h-[6px] cursor-ns-resize rounded-b-md hover:bg-fg/10"
+          aria-label="길이 조절"
+        />
+      ) : null}
+    </div>
   );
 }

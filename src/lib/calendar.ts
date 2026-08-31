@@ -96,3 +96,94 @@ export function timeRange(mins: Array<{ startMin: number; endMin: number }>): { 
   }
   return { from, to };
 }
+
+/* ── 상호작용 산수 (TBO-41 · CALENDAR §5) — 격자·드래그가 이것만 부른다 ── */
+
+/** 스냅은 15분, 셀 실체는 30분이다 (§2.5 · §5) */
+export const SNAP_MIN = 15;
+export const SLOT_MIN = 30;
+/** 시간당 픽셀 — 헤더와 본문이 같은 값을 쓴다. 각자 계산하면 1px 씩 어긋난다 (§2.5) */
+export const HOUR_PX = 56;
+
+export const snap15 = (m: number): number => Math.round(m / SNAP_MIN) * SNAP_MIN;
+
+/** 드래그 델타(px) → 분. 15분 스냅까지 여기서 한다 — 화면이 다시 계산하지 않는다 */
+export const minutesFromPx = (px: number): number => snap15((px / HOUR_PX) * 60);
+
+/** 블록 길이 제약 — 10~480분 (§5) · 자정을 넘지 않는다 */
+export const clampEnd = (startMin: number, endMin: number): number =>
+  Math.min(24 * 60, Math.max(startMin + 10, Math.min(startMin + 480, endMin)));
+
+export interface MoveTarget {
+  date?: string;
+  startMin?: number;
+  /** 컬럼 축이 강사면 강사가, 강의실이면 강의실이 바뀐다 (§4.4 · §2.3) */
+  teacherId?: number | null;
+  roomId?: number | null;
+}
+
+/** PATCH 에 실을 것 — **바뀐 필드만**. 아무것도 안 바뀌면 null, 그때는 부르지 않는다 */
+export function movePatch(
+  o: { date: string; startMin: number; endMin: number; teacherId?: number | null; roomId?: number | null },
+  t: MoveTarget,
+): { date?: string; startMin?: number; endMin?: number; teacherId?: number | null; roomId?: number | null } | null {
+  const out: ReturnType<typeof movePatch> = {};
+  if (t.date !== undefined && t.date !== o.date) out!.date = t.date;
+  if (t.startMin !== undefined) {
+    const s = Math.max(0, Math.min(24 * 60 - 10, snap15(t.startMin)));
+    if (s !== o.startMin) {
+      out!.startMin = s;
+      out!.endMin = clampEnd(s, s + (o.endMin - o.startMin)); // 길이 유지
+    }
+  }
+  if (t.teacherId !== undefined && t.teacherId !== (o.teacherId ?? null)) out!.teacherId = t.teacherId;
+  if (t.roomId !== undefined && t.roomId !== (o.roomId ?? null)) out!.roomId = t.roomId;
+  return Object.keys(out!).length ? out : null;
+}
+
+/** 리사이즈 — 끝 시각만 바뀐다 (§5 C-3) */
+export function resizePatch(
+  o: { startMin: number; endMin: number },
+  deltaPx: number,
+): { endMin: number } | null {
+  const end = clampEnd(o.startMin, snap15(o.endMin + (deltaPx / HOUR_PX) * 60));
+  return end === o.endMin ? null : { endMin: end };
+}
+
+/**
+ * 같은 컬럼에서 시간이 겹치는 블록 묶음 (§4.5 — 폭을 N등분하지 않는다).
+ * 첫 건만 그리고 나머지는 「+N」으로 접는 것이 화면의 일이고, 묶는 것은 여기의 일이다.
+ */
+export function overlapClusters<T extends { startMin: number; endMin: number }>(items: T[]): T[][] {
+  const sorted = [...items].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+  const out: T[][] = [];
+  let cur: T[] = [];
+  let curEnd = -1;
+  for (const it of sorted) {
+    if (cur.length && it.startMin < curEnd) {
+      cur.push(it);
+      curEnd = Math.max(curEnd, it.endMin);
+    } else {
+      if (cur.length) out.push(cur);
+      cur = [it];
+      curEnd = it.endMin;
+    }
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
+/** rrule 문자열 — 서버 `formatRule()` 이 정한 형식만 쓴다. 다른 형식은 회차가 통째로 사라진다 */
+const DOW_CODE = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const;
+export function buildRrule(days: number[]): string {
+  if (!days.length) return 'ONCE';
+  return `WEEKLY:${[...days].sort((a, b) => a - b).map((d) => DOW_CODE[d]).join(',')}`;
+}
+
+/** 'HH:MM' ↔ 분 — 폼 입력용. 표시는 hhmm() 그대로 */
+export const parseHm = (v: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v);
+  if (!m) return null;
+  const n = +m[1] * 60 + +m[2];
+  return n >= 0 && n < 24 * 60 ? n : null;
+};

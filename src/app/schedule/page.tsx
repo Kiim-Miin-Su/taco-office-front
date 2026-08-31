@@ -10,16 +10,26 @@
  *   ③ 도메인 판정은 서버와 `lib/` 가 갖는다 — 여기서 다시 계산하지 않는다
  */
 'use client';
-import { useMemo, useReducer } from 'react';
+import { useMemo, useReducer, useState } from 'react';
+import {
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, PageHeader, Panel, Segmented } from '@/components/ui';
-import { DayGrid, MonthGrid, WeekGrid } from '@/components/cal/Grids';
+import { Banner, Button, Chip, ConflictGuard, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
+import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
+import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
+import { type DragData } from '@/components/cal/EventBlock';
 import { Legend } from '@/components/cal/Legend';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
-import { useHorizon, useMeta, useOccurrences } from '@/api/queries';
-import { boundsOf, label, monthGrid, step, todayKst, type View } from '@/lib/calendar';
-import type { Occurrence } from '@/api/types';
+import { useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
+import { apiMessage } from '@/api/client';
+import { useCan } from '@/store/useSession';
+import {
+  HOUR_PX, boundsOf, label, monthGrid, movePatch, resizePatch, step, todayKst, type View,
+} from '@/lib/calendar';
+import type { Occurrence, OccurrencePatch, Scope } from '@/api/types';
 
 /* ── 상태 — 명시적 action + 순수 reducer (§6.1-3) ────────────────────── */
 
@@ -60,10 +70,70 @@ const VIEWS: Array<{ value: View; label: string }> = [
   { value: 'teacher', label: '선생님별' },
 ];
 
+/** PATCH 본문에서 scope·onDate 를 뺀 것 — 드롭이 계산하고, 범위는 사람이 고른다 */
+type PendingPatch = Omit<OccurrencePatch, 'scope' | 'onDate'>;
+
 export default function SchedulePage() {
   const [s, go] = useReducer(reducer, { view: 'day', date: todayKst(), personId: null, open: null });
   const meta = useMeta();
   const hz = useHorizon();
+  const write = useScheduleWrite();
+  const canEdit = useCan('canCrudAll');
+
+  /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
+  const [dragging, setDragging] = useState<Occurrence | null>(null);
+  /** 반복이면 저장 직전 1회만 묻는다 (§5A.0). 낙관 반영은 mutate 가 한다 */
+  const [ask, setAsk] = useState<{ occ: Occurrence; body: PendingPatch } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  /** 빈 칸에서 시작하는 새 일정 (C-5) — 새 일정은 범위를 묻지 않는다 */
+  const [draft, setDraft] = useState<SessionDraft | null>(null);
+
+  // 클릭과 드래그를 가른다 — 4px 을 움직여야 드래그다. 이게 없으면 열기 클릭이 전부 드래그가 된다
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const submit = (occ: Occurrence, body: PendingPatch, scope: Scope) => {
+    write.mutate(
+      { kind: 'patch', serId: occ.serId, body: { ...body, scope, onDate: occ.onDate } },
+      { onError: (e) => setErr(apiMessage(e)), onSuccess: () => setErr(null) },
+    );
+  };
+
+  /** 드롭 결과 → 바뀐 필드만. 반복이면 범위를 묻고, 단발이면 바로 저장한다 (§5A.0) */
+  const request = (occ: Occurrence, body: PendingPatch | null) => {
+    if (!body) return;
+    if (occ.recurring) setAsk({ occ, body });
+    else submit(occ, body, 'this');
+  };
+
+  const onDragStart = (e: DragStartEvent) => {
+    const d = e.active.data.current as DragData | undefined;
+    if (d?.type === 'move') setDragging(d.occ);
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    setDragging(null);
+    const d = e.active.data.current as DragData | undefined;
+    if (!d) return;
+    if (d.type === 'resize') {
+      // 길이 조절은 드롭 타깃이 없다 — 델타만 본다 (C-3)
+      request(d.occ, resizePatch(d.occ, e.delta.y));
+      return;
+    }
+    const over = e.over?.data.current as DropData | undefined;
+    if (!over) return;
+    if (over.type === 'day') {
+      // 주간·월간 — 칸이 곧 날짜다. 시각은 그대로 간다
+      request(d.occ, movePatch(d.occ, { date: over.date }));
+      return;
+    }
+    // 일간 — 시각은 움직인 거리에서, 컬럼은 드롭한 칸에서 (§4.4 — 축이 무엇을 바꾸나)
+    const t = {
+      date: over.date,
+      startMin: d.occ.startMin + (e.delta.y / HOUR_PX) * 60,
+      ...(over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId }),
+    };
+    request(d.occ, movePatch(d.occ, t));
+  };
 
   // ② 보기가 무엇이든 **범위 하나**만 읽는다.
   //    사람 필터를 서버에 보내지 않는 것이 요점이다 — 보내면 사람마다 다른 응답이 되어
@@ -131,6 +201,15 @@ export default function SchedulePage() {
       .sort((a2, b2) => b2.n - a2.n || a2.name.localeCompare(b2.name, 'ko'));
   }, [all, meta.data, s.view]);
 
+  /**
+   * 열린 상세는 **캐시의 최신 행**을 본다 (SSOT §6.1-1). 열 때의 스냅숏을 계속 보여 주면
+   * 명단을 바꿔도 서랍이 옛 명단을 보여 준다 — 서버가 고친 것을 화면이 무시하는 모양이 된다.
+   */
+  const open = useMemo(() => {
+    if (!s.open) return null;
+    return all.find((o) => o.serId === s.open!.serId && o.onDate === s.open!.onDate) ?? s.open;
+  }, [all, s.open]);
+
   const outOfHorizon = !!hz.data && (range.from < hz.data.from || range.to > hz.data.to);
   const grid = s.view === 'month' ? monthGrid(s.date) : [];
 
@@ -141,6 +220,7 @@ export default function SchedulePage() {
   return (
     <RequireAuth>
       <AppShell>
+        <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <PageHeader
           title="스케줄"
           sub="§7~§12 — 여섯 컷이 한 화면의 보기 전환입니다. 같은 범위를 한 번만 읽습니다."
@@ -161,6 +241,13 @@ export default function SchedulePage() {
             이 범위는 <b>아직 펼쳐지지 않았습니다</b>. 회차는 {hz.data?.from} ~ {hz.data?.to} 만 표에 있습니다 —
             비어 보이는 것은 일정이 없어서가 아닙니다.
           </Banner>
+        ) : null}
+
+        {err ? (
+          <div className="mb-3">
+            {/* 겹침이면 되돌아가 있다 — 낙관 반영은 mutate 가 이미 원자적으로 되돌렸다 (§5.1) */}
+            <ConflictGuard result="blocking" message={err} />
+          </div>
         ) : null}
 
         {s.view === 'student' || s.view === 'teacher' ? (
@@ -200,7 +287,7 @@ export default function SchedulePage() {
                     <span className="text-[11px] text-fg-subtle">취소·휴강은 시수에서 뺍니다 (D-R11)</span>
                   </div>
                 ) : null}
-                <WeekGrid date={s.date} items={items} subName={subName}
+                <WeekGrid date={s.date} items={items} subName={subName} interactive={canEdit}
                   onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })} />
               </div>
             ) : (
@@ -212,15 +299,18 @@ export default function SchedulePage() {
             )}
           </div>
         ) : s.view === 'day' ? (
-          <DayGrid date={s.date} items={items} columns={columns}
-            columnOf={(o) => (s.view === 'teacher' ? o.teacherId ?? null : o.roomId ?? null)}
-            subName={subName} onOpen={(o) => go({ t: 'open', o })} />
+          <DayGrid date={s.date} items={items} columns={columns} colAxis="room"
+            columnOf={(o) => o.roomId ?? null}
+            subName={subName} onOpen={(o) => go({ t: 'open', o })} interactive={canEdit}
+            onAddAt={(date, startMin, roomId) => setDraft({ date, startMin, roomId })} />
         ) : s.view === 'week' ? (
-          <WeekGrid date={s.date} items={items} subName={subName}
-            onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })} />
+          <WeekGrid date={s.date} items={items} subName={subName} interactive={canEdit}
+            onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })}
+            onAdd={canEdit ? (d) => setDraft({ date: d, startMin: 10 * 60, roomId: null }) : undefined} />
         ) : (
-          <MonthGrid date={s.date} items={items} grid={grid} subName={subName}
-            onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })} />
+          <MonthGrid date={s.date} items={items} grid={grid} subName={subName} interactive={canEdit}
+            onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })}
+            onAdd={canEdit ? (d) => setDraft({ date: d, startMin: 10 * 60, roomId: null }) : undefined} />
         )}
 
         {q.isLoading ? <p className="mt-3 text-[12px] text-fg-subtle">불러오는 중…</p> : null}
@@ -235,11 +325,34 @@ export default function SchedulePage() {
         </div>
 
         <LessonDetail
-          occ={s.open}
-          kindName={s.open ? kindName(s.open) : undefined}
-          subName={s.open ? subName(s.open) : undefined}
+          occ={open}
+          recurring={open?.recurring ?? true}
+          kindName={open ? kindName(open) : undefined}
+          subName={open ? subName(open) : undefined}
+          allStudents={meta.data?.students}
           onClose={() => go({ t: 'open', o: null })}
         />
+
+        {/* 드래그 고스트 — 원본은 흐려지고 이것이 손을 따라간다 (§5.1) */}
+        <DragOverlay dropAnimation={null}>
+          {dragging ? (
+            <div className="w-40 rounded-md border border-blue bg-blue/10 px-2 py-1 text-[11px] font-bold text-blue shadow-lg">
+              {subName(dragging) ?? dragging.title ?? dragging.kindKey}
+              <span className="ml-1 opacity-70">{dragging.students.length ? `· ${dragging.students.length}명` : ''}</span>
+            </div>
+          ) : null}
+        </DragOverlay>
+
+        <SessionEditor draft={draft} meta={meta.data} onClose={() => setDraft(null)} />
+
+        {/* 반복이면 저장 직전 1회만 묻는다 — 단발에서 이 창이 뜨면 버그다 (§5A.0) */}
+        <RecurrenceScope
+          open={!!ask}
+          mode="edit"
+          onPick={(scope) => { if (ask) submit(ask.occ, ask.body, scope); setAsk(null); }}
+          onClose={() => setAsk(null)}
+        />
+        </DndContext>
       </AppShell>
     </RequireAuth>
   );

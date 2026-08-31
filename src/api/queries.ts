@@ -179,7 +179,11 @@ export type ScheduleWrite =
   | { kind: 'delete'; serId: number; body: OccurrenceDelete }
   | { kind: 'roster'; serId: number; body: RosterPatch };
 
-export function useScheduleWrite(): UseMutationResult<WriteResult, unknown, ScheduleWrite> {
+type OccSnapshots = Array<[readonly unknown[], OccurrenceList | undefined]>;
+
+export function useScheduleWrite(): UseMutationResult<
+  WriteResult, unknown, ScheduleWrite, { snaps: OccSnapshots } | undefined
+> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
@@ -187,6 +191,41 @@ export function useScheduleWrite(): UseMutationResult<WriteResult, unknown, Sche
       if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
       if (w.kind === 'roster') return (await api.patch<WriteResult>(`/schedule/${w.serId}/roster`, w.body)).data;
       return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;
+    },
+    /**
+     * 낙관 반영 — cancel → patch → (실패 시) rollback 이 한 세트다 (AGENT §6.1-3).
+     * 범위(future·all)가 여러 회차를 바꾸는 경우에도 **잡은 회차 하나만** 미리 옮긴다 —
+     * 나머지는 성공 후 무효화가 정확히 맞춘다. 미리 다 옮기려고 규칙을 화면에서
+     * 다시 계산하면 판정이 두 벌이 된다.
+     */
+    onMutate: async (w) => {
+      if (w.kind === 'create' || w.kind === 'roster') return undefined;
+      await qc.cancelQueries({ queryKey: ['schedule', 'occurrences'] });
+      const snaps = qc.getQueriesData<OccurrenceList>({ queryKey: ['schedule', 'occurrences'] }) as OccSnapshots;
+      for (const [key, list] of snaps) {
+        if (!list) continue;
+        qc.setQueryData(key, {
+          ...list,
+          items: list.items.map((o) => {
+            if (o.serId !== w.serId || o.onDate !== w.body.onDate) return o;
+            if (w.kind === 'delete') return { ...o, canceled: true };
+            const b = w.body;
+            return {
+              ...o,
+              date: b.date ?? o.date,
+              startMin: b.startMin ?? o.startMin,
+              endMin: b.endMin ?? o.endMin,
+              teacherId: b.teacherId === undefined ? o.teacherId : b.teacherId,
+              roomId: b.roomId === undefined ? o.roomId : b.roomId,
+            };
+          }),
+        });
+      }
+      return { snaps };
+    },
+    onError: (_e, _w, ctx) => {
+      // 원자적 되돌림 — 스냅숏을 통째로 되돌린다. 부분 복구는 없는 상태를 만든다
+      for (const [key, list] of ctx?.snaps ?? []) qc.setQueryData(key, list);
     },
     onSuccess: () => {
       // 회차 목록만 다시 읽는다. 코드표·회계·운영은 이 쓰기로 바뀌지 않는다.

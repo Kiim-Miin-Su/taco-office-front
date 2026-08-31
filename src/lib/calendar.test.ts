@@ -42,3 +42,50 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
     expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
   });
 });
+
+/* ── TBO-41 상호작용 산수 ─────────────────────────────────────────── */
+import { clampEnd, minutesFromPx, movePatch, overlapClusters, resizePatch, snap15 } from './calendar';
+
+describe('드래그 산수 (§5)', () => {
+  it('15분 스냅 — 스냅은 15, 셀은 30 (§2.5)', () => {
+    expect(snap15(7)).toBe(0);
+    expect(snap15(8)).toBe(15);
+    expect(snap15(52)).toBe(45);
+    expect(minutesFromPx(56)).toBe(60); // 시간당 56px
+    expect(minutesFromPx(14)).toBe(15);
+  });
+
+  it('길이 제약 10~480분 (§5)', () => {
+    expect(clampEnd(600, 605)).toBe(610);   // 최소 10분
+    expect(clampEnd(600, 2000)).toBe(1080); // 최대 480분
+    expect(clampEnd(1400, 1439)).toBe(1439 < 1410 ? 1410 : 1439) // 자정 상한과 최소 10분
+  });
+
+  it('movePatch — 바뀐 필드만 싣고, 안 바뀌면 null (§5A.1 「바뀐 필드만 채운다」)', () => {
+    const o = { date: '2026-09-01', startMin: 600, endMin: 690, teacherId: 7, roomId: 1 };
+    expect(movePatch(o, { date: '2026-09-01', startMin: 600 })).toBeNull();
+    expect(movePatch(o, { startMin: 615 })).toEqual({ startMin: 615, endMin: 705 }); // 길이 90분 유지
+    expect(movePatch(o, { date: '2026-09-02' })).toEqual({ date: '2026-09-02' });
+    expect(movePatch(o, { roomId: 2 })).toEqual({ roomId: 2 });
+    expect(movePatch(o, { teacherId: null })).toEqual({ teacherId: null });
+    // 강의실 축으로 옮길 때 강사는 건드리지 않는다 (§4.4 — 축이 무엇을 바꾸는지)
+    expect(movePatch(o, { roomId: 1 })).toBeNull();
+  });
+
+  it('resizePatch — 끝만 바뀌고 스냅·제약을 통과한다 (C-3)', () => {
+    expect(resizePatch({ startMin: 600, endMin: 660 }, 28)).toEqual({ endMin: 690 });
+    expect(resizePatch({ startMin: 600, endMin: 660 }, 0)).toBeNull();
+    expect(resizePatch({ startMin: 600, endMin: 660 }, -1000)).toEqual({ endMin: 610 });
+  });
+
+  it('겹침 묶음 — N등분 대신 +N 으로 접기 위한 재료 (§4.5)', () => {
+    const c = overlapClusters([
+      { startMin: 600, endMin: 660 },
+      { startMin: 630, endMin: 700 },
+      { startMin: 700, endMin: 760 },
+    ]);
+    expect(c.length).toBe(2);
+    expect(c[0].length).toBe(2);
+    expect(c[1].length).toBe(1);
+  });
+});

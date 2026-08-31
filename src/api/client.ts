@@ -27,6 +27,20 @@ export const api = axios.create({
   timeout: 20_000,
 });
 
+/** 사람에게 보여 줄 실패 문구 — 화면이 문구를 지어내지 않는다. 해석하는 자리는 여기 하나다 */
+export function apiMessage(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  const r = (e as { response?: { data?: { message?: string } } })?.response?.data;
+  return r?.message ?? '저장하지 못했습니다';
+}
+
+/** 겹침(409) 인가 — 낙관 반영을 되돌리고 ConflictGuard 를 띄울 자리 판정 */
+export function isConflict(e: unknown): boolean {
+  if (e instanceof ApiError) return e.code === 'RESOURCE_CONFLICT' || e.code === 'DUPLICATE';
+  const s2 = (e as { response?: { status?: number } })?.response?.status;
+  return s2 === 409;
+}
+
 let accessToken: string | null = null;
 export const setAccessToken = (t: string | null) => {
   accessToken = t;

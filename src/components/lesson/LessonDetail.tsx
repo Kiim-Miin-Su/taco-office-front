@@ -11,10 +11,12 @@
  */
 'use client';
 import { useState } from 'react';
-import { Button, Chip, ConflictGuard, Drawer, RecurrenceScope } from '../ui';
+import { Button, Chip, ConflictGuard, Drawer, RecurrenceScope, Select } from '../ui';
 import { hhmm } from '@/lib/calendar';
 import { useScheduleWrite } from '@/api/queries';
-import type { Occurrence, Scope } from '@/api/types';
+import { apiMessage } from '@/api/client';
+import { useCan } from '@/store/useSession';
+import type { Occurrence, RosterPatch, Scope } from '@/api/types';
 
 /** 준비 8단계 — 명세서 §12. 순서가 곧 화면의 순서다. */
 const STEPS = [
@@ -49,16 +51,34 @@ export interface LessonDetailProps {
   subName?: string;
   /** 반복 수업이면 범위를 묻는다. 단발이면 묻지 않는다 (D-R16) */
   recurring?: boolean;
+  /** 명단에 넣을 수 있는 전체 학생 — 코드표(meta)에서 온다 */
+  allStudents?: Array<{ id: number; name: string; grade?: string | null }>;
   onClose: () => void;
 }
 
-export function LessonDetail({ occ, kindName, subName, recurring = true, onClose }: LessonDetailProps) {
+export function LessonDetail({ occ, kindName, subName, recurring = true, allStudents, onClose }: LessonDetailProps) {
   const write = useScheduleWrite();
+  const canEdit = useCan('canCrudAll');
   const [ask, setAsk] = useState<null | { mode: 'edit' | 'delete'; run: (s: Scope) => void }>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [pick, setPick] = useState('');
 
   if (!occ) return null;
   const done = doneOf(occ);
+
+  /**
+   * 수강 학생은 3범위가 아니라 **2범위**다 — 다이얼로그 없이 줄 버튼으로 바로 간다
+   * (§5A.7 「확인창을 쓰지 않는다」 · D-R21). 판정과 명단 계산은 서버가 한다.
+   */
+  const roster = (op: RosterPatch['op'], studentId: number) => {
+    setErr(null);
+    write.mutate(
+      { kind: 'roster', serId: occ.serId, body: { op, onDate: occ.onDate, studentId } },
+      { onError: (e) => setErr(apiMessage(e)) },
+    );
+  };
+  const enrolled = new Set(occ.students.map((st) => st.id));
+  const addable = (allStudents ?? []).filter((st) => !enrolled.has(st.id));
 
   /** 반복이면 범위를 먼저 묻고, 단발이면 바로 'this' 로 보낸다 */
   const withScope = (mode: 'edit' | 'delete', run: (s: Scope) => void) => {
@@ -71,7 +91,7 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, onClose
     withScope('delete', (scope) => {
       write.mutate(
         { kind: 'delete', serId: occ.serId, body: { scope, onDate: occ.onDate } },
-        { onError: (e) => setErr(msgOf(e)), onSuccess: onClose },
+        { onError: (e) => setErr(apiMessage(e)), onSuccess: onClose },
       );
       setAsk(null);
     });
@@ -118,14 +138,47 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, onClose
                 ? <span className="ml-1 text-fg-subtle">· 그날 빠짐 {occ.students.filter((s) => s.droppedOnce).length}</span>
                 : null}
             </h3>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-col gap-1">
               {/* 그날만 빠진 학생은 지우지 않고 회색으로 남긴다 (D-R21) */}
               {occ.students.map((s) => (
-                <Chip key={s.id} tone={s.droppedOnce ? 'neutral' : 'info'}>
-                  {s.droppedOnce ? <s>{s.name}</s> : s.name}
-                </Chip>
+                <div key={s.id} className="flex items-center gap-2 rounded-lg border border-line px-2 py-1.5">
+                  <Chip tone={s.droppedOnce ? 'neutral' : 'info'}>
+                    {s.droppedOnce ? <s>{s.name}</s> : s.name}
+                  </Chip>
+                  {s.droppedOnce ? <span className="text-[11px] text-fg-subtle">그날 빠짐</span> : null}
+                  {canEdit ? (
+                    <span className="ml-auto flex gap-1">
+                      {s.droppedOnce ? (
+                        <Button size="sm" variant="ghost" disabled={write.isPending}
+                          onClick={() => roster('undoOnce', s.id)}>되돌리기</Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" disabled={write.isPending}
+                          title="이 회차에서만 뺍니다 — 다음 주는 그대로 (D-R21)"
+                          onClick={() => roster('dropOnce', s.id)}>이 회차만 빼기</Button>
+                      )}
+                      <Button size="sm" variant="danger" disabled={write.isPending}
+                        title="모든 회차에서 뺍니다"
+                        onClick={() => roster('dropAll', s.id)}>아주 빼기</Button>
+                    </span>
+                  ) : null}
+                </div>
               ))}
               {occ.students.length === 0 ? <span className="text-[12px] text-fg-subtle">명단이 없습니다</span> : null}
+
+              {canEdit && addable.length ? (
+                <div className="mt-1 flex items-center gap-2">
+                  <Select value={pick} onChange={(e) => setPick(e.target.value)} className="flex-1">
+                    <option value="">학생 넣기…</option>
+                    {addable.map((st) => (
+                      <option key={st.id} value={st.id}>{st.name}{st.grade ? ` · ${st.grade}` : ''}</option>
+                    ))}
+                  </Select>
+                  <Button size="sm" disabled={!pick || write.isPending}
+                    onClick={() => { roster('add', Number(pick)); setPick(''); }}>
+                    넣기
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -150,9 +203,3 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, onClose
   );
 }
 
-/** 서버가 준 코드·메시지를 그대로 보여 준다 — 화면이 문구를 지어내지 않는다 */
-function msgOf(e: unknown): string {
-  const r = (e as { response?: { data?: { code?: string; message?: string } } }).response?.data;
-  if (r?.code === 'RESOURCE_CONFLICT') return r.message ?? '같은 시간에 다른 일정이 있습니다';
-  return r?.message ?? '저장하지 못했습니다';
-}

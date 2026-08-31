@@ -9,6 +9,7 @@
  */
 'use client';
 import type { ReactNode } from 'react';
+import { useDroppable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { EventBlock } from './EventBlock';
 import { todayKst } from '@/lib/calendar';
@@ -34,23 +35,35 @@ export interface CalCellProps {
   className?: string;
   /** 이 달 밖의 날짜 — 월간 격자에서 흐리게 */
   muted?: boolean;
+  /** 날짜 드롭 타깃으로 등록한다 — 주간·월간은 칸이 곧 날짜다 (TBO-41 · §5) */
+  droppable?: boolean;
+  /** 칸 안의 블록을 잡을 수 있는가 */
+  draggable?: boolean;
   children?: ReactNode;
 }
 
 export function CalCell({
-  date, head, items, subName, max, onOpen, onAdd, onMore, compact, className, muted, children,
+  date, head, items, subName, max, onOpen, onAdd, onMore, compact, className, muted,
+  droppable, draggable, children,
 }: CalCellProps) {
+  const drop = useDroppable({
+    id: `day|${date}`,
+    data: { type: 'day', date },
+    disabled: !droppable,
+  });
   const isToday = date === todayKst();
   const shown = max ? items.slice(0, max) : items;
   const hidden = items.length - shown.length;
 
   return (
     <div
+      ref={drop.setNodeRef}
       className={cn(
         'relative flex min-h-[78px] flex-col gap-1 border-b border-r border-line p-1.5',
         muted && 'bg-inset/40',
         isToday && 'bg-blue/[0.04]',
         onAdd && 'cursor-cell',
+        drop.isOver && 'bg-blue/10',
         className,
       )}
       onClick={(e) => {
@@ -72,6 +85,7 @@ export function CalCell({
           subName={subName?.(o)}
           compact={compact}
           onClick={() => onOpen?.(o)}
+          draggable={draggable}
         />
       ))}
 
