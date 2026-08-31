@@ -8,6 +8,57 @@
 
 export type View = 'day' | 'week' | 'month' | 'student' | 'teacher';
 
+/** 기본/분할이 함께 쓰는 표 상태. 표마다 독립이고 페이지 reducer만 소유한다 (§4.1). */
+export interface CalendarPaneState {
+  view: View;
+  date: string;
+  personId: number | null;
+}
+
+export type CalendarPaneIndex = 0 | 1;
+
+/** divider 입력을 실제 컨테이너 기준 최소 pane 폭으로 제한한다 (§4.2). */
+export function clampSplitRatio(
+  ratio: number,
+  containerWidth: number,
+  minPaneWidth = 152,
+): number {
+  if (!Number.isFinite(ratio) || !Number.isFinite(containerWidth) || containerWidth <= 0) return 0.5;
+  const minRatio = Math.min(0.5, minPaneWidth / containerWidth);
+  return Math.max(minRatio, Math.min(1 - minRatio, ratio));
+}
+
+/** 분할은 현재 표 전체를 복제한다. 얕은 객체지만 값이 원시값뿐이라 두 표는 독립이다. */
+export function splitPanes(current: CalendarPaneState): [CalendarPaneState, CalendarPaneState] {
+  return [{ ...current }, { ...current }];
+}
+
+/** 분할 해제는 focus된 표 하나만 남긴다. */
+export function unsplitPanes(
+  panes: readonly CalendarPaneState[],
+  focused: CalendarPaneIndex,
+): [CalendarPaneState] {
+  return [{ ...(panes[focused] ?? panes[0]) }];
+}
+
+/** 한쪽 표를 고쳐도 반대쪽 참조가 바뀌지 않게 배열과 대상 객체만 교체한다. */
+export function updatePane(
+  panes: readonly CalendarPaneState[],
+  index: CalendarPaneIndex,
+  patch: Partial<CalendarPaneState>,
+): CalendarPaneState[] {
+  return panes.map((pane, i) => i === index ? { ...pane, ...patch } : pane);
+}
+
+/** pane별로 읽지 않고 필요한 최소~최대 범위를 한 요청으로 묶는다 (§4 · §6.1-2). */
+export function boundingRange(panes: readonly CalendarPaneState[]): { from: string; to: string } {
+  const ranges = panes.map((pane) => boundsOf(pane.view, pane.date));
+  return {
+    from: ranges.reduce((min, range) => range.from < min ? range.from : min, ranges[0].from),
+    to: ranges.reduce((max, range) => range.to > max ? range.to : max, ranges[0].to),
+  };
+}
+
 /** KST 고정 (D-R12) — 관리자 화면의 모든 시각은 서울 시간이다 */
 export const todayKst = (): string =>
   new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);

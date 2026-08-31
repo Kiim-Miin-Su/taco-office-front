@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { addDays, boundsOf, mondayOf, monthGrid, step, timeRange, weekDays } from './calendar';
+import {
+  addDays, boundingRange, boundsOf, clampSplitRatio, mondayOf, monthGrid, splitPanes, step,
+  timeRange, unsplitPanes, updatePane, weekDays,
+} from './calendar';
 
 describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
   it('주는 월요일에서 시작한다', () => {
@@ -40,6 +43,32 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
   it('날짜 더하기가 월을 넘는다', () => {
     expect(addDays('2026-08-31', 1)).toBe('2026-09-01');
     expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+  });
+});
+
+describe('분할 표 상태 (§4)', () => {
+  const base = { view: 'week' as const, date: '2026-08-20', personId: null };
+
+  it('현재 표를 그대로 복제하고 한쪽 수정은 다른 쪽에 번지지 않는다', () => {
+    const split = splitPanes(base);
+    expect(split).toEqual([base, base]);
+    expect(split[0]).not.toBe(split[1]);
+    const changed = updatePane(split, 1, { view: 'teacher', personId: 12 });
+    expect(changed[0]).toEqual(base);
+    expect(changed[1]).toMatchObject({ view: 'teacher', personId: 12 });
+  });
+
+  it('분할 해제는 focus 표를 남기고 두 표의 범위는 한 bounding range로 합친다', () => {
+    const panes = updatePane(splitPanes(base), 1, { view: 'month', date: '2026-09-15' });
+    expect(boundingRange(panes)).toEqual({ from: '2026-08-17', to: '2026-10-04' });
+    expect(unsplitPanes(panes, 1)).toEqual([{ view: 'month', date: '2026-09-15', personId: null }]);
+  });
+
+  it('divider는 화면 비율이 아니라 실제 152px 최소 폭으로 제한한다', () => {
+    expect(clampSplitRatio(0.01, 1_000)).toBe(0.152);
+    expect(clampSplitRatio(0.99, 1_000)).toBe(0.848);
+    expect(clampSplitRatio(0.2, 2_000)).toBe(0.2);
+    expect(clampSplitRatio(Number.NaN, 1_000)).toBe(0.5);
   });
 });
 
