@@ -187,3 +187,91 @@ export const parseHm = (v: string): number | null => {
   const n = +m[1] * 60 + +m[2];
   return n >= 0 && n < 24 * 60 ? n : null;
 };
+
+/* ── 선택 · 앱 내부 클립보드 (TBO-41E · CALENDAR §5.2) ─────────────── */
+
+/** 같은 회차가 분할 표에 여러 번 보여도 한 선택으로 묶는 키다. */
+export interface OccurrenceIdentity {
+  serId: number;
+  onDate: string;
+  date: string;
+  startMin: number;
+  endMin: number;
+}
+
+export const occurrenceKey = (o: Pick<OccurrenceIdentity, 'serId' | 'onDate'>): string =>
+  `${o.serId}|${o.onDate}`;
+
+export type SelectMode = 'single' | 'range' | 'toggle';
+
+const byOccurrenceTime = <T extends OccurrenceIdentity>(a: T, b: T): number =>
+  a.date.localeCompare(b.date) || a.startMin - b.startMin || a.serId - b.serId;
+
+/**
+ * 클릭 선택 규칙의 단일 출처. EventBlock 은 modifier 만 전달하고 선택 집합 계산은 여기서 한다.
+ * range 는 마지막 선택을 anchor 로 삼고, toggle 은 해당 회차만 넣거나 뺀다.
+ */
+export function selectOccurrenceKeys<T extends OccurrenceIdentity>(
+  items: T[],
+  selected: string[],
+  target: T,
+  mode: SelectMode,
+): string[] {
+  const key = occurrenceKey(target);
+  if (mode === 'single') return [key];
+  if (mode === 'toggle') {
+    return selected.includes(key) ? selected.filter((x) => x !== key) : [...selected, key];
+  }
+
+  const sorted = [...items].sort(byOccurrenceTime);
+  const anchor = selected[selected.length - 1];
+  const a = sorted.findIndex((o) => occurrenceKey(o) === anchor);
+  const b = sorted.findIndex((o) => occurrenceKey(o) === key);
+  if (a < 0 || b < 0) return [key];
+  const range = sorted.slice(Math.min(a, b), Math.max(a, b) + 1).map(occurrenceKey);
+  return [...new Set([...selected, ...range])];
+}
+
+/** 선택 순서가 아니라 화면의 날짜·시각 순서로 돌려준다 — 복사 기준점과 표시 순서를 맞춘다. */
+export function selectedOccurrences<T extends OccurrenceIdentity>(items: T[], selected: string[]): T[] {
+  const want = new Set(selected);
+  return items.filter((o) => want.has(occurrenceKey(o))).sort(byOccurrenceTime);
+}
+
+export interface RelativePlacement<T> {
+  source: T;
+  date: string;
+  startMin: number;
+  endMin: number;
+  offsetDays: number;
+  offsetMinutes: number;
+}
+
+/**
+ * 붙여넣기 프리뷰 산수. 저장 payload 는 원본 참조만 보내고 서버 `copyMany()`가 다시 계산하지만,
+ * 화면 프리뷰도 같은 기준(가장 이른 날짜·시각)을 써야 손을 놓은 자리와 저장 결과가 일치한다.
+ */
+export function relativePlacements<T extends OccurrenceIdentity>(
+  items: T[],
+  targetDate: string,
+  targetStartMin: number,
+): RelativePlacement<T>[] {
+  const sorted = [...items].sort(byOccurrenceTime);
+  const base = sorted[0];
+  if (!base) return [];
+  return sorted.map((source) => {
+    const offsetDays = Math.round(
+      (new Date(`${source.date}T00:00:00Z`).getTime() - new Date(`${base.date}T00:00:00Z`).getTime()) / 86400000,
+    );
+    const offsetMinutes = source.startMin - base.startMin;
+    const startMin = targetStartMin + offsetMinutes;
+    return {
+      source,
+      date: addDays(targetDate, offsetDays),
+      startMin,
+      endMin: startMin + (source.endMin - source.startMin),
+      offsetDays,
+      offsetMinutes,
+    };
+  });
+}

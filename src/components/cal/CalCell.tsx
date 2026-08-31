@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { EventBlock } from './EventBlock';
-import { todayKst } from '@/lib/calendar';
+import { occurrenceKey, todayKst, type SelectMode } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 
 export interface CalCellProps {
@@ -27,6 +27,8 @@ export interface CalCellProps {
   /** 몇 개까지 보이고 나머지는 「+N건 더」로 접는다 (§9 · §36) */
   max?: number;
   onOpen?: (o: Occurrence) => void;
+  onSelect?: (o: Occurrence, mode: SelectMode) => void;
+  selected?: ReadonlySet<string>;
   /** 빈 곳을 누르면 그 날짜로 일정 추가 (§7) */
   onAdd?: (date: string) => void;
   /** 접힌 것을 눌렀을 때 — 보통 그날 일간으로 간다 */
@@ -43,7 +45,7 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, max, onOpen, onAdd, onMore, compact, className, muted,
+  date, head, items, subName, max, onOpen, onSelect, selected, onAdd, onMore, compact, className, muted,
   droppable, draggable, children,
 }: CalCellProps) {
   const drop = useDroppable({
@@ -85,6 +87,8 @@ export function CalCell({
           subName={subName?.(o)}
           compact={compact}
           onClick={() => onOpen?.(o)}
+          onSelect={onSelect}
+          selected={selected?.has(occurrenceKey(o))}
           draggable={draggable}
         />
       ))}

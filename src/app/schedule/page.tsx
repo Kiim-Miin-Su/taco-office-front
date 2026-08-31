@@ -10,7 +10,7 @@
  *   ③ 도메인 판정은 서버와 `lib/` 가 갖는다 — 여기서 다시 계산하지 않는다
  */
 'use client';
-import { useMemo, useReducer, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
@@ -19,6 +19,7 @@ import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, ConflictGuard, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
 import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
+import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
 import { type DragData } from '@/components/cal/EventBlock';
 import { Legend } from '@/components/cal/Legend';
@@ -27,7 +28,8 @@ import { useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/que
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  HOUR_PX, boundsOf, label, monthGrid, movePatch, resizePatch, step, todayKst, type View,
+  HOUR_PX, boundsOf, label, monthGrid, movePatch, occurrenceKey, resizePatch,
+  selectOccurrenceKeys, selectedOccurrences, step, todayKst, type SelectMode, type View,
 } from '@/lib/calendar';
 import type { Occurrence, OccurrencePatch, Scope } from '@/api/types';
 
@@ -39,6 +41,10 @@ interface S {
   /** §10 · §11 왼쪽에서 고른 사람 */
   personId: number | null;
   open: Occurrence | null;
+  /** 같은 회차가 분할 표에 여러 번 보여도 `serId|onDate` 하나로 선택한다. */
+  selected: string[];
+  /** 브라우저 clipboard 와 섞지 않는 앱 내부 상태 (§5.2). */
+  clipboard: { items: Occurrence[]; cut: boolean } | null;
 }
 
 type A =
@@ -47,7 +53,9 @@ type A =
   | { t: 'step'; dir: -1 | 1 }
   | { t: 'today' }
   | { t: 'person'; id: number | null }
-  | { t: 'open'; o: Occurrence | null };
+  | { t: 'open'; o: Occurrence | null }
+  | { t: 'selected'; keys: string[] }
+  | { t: 'clipboard'; value: S['clipboard'] };
 
 function reducer(s: S, a: A): S {
   switch (a.t) {
@@ -59,6 +67,8 @@ function reducer(s: S, a: A): S {
     case 'today': return { ...s, date: todayKst() };
     case 'person': return { ...s, personId: a.id };
     case 'open': return { ...s, open: a.o };
+    case 'selected': return { ...s, selected: a.keys };
+    case 'clipboard': return { ...s, clipboard: a.value };
   }
 }
 
@@ -73,8 +83,16 @@ const VIEWS: Array<{ value: View; label: string }> = [
 /** PATCH 본문에서 scope·onDate 를 뺀 것 — 드롭이 계산하고, 범위는 사람이 고른다 */
 type PendingPatch = Omit<OccurrencePatch, 'scope' | 'onDate'>;
 
+/** 텍스트 입력에서 Ctrl+C 같은 기본 동작을 가로채지 않는다 (§5A.6). */
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target instanceof HTMLElement ? target : null;
+  return !!el && (el.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
+}
+
 export default function SchedulePage() {
-  const [s, go] = useReducer(reducer, { view: 'day', date: todayKst(), personId: null, open: null });
+  const [s, go] = useReducer(reducer, {
+    view: 'day', date: todayKst(), personId: null, open: null, selected: [], clipboard: null,
+  });
   const meta = useMeta();
   const hz = useHorizon();
   const write = useScheduleWrite();
@@ -107,7 +125,9 @@ export default function SchedulePage() {
 
   const onDragStart = (e: DragStartEvent) => {
     const d = e.active.data.current as DragData | undefined;
-    if (d?.type === 'move') setDragging(d.occ);
+    if (!d) return;
+    if (!s.selected.includes(occurrenceKey(d.occ))) go({ t: 'selected', keys: [occurrenceKey(d.occ)] });
+    if (d.type === 'move') setDragging(d.occ);
   };
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -142,6 +162,37 @@ export default function SchedulePage() {
   const q = useOccurrences({ from: range.from, to: range.to });
 
   const all = useMemo(() => q.data?.items ?? [], [q.data]);
+
+  const selectedSet = useMemo(() => new Set(s.selected), [s.selected]);
+  const select = (occ: Occurrence, mode: SelectMode) => {
+    go({ t: 'selected', keys: selectOccurrenceKeys(all, s.selected, occ, mode) });
+  };
+
+  /** 복사 시점에는 DB를 바꾸지 않는다. X도 붙여넣기 성공 전까지 원본을 보존한다. */
+  const copySelection = (cut: boolean) => {
+    const picked = selectedOccurrences(all, s.selected);
+    if (!picked.length) return;
+    go({ t: 'clipboard', value: { items: picked, cut } });
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (mod && (key === 'c' || key === 'x')) {
+        e.preventDefault();
+        copySelection(key === 'x');
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (s.selected.length) go({ t: 'selected', keys: [] });
+        else if (s.clipboard) go({ t: 'clipboard', value: null });
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
 
   /** ③ 사람 필터는 selector 로 — 같은 응답을 나눠 쓴다 */
   const items = useMemo(() => {
@@ -288,6 +339,7 @@ export default function SchedulePage() {
                   </div>
                 ) : null}
                 <WeekGrid date={s.date} items={items} subName={subName} interactive={canEdit}
+                  onSelect={select} selected={selectedSet}
                   onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })} />
               </div>
             ) : (
@@ -301,14 +353,17 @@ export default function SchedulePage() {
         ) : s.view === 'day' ? (
           <DayGrid date={s.date} items={items} columns={columns} colAxis="room"
             columnOf={(o) => o.roomId ?? null}
-            subName={subName} onOpen={(o) => go({ t: 'open', o })} interactive={canEdit}
+            subName={subName} onOpen={(o) => go({ t: 'open', o })}
+            onSelect={select} selected={selectedSet} interactive={canEdit}
             onAddAt={(date, startMin, roomId) => setDraft({ date, startMin, roomId })} />
         ) : s.view === 'week' ? (
           <WeekGrid date={s.date} items={items} subName={subName} interactive={canEdit}
+            onSelect={select} selected={selectedSet}
             onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })}
             onAdd={canEdit ? (d) => setDraft({ date: d, startMin: 10 * 60, roomId: null }) : undefined} />
         ) : (
           <MonthGrid date={s.date} items={items} grid={grid} subName={subName} interactive={canEdit}
+            onSelect={select} selected={selectedSet}
             onOpen={(o) => go({ t: 'open', o })} onPickDate={(d) => go({ t: 'date', d })}
             onAdd={canEdit ? (d) => setDraft({ date: d, startMin: 10 * 60, roomId: null }) : undefined} />
         )}
@@ -323,6 +378,12 @@ export default function SchedulePage() {
           <Chip>이 회차만 다름 {items.filter((o) => o.hasException).length}</Chip>
           <Chip>리포트 쓴 수업 {items.filter((o) => o.written).length}</Chip>
         </div>
+
+        <ClipboardBar
+          count={s.clipboard?.items.length ?? 0}
+          cut={s.clipboard?.cut ?? false}
+          onClear={() => go({ t: 'clipboard', value: null })}
+        />
 
         <LessonDetail
           occ={open}

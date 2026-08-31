@@ -16,7 +16,8 @@ import { CalCell } from './CalCell';
 import { EventBlock } from './EventBlock';
 import { cn } from '../ui/cn';
 import {
-  HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, nowMinKst, overlapClusters, timeRange, todayKst, weekDays,
+  HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, nowMinKst, occurrenceKey, overlapClusters, timeRange,
+  todayKst, weekDays, type SelectMode,
 } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 
@@ -35,6 +36,8 @@ export interface GridProps {
   items: Occurrence[];
   subName?: (o: Occurrence) => string | undefined;
   onOpen?: (o: Occurrence) => void;
+  onSelect?: (o: Occurrence, mode: SelectMode) => void;
+  selected?: ReadonlySet<string>;
   onAdd?: (date: string) => void;
   onPickDate?: (date: string) => void;
   /** 잡아서 옮길 수 있는가 — 권한(canCrudAll)을 페이지가 여기로 내린다 */
@@ -89,7 +92,7 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, onAddAt }: {
 }
 
 export function DayGrid({
-  date, items, columns, columnOf, colAxis, subName, onOpen, onAddAt, interactive,
+  date, items, columns, columnOf, colAxis, subName, onOpen, onSelect, selected, onAddAt, interactive,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
   const { from, to } = timeRange(today);
@@ -164,6 +167,7 @@ export function DayGrid({
                            style={{ top: px(head.startMin) + 1, height: Math.max(20, px(head.endMin) - px(head.startMin) - 2) }}>
                         <EventBlock occ={head} subName={subName?.(head)} compact={head.endMin - head.startMin < 45}
                                     onClick={() => onOpen?.(head)}
+                                    onSelect={onSelect} selected={selected?.has(occurrenceKey(head))}
                                     draggable={interactive} resizable={interactive} />
                       </div>
                       {rest > 0 && !expanded ? (
@@ -180,7 +184,8 @@ export function DayGrid({
                              style={{ top: px(head.startMin) + 3 }}>
                           {cl.map((o) => (
                             <EventBlock key={`${o.serId}|${o.onDate}`} occ={o} subName={subName?.(o)} compact
-                                        onClick={() => { setOpenCluster(null); onOpen?.(o); }} />
+                                        onClick={() => { setOpenCluster(null); onOpen?.(o); }}
+                                        onSelect={onSelect} selected={selected?.has(occurrenceKey(o))} />
                           ))}
                         </div>
                       ) : null}
@@ -208,7 +213,9 @@ export function DayGrid({
 
 /* ── §8 주간 — 요일 7칸 ──────────────────────────────────────────────── */
 
-export function WeekGrid({ date, items, subName, onOpen, onAdd, onPickDate, interactive }: GridProps) {
+export function WeekGrid({
+  date, items, subName, onOpen, onSelect, selected, onAdd, onPickDate, interactive,
+}: GridProps) {
   const days = weekDays(date);
   const map = byDate(items);
   return (
@@ -231,6 +238,7 @@ export function WeekGrid({ date, items, subName, onOpen, onAdd, onPickDate, inte
       <div className="grid grid-cols-7">
         {days.map((d) => (
           <CalCell key={d} date={d} items={map.get(d) ?? EMPTY} subName={subName}
+                   onSelect={onSelect} selected={selected}
                    onOpen={onOpen} onAdd={onAdd} className="min-h-[220px]" compact
                    droppable={interactive} draggable={interactive} />
         ))}
@@ -241,7 +249,9 @@ export function WeekGrid({ date, items, subName, onOpen, onAdd, onPickDate, inte
 
 /* ── §9 월간 — 달력 · 최대 3건 ───────────────────────────────────────── */
 
-export function MonthGrid({ date, items, grid, subName, onOpen, onAdd, onPickDate, interactive }: GridProps & { grid: string[] }) {
+export function MonthGrid({
+  date, items, grid, subName, onOpen, onSelect, selected, onAdd, onPickDate, interactive,
+}: GridProps & { grid: string[] }) {
   const map = byDate(items);
   const mon = date.slice(0, 7);
   return (
@@ -255,7 +265,8 @@ export function MonthGrid({ date, items, grid, subName, onOpen, onAdd, onPickDat
       <div className="grid grid-cols-7">
         {grid.map((d) => (
           <CalCell key={d} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
-                   subName={subName} max={3} onOpen={onOpen} onAdd={onAdd} onMore={onPickDate}
+                   subName={subName} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
+                   onAdd={onAdd} onMore={onPickDate}
                    muted={d.slice(0, 7) !== mon} compact
                    droppable={interactive} draggable={interactive} />
         ))}

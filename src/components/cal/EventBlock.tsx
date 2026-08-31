@@ -12,7 +12,7 @@
  */
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
-import { hhmm } from '@/lib/calendar';
+import { hhmm, type SelectMode } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 
 /**
@@ -46,13 +46,18 @@ export interface EventBlockProps {
   subName?: string;
   compact?: boolean;
   onClick?: () => void;
+  /** 선택 계산은 page → calendar.ts 한 경로가 한다. 블록은 modifier 의도만 전달한다. */
+  onSelect?: (occ: Occurrence, mode: SelectMode) => void;
+  selected?: boolean;
   /** 주면 잡을 수 있다 — 권한(canCrudAll)은 페이지가 판단해서 안 주는 것으로 표현한다 */
   draggable?: boolean;
   /** 시간 비례 격자에서만 켠다 (C-3) — 목록형 칸에는 길이 개념이 없다 */
   resizable?: boolean;
 }
 
-export function EventBlock({ occ, subName, compact, onClick, draggable, resizable }: EventBlockProps) {
+export function EventBlock({
+  occ, subName, compact, onClick, onSelect, selected, draggable, resizable,
+}: EventBlockProps) {
   const key = `${occ.serId}|${occ.onDate}`;
   const move = useDraggable({
     id: `move|${key}`,
@@ -76,8 +81,17 @@ export function EventBlock({ occ, subName, compact, onClick, draggable, resizabl
       {...move.attributes}
       role="button"
       tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(); }}
+      onClick={(e) => {
+        const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single';
+        onSelect?.(occ, mode);
+        // modifier 클릭은 선택만 한다. 일반 클릭은 기존 상세 열기 행동을 보존한다.
+        if (mode === 'single') onClick?.();
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter') return;
+        onSelect?.(occ, 'single');
+        onClick?.();
+      }}
       title={`${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subName ?? occ.kindKey}${names ? ` · ${names}` : ''}`}
       className={cn(
         'relative flex h-full w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
@@ -87,8 +101,10 @@ export function EventBlock({ occ, subName, compact, onClick, draggable, resizabl
         draggable && 'cursor-grab active:cursor-grabbing',
         // 낙관 반영 중인 원본 자리 — 고스트는 DragOverlay 가 그린다 (§5.1)
         dragging && 'opacity-40',
+        selected && 'z-[1] ring-2 ring-blue ring-offset-1 ring-offset-card',
         look,
       )}
+      aria-pressed={selected}
     >
       <div className="flex items-center gap-1 text-[11px] font-bold leading-tight">
         <span>{hhmm(occ.startMin)}</span>

@@ -44,7 +44,10 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
 });
 
 /* ── TBO-41 상호작용 산수 ─────────────────────────────────────────── */
-import { clampEnd, minutesFromPx, movePatch, overlapClusters, resizePatch, snap15 } from './calendar';
+import {
+  clampEnd, minutesFromPx, movePatch, occurrenceKey, overlapClusters, relativePlacements,
+  resizePatch, selectOccurrenceKeys, selectedOccurrences, snap15,
+} from './calendar';
 
 describe('드래그 산수 (§5)', () => {
   it('15분 스냅 — 스냅은 15, 셀은 30 (§2.5)', () => {
@@ -87,5 +90,40 @@ describe('드래그 산수 (§5)', () => {
     expect(c.length).toBe(2);
     expect(c[0].length).toBe(2);
     expect(c[1].length).toBe(1);
+  });
+});
+
+describe('선택·클립보드 산수 (§5.2)', () => {
+  const items = [
+    { serId: 1, onDate: '2026-08-19', date: '2026-08-19', startMin: 600, endMin: 660 },
+    { serId: 2, onDate: '2026-08-19', date: '2026-08-19', startMin: 780, endMin: 840 },
+    { serId: 1, onDate: '2026-08-24', date: '2026-08-24', startMin: 600, endMin: 690 },
+  ];
+
+  it('같은 SER라도 onDate가 다르면 다른 회차이고, 분할 표 복제본은 같은 키다', () => {
+    expect(occurrenceKey(items[0])).toBe('1|2026-08-19');
+    const duplicateView = { ...items[0], date: '2026-08-20' };
+    expect(occurrenceKey(duplicateView)).toBe('1|2026-08-19');
+    expect(occurrenceKey(items[2])).not.toBe(occurrenceKey(items[0]));
+  });
+
+  it('단일·개별 토글·범위 선택이 한 함수에서 계산된다', () => {
+    const one = selectOccurrenceKeys(items, [], items[0], 'single');
+    expect(one).toEqual(['1|2026-08-19']);
+    const many = selectOccurrenceKeys(items, one, items[2], 'range');
+    expect(many).toEqual(['1|2026-08-19', '2|2026-08-19', '1|2026-08-24']);
+    expect(selectOccurrenceKeys(items, many, items[1], 'toggle')).toEqual([
+      '1|2026-08-19', '1|2026-08-24',
+    ]);
+    expect(selectedOccurrences(items, many)).toEqual(items);
+  });
+
+  it('다중 붙여넣기는 첫 건 대비 날짜·시각·길이를 유지한다', () => {
+    const placed = relativePlacements(items, '2026-09-07', 540);
+    expect(placed.map((x) => ({ date: x.date, startMin: x.startMin, endMin: x.endMin }))).toEqual([
+      { date: '2026-09-07', startMin: 540, endMin: 600 },
+      { date: '2026-09-07', startMin: 720, endMin: 780 },
+      { date: '2026-09-12', startMin: 540, endMin: 630 },
+    ]);
   });
 });
