@@ -574,7 +574,7 @@ export interface components {
             /** @description 편집할 때 범위를 물어야 하는가 — rrule≠ONCE 이고 남은 회차≥2 (CALENDAR §5A.0). 판정은 서버 한 곳이다 */
             recurring: boolean;
             /**
-             * @description 리포트 상태. 캘린더 블록 색이 이 값에서 나온다 (D-R7 · V26 §2.3)
+             * @description 현재 시각 기준 유효 리포트 상태. 비대상 na · 종료 전 plan · 종료 후 none이며 캘린더 블록 색이 이 값에서 나온다 (D-R7 · V26 §2.3)
              * @enum {string}
              */
             repState: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";

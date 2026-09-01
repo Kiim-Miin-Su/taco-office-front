@@ -13,6 +13,9 @@ import type { Config } from 'tailwindcss';
  */
 const v = (name: string) => `var(--${name})`;
 
+/** CSS 변수 색에도 `bg-blue/10` 같은 Tailwind 투명도 수식이 실제로 적용되게 한다. */
+const withAlpha = (name: string) => `rgb(from ${v(name)} r g b / <alpha-value>)`;
+
 export default {
   content: ['./src/**/*.{ts,tsx,mdx}'],
   theme: {
@@ -21,8 +24,8 @@ export default {
         bg: v('bg'), card: v('card'), inset: v('inset'),
         line: { DEFAULT: v('line'), 2: v('line-2') },
         fg: { DEFAULT: v('fg'), 2: v('fg-2'), subtle: v('fg-subtle') },
-        blue: v('blue'), red: v('red'), green: v('green'),
-        amber: v('amber'), violet: v('violet'),
+        blue: withAlpha('blue'), red: withAlpha('red'), green: withAlpha('green'),
+        amber: withAlpha('amber'), violet: withAlpha('violet'),
         /** 수업 종류 8종 — 명세서 v2 §85 */
         kind: {
           'class': v('kind-class'),

@@ -43,6 +43,13 @@ describe('Tailwind 는 읽기만 한다', () => {
     KIND_KEYS.forEach((k) => expect(tw).toContain(`v('kind-${k}')`));
     SUB_KEYS.forEach((k) => expect(tw).toContain(`v('sub-${k}')`));
   });
+
+  it('상태 색 CSS 변수에 Tailwind 투명도가 적용된다', () => {
+    ['blue', 'red', 'green', 'amber', 'violet'].forEach((name) =>
+      expect(tw).toContain(`withAlpha('${name}')`),
+    );
+    expect(tw).toContain('rgb(from ${v(name)} r g b / <alpha-value>)');
+  });
 });
 
 describe('런타임 주입 — 캘린더 블록이 쓰는 것', () => {
