@@ -1,6 +1,13 @@
+import { fileURLToPath } from 'node:url';
+
+const FRONT_ROOT = fileURLToPath(new URL('.', import.meta.url));
+
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
+
+  // 홈 디렉터리의 다른 package-lock.json을 monorepo 루트로 오인하지 않게 이 앱을 tracing SSOT로 고정한다.
+  outputFileTracingRoot: FRONT_ROOT,
 
   // API 는 별도 레포·별도 Vercel 프로젝트다 (D-R42). 여기서 프록시하지 않는다 —
   // 대신 **같은 도메인 아래**(app.tn.kr · api.tn.kr)에 두어 쿠키가 1st-party 로 실리게 한다.

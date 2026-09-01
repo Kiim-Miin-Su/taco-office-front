@@ -1,10 +1,13 @@
 // @ts-check
+import nextPlugin from '@next/eslint-plugin-next';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   // 생성물은 검사하지 않는다 — next-env.d.ts 와 schema.d.ts 는 우리가 쓴 코드가 아니다.
   { ignores: ['.next/**', 'node_modules/**', '_to_delete/**', 'sessions/**', 'next-env.d.ts', 'src/api/schema.d.ts'] },
   ...tseslint.configs.recommended,
+  // eslint-config-next가 설치하는 공식 flat config. Next 빌드와 standalone lint가 같은 규칙을 쓴다.
+  nextPlugin.flatConfig.coreWebVitals,
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {

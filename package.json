@@ -57,7 +57,7 @@
     "tooling": {
       "typescript": "tsc",
       "eslint": "npm run lint",
-      "eslint-config-next": "eslint 설정",
+      "eslint-config-next": "@next/eslint-plugin-next 공급 · flat core-web-vitals 설정",
       "prettier": "포맷",
       "prettier-plugin-tailwindcss": "클래스 정렬",
       "postcss": "tailwind 빌드",
