@@ -1,46 +1,41 @@
 /**
- * Report/Section · Form/Report Dev · UI/Counted Textarea — 리포트 **5칸 고정** (D-R40).
+ * Report/Section · Form/Report Dev · UI/Counted Textarea — 리포트 5개 섹션 고정 (D-R15 · D-R40).
  *
- * 칸을 늘리거나 순서를 바꾸지 않는다. 수업 종류·과목에 따라 갈리지도 않는다 —
- * 학부모가 매번 같은 자리에서 같은 것을 찾게 하기 위한 규칙이다.
+ * 1·2는 회차/학생 메타데이터, 3·4·5는 강사 입력이다. 입력 키·순서·길이는
+ * 백엔드 rules.ts → ReportDetailDto.fields를 그대로 읽어 그린다.
  */
 'use client';
-import { CountedTextarea, Label, Panel } from '../ui';
+import { useState } from 'react';
+import { apiMessage } from '@/api/client';
+import { useReportWrite } from '@/api/queries';
+import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
+import { hhmm } from '@/lib/calendar';
+import { Banner, Button, CountedTextarea, Label, Panel } from '../ui';
 
-/** 순서가 곧 규칙이다. 배열을 재정렬하면 D-R40 을 깨는 것이다. */
-export const REPORT_FIELDS = [
-  { key: 'progress', label: '① 진도', hint: '어디까지 나갔는가', min: 10 },
-  { key: 'understanding', label: '② 이해도', hint: '무엇을 알고 무엇을 못했는가', min: 40 },
-  { key: 'attitude', label: '③ 태도', hint: '수업 중 태도', min: 10 },
-  { key: 'homework', label: '④ 과제', hint: '무엇을 해 와야 하는가', min: 10 },
-  { key: 'note', label: '⑤ 특이사항', hint: '없으면 「없음」', min: 0 },
-] as const;
-
-export type ReportBody = Record<(typeof REPORT_FIELDS)[number]['key'], string>;
-
-export const emptyReport = (): ReportBody =>
-  Object.fromEntries(REPORT_FIELDS.map((f) => [f.key, ''])) as ReportBody;
-
-export function ReportForm({ value, onChange, readOnly }: {
-  value: ReportBody; onChange: (v: ReportBody) => void; readOnly?: boolean;
+export function ReportForm({ fields, value, onChange, readOnly }: {
+  fields: ReportField[];
+  value: ReportBody;
+  onChange: (value: ReportBody) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {REPORT_FIELDS.map((f) => (
-        <div key={f.key}>
-          <Label htmlFor={`rep-${f.key}`} hint={f.min ? `${f.min}자 이상` : undefined}>
-            {f.label} <span className="font-normal text-fg-subtle">— {f.hint}</span>
+      {fields.map((field) => (
+        <div key={field.key}>
+          <Label htmlFor={`rep-${field.key}`} hint={field.min ? `${field.min}자 이상` : undefined}>
+            {field.label} <span className="font-normal text-fg-subtle">— {field.hint}</span>
           </Label>
           {readOnly ? (
             <p className="whitespace-pre-wrap rounded-lg border border-line bg-inset p-3 text-[12.5px] leading-relaxed text-fg">
-              {value[f.key] || '—'}
+              {value[field.key] || '—'}
             </p>
           ) : (
             <CountedTextarea
-              id={`rep-${f.key}`}
-              value={value[f.key]}
-              min={f.min}
-              onChange={(v) => onChange({ ...value, [f.key]: v })}
+              id={`rep-${field.key}`}
+              value={value[field.key]}
+              min={field.min}
+              max={field.max}
+              onChange={(next) => onChange({ ...value, [field.key]: next })}
             />
           )}
         </div>
@@ -49,12 +44,63 @@ export function ReportForm({ value, onChange, readOnly }: {
   );
 }
 
-/**
- * 학부모에게 나가는 전문 (§50).
- * PNG 파일 이름은 **서버가 정한다** — 두 곳에서 만들면 규칙이 갈린다 (D-R33).
- */
-export function ReportPreview({ studentName, grade, date, subject, startTime, body }: {
-  studentName: string; grade?: string | null; date: string; subject: string; startTime: string; body: ReportBody;
+/** 보고서 페이지와 수업 상세가 나중에 같은 저장 흐름을 재사용한다. */
+export function ReportEditor({ detail, subject }: { detail: ReportDetail; subject: string }) {
+  const [body, setBody] = useState<ReportBody>(detail.body);
+  const [message, setMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const write = useReportWrite();
+  const complete = detail.fields.every((field) => body[field.key].trim().length >= field.min);
+
+  const save = (action: 'draft' | 'submit') => {
+    setMessage(null);
+    write.mutate(
+      { action, serId: detail.serId, onDate: detail.onDate, body },
+      {
+        onSuccess: () => setMessage({
+          tone: 'success',
+          text: action === 'draft' ? '임시저장했습니다.' : '제출했습니다. 이 시각이 정산·지각 기준으로 고정됩니다.',
+        }),
+        onError: (error) => setMessage({ tone: 'danger', text: apiMessage(error) }),
+      },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Panel title="① 학생" sub="이름·학년은 명단 레코드에서 자동으로 입력됩니다.">
+        <div className="text-[13px] font-bold text-fg">
+          {detail.students.map((student) => `${student.name}${student.grade ? ` · ${student.grade}` : ''}`).join(' / ') || '학생 없음'}
+        </div>
+      </Panel>
+      <Panel title="② 수업" sub="날짜·과목·시간은 회차 레코드에서 자동으로 입력됩니다.">
+        <div className="text-[13px] font-bold text-fg">{detail.date} · {subject} · {hhmm(detail.startMin)}</div>
+      </Panel>
+
+      <ReportForm fields={detail.fields} value={body} onChange={setBody} readOnly={!detail.canEdit} />
+
+      {!detail.canEdit ? (
+        <Banner tone="neutral">제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.</Banner>
+      ) : null}
+      {message ? <Banner tone={message.tone}>{message.text}</Banner> : null}
+      {detail.canEdit ? (
+        <div className="flex justify-end gap-2">
+          <Button disabled={write.isPending} onClick={() => save('draft')}>임시저장</Button>
+          <Button variant="primary" disabled={write.isPending || !complete} onClick={() => save('submit')}>제출</Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 학부모에게 나가는 전문(§50). PNG 파일 이름은 서버가 정한다 (D-R33). */
+export function ReportPreview({ studentName, grade, date, subject, startTime, fields, body }: {
+  studentName: string;
+  grade?: string | null;
+  date: string;
+  subject: string;
+  startTime: string;
+  fields: ReportField[];
+  body: ReportBody;
 }) {
   return (
     <Panel title="학부모가 받는 화면" sub="칸도 순서도 바뀌지 않습니다.">
@@ -72,10 +118,10 @@ export function ReportPreview({ studentName, grade, date, subject, startTime, bo
           <span className="text-fg-subtle">{startTime}</span>
         </div>
         <div className="flex flex-col gap-3 p-4">
-          {REPORT_FIELDS.map((f) => (
-            <div key={f.key} className="border-l-2 border-blue pl-3">
-              <div className="text-[11px] font-bold text-fg">{f.label.replace(/^[①②③④⑤]\s*/, '')}</div>
-              <p className="mt-1 whitespace-pre-wrap text-[11.5px] leading-relaxed text-fg-2">{body[f.key] || '—'}</p>
+          {fields.map((field) => (
+            <div key={field.key} className="border-l-2 border-blue pl-3">
+              <div className="text-[11px] font-bold text-fg">{field.label.replace(/^[①②③④⑤]\s*/, '')}</div>
+              <p className="mt-1 whitespace-pre-wrap text-[11.5px] leading-relaxed text-fg-2">{body[field.key] || '—'}</p>
             </div>
           ))}
         </div>

@@ -13,7 +13,7 @@ import { api } from './client';
 import type {
   Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
-  Ops, ReportList, RosterPatch, Unwritten, WriteResult,
+  Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer,
 } from './types';
 
@@ -23,6 +23,7 @@ export const qk = {
   occurrences: (p: OccParams) => ['schedule', 'occurrences', p] as const,
   reports: (p: ReportParams) => ['reports', p] as const,
   unwritten: (teacherId?: number) => ['reports', 'unwritten', teacherId ?? 'all'] as const,
+  reportDetail: (serId: number, onDate: string) => ['reports', 'detail', serId, onDate] as const,
   accounting: ['accounting'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
@@ -87,6 +88,18 @@ export function useUnwritten(teacherId?: number): UseQueryResult<Unwritten> {
   return useQuery({
     queryKey: qk.unwritten(teacherId),
     queryFn: async () => (await api.get<Unwritten>('/reports/unwritten', { params: { teacherId } })).data,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useReportDetail(
+  serId?: number,
+  onDate?: string,
+): UseQueryResult<ReportDetail> {
+  return useQuery({
+    queryKey: qk.reportDetail(serId ?? 0, onDate ?? ''),
+    queryFn: async () => (await api.get<ReportDetail>(`/reports/${serId}/${onDate}`)).data,
+    enabled: serId !== undefined && onDate !== undefined,
     staleTime: 30 * 1000,
   });
 }
@@ -166,6 +179,34 @@ export function useHorizon(): UseQueryResult<Horizon> {
     queryKey: qk.horizon,
     queryFn: async () => (await api.get<Horizon>('/schedule/horizon')).data,
     staleTime: 60 * 60 * 1000,
+  });
+}
+
+export type ReportWrite = {
+  action: 'draft' | 'submit';
+  serId: number;
+  onDate: string;
+  body: ReportUpsert;
+};
+
+/** 임시저장·제출은 입력 계약과 캐시 무효화를 한 경로로 공유한다. */
+export function useReportWrite(): UseMutationResult<ReportDetail, unknown, ReportWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => {
+      const path = `/reports/${w.serId}/${w.onDate}/${w.action === 'draft' ? 'draft' : 'submit'}`;
+      return w.action === 'draft'
+        ? (await api.put<ReportDetail>(path, w.body)).data
+        : (await api.post<ReportDetail>(path, w.body)).data;
+    },
+    onSuccess: (detail) => {
+      qc.setQueryData(qk.reportDetail(detail.serId, detail.onDate), detail);
+      void qc.invalidateQueries({ queryKey: ['reports'] });
+      void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+      void qc.invalidateQueries({ queryKey: qk.accounting });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+      void qc.invalidateQueries({ queryKey: qk.drawer });
+    },
   });
 }
 

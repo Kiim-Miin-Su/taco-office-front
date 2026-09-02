@@ -9,9 +9,10 @@ import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import {
-  Banner, Chip, Column, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
+  Banner, Chip, Column, Drawer, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
 } from '@/components/ui';
-import { useMeta, useUnwritten } from '@/api/queries';
+import { ReportEditor } from '@/components/report/ReportForm';
+import { useMeta, useReportDetail, useUnwritten } from '@/api/queries';
 import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
 import { won } from '@/lib/money';
@@ -31,8 +32,10 @@ const TIERS = [
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<'teacher' | 'list'>('teacher');
+  const [selected, setSelected] = useState<ReportRow | null>(null);
   const meta = useMeta();
   const q = useUnwritten();
+  const detail = useReportDetail(selected?.serId, selected?.onDate);
 
   const subName = useMemo(() => {
     const m = new Map((meta.data?.subs ?? []).map((s) => [s.key, s.name]));
@@ -98,7 +101,13 @@ export default function ReportsPage() {
       ) : tab === 'teacher' ? (
         <Table columns={teacherCols} rows={byTeacher} rowKey={(r) => r.teacherId} empty="밀린 리포트가 없습니다" />
       ) : (
-        <Table columns={listCols} rows={items} rowKey={(r) => r.id} empty="밀린 리포트가 없습니다" />
+        <Table
+          columns={listCols}
+          rows={items}
+          rowKey={(r) => r.id}
+          onRowClick={setSelected}
+          empty="밀린 리포트가 없습니다"
+        />
       )}
 
       <Panel className="mt-4" title="지연 차감 계산 방식" sub="수업이 끝난 시각을 0분으로 두고 분 단위로 잽니다. 날짜가 아니라 분입니다.">
@@ -117,6 +126,26 @@ export default function ReportsPage() {
           이 금액은 서버가 계산해서 내려준 값이고, 화면은 다시 세지 않습니다.
         </Banner>
       </Panel>
+
+      <Drawer
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        width={720}
+        title="리포트 작성"
+        sub={selected ? `${selected.date} · ${subName(selected.subKey)} · ${selected.teacherName ?? '담당 강사 없음'}` : undefined}
+      >
+        {detail.isLoading ? (
+          <Banner tone="neutral">불러오는 중…</Banner>
+        ) : detail.isError ? (
+          <Banner tone="danger">리포트 상세를 불러오지 못했습니다.</Banner>
+        ) : detail.data ? (
+          <ReportEditor
+            key={`${detail.data.id}:${detail.data.state}:${detail.data.submittedAt ?? ''}`}
+            detail={detail.data}
+            subject={subName(detail.data.subKey)}
+          />
+        ) : null}
+      </Drawer>
     </AppShell></RequireAuth>
   );
 }

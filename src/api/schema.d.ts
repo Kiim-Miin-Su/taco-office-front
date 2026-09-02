@@ -260,6 +260,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/{serId}/{onDate}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 리포트 상세 — 입력 순서·제한도 서버 계약으로 내려준다 */
+        get: operations["ReportsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/{serId}/{onDate}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 리포트 임시저장 — 빈 칸을 허용한다 */
+        put: operations["ReportsController_saveDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/{serId}/{onDate}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 리포트 제출 — 3개 입력을 모두 채워야 하며 정산 기준 시각을 최초 1회만 저장한다 */
+        post: operations["ReportsController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting": {
         parameters: {
             query?: never;
@@ -699,8 +750,16 @@ export interface components {
         ReportRowDto: {
             id: number;
             serId: number;
-            /** @example 2026-08-27 */
+            /**
+             * @description 화면에 보이는 실제 회차 날짜
+             * @example 2026-08-27
+             */
             date: string;
+            /**
+             * @description REP · SER_OCC 식별자인 원래 날짜
+             * @example 2026-08-27
+             */
+            onDate: string;
             startMin: number;
             subKey?: string | null;
             kindKey: string;
@@ -737,6 +796,62 @@ export interface components {
             total: number;
             penaltyTotal: number;
             items: components["schemas"]["ReportRowDto"][];
+        };
+        ReportBodyDto: {
+            content: string;
+            progress: string;
+            homework: string;
+        };
+        ReportFieldDto: {
+            /** @enum {string} */
+            key: "content" | "progress" | "homework";
+            label: string;
+            hint: string;
+            min: number;
+            max: number;
+        };
+        ReportDetailDto: {
+            id: number;
+            serId: number;
+            /**
+             * @description 화면에 보이는 실제 회차 날짜
+             * @example 2026-08-27
+             */
+            date: string;
+            /**
+             * @description REP · SER_OCC 식별자인 원래 날짜
+             * @example 2026-08-27
+             */
+            onDate: string;
+            startMin: number;
+            subKey?: string | null;
+            kindKey: string;
+            teacherId?: number | null;
+            teacherName?: string | null;
+            /** @enum {string} */
+            state: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            /** @description 썼는가 — 정산 조건 (D-R7) */
+            written: boolean;
+            students: components["schemas"]["ReportStudentDto"][];
+            /** @description 수업이 끝난 뒤 지난 분. 음수면 아직 안 끝났다 */
+            minutesSinceEnd: number;
+            /** @description 지금 확정하면 깎이는 금액 (D-R32) */
+            penalty: number;
+            body: components["schemas"]["ReportBodyDto"];
+            /** @description 화면이 순서·문구·제한을 재정의하지 않고 그대로 그린다 */
+            fields: components["schemas"]["ReportFieldDto"][];
+            /** @description 현재 사용자·회차·상태 기준 저장 가능 여부 */
+            canEdit: boolean;
+            lang: string;
+            writtenAt?: string | null;
+            submittedAt?: string | null;
+            reviewedAt?: string | null;
+            rejectReason?: string | null;
+        };
+        ReportUpsertDto: {
+            content: string;
+            progress: string;
+            homework: string;
         };
         MoneySummaryDto: {
             invoiceCount: number;
@@ -1606,6 +1721,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnwrittenDto"];
+                };
+            };
+        };
+    };
+    ReportsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                /** @description REP 복합 유니크 키의 날짜 */
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetailDto"];
+                };
+            };
+        };
+    };
+    ReportsController_saveDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                /** @description REP 복합 유니크 키의 날짜 */
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportUpsertDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetailDto"];
+                };
+            };
+        };
+    };
+    ReportsController_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                /** @description REP 복합 유니크 키의 날짜 */
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportUpsertDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
         };
