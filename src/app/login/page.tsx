@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/api/client';
 import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo } from '@/components/ui';
-import type { Me } from '@/api/types';
+import type { LoginBody, LoginResult } from '@/api/types';
 
 /** 개발 시드 계정 — 역할별로 화면이 어떻게 갈리는지 바로 볼 수 있게 */
 const DEMO = [
@@ -27,13 +27,11 @@ export default function LoginPage() {
     setBusy(true);
     setErr(null);
     try {
-      const r = await api.post<{ accessToken: string }>('/auth/login', { email, password });
-      // 토큰을 세션에 넣기 **전에** /auth/me 로 권한 플래그를 받는다.
-      // 화면은 role 을 비교하지 않고 이 플래그만 읽는다 (D-R39).
-      const me = await api.get<Me>('/auth/me', {
-        headers: { Authorization: `Bearer ${r.data.accessToken}` },
-      });
-      signIn(r.data.accessToken, me.data);
+      const body: LoginBody = { email, password };
+      // LoginResultDto가 토큰과 권한 플래그를 원자적으로 돌려준다. 성공 직후 /auth/me를
+      // 다시 부르면 같은 계약을 두 응답에서 조합하게 되고 로그인 왕복도 하나 늘어난다.
+      const { data } = await api.post<LoginResult>('/auth/login', body);
+      signIn(data.accessToken, data.user);
       router.replace('/schedule');
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : '로그인하지 못했습니다');
