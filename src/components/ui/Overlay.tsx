@@ -3,7 +3,7 @@
  * 겹침 경고(Overlay/Conflict Guard)와 반복 범위(Overlay/Recurrence Scope)가 이 위에 올라간다.
  */
 'use client';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useId, type ReactNode } from 'react';
 import { cn } from './cn';
 import { Button } from './Button';
 import type { Tone } from './Chip';
@@ -23,18 +23,19 @@ export function Drawer({ open, onClose, title, sub, width = 520, children, foote
   width?: number; children?: ReactNode; footer?: ReactNode;
 }) {
   useEscape(open ? onClose : undefined);
+  const titleId = useId();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-fg/25" onClick={onClose} aria-hidden />
       <aside
-        role="dialog" aria-modal="true"
+        role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined}
         style={{ width }}
         className="absolute right-0 top-0 flex h-full flex-col border-l border-line bg-card shadow-xl"
       >
         <header className="flex items-start justify-between gap-3 border-b border-line p-4">
           <div>
-            {title ? <h2 className="text-[15px] font-bold text-fg">{title}</h2> : null}
+            {title ? <h2 id={titleId} className="text-[15px] font-bold text-fg">{title}</h2> : null}
             {sub ? <p className="mt-0.5 text-[11px] text-fg-subtle">{sub}</p> : null}
           </div>
           <Button size="sm" variant="ghost" onClick={onClose}>닫기</Button>
@@ -51,13 +52,14 @@ export function Dialog({ open, onClose, title, children, footer, width = 460 }: 
   open: boolean; onClose: () => void; title?: ReactNode; children?: ReactNode; footer?: ReactNode; width?: number;
 }) {
   useEscape(open ? onClose : undefined);
+  const titleId = useId();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-6">
       <div className="absolute inset-0 bg-fg/30" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-modal="true" style={{ width }}
+      <div role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} style={{ width }}
         className="relative rounded-2xl border border-line bg-card p-5 shadow-xl">
-        {title ? <h2 className="text-[15px] font-bold text-fg">{title}</h2> : null}
+        {title ? <h2 id={titleId} className="text-[15px] font-bold text-fg">{title}</h2> : null}
         <div className="mt-3">{children}</div>
         {footer ? <div className="mt-5 flex justify-end gap-2">{footer}</div> : null}
       </div>
