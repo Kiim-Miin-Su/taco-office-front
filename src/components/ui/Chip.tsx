@@ -7,6 +7,7 @@ import { cn } from './cn';
 
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'purple';
 export type ChipStyle = 'outline' | 'soft' | 'solid';
+export type ChipSize = 'compact' | 'default';
 
 const SOFT: Record<Tone, string> = {
   neutral: 'bg-inset text-fg-2',
@@ -36,18 +37,26 @@ const SOLID: Record<Tone, string> = {
 export interface ChipProps {
   tone?: Tone;
   styleKind?: ChipStyle;
+  size?: ChipSize;
   children: ReactNode;
   className?: string;
   /** 마우스를 올렸을 때의 설명. 칩은 좁아서 한 줄이 더 필요할 때가 있다 */
   title?: string;
 }
 
-export function Chip({ tone = 'neutral', styleKind = 'soft', children, className, title }: ChipProps) {
+const SIZE: Record<ChipSize, string> = {
+  compact: 'h-5 min-w-5 justify-center px-1.5 text-[10px]',
+  default: 'h-[22px] px-2 text-[11px]',
+};
+
+export function Chip({
+  tone = 'neutral', styleKind = 'soft', size = 'default', children, className, title,
+}: ChipProps) {
   const look = styleKind === 'solid' ? SOLID[tone] : styleKind === 'outline' ? OUTLINE[tone] : SOFT[tone];
   return (
     <span
       title={title}
-      className={cn('inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-bold', look, className)}
+      className={cn('inline-flex shrink-0 items-center whitespace-nowrap rounded-full font-bold', SIZE[size], look, className)}
     >
       {children}
     </span>

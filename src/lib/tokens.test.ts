@@ -52,6 +52,13 @@ describe('Tailwind 는 읽기만 한다', () => {
   });
 });
 
+describe('공통 셸 치수 — Figma Shell/Sidebar', () => {
+  it('Expanded와 Rail 폭을 tokens.css 한 곳에 둔다', () => {
+    expect(tokens).toContain('--side-w: 240px');
+    expect(tokens).toContain('--side-rail-w: 56px');
+  });
+});
+
 describe('런타임 주입 — 캘린더 블록이 쓰는 것', () => {
   it('키를 var() 문자열로 바꿔 준다', () => {
     expect(kindVar('gpa')).toBe('var(--kind-gpa)');

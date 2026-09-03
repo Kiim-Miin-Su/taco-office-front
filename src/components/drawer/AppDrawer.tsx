@@ -131,11 +131,16 @@ export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
-/** 상단 바의 여는 단추 — 배지는 서랍이 여닫혀도 보여야 하므로 여기서도 읽는다 */
-export function DrawerButton({ onOpen }: { onOpen: () => void }) {
-  const { data } = useDrawer(true);
-  const count = data?.approvals.count ?? 0;
-  const unread = data?.notis.filter((n) => !n.read).length ?? 0;
+/** 상단 바의 여는 단추 — 숫자는 AppShell이 Sidebar와 같은 drawer snapshot에서 내려준다. */
+export function DrawerButton({
+  onOpen,
+  count,
+  unread,
+}: {
+  onOpen: () => void;
+  count: number;
+  unread: number;
+}) {
   const total = count + unread;
   return (
     <button
