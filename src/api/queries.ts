@@ -13,7 +13,7 @@ import { api } from './client';
 import type {
   Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
-  Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, Unwritten, WriteResult,
+  Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer,
 } from './types';
 
@@ -50,10 +50,11 @@ export interface OccParams {
 }
 
 /** 코드표는 거의 안 바뀐다 — 오래 들고 있는다 */
-export function useMeta(): UseQueryResult<Meta> {
+export function useMeta(enabled = true): UseQueryResult<Meta> {
   return useQuery({
     queryKey: qk.meta,
     queryFn: async () => (await api.get<Meta>('/meta')).data,
+    enabled,
     staleTime: 30 * 60 * 1000,
   });
 }
@@ -225,7 +226,7 @@ export type ScheduleWrite =
 type OccSnapshots = Array<[readonly unknown[], OccurrenceList | undefined]>;
 
 export function useScheduleWrite(): UseMutationResult<
-  WriteResult, unknown, ScheduleWrite, { snaps: OccSnapshots } | undefined
+  WriteResult | RosterResult, unknown, ScheduleWrite, { snaps: OccSnapshots } | undefined
 > {
   const qc = useQueryClient();
   return useMutation({
@@ -234,7 +235,7 @@ export function useScheduleWrite(): UseMutationResult<
       if (w.kind === 'paste') return (await api.post<WriteResult>('/schedule/paste', w.body)).data;
       if (w.kind === 'moveMany') return (await api.post<WriteResult>('/schedule/move', w.body)).data;
       if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
-      if (w.kind === 'roster') return (await api.patch<WriteResult>(`/schedule/${w.serId}/roster`, w.body)).data;
+      if (w.kind === 'roster') return (await api.patch<RosterResult>(`/schedule/${w.serId}/roster`, w.body)).data;
       return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;
     },
     /**

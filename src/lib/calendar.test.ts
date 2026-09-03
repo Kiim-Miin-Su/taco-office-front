@@ -74,7 +74,7 @@ describe('분할 표 상태 (§4)', () => {
 
 /* ── TBO-41 상호작용 산수 ─────────────────────────────────────────── */
 import {
-  clampEnd, minutesFromPx, movePatch, movePlacements, occurrenceKey, overlapClusters, relativePlacements,
+  clampEnd, lessonTimeIssue, minutesFromPx, movePatch, movePlacements, occurrenceKey, overlapClusters, relativePlacements,
   resizePatch, selectOccurrenceKeys, selectedOccurrences, snap15,
 } from './calendar';
 
@@ -91,6 +91,12 @@ describe('드래그 산수 (§5)', () => {
     expect(clampEnd(600, 605)).toBe(610);   // 최소 10분
     expect(clampEnd(600, 2000)).toBe(1080); // 최대 480분
     expect(clampEnd(1400, 1439)).toBe(1439 < 1410 ? 1410 : 1439) // 자정 상한과 최소 10분
+  });
+
+  it('폼도 같은 시각 방어 함수를 쓴다', () => {
+    expect(lessonTimeIssue(600, 610)).toBeNull();
+    expect(lessonTimeIssue(600, 605)).toContain('10분');
+    expect(lessonTimeIssue(1380, 1450)).toContain('같은 날');
   });
 
   it('movePatch — 바뀐 필드만 싣고, 안 바뀌면 null (§5A.1 「바뀐 필드만 채운다」)', () => {

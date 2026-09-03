@@ -729,7 +729,6 @@ export interface components {
             roomId?: number | null;
             /** @description 다른 날로 옮길 때만 */
             date?: string | null;
-            reason?: string | null;
         };
         OccurrenceDeleteDto: {
             /** @enum {string} */
@@ -741,6 +740,24 @@ export interface components {
             op: "add" | "dropOnce" | "undoOnce" | "dropAll";
             onDate: string;
             studentId: number;
+        };
+        RosterResultDto: {
+            /** @description 실제로 적용된 범위 — 「향후」가 「모두」로 강등되면 여기서 드러난다 (D-R17) */
+            effScope: string;
+            /** @description 사람이 읽는 변경 기록. 화면이 그대로 보여 준다 */
+            log: string[];
+            /** @description 다시 펼친 회차 수 */
+            projected: number;
+            /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
+            serIds: number[];
+            /** @description 그 회차의 변경 후 실제 인원 */
+            count: number;
+            /** @description KIND.cap — 정원 */
+            cap: number;
+            /** @description 아직 발송된 수업 안내가 없는 학생 */
+            needGuide: string[];
+            /** @description 해당 과목의 활성 배부 교재가 없는 학생 */
+            needBook: string[];
         };
         ReportStudentDto: {
             id: number;
@@ -1194,6 +1211,89 @@ export interface components {
             /** @description 저장하지 않는다 — 이 시각에 센 값이다 (D-R4) */
             computedAt: string;
         };
+        TimeMoveChangeReqDto: {
+            /** @description 변경할 수업 규칙 id */
+            serId: number;
+            /**
+             * @description 변경 기준 회차 날짜
+             * @example 2026-09-01
+             */
+            onDate: string;
+            /** @description 판단 근거. 공백만 보낼 수 없다 */
+            reason: string;
+            /** @description 선택 회차부터 이후 전체 적용 (D-R16) */
+            applyAll?: boolean;
+            /** @enum {string} */
+            reqType: "time_move";
+            startMin: number;
+            endMin: number;
+        };
+        TeacherChangeReqDto: {
+            /** @description 변경할 수업 규칙 id */
+            serId: number;
+            /**
+             * @description 변경 기준 회차 날짜
+             * @example 2026-09-01
+             */
+            onDate: string;
+            /** @description 판단 근거. 공백만 보낼 수 없다 */
+            reason: string;
+            /** @description 선택 회차부터 이후 전체 적용 (D-R16) */
+            applyAll?: boolean;
+            /** @enum {string} */
+            reqType: "teacher";
+            teacherId: number;
+        };
+        RoomChangeReqDto: {
+            /** @description 변경할 수업 규칙 id */
+            serId: number;
+            /**
+             * @description 변경 기준 회차 날짜
+             * @example 2026-09-01
+             */
+            onDate: string;
+            /** @description 판단 근거. 공백만 보낼 수 없다 */
+            reason: string;
+            /** @description 선택 회차부터 이후 전체 적용 (D-R16) */
+            applyAll?: boolean;
+            /** @enum {string} */
+            reqType: "room";
+            roomId: number;
+        };
+        ZoomChangeReqDto: {
+            /** @description 변경할 수업 규칙 id */
+            serId: number;
+            /**
+             * @description 변경 기준 회차 날짜
+             * @example 2026-09-01
+             */
+            onDate: string;
+            /** @description 판단 근거. 공백만 보낼 수 없다 */
+            reason: string;
+            /** @description 선택 회차부터 이후 전체 적용 (D-R16) */
+            applyAll?: boolean;
+            /**
+             * @description 온라인 수업 자원 변경도 room 요청으로 저장한다
+             * @enum {string}
+             */
+            reqType: "room";
+            zaccId: number;
+        };
+        CancelChangeReqDto: {
+            /** @description 변경할 수업 규칙 id */
+            serId: number;
+            /**
+             * @description 변경 기준 회차 날짜
+             * @example 2026-09-01
+             */
+            onDate: string;
+            /** @description 판단 근거. 공백만 보낼 수 없다 */
+            reason: string;
+            /** @description 선택 회차부터 이후 전체 적용 (D-R16) */
+            applyAll?: boolean;
+            /** @enum {string} */
+            reqType: "cancel";
+        };
         ApRowDto: {
             /** @enum {string} */
             kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
@@ -1282,13 +1382,13 @@ export interface components {
         ChangeReqDto: {
             id: number;
             /** @enum {string} */
-            reqType: "wage_change" | "unav_add" | "doc" | "time" | "time_move" | "teacher" | "room" | "off" | "cancel";
-            serId?: number | null;
-            onDate?: string | null;
-            reason?: string | null;
+            reqType: "time_move" | "teacher" | "room" | "cancel";
+            serId: number;
+            onDate: string;
+            reason: string;
             state: string;
             byName?: string | null;
-            /** @description 정기 수업이면 이후 전체 적용 */
+            /** @description 선택 회차부터 이후 전체 적용 */
             applyAll: boolean;
             at: string;
         };
@@ -1326,28 +1426,6 @@ export interface components {
         TodoDoneDto: {
             /** @description 완료로 바꿀지 여부 */
             done: boolean;
-        };
-        ChangeReqCreateDto: {
-            /**
-             * @description 수업을 바꿔 달라는 요청의 종류
-             * @enum {string}
-             */
-            reqType: "time_move" | "teacher" | "room" | "cancel";
-            /** @description 어느 수업인지 */
-            serId?: number;
-            /**
-             * @description 어느 날짜인지
-             * @example 2026-09-01
-             */
-            onDate?: string;
-            /** @description 바꾸려는 내용 — 종류에 따라 startMin · endMin · teacherId · roomId · zaccId */
-            payload?: {
-                [key: string]: unknown;
-            };
-            /** @description 사유는 비워 둘 수 없다 (D-R13 과 같은 이유) */
-            reason: string;
-            /** @description 정기 수업이면 이후 전체 적용 (D-R16) */
-            applyAll?: boolean;
         };
         ConflictRowDto: {
             serId: number;
@@ -1675,7 +1753,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WriteResultDto"];
+                    "application/json": components["schemas"]["RosterResultDto"];
                 };
             };
         };
@@ -2011,11 +2089,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ChangeReqCreateDto"];
+                "application/json": components["schemas"]["TimeMoveChangeReqDto"] | components["schemas"]["TeacherChangeReqDto"] | components["schemas"]["RoomChangeReqDto"] | components["schemas"]["ZoomChangeReqDto"] | components["schemas"]["CancelChangeReqDto"];
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

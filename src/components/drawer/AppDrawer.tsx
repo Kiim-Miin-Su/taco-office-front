@@ -11,11 +11,12 @@
 'use client';
 import { useState } from 'react';
 import { Drawer, Chip, Banner } from '@/components/ui';
-import { useDrawer, useDrawerWrite } from '@/api/queries';
+import { useDrawer, useDrawerWrite, useMeta } from '@/api/queries';
+import { apiMessage } from '@/api/client';
 import { useSession } from '@/store/useSession';
 import type { ChangeReqResult } from '@/api/types';
 import {
-  ApprovalsPane, ChangeReqForm, ChangeReqsPane, EMPTY_DRAFT, KindsPane, MembersPane,
+  ApprovalsPane, changeReqBody, ChangeReqForm, ChangeReqsPane, EMPTY_DRAFT, KindsPane, MembersPane,
   NotisPane, TodosPane, ZoomPane, type ChangeReqDraft, type TodoBox,
 } from './panes';
 
@@ -38,28 +39,27 @@ export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => voi
   const [draft, setDraft] = useState<ChangeReqDraft>(EMPTY_DRAFT);
   const [conflicts, setConflicts] = useState<ChangeReqResult['conflicts']>([]);
   const [sent, setSent] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const meId = useSession((s) => s.me?.id ?? null);
   // 닫혀 있으면 부르지 않는다 — 모든 화면이 서랍을 들고 있으므로 열 때만 읽는다
   const { data, isLoading, isError } = useDrawer(open);
+  const { data: meta } = useMeta(open && pane === 'chreqNew');
   const write = useDrawerWrite();
 
   async function submitChangeReq() {
     setSent(false);
-    const res = await write.mutateAsync({
-      kind: 'changeReq',
-      body: {
-        reqType: draft.reqType,
-        serId: draft.serId ? Number(draft.serId) : undefined,
-        onDate: draft.onDate || undefined,
-        reason: draft.reason,
-        payload: draft.reqType === 'time_move' && draft.startMin && draft.endMin
-          ? { startMin: Number(draft.startMin), endMin: Number(draft.endMin) }
-          : undefined,
-      },
-    }) as ChangeReqResult;
-    setConflicts(res.conflicts);
-    if (res.conflicts.length === 0) { setSent(true); setDraft(EMPTY_DRAFT); }
+    setSubmitError(null);
+    try {
+      const res = await write.mutateAsync({
+        kind: 'changeReq',
+        body: changeReqBody(draft),
+      }) as ChangeReqResult;
+      setConflicts(res.conflicts);
+      if (res.conflicts.length === 0) { setSent(true); setDraft(EMPTY_DRAFT); }
+    } catch (error) {
+      setSubmitError(apiMessage(error));
+    }
   }
 
   const count = data?.approvals.count ?? 0;
@@ -115,9 +115,12 @@ export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => voi
           {pane === 'kinds' ? <KindsPane kinds={data.kinds} /> : null}
           {pane === 'chreqNew' ? (
             <ChangeReqForm
-              draft={draft} onDraft={(d) => { setDraft(d); setConflicts([]); setSent(false); }}
+              draft={draft} onDraft={(d) => {
+                setDraft(d); setConflicts([]); setSent(false); setSubmitError(null);
+              }}
               onSubmit={() => void submitChangeReq()}
-              conflicts={conflicts} busy={write.isPending} sent={sent}
+              conflicts={conflicts} busy={write.isPending} sent={sent} error={submitError}
+              staff={meta?.staff ?? []} rooms={meta?.rooms ?? []} zaccs={meta?.zaccs ?? []}
             />
           ) : null}
           {pane === 'chreqs' ? <ChangeReqsPane rows={data.changeReqs} /> : null}

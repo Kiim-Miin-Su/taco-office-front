@@ -10,13 +10,13 @@
  * 이 화면이 저장할 때 부르는 것은 `useScheduleWrite` 하나다. 3범위 판정은 서버가 한다.
  */
 'use client';
-import { useState } from 'react';
-import { Button, Chip, ConflictGuard, Drawer, RecurrenceScope, Select } from '../ui';
+import { useEffect, useState } from 'react';
+import { Button, Chip, ConflictGuard, Dialog, Drawer, RecurrenceScope, Select } from '../ui';
 import { hhmm } from '@/lib/calendar';
 import { useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
-import type { Occurrence, RosterPatch, Scope } from '@/api/types';
+import type { Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
 
 /** 준비 8단계 — 명세서 §12. 순서가 곧 화면의 순서다. */
 const STEPS = [
@@ -62,6 +62,11 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
   const [ask, setAsk] = useState<null | { mode: 'edit' | 'delete'; run: (s: Scope) => void }>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pick, setPick] = useState('');
+  const [rosterResult, setRosterResult] = useState<RosterResult | null>(null);
+
+  useEffect(() => {
+    setRosterResult(null);
+  }, [occ?.serId, occ?.onDate]);
 
   if (!occ) return null;
   const done = doneOf(occ);
@@ -72,9 +77,15 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
    */
   const roster = (op: RosterPatch['op'], studentId: number) => {
     setErr(null);
+    setRosterResult(null);
     write.mutate(
       { kind: 'roster', serId: occ.serId, body: { op, onDate: occ.onDate, studentId } },
-      { onError: (e) => setErr(apiMessage(e)) },
+      {
+        onError: (e) => setErr(apiMessage(e)),
+        onSuccess: (result) => {
+          if ('count' in result) setRosterResult(result);
+        },
+      },
     );
   };
   const enrolled = new Set(occ.students.map((st) => st.id));
@@ -183,6 +194,12 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
           </section>
 
           {err ? <ConflictGuard result="blocking" message={err} /> : null}
+          {rosterResult ? (
+            <ConflictGuard
+              result="ok"
+              message={`명단을 반영했습니다 · ${rosterResult.count}/${rosterResult.cap}명`}
+            />
+          ) : null}
 
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>닫기</Button>
@@ -199,7 +216,29 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
         onPick={(s) => ask?.run(s)}
         onClose={() => setAsk(null)}
       />
+
+      <Dialog
+        open={!!rosterResult && (rosterResult.needGuide.length > 0 || rosterResult.needBook.length > 0)}
+        onClose={() => setRosterResult(null)}
+        title="명단 변경 후 준비할 일"
+        footer={<Button onClick={() => setRosterResult(null)}>확인</Button>}
+      >
+        <div className="flex flex-col gap-3 text-[12px] text-fg-2">
+          {rosterResult?.needGuide.length ? (
+            <section>
+              <p className="font-bold text-fg">수업 안내가 필요합니다</p>
+              <p className="mt-1">{rosterResult.needGuide.join(' · ')}</p>
+            </section>
+          ) : null}
+          {rosterResult?.needBook.length ? (
+            <section>
+              <p className="font-bold text-fg">교재 배부 확인이 필요합니다</p>
+              <p className="mt-1">{rosterResult.needBook.join(' · ')}</p>
+            </section>
+          ) : null}
+          <p className="text-fg-subtle">서버가 명단 저장과 같은 트랜잭션에서 확인한 결과입니다.</p>
+        </div>
+      </Dialog>
     </>
   );
 }
-

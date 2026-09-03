@@ -8,7 +8,7 @@
 'use client';
 import { useForm } from 'react-hook-form';
 import { Button, ConflictGuard, Dialog, Input, Label, Select, Chip } from '../ui';
-import { KO_DOW, buildRrule, parseHm } from '@/lib/calendar';
+import { KO_DOW, buildRrule, lessonTimeIssue, parseHm } from '@/lib/calendar';
 import { useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useState } from 'react';
@@ -72,7 +72,8 @@ export function SessionEditor({ draft, meta, onClose }: {
     const startMin = parseHm(v.start);
     const endMin = parseHm(v.end);
     if (startMin === null || endMin === null) { setErr('시각은 HH:MM 으로 적어 주세요'); return; }
-    if (endMin - startMin < 10 || endMin - startMin > 480) { setErr('길이는 10분에서 8시간 사이여야 합니다 (§5)'); return; }
+    const timeIssue = lessonTimeIssue(startMin, endMin);
+    if (timeIssue) { setErr(timeIssue); return; }
     write.mutate(
       {
         kind: 'create',

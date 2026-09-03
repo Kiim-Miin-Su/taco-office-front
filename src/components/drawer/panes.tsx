@@ -13,11 +13,14 @@ import {
   type Column, type Tone,
 } from '@/components/ui';
 import type {
-  ApFlow, ApRow, ChangeReq, ChangeReqCreate, ConflictRow, Drawer as DrawerData, DrawerTodo,
-  KindRow, Member, Noti, TzGroup, ZoomAccount,
+  ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo,
+  KindRow, Member, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount,
 } from '@/api/types';
-import { hhmm } from '@/lib/calendar';
+import { hhmm, lessonTimeIssue } from '@/lib/calendar';
 import { REQ_TYPE_LABEL, ROLE_LABEL, ROLE_TONE } from '@/lib/roles';
+import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
+
+export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
 
 const KIND_LABEL: Record<string, string> = {
   rpt: '대표 보고', plan: '기획', req: '요청', chreq: '변경 요청', gpapack: '자료 요청',
@@ -262,33 +265,20 @@ export function KindsPane({ kinds }: { kinds: KindRow[] }) {
 
 /* ── §19 변경 요청 넣기 ──────────────────────────────────────────── */
 
-/**
- * 종류의 낱말은 **서버가 정한다** (`ChangeReqCreate['reqType']` → `lib/approval.ts`).
- * 여기서 손으로 적었다가 DB(`time_move`)·읽기 DTO(`time`)·이 폼(`off`)이 세 벌로 갈렸고,
- * 시간 이동 요청이 400 으로 튕기고 있었다. 생성 타입에서 뽑으면 다시는 안 갈린다.
- */
-export type ChreqType = NonNullable<ChangeReqCreate['reqType']>;
-
-export interface ChangeReqDraft {
-  reqType: ChreqType;
-  serId: string; onDate: string; startMin: string; endMin: string; reason: string;
-}
-
-export const EMPTY_DRAFT: ChangeReqDraft = {
-  reqType: 'time_move', serId: '', onDate: '', startMin: '', endMin: '', reason: '',
-};
-
-/** 화면에 보이는 이름 — 서버의 REQ_TYPE_LABEL 과 같은 표에서 온다 */
+/** 생성된 oneOf의 reqType만 쓴다. 잘못된 time/off 낱말은 컴파일되지 않는다. */
 const CHREQ_TYPE_OPTIONS: ChreqType[] = ['time_move', 'teacher', 'room', 'cancel'];
 
-export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent }: {
+export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent, error, staff, rooms, zaccs }: {
   draft: ChangeReqDraft; onDraft: (d: ChangeReqDraft) => void;
-  onSubmit: () => void; conflicts: ConflictRow[]; busy: boolean; sent: boolean;
+  onSubmit: () => void; conflicts: ConflictRow[]; busy: boolean; sent: boolean; error?: string | null;
+  staff: StaffBrief[]; rooms: Room[]; zaccs: Zacc[];
 }) {
   const set = <K extends keyof ChangeReqDraft>(k: K, v: ChangeReqDraft[K]) => onDraft({ ...draft, [k]: v });
   const needsTime = draft.reqType === 'time_move';
-  // 사유가 없으면 뒤에서 판단할 사람이 근거 없이 판단하게 된다 — 서버도 같은 것을 막는다
-  const ready = draft.reason.trim().length > 0 && (draft.reqType === 'cancel' || draft.serId !== '');
+  const timeIssue = needsTime && draft.startMin && draft.endMin
+    ? lessonTimeIssue(Number(draft.startMin), Number(draft.endMin))
+    : null;
+  const ready = changeReqReady(draft);
 
   return (
     <div className="flex flex-col gap-3">
@@ -316,6 +306,12 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent 
         </div>
       </div>
 
+      <Checkbox
+        checked={draft.applyAll}
+        onChange={(e) => set('applyAll', e.currentTarget.checked)}
+        label="선택한 회차부터 이후 전체에 적용 요청"
+      />
+
       {needsTime ? (
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -330,6 +326,45 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent 
               onChange={(e) => set('endMin', e.currentTarget.value.replace(/\D/g, ''))} />
             {draft.endMin ? <p className="mt-1 text-[11px] text-fg-subtle">{hhmm(Number(draft.endMin))}</p> : null}
           </div>
+          {timeIssue ? <p className="col-span-2 text-[11px] text-red">{timeIssue}</p> : null}
+        </div>
+      ) : null}
+
+      {draft.reqType === 'teacher' ? (
+        <div>
+          <Label>바꿀 강사</Label>
+          <Select value={draft.teacherId} onChange={(e) => set('teacherId', e.currentTarget.value)}>
+            <option value="">강사를 선택하세요</option>
+            {staff.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}{member.title ? ` · ${member.title}` : ''}
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : null}
+
+      {draft.reqType === 'room' ? (
+        <div className="flex flex-col gap-2">
+          <Label>바꿀 수업 자원</Label>
+          <Segmented
+            value={draft.resourceTarget}
+            onChange={(value) => set('resourceTarget', value)}
+            options={[{ value: 'room', label: '강의실' }, { value: 'zoom', label: 'Zoom' }]}
+          />
+          {draft.resourceTarget === 'room' ? (
+            <Select value={draft.roomId} onChange={(e) => set('roomId', e.currentTarget.value)}>
+              <option value="">강의실을 선택하세요</option>
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id}>{room.branch} · {room.name}</option>
+              ))}
+            </Select>
+          ) : (
+            <Select value={draft.zaccId} onChange={(e) => set('zaccId', e.currentTarget.value)}>
+              <option value="">Zoom 계정을 선택하세요</option>
+              {zaccs.map((zacc) => <option key={zacc.id} value={zacc.id}>{zacc.label}</option>)}
+            </Select>
+          )}
         </div>
       ) : null}
 
@@ -338,6 +373,8 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent 
         <Textarea rows={3} value={draft.reason} onChange={(e) => set('reason', e.currentTarget.value)}
           placeholder="왜 바꿔야 하는지 한 줄이라도 적어 주세요" />
       </div>
+
+      {error ? <ConflictGuard result="blocking" message={error} /> : null}
 
       {/* 겹치면 「안 됩니다」가 아니라 **누구와** 겹치는지 보여 준다 */}
       {conflicts.length > 0 ? (

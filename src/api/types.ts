@@ -7,7 +7,7 @@
  *
  * 갱신: `npm run types:gen`
  */
-import type { components } from './schema';
+import type { components, paths } from './schema';
 
 type S = components['schemas'];
 
@@ -64,6 +64,7 @@ export type OccurrencePatch = S['OccurrencePatchDto'];
 export type OccurrenceDelete = S['OccurrenceDeleteDto'];
 export type RosterPatch = S['RosterPatchDto'];
 export type WriteResult = S['WriteResultDto'];
+export type RosterResult = S['RosterResultDto'];
 export type Horizon = S['HorizonDto'];
 /** 'this' | 'future' | 'all' — 화면이 문자열을 다시 적지 않게 DTO 에서 가져온다 */
 export type Scope = OccurrencePatch['scope'];
@@ -115,6 +116,7 @@ export type TzGroup = S['TzGroupDto'];
 export type KindRow = S['KindRowDto'];
 export type ChangeReq = S['ChangeReqDto'];
 export type ZoomAccount = S['ZoomAccountDto'];
-export type ChangeReqCreate = S['ChangeReqCreateDto'];
+/** 요청 본문의 oneOf를 그대로 쓴다 — 종류별 필수 필드가 컴파일 단계에서 갈린다. */
+export type ChangeReqCreate = paths['/drawer/change-requests']['post']['requestBody']['content']['application/json'];
 export type ChangeReqResult = S['ChangeReqResultDto'];
 export type ConflictRow = S['ConflictRowDto'];

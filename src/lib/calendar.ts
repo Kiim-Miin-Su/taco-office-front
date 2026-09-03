@@ -161,6 +161,13 @@ export const snap15 = (m: number): number => Math.round(m / SNAP_MIN) * SNAP_MIN
 /** 드래그 델타(px) → 분. 15분 스냅까지 여기서 한다 — 화면이 다시 계산하지 않는다 */
 export const minutesFromPx = (px: number): number => snap15((px / HOUR_PX) * 60);
 
+/** 폼과 드래그가 공유하는 수업 시각 계약. 서버의 lessonTimeIssue와 같은 경계다. */
+export function lessonTimeIssue(startMin: number, endMin: number): string | null {
+  if (startMin < 0 || startMin >= 1440 || endMin > 1440) return '수업 시각은 같은 날 안에 있어야 합니다';
+  const duration = endMin - startMin;
+  return duration < 10 || duration > 480 ? '길이는 10분에서 8시간 사이여야 합니다 (§5)' : null;
+}
+
 /** 블록 길이 제약 — 10~480분 (§5) · 자정을 넘지 않는다 */
 export const clampEnd = (startMin: number, endMin: number): number =>
   Math.min(24 * 60, Math.max(startMin + 10, Math.min(startMin + 480, endMin)));
