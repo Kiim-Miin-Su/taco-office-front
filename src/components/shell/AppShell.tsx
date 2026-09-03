@@ -4,9 +4,11 @@
  */
 'use client';
 import { useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/store/useSession';
 import { api } from '@/api/client';
+import { clearSessionQueries } from '@/api/session-cache';
 import { useDrawer, useUnwritten } from '@/api/queries';
 import { AppDrawer, DrawerButton } from '@/components/drawer/AppDrawer';
 import { Logo } from '@/components/ui';
@@ -15,6 +17,7 @@ import { AdminSidebar, AdminTopNavigation, type AdminNavBadges } from './AdminNa
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const me = useSession((s) => s.me);
   const signOut = useSession((s) => s.signOut);
   const drawerData = useDrawer(Boolean(me)).data;
@@ -32,6 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   async function out() {
     try { await api.post('/auth/logout'); } catch { /* 쿠키가 이미 없을 수 있다 */ }
     signOut();
+    clearSessionQueries(queryClient);
     router.replace('/login');
   }
   return (

@@ -311,6 +311,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/{serId}/{onDate}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 제출된 리포트 승인/반려 — 반려 사유 필수, 승인 여부는 정산과 독립 */
+        post: operations["ReportsController_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting": {
         parameters: {
             query?: never;
@@ -859,6 +876,8 @@ export interface components {
             fields: components["schemas"]["ReportFieldDto"][];
             /** @description 현재 사용자·회차·상태 기준 저장 가능 여부 */
             canEdit: boolean;
+            /** @description 현재 사용자·상태 기준 승인/반려 가능 여부 */
+            canReview: boolean;
             lang: string;
             writtenAt?: string | null;
             submittedAt?: string | null;
@@ -869,6 +888,12 @@ export interface components {
             content: string;
             progress: string;
             homework: string;
+        };
+        ReportReviewDto: {
+            /** @enum {string} */
+            decision: "approve" | "reject";
+            /** @description 반려 시 필수 (D-R13) */
+            reason?: string;
         };
         MoneySummaryDto: {
             invoiceCount: number;
@@ -1296,7 +1321,7 @@ export interface components {
         };
         ApRowDto: {
             /** @enum {string} */
-            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            kind: "rep" | "rpt" | "plan" | "req" | "chreq" | "gpapack";
             id: number;
             title: string;
             sub?: string | null;
@@ -1867,6 +1892,33 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReportUpsertDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDetailDto"];
+                };
+            };
+        };
+    };
+    ReportsController_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                /** @description REP 복합 유니크 키의 날짜 */
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportReviewDto"];
             };
         };
         responses: {

@@ -7,10 +7,10 @@
 'use client';
 import { useState } from 'react';
 import { apiMessage } from '@/api/client';
-import { useReportWrite } from '@/api/queries';
+import { useReportReview, useReportWrite } from '@/api/queries';
 import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
-import { Banner, Button, CountedTextarea, Label, Panel } from '../ui';
+import { Banner, Button, CountedTextarea, Label, Panel, Textarea } from '../ui';
 
 export function ReportForm({ fields, value, onChange, readOnly }: {
   fields: ReportField[];
@@ -48,7 +48,10 @@ export function ReportForm({ fields, value, onChange, readOnly }: {
 export function ReportEditor({ detail, subject }: { detail: ReportDetail; subject: string }) {
   const [body, setBody] = useState<ReportBody>(detail.body);
   const [message, setMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const write = useReportWrite();
+  const review = useReportReview();
   const complete = detail.fields.every((field) => body[field.key].trim().length >= field.min);
 
   const save = (action: 'draft' | 'submit') => {
@@ -59,6 +62,23 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         onSuccess: () => setMessage({
           tone: 'success',
           text: action === 'draft' ? '임시저장했습니다.' : '제출했습니다. 이 시각이 정산·지각 기준으로 고정됩니다.',
+        }),
+        onError: (error) => setMessage({ tone: 'danger', text: apiMessage(error) }),
+      },
+    );
+  };
+
+  const decide = (decision: 'approve' | 'reject') => {
+    setMessage(null);
+    review.mutate(
+      {
+        serId: detail.serId,
+        onDate: detail.onDate,
+        body: decision === 'reject' ? { decision, reason: rejectReason } : { decision },
+      },
+      {
+        onSuccess: () => setMessage({
+          tone: 'success', text: decision === 'approve' ? '승인했습니다.' : '반려 사유와 함께 돌려보냈습니다.',
         }),
         onError: (error) => setMessage({ tone: 'danger', text: apiMessage(error) }),
       },
@@ -78,6 +98,9 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
 
       <ReportForm fields={detail.fields} value={body} onChange={setBody} readOnly={!detail.canEdit} />
 
+      {detail.rejectReason ? (
+        <Banner tone="danger"><b>반려 사유:</b> {detail.rejectReason}</Banner>
+      ) : null}
       {!detail.canEdit ? (
         <Banner tone="neutral">제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.</Banner>
       ) : null}
@@ -86,6 +109,33 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         <div className="flex justify-end gap-2">
           <Button disabled={write.isPending} onClick={() => save('draft')}>임시저장</Button>
           <Button variant="primary" disabled={write.isPending || !complete} onClick={() => save('submit')}>제출</Button>
+        </div>
+      ) : null}
+      {detail.canReview ? (
+        <div className="rounded-lg border border-line bg-inset p-3">
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="danger" disabled={review.isPending}
+              onClick={() => setRejecting((value) => !value)}
+            >반려</Button>
+            <Button variant="primary" disabled={review.isPending} onClick={() => decide('approve')}>승인</Button>
+          </div>
+          {rejecting ? (
+            <div className="mt-3">
+              <Label htmlFor="report-reject-reason">반려 사유</Label>
+              <Textarea
+                id="report-reject-reason" value={rejectReason} maxLength={2000}
+                onChange={(event) => setRejectReason(event.currentTarget.value)}
+                placeholder="고쳐야 할 내용을 구체적으로 적어 주세요"
+              />
+              <div className="mt-2 flex justify-end">
+                <Button
+                  variant="danger" disabled={review.isPending || !rejectReason.trim()}
+                  onClick={() => decide('reject')}
+                >사유와 함께 반려</Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

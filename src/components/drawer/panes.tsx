@@ -23,7 +23,7 @@ import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-re
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
 
 const KIND_LABEL: Record<string, string> = {
-  rpt: '대표 보고', plan: '기획', req: '요청', chreq: '변경 요청', gpapack: '자료 요청',
+  rep: '리포트', rpt: '대표 보고', plan: '기획', req: '요청', chreq: '변경 요청', gpapack: '자료 요청',
 };
 const NOTI_TONE: Record<string, Tone> = { alarm: 'info', ok: 'success', warn: 'warning' };
 

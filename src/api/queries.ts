@@ -9,12 +9,13 @@ import {
   useMutation, useQuery, useQueryClient,
   type UseMutationResult, type UseQueryResult,
 } from '@tanstack/react-query';
+import { useSession } from '@/store/useSession';
 import { api } from './client';
 import type {
   Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
   Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
-  ChangeReqCreate, ChangeReqResult, Drawer,
+  ChangeReqCreate, ChangeReqResult, Drawer, ReportReview,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -35,6 +36,20 @@ export const qk = {
   drawer: ['drawer'] as const,
 };
 
+type ViewerId = number | 'anonymous';
+
+/**
+ * 서버 응답 캐시는 사용자 id까지 키에 포함한다.
+ * 로그아웃 직전 시작된 요청이 늦게 끝나도 다음 사용자가 그 응답을 재사용하지 않는다.
+ */
+export function sessionQueryKey<T extends readonly unknown[]>(key: T, viewerId: ViewerId) {
+  return [...key, 'viewer', viewerId] as const;
+}
+
+function useViewerId(): ViewerId {
+  return useSession((s) => s.me?.id ?? 'anonymous');
+}
+
 /** from · to 만 받는 화면들이 같은 모양을 쓴다 */
 export interface RangeParams {
   from: string;
@@ -51,8 +66,9 @@ export interface OccParams {
 
 /** 코드표는 거의 안 바뀐다 — 오래 들고 있는다 */
 export function useMeta(enabled = true): UseQueryResult<Meta> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.meta,
+    queryKey: sessionQueryKey(qk.meta, viewerId),
     queryFn: async () => (await api.get<Meta>('/meta')).data,
     enabled,
     staleTime: 30 * 60 * 1000,
@@ -61,8 +77,9 @@ export function useMeta(enabled = true): UseQueryResult<Meta> {
 
 /** 회차 — 일간·주간·월간·학생별·선생님별이 같은 것을 부르고 묶는 방법만 다르다 */
 export function useOccurrences(p: OccParams, enabled = true): UseQueryResult<OccurrenceList> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.occurrences(p),
+    queryKey: sessionQueryKey(qk.occurrences(p), viewerId),
     queryFn: async () => (await api.get<OccurrenceList>('/schedule/occurrences', { params: p })).data,
     enabled,
     staleTime: 60 * 1000,
@@ -76,18 +93,21 @@ export interface ReportParams {
   state?: string;
 }
 
-export function useReports(p: ReportParams = {}): UseQueryResult<ReportList> {
+export function useReports(p: ReportParams = {}, enabled = true): UseQueryResult<ReportList> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.reports(p),
+    queryKey: sessionQueryKey(qk.reports(p), viewerId),
     queryFn: async () => (await api.get<ReportList>('/reports', { params: p })).data,
+    enabled,
     staleTime: 60 * 1000,
   });
 }
 
 /** §47 — 강사별로 몇 건 밀렸는지. 차감은 서버가 rules.ts 로 계산해 내려준다 (D-R32) */
 export function useUnwritten(teacherId?: number): UseQueryResult<Unwritten> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.unwritten(teacherId),
+    queryKey: sessionQueryKey(qk.unwritten(teacherId), viewerId),
     queryFn: async () => (await api.get<Unwritten>('/reports/unwritten', { params: { teacherId } })).data,
     staleTime: 30 * 1000,
   });
@@ -97,8 +117,9 @@ export function useReportDetail(
   serId?: number,
   onDate?: string,
 ): UseQueryResult<ReportDetail> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.reportDetail(serId ?? 0, onDate ?? ''),
+    queryKey: sessionQueryKey(qk.reportDetail(serId ?? 0, onDate ?? ''), viewerId),
     queryFn: async () => (await api.get<ReportDetail>(`/reports/${serId}/${onDate}`)).data,
     enabled: serId !== undefined && onDate !== undefined,
     staleTime: 30 * 1000,
@@ -107,16 +128,18 @@ export function useReportDetail(
 
 /** 금액이 null 이면 볼 권한이 없는 것이다 — 화면이 0 으로 바꿔 쓰지 않는다 */
 export function useAccounting(): UseQueryResult<Accounting> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.accounting,
+    queryKey: sessionQueryKey(qk.accounting, viewerId),
     queryFn: async () => (await api.get<Accounting>('/accounting')).data,
     staleTime: 60 * 1000,
   });
 }
 
 export function useOps(): UseQueryResult<Ops> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.ops,
+    queryKey: sessionQueryKey(qk.ops, viewerId),
     queryFn: async () => (await api.get<Ops>('/ops')).data,
     staleTime: 60 * 1000,
   });
@@ -124,8 +147,9 @@ export function useOps(): UseQueryResult<Ops> {
 
 /** §29 컨설팅 — 금액은 canSeeAmounts 가 false 면 서버가 null 로 내려준다 */
 export function useConsulting(): UseQueryResult<ConsultingList> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.consulting,
+    queryKey: sessionQueryKey(qk.consulting, viewerId),
     queryFn: async () => (await api.get<ConsultingList>('/consulting')).data,
     staleTime: 60 * 1000,
   });
@@ -133,8 +157,9 @@ export function useConsulting(): UseQueryResult<ConsultingList> {
 
 /** §36 교재 — 거의 안 바뀐다 */
 export function useBooks(): UseQueryResult<Books> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.books,
+    queryKey: sessionQueryKey(qk.books, viewerId),
     queryFn: async () => (await api.get<Books>('/books')).data,
     staleTime: 10 * 60 * 1000,
   });
@@ -142,8 +167,9 @@ export function useBooks(): UseQueryResult<Books> {
 
 /** §41·§42 안내 — 강사면 서버가 자기 것만 내려준다 */
 export function useGuides(): UseQueryResult<Guides> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.guides,
+    queryKey: sessionQueryKey(qk.guides, viewerId),
     queryFn: async () => (await api.get<Guides>('/guides')).data,
     staleTime: 60 * 1000,
   });
@@ -154,8 +180,9 @@ export function useGuides(): UseQueryResult<Guides> {
  * 교재를 방금 배부했는데 마크가 그대로면 화면을 아무도 안 믿는다.
  */
 export function useBoard(p: RangeParams): UseQueryResult<Board> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.board(p),
+    queryKey: sessionQueryKey(qk.board(p), viewerId),
     queryFn: async () => (await api.get<Board>('/board', { params: p })).data,
     staleTime: 10 * 1000,
   });
@@ -163,8 +190,9 @@ export function useBoard(p: RangeParams): UseQueryResult<Board> {
 
 /** §69 대표 보고 — 여기도 집계는 저장하지 않는다 (D-R4) */
 export function useExec(p: RangeParams): UseQueryResult<Exec> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.exec(p),
+    queryKey: sessionQueryKey(qk.exec(p), viewerId),
     queryFn: async () => (await api.get<Exec>('/exec', { params: p })).data,
     staleTime: 30 * 1000,
   });
@@ -176,8 +204,9 @@ export function useExec(p: RangeParams): UseQueryResult<Exec> {
 
 /** 펼쳐 둔 기간 — 화면이 「비었다」와 「아직 안 펼쳤다」를 구분하려고 읽는다 */
 export function useHorizon(): UseQueryResult<Horizon> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.horizon,
+    queryKey: sessionQueryKey(qk.horizon, viewerId),
     queryFn: async () => (await api.get<Horizon>('/schedule/horizon')).data,
     staleTime: 60 * 60 * 1000,
   });
@@ -190,9 +219,31 @@ export type ReportWrite = {
   body: ReportUpsert;
 };
 
+type ReportReviewWrite = {
+  serId: number;
+  onDate: string;
+  body: ReportReview;
+};
+
+/** 리포트 상태가 바뀌면 이 소비자들만 같은 경로로 갱신한다 (D-R7 · C-4). */
+function refreshReportConsumers(
+  qc: ReturnType<typeof useQueryClient>,
+  viewerId: ViewerId,
+  detail: ReportDetail,
+): void {
+  qc.setQueryData(sessionQueryKey(qk.reportDetail(detail.serId, detail.onDate), viewerId), detail);
+  void qc.invalidateQueries({ queryKey: ['reports'] });
+  void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+  void qc.invalidateQueries({ queryKey: qk.accounting });
+  void qc.invalidateQueries({ queryKey: ['board'] });
+  void qc.invalidateQueries({ queryKey: ['exec'] });
+  void qc.invalidateQueries({ queryKey: qk.drawer });
+}
+
 /** 임시저장·제출은 입력 계약과 캐시 무효화를 한 경로로 공유한다. */
 export function useReportWrite(): UseMutationResult<ReportDetail, unknown, ReportWrite> {
   const qc = useQueryClient();
+  const viewerId = useViewerId();
   return useMutation({
     mutationFn: async (w) => {
       const path = `/reports/${w.serId}/${w.onDate}/${w.action === 'draft' ? 'draft' : 'submit'}`;
@@ -200,14 +251,19 @@ export function useReportWrite(): UseMutationResult<ReportDetail, unknown, Repor
         ? (await api.put<ReportDetail>(path, w.body)).data
         : (await api.post<ReportDetail>(path, w.body)).data;
     },
-    onSuccess: (detail) => {
-      qc.setQueryData(qk.reportDetail(detail.serId, detail.onDate), detail);
-      void qc.invalidateQueries({ queryKey: ['reports'] });
-      void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-      void qc.invalidateQueries({ queryKey: qk.accounting });
-      void qc.invalidateQueries({ queryKey: ['board'] });
-      void qc.invalidateQueries({ queryKey: qk.drawer });
-    },
+    onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
+  });
+}
+
+/** wait 상태만 승인/반려한다. 재제출은 기존 useReportWrite의 submit 경로를 그대로 쓴다. */
+export function useReportReview(): UseMutationResult<ReportDetail, unknown, ReportReviewWrite> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (w) => (
+      await api.post<ReportDetail>(`/reports/${w.serId}/${w.onDate}/review`, w.body)
+    ).data,
+    onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
   });
 }
 
@@ -303,8 +359,9 @@ export function useScheduleWrite(): UseMutationResult<
    시각의 데이터를 보게 된다 — 「3건이라는데 두 줄뿐」이 정확히 그렇게 생긴다. */
 
 export function useDrawer(enabled = true): UseQueryResult<Drawer> {
+  const viewerId = useViewerId();
   return useQuery({
-    queryKey: qk.drawer,
+    queryKey: sessionQueryKey(qk.drawer, viewerId),
     queryFn: async () => (await api.get<Drawer>('/drawer')).data,
     enabled,
     // 결재·알림은 남이 바꾼다. 서랍을 다시 열면 다시 읽는다.

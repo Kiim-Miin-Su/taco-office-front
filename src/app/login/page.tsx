@@ -1,7 +1,9 @@
 'use client';
 import { useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/api/client';
+import { clearSessionQueries } from '@/api/session-cache';
 import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo } from '@/components/ui';
 import type { LoginBody, LoginResult } from '@/api/types';
@@ -16,6 +18,7 @@ const DEMO = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const signIn = useSession((s) => s.signIn);
   const [email, setEmail] = useState(DEMO[0].email);
   const [password, setPassword] = useState('taco1234!');
@@ -31,6 +34,7 @@ export default function LoginPage() {
       // LoginResultDto가 토큰과 권한 플래그를 원자적으로 돌려준다. 성공 직후 /auth/me를
       // 다시 부르면 같은 계약을 두 응답에서 조합하게 되고 로그인 왕복도 하나 늘어난다.
       const { data } = await api.post<LoginResult>('/auth/login', body);
+      clearSessionQueries(queryClient);
       signIn(data.accessToken, data.user);
       router.replace('/schedule');
     } catch (e) {

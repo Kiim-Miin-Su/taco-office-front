@@ -2,7 +2,8 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { LoginResult } from '@/api/types';
 
-const { get, post, replace, signIn } = vi.hoisted(() => ({
+const { clear, get, post, replace, signIn } = vi.hoisted(() => ({
+  clear: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
   replace: vi.fn(),
@@ -10,6 +11,7 @@ const { get, post, replace, signIn } = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ clear }) }));
 vi.mock('@/api/client', () => ({
   api: { get, post },
   ApiError: class ApiError extends Error {},
@@ -45,6 +47,8 @@ describe('LoginPage — 생성 로그인 계약', () => {
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
 
     await waitFor(() => expect(signIn).toHaveBeenCalledWith(result.accessToken, result.user));
+    expect(clear).toHaveBeenCalledOnce();
+    expect(clear.mock.invocationCallOrder[0]).toBeLessThan(signIn.mock.invocationCallOrder[0]);
     expect(post).toHaveBeenCalledWith('/auth/login', {
       email: 'ceo@tnacademy.kr',
       password: 'taco1234!',

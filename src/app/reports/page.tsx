@@ -12,10 +12,11 @@ import {
   Banner, Chip, Column, Drawer, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
 } from '@/components/ui';
 import { ReportEditor } from '@/components/report/ReportForm';
-import { useMeta, useReportDetail, useUnwritten } from '@/api/queries';
+import { useMeta, useReportDetail, useReports, useUnwritten } from '@/api/queries';
 import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
 import { won } from '@/lib/money';
+import { useCan } from '@/store/useSession';
 
 const sinceText = (min: number) => {
   if (min < 60) return `${min}분`;
@@ -31,10 +32,13 @@ const TIERS = [
 ];
 
 export default function ReportsPage() {
-  const [tab, setTab] = useState<'teacher' | 'list'>('teacher');
+  const [tab, setTab] = useState<'teacher' | 'list' | 'returned' | 'approval'>('teacher');
   const [selected, setSelected] = useState<ReportRow | null>(null);
+  const canApprove = useCan('canApprove');
   const meta = useMeta();
   const q = useUnwritten();
+  const returned = useReports({ state: 'rej' }, tab === 'returned');
+  const approval = useReports({ state: 'wait' }, canApprove && tab === 'approval');
   const detail = useReportDetail(selected?.serId, selected?.onDate);
 
   const subName = useMemo(() => {
@@ -91,6 +95,8 @@ export default function ReportsPage() {
         options={[
           { value: 'teacher', label: `강사별 ${byTeacher.length}` },
           { value: 'list', label: `건별 ${items.length}` },
+          { value: 'returned', label: '반려됨' },
+          ...(canApprove ? [{ value: 'approval' as const, label: '승인 대기' }] : []),
         ]}
       />
 
@@ -100,7 +106,7 @@ export default function ReportsPage() {
         <Banner tone="danger">서버에 닿지 못했습니다. 백엔드가 떠 있는지 확인해 주세요.</Banner>
       ) : tab === 'teacher' ? (
         <Table columns={teacherCols} rows={byTeacher} rowKey={(r) => r.teacherId} empty="밀린 리포트가 없습니다" />
-      ) : (
+      ) : tab === 'list' ? (
         <Table
           columns={listCols}
           rows={items}
@@ -108,6 +114,14 @@ export default function ReportsPage() {
           onRowClick={setSelected}
           empty="밀린 리포트가 없습니다"
         />
+      ) : tab === 'returned' ? (
+        returned.isLoading ? <Banner tone="neutral">반려 리포트를 불러오는 중…</Banner>
+          : returned.isError ? <Banner tone="danger">반려 리포트를 불러오지 못했습니다.</Banner>
+            : <Table columns={listCols} rows={returned.data?.items ?? []} rowKey={(r) => r.id} onRowClick={setSelected} empty="반려된 리포트가 없습니다" />
+      ) : (
+        approval.isLoading ? <Banner tone="neutral">승인 대기 리포트를 불러오는 중…</Banner>
+          : approval.isError ? <Banner tone="danger">승인 대기 리포트를 불러오지 못했습니다.</Banner>
+            : <Table columns={listCols} rows={approval.data?.items ?? []} rowKey={(r) => r.id} onRowClick={setSelected} empty="승인 대기 리포트가 없습니다" />
       )}
 
       <Panel className="mt-4" title="지연 차감 계산 방식" sub="수업이 끝난 시각을 0분으로 두고 분 단위로 잽니다. 날짜가 아니라 분입니다.">
@@ -131,7 +145,7 @@ export default function ReportsPage() {
         open={selected !== null}
         onClose={() => setSelected(null)}
         width={720}
-        title="리포트 작성"
+        title={detail.data?.canReview ? '리포트 검토' : '리포트 작성'}
         sub={selected ? `${selected.date} · ${subName(selected.subKey)} · ${selected.teacherName ?? '담당 강사 없음'}` : undefined}
       >
         {detail.isLoading ? (
