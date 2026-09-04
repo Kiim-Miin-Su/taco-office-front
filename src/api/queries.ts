@@ -15,7 +15,8 @@ import type {
   Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
   Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
-  ChangeReqCreate, ChangeReqResult, Drawer, ReportReview,
+  ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
+  ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -25,6 +26,8 @@ export const qk = {
   reports: (p: ReportParams) => ['reports', p] as const,
   unwritten: (teacherId?: number) => ['reports', 'unwritten', teacherId ?? 'all'] as const,
   reportDetail: (serId: number, onDate: string) => ['reports', 'detail', serId, onDate] as const,
+  reportDelivery: (onDate?: string) => ['reports', 'deliveries', onDate ?? 'yesterday'] as const,
+  reportDeliveryHistory: (p: ReportDeliveryHistoryParams) => ['reports', 'deliveries', 'history', p] as const,
   accounting: ['accounting'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
@@ -104,11 +107,12 @@ export function useReports(p: ReportParams = {}, enabled = true): UseQueryResult
 }
 
 /** §47 — 강사별로 몇 건 밀렸는지. 차감은 서버가 rules.ts 로 계산해 내려준다 (D-R32) */
-export function useUnwritten(teacherId?: number): UseQueryResult<Unwritten> {
+export function useUnwritten(teacherId?: number, enabled = true): UseQueryResult<Unwritten> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.unwritten(teacherId), viewerId),
     queryFn: async () => (await api.get<Unwritten>('/reports/unwritten', { params: { teacherId } })).data,
+    enabled,
     staleTime: 30 * 1000,
   });
 }
@@ -123,6 +127,33 @@ export function useReportDetail(
     queryFn: async () => (await api.get<ReportDetail>(`/reports/${serId}/${onDate}`)).data,
     enabled: serId !== undefined && onDate !== undefined,
     staleTime: 30 * 1000,
+  });
+}
+
+export function useReportDelivery(onDate?: string, enabled = true): UseQueryResult<ReportDeliveryQueue> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.reportDelivery(onDate), viewerId),
+    queryFn: async () => (await api.get<ReportDeliveryQueue>('/reports/deliveries', { params: { onDate } })).data,
+    enabled,
+    staleTime: 10 * 1000,
+  });
+}
+
+export interface ReportDeliveryHistoryParams {
+  onDate?: string;
+  repId?: number;
+}
+
+export function useReportDeliveryHistory(
+  p: ReportDeliveryHistoryParams = {}, enabled = true,
+): UseQueryResult<ReportSendHistoryList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.reportDeliveryHistory(p), viewerId),
+    queryFn: async () => (await api.get<ReportSendHistoryList>('/reports/deliveries/history', { params: p })).data,
+    enabled,
+    staleTime: 10 * 1000,
   });
 }
 
@@ -264,6 +295,34 @@ export function useReportReview(): UseMutationResult<ReportDetail, unknown, Repo
       await api.post<ReportDetail>(`/reports/${w.serId}/${w.onDate}/review`, w.body)
     ).data,
     onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
+  });
+}
+
+/** 학생 1명 단위 계약만 제공한다. 전체 발송도 호출부가 이를 순차 재사용한다. */
+export function useReportDeliverySend(): UseMutationResult<ReportSendHistory, unknown, ReportDeliveryCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (delivery) => (
+      await api.post<ReportDeliveryResult>('/reports/deliveries', delivery)
+    ).data.item,
+    onSettled: () => {
+      // 여러 학생 중 일부만 성공해도 큐와 이력은 반드시 서버 상태로 다시 맞춘다.
+      void qc.invalidateQueries({ queryKey: ['reports', 'deliveries'] });
+    },
+  });
+}
+
+export function useReportDeliveryResend(): UseMutationResult<ReportSendHistory, unknown, {
+  sendId: number; requestKey: string;
+}> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sendId, requestKey }) => (
+      await api.post<ReportDeliveryResult>(`/reports/deliveries/${sendId}/resend`, { requestKey })
+    ).data.item,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['reports', 'deliveries'] });
+    },
   });
 }
 

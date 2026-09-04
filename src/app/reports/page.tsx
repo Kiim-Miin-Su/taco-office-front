@@ -12,6 +12,8 @@ import {
   Banner, Chip, Column, Drawer, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
 } from '@/components/ui';
 import { ReportEditor } from '@/components/report/ReportForm';
+import { ReportDeliveryHistory } from '@/components/report/ReportDeliveryHistory';
+import { ReportDeliveryQueue } from '@/components/report/ReportDeliveryQueue';
 import { ReportExportPanel } from '@/components/report/ReportExportPanel';
 import { useMeta, useReportDetail, useReports, useUnwritten } from '@/api/queries';
 import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
@@ -33,11 +35,12 @@ const TIERS = [
 ];
 
 export default function ReportsPage() {
+  const [section, setSection] = useState<'unwritten' | 'delivery' | 'history'>('unwritten');
   const [tab, setTab] = useState<'teacher' | 'list' | 'returned' | 'approval'>('teacher');
   const [selected, setSelected] = useState<ReportRow | null>(null);
   const canApprove = useCan('canApprove');
   const meta = useMeta();
-  const q = useUnwritten();
+  const q = useUnwritten(undefined, section === 'unwritten');
   const returned = useReports({ state: 'rej' }, tab === 'returned');
   const approval = useReports({ state: 'wait' }, canApprove && tab === 'approval');
   const detail = useReportDetail(selected?.serId, selected?.onDate);
@@ -78,10 +81,26 @@ export default function ReportsPage() {
   return (
     <RequireAuth><AppShell>
       <PageHeader
-        title="안 쓴 리포트"
-        sub="강사별로 몇 건 밀렸는지, 가장 오래된 것이 언제인지. 차감은 수업이 끝난 시각부터 분 단위로 잽니다."
+        title="리포트"
+        sub="안 쓴 것 확인 · 어제 것 학생별 보내기 · 전문 PNG와 발송 이력"
       />
 
+      <Tabs
+        className="mb-4"
+        value={section}
+        onChange={setSection}
+        options={[
+          { value: 'unwritten', label: `안 쓴 리포트 ${q.data?.total ?? 0}` },
+          { value: 'delivery', label: '어제 보내기' },
+          { value: 'history', label: '보낸 내역' },
+        ]}
+      />
+
+      {section === 'delivery' ? (
+        <ReportDeliveryQueue onOpenReport={setSelected} />
+      ) : section === 'history' ? (
+        <ReportDeliveryHistory />
+      ) : <>
       <div className="mb-4 grid grid-cols-4 gap-3">
         <StatCard label="안 쓴 리포트" value={q.data?.total ?? '—'} note={`강사 ${byTeacher.length}명`} tone={q.data?.total ? 'danger' : 'neutral'} />
         <StatCard label="4시간 초과" value={byTeacher.reduce((a, t) => a + t.over4h, 0)} note="건당 10,000원" tone="danger" />
@@ -141,6 +160,7 @@ export default function ReportsPage() {
           이 금액은 서버가 계산해서 내려준 값이고, 화면은 다시 세지 않습니다.
         </Banner>
       </Panel>
+      </>}
 
       <Drawer
         open={selected !== null}

@@ -37,10 +37,11 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
     const detail: ReportDetail = {
       id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960,
       subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
-      written: true, students: [{ id: 4, name: '학생', grade: '고2' }], minutesSinceEnd: 30, penalty: 0,
+      written: true, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
       body: { content: '수업', progress: '42p', homework: '43p' }, fields,
       canEdit: false, canReview: true, lang: 'ko', writtenAt: '2026-09-03T08:00:00Z',
-      canExport: true, exportFiles: [{ studentId: 4, fileName: '20260903_학생_고2_AP Chemistry_16:00.png' }],
+      canExport: true, canDeliver: false,
+      exportFiles: [{ studentId: 4, fileName: '20260903_학생_고2_AP Chemistry_16:00.png', plainText: '학생 본문' }],
       subjectName: 'AP Chemistry',
       submittedAt: '2026-09-03T08:00:00Z', reviewedAt: null, rejectReason: null,
     };

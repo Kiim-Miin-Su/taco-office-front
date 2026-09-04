@@ -37,6 +37,12 @@ export type ReportField = S['ReportFieldDto'];
 export type ReportDetail = S['ReportDetailDto'];
 export type ReportUpsert = S['ReportUpsertDto'];
 export type ReportReview = S['ReportReviewDto'];
+export type ReportDeliveryQueue = S['ReportDeliveryQueueDto'];
+export type ReportDeliveryStudent = S['ReportDeliveryStudentDto'];
+export type ReportDeliveryCreate = S['ReportDeliveryCreateDto'];
+export type ReportDeliveryResult = S['ReportDeliveryResultDto'];
+export type ReportSendHistory = S['ReportSendHistoryDto'];
+export type ReportSendHistoryList = S['ReportSendHistoryListDto'];
 
 /** 회계 — 금액은 canSeeProfit 이 아니면 서버가 null 로 내려준다 (D-R39) */
 export type Accounting = S['AccountingDto'];

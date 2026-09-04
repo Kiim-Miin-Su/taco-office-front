@@ -3,9 +3,9 @@
 
 import { useMemo, useRef, useState } from 'react';
 import type { ReportDetail } from '@/api/types';
-import { hhmm } from '@/lib/calendar';
-import { copyReportText, downloadReportPng, type ReportExportContent } from '@/lib/report-export';
+import { copyReportText, downloadReportPng, reportExportContent } from '@/lib/report-export';
 import { Banner, Button, Label, Select } from '../ui';
+import { ReportDeliveryHistory } from './ReportDeliveryHistory';
 import { ReportPreview } from './ReportForm';
 
 type ExportMessage = { tone: 'success' | 'danger'; text: string };
@@ -17,10 +17,8 @@ export function ReportExportPanel({ detail }: { detail: ReportDetail }) {
   const previewRef = useRef<HTMLDivElement>(null);
 
   const selected = useMemo(() => {
-    const file = detail.exportFiles.find((item) => item.studentId === studentId);
-    const student = detail.students.find((item) => item.id === studentId);
-    return file && student ? { file, student } : null;
-  }, [detail.exportFiles, detail.students, studentId]);
+    return reportExportContent(detail, studentId);
+  }, [detail, studentId]);
 
   if (!detail.canExport || detail.exportFiles.length === 0) return null;
 
@@ -28,23 +26,13 @@ export function ReportExportPanel({ detail }: { detail: ReportDetail }) {
     return <Banner tone="danger">학생 명단과 PNG 파일명 계약이 일치하지 않습니다.</Banner>;
   }
 
-  const content: ReportExportContent = {
-    studentName: selected.student.name,
-    grade: selected.student.grade,
-    date: detail.date,
-    subject: detail.subjectName,
-    startTime: hhmm(detail.startMin),
-    fields: detail.fields,
-    body: detail.body,
-  };
-
   const savePng = async () => {
     if (!previewRef.current) return;
     setBusy('png');
     setMessage(null);
     try {
-      await downloadReportPng(previewRef.current, selected.file.fileName);
-      setMessage({ tone: 'success', text: `${selected.file.fileName} 저장을 시작했습니다.` });
+      await downloadReportPng(previewRef.current, selected.fileName);
+      setMessage({ tone: 'success', text: `${selected.fileName} 저장을 시작했습니다.` });
     } catch {
       setMessage({ tone: 'danger', text: 'PNG를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     } finally {
@@ -56,7 +44,7 @@ export function ReportExportPanel({ detail }: { detail: ReportDetail }) {
     setBusy('copy');
     setMessage(null);
     try {
-      await copyReportText(content);
+      await copyReportText(selected.plainText);
       setMessage({ tone: 'success', text: '리포트 본문을 복사했습니다.' });
     } catch {
       setMessage({ tone: 'danger', text: '본문을 복사하지 못했습니다. 브라우저 권한을 확인해 주세요.' });
@@ -88,13 +76,14 @@ export function ReportExportPanel({ detail }: { detail: ReportDetail }) {
         </div>
       ) : null}
 
-      <ReportPreview ref={previewRef} {...content} />
+      <ReportPreview ref={previewRef} {...selected.content} />
 
       {message ? <Banner tone={message.tone}><span aria-live="polite">{message.text}</span></Banner> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={busy !== null} onClick={() => void copyText()}>본문 복사</Button>
         <Button variant="primary" disabled={busy !== null} onClick={() => void savePng()}>PNG 저장</Button>
       </div>
+      {detail.canDeliver ? <ReportDeliveryHistory repId={detail.id} compact /> : null}
     </section>
   );
 }

@@ -260,6 +260,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** §48·§49 학생별 리포트 발송 큐 — 없으면 KST 어제 */
+        get: operations["ReportsController_deliveryQueue"];
+        put?: never;
+        /** 학생 1명의 승인된 리포트 PNG를 private Blob에 보존하고 발송 이력 생성 */
+        post: operations["ReportsController_deliver"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/deliveries/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** RSEND/PDFLOG 발송 이력 — 날짜 또는 리포트로 필터 */
+        get: operations["ReportsController_deliveryHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/deliveries/{sendId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 기존 본문·Blob을 변경 없이 재발송하고 새 감사행 생성 */
+        post: operations["ReportsController_resend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/{serId}/{onDate}": {
         parameters: {
             query?: never;
@@ -780,6 +832,8 @@ export interface components {
             id: number;
             name: string;
             grade?: string | null;
+            /** @description REP_STU.deliver — 이 학생에게 전문을 전달할지 */
+            deliver: boolean;
         };
         ReportRowDto: {
             id: number;
@@ -848,6 +902,8 @@ export interface components {
             studentId: number;
             /** @example 20260827_김민준_고2_수학_16:30.png */
             fileName: string;
+            /** @description 클립보드와 RSEND.body가 공유하는 서버 생성 5섹션 본문 */
+            plainText: string;
         };
         ReportDetailDto: {
             id: number;
@@ -887,6 +943,8 @@ export interface components {
             canExport: boolean;
             /** @description 서버가 정한 학생별 PNG 파일명. canExport=false면 빈 배열 */
             exportFiles: components["schemas"]["ReportExportFileDto"][];
+            /** @description 현재 사용자가 학부모 전달 이력을 만들 수 있는지. manager 이상만 true */
+            canDeliver: boolean;
             /** @description 전문·파일명에 함께 쓰는 서버 과목명 */
             subjectName: string;
             lang: string;
@@ -894,6 +952,67 @@ export interface components {
             submittedAt?: string | null;
             reviewedAt?: string | null;
             rejectReason?: string | null;
+        };
+        ReportDeliveryStudentDto: {
+            student: components["schemas"]["ReportStudentDto"];
+            reports: components["schemas"]["ReportDetailDto"][];
+            /** @description 미작성·미승인 0건이고 아직 최초 발송 전인 학생 */
+            canSend: boolean;
+            blockedCount: number;
+            lastSendId?: number | null;
+            lastSentAt?: string | null;
+        };
+        ReportDeliveryQueueDto: {
+            onDate: string;
+            total: number;
+            remaining: number;
+            blocked: number;
+            students: components["schemas"]["ReportDeliveryStudentDto"][];
+        };
+        ReportSendHistoryDto: {
+            id: number;
+            /** @description null이면 최초 발송, 값이 있으면 해당 이력의 재발송 */
+            sourceSendId?: number | null;
+            studentId: number;
+            studentName: string;
+            onDate: string;
+            repIds: number[];
+            /** @enum {string} */
+            channel: "blob";
+            fileCount: number;
+            sentAt: string;
+            sentBy: number;
+            sentByName: string;
+        };
+        ReportSendHistoryListDto: {
+            items: components["schemas"]["ReportSendHistoryDto"][];
+        };
+        ReportDeliveryFileInputDto: {
+            repId: number;
+            fileName: string;
+            /** @description html-to-image가 만든 PNG data URL */
+            pngDataUrl: string;
+        };
+        ReportDeliveryCreateDto: {
+            /**
+             * Format: uuid
+             * @description 재시도·더블클릭 중복 방지 키
+             */
+            requestKey: string;
+            /** @example 2026-08-27 */
+            onDate: string;
+            studentId: number;
+            files: components["schemas"]["ReportDeliveryFileInputDto"][];
+        };
+        ReportDeliveryResultDto: {
+            item: components["schemas"]["ReportSendHistoryDto"];
+        };
+        ReportResendDto: {
+            /**
+             * Format: uuid
+             * @description 재시도·더블클릭 중복 방지 키
+             */
+            requestKey: string;
         };
         ReportUpsertDto: {
             content: string;
@@ -1835,6 +1954,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnwrittenDto"];
+                };
+            };
+        };
+    };
+    ReportsController_deliveryQueue: {
+        parameters: {
+            query?: {
+                /** @description 없으면 KST 어제 */
+                onDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDeliveryQueueDto"];
+                };
+            };
+        };
+    };
+    ReportsController_deliver: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportDeliveryCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDeliveryResultDto"];
+                };
+            };
+        };
+    };
+    ReportsController_deliveryHistory: {
+        parameters: {
+            query?: {
+                /** @description 없으면 KST 어제 */
+                onDate?: string;
+                repId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSendHistoryListDto"];
+                };
+            };
+        };
+    };
+    ReportsController_resend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sendId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportResendDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDeliveryResultDto"];
                 };
             };
         };

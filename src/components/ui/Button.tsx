@@ -32,7 +32,7 @@ export function Button({ variant = 'secondary', size = 'md', className, ...rest 
     <button
       type="button"
       className={cn(
-        'inline-flex items-center justify-center gap-1.5 rounded-lg border font-bold',
+        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border font-bold',
         'transition-opacity disabled:cursor-not-allowed disabled:opacity-40',
         VARIANT[variant], SIZE[size], className,
       )}
