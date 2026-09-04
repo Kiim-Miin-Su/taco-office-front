@@ -12,6 +12,7 @@ import {
   Banner, Chip, Column, Drawer, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
 } from '@/components/ui';
 import { ReportEditor } from '@/components/report/ReportForm';
+import { ReportExportPanel } from '@/components/report/ReportExportPanel';
 import { useMeta, useReportDetail, useReports, useUnwritten } from '@/api/queries';
 import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
@@ -153,11 +154,10 @@ export default function ReportsPage() {
         ) : detail.isError ? (
           <Banner tone="danger">리포트 상세를 불러오지 못했습니다.</Banner>
         ) : detail.data ? (
-          <ReportEditor
-            key={`${detail.data.id}:${detail.data.state}:${detail.data.submittedAt ?? ''}`}
-            detail={detail.data}
-            subject={subName(detail.data.subKey)}
-          />
+          <div key={`${detail.data.id}:${detail.data.state}:${detail.data.submittedAt ?? ''}`}>
+            <ReportEditor detail={detail.data} subject={detail.data.subjectName} />
+            <ReportExportPanel detail={detail.data} />
+          </div>
         ) : null}
       </Drawer>
     </AppShell></RequireAuth>

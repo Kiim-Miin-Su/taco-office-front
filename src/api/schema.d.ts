@@ -844,6 +844,11 @@ export interface components {
             min: number;
             max: number;
         };
+        ReportExportFileDto: {
+            studentId: number;
+            /** @example 20260827_김민준_고2_수학_16:30.png */
+            fileName: string;
+        };
         ReportDetailDto: {
             id: number;
             serId: number;
@@ -878,6 +883,12 @@ export interface components {
             canEdit: boolean;
             /** @description 현재 사용자·상태 기준 승인/반려 가능 여부 */
             canReview: boolean;
+            /** @description 저장된 전문을 현재 사용자가 PNG·본문으로 출력할 수 있는지 */
+            canExport: boolean;
+            /** @description 서버가 정한 학생별 PNG 파일명. canExport=false면 빈 배열 */
+            exportFiles: components["schemas"]["ReportExportFileDto"][];
+            /** @description 전문·파일명에 함께 쓰는 서버 과목명 */
+            subjectName: string;
             lang: string;
             writtenAt?: string | null;
             submittedAt?: string | null;

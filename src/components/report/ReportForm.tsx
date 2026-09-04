@@ -5,7 +5,7 @@
  * 백엔드 rules.ts → ReportDetailDto.fields를 그대로 읽어 그린다.
  */
 'use client';
-import { useState } from 'react';
+import { forwardRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useReportReview, useReportWrite } from '@/api/queries';
 import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
@@ -143,7 +143,7 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
 }
 
 /** 학부모에게 나가는 전문(§50). PNG 파일 이름은 서버가 정한다 (D-R33). */
-export function ReportPreview({ studentName, grade, date, subject, startTime, fields, body }: {
+export interface ReportPreviewProps {
   studentName: string;
   grade?: string | null;
   date: string;
@@ -151,10 +151,15 @@ export function ReportPreview({ studentName, grade, date, subject, startTime, fi
   startTime: string;
   fields: ReportField[];
   body: ReportBody;
-}) {
+}
+
+export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(function ReportPreview(
+  { studentName, grade, date, subject, startTime, fields, body },
+  ref,
+) {
   return (
     <Panel title="학부모가 받는 화면" sub="칸도 순서도 바뀌지 않습니다.">
-      <div className="overflow-hidden rounded-lg border border-line-2">
+      <div ref={ref} className="overflow-hidden rounded-lg border border-line-2 bg-card">
         <header className="bg-fg px-4 py-3">
           <div className="flex items-baseline gap-2">
             <span className="text-[16px] font-bold text-white">{studentName}</span>
@@ -178,4 +183,4 @@ export function ReportPreview({ studentName, grade, date, subject, startTime, fi
       </div>
     </Panel>
   );
-}
+});
