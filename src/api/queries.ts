@@ -33,7 +33,7 @@ export const qk = {
   consulting: ['consulting'] as const,
   books: ['books'] as const,
   guides: ['guides'] as const,
-  board: (p: RangeParams) => ['board', p] as const,
+  board: (p: BoardParams) => ['board', p] as const,
   exec: (p: RangeParams) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
   drawer: ['drawer'] as const,
@@ -57,6 +57,11 @@ function useViewerId(): ViewerId {
 export interface RangeParams {
   from: string;
   to: string;
+}
+
+export interface BoardParams extends RangeParams {
+  teacherId?: number;
+  subKey?: string;
 }
 
 export interface OccParams {
@@ -210,7 +215,7 @@ export function useGuides(): UseQueryResult<Guides> {
  * §34 수업 현황판 — 저장하지 않는 값이라 **오래 들고 있으면 안 된다** (D-R4).
  * 교재를 방금 배부했는데 마크가 그대로면 화면을 아무도 안 믿는다.
  */
-export function useBoard(p: RangeParams): UseQueryResult<Board> {
+export function useBoard(p: BoardParams): UseQueryResult<Board> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.board(p), viewerId),

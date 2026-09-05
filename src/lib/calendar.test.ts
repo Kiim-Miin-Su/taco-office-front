@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, clampSplitRatio, mondayOf, monthGrid, splitPanes, step,
+  addDays, boundingRange, boundsOf, clampSplitRatio, mondayOf, monthBounds, monthGrid, splitPanes, step,
   timeRange, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 
@@ -17,6 +17,11 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
     expect(g.length % 7).toBe(0);
     expect(g).toContain('2026-08-01');
     expect(g).toContain('2026-08-31');
+  });
+
+  it('월 집계는 달력 격자와 달리 해당 월 날짜만 쓴다', () => {
+    expect(monthBounds('2026-02-15')).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+    expect(monthBounds('2028-02-15')).toEqual({ from: '2028-02-01', to: '2028-02-29' });
   });
 
   it('학생별·선생님별은 주간과 같은 범위를 쓴다 — 다시 읽지 않게', () => {

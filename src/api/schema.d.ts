@@ -456,7 +456,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 수업 현황판 — 교재·안내·줌·리포트 4마크를 매번 계산한다 (§34 · D-R4) */
+        /** 수업 현황판 — 회차·강사×요일·주차별 4마크를 매번 계산한다 (§34~§36 · D-R4) */
         get: operations["BoardController_range"];
         put?: never;
         post?: never;
@@ -1290,22 +1290,65 @@ export interface components {
         BoardRowDto: {
             occId: number;
             serId: number;
+            /** @description 회차 span의 실제 날짜. 이동 예외 뒤 화면·집계에 사용한다 */
+            date: string;
+            /** @description SER_OCC/EXC 식별자인 원래 날짜 */
             onDate: string;
             /** @description HH:MM */
             startAt: string;
             /** @description HH:MM */
             endAt: string;
+            teacherId?: number | null;
             teacherName?: string | null;
             roomName?: string | null;
             /** @enum {string} */
             mode: "offline" | "online";
             kindKey: string;
             kindName?: string | null;
+            subKey?: string | null;
+            subName?: string | null;
             studentNames: string[];
             canceled: boolean;
             /** @description 교재 · 안내 · 줌 · 리포트 */
             marks: components["schemas"]["CheckMarkDto"][];
             /** @description 판정 대상 중 덜 된 개수. 0이면 다 됐다 */
+            missing: number;
+        };
+        BoardMarkCountDto: {
+            /** @enum {string} */
+            key: "book" | "guide" | "zoom" | "report";
+            done: number;
+            total: number;
+            missing: number;
+        };
+        BoardSummaryDto: {
+            /** @description 취소를 제외한 수업 수 */
+            lessons: number;
+            marks: components["schemas"]["BoardMarkCountDto"][];
+            /** @description 네 축의 미완료 마크 합계 */
+            missing: number;
+            /** @description N/A를 뺀 완료 마크 비율, 정수 반올림 */
+            completionRate: number;
+        };
+        BoardTeacherDayDto: {
+            /** @description 회차 span의 실제 날짜. 원래 회차 키 onDate와 구분한다 */
+            date: string;
+            lessons: number;
+            marks: components["schemas"]["CheckMarkDto"][];
+            missing: number;
+        };
+        BoardTeacherRowDto: {
+            teacherId?: number | null;
+            teacherName: string;
+            days: components["schemas"]["BoardTeacherDayDto"][];
+            missing: number;
+        };
+        BoardWeekDto: {
+            from: string;
+            to: string;
+            label: string;
+            lessons: number;
+            marks: components["schemas"]["BoardMarkCountDto"][];
             missing: number;
         };
         BoardDto: {
@@ -1314,6 +1357,9 @@ export interface components {
             rows: components["schemas"]["BoardRowDto"][];
             /** @description 덜 된 수업 수 — 화면 위 배지 */
             missingCount: number;
+            summary: components["schemas"]["BoardSummaryDto"];
+            teacherRows: components["schemas"]["BoardTeacherRowDto"][];
+            weeks: components["schemas"]["BoardWeekDto"][];
             /** @description 저장하지 않는다는 사실을 화면이 그대로 적을 수 있게 (D-R4) */
             computedAt: string;
         };
@@ -2312,6 +2358,10 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
+                /** @description 매니저 이상용 강사 필터. 강사는 본인 id로 강제한다 */
+                teacherId?: number;
+                /** @description SUB.key 과목 필터 */
+                subKey?: string;
             };
             header?: never;
             path?: never;

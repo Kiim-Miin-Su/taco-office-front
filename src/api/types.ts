@@ -100,6 +100,11 @@ export type PerLessonNotice = S['PerLessonNoticeDto'];
 export type Board = S['BoardDto'];
 export type BoardRow = S['BoardRowDto'];
 export type CheckMark = S['CheckMarkDto'];
+export type BoardMarkCount = S['BoardMarkCountDto'];
+export type BoardSummary = S['BoardSummaryDto'];
+export type BoardTeacherDay = S['BoardTeacherDayDto'];
+export type BoardTeacherRow = S['BoardTeacherRowDto'];
+export type BoardWeek = S['BoardWeekDto'];
 
 /** 대표 보고 — 집계도 저장하지 않는다 (D-R4) */
 export type Exec = S['ExecDto'];

@@ -89,6 +89,13 @@ export function monthGrid(iso: string): string[] {
   return out;
 }
 
+/** 월 집계 범위 — 달력 격자와 달리 앞뒤 달을 섞지 않는다. */
+export function monthBounds(iso: string): { from: string; to: string } {
+  const from = `${iso.slice(0, 7)}-01`;
+  const lastDay = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7), 0)).getUTCDate();
+  return { from, to: `${iso.slice(0, 7)}-${String(lastDay).padStart(2, '0')}` };
+}
+
 /**
  * 보기가 필요로 하는 **하나의 범위**.
  * 학생별·선생님별은 주간과 같은 범위를 쓴다 — 왼쪽에서 사람만 고를 뿐이다.
