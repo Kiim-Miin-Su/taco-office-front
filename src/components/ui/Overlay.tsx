@@ -30,7 +30,7 @@ export function Drawer({ open, onClose, title, sub, width = 520, children, foote
       <div className="absolute inset-0 bg-fg/25" onClick={onClose} aria-hidden />
       <aside
         role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined}
-        style={{ width }}
+        style={{ width: '100%', maxWidth: width }}
         className="absolute right-0 top-0 flex h-full flex-col border-l border-line bg-card shadow-xl"
       >
         <header className="flex items-start justify-between gap-3 border-b border-line p-4">
@@ -57,7 +57,8 @@ export function Dialog({ open, onClose, title, children, footer, width = 460 }: 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-6">
       <div className="absolute inset-0 bg-fg/30" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} style={{ width }}
+      <div role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined}
+        style={{ width: '100%', maxWidth: width }}
         className="relative rounded-2xl border border-line bg-card p-5 shadow-xl">
         {title ? <h2 id={titleId} className="text-[15px] font-bold text-fg">{title}</h2> : null}
         <div className="mt-3">{children}</div>

@@ -17,6 +17,7 @@ import { useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import type { Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
+import { AttendanceControl } from './AttendanceControl';
 
 /** 준비 8단계 — 명세서 §12. 순서가 곧 화면의 순서다. */
 const STEPS = [
@@ -141,6 +142,8 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
               })}
             </ol>
           </section>
+
+          <AttendanceControl occ={occ} />
 
           <section>
             <h3 className="mb-2 text-[12px] font-bold text-fg">

@@ -73,12 +73,16 @@ export function EventBlock({
   const look = STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na;
   const names = occ.students.map((s) => s.name).join(' · ');
   const dragging = move.isDragging || resize.isDragging;
+  // 읽기 전용 블록도 상세를 여는 버튼이다. dnd-kit의 disabled attributes를 그대로
+  // 펼치면 aria-disabled=true가 붙어 강사에게 상세 자체가 잠긴 것으로 노출된다.
+  const moveAttributes = draggable ? move.attributes : {};
+  const moveListeners = draggable ? move.listeners : {};
 
   return (
     <div
       ref={move.setNodeRef}
-      {...move.listeners}
-      {...move.attributes}
+      {...moveListeners}
+      {...moveAttributes}
       role="button"
       tabIndex={0}
       onClick={(e) => {

@@ -140,6 +140,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/{serId}/{onDate}/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 종료 회차 출결 확정/정정 — 현재값 ATT와 append-only LOG를 함께 저장 */
+        put: operations["ScheduleController_saveAttendance"];
+        post?: never;
+        /** 회차 출결 현재값 초기화 — 삭제 전 값은 LOG에 보존 */
+        delete: operations["ScheduleController_clearAttendance"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule": {
         parameters: {
             query?: never;
@@ -655,6 +673,19 @@ export interface components {
             staff: components["schemas"]["StaffBriefDto"][];
             students: components["schemas"]["StudentBriefDto"][];
         };
+        AttendanceDto: {
+            id: number;
+            /** @enum {string} */
+            result: "completed" | "canceled";
+            /** @enum {string|null} */
+            reason?: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other" | null;
+            confirmedBy: number;
+            confirmedByName: string;
+            /** Format: date-time */
+            confirmedAt: string;
+            /** @description completed=true, canceled=false. 정산 소비자가 문자열을 다시 비교하지 않는다 */
+            countsForPay: boolean;
+        };
         OccStudentDto: {
             id: number;
             name: string;
@@ -700,6 +731,12 @@ export interface components {
             repState: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
             /** @description 리포트를 썼는가 — 정산에 들어가는 조건 하나 (D-R7) */
             written: boolean;
+            /**
+             * @description 출결 동작은 이 서버 판정만 소비한다. 종료 전/관리 취소=unavailable, 강사=readonly, 관리자 이상=manage
+             * @enum {string}
+             */
+            attendanceMode: "unavailable" | "readonly" | "manage";
+            attendance: components["schemas"]["AttendanceDto"] | null;
             students: components["schemas"]["OccStudentDto"][];
         };
         OccurrenceListDto: {
@@ -716,6 +753,15 @@ export interface components {
             to: string;
             /** @description 요청 범위가 이 밖으로 나갔는가 — 화면이 「비었다」와 「아직 안 펼쳤다」를 구분한다 */
             clamped: boolean;
+        };
+        AttendanceWriteDto: {
+            /** @enum {string} */
+            result: "completed" | "canceled";
+            /** @enum {string|null} */
+            reason?: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other" | null;
+        };
+        AttendanceMutationResultDto: {
+            attendance: components["schemas"]["AttendanceDto"] | null;
         };
         OccurrenceCreateDto: {
             kindKey: string;
@@ -1765,6 +1811,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HorizonDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_saveAttendance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                /** @description SER_OCC의 원래 날짜 키 */
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttendanceWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceMutationResultDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_clearAttendance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceMutationResultDto"];
                 };
             };
         };

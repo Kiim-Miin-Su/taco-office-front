@@ -12,7 +12,7 @@ import {
 import { useSession } from '@/store/useSession';
 import { api } from './client';
 import type {
-  Accounting, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
+  Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
   Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
@@ -409,6 +409,31 @@ export function useScheduleWrite(): UseMutationResult<
       // 쓰기가 회차를 다시 펼치므로 펼친 기간도 달라진다. 안 지우면 staleTime 1시간 동안
       // 「이 범위는 아직 펼쳐지지 않았습니다」가 이미 그려진 수업 위에 계속 떠 있는다.
       void qc.invalidateQueries({ queryKey: qk.horizon });
+    },
+  });
+}
+
+export type AttendanceWriteCommand =
+  | { action: 'save'; serId: number; onDate: string; body: AttendanceWrite }
+  | { action: 'clear'; serId: number; onDate: string };
+
+/** 출결 현재값을 바꾸면 같은 사실을 소비하는 조회를 한 경로에서 갱신한다. */
+export function useAttendanceWrite(): UseMutationResult<
+  AttendanceMutationResult, unknown, AttendanceWriteCommand
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => {
+      const path = `/schedule/${w.serId}/${w.onDate}/attendance`;
+      return w.action === 'save'
+        ? (await api.put<AttendanceMutationResult>(path, w.body)).data
+        : (await api.delete<AttendanceMutationResult>(path)).data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+      void qc.invalidateQueries({ queryKey: qk.accounting });
+      void qc.invalidateQueries({ queryKey: ['exec'] });
     },
   });
 }

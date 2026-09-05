@@ -6,6 +6,7 @@ const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
 
 vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate, isPending: false }),
+  useAttendanceWrite: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/store/useSession', () => ({ useCan: () => true }));
 
@@ -31,6 +32,8 @@ const occurrence: Occurrence = {
   recurring: true,
   repState: 'plan',
   written: false,
+  attendanceMode: 'manage',
+  attendance: null,
   students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false }],
 };
 

@@ -26,6 +26,11 @@ export type StudentBrief = S['StudentBriefDto'];
 export type Occurrence = S['OccurrenceDto'];
 export type OccurrenceList = S['OccurrenceListDto'];
 export type OccStudent = S['OccStudentDto'];
+export type Attendance = S['AttendanceDto'];
+export type AttendanceWrite = S['AttendanceWriteDto'];
+export type AttendanceMutationResult = S['AttendanceMutationResultDto'];
+export type AttendanceResult = AttendanceWrite['result'];
+export type AttendanceCancelReason = NonNullable<AttendanceWrite['reason']>;
 
 /** 리포트 */
 export type ReportRow = S['ReportRowDto'];
