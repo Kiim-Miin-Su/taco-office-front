@@ -54,5 +54,15 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
     fireEvent.click(view.getByText('반려'));
     expect(view.container.querySelectorAll('textarea')).toHaveLength(1);
     expect((view.getByText('사유와 함께 반려') as HTMLButtonElement).disabled).toBe(true);
+
+    // 같은 편집기는 강사 캘린더의 미래 회차에서도 사용한다. 시간 판정은 서버 값을 소비한다.
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <ReportEditor detail={{ ...detail, state: 'plan', minutesSinceEnd: -60, canReview: false }} subject="AP Chemistry" />
+      </QueryClientProvider>,
+    );
+    expect(view.getByText('수업이 끝난 뒤 리포트를 작성할 수 있습니다.')).toBeTruthy();
+    expect(view.queryByText('임시저장')).toBeNull();
+    expect(view.queryByText('제출')).toBeNull();
   });
 });

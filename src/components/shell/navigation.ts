@@ -13,6 +13,8 @@ export type AdminNavBadge = 'reports' | 'approvals';
 export interface AdminNavItem {
   href: string;
   label: string;
+  /** 관리자 화면이 없는 개인용 UI의 표시 이름. URL/권한 규칙은 공유한다. */
+  personalLabel?: string;
   surfaces: readonly AdminNavSurface[];
   icon?: AdminNavIcon;
   badge?: AdminNavBadge;
@@ -25,10 +27,10 @@ const BOTH = ['top', 'sidebar'] as const satisfies readonly AdminNavSurface[];
 const ADMIN = ['canAdminPage', 'canCrudAll'] as const;
 
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
-  { href: '/schedule', label: '스케줄', surfaces: BOTH, icon: 'calendar' },
+  { href: '/schedule', label: '스케줄', personalLabel: '캘린더', surfaces: BOTH, icon: 'calendar' },
   { href: '/intake', label: '상담', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/consulting', label: '컨설팅', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
-  { href: '/board', label: '수업 현황판', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
+  { href: '/board', label: '수업', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/books', label: '교재', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/guides', label: '수업 안내', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   {
@@ -51,7 +53,9 @@ export function canAccessNavItem(item: AdminNavItem, me: Me | null): boolean {
 }
 
 export function adminNavItemsFor(surface: AdminNavSurface, me: Me | null): readonly AdminNavItem[] {
-  return ADMIN_NAV_ITEMS.filter((item) => item.surfaces.includes(surface) && canAccessNavItem(item, me));
+  return ADMIN_NAV_ITEMS
+    .filter((item) => item.surfaces.includes(surface) && canAccessNavItem(item, me))
+    .map((item) => !me?.canAdminPage && item.personalLabel ? { ...item, label: item.personalLabel } : item);
 }
 
 /** 메뉴와 직접 URL 진입이 같은 규칙을 사용한다. 미등록 업무 경로는 기본 거절한다. */

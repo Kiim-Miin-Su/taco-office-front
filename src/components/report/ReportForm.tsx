@@ -44,7 +44,7 @@ export function ReportForm({ fields, value, onChange, readOnly }: {
   );
 }
 
-/** 보고서 페이지와 수업 상세가 나중에 같은 저장 흐름을 재사용한다. */
+/** 리포트 목록과 강사 캘린더가 같은 저장 흐름을 재사용한다. */
 export function ReportEditor({ detail, subject }: { detail: ReportDetail; subject: string }) {
   const [body, setBody] = useState<ReportBody>(detail.body);
   const [message, setMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
@@ -55,6 +55,7 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
   const complete = detail.fields.every((field) => body[field.key].trim().length >= field.min);
 
   const save = (action: 'draft' | 'submit') => {
+    if (!detail.canEdit || write.isPending) return;
     setMessage(null);
     write.mutate(
       { action, serId: detail.serId, onDate: detail.onDate, body },
@@ -69,6 +70,7 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
   };
 
   const decide = (decision: 'approve' | 'reject') => {
+    if (!detail.canReview || review.isPending) return;
     setMessage(null);
     review.mutate(
       {
@@ -102,7 +104,9 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         <Banner tone="danger"><b>반려 사유:</b> {detail.rejectReason}</Banner>
       ) : null}
       {!detail.canEdit ? (
-        <Banner tone="neutral">제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.</Banner>
+        <Banner tone="neutral">{detail.minutesSinceEnd < 0
+          ? '수업이 끝난 뒤 리포트를 작성할 수 있습니다.'
+          : '제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.'}</Banner>
       ) : null}
       {message ? <Banner tone={message.tone}>{message.text}</Banner> : null}
       {detail.canEdit ? (

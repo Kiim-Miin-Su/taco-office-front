@@ -9,13 +9,12 @@ import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import {
-  Banner, Chip, Column, Drawer, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
+  Banner, Chip, Column, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
 } from '@/components/ui';
-import { ReportEditor } from '@/components/report/ReportForm';
+import { ReportDetailDrawer } from '@/components/report/ReportDetailDrawer';
 import { ReportDeliveryHistory } from '@/components/report/ReportDeliveryHistory';
 import { ReportDeliveryQueue } from '@/components/report/ReportDeliveryQueue';
-import { ReportExportPanel } from '@/components/report/ReportExportPanel';
-import { useMeta, useReportDetail, useReports, useUnwritten } from '@/api/queries';
+import { useMeta, useReports, useUnwritten } from '@/api/queries';
 import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
 import { won } from '@/lib/money';
@@ -48,7 +47,6 @@ export default function ReportsPage() {
   const q = useUnwritten(undefined, activeSection === 'unwritten');
   const returned = useReports({ state: 'rej' }, activeSection === 'unwritten' && activeTab === 'returned');
   const approval = useReports({ state: 'wait' }, activeSection === 'unwritten' && canApprove && activeTab === 'approval');
-  const detail = useReportDetail(visibleSelected?.serId, visibleSelected?.onDate);
 
   const subName = useMemo(() => {
     const m = new Map((meta.data?.subs ?? []).map((s) => [s.key, s.name]));
@@ -169,24 +167,7 @@ export default function ReportsPage() {
       </Panel>
       </>}
 
-      <Drawer
-        open={visibleSelected !== null}
-        onClose={() => setSelected(null)}
-        width={720}
-        title={detail.data?.canReview ? '리포트 검토' : '리포트 작성'}
-        sub={visibleSelected ? `${visibleSelected.date} · ${subName(visibleSelected.subKey)} · ${visibleSelected.teacherName ?? '담당 강사 없음'}` : undefined}
-      >
-        {detail.isLoading ? (
-          <Banner tone="neutral">불러오는 중…</Banner>
-        ) : detail.isError ? (
-          <Banner tone="danger">리포트 상세를 불러오지 못했습니다.</Banner>
-        ) : detail.data ? (
-          <div key={`${detail.data.id}:${detail.data.state}:${detail.data.submittedAt ?? ''}`}>
-            <ReportEditor detail={detail.data} subject={detail.data.subjectName} />
-            <ReportExportPanel detail={detail.data} />
-          </div>
-        ) : null}
-      </Drawer>
+      <ReportDetailDrawer selection={visibleSelected} onClose={() => setSelected(null)} />
     </AppShell></RequireAuth>
   );
 }

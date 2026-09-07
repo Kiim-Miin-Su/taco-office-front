@@ -88,7 +88,7 @@ export function AdminTopNavigation({
   me: Me | null;
 }) {
   return (
-    <nav aria-label="주 메뉴" className="flex flex-1 items-center gap-0.5 overflow-x-auto">
+    <nav aria-label="주 메뉴" className="order-last flex min-w-0 basis-full items-center gap-0.5 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto">
       {adminNavItemsFor('top', me).map((item) => (
         <AdminNavLink key={item.href} item={item} pathname={pathname} surface="top" badges={badges} />
       ))}

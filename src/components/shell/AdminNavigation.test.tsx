@@ -28,6 +28,9 @@ describe('AdminNavigation', () => {
     const links = within(nav).getAllByRole('link');
 
     expect(links).toHaveLength(10);
+    expect(links.map((link) => link.textContent)).toEqual([
+      '스케줄', '상담', '컨설팅', '수업', '교재', '수업 안내', '리포트5', '회계', '운영', '대표 보고',
+    ]);
     expect(within(nav).getByRole('link', { name: '리포트 5' }).getAttribute('aria-current')).toBe('page');
     expect(within(nav).getByRole('link', { name: '대표 보고' }).textContent).not.toContain('2');
     expect(within(nav).queryByRole('link', { name: '권한' })).toBeNull();
@@ -57,5 +60,12 @@ describe('AdminNavigation', () => {
   it('강사에게 관리자 Sidebar를 렌더하지 않는다', () => {
     const view = render(<AdminSidebar pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{}} />);
     expect(view.container.childElementCount).toBe(0);
+  });
+
+  it('강사 캘린더 탭은 같은 schedule 경로를 사용한다', () => {
+    const view = render(<AdminTopNavigation pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{}} />);
+    expect(view.getByRole('link', { name: '캘린더' }).getAttribute('href')).toBe('/schedule');
+    expect(view.getByRole('link', { name: '캘린더' }).getAttribute('aria-current')).toBe('page');
+    expect(view.queryByRole('link', { name: '스케줄' })).toBeNull();
   });
 });

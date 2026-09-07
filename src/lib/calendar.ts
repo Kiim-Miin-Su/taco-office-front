@@ -5,6 +5,7 @@
  * 여기서 나눈다 (`AGENT.md §6.1-2`). 보기마다 fetch 하면 전환할 때마다 왕복이 생기고,
  * 같은 날짜가 보기마다 다른 응답에서 오면 색이 갈린다.
  */
+import type { Occurrence } from '@/api/types';
 
 export type View = 'day' | 'week' | 'month' | 'student' | 'teacher';
 
@@ -60,8 +61,8 @@ export function boundingRange(panes: readonly CalendarPaneState[]): { from: stri
 }
 
 /** KST 고정 (D-R12) — 관리자 화면의 모든 시각은 서울 시간이다 */
-export const todayKst = (): string =>
-  new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+export const todayKst = (now = Date.now()): string =>
+  new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
 export const addDays = (iso: string, n: number): string =>
   new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
@@ -271,6 +272,22 @@ export type SelectMode = 'single' | 'range' | 'toggle';
 
 const byOccurrenceTime = <T extends OccurrenceIdentity>(a: T, b: T): number =>
   a.date.localeCompare(b.date) || a.startMin - b.startMin || a.serId - b.serId;
+
+/** 강사 홈과 캘린더의 오늘/7일 목록. 서버 응답을 복제 저장하지 않고 같은 회차를 투영한다. */
+export function teacherSchedule(items: readonly Occurrence[], today: string) {
+  const lastDay = addDays(today, 7);
+  const inRange = items.filter((o) => o.date >= today && o.date <= lastDay).sort(byOccurrenceTime);
+  const todayItems = inRange.filter((o) => o.date === today);
+  const upcoming = inRange.filter((o) => o.date > today);
+  // 출결 취소와 관리 취소는 별도 축이다. 서버가 내려준 정산 제외 사실을 함께 소비한다.
+  const counted = todayItems.filter((o) => !o.canceled && o.attendance?.countsForPay !== false);
+  return {
+    today: todayItems,
+    upcoming,
+    todayCount: counted.length,
+    todayMinutes: counted.reduce((minutes, o) => minutes + o.endMin - o.startMin, 0),
+  };
+}
 
 /**
  * 클릭 선택 규칙의 단일 출처. EventBlock 은 modifier 만 전달하고 선택 집합 계산은 여기서 한다.

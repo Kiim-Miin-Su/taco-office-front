@@ -23,6 +23,7 @@ import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
 import { type DragData } from '@/components/cal/EventBlock';
 import { Legend } from '@/components/cal/Legend';
+import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 import { useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
@@ -126,6 +127,11 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export default function SchedulePage() {
+  const canAdminPage = useCan('canAdminPage');
+  return <RequireAuth>{canAdminPage ? <AdminSchedulePage /> : <TeacherSchedule />}</RequireAuth>;
+}
+
+function AdminSchedulePage() {
   const [s, go] = useReducer(reducer, {
     panes: [{ view: 'day', date: todayKst(), personId: null }], focused: 0, ratio: 0.5, open: null,
     selected: [], clipboard: null, cursor: null,

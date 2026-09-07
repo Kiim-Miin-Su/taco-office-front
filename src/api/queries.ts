@@ -132,6 +132,10 @@ export function useReportDetail(
     queryFn: async () => (await api.get<ReportDetail>(`/reports/${serId}/${onDate}`)).data,
     enabled: serId !== undefined && onDate !== undefined,
     staleTime: 30 * 1000,
+    // 예정 수업을 열어 둔 채 종료 시각이 지나도 서버 canEdit을 다시 받는다.
+    // 종료 후에는 주기 조회를 멈춰 작성 중 폼의 불필요한 갱신을 피한다.
+    refetchInterval: (query) => (query.state.data?.minutesSinceEnd ?? 0) < 0 ? 60_000 : false,
+    refetchOnWindowFocus: true,
   });
 }
 

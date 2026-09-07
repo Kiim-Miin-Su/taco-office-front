@@ -1,8 +1,53 @@
 import { describe, it, expect } from 'vitest';
 import {
   addDays, boundingRange, boundsOf, clampSplitRatio, mondayOf, monthBounds, monthGrid, splitPanes, step,
-  timeRange, unsplitPanes, updatePane, weekDays,
+  teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
+import type { Occurrence } from '@/api/types';
+
+describe('강사 캘린더 기본 오늘 목록 (§8·§9)', () => {
+  const occurrence = (serId: number, date: string, startMin = 600, extra: Partial<Occurrence> = {}): Occurrence => ({
+    serId, date, onDate: date, startMin, endMin: startMin + 60, kindKey: 'class',
+    mode: 'offline', canceled: false, hasException: false, recurring: true,
+    repState: 'plan', written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+  });
+
+  it('오늘과 다음 7일을 실제 날짜·시작 시각순으로 나누고 원본을 바꾸지 않는다', () => {
+    const items = [
+      occurrence(2, '2026-09-07', 900), occurrence(7, '2026-09-14'),
+      occurrence(1, '2026-09-07', 600), occurrence(8, '2026-09-15'),
+      occurrence(0, '2026-09-06'), occurrence(3, '2026-09-08', 900),
+      occurrence(4, '2026-09-08', 600, { onDate: '2026-09-01' }),
+    ];
+    const result = teacherSchedule(items, '2026-09-07');
+    expect(result.today.map((o) => o.serId)).toEqual([1, 2]);
+    expect(result.upcoming.map((o) => o.serId)).toEqual([4, 3, 7]);
+    expect(items.map((o) => o.serId)).toEqual([2, 7, 1, 8, 0, 3, 4]);
+    expect(result.today[0]).toBe(items[2]);
+  });
+
+  it('취소·휴강과 출결 취소는 목록에 남기되 건수·시수에서 제외한다', () => {
+    const result = teacherSchedule([
+      occurrence(1, '2026-09-07', 600, { endMin: 690 }),
+      occurrence(2, '2026-09-07', 900, { canceled: true }),
+      occurrence(3, '2026-09-07', 960, { attendance: {
+        id: 1, result: 'canceled', reason: 'academy', countsForPay: false,
+        confirmedBy: 1, confirmedByName: '관리자', confirmedAt: '2026-09-07T10:00:00Z',
+      } }),
+    ], '2026-09-07');
+    expect(result.today).toHaveLength(3);
+    expect(result.todayCount).toBe(1);
+    expect(result.todayMinutes).toBe(90);
+  });
+
+  it('빈 응답과 월말·KST 자정 경계를 처리한다', () => {
+    expect(teacherSchedule([], '2026-09-30')).toMatchObject({ today: [], upcoming: [], todayCount: 0, todayMinutes: 0 });
+    const result = teacherSchedule([occurrence(1, '2026-10-07'), occurrence(2, '2026-10-08')], '2026-09-30');
+    expect(result.upcoming.map((o) => o.serId)).toEqual([1]);
+    expect(todayKst(Date.parse('2026-09-07T14:59:59Z'))).toBe('2026-09-07');
+    expect(todayKst(Date.parse('2026-09-07T15:00:00Z'))).toBe('2026-09-08');
+  });
+});
 
 describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
   it('주는 월요일에서 시작한다', () => {
