@@ -1,6 +1,6 @@
 /**
- * 탭 04 컨설팅 — §29 건 목록 · §30 회차 기록(5W1H).
- * 금액과 배분율은 대표만 봅니다 (D-R39) — 서버가 null 로 내려줍니다.
+ * 탭 04 컨설팅 — §26 단계 보드 · §27 목록 · §31 회차 기록(5W1H).
+ * 금액은 canMoney, 내용은 공개 범위를 따릅니다 — 서버가 마스킹합니다.
  */
 'use client';
 import { useState } from 'react';
@@ -9,6 +9,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { ConsultingStageBoard } from '@/components/consulting/ConsultingStageBoard';
 import { useConsulting } from '@/api/queries';
+import { apiMessage } from '@/api/client';
 import type { Consulting } from '@/api/types';
 import {
   CONSULTING_CONTRACT_STEPS,
@@ -26,7 +27,7 @@ export default function ConsultingPage() {
   const [view, setView] = useState<View>('board');
   const [openId, setOpenId] = useState<number | null>(null);
 
-  const open = d?.items.find((c) => c.id === openId) ?? null;
+  const open = q.isError ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
 
   const cols: Array<Column<Consulting>> = [
     { key: 't', head: '종류', width: 80, cell: (r) => <Chip tone="purple">{consultingTypeLabel(r.consType)}</Chip> },
@@ -82,7 +83,7 @@ export default function ConsultingPage() {
         ]} />
 
         {q.isError ? (
-          <Banner tone="danger">컨설팅은 매니저 이상만 볼 수 있습니다.</Banner>
+          <Banner tone="danger">{apiMessage(q.error)}</Banner>
         ) : view === 'board' ? (
           <ConsultingStageBoard
             items={d?.items ?? []}
@@ -119,7 +120,7 @@ export default function ConsultingPage() {
           <Panel
             className="mt-4"
             title={`회차 기록 — ${open.studentNames.join(' · ') || '학생 미지정'}`}
-            sub="누가 · 무엇을 · 왜 · 어떻게 (§30)"
+            sub="누가 · 무엇을 · 왜 · 어떻게 (§31)"
             right={<button type="button" className="text-[12px] text-fg-subtle" onClick={() => setOpenId(null)}>닫기</button>}
           >
             {open.sessionsLog.length === 0 ? (
@@ -130,7 +131,7 @@ export default function ConsultingPage() {
                   <li key={s.id} className="p-4">
                     <div className="mb-2 flex items-center gap-2">
                       <Chip tone="info">{s.seq}회차</Chip>
-                      <span className="text-[12px] text-fg-subtle">{s.onDate}</span>
+                      <span className="text-[12px] text-fg-subtle">{s.onDate ?? '날짜 미정'}</span>
                     </div>
                     <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {([['누가', s.who], ['무엇을', s.what], ['왜', s.why], ['어떻게', s.how]] as const).map(([k, v]) => (

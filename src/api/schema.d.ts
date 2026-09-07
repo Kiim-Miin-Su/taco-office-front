@@ -439,7 +439,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 컨설팅 — 건 · 학생 · 회차 기록 (§29 · §30) */
+        /** 컨설팅 — 단계 보드 · 목록 · 회차 기록 (§26 · §27 · §31) */
         get: operations["ConsultingController_all"];
         put?: never;
         post?: never;
@@ -1232,9 +1232,13 @@ export interface components {
         };
         ConsultingSessionDto: {
             id: number;
-            /** @description 몇 번째 회차 */
+            /** @description 건별 고유 회차 순번 */
             seq: number;
-            onDate: string;
+            /**
+             * Format: date
+             * @description 미정이면 null
+             */
+            onDate: string | null;
             who?: string | null;
             what?: string | null;
             why?: string | null;
@@ -1244,17 +1248,14 @@ export interface components {
         };
         ConsultingDto: {
             id: number;
-            /**
-             * @description 종류 10종 중 시드에 있는 것
-             * @enum {string}
-             */
-            consType: "admissions" | "essay" | "roadmap";
+            /** @description 종류 코드. 전체 10종 미확정: 시드 3종으로 제한하지 않는다. */
+            consType: string;
             /**
              * @description 계약 → 진행 → 종료
              * @enum {string}
              */
             stage: "contract" | "running" | "done";
-            /** @description 계약 5단계 — 계약서 → 피드백 → 학부모 전달 → 서명본 → 수납 */
+            /** @description 계약 5단계. 계약 중 미정은 null, 진행/종료는 5. */
             contractStep?: number | null;
             studentNames: string[];
             ownerName?: string | null;

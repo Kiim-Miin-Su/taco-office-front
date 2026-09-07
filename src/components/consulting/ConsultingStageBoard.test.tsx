@@ -24,10 +24,10 @@ describe('ConsultingStageBoard', () => {
   it('Figma §26의 세 단계와 계약 5칸을 한 보드에 표시한다', () => {
     const view = render(<ConsultingStageBoard items={[
       item({ id: 1, stage: 'contract', contractStep: 3 }),
-      item({ id: 2, stage: 'running', sessions: 4, sessionsLog: [
+      item({ id: 2, stage: 'running', contractStep: 5, sessions: 4, sessionsLog: [
         { id: 1, seq: 1, onDate: '2026-09-01', who: null, what: null, why: null, how: null, serId: null },
       ] }),
-      item({ id: 3, stage: 'done', endOn: '2026-08-15' }),
+      item({ id: 3, stage: 'done', contractStep: 5, endOn: '2026-08-15' }),
     ]} onOpen={() => undefined} />);
 
     expect(view.getByText('계약')).toBeTruthy();
@@ -42,7 +42,7 @@ describe('ConsultingStageBoard', () => {
   it('열람 불가 카드는 기록 수를 추측하지 않고 상세도 열지 않는다', () => {
     const onOpen = vi.fn();
     const view = render(<ConsultingStageBoard items={[
-      item({ canOpen: false, stage: 'running', sessions: 8, sessionsLog: [] }),
+      item({ canOpen: false, stage: 'running', contractStep: 5, sessions: 8, sessionsLog: [] }),
     ]} onOpen={onOpen} />);
 
     const button = view.getByRole('button', { name: '김민준 컨설팅 상세 잠김' });
