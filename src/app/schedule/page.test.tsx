@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Occurrence } from '@/api/types';
+import type { Meta, Occurrence } from '@/api/types';
 
-const mocks = vi.hoisted(() => ({ occurrences: vi.fn(), write: vi.fn() }));
+const mocks = vi.hoisted(() => ({ occurrences: vi.fn(), write: vi.fn(), meta: vi.fn() }));
 vi.mock('@/store/useSession', () => ({ useCan: () => true }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
@@ -14,14 +14,17 @@ vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences,
   useScheduleWrite: () => ({ mutate: mocks.write }),
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
-  useMeta: () => ({ data: {
-    kinds: [{ key: 'class', name: '수업' }], subs: [], rooms: [],
-    students: [{ id: 1, name: '선택 학생', grade: 'G10' }, { id: 2, name: '다른 학생' }],
-    staff: [{ id: 11, name: '선택 강사' }, { id: 22, name: '다른 강사' }],
-  } }),
+  useMeta: mocks.meta,
 }));
 
 import SchedulePage from './page';
+
+const meta: Meta = {
+  kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true }],
+  subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [],
+  students: [{ id: 1, name: '선택 학생', grade: 'G10' }, { id: 2, name: '다른 학생' }],
+  staff: [{ id: 11, name: '선택 강사', role: 'teacher' }, { id: 22, name: '다른 강사', role: 'teacher' }],
+};
 
 const items: Occurrence[] = [1, 2].map((id) => ({
   serId: id, date: '2026-09-01', onDate: '2026-09-01', startMin: 600 + id * 60,
@@ -35,6 +38,44 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-01T00:00:00Z'));
   mocks.occurrences.mockReturnValue({ data: { items }, isLoading: false, isError: false });
+  mocks.meta.mockReturnValue({ data: meta });
+});
+
+describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
+  it.each(['일간', '주간', '월간', '학생별', '선생님별'])('%s에서도 Meta 과목색을 블록과 범례에 동일하게 전달한다', (viewName) => {
+    mocks.occurrences.mockReturnValue({ data: { items: [{ ...items[0], subKey: 'writing' }] }, isLoading: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: viewName }));
+    if (viewName === '학생별') fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
+    if (viewName === '선생님별') fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    const block = view.getByRole('button', { name: /Writing/ });
+    const legend = view.getByRole('group', { name: '시간표 범례' });
+    expect(block.style.getPropertyValue('--event-color')).toBe('#123456');
+    expect(within(legend).getByText('Writing').style.getPropertyValue('--event-color')).toBe('#123456');
+    expect(block.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('Meta 로딩 때는 안전 토큰을 쓰고 응답/사용자색 갱신은 블록과 범례에 함께 반영한다', () => {
+    mocks.occurrences.mockReturnValue({ data: { items: [{ ...items[0], subKey: 'writing' }] }, isLoading: false });
+    mocks.meta.mockReturnValue({ isLoading: true });
+    const view = render(<SchedulePage />);
+    expect(view.getByRole('button', { name: /선택된 수업/ }).style.getPropertyValue('--event-color')).toBe('var(--sub-writing)');
+    const legend = within(view.getByRole('group', { name: '시간표 범례' }));
+    expect(legend.getByText('선택된 수업').style.getPropertyValue('--event-color')).toBe('var(--sub-writing)');
+
+    mocks.meta.mockReturnValue({ data: meta });
+    view.rerender(<SchedulePage />);
+    expect(view.getByRole('button', { name: /Writing/ }).style.getPropertyValue('--event-color')).toBe('#123456');
+    expect(legend.getByText('Writing').style.getPropertyValue('--event-color')).toBe('#123456');
+
+    mocks.meta.mockReturnValue({ data: { ...meta, subs: [{ ...meta.subs[0], color: '#ABCDEF' }] } });
+    view.rerender(<SchedulePage />);
+    expect(view.getByRole('button', { name: /Writing/ }).style.getPropertyValue('--event-color')).toBe('#ABCDEF');
+    expect(legend.getByText('Writing').style.getPropertyValue('--event-color')).toBe('#ABCDEF');
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-01', to: '2026-09-01' });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 

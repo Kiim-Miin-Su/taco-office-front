@@ -1,24 +1,25 @@
 /**
- * Cal/Event Block — Figma `Cal/Event Block` (status 7 × mode 2 = 14 변형).
+ * Cal/Event Block — 관리자 과목색과 기존 리포트 상태 표현을 공유하는 블록.
  *
- * 채널을 섞지 않는다 (V26 §2.3 · 명세서 §07):
- *   색     = 리포트를 썼는가
- *   테두리 = 어디서 하는가 (실선 대면 / 점선 줌)
- *   빗금   = 취소
+ * 채널을 섞지 않는다 (관리자 v2 §07~11·§88·§89):
+ *   색     = 과목 (없으면 수업 종류). color 미주입의 기존 소비자는 상태색 유지.
+ *   테두리 = 어디서 하는가 (실선 현장 / 점선 온라인)
+ *   사선   = 관리자 온라인. 취소는 별도 취소선·투명도.
  * 한 채널에 두 뜻을 실으면 읽을 수 없게 된다.
  *
  * 드래그(TBO-41 · §5): `dragData` 를 주면 잡아서 옮길 수 있고, `resizable` 이면
  * 하단 6px 핸들로 길이를 바꾼다. **판정과 저장은 페이지가 한다** — 블록은 잡히기만 한다.
  */
+import type { CSSProperties } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { hhmm, type SelectMode } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
+import styles from './EventBlock.module.css';
 
 /**
- * 리포트 상태 → 블록 색. **범례(`Legend`)도 이 표를 읽는다** —
- * 두 벌로 두었더니 범례가 옛 색을 계속 보여 주고 있었다.
- * 범례의 일이 「블록 색을 설명하는 것」인데 다른 색을 설명하면 안 읽느니만 못하다.
+ * 강사 리포트 상태 → 색. TeacherSchedule이 같은 표를 읽는다.
+ * 관리자 과목색은 이 표를 덮지 않고 검증된 Meta 색을 별도로 주입한다.
  */
 export const STATUS_LOOK: Record<string, string> = {
   na: 'bg-inset text-fg-2 border-line',
@@ -44,6 +45,8 @@ export interface DragData {
 export interface EventBlockProps {
   occ: Occurrence;
   subName?: string;
+  /** 관리자 adapter의 검증된 과목/종류색. 생략하면 기존 리포트 상태 표현을 유지한다. */
+  color?: string;
   compact?: boolean;
   onClick?: () => void;
   /** 선택 계산은 page → calendar.ts 한 경로가 한다. 블록은 modifier 의도만 전달한다. */
@@ -55,8 +58,11 @@ export interface EventBlockProps {
   resizable?: boolean;
 }
 
+/** 블록·범례·드래그 미리보기가 같은 CSS 색 주입 경로를 사용한다. */
+export const eventColorStyle = (color: string): CSSProperties => ({ '--event-color': color } as CSSProperties);
+
 export function EventBlock({
-  occ, subName, compact, onClick, onSelect, selected, draggable, resizable,
+  occ, subName, color, compact, onClick, onSelect, selected, draggable, resizable,
 }: EventBlockProps) {
   const key = `${occ.serId}|${occ.onDate}`;
   const move = useDraggable({
@@ -70,7 +76,7 @@ export function EventBlock({
     disabled: !resizable,
   });
 
-  const look = STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na;
+  const look = color ? styles.subject : (STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na);
   const names = occ.students.map((s) => s.name).join(' · ');
   const dragging = move.isDragging || resize.isDragging;
   // 읽기 전용 블록도 상세를 여는 버튼이다. dnd-kit의 disabled attributes를 그대로
@@ -97,10 +103,12 @@ export function EventBlock({
         onClick?.();
       }}
       title={`${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subName ?? occ.kindKey}${names ? ` · ${names}` : ''}`}
+      style={color ? eventColorStyle(color) : undefined}
       className={cn(
         'relative flex h-full w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
-        // 점선 = 비대면. 모양이 아니라 테두리로만 말한다.
+        // 온라인은 점선, 관리자 과목색 표현에는 같은 색의 사선도 더한다.
         occ.mode === 'online' ? 'border-dashed' : 'border-solid',
+        color && occ.mode === 'online' && styles.online,
         occ.canceled && 'opacity-45 line-through',
         draggable && 'cursor-grab active:cursor-grabbing',
         // 낙관 반영 중인 원본 자리 — 고스트는 DragOverlay 가 그린다 (§5.1)

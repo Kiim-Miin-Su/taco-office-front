@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Segmented';
-import { KIND_KEYS, SUB_KEYS, kindVar, subVar } from './tokens';
+import { KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, subVar, type CalendarCodeLookup } from './tokens';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const tokens = read('src/styles/tokens.css');
@@ -152,5 +152,47 @@ describe('런타임 주입 — 캘린더 블록이 쓰는 것', () => {
   it('키를 var() 문자열로 바꿔 준다', () => {
     expect(kindVar('gpa')).toBe('var(--kind-gpa)');
     expect(subVar('mt-pg')).toBe('var(--sub-mt-pg)');
+  });
+});
+
+describe('관리자 일정색 — Meta 우선과 안전한 기존 토큰 fallback', () => {
+  it('밝은 사용자 과목색이 본문 글자 대비를 낮추지 않는다', () => {
+    const blockCss = read('src/components/cal/EventBlock.module.css');
+    expect(blockCss).toMatch(/\n\s*color:\s*var\(--fg\);/);
+    expect(blockCss).not.toMatch(/\n\s*color:\s*color-mix/);
+  });
+  const codes: CalendarCodeLookup = {
+    subs: new Map([
+      ['writing', { key: 'writing', name: 'Writing', color: '#123456' }],
+      ['new-sub', { key: 'new-sub', name: '새 과목', color: '#aB12Cd' }],
+    ]),
+    kinds: new Map([
+      ['class', { key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true }],
+      ['new-kind', { key: 'new-kind', name: '새 종류', color: '#13579B', cap: 1, grp: 'lesson', rep: false }],
+    ]),
+  };
+
+  it('사용자 Meta 과목색을 기본 CSS 색보다 우선하고 새 코드도 수용한다', () => {
+    expect(calendarEventColor({ subKey: 'writing', kindKey: 'class' }, codes)).toBe('#123456');
+    expect(calendarEventColor({ subKey: 'new-sub', kindKey: 'class' }, codes)).toBe('#aB12Cd');
+    expect(calendarEventColor({ kindKey: 'new-kind' }, codes)).toBe('#13579B');
+  });
+
+  it.each(['', '#fff', 'red', 'url(x)', '#123456;', 'var(--red)'])('잘못된 과목색 %s는 기존 SUB 토큰으로 복구한다', (color) => {
+    const invalid = { ...codes, subs: new Map([['writing', { key: 'writing', name: 'Writing', color }]]) };
+    expect(calendarEventColor({ subKey: 'writing', kindKey: 'class' }, invalid)).toBe('var(--sub-writing)');
+  });
+
+  it('과목 메타가 없으면 알려진 SUB 토큰, 알 수 없는 과목이면 KIND API 색을 사용한다', () => {
+    expect(calendarEventColor({ subKey: 'ap-chem', kindKey: 'class' }, codes)).toBe('var(--sub-ap-chem)');
+    expect(calendarEventColor({ subKey: 'unknown', kindKey: 'class' }, codes)).toBe('#654321');
+    expect(calendarEventColor({ subKey: null, kindKey: 'class' }, codes)).toBe('#654321');
+  });
+
+  it('종류 API도 없거나 잘못됐으면 알려진 KIND 토큰 또는 중립색으로 복구한다', () => {
+    const invalid = { ...codes, kinds: new Map([['class', { ...codes.kinds.get('class')!, color: 'invalid' }]]) };
+    expect(calendarEventColor({ kindKey: 'class' }, invalid)).toBe('var(--kind-class)');
+    expect(calendarEventColor({ kindKey: 'meeting' }, invalid)).toBe('var(--kind-meeting)');
+    expect(calendarEventColor({ subKey: 'unknown', kindKey: 'unknown' }, invalid)).toBe('var(--fg-subtle)');
   });
 });

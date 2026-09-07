@@ -20,6 +20,7 @@ import {
   todayKst, weekDays, type SelectMode,
 } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
+import type { CalendarColorOf } from '@/lib/tokens';
 
 /** 빈 칸이 매번 새 배열을 만들면 CalCell 이 매번 다시 그려진다 */
 const EMPTY: Occurrence[] = [];
@@ -35,6 +36,7 @@ export interface GridProps {
   date: string;
   items: Occurrence[];
   subName?: (o: Occurrence) => string | undefined;
+  colorOf?: CalendarColorOf;
   onOpen?: (o: Occurrence) => void;
   onSelect?: (o: Occurrence, mode: SelectMode) => void;
   selected?: ReadonlySet<string>;
@@ -97,7 +99,7 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, onAddAt }: {
 }
 
 export function DayGrid({
-  date, items, columns, columnOf, colAxis, subName, onOpen, onSelect, selected, onAddAt, cursor, interactive,
+  date, items, columns, columnOf, colAxis, subName, colorOf, onOpen, onSelect, selected, onAddAt, cursor, interactive,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
   const { from, to } = timeRange(today);
@@ -171,7 +173,7 @@ export function DayGrid({
                     <div key={key}>
                       <div className="absolute inset-x-1 transition-[top,height]"
                            style={{ top: px(head.startMin) + 1, height: Math.max(20, px(head.endMin) - px(head.startMin) - 2) }}>
-                        <EventBlock occ={head} subName={subName?.(head)} compact={head.endMin - head.startMin < 45}
+                        <EventBlock occ={head} subName={subName?.(head)} color={colorOf?.(head)} compact={head.endMin - head.startMin < 45}
                                     onClick={() => onOpen?.(head)}
                                     onSelect={onSelect} selected={selected?.has(occurrenceKey(head))}
                                     draggable={interactive} resizable={interactive} />
@@ -189,7 +191,7 @@ export function DayGrid({
                              className="absolute left-1 right-1 z-20 flex flex-col gap-1 rounded-lg border border-line bg-card p-1.5 shadow-lg"
                              style={{ top: px(head.startMin) + 3 }}>
                           {cl.map((o) => (
-                            <EventBlock key={`${o.serId}|${o.onDate}`} occ={o} subName={subName?.(o)} compact
+                            <EventBlock key={`${o.serId}|${o.onDate}`} occ={o} subName={subName?.(o)} color={colorOf?.(o)} compact
                                         onClick={() => { setOpenCluster(null); onOpen?.(o); }}
                                         onSelect={onSelect} selected={selected?.has(occurrenceKey(o))} />
                           ))}
@@ -220,7 +222,7 @@ export function DayGrid({
 /* ── §8 주간 — 요일 7칸 ──────────────────────────────────────────────── */
 
 export function WeekGrid({
-  date, items, subName, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
+  date, items, subName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
 }: GridProps) {
   const days = weekDays(date);
   const map = byDate(items);
@@ -244,7 +246,7 @@ export function WeekGrid({
       </div>
       <div className="grid grid-cols-7">
         {days.map((d) => (
-          <CalCell key={d} date={d} items={map.get(d) ?? EMPTY} subName={subName}
+          <CalCell key={d} date={d} items={map.get(d) ?? EMPTY} subName={subName} colorOf={colorOf}
                    onSelect={onSelect} selected={selected}
                    active={cursorDate === d}
                    onOpen={onOpen} onAdd={onAdd} className="min-h-[220px]" compact
@@ -258,7 +260,7 @@ export function WeekGrid({
 /* ── §9 월간 — 달력 · 최대 3건 ───────────────────────────────────────── */
 
 export function MonthGrid({
-  date, items, grid, subName, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
+  date, items, grid, subName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
 }: GridProps & { grid: string[] }) {
   const map = byDate(items);
   const mon = date.slice(0, 7);
@@ -276,7 +278,7 @@ export function MonthGrid({
       <div className="grid grid-cols-7">
         {grid.map((d) => (
           <CalCell key={d} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
-                   subName={subName} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
+                   subName={subName} colorOf={colorOf} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
                    active={cursorDate === d}
                    onAdd={onAdd} onPickDate={onPickDate} onMore={onPickDate}
                    muted={d.slice(0, 7) !== mon} compact

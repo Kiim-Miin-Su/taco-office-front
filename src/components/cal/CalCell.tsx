@@ -5,7 +5,7 @@
  * 다섯 벌 생기고, 한 곳만 고쳐진다. 격자는 **배치만** 하고 칸의 생김새와 행동은 여기 있다.
  *
  * 칸이 아는 것은 셋뿐이다 — 날짜 · 그날 블록들 · 빈 곳을 눌렀을 때.
- * 도메인 판정(색·취소·온라인)은 `EventBlock` 이 갖는다 (V26 §2.3).
+ * 과목색·취소·온라인 표현은 `EventBlock`이 갖는다 (관리자 v2 §07~11).
  */
 'use client';
 import type { ReactNode } from 'react';
@@ -14,6 +14,7 @@ import { cn } from '../ui/cn';
 import { EventBlock } from './EventBlock';
 import { KO_DOW, dowOf, occurrenceKey, todayKst, type SelectMode } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
+import type { CalendarColorOf } from '@/lib/tokens';
 
 export interface CalCellProps {
   /** 이 칸의 날짜 — 오늘이면 스스로 표시한다 */
@@ -24,6 +25,7 @@ export interface CalCellProps {
   items: Occurrence[];
   /** 과목 이름 — 코드표에서 온다. 화면이 색·이름을 만들지 않는다 (D-R18) */
   subName?: (o: Occurrence) => string | undefined;
+  colorOf?: CalendarColorOf;
   /** 몇 개까지 보이고 나머지는 「+N건 더」로 접는다 (§9 · §36) */
   max?: number;
   onOpen?: (o: Occurrence) => void;
@@ -49,7 +51,7 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
+  date, head, items, subName, colorOf, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
   droppable, draggable, children,
 }: CalCellProps) {
   const drop = useDroppable({
@@ -98,6 +100,7 @@ export function CalCell({
           key={`${o.serId}-${o.date}-${o.startMin}`}
           occ={o}
           subName={subName?.(o)}
+          color={colorOf?.(o)}
           compact={compact}
           onClick={() => onOpen?.(o)}
           onSelect={onSelect}

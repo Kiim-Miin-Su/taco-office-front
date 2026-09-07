@@ -21,7 +21,8 @@ import { Banner, Button, Chip, ConflictGuard, PageHeader, Panel, RecurrenceScope
 import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
 import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
-import { type DragData } from '@/components/cal/EventBlock';
+import { eventColorStyle, type DragData } from '@/components/cal/EventBlock';
+import eventStyles from '@/components/cal/EventBlock.module.css';
 import { Legend } from '@/components/cal/Legend';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
@@ -34,6 +35,7 @@ import {
   type CalendarPaneIndex, type CalendarPaneState, type SelectMode, type View,
 } from '@/lib/calendar';
 import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
+import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
 
 /* ── 상태 — 명시적 action + 순수 reducer (§6.1-3) ────────────────────── */
 
@@ -388,14 +390,18 @@ function AdminSchedulePage() {
     setDraft({ date, startMin, roomId: colAxis === 'room' ? (colId ?? null) : null });
   };
 
-  /** 코드표 → 이름. 화면이 `class` 같은 코드값을 그대로 찍지 않는다 (D-R18) */
-  const subName = useMemo(() => {
-    const m = new Map((meta.data?.subs ?? []).map((x) => [x.key, x.name]));
-    return (o: Occurrence) => (o.subKey ? m.get(o.subKey) : undefined);
-  }, [meta.data]);
-  const kindName = useMemo(() => {
-    const m = new Map((meta.data?.kinds ?? []).map((x) => [x.key, x.name]));
-    return (o: Occurrence) => m.get(o.kindKey);
+  /** Meta lookup 한 벌을 모든 표·상세·범례가 공유한다 (§88·§89). */
+  const { subName, kindName, colorOf } = useMemo(() => {
+    const codes: CalendarCodeLookup = {
+      subs: new Map((meta.data?.subs ?? []).map((x) => [x.key, x])),
+      kinds: new Map((meta.data?.kinds ?? []).map((x) => [x.key, x])),
+    };
+    const colorOf: CalendarColorOf = (o) => calendarEventColor(o, codes);
+    return {
+      subName: (o: Occurrence) => (o.subKey ? codes.subs.get(o.subKey)?.name : undefined),
+      kindName: (o: Occurrence) => codes.kinds.get(o.kindKey)?.name,
+      colorOf,
+    };
   }, [meta.data]);
 
   /** ③ 각 표는 같은 응답을 자기 범위·사람으로만 투영한다. 서버 요청·도메인 판정은 늘 한 벌이다. */
@@ -541,7 +547,7 @@ function AdminSchedulePage() {
                     <span className="text-[11px] text-fg-subtle">취소·휴강은 시수에서 뺍니다 (D-R11)</span>
                   </div>
                 ) : null}
-                <WeekGrid date={pane.date} items={items} subName={subName} interactive={canEdit}
+                <WeekGrid date={pane.date} items={items} subName={subName} colorOf={colorOf} interactive={canEdit}
                   onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
                   onAdd={canEdit && s.clipboard ? (date) => chooseSlot(date, 10 * 60) : undefined}
                   onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
@@ -558,18 +564,18 @@ function AdminSchedulePage() {
         ) : pane.view === 'day' ? (
           <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
             columnOf={(occurrence) => occurrence.roomId ?? null}
-            subName={subName} onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
+            subName={subName} colorOf={colorOf} onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
             onSelect={select} selected={selectedSet} interactive={canEdit}
             cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
             onAddAt={(date, startMin, roomId) => chooseSlot(date, startMin, 'room', roomId)} />
         ) : pane.view === 'week' ? (
-          <WeekGrid date={pane.date} items={items} subName={subName} interactive={canEdit}
+          <WeekGrid date={pane.date} items={items} subName={subName} colorOf={colorOf} interactive={canEdit}
             onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
             onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
             onPickDate={(date) => go({ t: 'date', d: date })}
             onAdd={canEdit ? (date) => chooseSlot(date, 10 * 60) : undefined} />
         ) : (
-          <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} interactive={canEdit}
+          <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} colorOf={colorOf} interactive={canEdit}
             onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
             onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
             onPickDate={(date) => go({ t: 'date', d: date })}
@@ -611,7 +617,6 @@ function AdminSchedulePage() {
           <span className="text-[12px] font-bold text-fg">{activeModel.head}</span>
           <span className="text-[11px] text-fg-subtle">{activeModel.items.length}건</span>
           {s.cursor ? <Chip tone="info">붙여넣기 위치 {label(s.cursor.date)} · {Math.floor(s.cursor.startMin / 60)}:{String(s.cursor.startMin % 60).padStart(2, '0')}</Chip> : null}
-          <div className="ml-auto"><Legend /></div>
         </div>
 
         {err ? (
@@ -650,6 +655,8 @@ function AdminSchedulePage() {
           {s.panes.length === 2 ? renderPane(paneModels[1], 1) : null}
         </div>
 
+        <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} />
+
         <ClipboardBar
           count={s.clipboard?.items.length ?? 0}
           cut={s.clipboard?.cut ?? false}
@@ -668,9 +675,10 @@ function AdminSchedulePage() {
         {/* 드래그 고스트 — 원본은 흐려지고 이것이 손을 따라간다 (§5.1) */}
         <DragOverlay dropAnimation={null}>
           {dragging ? (
-            <div className={`w-40 rounded-md border px-2 py-1 text-[11px] font-bold shadow-lg ${
-              dragCopy ? 'border-violet bg-violet/10 text-violet' : 'border-blue bg-blue/10 text-blue'
-            }`}>
+            <div style={eventColorStyle(colorOf(dragging))}
+              className={`w-40 overflow-hidden rounded-md border px-2 py-1 text-[11px] font-bold shadow-lg ${eventStyles.subject} ${
+                dragging.mode === 'online' ? `border-dashed ${eventStyles.online}` : 'border-solid'
+              } ${dragCopy ? 'ring-2 ring-violet' : ''}`}>
               {dragCopy ? '복제 · ' : ''}{subName(dragging) ?? dragging.title ?? dragging.kindKey}
               <span className="ml-1 opacity-70">{dragging.students.length ? `· ${dragging.students.length}명` : ''}</span>
             </div>

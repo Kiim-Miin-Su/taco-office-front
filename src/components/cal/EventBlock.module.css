@@ -1,0 +1,29 @@
+/* 관리자 v2 §07~11: 원본 과목색을 배경·좌측 막대에 사용한다.
+   색 값은 Meta/기존 토큰에서 --event-color로 주입하며 범례도 같은 모양을 쓴다. */
+.subject {
+  --event-color: var(--fg-subtle);
+  position: relative;
+  /* 사용자 과목색이 흰색/노랑이어도 본문 대비는 원본 글자 토큰으로 유지한다. */
+  color: var(--fg);
+  background-color: color-mix(in srgb, var(--event-color) 18%, var(--card));
+  border-color: color-mix(in srgb, var(--event-color) 60%, var(--card));
+}
+
+.subject::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background-color: var(--event-color);
+  pointer-events: none;
+}
+
+/* 점선과 사선은 온라인이다. 취소는 기존 opacity/취소선과 독립적으로 유지한다. */
+.online {
+  --event-color: var(--fg-subtle);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--event-color) 22%, var(--card)) 0 6px,
+    color-mix(in srgb, var(--event-color) 4%, var(--card)) 6px 12px
+  );
+}
