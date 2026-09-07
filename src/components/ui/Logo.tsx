@@ -15,15 +15,17 @@ export interface LogoProps {
   size?: number;
   /** 마크 옆에 이름을 함께 둘지 */
   withName?: boolean;
+  /** 관리자 원본 헤더는 TN 그림 없이 동일한 제품 wordmark만 쓴다. */
+  withMark?: boolean;
   /** 어두운 바탕 위인지 — 상단 바가 어둡다 */
   onDark?: boolean;
   className?: string;
 }
 
-export function Logo({ size = 22, withName = true, onDark = false, className }: LogoProps) {
+export function Logo({ size = 22, withName = true, withMark = true, onDark = false, className }: LogoProps) {
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-2', className)}>
-      <Image
+      {withMark ? <Image
         src="/tn-mark.svg"
         alt="티엔아카데미"
         width={size}
@@ -31,7 +33,7 @@ export function Logo({ size = 22, withName = true, onDark = false, className }: 
         priority
         // 마크는 화면 폭이 바뀌어도 비율이 흔들리면 안 된다
         style={{ width: size, height: size }}
-      />
+      /> : null}
       {withName ? (
         <span
           className={cn('font-bold tracking-tight', onDark ? 'text-white' : 'text-fg')}

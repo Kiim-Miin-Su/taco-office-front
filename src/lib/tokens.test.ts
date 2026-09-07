@@ -67,7 +67,7 @@ describe('관리자 §85 기본 9색과 강사 테마 경계', () => {
     const shell = read('src/components/shell/AppShell.tsx');
     expect(shell).toContain("data-ui={me?.canAdminPage ? 'admin' : 'teacher'}");
     // body에서 계산된 관리자 글자색을 그대로 상속하지 않고 셸 범위의 --fg를 다시 읽는다.
-    expect(shell).toContain('className="min-h-screen bg-bg text-fg"');
+    expect(shell).toMatch(/['"][^'"]*bg-bg text-fg['"]/);
   });
 });
 
@@ -127,6 +127,24 @@ describe('공통 셸 치수 — Figma Shell/Sidebar', () => {
   it('Expanded와 Rail 폭을 tokens.css 한 곳에 둔다', () => {
     expect(tokens).toContain('--side-w: 240px');
     expect(tokens).toContain('--side-rail-w: 56px');
+  });
+});
+
+describe('원본 공통 헤더 — §07·§34', () => {
+  it('9색 primary와 별개인 헤더 실측색을 CSS 한 곳에서 정의한다', () => {
+    expect(declarations(root)).toMatchObject({
+      header: '#332B27', 'header-active': '#4A403B', 'header-line': '#413936',
+      'header-tool': '#16202E', 'header-tool-line': '#2B3648',
+      'header-home': '#1D4ED8', 'header-approval': '#3B2F12',
+    });
+  });
+
+  it('헤더 높이는 같은 토큰을 읽고 셸/본문은 별도 스크롤 경계를 갖는다', () => {
+    const layout = read('src/components/shell/AppShell.module.css');
+    expect(declarations(root)['top-h']).toBe('50px');
+    expect(layout).toContain('min-height: var(--top-h)');
+    expect(layout).toContain('height: 100dvh');
+    expect(layout).toContain('overflow: auto');
   });
 });
 

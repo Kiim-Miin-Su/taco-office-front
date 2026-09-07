@@ -1,7 +1,9 @@
 import { render, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Me } from '@/api/types';
-import { AdminSidebar, AdminTopNavigation } from './AdminNavigation';
+import * as navigation from './AdminNavigation';
+
+const { AdminTopNavigation } = navigation;
 
 const me: Me = {
   id: 1,
@@ -36,20 +38,31 @@ describe('AdminNavigation', () => {
     expect(within(nav).queryByRole('link', { name: '권한' })).toBeNull();
   });
 
-  it('Sidebar도 같은 접근 규칙과 결재 배지를 렌더링한다', () => {
-    const view = render(
-      <AdminSidebar pathname="/exec" me={me} badges={{ reports: 5, approvals: 2 }} />,
-    );
-    const aside = view.getByRole('complementary', { name: '관리자 메뉴' });
-    const nav = within(aside).getByRole('navigation', { name: '관리자 업무' });
-    const links = within(nav).getAllByRole('link');
+  it('상단 업무 메뉴 하나만 제공하고 중복 Sidebar 구현을 남기지 않는다', () => {
+    const view = render(<AdminTopNavigation pathname="/schedule" me={me} badges={{}} />);
+    expect(view.getAllByRole('navigation')).toHaveLength(1);
+    expect(view.queryByRole('complementary')).toBeNull();
+    expect(navigation).not.toHaveProperty('AdminSidebar');
+  });
 
-    expect(links).toHaveLength(10);
-    expect(within(nav).queryByRole('link', { name: '권한' })).toBeNull();
-    expect(within(nav).getByRole('link', { name: '대표 보고' }).getAttribute('aria-current')).toBe('page');
-    expect(within(nav).getByRole('link', { name: '대표 보고' }).textContent).toContain('2');
-    expect(within(aside).getByText('김민선')).toBeTruthy();
-    expect(within(aside).getByText('대표 · 마이 페이지')).toBeTruthy();
+  it('관리자 활성 탭은 원본 헤더 토큰을 쓰고 비활성 탭에는 적용하지 않는다', () => {
+    const view = render(<AdminTopNavigation pathname="/schedule" me={me} badges={{}} />);
+    const active = view.getByRole('link', { name: '스케줄' });
+    expect(active.classList.contains('bg-header-active')).toBe(true);
+    expect(active.classList.contains('text-white')).toBe(true);
+    expect(active.classList.contains('bg-blue')).toBe(false);
+    expect(view.getByRole('link', { name: '상담' }).classList.contains('bg-header-active')).toBe(false);
+  });
+
+  it('메뉴는 가로 스크롤하고 링크를 축소해 서로 겹치지 않는다', () => {
+    const view = render(<AdminTopNavigation pathname="/schedule" me={me} badges={{}} />);
+    const nav = view.getByRole('navigation', { name: '주 메뉴' });
+    expect(nav.classList.contains('min-w-0')).toBe(true);
+    expect(nav.classList.contains('overflow-x-auto')).toBe(true);
+    within(nav).getAllByRole('link').forEach((link) => {
+      expect(link.classList.contains('shrink-0')).toBe(true);
+      expect(link.classList.contains('whitespace-nowrap')).toBe(true);
+    });
   });
 
   it('권한 없는 회계는 잠김 링크나 숨겨진 DOM도 남기지 않는다', () => {
@@ -57,15 +70,24 @@ describe('AdminNavigation', () => {
     expect(view.container.querySelector('a[href="/accounting"]')).toBeNull();
   });
 
-  it('강사에게 관리자 Sidebar를 렌더하지 않는다', () => {
-    const view = render(<AdminSidebar pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{}} />);
-    expect(view.container.childElementCount).toBe(0);
+  it('강사 캘린더 탭은 같은 schedule 경로를 쓰며 활성 파랑을 유지한다', () => {
+    const view = render(<AdminTopNavigation pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{}} />);
+    const active = view.getByRole('link', { name: '캘린더' });
+    expect(active.getAttribute('href')).toBe('/schedule');
+    expect(active.getAttribute('aria-current')).toBe('page');
+    expect(active.classList.contains('bg-blue')).toBe(true);
+    expect(active.classList.contains('text-white')).toBe(true);
+    expect(active.classList.contains('bg-header-active')).toBe(false);
+    expect(view.queryByRole('link', { name: '스케줄' })).toBeNull();
+    expect(view.getAllByRole('link').map((link) => link.textContent)).toEqual(['캘린더', '리포트']);
   });
 
-  it('강사 캘린더 탭은 같은 schedule 경로를 사용한다', () => {
-    const view = render(<AdminTopNavigation pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{}} />);
-    expect(view.getByRole('link', { name: '캘린더' }).getAttribute('href')).toBe('/schedule');
-    expect(view.getByRole('link', { name: '캘린더' }).getAttribute('aria-current')).toBe('page');
-    expect(view.queryByRole('link', { name: '스케줄' })).toBeNull();
+  it('최종 canAdminPage 플래그가 바뀌면 같은 메뉴의 활성 색과 라벨을 갱신한다', () => {
+    const view = render(<AdminTopNavigation pathname="/schedule" me={me} badges={{ reports: 3 }} />);
+    view.rerender(<AdminTopNavigation pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{ reports: 3 }} />);
+    expect(view.getByRole('link', { name: '캘린더' }).classList.contains('bg-blue')).toBe(true);
+    expect(view.getByRole('link', { name: '리포트 3' })).toBeTruthy();
+    view.rerender(<AdminTopNavigation pathname="/schedule" me={me} badges={{ reports: 3 }} />);
+    expect(view.getByRole('link', { name: '스케줄' }).classList.contains('bg-header-active')).toBe(true);
   });
 });

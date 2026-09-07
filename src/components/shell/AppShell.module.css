@@ -1,0 +1,39 @@
+/* 본문만 스크롤한다. 좌측 도구는 각 화면이 넘기며 업무 메뉴를 복제하지 않는다. */
+.shell {
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: var(--top-h);
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+.panel {
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .header { flex-wrap: nowrap; padding: 0 16px; }
+}

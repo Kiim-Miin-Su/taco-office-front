@@ -31,6 +31,15 @@
   /* 예정/오늘 표시의 파랑은 관리자 primary와 다른 의미다. */
   --blue: #2563EB;
 
+  /* 원본 §07·34 헤더 픽셀. 기본 primary와 섞지 않는다. */
+  --header: #332B27;
+  --header-active: #4A403B;
+  --header-line: #413936;
+  --header-tool: #16202E;
+  --header-tool-line: #2B3648;
+  --header-home: #1D4ED8;
+  --header-approval: #3B2F12;
+
   /* ── 수업 종류 (KIND) — 명세서 v2 §85. 8종 ──────────────────
      v1 에서 전부 어두워졌다. 이 값이 v2 정본이다.               */
   --kind-class: #4A5461;
@@ -73,7 +82,7 @@
   --hour-h: 56px;
   --side-w: 240px;
   --side-rail-w: 56px;
-  --top-h: 56px;
+  --top-h: 50px;
 
   /* ── 글꼴 ────────────────────────────────────────────────── */
   /* Pretendard 는 next/font 가 실어 나른다 (app/layout.tsx) — 여기서는 그 변수를 맨 앞에 둔다.

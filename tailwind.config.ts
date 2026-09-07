@@ -21,6 +21,11 @@ export default {
   theme: {
     extend: {
       colors: {
+        header: {
+          DEFAULT: v('header'), active: v('header-active'), line: v('header-line'),
+          tool: v('header-tool'), 'tool-line': v('header-tool-line'),
+          home: v('header-home'), approval: v('header-approval'),
+        },
         bg: v('bg'), card: v('card'), inset: v('inset'),
         line: { DEFAULT: v('line'), 2: v('line-2') },
         fg: { DEFAULT: v('fg'), 2: v('fg-2'), subtle: v('fg-subtle') },

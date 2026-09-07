@@ -31,10 +31,15 @@ const PANES = [
   { key: 'chreqs', label: '이력' },
   { key: 'zoom', label: '줌' },
 ] as const;
-type PaneKey = (typeof PANES)[number]['key'];
+export type DrawerPane = (typeof PANES)[number]['key'];
 
-export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [pane, setPane] = useState<PaneKey>('approvals');
+/** 선택 pane은 셸이 소유한다. 닫기/다른 pane 이동에도 초안과 세부 선택은 여기 남는다. */
+export function AppDrawer({ open, onClose, pane, onPaneChange }: {
+  open: boolean;
+  onClose: () => void;
+  pane: DrawerPane;
+  onPaneChange: (pane: DrawerPane) => void;
+}) {
   const [box, setBox] = useState<TodoBox>('in');
   const [draft, setDraft] = useState<ChangeReqDraft>(EMPTY_DRAFT);
   const [conflicts, setConflicts] = useState<ChangeReqResult['conflicts']>([]);
@@ -71,14 +76,14 @@ export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => voi
       title="서랍"
       sub={data ? `결재 ${count}건 · 안 읽은 알림 ${unread}건 · 모든 시각 ${data.tz}` : undefined}
     >
-      <nav className="mb-4 flex flex-wrap gap-1 border-b border-line pb-2">
+      <nav aria-label="서랍 메뉴" className="mb-4 flex flex-wrap gap-1 border-b border-line pb-2">
         {PANES.map((p) => {
           const badge = p.key === 'approvals' ? count : p.key === 'notis' ? unread : 0;
           return (
             <button
-              key={p.key} type="button" onClick={() => setPane(p.key)}
+              key={p.key} type="button" onClick={() => onPaneChange(p.key)} aria-pressed={pane === p.key}
               className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors ${
-                pane === p.key ? 'bg-blue text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
+                pane === p.key ? 'bg-primary text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
             >
               {p.label}
               {badge > 0 ? (
@@ -131,7 +136,7 @@ export function AppDrawer({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
-/** 상단 바의 여는 단추 — 숫자는 AppShell이 Sidebar와 같은 drawer snapshot에서 내려준다. */
+/** 상단 바의 여는 단추 — 숫자는 AppShell이 공용 drawer snapshot에서 내려준다. */
 export function DrawerButton({
   onOpen,
   count,
