@@ -34,7 +34,7 @@ export function Tabs<T extends string>({ options, value, onChange, className }: 
           key={o.value} type="button" onClick={() => onChange(o.value)}
           className={cn(
             '-mb-px border-b-2 px-3 py-2 text-[12px] font-bold transition-colors',
-            o.value === value ? 'border-blue text-blue' : 'border-transparent text-fg-subtle hover:text-fg-2',
+            o.value === value ? 'border-primary text-primary' : 'border-transparent text-fg-subtle hover:text-fg-2',
           )}
         >
           {o.label}

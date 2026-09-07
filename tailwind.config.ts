@@ -24,6 +24,7 @@ export default {
         bg: v('bg'), card: v('card'), inset: v('inset'),
         line: { DEFAULT: v('line'), 2: v('line-2') },
         fg: { DEFAULT: v('fg'), 2: v('fg-2'), subtle: v('fg-subtle') },
+        primary: withAlpha('primary'),
         blue: withAlpha('blue'), red: withAlpha('red'), green: withAlpha('green'),
         amber: withAlpha('amber'), violet: withAlpha('violet'),
         /** 수업 종류 8종 — 명세서 v2 §85 */

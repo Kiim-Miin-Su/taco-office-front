@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace('/login');
   }
   return (
-    <div className="min-h-screen bg-bg">
+    <div data-ui={me?.canAdminPage ? 'admin' : 'teacher'} className="min-h-screen bg-bg text-fg">
       <header className="flex min-h-[50px] flex-wrap items-center gap-1 bg-fg px-3 py-2 sm:flex-nowrap sm:px-4 sm:py-0">
         <Logo size={22} onDark className="mr-auto shrink-0 sm:mr-3" />
         <AdminTopNavigation pathname={path} badges={badges} me={me} />

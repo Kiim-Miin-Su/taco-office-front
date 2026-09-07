@@ -11,22 +11,25 @@
  */
 
 :root {
-  /* ── 바탕 · 글자 ─────────────────────────────────────────── */
-  --bg: #F4F6FA;
+  /* ── 관리자 바탕 · 글자 — 원본 v2 §85 ─────────────────────── */
+  --bg: #F6F3F1;
   --card: #FFFFFF;
-  --inset: #F8FAFC;
-  --line: #E5EAF1;
-  --line-2: #D8E0EA;
-  --fg: #0F172A;
-  --fg-2: #334155;
-  --fg-subtle: #64748B;
+  --line: #E3D9D3;
+  --fg: #2A2320;
+  --fg-subtle: #615650;
+  /* 원본 9색에 별도 단계가 없는 기존 소비자는 의미를 공유한다. */
+  --inset: var(--bg);
+  --line-2: var(--line);
+  --fg-2: var(--fg-subtle);
 
-  /* ── 상태 ────────────────────────────────────────────────── */
+  /* ── 관리자 강조 · 상태 — 원본 v2 §85 ────────────────────── */
+  --primary: #946F57;
+  --red: #8E4A45;
+  --green: #5D7B65;
+  --amber: #9B7038;
+  --violet: #8B7594;
+  /* 예정/오늘 표시의 파랑은 관리자 primary와 다른 의미다. */
   --blue: #2563EB;
-  --red: #E11D48;
-  --green: #15803D;
-  --amber: #B45309;
-  --violet: #7C3AED;
 
   /* ── 수업 종류 (KIND) — 명세서 v2 §85. 8종 ──────────────────
      v1 에서 전부 어두워졌다. 이 값이 v2 정본이다.               */
@@ -77,4 +80,21 @@
      폰트가 아직 안 왔거나 못 읽어도 뒤의 시스템 글꼴로 떨어지므로 화면이 깨지지 않는다. */
   --f-sans: var(--f-pretendard), 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --f-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+}
+
+/* 강사 화면은 기존 바탕·리포트 상태색을 유지한다. 셸 안의 모달도 같은 변수를 상속한다. */
+[data-ui='teacher'] {
+  --bg: #F4F6FA;
+  --card: #FFFFFF;
+  --inset: #F8FAFC;
+  --line: #E5EAF1;
+  --line-2: #D8E0EA;
+  --fg: #0F172A;
+  --fg-2: #334155;
+  --fg-subtle: #64748B;
+  --primary: var(--blue);
+  --red: #E11D48;
+  --green: #15803D;
+  --amber: #B45309;
+  --violet: #7C3AED;
 }
