@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { api, setAccessToken } from '@/api/client';
 import { useSession } from '@/store/useSession';
 import type { Me } from '@/api/types';
+import { RouteAccess } from '@/components/shell/RequireAuth';
 
 /**
  * 세션 복구 — 새로고침해도 로그인이 풀리지 않게.
@@ -45,7 +46,7 @@ export function Providers({ children }: { children: ReactNode }) {
   }));
   return (
     <QueryClientProvider client={qc}>
-      <SessionBoot>{children}</SessionBoot>
+      <SessionBoot><RouteAccess>{children}</RouteAccess></SessionBoot>
     </QueryClientProvider>
   );
 }

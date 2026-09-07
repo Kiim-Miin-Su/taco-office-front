@@ -1,34 +1,70 @@
 import { describe, expect, it } from 'vitest';
+import type { Me } from '@/api/types';
 import {
-  ADMIN_NAV_ITEMS, adminNavBadgeFor, adminNavItemsFor, isAdminNavActive,
+  ADMIN_NAV_ITEMS, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, isAdminNavActive,
 } from './navigation';
 
-describe('관리자 내비게이션 SSOT', () => {
-  it('상단 11개와 Figma Sidebar 10개가 같은 항목 객체를 공유한다', () => {
-    const top = adminNavItemsFor('top');
-    const sidebar = adminNavItemsFor('sidebar');
+const ceo: Me = {
+  id: 1, name: '대표', role: 'ceo', title: null, canAdminPage: true, canCrudAll: true,
+  canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
+  canApprove: true, canHide: true, canGpaPack: true,
+};
+const teacher: Me = {
+  ...ceo, id: 2, role: 'teacher', canAdminPage: false, canCrudAll: false,
+  canSeeProfit: false, canCrudAttendance: false, canMoney: false, canWage: false,
+  canApprove: false, canHide: false, canGpaPack: false,
+};
 
-    expect(top).toHaveLength(11);
-    expect(sidebar).toHaveLength(10);
-    expect(sidebar).not.toContainEqual(expect.objectContaining({ href: '/permissions' }));
-    expect(sidebar[0]).toBe(ADMIN_NAV_ITEMS[0]);
+describe('명세서 탭 노출 SSOT', () => {
+  it.each(['top', 'sidebar'] as const)('%s에서 대표 10탭, 강사 2탭만 노출한다', (surface) => {
+    expect(adminNavItemsFor(surface, ceo)).toHaveLength(10);
+    expect(adminNavItemsFor(surface, teacher).map((x) => x.href)).toEqual(['/schedule', '/reports']);
+    expect(adminNavItemsFor(surface, null)).toEqual([]);
+    expect(adminNavItemsFor(surface, ceo)[0]).toBe(ADMIN_NAV_ITEMS[0]);
   });
 
-  it('하위 route만 active로 보고 접두사가 같은 다른 route는 제외한다', () => {
-    expect(isAdminNavActive('/reports', '/reports')).toBe(true);
+  it.each(['manager', 'admin'] as const)('%s도 money=false면 회계 탭 자체가 없다 (§52)', (role) => {
+    const me = { ...ceo, role, canMoney: false, canSeeProfit: false };
+    expect(adminNavItemsFor('top', me)).toHaveLength(9);
+    expect(adminNavItemsFor('top', me).some((x) => x.href === '/accounting')).toBe(false);
+    expect(canAccessAppRoute('/accounting', me)).toBe(false);
+    expect(canAccessAppRoute('/ops', me)).toBe(true);
+  });
+
+  it('역할이 아니라 서버 예외 플래그를 소비하며 권한은 업무 탭에서 제외한다', () => {
+    expect(canAccessAppRoute('/accounting', { ...ceo, role: 'manager', canSeeProfit: false })).toBe(true);
+    expect(canAccessAppRoute('/accounting', { ...ceo, canMoney: false })).toBe(false);
+    expect(canAccessAppRoute('/ops', { ...ceo, canAdminPage: false })).toBe(false);
+    expect(canAccessAppRoute('/ops', { ...ceo, canCrudAll: false })).toBe(false);
+    expect(adminNavItemsFor('top', ceo).some((x) => x.href === '/permissions')).toBe(false);
+    expect(canAccessAppRoute('/permissions', teacher)).toBe(true);
+  });
+
+  it.each(['/accounting', '/ops', '/exec', '/intake', '/consulting', '/books', '/guides', '/board'])(
+    '강사 직접 URL %s도 차단한다', (path) => {
+      expect(canAccessAppRoute(path, teacher)).toBe(false);
+      expect(canAccessAppRoute(path + '/1', teacher)).toBe(false);
+    },
+  );
+
+  it('세션/경로 미확정은 닫고 로그인은 허용한다', () => {
+    expect(canAccessAppRoute('/schedule', null)).toBe(false);
+    expect(canAccessAppRoute(null, ceo)).toBe(false);
+    expect(canAccessAppRoute('/unregistered', ceo)).toBe(false);
+    expect(canAccessAppRoute('/login', null)).toBe(true);
+  });
+
+  it('하위 route만 active로 본다', () => {
     expect(isAdminNavActive('/reports/12', '/reports')).toBe(true);
     expect(isAdminNavActive('/reports-old', '/reports')).toBe(false);
     expect(isAdminNavActive(null, '/reports')).toBe(false);
   });
 
-  it('리포트는 양쪽, 결재는 Sidebar에서만 같은 snapshot의 배지를 읽는다', () => {
-    const reports = ADMIN_NAV_ITEMS.find((item) => item.href === '/reports');
-    const exec = ADMIN_NAV_ITEMS.find((item) => item.href === '/exec');
-    const badges = { reports: 5, approvals: 1 };
-
-    expect(reports && adminNavBadgeFor(reports, 'top', badges)).toBe(5);
-    expect(reports && adminNavBadgeFor(reports, 'sidebar', badges)).toBe(5);
-    expect(exec && adminNavBadgeFor(exec, 'top', badges)).toBe(0);
-    expect(exec && adminNavBadgeFor(exec, 'sidebar', badges)).toBe(1);
+  it('기존 배지 snapshot을 재사용한다', () => {
+    const reports = ADMIN_NAV_ITEMS.find((item) => item.href === '/reports')!;
+    const exec = ADMIN_NAV_ITEMS.find((item) => item.href === '/exec')!;
+    expect(adminNavBadgeFor(reports, 'top', { reports: 5 })).toBe(5);
+    expect(adminNavBadgeFor(exec, 'top', { approvals: 2 })).toBe(0);
+    expect(adminNavBadgeFor(exec, 'sidebar', { approvals: 2 })).toBe(2);
   });
 });

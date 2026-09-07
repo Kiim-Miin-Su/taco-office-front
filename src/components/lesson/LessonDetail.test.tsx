@@ -1,14 +1,14 @@
 import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Occurrence, RosterResult } from '@/api/types';
 
-const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
+const { mutate, permissions } = vi.hoisted(() => ({ mutate: vi.fn(), permissions: { canEdit: true } }));
 
 vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate, isPending: false }),
   useAttendanceWrite: () => ({ mutate: vi.fn(), isPending: false }),
 }));
-vi.mock('@/store/useSession', () => ({ useCan: () => true }));
+vi.mock('@/store/useSession', () => ({ useCan: () => permissions.canEdit }));
 
 import { LessonDetail } from './LessonDetail';
 
@@ -49,6 +49,38 @@ const result: RosterResult = {
 };
 
 describe('LessonDetail 명단 결과', () => {
+  beforeEach(() => { mutate.mockReset(); permissions.canEdit = true; });
+
+  it('강사는 상세를 읽지만 휴강·취소 및 명단 변경 버튼은 보이지 않는다', () => {
+    permissions.canEdit = false;
+    const view = render(<LessonDetail occ={{ ...occurrence, attendanceMode: 'readonly' }} onClose={() => undefined} />);
+    expect(view.getByText('기존학생')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '휴강 · 취소' })).toBeNull();
+    expect(view.queryByRole('button', { name: '이 회차만 빼기' })).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('휴강 범위 선택 중 권한을 잃으면 열린 쓰기 대화상자도 사라진다', () => {
+    const props = { occ: occurrence, onClose: () => undefined };
+    const view = render(<LessonDetail {...props} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 취소' }));
+    expect(view.getByRole('button', { name: /이번만/ })).toBeTruthy();
+    permissions.canEdit = false;
+    view.rerender(<LessonDetail {...props} />);
+    expect(view.queryByRole('button', { name: /이번만/ })).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('매니저는 기존 휴강 범위 계약으로 저장할 수 있다', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 취소' }));
+    fireEvent.click(view.getByRole('button', { name: /이번만/ }));
+    expect(mutate).toHaveBeenCalledWith(
+      { kind: 'delete', serId: 3, body: { scope: 'this', onDate: '2026-09-03' } },
+      expect.any(Object),
+    );
+  });
+
   it('명단 저장 응답의 인원·안내·교재 후속 작업을 추가 조회 없이 보여 준다', () => {
     mutate.mockImplementationOnce((_write, options) => options.onSuccess(result));
     const view = render(

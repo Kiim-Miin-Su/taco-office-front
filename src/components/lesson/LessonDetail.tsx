@@ -77,6 +77,7 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
    * (§5A.7 「확인창을 쓰지 않는다」 · D-R21). 판정과 명단 계산은 서버가 한다.
    */
   const roster = (op: RosterPatch['op'], studentId: number) => {
+    if (!canEdit) return;
     setErr(null);
     setRosterResult(null);
     write.mutate(
@@ -94,6 +95,7 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
 
   /** 반복이면 범위를 먼저 묻고, 단발이면 바로 'this' 로 보낸다 */
   const withScope = (mode: 'edit' | 'delete', run: (s: Scope) => void) => {
+    if (!canEdit) return;
     setErr(null);
     if (!recurring) { run('this'); return; }
     setAsk({ mode, run });
@@ -206,17 +208,19 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
 
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>닫기</Button>
-            <Button variant="danger" onClick={cancel} disabled={write.isPending}>
-              {write.isPending ? '처리 중…' : '휴강 · 취소'}
-            </Button>
+            {canEdit ? (
+              <Button variant="danger" onClick={cancel} disabled={write.isPending}>
+                {write.isPending ? '처리 중…' : '휴강 · 취소'}
+              </Button>
+            ) : null}
           </div>
         </div>
       </Drawer>
 
       <RecurrenceScope
-        open={!!ask}
+        open={canEdit && !!ask}
         mode={ask?.mode ?? 'edit'}
-        onPick={(s) => ask?.run(s)}
+        onPick={(s) => { if (canEdit) ask?.run(s); }}
         onClose={() => setAsk(null)}
       />
 

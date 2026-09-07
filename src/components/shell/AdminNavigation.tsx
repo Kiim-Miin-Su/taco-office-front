@@ -81,13 +81,15 @@ function AdminNavLink({
 export function AdminTopNavigation({
   pathname,
   badges,
+  me,
 }: {
   pathname: string | null;
   badges: AdminNavBadges;
+  me: Me | null;
 }) {
   return (
     <nav aria-label="주 메뉴" className="flex flex-1 items-center gap-0.5 overflow-x-auto">
-      {adminNavItemsFor('top').map((item) => (
+      {adminNavItemsFor('top', me).map((item) => (
         <AdminNavLink key={item.href} item={item} pathname={pathname} surface="top" badges={badges} />
       ))}
     </nav>
@@ -110,6 +112,8 @@ export function AdminSidebar({
 }) {
   const roleName = me ? ROLE_LABEL[me.role] ?? me.role : '';
 
+  if (!me?.canAdminPage) return null;
+
   return (
     <aside
       aria-label="관리자 메뉴"
@@ -124,7 +128,7 @@ export function AdminSidebar({
       </div>
 
       <nav aria-label="관리자 업무" className="flex flex-col items-center gap-1 px-2 pt-2 xl:items-stretch xl:px-3">
-        {adminNavItemsFor('sidebar').map((item) => (
+        {adminNavItemsFor('sidebar', me).map((item) => (
           <AdminNavLink key={item.href} item={item} pathname={pathname} surface="sidebar" badges={badges} />
         ))}
       </nav>

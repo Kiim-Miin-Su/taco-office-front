@@ -38,12 +38,17 @@ export default function ReportsPage() {
   const [section, setSection] = useState<'unwritten' | 'delivery' | 'history'>('unwritten');
   const [tab, setTab] = useState<'teacher' | 'list' | 'returned' | 'approval'>('teacher');
   const [selected, setSelected] = useState<ReportRow | null>(null);
+  const canDeliver = useCan('canCrudAll');
   const canApprove = useCan('canApprove');
+  // 권한이 바뀌면 같은 렌더에서 허용된 화면으로 투영한다. effect를 기다리며 옛 화면을 남기지 않는다.
+  const activeSection = canDeliver ? section : 'unwritten';
+  const activeTab = tab === 'approval' && !canApprove ? 'teacher' : tab;
+  const visibleSelected = activeSection === section && activeTab === tab ? selected : null;
   const meta = useMeta();
-  const q = useUnwritten(undefined, section === 'unwritten');
-  const returned = useReports({ state: 'rej' }, tab === 'returned');
-  const approval = useReports({ state: 'wait' }, canApprove && tab === 'approval');
-  const detail = useReportDetail(selected?.serId, selected?.onDate);
+  const q = useUnwritten(undefined, activeSection === 'unwritten');
+  const returned = useReports({ state: 'rej' }, activeSection === 'unwritten' && activeTab === 'returned');
+  const approval = useReports({ state: 'wait' }, activeSection === 'unwritten' && canApprove && activeTab === 'approval');
+  const detail = useReportDetail(visibleSelected?.serId, visibleSelected?.onDate);
 
   const subName = useMemo(() => {
     const m = new Map((meta.data?.subs ?? []).map((s) => [s.key, s.name]));
@@ -82,23 +87,25 @@ export default function ReportsPage() {
     <RequireAuth><AppShell>
       <PageHeader
         title="리포트"
-        sub="안 쓴 것 확인 · 어제 것 학생별 보내기 · 전문 PNG와 발송 이력"
+        sub={canDeliver ? '안 쓴 것 확인 · 어제 것 학생별 보내기 · 전문 PNG와 발송 이력' : '안 쓴 것 확인 · 리포트 작성 · 전문 PNG'}
       />
 
       <Tabs
         className="mb-4"
-        value={section}
-        onChange={setSection}
+        value={activeSection}
+        onChange={(value) => { setSection(value); setSelected(null); }}
         options={[
           { value: 'unwritten', label: `안 쓴 리포트 ${q.data?.total ?? 0}` },
-          { value: 'delivery', label: '어제 보내기' },
-          { value: 'history', label: '보낸 내역' },
+          ...(canDeliver ? [
+            { value: 'delivery' as const, label: '어제 보내기' },
+            { value: 'history' as const, label: '보낸 내역' },
+          ] : []),
         ]}
       />
 
-      {section === 'delivery' ? (
+      {activeSection === 'delivery' ? (
         <ReportDeliveryQueue onOpenReport={setSelected} />
-      ) : section === 'history' ? (
+      ) : activeSection === 'history' ? (
         <ReportDeliveryHistory />
       ) : <>
       <div className="mb-4 grid grid-cols-4 gap-3">
@@ -110,8 +117,8 @@ export default function ReportsPage() {
 
       <Tabs
         className="mb-3"
-        value={tab}
-        onChange={setTab}
+        value={activeTab}
+        onChange={(value) => { setTab(value); setSelected(null); }}
         options={[
           { value: 'teacher', label: `강사별 ${byTeacher.length}` },
           { value: 'list', label: `건별 ${items.length}` },
@@ -124,9 +131,9 @@ export default function ReportsPage() {
         <Banner tone="neutral">불러오는 중…</Banner>
       ) : q.isError ? (
         <Banner tone="danger">서버에 닿지 못했습니다. 백엔드가 떠 있는지 확인해 주세요.</Banner>
-      ) : tab === 'teacher' ? (
+      ) : activeTab === 'teacher' ? (
         <Table columns={teacherCols} rows={byTeacher} rowKey={(r) => r.teacherId} empty="밀린 리포트가 없습니다" />
-      ) : tab === 'list' ? (
+      ) : activeTab === 'list' ? (
         <Table
           columns={listCols}
           rows={items}
@@ -134,7 +141,7 @@ export default function ReportsPage() {
           onRowClick={setSelected}
           empty="밀린 리포트가 없습니다"
         />
-      ) : tab === 'returned' ? (
+      ) : activeTab === 'returned' ? (
         returned.isLoading ? <Banner tone="neutral">반려 리포트를 불러오는 중…</Banner>
           : returned.isError ? <Banner tone="danger">반려 리포트를 불러오지 못했습니다.</Banner>
             : <Table columns={listCols} rows={returned.data?.items ?? []} rowKey={(r) => r.id} onRowClick={setSelected} empty="반려된 리포트가 없습니다" />
@@ -163,11 +170,11 @@ export default function ReportsPage() {
       </>}
 
       <Drawer
-        open={selected !== null}
+        open={visibleSelected !== null}
         onClose={() => setSelected(null)}
         width={720}
         title={detail.data?.canReview ? '리포트 검토' : '리포트 작성'}
-        sub={selected ? `${selected.date} · ${subName(selected.subKey)} · ${selected.teacherName ?? '담당 강사 없음'}` : undefined}
+        sub={visibleSelected ? `${visibleSelected.date} · ${subName(visibleSelected.subKey)} · ${visibleSelected.teacherName ?? '담당 강사 없음'}` : undefined}
       >
         {detail.isLoading ? (
           <Banner tone="neutral">불러오는 중…</Banner>

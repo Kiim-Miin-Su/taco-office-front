@@ -11,7 +11,8 @@ import { api } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
 import { useDrawer, useUnwritten } from '@/api/queries';
 import { AppDrawer, DrawerButton } from '@/components/drawer/AppDrawer';
-import { Logo } from '@/components/ui';
+import { Button, Dialog, Logo } from '@/components/ui';
+import { PermissionMatrix } from '@/components/data/PermissionMatrix';
 import { AdminSidebar, AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -24,6 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unwritten = useUnwritten().data;
   // 서랍은 **전역**이다 — 탭마다 따로 두면 탭을 옮길 때 닫힌다
   const [drawer, setDrawer] = useState(false);
+  const [permissions, setPermissions] = useState(false);
 
   const approvalCount = drawerData?.approvals.count ?? 0;
   const unreadCount = drawerData?.notis.filter((n) => !n.read).length ?? 0;
@@ -42,11 +44,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-bg">
       <header className="flex h-[50px] items-center gap-1 bg-fg px-4">
         <Logo size={22} onDark className="mr-3" />
-        <AdminTopNavigation pathname={path} badges={badges} />
+        <AdminTopNavigation pathname={path} badges={badges} me={me} />
         <span className="ml-3 whitespace-nowrap text-[11px] text-line-2">
           {me ? `${me.name} · ${me.title ?? ''}` : ''}
         </span>
         <DrawerButton onOpen={() => setDrawer(true)} count={approvalCount} unread={unreadCount} />
+        <button type="button" onClick={() => setPermissions(true)}
+          className="rounded-md px-2 py-1 text-[11px] font-bold text-line-2 hover:bg-white/10">권한</button>
         <button
           type="button" onClick={out}
           className="ml-2 rounded-md px-2 py-1 text-[11px] font-bold text-line-2 hover:bg-white/10"
@@ -61,6 +65,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
       <AppDrawer open={drawer} onClose={() => setDrawer(false)} />
+      <Dialog open={permissions} onClose={() => setPermissions(false)} title="권한" width={800}
+        footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>
+        <div className="max-h-[70dvh] overflow-y-auto"><PermissionMatrix me={me} /></div>
+      </Dialog>
     </div>
   );
 }
