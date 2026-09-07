@@ -25,7 +25,19 @@ export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3001/api/v1',
   withCredentials: true, // Refresh 쿠키를 주고받는다
   timeout: 20_000,
+  // XHR timeout을 ETIMEDOUT로 받아 브라우저 abort(ECONNABORTED)와 구분한다.
+  transitional: { clarifyTimeoutError: true },
 });
+
+/** 응답이 없는 오류의 공용 문구. Axios config/request에는 비밀번호·토큰이 있어 보존/출력하지 않는다. */
+const TRANSPORT_FAILURES: Record<string, { code: string; message: string }> = {
+  [AxiosError.ETIMEDOUT]: {
+    code: 'TIMEOUT', message: '서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.',
+  },
+  [AxiosError.ECONNABORTED]: { code: 'ABORTED', message: '요청이 중단되었습니다. 다시 시도해 주세요.' },
+  [AxiosError.ERR_CANCELED]: { code: 'CANCELED', message: '요청이 취소되었습니다.' },
+  [AxiosError.ERR_NETWORK]: { code: 'NETWORK', message: '서버에 닿지 못했습니다' },
+};
 
 /** 사람에게 보여 줄 실패 문구 — 화면이 문구를 지어내지 않는다. 해석하는 자리는 여기 하나다 */
 export function apiMessage(e: unknown): string {
@@ -87,10 +99,17 @@ api.interceptors.response.use(
       }
     }
 
+    if (status === 0) {
+      const failure = TRANSPORT_FAILURES[err.code ?? ''] ?? {
+        code: 'REQUEST_FAILED', message: '요청을 보내지 못했습니다.',
+      };
+      throw new ApiError(failure.code, failure.message, 0);
+    }
+
     const body = err.response?.data;
     throw new ApiError(
-      body?.code ?? (status === 0 ? 'NETWORK' : 'ERROR'),
-      body?.message ?? (status === 0 ? '서버에 닿지 못했습니다' : err.message),
+      body?.code ?? 'ERROR',
+      body?.message ?? err.message,
       status,
     );
   },
