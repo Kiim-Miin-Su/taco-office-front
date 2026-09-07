@@ -2,8 +2,8 @@
 
 TACO ERP 화면 — **Next.js 15 · CSS Modules + Tailwind · Vercel**
 
-> 정본: [`docs/spec/DEV-SPEC.md`](../taco-office/docs/spec/DEV-SPEC.md) (개발 명세서 v2 · 화면 70컷)
-> 스택: [`docs/contracts/STACK.md`](../taco-office/docs/contracts/STACK.md)
+> 정본: [`docs/AGENT.md`](../docs/AGENT.md) · [`DEV-SPEC.md`](../docs/spec/DEV-SPEC.md) (v2 · 실제 UI 61컷)
+> 스택: [`STACK.md`](../docs/contracts/STACK.md). 링크는 back/front/docs가 같은 부모 폴더에 있는 로컬 워크스페이스 기준입니다.
 
 **백엔드와는 독립 레포다** (D-R42). 공유하는 것은 코드가 아니라 `openapi.json` 한 장이다.
 
@@ -12,8 +12,8 @@ TACO ERP 화면 — **Next.js 15 · CSS Modules + Tailwind · Vercel**
 ## 시작
 
 ```bash
-cp .env.local.example .env.local
-npm install
+cp .env.local.example .env.local  # 기존 파일이 없을 때만. API URL 확인
+npm ci                           # 현재 OS/CPU에서 기존 lockfile로 설치
 npm run types:gen     # 백엔드 openapi.json → src/api/schema.d.ts
 npm run dev           # http://localhost:3000
 ```
@@ -66,5 +66,6 @@ const canEdit = useCan('canCrudAll');
 
 ## 아직 없는 것
 
-화면. 명세서 v2 의 **70컷**을 트랙 B 에서 탭 순서대로 만든다 (TBO-23~).
-지금 있는 `/` 는 토큰 29색이 Tailwind 로 이어졌는지 눈으로 보는 자리다.
+업무 route 11개와 일정·리포트·출결·현황판의 주요 흐름은 구현돼 있습니다. 컨설팅 §26은 조회 보드까지이며
+항목·상태 전이 쓰기는 남았습니다. 화면 존재가 기능 완료를 뜻하지 않습니다.
+현재 상태·검증 수치·운영 로그인 ERR_NETWORK 잔여는 [MVP 잔여 원장](../docs/report/MVP-REMAINING-PLAN-2026-09-04.md)을 봅니다.
