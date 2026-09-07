@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { EventBlock } from './EventBlock';
-import { occurrenceKey, todayKst, type SelectMode } from '@/lib/calendar';
+import { KO_DOW, dowOf, occurrenceKey, todayKst, type SelectMode } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 
 export interface CalCellProps {
@@ -31,6 +31,8 @@ export interface CalCellProps {
   selected?: ReadonlySet<string>;
   /** 빈 곳을 누르면 그 날짜로 일정 추가 (§7) */
   onAdd?: (date: string) => void;
+  /** 날짜 머리 선택 — 월간 날짜와 더보기가 같은 일간 진입을 사용한다 (§9) */
+  onPickDate?: (date: string) => void;
   /** 접힌 것을 눌렀을 때 — 보통 그날 일간으로 간다 */
   onMore?: (date: string) => void;
   compact?: boolean;
@@ -47,7 +49,7 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, max, onOpen, onSelect, selected, onAdd, onMore, compact, className, muted, active,
+  date, head, items, subName, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
   droppable, draggable, children,
 }: CalCellProps) {
   const drop = useDroppable({
@@ -79,7 +81,15 @@ export function CalCell({
     >
       {head !== undefined ? (
         <div className={cn('flex items-center gap-1 text-[11px]', muted ? 'text-line-2' : 'text-fg-subtle')}>
-          {isToday ? <span className="rounded bg-blue px-1 font-bold text-white">{head}</span> : <span>{head}</span>}
+          {onPickDate ? (
+            <button type="button" onClick={() => onPickDate(date)}
+              aria-label={`${date} (${KO_DOW[dowOf(date)]}) 날짜 선택`}
+              className={cn('rounded px-1 hover:bg-blue/10 focus-visible:outline-blue',
+                isToday && 'bg-blue font-bold text-white hover:bg-blue')}>
+              {head}
+            </button>
+          ) : isToday ? <span className="rounded bg-blue px-1 font-bold text-white">{head}</span> : <span>{head}</span>}
+          <span className="ml-auto">{items.length}건</span>
         </div>
       ) : null}
 

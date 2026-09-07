@@ -86,7 +86,9 @@ function reducer(s: S, a: A): S {
         view: a.v,
         personId: a.v === 'student' || a.v === 'teacher' ? pane.personId : null,
       });
-    case 'date': return patchPane({ date: a.d, view: pane.view === 'month' ? 'day' : pane.view });
+    case 'date':
+      // 전체 주·월간 날짜는 일간으로 이동한다. 개인표는 선택된 사람을 유지한다 (§8~§11).
+      return patchPane({ date: a.d, view: pane.view === 'week' || pane.view === 'month' ? 'day' : pane.view });
     case 'step': return patchPane({ date: step(pane.view, pane.date, a.dir) });
     case 'today': return patchPane({ date: todayKst() });
     case 'person': return patchPane({ personId: a.id });

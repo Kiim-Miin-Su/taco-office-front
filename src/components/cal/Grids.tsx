@@ -231,6 +231,7 @@ export function WeekGrid({
           const n = map.get(d)?.length ?? 0;
           return (
             <button key={d} type="button" onClick={() => onPickDate?.(d)}
+              aria-label={`${d} (${KO_DOW[dowOf(d)]}) 날짜 선택`}
               className="border-r border-line p-2 text-left transition-colors last:border-r-0 hover:bg-blue/5">
               <div className={cn('text-[11px] font-bold', dowOf(d) === 0 ? 'text-red' : dowOf(d) === 6 ? 'text-blue' : 'text-fg-subtle')}>
                 {KO_DOW[dowOf(d)]}
@@ -264,17 +265,20 @@ export function MonthGrid({
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-card">
       <div className="grid grid-cols-7 border-b border-line bg-inset">
-        {KO_DOW.map((k, i) => (
-          <div key={k} className={cn('border-r border-line p-1.5 text-[11px] font-bold last:border-r-0',
-            i === 0 ? 'text-red' : i === 6 ? 'text-blue' : 'text-fg-subtle')}>{k}</div>
-        ))}
+        {grid.slice(0, 7).map((d) => {
+          const dow = dowOf(d);
+          return (
+            <div key={d} className={cn('border-r border-line p-1.5 text-[11px] font-bold last:border-r-0',
+              dow === 0 ? 'text-red' : dow === 6 ? 'text-blue' : 'text-fg-subtle')}>{KO_DOW[dow]}</div>
+          );
+        })}
       </div>
       <div className="grid grid-cols-7">
         {grid.map((d) => (
           <CalCell key={d} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
                    subName={subName} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
                    active={cursorDate === d}
-                   onAdd={onAdd} onMore={onPickDate}
+                   onAdd={onAdd} onPickDate={onPickDate} onMore={onPickDate}
                    muted={d.slice(0, 7) !== mon} compact
                    droppable={interactive} draggable={interactive} />
         ))}
