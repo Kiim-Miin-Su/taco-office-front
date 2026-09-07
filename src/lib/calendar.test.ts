@@ -90,6 +90,36 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
     expect(wide.to).toBeGreaterThanOrEqual(1260);
   });
 
+  it('00시와 24시 인접 수업도 당일 안에서 최소 6시간을 확보한다', () => {
+    expect(timeRange([{ startMin: 0, endMin: 60 }])).toEqual({ from: 0, to: 360 });
+    expect(timeRange([{ startMin: 1380, endMin: 1440 }])).toEqual({ from: 1080, to: 1440 });
+    expect(timeRange([{ startMin: 1430, endMin: 1440 }])).toEqual({ from: 1080, to: 1440 });
+    for (let startMin = 0; startMin <= 1425; startMin += 15) {
+      for (let duration = 15; duration <= 480 && startMin + duration <= 1440; duration += 15) {
+        const endMin = startMin + duration;
+        const { from, to } = timeRange([{ startMin, endMin }]);
+        expect(from).toBeGreaterThanOrEqual(0);
+        expect(from).toBeLessThanOrEqual(startMin);
+        expect(to).toBeGreaterThanOrEqual(endMin);
+        expect(to).toBeLessThanOrEqual(1440);
+        expect(to - from).toBeGreaterThanOrEqual(360);
+        expect(from % 60).toBe(0);
+        expect(to % 60).toBe(0);
+      }
+    }
+  });
+
+  it('비정상 시간은 정상 수업의 표시 범위를 오염시키지 않고 모두 무효면 기존 기본 범위를 쓴다', () => {
+    const invalid = [
+      { startMin: Number.NaN, endMin: 660 }, { startMin: 600, endMin: Infinity },
+      { startMin: -Infinity, endMin: 660 }, { startMin: -15, endMin: 60 },
+      { startMin: 1380, endMin: 1455 }, { startMin: 660, endMin: 600 },
+    ];
+    expect(timeRange(invalid)).toEqual(timeRange([]));
+    const valid = [{ startMin: 600, endMin: 660 }];
+    expect(timeRange([...invalid, ...valid])).toEqual(timeRange(valid));
+  });
+
   it('날짜 더하기가 월을 넘는다', () => {
     expect(addDays('2026-08-31', 1)).toBe('2026-09-01');
     expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
@@ -125,7 +155,7 @@ describe('분할 표 상태 (§4)', () => {
 /* ── TBO-41 상호작용 산수 ─────────────────────────────────────────── */
 import {
   clampEnd, lessonTimeIssue, minutesFromPx, movePatch, movePlacements, occurrenceKey, overlapClusters, relativePlacements,
-  resizePatch, selectOccurrenceKeys, selectedOccurrences, snap15,
+  resizePatch, selectOccurrenceKeys, selectedOccurrences, slotStartMin, snap15,
 } from './calendar';
 
 describe('드래그 산수 (§5)', () => {
@@ -135,6 +165,32 @@ describe('드래그 산수 (§5)', () => {
     expect(snap15(52)).toBe(45);
     expect(minutesFromPx(56)).toBe(60); // 시간당 56px
     expect(minutesFromPx(14)).toBe(15);
+  });
+
+  it('드롭한 30분 슬롯과 블록 상단 좌표로 시작 시각을 계산하고 15분 스냅한다', () => {
+    expect(slotStartMin(600, 100, 28, 115)).toBe(615); // 1px 장식 오차 포함
+    expect(slotStartMin(600, 100, 56, 129)).toBe(615); // 다른 표의 슬롯 밀도
+    expect(slotStartMin(900, 100, 28, 115)).toBe(915); // 다른 표의 시간 범위
+    expect(slotStartMin(600, -200, 28, -185)).toBe(615); // 스크롤 뒤에도 같은 상대 좌표
+  });
+
+  it('좌표 변환은 음수/24시 초과를 clamp하지 않고 시간 검증층에 넘긴다', () => {
+    expect(slotStartMin(0, 100, 28, 86)).toBe(-15);
+    expect(slotStartMin(1410, 100, 28, 142)).toBe(1455);
+  });
+
+  it('좌표나 슬롯 높이가 무효면 시작 시각을 만들지 않는다', () => {
+    const args = [600, 100, 28, 114] as const;
+    for (const invalid of [Number.NaN, Infinity, -Infinity]) {
+      for (let index = 0; index < args.length; index += 1) {
+        const input: [number, number, number, number] = [...args];
+        input[index] = invalid;
+        expect(slotStartMin(...input)).toBeNull();
+      }
+    }
+    expect(slotStartMin(600, 100, 0, 114)).toBeNull();
+    expect(slotStartMin(600, 100, -28, 114)).toBeNull();
+    expect(slotStartMin(600, -Number.MAX_VALUE, 28, Number.MAX_VALUE)).toBeNull();
   });
 
   it('길이 제약 10~480분 (§5)', () => {
@@ -149,6 +205,13 @@ describe('드래그 산수 (§5)', () => {
     expect(lessonTimeIssue(1380, 1450)).toContain('같은 날');
   });
 
+  it('공용 시간 방어는 NaN/Infinity와 분 단위가 아닌 숫자를 거절한다', () => {
+    for (const invalid of [Number.NaN, Infinity, -Infinity, 600.5]) {
+      expect(lessonTimeIssue(invalid, 660)).not.toBeNull();
+      expect(lessonTimeIssue(600, invalid)).not.toBeNull();
+    }
+  });
+
   it('movePatch — 바뀐 필드만 싣고, 안 바뀌면 null (§5A.1 「바뀐 필드만 채운다」)', () => {
     const o = { date: '2026-09-01', startMin: 600, endMin: 690, teacherId: 7, roomId: 1 };
     expect(movePatch(o, { date: '2026-09-01', startMin: 600 })).toBeNull();
@@ -158,6 +221,16 @@ describe('드래그 산수 (§5)', () => {
     expect(movePatch(o, { teacherId: null })).toEqual({ teacherId: null });
     // 강의실 축으로 옮길 때 강사는 건드리지 않는다 (§4.4 — 축이 무엇을 바꾸는지)
     expect(movePatch(o, { roomId: 1 })).toBeNull();
+  });
+
+  it('단일 이동은 길이를 유지하며 자정을 넘으면 날짜·자원 변경도 함께 거절한다', () => {
+    const o = { date: '2026-09-01', startMin: 600, endMin: 690, roomId: 1 };
+    expect(movePatch(o, { startMin: 1350 })).toEqual({ startMin: 1350, endMin: 1440 });
+    expect(movePatch(o, { startMin: 0 })).toEqual({ startMin: 0, endMin: 90 });
+    for (const startMin of [-15, 1365, 1440, Number.NaN, Infinity, -Infinity]) {
+      expect(movePatch(o, { startMin, date: '2026-09-02', roomId: 2 })).toBeNull();
+    }
+    expect(movePatch({ ...o, endMin: Number.NaN }, { startMin: 615 })).toBeNull();
   });
 
   it('resizePatch — 끝만 바뀌고 스냅·제약을 통과한다 (C-3)', () => {
@@ -220,5 +293,21 @@ describe('선택·클립보드 산수 (§5.2)', () => {
       { date: '2026-08-25', startMin: 630 },
     ]);
     expect(movePlacements(items, items[0], '2026-08-19', -15)).toBeNull();
+  });
+
+  it('단일·다중 이동은 같은 시간 경계를 따르고 무효 항목이 하나라도 있으면 전체 거절한다', () => {
+    const source = items[0];
+    for (const startMin of [0, 615, 1380]) {
+      const patch = movePatch(source, { startMin });
+      const placed = movePlacements([source], source, source.date, startMin);
+      expect(placed?.[0]).toMatchObject(patch!);
+      expect(placed?.map((o) => o.endMin - o.startMin)).toEqual([source.endMin - source.startMin]);
+    }
+    for (const startMin of [-15, 1395, Number.NaN, Infinity, -Infinity]) {
+      expect(movePatch(source, { startMin })).toBeNull();
+      expect(movePlacements([source], source, source.date, startMin)).toBeNull();
+    }
+    expect(movePlacements(items, source, source.date, 1380)).toBeNull();
+    expect(movePlacements([...items, { ...source, endMin: Number.NaN }], source, source.date, 615)).toBeNull();
   });
 });

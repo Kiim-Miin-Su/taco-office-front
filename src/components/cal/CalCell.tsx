@@ -8,7 +8,7 @@
  * 과목색·취소·온라인 표현은 `EventBlock`이 갖는다 (관리자 v2 §07~11).
  */
 'use client';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { EventBlock } from './EventBlock';
@@ -54,8 +54,9 @@ export function CalCell({
   date, head, items, subName, colorOf, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
   droppable, draggable, children,
 }: CalCellProps) {
+  const instanceId = useId();
   const drop = useDroppable({
-    id: `day|${date}`,
+    id: `day|${instanceId}|${date}`,
     data: { type: 'day', date },
     disabled: !droppable,
   });

@@ -12,8 +12,8 @@
 'use client';
 import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  type DragEndEvent, type DragStartEvent,
+  DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
@@ -30,7 +30,7 @@ import { useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/que
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  HOUR_PX, boundingRange, boundsOf, clampSplitRatio, label, monthGrid, movePatch, movePlacements, occurrenceKey, resizePatch,
+  boundingRange, boundsOf, clampSplitRatio, label, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, resizePatch, slotStartMin,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type SelectMode, type View,
 } from '@/lib/calendar';
@@ -129,6 +129,26 @@ function isTypingTarget(target: EventTarget | null): boolean {
   const el = target instanceof HTMLElement ? target : null;
   return !!el && (el.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
 }
+
+// 포인터가 실제 놓인 칸만 대상이다. 격자 밖을 overlay 면적 겹침으로 되살리지 않는다.
+const calendarCollision: CollisionDetection = (args) => {
+  const pointer = args.pointerCoordinates;
+  if (!pointer) return rectIntersection(args);
+  return pointerWithin(args).filter((hit) => {
+    // 슬롯 자체 rect는 overflow 밖까지 뻗는다. 실제 스크롤 창에 보이는 후보만 남긴다.
+    let parent = args.droppableContainers.find((c) => c.id === hit.id)?.node.current?.parentElement;
+    while (parent) {
+      const style = getComputedStyle(parent);
+      const box = parent.getBoundingClientRect();
+      if (/auto|scroll|hidden|clip/.test(style.overflowX || style.overflow)
+        && (pointer.x < box.left || pointer.x > box.right)) return false;
+      if (/auto|scroll|hidden|clip/.test(style.overflowY || style.overflow)
+        && (pointer.y < box.top || pointer.y > box.bottom)) return false;
+      parent = parent.parentElement;
+    }
+    return true;
+  });
+};
 
 export default function SchedulePage() {
   const canAdminPage = useCan('canAdminPage');
@@ -282,11 +302,22 @@ function AdminSchedulePage() {
       }
       return;
     }
-    // 일간 — 시각은 움직인 거리에서, 컬럼은 드롭한 칸에서 (§4.4 — 축이 무엇을 바꾸나)
+    // 대상 slot과 블록의 상단은 같은 viewport 좌표다. 다른 pane의 시작 시각·스크롤도 반영한다.
+    const translated = e.active.rect.current.translated;
+    const startMin = translated && e.over
+      ? slotStartMin(over.slotMin, e.over.rect.top, e.over.rect.height, translated.top)
+      : null;
+    const issue = startMin === null ? '놓은 위치의 시각을 확인할 수 없습니다. 다시 놓아 주세요.'
+      : lessonTimeIssue(startMin, startMin + d.occ.endMin - d.occ.startMin);
+    if (issue || startMin === null) {
+      setErr(issue);
+      return;
+    }
+    const resource = over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId };
     const t = {
       date: over.date,
-      startMin: d.occ.startMin + (e.delta.y / HOUR_PX) * 60,
-      ...(over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId }),
+      startMin,
+      ...resource,
     };
     const patch = movePatch(d.occ, t);
     if (copy) {
@@ -294,16 +325,16 @@ function AdminSchedulePage() {
         items: [d.occ], fromClipboard: false,
         target: {
           targetDate: over.date,
-          targetStartMin: patch?.startMin ?? d.occ.startMin,
+          targetStartMin: startMin,
           cut: false,
-          ...(over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId }),
+          ...resource,
         },
       });
     } else if (!requestMoveMany(
       d.occ,
       over.date,
-      patch?.startMin ?? d.occ.startMin,
-      over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId },
+      startMin,
+      resource,
     )) {
       request(d.occ, patch);
     }
@@ -598,7 +629,7 @@ function AdminSchedulePage() {
   return (
     <RequireAuth>
       <AppShell>
-        <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={calendarCollision} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <PageHeader
           title="스케줄"
           sub="§4·§7~§12 — 기본/분할은 같은 표를 반복 렌더하고, bounding range를 한 번만 읽습니다."

@@ -143,15 +143,19 @@ export const nowMinKst = (): number => {
  * 수업이 몰려 있으면 앞뒤 1시간만 남기고 좁힌다 — 다만 **6시간은 유지**한다 (§10).
  */
 export function timeRange(mins: Array<{ startMin: number; endMin: number }>): { from: number; to: number } {
-  if (!mins.length) return { from: 9 * 60, to: 22 * 60 };
-  const lo = Math.min(...mins.map((m) => m.startMin));
-  const hi = Math.max(...mins.map((m) => m.endMin));
+  // 손상된 응답 한 건이 모든 슬롯 좌표를 NaN으로 만들지 않게 표시 가능한 구간만 쓴다.
+  const valid = mins.filter((m) => Number.isFinite(m.startMin) && Number.isFinite(m.endMin)
+    && m.startMin >= 0 && m.startMin < m.endMin && m.endMin <= 24 * 60);
+  if (!valid.length) return { from: 9 * 60, to: 22 * 60 };
+  const lo = Math.min(...valid.map((m) => m.startMin));
+  const hi = Math.max(...valid.map((m) => m.endMin));
   let from = Math.max(0, Math.floor((lo - 60) / 60) * 60);
   let to = Math.min(24 * 60, Math.ceil((hi + 60) / 60) * 60);
   if (to - from < 360) {
     const mid = (from + to) / 2;
-    from = Math.max(0, Math.floor((mid - 180) / 60) * 60);
-    to = Math.min(24 * 60, from + 360);
+    // 24시에서 끝을 자르지 말고 시작을 당겨 여섯 시간을 온전히 확보한다.
+    from = Math.max(0, Math.min(24 * 60 - 360, Math.floor((mid - 180) / 60) * 60));
+    to = from + 360;
   }
   return { from, to };
 }
@@ -169,8 +173,16 @@ export const snap15 = (m: number): number => Math.round(m / SNAP_MIN) * SNAP_MIN
 /** 드래그 델타(px) → 분. 15분 스냅까지 여기서 한다 — 화면이 다시 계산하지 않는다 */
 export const minutesFromPx = (px: number): number => snap15((px / HOUR_PX) * 60);
 
-/** 폼과 드래그가 공유하는 수업 시각 계약. 서버의 lessonTimeIssue와 같은 경계다. */
+/** 대상 표의 실제 30분 슬롯 좌표를 쓴다. 당일 경계는 이동 검증층에서 거절하며 여기서 자르지 않는다. */
+export function slotStartMin(slotMin: number, slotTop: number, slotHeight: number, blockTop: number): number | null {
+  if (![slotMin, slotTop, slotHeight, blockTop].every(Number.isFinite) || slotHeight <= 0) return null;
+  const startMin = snap15(slotMin + (blockTop - slotTop) / slotHeight * SLOT_MIN);
+  return Number.isFinite(startMin) ? startMin : null;
+}
+
+/** 폼과 드래그가 공유하는 시간 계약 — 서버 DTO의 정수 제약과 lessonTimeIssue의 당일·길이 경계. */
 export function lessonTimeIssue(startMin: number, endMin: number): string | null {
+  if (!Number.isInteger(startMin) || !Number.isInteger(endMin)) return '수업 시각은 유효한 분 단위 정수여야 합니다';
   if (startMin < 0 || startMin >= 1440 || endMin > 1440) return '수업 시각은 같은 날 안에 있어야 합니다';
   const duration = endMin - startMin;
   return duration < 10 || duration > 480 ? '길이는 10분에서 8시간 사이여야 합니다 (§5)' : null;
@@ -188,18 +200,21 @@ export interface MoveTarget {
   roomId?: number | null;
 }
 
-/** PATCH 에 실을 것 — **바뀐 필드만**. 아무것도 안 바뀌면 null, 그때는 부르지 않는다 */
+/** PATCH 에 실을 것 — **바뀐 필드만**. 무효 이동/변경 없음은 null이며 다른 필드도 일부 저장하지 않는다. */
 export function movePatch(
   o: { date: string; startMin: number; endMin: number; teacherId?: number | null; roomId?: number | null },
   t: MoveTarget,
 ): { date?: string; startMin?: number; endMin?: number; teacherId?: number | null; roomId?: number | null } | null {
+  if (lessonTimeIssue(o.startMin, o.endMin)) return null;
   const out: ReturnType<typeof movePatch> = {};
   if (t.date !== undefined && t.date !== o.date) out!.date = t.date;
   if (t.startMin !== undefined) {
-    const s = Math.max(0, Math.min(24 * 60 - 10, snap15(t.startMin)));
+    const s = snap15(t.startMin);
+    const endMin = s + (o.endMin - o.startMin);
+    if (lessonTimeIssue(s, endMin)) return null;
     if (s !== o.startMin) {
       out!.startMin = s;
-      out!.endMin = clampEnd(s, s + (o.endMin - o.startMin)); // 길이 유지
+      out!.endMin = endMin; // 이동은 길이를 바꾸지 않는다. 길이 조절은 resizePatch만 담당한다.
     }
   }
   if (t.teacherId !== undefined && t.teacherId !== (o.teacherId ?? null)) out!.teacherId = t.teacherId;
@@ -365,6 +380,8 @@ export function movePlacements<T extends OccurrenceIdentity>(
   targetDate: string,
   targetStartMin: number,
 ): RelativePlacement<T>[] | null {
+  if (!Number.isFinite(targetStartMin) || lessonTimeIssue(anchor.startMin, anchor.endMin)
+    || items.some((source) => lessonTimeIssue(source.startMin, source.endMin))) return null;
   const deltaDays = Math.round(
     (new Date(`${targetDate}T00:00:00Z`).getTime() - new Date(`${anchor.date}T00:00:00Z`).getTime()) / 86400000,
   );
@@ -377,5 +394,5 @@ export function movePlacements<T extends OccurrenceIdentity>(
     offsetDays: deltaDays,
     offsetMinutes: deltaMinutes,
   }));
-  return placed.some((x) => x.startMin < 0 || x.endMin > 24 * 60) ? null : placed;
+  return placed.some((x) => lessonTimeIssue(x.startMin, x.endMin)) ? null : placed;
 }

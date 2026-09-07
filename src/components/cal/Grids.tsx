@@ -10,7 +10,7 @@
  * 겹침은 폭을 N등분하지 않는다 — 첫 건만 그리고 「+N」으로 접는다 (`CALENDAR §4.5`).
  */
 'use client';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { CalCell } from './CalCell';
 import { EventBlock } from './EventBlock';
@@ -77,8 +77,9 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, onAddAt }: {
   active?: boolean;
   onAddAt?: (date: string, startMin: number, colId: number | null) => void;
 }) {
+  const instanceId = useId();
   const d = useDroppable({
-    id: `slot|${date}|${colId ?? 'null'}|${slotMin}`,
+    id: `slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
     data: { type: 'slot', date, colAxis, colId, slotMin } satisfies DropData,
   });
   return (

@@ -10,7 +10,7 @@
  * 드래그(TBO-41 · §5): `dragData` 를 주면 잡아서 옮길 수 있고, `resizable` 이면
  * 하단 6px 핸들로 길이를 바꾼다. **판정과 저장은 페이지가 한다** — 블록은 잡히기만 한다.
  */
-import type { CSSProperties } from 'react';
+import { useId, type CSSProperties } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { hhmm, type SelectMode } from '@/lib/calendar';
@@ -65,13 +65,15 @@ export function EventBlock({
   occ, subName, color, compact, onClick, onSelect, selected, draggable, resizable,
 }: EventBlockProps) {
   const key = `${occ.serId}|${occ.onDate}`;
+  // 선택은 회차 키를 공유하지만 같은 회차의 split 복제본은 서로 다른 DOM 노드다.
+  const instanceId = useId();
   const move = useDraggable({
-    id: `move|${key}`,
+    id: `move|${instanceId}|${key}`,
     data: { type: 'move', occ } satisfies DragData,
     disabled: !draggable,
   });
   const resize = useDraggable({
-    id: `resize|${key}`,
+    id: `resize|${instanceId}|${key}`,
     data: { type: 'resize', occ } satisfies DragData,
     disabled: !resizable,
   });
