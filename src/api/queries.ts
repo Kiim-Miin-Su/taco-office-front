@@ -16,7 +16,7 @@ import {
   type UseMutationResult, type UseQueryResult,
 } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
-import { api } from './client';
+import { api, ApiError } from './client';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
@@ -368,6 +368,12 @@ export function useScheduleWrite(): UseMutationResult<
   WriteResult | RosterResult, unknown, ScheduleWrite, { snaps: OccSnapshots } | undefined
 > {
   const qc = useQueryClient();
+  // 성공과 오래된 회차 거절이 같은 서버 정본을 다시 읽는다. 전체 캐시 무효화는 하지 않는다.
+  const reconcile = () => {
+    void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+    void qc.invalidateQueries({ queryKey: ['board'] });
+    void qc.invalidateQueries({ queryKey: qk.horizon });
+  };
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
       if (w.kind === 'create') return (await api.post<WriteResult>('/schedule', w.body)).data;
@@ -421,19 +427,16 @@ export function useScheduleWrite(): UseMutationResult<
       }
       return { snaps };
     },
-    onError: (_e, _w, ctx) => {
+    onError: (e, _w, ctx) => {
       // 원자적 되돌림 — 스냅숏을 통째로 되돌린다. 부분 복구는 없는 상태를 만든다
       for (const [key, list] of ctx?.snaps ?? []) qc.setQueryData(key, list);
+      // 분할/삭제된 회차를 이전 snapshot에 영구 복원하지 않는다. Axios가 정규화한
+      // 일정 참조404만 재조회하며 입력/학생 참조/권한 오류는 기존 복구 동작을 유지한다.
+      if (e instanceof ApiError && e.status === 404
+          && ['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(e.code)) reconcile();
     },
-    onSuccess: () => {
-      // 회차 목록만 다시 읽는다. 코드표·회계·운영은 이 쓰기로 바뀌지 않는다.
-      void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-      // 현황판은 같은 회차를 매번 다시 판정하므로 같이 무효화한다 (D-R4)
-      void qc.invalidateQueries({ queryKey: ['board'] });
-      // 쓰기가 회차를 다시 펼치므로 펼친 기간도 달라진다. 안 지우면 staleTime 1시간 동안
-      // 「이 범위는 아직 펼쳐지지 않았습니다」가 이미 그려진 수업 위에 계속 떠 있는다.
-      void qc.invalidateQueries({ queryKey: qk.horizon });
-    },
+    // 회차/현황판/투영 기간만 갱신한다. 코드표·회계·운영은 그대로 유지한다.
+    onSuccess: reconcile,
   });
 }
 

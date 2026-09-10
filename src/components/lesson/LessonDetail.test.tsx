@@ -57,6 +57,14 @@ const result: RosterResult = {
 describe('LessonDetail 명단 결과', () => {
   beforeEach(() => { mutate.mockReset(); permissions.canEdit = true; });
 
+  it('없는 회차 오류에 시간/자원 충돌 해결 안내를 덧붙이지 않는다', () => {
+    mutate.mockImplementationOnce((_write, options) => options.onError({ response: { data: { message: '해당 회차가 없습니다' } } }));
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '이 회차만 빼기' }));
+    expect(view.getByText('해당 회차가 없습니다')).toBeTruthy();
+    expect(view.queryByText(/시간이나 자원을 바꿔/)).toBeNull();
+  });
+
   it('강사는 상세를 읽지만 휴강·취소 및 명단 변경 버튼은 보이지 않는다', () => {
     permissions.canEdit = false;
     const view = render(<LessonDetail occ={{ ...occurrence, attendanceMode: 'readonly' }} onClose={() => undefined} />);

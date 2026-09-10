@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/core';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, ConflictGuard, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
+import { Banner, Button, Chip, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
 import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
 import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
@@ -657,9 +657,9 @@ function AdminSchedulePage() {
         </div>
 
         {err ? (
-          <div className="mb-3">
-            {/* 겹침이면 되돌아가 있다 — 낙관 반영은 mutate 가 이미 원자적으로 되돌렸다 (§5.1) */}
-            <ConflictGuard result="blocking" message={err} />
+          <div className="mb-3" role="alert">
+            {/* 서버 오류는 충돌만이 아니다. rollback 후 원래 오류 메시지를 그대로 알린다. */}
+            <Banner tone="danger">{err}</Banner>
           </div>
         ) : null}
 

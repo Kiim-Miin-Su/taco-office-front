@@ -17,7 +17,7 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { Button, Chip, ConflictGuard, Dialog, Drawer, RecurrenceScope, Select } from '../ui';
+import { Banner, Button, Chip, ConflictGuard, Dialog, Drawer, RecurrenceScope, Select } from '../ui';
 import { hhmm } from '@/lib/calendar';
 import { useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
@@ -204,7 +204,7 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
             </div>
           </section>
 
-          {err ? <ConflictGuard result="blocking" message={err} /> : null}
+          {err ? <div role="alert"><Banner tone="danger">{err}</Banner></div> : null}
           {rosterResult ? (
             <ConflictGuard
               result="ok"

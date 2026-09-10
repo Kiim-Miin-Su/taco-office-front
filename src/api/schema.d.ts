@@ -2784,7 +2784,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description NOT_FOUND: 수업 없음. OCCURRENCE_NOT_FOUND: 원래 onDate가 현재 규칙의 회차가 아님(분할/삭제 후 오래된 참조 포함). 저장하지 않으며 최신 목록에서 다시 선택해야 한다. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2863,7 +2863,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description NOT_FOUND: 수업 없음. OCCURRENCE_NOT_FOUND: 원래 onDate가 현재 규칙의 회차가 아님(분할/삭제 후 오래된 참조 포함). 저장하지 않으며 최신 목록에서 다시 선택해야 한다. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2942,7 +2942,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description NOT_FOUND: 수업 없음. OCCURRENCE_NOT_FOUND: 원래 onDate가 현재 규칙의 회차가 아님(분할/삭제 후 오래된 참조 포함). 저장하지 않으며 최신 목록에서 다시 선택해야 한다. STUDENT_NOT_FOUND: 학생 없음. */
             404: {
                 headers: {
                     [name: string]: unknown;
