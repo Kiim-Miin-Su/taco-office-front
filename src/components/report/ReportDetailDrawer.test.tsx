@@ -11,6 +11,7 @@ vi.mock('@/api/queries', () => ({ useReportDetail: query }));
 vi.mock('./ReportForm', () => ({ ReportEditor: editor }));
 vi.mock('./ReportExportPanel', () => ({ ReportExportPanel: exporter }));
 import { ReportDetailDrawer } from './ReportDetailDrawer';
+import { ApiError } from '@/api/client';
 
 beforeEach(() => { vi.clearAllMocks(); editor.mockReturnValue(null); exporter.mockReturnValue(null); query.mockReturnValue({}); });
 afterEach(cleanup);
@@ -53,4 +54,15 @@ it('배경 재조회가 실패해도 열려 있는 편집기와 미저장 초안
   expect(view.getByRole('textbox', { name: '미저장 초안' })).toBe(input);
   expect((input as HTMLTextAreaElement).value).toBe('작성 중인 내용');
   expect(view.getByText('최신 상태를 다시 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.')).toBeTruthy();
+});
+
+it.each([403, 404])('상세 재조회 %i는 이전 본문·편집·내보내기를 노출하지 않는다', (status) => {
+  query.mockReturnValue({ data: { id: 1, date: '2026-09-07', state: 'draft', canEdit: true,
+    subjectName: '이전 과목', teacherName: '이전 담당' }, isError: true,
+    error: new ApiError(status === 403 ? 'REPORT_FORBIDDEN' : 'REPORT_NOT_FOUND', '접근할 수 없습니다', status) });
+  const view = render(<ReportDetailDrawer selection={{ serId: 2, onDate: '2026-09-07' }} onClose={() => undefined} />);
+  expect(view.getByText('리포트 상세를 불러오지 못했습니다.')).toBeTruthy();
+  expect(view.queryByText(/이전 과목/)).toBeNull();
+  expect(editor).not.toHaveBeenCalled();
+  expect(exporter).not.toHaveBeenCalled();
 });

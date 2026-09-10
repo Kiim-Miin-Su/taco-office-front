@@ -285,15 +285,25 @@ type ReportReviewWrite = {
 function refreshReportConsumers(
   qc: ReturnType<typeof useQueryClient>,
   viewerId: ViewerId,
-  detail: ReportDetail,
+  detail?: ReportDetail,
 ): void {
-  qc.setQueryData(sessionQueryKey(qk.reportDetail(detail.serId, detail.onDate), viewerId), detail);
+  if (detail) qc.setQueryData(sessionQueryKey(qk.reportDetail(detail.serId, detail.onDate), viewerId), detail);
   void qc.invalidateQueries({ queryKey: ['reports'] });
   void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
   void qc.invalidateQueries({ queryKey: qk.accounting });
   void qc.invalidateQueries({ queryKey: ['board'] });
   void qc.invalidateQueries({ queryKey: ['exec'] });
   void qc.invalidateQueries({ queryKey: qk.drawer });
+}
+
+/** 상태/담당자가 바뀐 거절만 재조회한다. 입력 오류·통신 실패는 작성 중인 초안을 보존한다. */
+function reconcileReportError(qc: ReturnType<typeof useQueryClient>, viewerId: ViewerId, error: unknown): void {
+  if (!(error instanceof ApiError)) return;
+  const stale = error.status === 400 && ['REPORT_NOT_ALLOWED', 'REPORT_CANCELED', 'REPORT_NOT_ENDED'].includes(error.code)
+    || error.status === 403 && ['REPORT_FORBIDDEN', 'REPORT_REVIEW_FORBIDDEN'].includes(error.code)
+    || error.status === 404 && error.code === 'REPORT_NOT_FOUND'
+    || error.status === 409 && ['REPORT_LOCKED', 'REPORT_NOT_WAITING'].includes(error.code);
+  if (stale) refreshReportConsumers(qc, viewerId);
 }
 
 /** 임시저장·제출은 입력 계약과 캐시 무효화를 한 경로로 공유한다. */
@@ -308,6 +318,7 @@ export function useReportWrite(): UseMutationResult<ReportDetail, unknown, Repor
         : (await api.post<ReportDetail>(path, w.body)).data;
     },
     onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
+    onError: (error) => reconcileReportError(qc, viewerId, error),
   });
 }
 
@@ -320,6 +331,7 @@ export function useReportReview(): UseMutationResult<ReportDetail, unknown, Repo
       await api.post<ReportDetail>(`/reports/${w.serId}/${w.onDate}/review`, w.body)
     ).data,
     onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
+    onError: (error) => reconcileReportError(qc, viewerId, error),
   });
 }
 

@@ -8,6 +8,7 @@
 'use client';
 
 import { useReportDetail } from '@/api/queries';
+import { ApiError } from '@/api/client';
 import type { ReportDetail } from '@/api/types';
 import { Banner, Drawer } from '../ui';
 import { ReportEditor } from './ReportForm';
@@ -18,7 +19,9 @@ export function ReportDetailDrawer({ selection, onClose }: {
   onClose: () => void;
 }) {
   const detail = useReportDetail(selection?.serId, selection?.onDate);
-  const data = detail.data;
+  // 통신 실패와 접근 상실은 다르다. 서버가 접근을 거절한 상세를 이전 캐시로 노출하지 않는다.
+  const inaccessible = detail.error instanceof ApiError && [403, 404].includes(detail.error.status);
+  const data = inaccessible ? undefined : detail.data;
   return (
     <Drawer open={selection !== null} onClose={onClose} width={720}
       title={data?.canReview ? '리포트 검토' : data?.canEdit ? '리포트 작성' : '리포트 상세'}

@@ -8,10 +8,11 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useReportDetail } from './queries';
+import { useReportDetail, useReportReview, useReportWrite } from './queries';
+import { ApiError } from './client';
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('./client', () => ({ api: { get } }));
+const { get, put, post } = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn() }));
+vi.mock('./client', async (original) => ({ ...await original<typeof import('./client')>(), api: { get, put, post } }));
 vi.mock('@/store/useSession', () => ({
   useSession: (select: (state: { me: { id: number } }) => unknown) => select({ me: { id: 6 } }),
 }));
@@ -20,6 +21,7 @@ let client: QueryClient;
 beforeEach(() => {
   vi.useFakeTimers();
   get.mockReset();
+  put.mockReset(); post.mockReset();
   focusManager.setFocused(true);
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, refetchOnWindowFocus: false } } });
 });
@@ -55,4 +57,46 @@ it('탭 복귀 때 오래된 상세 권한을 다시 조회한다', async () => 
   await act(async () => { await vi.advanceTimersByTimeAsync(1); focusManager.setFocused(false); });
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); focusManager.setFocused(true); });
   expect(get).toHaveBeenCalledTimes(2);
+});
+
+it.each([
+  ['write', 'REPORT_CANCELED', 400], ['write', 'REPORT_NOT_ENDED', 400],
+  ['write', 'REPORT_NOT_ALLOWED', 400], ['write', 'REPORT_FORBIDDEN', 403],
+  ['write', 'REPORT_NOT_FOUND', 404], ['write', 'REPORT_LOCKED', 409],
+  ['review', 'REPORT_NOT_WAITING', 409], ['review', 'REPORT_REVIEW_FORBIDDEN', 403],
+] as const)('%s의 %s/%i는 상세를 재조회하여 최신 서버 가능 여부를 소비한다', async (kind, code, status) => {
+  const error = new ApiError(code, '변경된 상태', status);
+  put.mockRejectedValue(error); post.mockRejectedValue(error);
+  get.mockResolvedValueOnce({ data: { minutesSinceEnd: 1, canEdit: true, canReview: true } })
+    .mockResolvedValue({ data: { minutesSinceEnd: 1, canEdit: false, canReview: false } });
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => ({ detail: useReportDetail(50, '2026-09-07'),
+    write: useReportWrite(), review: useReportReview() }), { wrapper });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  await act(async () => {
+    const target = { serId: 50, onDate: '2026-09-07' };
+    await expect(kind === 'write'
+      ? view.result.current.write.mutateAsync({ ...target, action: 'draft', body: { content: '내용', progress: '진도', homework: '숙제' } })
+      : view.result.current.review.mutateAsync({ ...target, body: { decision: 'approve' } })).rejects.toBe(error);
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(view.result.current.detail.data).toMatchObject({ canEdit: false, canReview: false });
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
+    ['reports'], ['schedule', 'occurrences'], ['accounting'], ['board'], ['exec'], ['drawer'],
+  ]);
+});
+
+it.each(['REPORT_FIELD_REQUIRED', 'REJECT_REASON_REQUIRED', 'NETWORK'])('%s는 입력/네트워크 오류로 유지하고 재조회하지 않는다', async (code) => {
+  const error = new ApiError(code, '저장 실패', code === 'NETWORK' ? 0 : 400);
+  put.mockRejectedValue(error); post.mockRejectedValue(error);
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => ({ write: useReportWrite(), review: useReportReview() }), { wrapper });
+  await act(async () => {
+    const target = { serId: 50, onDate: '2026-09-07' };
+    await expect(code === 'REJECT_REASON_REQUIRED'
+      ? view.result.current.review.mutateAsync({ ...target, body: { decision: 'reject', reason: '' } })
+      : view.result.current.write.mutateAsync({ ...target, action: 'draft', body: { content: '', progress: '', homework: '' } })).rejects.toBe(error);
+  });
+  expect(invalidate).not.toHaveBeenCalled();
 });

@@ -364,7 +364,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** 리포트 임시저장 — 빈 칸을 허용한다 */
+        /**
+         * 리포트 임시저장 — 빈 칸을 허용한다
+         * @description 입력은 content/progress/homework 3칸이다. 부모 SER 잠금 후 최신 일정·출결·담당자와 REP 상태를 검증한다. 상태/권한 오류는 저장하지 않으며 최신 상세·목록을 다시 조회해야 한다.
+         */
         put: operations["ReportsController_saveDraft"];
         post?: never;
         delete?: never;
@@ -382,7 +385,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 리포트 제출 — 3개 입력을 모두 채워야 하며 정산 기준 시각을 최초 1회만 저장한다 */
+        /**
+         * 리포트 제출 — 3개 입력을 모두 채워야 하며 정산 기준 시각을 최초 1회만 저장한다
+         * @description 입력은 content/progress/homework 3칸이다. 부모 SER 잠금 후 최신 일정·출결·담당자와 REP 상태를 검증한다. 상태/권한 오류는 저장하지 않으며 최신 상세·목록을 다시 조회해야 한다.
+         */
         post: operations["ReportsController_submit"];
         delete?: never;
         options?: never;
@@ -399,7 +405,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 제출된 리포트 승인/반려 — 반려 사유 필수, 승인 여부는 정산과 독립 */
+        /**
+         * 제출된 리포트 승인/반려 — 반려 사유 필수, 승인 여부는 정산과 독립
+         * @description 부모 SER → REP 잠금으로 최신 상태·담당자를 읽는다. wait와 canApprove를 검증하며 취소 여부를 추가 승인 조건으로 삼지 않는다. 오류 시 저장하지 않고 최신 상세·목록을 조회한다.
+         */
         post: operations["ReportsController_review"];
         delete?: never;
         options?: never;
@@ -3541,7 +3550,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 검증 오류, REPORT_FIELD_REQUIRED(제출 필수), REPORT_NOT_ALLOWED, REPORT_CANCELED, REPORT_NOT_ENDED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3559,7 +3568,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_FORBIDDEN: 현재 담당 강사 또는 전체 관리 권한이 필요함. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3568,7 +3577,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_NOT_FOUND: 리포트가 없음. 최신 목록에서 다시 선택한다. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3577,7 +3586,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_LOCKED: 제출 대기/승인 상태는 수정할 수 없음. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3622,7 +3631,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 검증 오류, REPORT_FIELD_REQUIRED(제출 필수), REPORT_NOT_ALLOWED, REPORT_CANCELED, REPORT_NOT_ENDED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3640,7 +3649,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_FORBIDDEN: 현재 담당 강사 또는 전체 관리 권한이 필요함. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3649,7 +3658,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_NOT_FOUND: 리포트가 없음. 최신 목록에서 다시 선택한다. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3658,7 +3667,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_LOCKED: 제출 대기/승인 상태는 수정할 수 없음. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3703,7 +3712,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 검증 오류, APPROVE_REASON_FORBIDDEN, REJECT_REASON_REQUIRED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3721,7 +3730,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_REVIEW_FORBIDDEN: 승인 권한이 필요함. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3730,7 +3739,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_NOT_FOUND: 리포트가 없음. 최신 목록에서 다시 선택한다. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3739,7 +3748,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description REPORT_NOT_WAITING: 현재 승인 대기 상태가 아님. */
             409: {
                 headers: {
                     [name: string]: unknown;
