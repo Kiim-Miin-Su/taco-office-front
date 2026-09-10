@@ -49,6 +49,11 @@ export function sessionQueryKey<T extends readonly unknown[]>(key: T, viewerId: 
   return [...key, 'viewer', viewerId] as const;
 }
 
+/** 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다. */
+export function opsQueryKey(viewerId: ViewerId, canMoney: boolean) {
+  return [...sessionQueryKey(qk.ops, viewerId), { canMoney }] as const;
+}
+
 function useViewerId(): ViewerId {
   return useSession((s) => s.me?.id ?? 'anonymous');
 }
@@ -178,9 +183,19 @@ export function useAccounting(): UseQueryResult<Accounting> {
 
 export function useOps(): UseQueryResult<Ops> {
   const viewerId = useViewerId();
+  const canMoney = useSession((s) => s.me?.canMoney === true);
   return useQuery({
-    queryKey: sessionQueryKey(qk.ops, viewerId),
-    queryFn: async () => (await api.get<Ops>('/ops')).data,
+    queryKey: opsQueryKey(viewerId, canMoney),
+    queryFn: async () => {
+      const data = (await api.get<Ops>('/ops')).data;
+      if (canMoney && data.canSeeAmounts === true) return data;
+      // JWT는 발급 시점 권한이다. 현재 Me가 비공개면 과거 JWT 응답도 캐시에 넣기 전에 제한한다.
+      // 회수 전 요청은 과거 권한 키에만 저장되고 현재 화면에 재사용되지 않는다.
+      return {
+        ...data, canSeeAmounts: false,
+        marketing: data.marketing.map((row) => ({ ...row, cost: null, costPerEnroll: null })),
+      };
+    },
     staleTime: 60 * 1000,
   });
 }

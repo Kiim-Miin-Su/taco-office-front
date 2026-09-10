@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import { qk, sessionQueryKey } from '@/api/queries';
-import type { Lead } from '@/api/types';
+import { opsQueryKey } from '@/api/queries';
+import type { Lead, Ops } from '@/api/types';
 import { FAILURE_SEARCH_LABEL } from '@/lib/intake-search';
 import IntakePage from './page';
 
@@ -18,11 +18,14 @@ const lead: Lead = {
 const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', reason: '타 학원 등록' },
   { ...lead, id: 3, name: '윤도현', school: null, ownerName: null, reason: null, stopAt: null },
   { ...lead, id: 4, name: '진행중학생', stage: 'first' }];
+const response: Ops = {
+  leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
+};
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 async function setup() {
-  const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { leads } });
+  const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   const view = render(<QueryClientProvider client={client}><IntakePage /></QueryClientProvider>);
   await waitFor(() => expect(view.getByRole('button', { name: '중단 지점 3' })).toBeTruthy());
@@ -44,7 +47,7 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     expect(view.getByRole('button', { name: '중단 지점 3' })).toBeTruthy();
     expect(view.get).toHaveBeenCalledTimes(1);
     expect(view.get).toHaveBeenCalledWith('/ops');
-    expect(view.client.getQueryData(sessionQueryKey(qk.ops, 'anonymous'))).toEqual({ leads });
+    expect(view.client.getQueryData(opsQueryKey('anonymous', false))).toEqual(response);
   });
 
   it('빈 결과 초기화는 검색어·필터를 즉시 복구하고 입력으로 포커스를 돌린다', async () => {
@@ -79,7 +82,7 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     act(() => { vi.advanceTimersByTime(260); });
     expect(view.getByRole('status').textContent).toBe('검색 결과 2건 / 전체 3건');
     await act(async () => {
-      view.client.setQueryData(sessionQueryKey(qk.ops, 'anonymous'), { leads: [leads[2]] });
+      view.client.setQueryData(opsQueryKey('anonymous', false), { ...response, leads: [leads[2]] });
       vi.advanceTimersByTime(0);
     });
     expect(view.getByRole('status').textContent).toBe('검색 결과 0건 / 전체 1건');
@@ -93,12 +96,12 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     act(() => { vi.advanceTimersByTime(260); });
     view.get.mockRejectedValueOnce(new Error('QA 조회 오류'));
     await act(async () => {
-      await view.client.refetchQueries({ queryKey: sessionQueryKey(qk.ops, 'anonymous') });
+      await view.client.refetchQueries({ queryKey: opsQueryKey('anonymous', false) });
       vi.advanceTimersByTime(0);
     });
     expect(view.queryByRole('searchbox')).toBeNull();
     await act(async () => {
-      view.client.setQueryData(sessionQueryKey(qk.ops, 'anonymous'), { leads });
+      view.client.setQueryData(opsQueryKey('anonymous', false), response);
       vi.advanceTimersByTime(0);
     });
     expect((view.getByRole('searchbox') as HTMLInputElement).value).toBe('장서우');

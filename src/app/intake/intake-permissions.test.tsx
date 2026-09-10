@@ -3,7 +3,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import { qk, sessionQueryKey } from '@/api/queries';
+import { opsQueryKey } from '@/api/queries';
 import type { Me, Ops } from '@/api/types';
 import { AdminTopNavigation } from '@/components/shell/AdminNavigation';
 import { RouteAccess } from '@/components/shell/RequireAuth';
@@ -79,14 +79,14 @@ describe('상담 메뉴 → 직접 URL → 실제 useOps 조회 경계 (D-R39)',
       await waitFor(() => expect(view.getByText('접근 검수 학생')).toBeTruthy());
       expect(view.getByRole('link', { name: '상담' }).getAttribute('aria-current')).toBe('page');
       expect(get.mock.calls).toEqual([['/ops']]);
-      expect(view.client.getQueryData(sessionQueryKey(qk.ops, me.id))).toEqual(response);
+      expect(view.client.getQueryData(opsQueryKey(me.id, me.canMoney))).toEqual(response);
       expect(nav.replace).not.toHaveBeenCalled();
     } else {
       await act(async () => {});
       expect(view.queryByRole('heading', { name: '상담' })).toBeNull();
       expect(view.queryByText('접근 검수 학생')).toBeNull();
       expect(get).not.toHaveBeenCalled();
-      expect(view.client.getQueryData(sessionQueryKey(qk.ops, me.id))).toBeUndefined();
+      expect(view.client.getQueryData(opsQueryKey(me.id, me.canMoney))).toBeUndefined();
       expect(nav.replace).toHaveBeenCalledWith('/schedule');
     }
   });
@@ -118,7 +118,7 @@ describe('상담 메뉴 → 직접 URL → 실제 useOps 조회 경계 (D-R39)',
     expect(view.queryByRole('heading', { name: '상담' })).toBeNull();
     expect(view.queryByText('접근 검수 학생')).toBeNull();
     // 회수 시 캐시 삭제를 가장하지 않는다. 남아 있는 캐시도 비허용 본문에서 소비되면 안 된다.
-    expect(view.client.getQueryData(sessionQueryKey(qk.ops, manager.id))).toEqual(response);
+    expect(view.client.getQueryData(opsQueryKey(manager.id, manager.canMoney))).toEqual(response);
     expect(get.mock.calls).toEqual([['/ops']]);
     expect(nav.replace).toHaveBeenLastCalledWith('/schedule');
   });
