@@ -5,11 +5,13 @@
  */
 
 'use client';
-import { useEffect, type ReactNode } from 'react';
+import { Fragment, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
-import { onSessionExpired } from '@/api/client';
-import { clearSessionQueries } from '@/api/session-cache';
+import { ApiError, apiMessage, onSessionExpired, onSessionRecheck } from '@/api/client';
+import { clearSessionQueries, revalidateSession, sessionAccessKey } from '@/api/session-cache';
+import { Banner } from '@/components/ui/Banner';
+import { Button } from '@/components/ui/Button';
 import { useSession } from '@/store/useSession';
 import { canAccessAppRoute } from './navigation';
 
@@ -21,6 +23,38 @@ export function RouteAccess({ children }: { children: ReactNode }) {
   const me = useSession((s) => s.me);
   const ready = useSession((s) => s.ready);
   const allowed = ready && canAccessAppRoute(pathname, me);
+  const [check, setCheck] = useState<{ path: string; error: unknown }>({ path: pathname, error: null });
+  const [attempt, retry] = useReducer((value: number) => value + 1, 0);
+  const previousPath = useRef(pathname);
+  const userId = me?.id;
+
+  useEffect(() => {
+    const changedPath = previousPath.current !== pathname;
+    previousPath.current = pathname;
+    if (!ready || !userId) { setCheck({ path: pathname, error: null }); return; }
+    let alive = true;
+    const validate = () => {
+      void revalidateSession(queryClient).then(() => {
+        if (alive) setCheck({ path: pathname, error: null });
+      }).catch((error: unknown) => {
+        if (alive && !(error instanceof ApiError && error.code === 'SESSION_CHANGED')) setCheck({ path: pathname, error });
+      });
+    };
+    const visible = () => { if (document.visibilityState === 'visible') validate(); };
+    // 최초 mount는 기존 Me를 신뢰한다. login→schedule을 포함한 경로 전환은 추가 확인한다.
+    if (changedPath || attempt > 0) validate();
+    window.addEventListener('focus', validate);
+    window.addEventListener('online', validate);
+    document.addEventListener('visibilitychange', visible);
+    const unsubscribe = onSessionRecheck(validate);
+    return () => {
+      alive = false;
+      window.removeEventListener('focus', validate);
+      window.removeEventListener('online', validate);
+      document.removeEventListener('visibilitychange', visible);
+      unsubscribe();
+    };
+  }, [pathname, ready, userId, queryClient, attempt]);
 
   // 앱 공통 인증 경계 한 곳에서만 구독한다. 기존 사용자 상태/캐시 정리와 route 전이를 재사용한다.
   useEffect(() => onSessionExpired(() => {
@@ -29,10 +63,13 @@ export function RouteAccess({ children }: { children: ReactNode }) {
   }), [queryClient]);
 
   useEffect(() => {
-    if (ready && !allowed) router.replace(me ? '/schedule' : '/login');
-  }, [ready, allowed, me, router]);
+    if (ready && !allowed && (!me || (check.path === pathname && !check.error))) router.replace(me ? '/schedule' : '/login');
+  }, [ready, allowed, me, router, check, pathname]);
 
-  return allowed ? <>{children}</> : null;
+  if (me && check.error) return <Banner tone="danger"><p>{apiMessage(check.error)}</p><Button onClick={retry}>권한 다시 확인</Button></Banner>;
+  if (me && check.path !== pathname) return <div role="status">권한 확인 중…</div>;
+  // clear()만으로는 기존 QueryObserver의 snapshot/지역 폼이 남을 수 있어 권한 경계에서 재마운트한다.
+  return allowed ? <Fragment key={sessionAccessKey(me)}>{children}</Fragment> : null;
 }
 
 /**

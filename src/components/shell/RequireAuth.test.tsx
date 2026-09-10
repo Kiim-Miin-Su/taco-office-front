@@ -4,8 +4,8 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { act, cleanup, render } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -16,6 +16,7 @@ import type { Me } from '@/api/types';
 const nav = vi.hoisted(() => ({ path: '/ops', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace }) }));
 import { RouteAccess } from './RequireAuth';
+import { AdminTopNavigation } from './AdminNavigation';
 
 const teacher: Me = {
   id: 5, name: '강사', role: 'teacher', title: null, canAdminPage: false, canCrudAll: false,
@@ -81,4 +82,113 @@ it.each(['refresh rejected', 'retry rejected'] as const)('최종401은 화면과
   expect(view.queryByText('보호된 수업 내용')).toBeNull();
   expect(nav.replace).toHaveBeenCalledWith('/login');
   expect(calls).toBe(mode === 'refresh rejected' ? 2 : 3);
+});
+
+const manager: Me = { ...teacher, role: 'manager', canAdminPage: true, canCrudAll: true, canMoney: true };
+function visibleContent() {
+  function Content() {
+    const me = useSession((s) => s.me);
+    return <><AdminTopNavigation pathname={nav.path} me={me} badges={{}} /><input aria-label="작성 중" defaultValue="draft" /><p>보호 본문</p></>;
+  }
+  return <Content />;
+}
+function serveMe(next: Me, gate: Promise<void> = Promise.resolve()) {
+  const get = vi.fn(async (config) => {
+    await gate;
+    return { config, headers: {}, status: 200, statusText: 'OK', data: next };
+  });
+  api.defaults.adapter = get;
+  return get;
+}
+
+it('캐시가 있어도 경로 전환은 최신 Me 확인 전에 새 페이지를 mount하지 않는다', async () => {
+  nav.path = '/schedule'; useSession.getState().signIn('access', manager);
+  const client = new QueryClient();
+  let finish!: () => void;
+  const get = serveMe(teacher, new Promise<void>((done) => { finish = done; }));
+  const view = route(<p>기존 화면</p>, client);
+  const Page = vi.fn(() => <p>새 관리 화면</p>);
+  nav.path = '/ops';
+  view.rerender(<QueryClientProvider client={client}><RouteAccess><Page /></RouteAccess></QueryClientProvider>);
+  expect(Page).not.toHaveBeenCalled();
+  await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+  await act(async () => { finish(); });
+  await waitFor(() => expect(nav.replace).toHaveBeenLastCalledWith('/schedule'));
+  expect(Page).not.toHaveBeenCalled();
+});
+
+it('focus/online 동시 재확인은1GET이고 권한 변경 시 회계 탭·옛 캐시·폼을 함께 폐기한다', async () => {
+  nav.path = '/ops'; useSession.getState().signIn('access', manager);
+  const client = new QueryClient(); client.setQueryData(['sensitive'], 'old-cost');
+  const get = serveMe({ ...manager, canMoney: false });
+  const view = route(visibleContent(), client);
+  expect(view.getByRole('link', { name: '회계' })).toBeTruthy();
+  const input = view.getByRole('textbox', { name: '작성 중' });
+  fireEvent.change(input, { target: { value: 'old draft' } });
+  act(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
+  await waitFor(() => expect(view.queryByRole('link', { name: '회계' })).toBeNull());
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(client.getQueryData(['sensitive'])).toBeUndefined();
+  expect(view.getByRole('textbox', { name: '작성 중' })).not.toBe(input);
+});
+
+it('같은 권한 재확인은 기존 cache·폼 DOM·입력과 Me 참조를 보존한다', async () => {
+  nav.path = '/ops'; useSession.getState().signIn('access', manager);
+  const client = new QueryClient(); client.setQueryData(['sensitive'], 'same-cost');
+  const get = serveMe({ ...manager });
+  const view = route(visibleContent(), client);
+  const input = view.getByRole('textbox', { name: '작성 중' });
+  fireEvent.change(input, { target: { value: 'keep draft' } });
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+  await act(async () => {});
+  expect(useSession.getState().me).toBe(manager);
+  expect(client.getQueryData(['sensitive'])).toBe('same-cost');
+  expect(view.getByRole('textbox', { name: '작성 중' })).toBe(input);
+  expect((input as HTMLInputElement).value).toBe('keep draft');
+});
+
+it('권한 확인 통신 실패는 보호 본문을 닫고 기존 공용 버튼으로 재시도한다', async () => {
+  nav.path = '/ops'; useSession.getState().signIn('access', manager);
+  api.defaults.adapter = async (config) => { throw new AxiosError('offline', AxiosError.ERR_NETWORK, config); };
+  const view = route(visibleContent());
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  await waitFor(() => expect(view.queryByText('보호 본문')).toBeNull());
+  expect(useSession.getState().me).toBe(manager);
+  serveMe(manager);
+  fireEvent.click(view.getByRole('button', { name: '권한 다시 확인' }));
+  await waitFor(() => expect(view.getByText('보호 본문')).toBeTruthy());
+});
+
+it('보호403은 재전송하지 않고 Me를 재검수하여 금지된 화면을 닫는다', async () => {
+  nav.path = '/ops'; useSession.getState().signIn('access', manager);
+  const calls: string[] = [];
+  api.defaults.adapter = async (config) => {
+    calls.push(config.url!);
+    const res = { config, headers: {}, status: 200, statusText: 'OK', data: teacher };
+    if (config.url !== '/auth/me') throw new AxiosError('forbidden', AxiosError.ERR_BAD_REQUEST, config, undefined, { ...res, status: 403 });
+    return res;
+  };
+  const view = route(<p>보호 본문</p>);
+  await act(async () => { await expect(api.get('/ops')).rejects.toMatchObject({ status: 403 }); });
+  await waitFor(() => expect(view.queryByText('보호 본문')).toBeNull());
+  expect(calls).toEqual(['/ops', '/auth/me']);
+  expect(nav.replace).toHaveBeenLastCalledWith('/schedule');
+});
+
+it('권한 변경 시 같은 query key의 살아 있는 observer도 과거 응답을 버리고 재조회한다', async () => {
+  nav.path = '/ops'; useSession.getState().signIn('access', manager);
+  const client = new QueryClient(); client.setQueryData(['private'], '옛 비용');
+  const load = vi.fn(async () => '현재 공개 범위');
+  function Page() {
+    const query = useQuery({ queryKey: ['private'], queryFn: load, staleTime: Infinity });
+    return <p>{query.data}</p>;
+  }
+  const view = route(<Page />, client);
+  expect(view.getByText('옛 비용')).toBeTruthy();
+  serveMe({ ...manager, canMoney: false });
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  await waitFor(() => expect(view.getByText('현재 공개 범위')).toBeTruthy());
+  expect(view.queryByText('옛 비용')).toBeNull();
+  expect(load).toHaveBeenCalledTimes(1);
 });

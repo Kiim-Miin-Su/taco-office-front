@@ -61,11 +61,14 @@ export function isConflict(e: unknown): boolean {
 }
 
 let accessToken: string | null = null;
-// 명시적 설정(로그인/로그아웃·초기 복구) 경계만 증가한다. 자동 Access 갱신은 사용자 전환이 아니다.
+// 명시적 토큰 설정 또는 현재 권한 변경 때 증가한다. 자동 Access 갱신만으로는 증가하지 않는다.
 let sessionGeneration = 0;
+export const getSessionGeneration = () => sessionGeneration;
+/** 계정은 같아도 권한이 바뀌면 옛 보호 응답/재전송을 폐기한다. 토큰은 교체하지 않는다. */
+export const invalidateSessionRequests = () => { sessionGeneration += 1; };
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
-  sessionGeneration += 1;
+  invalidateSessionRequests();
 };
 
 type Retryable = AxiosRequestConfig & { _retried?: boolean; _sessionGeneration?: number };
@@ -75,6 +78,12 @@ const sessionChanged = () => new ApiError('SESSION_CHANGED', '로그인 상태�
 
 /** UI/캐시 정리는 RouteAccess가 구독한다. Axios는 store/router/QueryClient를 소유하지 않는다. */
 const expiryListeners = new Set<() => void>();
+const recheckListeners = new Set<() => void>();
+/** 권한 재조회와 UI 반영은 공용 인증 경계가 소유한다. 403 요청 자체를 재전송하지 않는다. */
+export function onSessionRecheck(listener: () => void): () => void {
+  recheckListeners.add(listener);
+  return () => { recheckListeners.delete(listener); };
+}
 export function onSessionExpired(listener: () => void): () => void {
   expiryListeners.add(listener);
   return () => { expiryListeners.delete(listener); };
@@ -115,6 +124,10 @@ api.interceptors.response.use(
   (r) => {
     if (!isAuthAction(r.config.url)
       && (r.config as Retryable)._sessionGeneration !== sessionGeneration) throw sessionChanged();
+    // 갱신 뒤 보호 재시도까지 성공한 때만 재확인한다. Me 자체는 재귀적으로 재조회하지 않는다.
+    if ((r.config as Retryable)._retried && r.config.url !== '/auth/me') {
+      for (const listener of recheckListeners) listener();
+    }
     return r;
   },
   async (err: AxiosError<Partial<ApiErrorResponse>>) => {
@@ -125,6 +138,9 @@ api.interceptors.response.use(
     if (cfg && !isAuthAction(cfg.url)) {
       const generation = cfg._sessionGeneration;
       if (generation !== sessionGeneration) throw sessionChanged();
+      if (status === 403 && cfg.url !== '/auth/me') {
+        for (const listener of recheckListeners) listener();
+      }
       if (status === 401) {
         if (!cfg._retried) {
           cfg._retried = true;

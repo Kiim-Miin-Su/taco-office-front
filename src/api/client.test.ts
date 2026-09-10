@@ -6,7 +6,7 @@
 
 import { AxiosError, CanceledError, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, ApiError, apiMessage, setAccessToken } from './client';
+import { api, ApiError, apiMessage, setAccessToken, onSessionRecheck } from './client';
 
 const originalAdapter = api.defaults.adapter;
 const response = (config: InternalAxiosRequestConfig, data: unknown, status = 200) => ({
@@ -30,6 +30,21 @@ afterEach(() => {
 });
 
 describe('공용 API 오류 경계', () => {
+  it.each(['/ops', '/auth/me'])('갱신 뒤 성공한 %s만 Me 재확인 신호를 보낸다(Me 재귀 제외)', async (url) => {
+    setAccessToken('old');
+    const listener = vi.fn();
+    const unsubscribe = onSessionRecheck(listener);
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/auth/refresh') return response(config, { accessToken: 'new' });
+      if (config.headers.Authorization === 'Bearer old') throw unauthorized(config);
+      return response(config, {});
+    };
+    try {
+      await api.get(url);
+      expect(listener).toHaveBeenCalledTimes(url === '/auth/me' ? 0 : 1);
+    } finally { unsubscribe(); }
+  });
+
   it('20초 제한은 유지하면서 timeout과 브라우저 abort를 구분한다', async () => {
     api.defaults.adapter = async (config) => {
       expect(config.timeout).toBe(20_000);
