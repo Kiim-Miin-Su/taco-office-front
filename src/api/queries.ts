@@ -19,7 +19,7 @@ import { useSession } from '@/store/useSession';
 import { api } from './client';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
-  OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
+  OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
@@ -75,13 +75,7 @@ export interface BoardParams extends RangeParams {
   subKey?: string;
 }
 
-export interface OccParams {
-  from: string;
-  to: string;
-  teacherId?: number;
-  studentId?: number;
-  roomId?: number;
-}
+export type OccParams = OccurrenceQuery;
 
 /** 코드표는 거의 안 바뀐다 — 오래 들고 있는다 */
 export function useMeta(enabled = true): UseQueryResult<Meta> {

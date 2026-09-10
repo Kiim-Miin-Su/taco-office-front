@@ -2194,9 +2194,10 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
-                teacherId?: string;
-                studentId?: string;
-                roomId?: string;
+                /** @description 생략하면 전체. 강사는 유효한 값이어도 서버가 본인 ID를 강제한다 */
+                teacherId?: number;
+                studentId?: number;
+                roomId?: number;
             };
             header?: never;
             path?: never;
@@ -2428,6 +2429,7 @@ export interface operations {
             header?: never;
             path: {
                 serId: number;
+                /** @description SER_OCC의 원래 날짜 키 */
                 onDate: string;
             };
             cookie?: never;

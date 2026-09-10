@@ -4,11 +4,19 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { describe, expect, it, vi } from 'vitest';
-import { opsQueryKey, qk, sessionQueryKey } from './queries';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { opsQueryKey, qk, sessionQueryKey, type OccParams } from './queries';
 import { clearSessionQueries } from './session-cache';
 
 describe('session query cache boundary', () => {
+  it('일정 query 생성 계약은 조회5필드·숫자 필터와 기존 캐시 키를 유지한다', () => {
+    expectTypeOf<OccParams>().toEqualTypeOf<{
+      from: string; to: string; teacherId?: number; studentId?: number; roomId?: number;
+    }>();
+    const params: OccParams = { from: '2026-09-11', to: '2026-09-11', teacherId: 11, studentId: 1, roomId: 4 };
+    expect(sessionQueryKey(qk.occurrences(params), 11)).toEqual(['schedule', 'occurrences', params, 'viewer', 11]);
+  });
+
   it('같은 요청도 사용자별로 다른 query key를 만든다', () => {
     const request = ['reports', { state: 'rej' }] as const;
 

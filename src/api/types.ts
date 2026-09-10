@@ -34,6 +34,8 @@ export type StudentBrief = S['StudentBriefDto'];
 /** 스케줄 — 탭 01 의 다섯 화면이 이 한 모양을 쓰고 묶는 방법만 다르다 */
 export type Occurrence = S['OccurrenceDto'];
 export type OccurrenceList = S['OccurrenceListDto'];
+/** Query도 DTO/OpenAPI 정본에서 가져온다. 숫자 필터를 string으로 수기 재선언하지 않는다. */
+export type OccurrenceQuery = paths['/schedule/occurrences']['get']['parameters']['query'];
 export type OccStudent = S['OccStudentDto'];
 export type Attendance = S['AttendanceDto'];
 export type AttendanceWrite = S['AttendanceWriteDto'];
