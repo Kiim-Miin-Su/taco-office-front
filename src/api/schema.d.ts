@@ -1141,6 +1141,8 @@ export interface components {
             school?: string | null;
             /** @description first | wait2nd | second | hold | enrolled | failed */
             stage: string;
+            ownerId?: number | null;
+            studentId?: number | null;
             ownerName?: string | null;
             /** @description 실패한 경우 어디서 멈췄나 (§24) */
             stopAt?: string | null;
