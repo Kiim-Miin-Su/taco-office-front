@@ -15,7 +15,7 @@ import { forwardRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useReportReview, useReportWrite } from '@/api/queries';
 import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
-import { hhmm } from '@/lib/calendar';
+import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
 import { Banner, Button, CountedTextarea, Label, Panel, Textarea } from '../ui';
 
 export function ReportForm({ fields, value, onChange, readOnly }: {
@@ -101,7 +101,7 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         </div>
       </Panel>
       <Panel title="② 수업" sub="날짜·과목·시간은 회차 레코드에서 자동으로 입력됩니다.">
-        <div className="text-[13px] font-bold text-fg">{detail.date} · {subject} · {hhmm(detail.startMin)}</div>
+        <div className="text-[13px] font-bold text-fg">{detail.date} · {subject} · {reportTimeLabel(detail)}</div>
       </Panel>
 
       <ReportForm fields={detail.fields} value={body} onChange={setBody} readOnly={!detail.canEdit} />
@@ -153,18 +153,10 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
 }
 
 /** 학부모에게 나가는 전문(§50). PNG 파일 이름은 서버가 정한다 (D-R33). */
-export interface ReportPreviewProps {
-  studentName: string;
-  grade?: string | null;
-  date: string;
-  subject: string;
-  startTime: string;
-  fields: ReportField[];
-  body: ReportBody;
-}
+export type ReportPreviewProps = ReportExportContent;
 
 export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(function ReportPreview(
-  { studentName, grade, date, subject, startTime, fields, body },
+  { studentName, grade, date, subject, timeLabel, fields, body },
   ref,
 ) {
   return (
@@ -180,7 +172,7 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
         <div className="flex items-center gap-3 bg-inset px-4 py-2 text-[11.5px]">
           <span className="font-bold text-fg">{date}</span>
           <span className="font-bold text-blue">{subject}</span>
-          <span className="text-fg-subtle">{startTime}</span>
+          <span className="text-fg-subtle">{timeLabel}</span>
         </div>
         <div className="flex flex-col gap-3 p-4">
           {fields.map((field) => (

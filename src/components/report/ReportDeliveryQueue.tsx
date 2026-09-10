@@ -9,8 +9,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useReportDelivery, useReportDeliverySend } from '@/api/queries';
 import type { ReportDeliveryCreate, ReportDeliveryStudent, ReportDetail } from '@/api/types';
-import { hhmm } from '@/lib/calendar';
-import { renderReportPng, reportExportContent } from '@/lib/report-export';
+import { renderReportPng, reportExportContent, reportTimeLabel } from '@/lib/report-export';
 import { Banner, Button, Checkbox, Chip } from '../ui';
 import { ReportPreview } from './ReportForm';
 
@@ -131,7 +130,7 @@ export function ReportDeliveryQueue({ onOpenReport }: { onOpenReport: (report: R
                     className="flex items-center justify-between rounded-lg border border-line bg-inset px-3 py-2 text-left text-[12px] hover:border-blue"
                     onClick={() => onOpenReport(report)}
                   >
-                    <span><b>{report.subjectName}</b> · {hhmm(report.startMin)}</span>
+                    <span><b>{report.subjectName}</b> · {reportTimeLabel(report)}</span>
                     <span className="text-fg-subtle">전문 보기 ›</span>
                   </button>
                 ))}

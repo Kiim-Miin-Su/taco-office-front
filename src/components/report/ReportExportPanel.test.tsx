@@ -17,7 +17,7 @@ const fields: ReportField[] = [
 ];
 
 const detail: ReportDetail = {
-  id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960,
+  id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
   subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
   written: true,
   students: [
@@ -36,6 +36,26 @@ const detail: ReportDetail = {
 };
 
 describe('ReportExportPanel — 학생별 동일 전문', () => {
+  it.each([
+    { startMin: 960, endMin: 1020, label: '16:00–17:00' },
+    { startMin: 1380, endMin: 1440, label: '23:00–24:00' },
+    { startMin: null, endMin: null, label: '시간 미정' },
+  ])('PNG 대상과 서버 본문은 동일 회차 범위를 전달한다: $label', async ({ startMin, endMin, label }) => {
+    const download = vi.spyOn(reportExport, 'downloadReportPng').mockResolvedValue(undefined);
+    const copy = vi.spyOn(reportExport, 'copyReportText').mockResolvedValue(undefined);
+    const source = { ...detail, startMin, endMin, date: '2026-09-04', exportFiles: [
+      { studentId: 4, fileName: 'server.png', plainText: `서버 본문 ${label}` },
+    ] };
+    const view = render(<ReportExportPanel detail={source} />);
+    expect(view.getByText(label)).toBeTruthy();
+    fireEvent.click(view.getByText('PNG 저장'));
+    await waitFor(() => expect(download).toHaveBeenCalledOnce());
+    expect(download.mock.calls[0][0].textContent).toContain(label);
+    expect(download.mock.calls[0][0].textContent).toContain('2026-09-04');
+    fireEvent.click(view.getByText('본문 복사'));
+    await waitFor(() => expect(copy).toHaveBeenCalledWith(`서버 본문 ${label}`));
+  });
+
   it('선택한 학생과 서버 파일명으로 같은 미리보기를 출력한다', async () => {
     const download = vi.spyOn(reportExport, 'downloadReportPng').mockResolvedValue(undefined);
     const view = render(<ReportExportPanel detail={detail} />);

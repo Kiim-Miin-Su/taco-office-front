@@ -12,13 +12,19 @@ export interface ReportExportContent {
   grade?: string | null;
   date: string;
   subject: string;
-  startTime: string;
+  timeLabel: string;
   fields: ReportField[];
   body: ReportBody;
 }
 
 type ClipboardWriter = Pick<Clipboard, 'writeText'>;
 type PngRenderer = (node: HTMLElement, options: { cacheBust: boolean; pixelRatio: number }) => Promise<string>;
+
+/** 편집기·발송 큐·PNG가 같은 파생 시간 계약을 표시한다. null은 가짜 00:00으로 변환하지 않는다. */
+export function reportTimeLabel(report: Pick<ReportDetail, 'startMin' | 'endMin'>): string {
+  return report.startMin == null || report.endMin == null
+    ? '시간 미정' : `${hhmm(report.startMin)}–${hhmm(report.endMin)}`;
+}
 
 /** 상세·큐·PNG·복사가 같은 학생 선택 어댑터를 쓴다. 본문 문자열은 서버 descriptor가 소유한다. */
 export function reportExportContent(detail: ReportDetail, studentId: number): {
@@ -35,7 +41,7 @@ export function reportExportContent(detail: ReportDetail, studentId: number): {
       grade: student.grade,
       date: detail.date,
       subject: detail.subjectName,
-      startTime: hhmm(detail.startMin),
+      timeLabel: reportTimeLabel(detail),
       fields: detail.fields,
       body: detail.body,
     },

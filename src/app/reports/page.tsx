@@ -76,7 +76,7 @@ export default function ReportsPage() {
 
   const listCols: Array<Column<ReportRow>> = [
     { key: 'd', head: '수업일', width: 110, cell: (r) => <span className="font-bold">{r.date}</span> },
-    { key: 't', head: '시각', width: 70, cell: (r) => hhmm(r.startMin) },
+    { key: 't', head: '시각', width: 70, cell: (r) => r.startMin === null ? '시간 미정' : hhmm(r.startMin) },
     { key: 's', head: '과목', width: 140, cell: (r) => subName(r.subKey) },
     { key: 'tc', head: '강사', width: 90, cell: (r) => r.teacherName ?? '—' },
     { key: 'st', head: '학생', cell: (r) => r.students.map((s) => s.name).join(' · ') || '—' },

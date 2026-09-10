@@ -41,7 +41,7 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
 
   it('승인 대기는 읽기 전용이며 반려를 선택할 때만 사유 입력 하나를 연다', () => {
     const detail: ReportDetail = {
-      id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960,
+      id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
       subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
       written: true, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
       body: { content: '수업', progress: '42p', homework: '43p' }, fields,
@@ -58,6 +58,7 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
 
     expect(view.container.querySelectorAll('textarea')).toHaveLength(0);
     fireEvent.click(view.getByText('반려'));
+    expect(view.container.textContent).toContain('16:00–17:00');
     expect(view.container.querySelectorAll('textarea')).toHaveLength(1);
     expect((view.getByText('사유와 함께 반려') as HTMLButtonElement).disabled).toBe(true);
 
@@ -70,5 +71,12 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
     expect(view.getByText('수업이 끝난 뒤 리포트를 작성할 수 있습니다.')).toBeTruthy();
     expect(view.queryByText('임시저장')).toBeNull();
     expect(view.queryByText('제출')).toBeNull();
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <ReportEditor detail={{ ...detail, startMin: null, endMin: null }} subject="AP Chemistry" />
+      </QueryClientProvider>,
+    );
+    expect(view.container.textContent).toContain('시간 미정');
+    expect(view.container.textContent).not.toContain('00:00');
   });
 });

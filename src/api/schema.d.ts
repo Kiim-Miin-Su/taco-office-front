@@ -950,7 +950,10 @@ export interface components {
              * @example 2026-08-27
              */
             onDate: string;
-            startMin: number;
+            /** @description 실제 SER_OCC.span 시작의 KST 분. 회차 투영이 없으면 null; 쓰기 입력이 아니다. */
+            startMin: number | null;
+            /** @description 실제 SER_OCC.span 종료의 KST 분. 자정 종료는 1440, 회차 투영이 없으면 null; 쓰기 입력이 아니다. */
+            endMin: number | null;
             subKey?: string | null;
             kindKey: string;
             teacherId?: number | null;
@@ -1020,7 +1023,10 @@ export interface components {
              * @example 2026-08-27
              */
             onDate: string;
-            startMin: number;
+            /** @description 실제 SER_OCC.span 시작의 KST 분. 회차 투영이 없으면 null; 쓰기 입력이 아니다. */
+            startMin: number | null;
+            /** @description 실제 SER_OCC.span 종료의 KST 분. 자정 종료는 1440, 회차 투영이 없으면 null; 쓰기 입력이 아니다. */
+            endMin: number | null;
             subKey?: string | null;
             kindKey: string;
             teacherId?: number | null;

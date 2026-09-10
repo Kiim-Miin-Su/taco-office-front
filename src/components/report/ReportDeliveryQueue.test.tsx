@@ -17,7 +17,7 @@ vi.mock('@/api/queries', () => ({
 }));
 
 const report = (id: number, studentId: number, studentName: string): ReportDetail => ({
-  id, serId: id + 100, date: '2026-09-04', onDate: '2026-09-04', startMin: 960,
+  id, serId: id + 100, date: '2026-09-04', onDate: '2026-09-04', startMin: 960, endMin: 1020,
   subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'ok', written: true,
   students: [{ id: studentId, name: studentName, grade: '고2', deliver: true }],
   minutesSinceEnd: 30, penalty: 0,
