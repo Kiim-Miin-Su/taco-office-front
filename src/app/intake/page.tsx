@@ -4,12 +4,15 @@
  * 「그냥 실패」로 묶으면 고칠 곳을 못 찾는다. 어디서 멈췄는지를 세어 둔다.
  */
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { useOps } from '@/api/queries';
 import type { Lead } from '@/api/types';
+import { SearchField, type SearchFieldHandle } from '@/components/ui/SearchField';
+import { SearchEmpty } from '@/components/ui/SearchEmpty';
+import { FAILURE_SEARCH_LABEL, filterLeadsByQuery } from '@/lib/intake-search';
 
 const STAGES: Array<{ key: string; label: string; tone: 'neutral' | 'info' | 'warning' | 'success' | 'danger' }> = [
   { key: 'first', label: '1차 상담', tone: 'info' },
@@ -20,7 +23,7 @@ const STAGES: Array<{ key: string; label: string; tone: 'neutral' | 'info' | 'wa
   { key: 'failed', label: '실패', tone: 'danger' },
 ];
 
-/** 중단 지점 — 이 분류가 §24 의 전부다 */
+/** 기존 저장 코드. 원본 fail.from/at{}와의 이관은 N-25 확정 후 별도 청크에서 처리한다. */
 const STOP: Record<string, string> = {
   before_first: '1차 상담 전 이탈',
   after_first: '1차 후 미진행',
@@ -30,6 +33,8 @@ const STOP: Record<string, string> = {
 
 export default function IntakePage() {
   const [tab, setTab] = useState<'board' | 'stop'>('board');
+  const [failureQuery, setFailureQuery] = useState('');
+  const searchRef = useRef<SearchFieldHandle>(null);
   const q = useOps();
   const leads = useMemo(() => q.data?.leads ?? [], [q.data]);
 
@@ -38,26 +43,28 @@ export default function IntakePage() {
     items: leads.filter((l) => l.stage === s.key),
   }));
 
-  const failed = leads.filter((l) => l.stage === 'failed');
+  const failed = useMemo(() => leads.filter((l) => l.stage === 'failed'), [leads]);
+  const matchingFailed = useMemo(() => filterLeadsByQuery(failed, failureQuery), [failed, failureQuery]);
+  const showSearch = tab === 'stop' && !q.isLoading && !q.isError;
   const enrolled = leads.filter((l) => l.stage === 'enrolled');
   const rate = leads.length ? Math.round((enrolled.length / leads.length) * 100) : 0;
 
   const stopRows = useMemo(() => {
     const g = new Map<string, Lead[]>();
-    for (const l of failed) {
+    for (const l of matchingFailed) {
       const k = l.stopAt ?? 'unknown';
       g.set(k, [...(g.get(k) ?? []), l]);
     }
     return [...g.entries()]
       .map(([k, v]) => ({ key: k, label: STOP[k] ?? '분류 안 됨', count: v.length, items: v }))
       .sort((a, b) => b.count - a.count);
-  }, [failed]);
+  }, [matchingFailed]);
 
   const stopCols: Array<Column<(typeof stopRows)[number]>> = [
     { key: 'l', head: '중단 지점', width: 200, cell: (r) => <span className="font-bold">{r.label}</span> },
     { key: 'n', head: '건수', width: 80, align: 'right', cell: (r) => <Chip tone="danger">{r.count}건</Chip> },
     { key: 'p', head: '비중', width: 100, align: 'right',
-      cell: (r) => `${failed.length ? Math.round((r.count / failed.length) * 100) : 0}%` },
+      cell: (r) => `${matchingFailed.length ? Math.round((r.count / matchingFailed.length) * 100) : 0}%` },
     { key: 'r', head: '주된 사유', cell: (r) => r.items.map((i) => i.reason).filter(Boolean).join(' · ') || '—' },
   ];
 
@@ -74,6 +81,17 @@ export default function IntakePage() {
 
       <Tabs className="mb-3" value={tab} onChange={setTab}
         options={[{ value: 'board', label: '단계 보드' }, { value: 'stop', label: `중단 지점 ${failed.length}` }]} />
+
+      {/* 탭 왕복·재조회 오류 복구 때 입력과 FQ를 함께 보존하되, 비활성 상태에는 숨긴다. */}
+      <div hidden={!showSearch} className={showSearch ? 'mb-3 flex flex-wrap items-center justify-between gap-3' : 'hidden'}>
+        <span id="failure-search-status" role="status" className="text-[12px] text-fg-2">
+          검색 결과 {matchingFailed.length}건 / 전체 {failed.length}건
+        </span>
+        <div className="w-full sm:w-[360px]">
+          <SearchField ref={searchRef} label={FAILURE_SEARCH_LABEL} placeholder={FAILURE_SEARCH_LABEL}
+            onQueryChange={setFailureQuery} controls="failure-search-results" />
+        </div>
+      </div>
 
       {q.isLoading ? <Banner tone="neutral">불러오는 중…</Banner>
         : q.isError ? <Banner tone="danger">상담은 매니저 이상만 볼 수 있습니다.</Banner>
@@ -97,7 +115,11 @@ export default function IntakePage() {
           />
         ) : (
           <>
-            <Table columns={stopCols} rows={stopRows} rowKey={(r) => r.key} empty="실패한 상담이 없습니다" />
+            <div id="failure-search-results" aria-describedby="failure-search-status">
+              {failureQuery.trim() && matchingFailed.length === 0
+                ? <SearchEmpty onClear={() => searchRef.current?.clear()} />
+                : <Table columns={stopCols} rows={stopRows} rowKey={(r) => r.key} empty="실패한 상담이 없습니다" />}
+            </div>
             <Panel className="mt-4" title="왜 나눠서 세는가">
               <p className="text-[12px] leading-relaxed text-fg-2">
                 「그냥 실패 4건」이면 고칠 곳을 못 찾습니다. <b>상담 예약 전 이탈</b>은 회신 속도의 문제이고,
