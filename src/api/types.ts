@@ -44,6 +44,10 @@ export type AttendanceResult = AttendanceWrite['result'];
 export type AttendanceCancelReason = NonNullable<AttendanceWrite['reason']>;
 
 /** 리포트 */
+export type ReportQuery = NonNullable<paths['/reports']['get']['parameters']['query']>;
+export type ReportTeacherQuery = NonNullable<paths['/reports/unwritten']['get']['parameters']['query']>;
+export type ReportDeliveryQuery = NonNullable<paths['/reports/deliveries']['get']['parameters']['query']>;
+export type ReportHistoryQuery = NonNullable<paths['/reports/deliveries/history']['get']['parameters']['query']>;
 export type ReportRow = S['ReportRowDto'];
 export type ReportList = S['ReportListDto'];
 export type Unwritten = S['UnwrittenDto'];

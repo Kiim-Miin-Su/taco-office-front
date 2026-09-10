@@ -24,6 +24,7 @@ import type {
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
+  ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -100,12 +101,8 @@ export function useOccurrences(p: OccParams, enabled = true): UseQueryResult<Occ
   });
 }
 
-export interface ReportParams {
-  from?: string;
-  to?: string;
-  teacherId?: number;
-  state?: string;
-}
+/** 날짜·상태·숫자 필터는 생성 OpenAPI만 소유한다. */
+export type ReportParams = ReportQuery;
 
 export function useReports(p: ReportParams = {}, enabled = true): UseQueryResult<ReportList> {
   const viewerId = useViewerId();
@@ -118,7 +115,7 @@ export function useReports(p: ReportParams = {}, enabled = true): UseQueryResult
 }
 
 /** §47 — 강사별로 몇 건 밀렸는지. 차감은 서버가 rules.ts 로 계산해 내려준다 (D-R32) */
-export function useUnwritten(teacherId?: number, enabled = true): UseQueryResult<Unwritten> {
+export function useUnwritten(teacherId?: ReportTeacherQuery['teacherId'], enabled = true): UseQueryResult<Unwritten> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.unwritten(teacherId), viewerId),
@@ -145,7 +142,7 @@ export function useReportDetail(
   });
 }
 
-export function useReportDelivery(onDate?: string, enabled = true): UseQueryResult<ReportDeliveryQueue> {
+export function useReportDelivery(onDate?: ReportDeliveryQuery['onDate'], enabled = true): UseQueryResult<ReportDeliveryQueue> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.reportDelivery(onDate), viewerId),
@@ -155,10 +152,7 @@ export function useReportDelivery(onDate?: string, enabled = true): UseQueryResu
   });
 }
 
-export interface ReportDeliveryHistoryParams {
-  onDate?: string;
-  repId?: number;
-}
+export type ReportDeliveryHistoryParams = ReportHistoryQuery;
 
 export function useReportDeliveryHistory(
   p: ReportDeliveryHistoryParams = {}, enabled = true,

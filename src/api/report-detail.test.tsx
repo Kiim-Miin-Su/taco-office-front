@@ -8,7 +8,8 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useReportDetail, useReportReview, useReportWrite } from './queries';
+import { useReportDetail, useReportReview, useReportWrite, useReports, useReportDelivery, useReportDeliveryHistory } from './queries';
+import type { ReportQuery } from './types';
 import { ApiError } from './client';
 
 const { get, put, post } = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn() }));
@@ -30,6 +31,25 @@ afterEach(() => { cleanup(); client.clear(); focusManager.setFocused(undefined);
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+it('목록/발송은 실제 날짜 query를 보내고 상세는 응답의 원래 회차키를 사용한다', async () => {
+  const params: ReportQuery = { from: '2026-09-08', to: '2026-09-08', teacherId: 6, state: 'wait' };
+  const row = { serId: 50, date: '2026-09-08', onDate: '2026-09-07' };
+  get.mockResolvedValue({ data: { items: [row] } });
+  const view = renderHook(() => ({ list: useReports(params),
+    queue: useReportDelivery(params.from), history: useReportDeliveryHistory({ onDate: params.from, repId: 9 }),
+    detail: useReportDetail(row.serId, row.onDate) }), { wrapper });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(view.result.current.list.data?.items[0]).toEqual(row);
+  expect(get).toHaveBeenCalledWith('/reports', { params });
+  expect(get).toHaveBeenCalledWith('/reports/deliveries', { params: { onDate: '2026-09-08' } });
+  expect(get).toHaveBeenCalledWith('/reports/deliveries/history', { params: { onDate: '2026-09-08', repId: 9 } });
+  expect(get).toHaveBeenCalledWith('/reports/50/2026-09-07');
+  expect(get).toHaveBeenCalledTimes(4);
+  view.rerender();
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(get).toHaveBeenCalledTimes(4);
+});
 
 it('열어 둔 예정 리포트는 서버에서 종료를 확인하면 작성 가능해지고 주기 조회를 멈춘다', async () => {
   get.mockResolvedValueOnce({ data: { minutesSinceEnd: -1, canEdit: false } })

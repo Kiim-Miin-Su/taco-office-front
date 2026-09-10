@@ -260,7 +260,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 리포트 목록 */
+        /**
+         * 리포트 목록
+         * @description from/to는 실제 KST 수업일 범위(양끝 포함). 회차 투영 없는 보존 이력만 원래 날짜로 표시/조회한다. 상세 참조는 각 응답의 serId/onDate를 사용한다.
+         */
         get: operations["ReportsController_list"];
         put?: never;
         post?: never;
@@ -294,7 +297,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** §48·§49 학생별 리포트 발송 큐 — 없으면 KST 어제 */
+        /**
+         * §48·§49 학생별 리포트 발송 큐 — 없으면 KST 어제
+         * @description onDate는 실제 KST 수업일이다. 옮긴 회차도 해당 날짜의 학생 묶음에 포함하며 상세 조회는 개별 리포트의 원래 onDate를 사용한다.
+         */
         get: operations["ReportsController_deliveryQueue"];
         put?: never;
         /** 학생 1명의 승인된 리포트 PNG를 private Blob에 보존하고 발송 이력 생성 */
@@ -1107,7 +1113,11 @@ export interface components {
              * @description 재시도·더블클릭 중복 방지 키
              */
             requestKey: string;
-            /** @example 2026-08-27 */
+            /**
+             * Format: date
+             * @description 발송 묶음의 실제 KST 수업일. 각 리포트의 원래 onDate와 구분한다
+             * @example 2026-08-27
+             */
             onDate: string;
             studentId: number;
             files: components["schemas"]["ReportDeliveryFileInputDto"][];
@@ -2995,10 +3005,14 @@ export interface operations {
     ReportsController_list: {
         parameters: {
             query?: {
+                /** @description 작성자 필터. 강사는 유효한 값도 본인 ID로 강제한다 */
+                teacherId?: number;
+                /** @description 실제 KST 수업일 시작(포함). 없으면 하한 없음 */
                 from?: string;
+                /** @description 실제 KST 수업일 끝(포함). 없으면 상한 없음 */
                 to?: string;
-                teacherId?: string;
-                state?: string;
+                /** @description 현재 회차에서 파생한 리포트 상태 */
+                state?: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
             };
             header?: never;
             path?: never;
@@ -3014,7 +3028,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportListDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3073,7 +3087,8 @@ export interface operations {
     ReportsController_unwritten: {
         parameters: {
             query?: {
-                teacherId?: string;
+                /** @description 작성자 필터. 강사는 유효한 값도 본인 ID로 강제한다 */
+                teacherId?: number;
             };
             header?: never;
             path?: never;
@@ -3089,7 +3104,7 @@ export interface operations {
                     "application/json": components["schemas"]["UnwrittenDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3148,7 +3163,7 @@ export interface operations {
     ReportsController_deliveryQueue: {
         parameters: {
             query?: {
-                /** @description 없으면 KST 어제 */
+                /** @description 발송 대상 실제 KST 수업일. 큐에서 생략하면 어제, 이력에서 생략하면 전체. 이력은 발송 당시 날짜를 보존한다 */
                 onDate?: string;
             };
             header?: never;
@@ -3165,7 +3180,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDeliveryQueueDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3242,7 +3257,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDeliveryResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3301,7 +3316,7 @@ export interface operations {
     ReportsController_deliveryHistory: {
         parameters: {
             query?: {
-                /** @description 없으면 KST 어제 */
+                /** @description 발송 대상 실제 KST 수업일. 큐에서 생략하면 어제, 이력에서 생략하면 전체. 이력은 발송 당시 날짜를 보존한다 */
                 onDate?: string;
                 repId?: number;
             };
@@ -3319,7 +3334,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportSendHistoryListDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3398,7 +3413,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDeliveryResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3460,7 +3475,7 @@ export interface operations {
             header?: never;
             path: {
                 serId: number;
-                /** @description REP 복합 유니크 키의 날짜 */
+                /** @description REP 복합 유니크 키의 원래 날짜. 옮긴 실제 날짜와 다를 수 있다 */
                 onDate: string;
             };
             cookie?: never;
@@ -3475,7 +3490,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3537,7 +3552,7 @@ export interface operations {
             header?: never;
             path: {
                 serId: number;
-                /** @description REP 복합 유니크 키의 날짜 */
+                /** @description REP 복합 유니크 키의 원래 날짜. 옮긴 실제 날짜와 다를 수 있다 */
                 onDate: string;
             };
             cookie?: never;
@@ -3618,7 +3633,7 @@ export interface operations {
             header?: never;
             path: {
                 serId: number;
-                /** @description REP 복합 유니크 키의 날짜 */
+                /** @description REP 복합 유니크 키의 원래 날짜. 옮긴 실제 날짜와 다를 수 있다 */
                 onDate: string;
             };
             cookie?: never;
@@ -3699,7 +3714,7 @@ export interface operations {
             header?: never;
             path: {
                 serId: number;
-                /** @description REP 복합 유니크 키의 날짜 */
+                /** @description REP 복합 유니크 키의 원래 날짜. 옮긴 실제 날짜와 다를 수 있다 */
                 onDate: string;
             };
             cookie?: never;
