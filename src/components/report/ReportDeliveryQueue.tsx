@@ -48,6 +48,8 @@ export function ReportDeliveryQueue({ onOpenReport }: { onOpenReport: (report: R
       files.push({
         repId: report.id,
         fileName: descriptor.fileName,
+        // PNG와 같은 조회 snapshot의 서버 버전값. 클라이언트가 hash를 재계산하지 않는다.
+        revision: descriptor.revision,
         pngDataUrl: await renderReportPng(node),
       });
     }

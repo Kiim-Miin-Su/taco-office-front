@@ -28,8 +28,8 @@ const detail: ReportDetail = {
   body: { content: '수업', progress: '42p', homework: '43p' }, fields,
   canEdit: false, canReview: false, canExport: true, canDeliver: false,
   exportFiles: [
-    { studentId: 4, fileName: '20260903_학생A_고2_AP Chemistry_16:00.png', plainText: '학생A 본문' },
-    { studentId: 5, fileName: '20260903_학생B_학년미정_AP Chemistry_16:00.png', plainText: '학생B 본문' },
+    { studentId: 4, fileName: '20260903_학생A_고2_AP Chemistry_16:00.png', plainText: '학생A 본문', revision: 'a'.repeat(64) },
+    { studentId: 5, fileName: '20260903_학생B_학년미정_AP Chemistry_16:00.png', plainText: '학생B 본문', revision: 'b'.repeat(64) },
   ],
   subjectName: 'AP Chemistry', lang: 'ko', writtenAt: '2026-09-03T08:00:00Z',
   submittedAt: '2026-09-03T08:00:00Z', reviewedAt: null, rejectReason: null,
@@ -44,7 +44,7 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     const download = vi.spyOn(reportExport, 'downloadReportPng').mockResolvedValue(undefined);
     const copy = vi.spyOn(reportExport, 'copyReportText').mockResolvedValue(undefined);
     const source = { ...detail, startMin, endMin, date: '2026-09-04', exportFiles: [
-      { studentId: 4, fileName: 'server.png', plainText: `서버 본문 ${label}` },
+      { studentId: 4, fileName: 'server.png', plainText: `서버 본문 ${label}`, revision: 'a'.repeat(64) },
     ] };
     const view = render(<ReportExportPanel detail={source} />);
     expect(view.getByText(label)).toBeTruthy();

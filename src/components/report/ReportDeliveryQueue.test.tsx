@@ -32,6 +32,7 @@ const report = (id: number, studentId: number, studentName: string): ReportDetai
     studentId,
     fileName: `20260904_${studentName}_고2_AP Chemistry_16:00.png`,
     plainText: `${studentName} 서버 본문`,
+    revision: String(id).padStart(64, '0'),
   }],
   subjectName: 'AP Chemistry', lang: 'ko', writtenAt: '2026-09-04T08:00:00Z',
   submittedAt: '2026-09-04T08:00:00Z', reviewedAt: '2026-09-04T09:00:00Z', rejectReason: null,
@@ -76,9 +77,9 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
       requestKey: '00000000-0000-4000-8000-000000000001',
       onDate: '2026-09-04',
       studentId: 21,
-      files: [{ repId: 11, fileName: '20260904_학생A_고2_AP Chemistry_16:00.png' }],
+      files: [{ repId: 11, fileName: '20260904_학생A_고2_AP Chemistry_16:00.png', revision: first.exportFiles[0].revision }],
     });
-    expect(mutateAsync.mock.calls[1]?.[0]).toMatchObject({ studentId: 22 });
+    expect(mutateAsync.mock.calls[1]?.[0]).toMatchObject({ studentId: 22, files: [{ revision: second.exportFiles[0].revision }] });
     expect(mutateAsync.mock.calls[0]?.[0]).not.toBeInstanceOf(Array);
     expect(await view.findByText('1명까지 저장했습니다. 나머지는 이력을 확인한 뒤 다시 시도해 주세요.'))
       .toBeTruthy();

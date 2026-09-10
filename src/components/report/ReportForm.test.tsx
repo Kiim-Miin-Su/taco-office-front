@@ -47,7 +47,7 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
       body: { content: '수업', progress: '42p', homework: '43p' }, fields,
       canEdit: false, canReview: true, lang: 'ko', writtenAt: '2026-09-03T08:00:00Z',
       canExport: true, canDeliver: false,
-      exportFiles: [{ studentId: 4, fileName: '20260903_학생_고2_AP Chemistry_16:00.png', plainText: '학생 본문' }],
+      exportFiles: [{ studentId: 4, fileName: '20260903_학생_고2_AP Chemistry_16:00.png', plainText: '학생 본문', revision: 'a'.repeat(64) }],
       subjectName: 'AP Chemistry',
       submittedAt: '2026-09-03T08:00:00Z', reviewedAt: null, rejectReason: null,
     };

@@ -8,7 +8,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useReportDetail, useReportReview, useReportWrite, useReports, useReportDelivery, useReportDeliveryHistory } from './queries';
+import { useReportDetail, useReportReview, useReportWrite, useReports, useReportDelivery, useReportDeliveryHistory, useReportDeliverySend } from './queries';
 import type { ReportQuery } from './types';
 import { ApiError } from './client';
 
@@ -31,6 +31,31 @@ afterEach(() => { cleanup(); client.clear(); focusManager.setFocused(undefined);
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+it.each([false, true])('발송 실패=%s에도 기존 onSettled로 큐/이력을 재조회하고 서버 revision을 그대로 전송한다', async (failed) => {
+  const date = '2026-09-10';
+  get.mockImplementation(async (path: string) => ({ data: path.endsWith('/history') ? { items: [] }
+    : { onDate: date, total: 0, remaining: 0, blocked: 0, students: [] } }));
+  const view = renderHook(() => ({ queue: useReportDelivery(date), history: useReportDeliveryHistory({ onDate: date }),
+    send: useReportDeliverySend() }), { wrapper });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(get).toHaveBeenCalledTimes(2);
+  const body = { requestKey: '00000000-0000-4000-8000-000000000001', onDate: date, studentId: 4,
+    files: [{ repId: 9, fileName: 'server.png', revision: 'a'.repeat(64), pngDataUrl: 'data:image/png;base64,iVBORw0KGgo=' }] };
+  const error = new ApiError('REPORT_DELIVERY_FILES_MISMATCH', '출력이 바뀌었습니다', 400);
+  if (failed) post.mockRejectedValueOnce(error);
+  else post.mockResolvedValueOnce({ data: { item: { id: 8 } } });
+  await act(async () => {
+    await view.result.current.send.mutateAsync(body).catch((e) => { expect(e).toBe(error); });
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(post).toHaveBeenCalledTimes(1);
+  expect(post).toHaveBeenCalledWith('/reports/deliveries', body);
+  expect(view.result.current.send.isError).toBe(failed);
+  expect(view.result.current.send.isSuccess).toBe(!failed);
+  expect(get.mock.calls.filter(([path]) => path === '/reports/deliveries')).toHaveLength(2);
+  expect(get.mock.calls.filter(([path]) => path === '/reports/deliveries/history')).toHaveLength(2);
+});
 
 it('목록/발송은 실제 날짜 query를 보내고 상세는 응답의 원래 회차키를 사용한다', async () => {
   const params: ReportQuery = { from: '2026-09-08', to: '2026-09-08', teacherId: 6, state: 'wait' };

@@ -27,15 +27,15 @@ export function reportTimeLabel(report: Pick<ReportDetail, 'startMin' | 'endMin'
 }
 
 /** 상세·큐·PNG·복사가 같은 학생 선택 어댑터를 쓴다. 본문 문자열은 서버 descriptor가 소유한다. */
-export function reportExportContent(detail: ReportDetail, studentId: number): {
-  content: ReportExportContent; fileName: string; plainText: string;
-} | null {
+export function reportExportContent(detail: ReportDetail, studentId: number):
+  (Pick<ReportDetail['exportFiles'][number], 'fileName' | 'plainText' | 'revision'> & { content: ReportExportContent }) | null {
   const file = detail.exportFiles.find((item) => item.studentId === studentId);
   const student = detail.students.find((item) => item.id === studentId);
   if (!file || !student) return null;
   return {
     fileName: file.fileName,
     plainText: file.plainText,
+    revision: file.revision,
     content: {
       studentName: student.name,
       grade: student.grade,
