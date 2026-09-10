@@ -5,6 +5,7 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
+import { resetScheduleOptimistic } from './schedule-optimistic';
 
 /**
  * 인증 사용자가 바뀔 때 이전 사용자의 서버 응답을 함께 폐기한다.
@@ -14,5 +15,6 @@ import type { QueryClient } from '@tanstack/react-query';
  * 함수를 공유해 사용자 경계를 원자적으로 끊는다.
  */
 export function clearSessionQueries(queryClient: Pick<QueryClient, 'clear'>): void {
+  resetScheduleOptimistic(queryClient);
   queryClient.clear();
 }

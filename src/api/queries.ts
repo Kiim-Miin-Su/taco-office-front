@@ -17,6 +17,7 @@ import {
 } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
+import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
@@ -362,10 +363,8 @@ export type ScheduleWrite =
   | { kind: 'delete'; serId: number; body: OccurrenceDelete }
   | { kind: 'roster'; serId: number; body: RosterPatch };
 
-type OccSnapshots = Array<[readonly unknown[], OccurrenceList | undefined]>;
-
 export function useScheduleWrite(): UseMutationResult<
-  WriteResult | RosterResult, unknown, ScheduleWrite, { snaps: OccSnapshots } | undefined
+  WriteResult | RosterResult, unknown, ScheduleWrite, ScheduleOptimisticContext
 > {
   const qc = useQueryClient();
   // 성공과 오래된 회차 거절이 같은 서버 정본을 다시 읽는다. 전체 캐시 무효화는 하지 않는다.
@@ -389,54 +388,17 @@ export function useScheduleWrite(): UseMutationResult<
      * 나머지는 성공 후 무효화가 정확히 맞춘다. 미리 다 옮기려고 규칙을 화면에서
      * 다시 계산하면 판정이 두 벌이 된다.
      */
-    onMutate: async (w) => {
-      if (w.kind === 'create' || w.kind === 'paste' || w.kind === 'roster') return undefined;
-      await qc.cancelQueries({ queryKey: ['schedule', 'occurrences'] });
-      const snaps = qc.getQueriesData<OccurrenceList>({ queryKey: ['schedule', 'occurrences'] }) as OccSnapshots;
-      for (const [key, list] of snaps) {
-        if (!list) continue;
-        qc.setQueryData(key, {
-          ...list,
-          items: list.items.map((o) => {
-            if (w.kind === 'moveMany') {
-              const item = w.body.items.find((x) =>
-                x.source.serId === o.serId && x.source.onDate === o.onDate,
-              );
-              return item ? {
-                ...o,
-                date: item.date,
-                startMin: item.startMin,
-                endMin: item.endMin,
-                teacherId: item.teacherId === undefined ? o.teacherId : item.teacherId,
-                roomId: item.roomId === undefined ? o.roomId : item.roomId,
-              } : o;
-            }
-            if (o.serId !== w.serId || o.onDate !== w.body.onDate) return o;
-            if (w.kind === 'delete') return { ...o, canceled: true };
-            const b = w.body;
-            return {
-              ...o,
-              date: b.date ?? o.date,
-              startMin: b.startMin ?? o.startMin,
-              endMin: b.endMin ?? o.endMin,
-              teacherId: b.teacherId === undefined ? o.teacherId : b.teacherId,
-              roomId: b.roomId === undefined ? o.roomId : b.roomId,
-            };
-          }),
-        });
-      }
-      return { snaps };
-    },
+    onMutate: (w) => beginScheduleOptimistic(qc, w),
     onError: (e, _w, ctx) => {
-      // 원자적 되돌림 — 스냅숏을 통째로 되돌린다. 부분 복구는 없는 상태를 만든다
-      for (const [key, list] of ctx?.snaps ?? []) qc.setQueryData(key, list);
-      // 분할/삭제된 회차를 이전 snapshot에 영구 복원하지 않는다. Axios가 정규화한
-      // 일정 참조404만 재조회하며 입력/학생 참조/권한 오류는 기존 복구 동작을 유지한다.
-      if (e instanceof ApiError && e.status === 404
-          && ['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(e.code)) reconcile();
+      const stale = e instanceof ApiError && e.status === 404
+        && ['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(e.code);
+      // 다른 요청의 성공/낙관 값을 보존하고 마지막 정착 후에만 서버 정본을 읽는다.
+      if (ctx ? settleScheduleOptimistic(qc, ctx, true, stale) : stale) reconcile();
     },
     // 회차/현황판/투영 기간만 갱신한다. 코드표·회계·운영은 그대로 유지한다.
-    onSuccess: reconcile,
+    onSuccess: (_data, _w, ctx) => {
+      if (ctx && settleScheduleOptimistic(qc, ctx, false, true)) reconcile();
+    },
   });
 }
 
