@@ -6,10 +6,21 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, clampSplitRatio, mondayOf, monthBounds, monthGrid, splitPanes, step,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, mondayOf, monthBounds, monthGrid, splitPanes, step,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 import type { Occurrence } from '@/api/types';
+
+it('새 일정의 요일128조합은 ONCE 또는 정렬된 WEEKLY 계약이며 입력 배열을 변경하지 않는다', () => {
+  const codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  for (let mask = 0; mask < 128; mask++) {
+    const days = codes.map((_, index) => index).filter(index => mask & (1 << index)).reverse();
+    const original = [...days];
+    const expected = codes.filter((_, index) => mask & (1 << index));
+    expect(buildRrule(days)).toBe(expected.length ? `WEEKLY:${expected.join(',')}` : 'ONCE');
+    expect(days).toEqual(original);
+  }
+});
 
 describe('강사 캘린더 기본 오늘 목록 (§8·§9)', () => {
   const occurrence = (serId: number, date: string, startMin = 600, extra: Partial<Occurrence> = {}): Occurrence => ({
