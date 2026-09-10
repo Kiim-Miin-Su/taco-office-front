@@ -9,11 +9,12 @@ export type ButtonVariant = 'primary' | 'dark' | 'secondary' | 'danger' | 'succe
 export type ButtonSize = 'md' | 'sm';
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-white border-primary hover:opacity-90',
-  dark: 'bg-fg text-white border-fg hover:opacity-90',
+  // opacity는 흰 글자까지 부모 바탕과 섞어 대비를 낮춘다. hover는 배경색만 바꾼다.
+  primary: 'bg-primary text-white border-primary hover:bg-[color-mix(in_srgb,var(--primary)_90%,var(--fg))]',
+  dark: 'bg-fg text-white border-fg hover:bg-fg-2',
   secondary: 'bg-card text-fg border-line hover:bg-inset',
-  danger: 'bg-red text-white border-red hover:opacity-90',
-  success: 'bg-green text-white border-green hover:opacity-90',
+  danger: 'bg-red text-white border-red hover:bg-[color-mix(in_srgb,var(--red)_90%,var(--fg))]',
+  success: 'bg-green text-white border-green hover:bg-[color-mix(in_srgb,var(--green)_90%,var(--fg))]',
   ghost: 'bg-inset text-fg-2 border-transparent hover:bg-line',
 };
 const SIZE: Record<ButtonSize, string> = {
@@ -33,7 +34,8 @@ export function Button({ variant = 'secondary', size = 'md', className, ...rest 
       type="button"
       className={cn(
         'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border font-bold',
-        'transition-opacity disabled:cursor-not-allowed disabled:opacity-40',
+        'transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg',
         VARIANT[variant], SIZE[size], className,
       )}
       {...rest}

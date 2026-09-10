@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { Button } from '@/components/ui/Button';
+import { Button, type ButtonVariant } from '@/components/ui/Button';
+import { Chip, type ChipStyle, type Tone } from '@/components/ui/Chip';
 import { Tabs } from '@/components/ui/Segmented';
 import { KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, subVar, type CalendarCodeLookup } from './tokens';
 
@@ -22,11 +23,118 @@ const declarations = (css: string) => Object.fromEntries(
   Array.from(css.matchAll(/--([\w-]+):\s*([^;]+);/g), ([, name, value]) => [name, value.trim()]),
 );
 
-describe('관리자 §85 기본 9색과 강사 테마 경계', () => {
+// CSS/SSR 기반 색 회귀다. 브라우저 픽셀·임의 className·모든 부모 배경을 검증한 것은 아니다.
+// WCAG 2.2 SC 1.4.3: 작은 글자 4.5:1, 반올림 금지. 비활성 버튼은 별도 경계로 검사한다.
+type Colors = Record<string, string>;
+const rgb = (colors: Colors, name: string): number[] => {
+  if (name === 'white') return [255, 255, 255];
+  const value = colors[name];
+  if (!value) throw new Error(`없는 색 토큰: ${name}`);
+  const alias = value.match(/^var\(--([\w-]+)\)$/);
+  if (alias) return rgb(colors, alias[1]);
+  if (!/^#[\da-f]{6}$/i.test(value)) throw new Error(`측정하지 못하는 색: ${value}`);
+  return [1, 3, 5].map((start) => parseInt(value.slice(start, start + 2), 16));
+};
+const composite = (foreground: number[], background: number[], opacity: number) =>
+  foreground.map((channel, i) => channel * opacity + background[i] * (1 - opacity));
+const luminance = (color: number[]) => color.reduce((sum, channel, i) => {
+  const s = channel / 255;
+  const linear = s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  return sum + linear * [0.2126, 0.7152, 0.0722][i];
+}, 0);
+const contrast = (a: number[], b: number[]) => {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+};
+const classNames = (markup: string) => {
+  const match = markup.match(/class="([^"]+)"/);
+  if (!match) throw new Error('렌더된 class 없음');
+  return match[1].split(' ');
+};
+const renderedContrast = (markup: string, colors: Colors, surface: number[], hover = false) => {
+  const classes = classNames(markup);
+  const foreground = classes.find((name) => /^text-(white|fg(?:-2|-subtle)?|primary|blue|red|green|amber|violet)$/.test(name));
+  if (!foreground) throw new Error('측정할 글자색 없음');
+  const hoverBackground = hover ? classes.find((name) => name.startsWith('hover:bg-'))?.slice(6) : undefined;
+  const background = hoverBackground ?? classes.find((name) => name.startsWith('bg-'));
+  let fill = surface;
+  if (background) {
+    const mixed = background.match(/^bg-\[color-mix\(in_srgb,var\(--([\w-]+)\)_(\d+)%,var\(--([\w-]+)\)\)\]$/);
+    if (mixed) {
+      fill = composite(rgb(colors, mixed[1]), rgb(colors, mixed[3]), Number(mixed[2]) / 100);
+    } else {
+      const [name, alpha = '100'] = background.slice(3).split('/');
+      fill = composite(rgb(colors, name), surface, Number(alpha) / 100);
+    }
+  }
+  // 기존 hover:opacity-90처럼 부모 바탕과 글자/배경이 함께 합성되는 회귀를 놓치지 않는다.
+  const alpha = hover ? classes.find((name) => /^hover:opacity-\d+$/.test(name))?.split('-').at(-1) : undefined;
+  const opacity = alpha ? Number(alpha) / 100 : 1;
+  return contrast(composite(rgb(colors, foreground.slice(5)), surface, opacity), composite(fill, surface, opacity));
+};
+const themes: Array<[string, Colors]> = [
+  ['admin', declarations(root)],
+  ['teacher', { ...declarations(root), ...declarations(teacher) }],
+];
+const surfaces = (colors: Colors): Array<[string, number[]]> => [
+  ...['card', 'bg', 'inset'].map((name): [string, number[]] => [name, rgb(colors, name)]),
+  ['blue/5 on card', composite(rgb(colors, 'blue'), rgb(colors, 'card'), 0.05)],
+  ['blue/5 on bg', composite(rgb(colors, 'blue'), rgb(colors, 'bg'), 0.05)],
+];
+const buttonVariants: ButtonVariant[] = ['primary', 'dark', 'secondary', 'danger', 'success', 'ghost'];
+const chipTones: Tone[] = ['neutral', 'info', 'success', 'warning', 'danger', 'purple'];
+const chipStyles: ChipStyle[] = ['outline', 'soft', 'solid'];
+
+describe('공용 Button/Chip 작은 글자 대비 — 표준 바탕과 5% 알림 바탕', () => {
+  it('측정식의 흑백 기준과 4.50 반올림 오판을 검증한다', () => {
+    expect(contrast([0, 0, 0], [255, 255, 255])).toBe(21);
+    expect(contrast([148, 111, 87], [255, 255, 255])).toBeLessThan(4.5);
+  });
+
+  it.each(themes.flatMap(([theme, colors]) => buttonVariants.map((variant) => ({ theme, colors, variant }))))(
+    '$theme Button/$variant 기본·hover는 4.5 이상이다', ({ theme, colors, variant }) => {
+      const markup = renderToStaticMarkup(createElement(Button, { variant }, '저장'));
+      for (const [surface, background] of surfaces(colors)) {
+        for (const hover of [false, true]) {
+          expect(renderedContrast(markup, colors, background, hover), `${theme}/${variant}/${surface}/hover=${hover}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    },
+  );
+
+  it.each(themes.flatMap(([theme, colors]) => chipTones.flatMap((tone) => chipStyles.map((styleKind) => ({ theme, colors, tone, styleKind })))))(
+    '$theme Chip/$tone/$styleKind는 4.5 이상이다', ({ theme, colors, tone, styleKind }) => {
+      const markup = renderToStaticMarkup(createElement(Chip, { tone, styleKind, children: '상태' }));
+      for (const [surface, background] of surfaces(colors)) {
+        expect(renderedContrast(markup, colors, background), `${theme}/${tone}/${styleKind}/${surface}`)
+          .toBeGreaterThanOrEqual(4.5);
+      }
+    },
+  );
+
+  it.each(themes)('%s의 키보드 focus 표식은 표준 바탕과 3:1 이상이다', (_theme, colors) => {
+    for (const variant of buttonVariants) {
+      const markup = renderToStaticMarkup(createElement(Button, { variant }, '저장'));
+      expect(classNames(markup)).toEqual(expect.arrayContaining([
+        'focus-visible:outline', 'focus-visible:outline-2', 'focus-visible:outline-offset-2', 'focus-visible:outline-fg',
+      ]));
+    }
+    for (const [, background] of surfaces(colors)) expect(contrast(rgb(colors, 'fg'), background)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('disabled는 native 비활성 속성을 유지하며 활성 대비 통과로 집계하지 않는다', () => {
+    const markup = renderToStaticMarkup(createElement(Button, { variant: 'primary', disabled: true }, '저장'));
+    expect(markup).toContain('disabled=""');
+    expect(classNames(markup)).toContain('disabled:opacity-40');
+  });
+});
+
+describe('관리자 §85 색상 계열·접근성 교정과 강사 테마 경계', () => {
   it.each(Object.entries({
-    primary: '#946F57', violet: '#8B7594', green: '#5D7B65', amber: '#9B7038', red: '#8E4A45',
+    primary: '#83624D', violet: '#6C5B72', green: '#4D6654', amber: '#7D5A2D', red: '#8E4A45',
     fg: '#2A2320', 'fg-subtle': '#615650', line: '#E3D9D3', bg: '#F6F3F1',
-  }))('기본 --%s는 원본 %s다', (name, color) => {
+  }))('기본 --%s는 최신 접근성 교정값 %s다', (name, color) => {
     expect(declarations(root)[name]).toBe(color);
   });
 
@@ -36,17 +144,17 @@ describe('관리자 §85 기본 9색과 강사 테마 경계', () => {
     });
   });
 
-  it('강사의 기존 바탕·글자·상태색은 셸 범위에서 유지하고 primary만 blue를 참조한다', () => {
+  it('강사의 바탕·글자는 유지하고 상태색 대비는 셸 범위에서 보강하며 primary는 blue를 참조한다', () => {
     expect(declarations(teacher)).toMatchObject({
       bg: '#F4F6FA', card: '#FFFFFF', inset: '#F8FAFC', line: '#E5EAF1', 'line-2': '#D8E0EA',
       fg: '#0F172A', 'fg-2': '#334155', 'fg-subtle': '#64748B', primary: 'var(--blue)',
-      red: '#E11D48', green: '#15803D', amber: '#B45309', violet: '#7C3AED',
+      red: '#BC183C', green: '#127036', amber: '#9E4908', violet: '#7537E1',
     });
     expect(Object.keys(declarations(teacher)).some((name) => /^(kind|sub)-/.test(name))).toBe(false);
   });
 
-  it('예정 상태의 blue는 유지하고 primary도 같은 투명도 매핑을 사용한다', () => {
-    expect(declarations(root).blue).toBe('#2563EB');
+  it('예정 상태의 blue는 공용 대비 교정값이며 primary도 같은 투명도 매핑을 사용한다', () => {
+    expect(declarations(root).blue).toBe('#2157D0');
     expect(declarations(teacher).blue).toBeUndefined();
     expect(tw).toContain("primary: withAlpha('primary')");
   });

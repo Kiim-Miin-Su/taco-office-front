@@ -62,7 +62,6 @@ export function BoardMarks({
           key={mark.key}
           tone={mark.na ? 'neutral' : mark.done ? 'success' : 'danger'}
           styleKind={mark.na ? 'outline' : 'soft'}
-          className={mark.na ? 'opacity-60' : undefined}
           title={mark.note ?? MARK_LABEL[mark.key]}
         >
           {MARK_LABEL[mark.key]}

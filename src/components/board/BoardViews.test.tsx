@@ -11,6 +11,15 @@ const marks: CheckMark[] = [
 ];
 
 describe('BoardViews', () => {
+  it('해당 없음은 비활성 컨트롤이 아닌 정보이므로 공용 중립 글자색을 흐리지 않는다', () => {
+    const view = render(<BoardMarks marks={marks} />);
+    const badge = view.getByText('줌');
+    expect(badge.classList.contains('text-fg-2')).toBe(true);
+    expect(badge.classList.contains('border-line')).toBe(true);
+    expect(badge.className).not.toMatch(/(?:^|\s)(?:\S+:)?opacity-/);
+    expect(badge.style.opacity).toBe('');
+  });
+
   it('주간 점 마크도 색에만 의존하지 않고 네 상태를 읽을 수 있다', () => {
     const view = render(<BoardMarks marks={marks} variant="dots" />);
     expect(view.getByRole('img').getAttribute('aria-label')).toBe(

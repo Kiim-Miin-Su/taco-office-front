@@ -22,14 +22,17 @@
   --line-2: var(--line);
   --fg-2: var(--fg-subtle);
 
-  /* ── 관리자 강조 · 상태 — 원본 v2 §85 ────────────────────── */
-  --primary: #946F57;
+  /* ── 관리자 강조 · 상태 — 원본 v2 §85 기반 ─────────────────
+     2026-09-10: 대비 미달 예외 철회. 공용 Button/Chip의 작은 글자와
+     10% soft/5% 알림 바탕에서 4.5:1 이상이 되도록 기존 색상 계열을 보강한다.
+     KIND/SUB 및 사용자 지정 자원색은 이 공용 UI 교정 범위 밖이다. */
+  --primary: #83624D;
   --red: #8E4A45;
-  --green: #5D7B65;
-  --amber: #9B7038;
-  --violet: #8B7594;
+  --green: #4D6654;
+  --amber: #7D5A2D;
+  --violet: #6C5B72;
   /* 예정/오늘 표시의 파랑은 관리자 primary와 다른 의미다. */
-  --blue: #2563EB;
+  --blue: #2157D0;
 
   /* 원본 §07·34 헤더 픽셀. 기본 primary와 섞지 않는다. */
   --header: #332B27;
@@ -91,7 +94,7 @@
   --f-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 }
 
-/* 강사 화면은 기존 바탕·리포트 상태색을 유지한다. 셸 안의 모달도 같은 변수를 상속한다. */
+/* 강사는 기존 바탕과 상태색 의미를 유지하고 글자 대비를 보강한다. 모달도 같은 변수를 상속한다. */
 [data-ui='teacher'] {
   --bg: #F4F6FA;
   --card: #FFFFFF;
@@ -102,8 +105,8 @@
   --fg-2: #334155;
   --fg-subtle: #64748B;
   --primary: var(--blue);
-  --red: #E11D48;
-  --green: #15803D;
-  --amber: #B45309;
-  --violet: #7C3AED;
+  --red: #BC183C;
+  --green: #127036;
+  --amber: #9E4908;
+  --violet: #7537E1;
 }
