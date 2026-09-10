@@ -422,7 +422,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
+        /**
+         * 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의
+         * @description §24 FQ는 leads의 name, school, ownerName, reason을 검색한다. 받은 목록의 클라이언트 검색/필터 전환 시 추가 GET은 0회이며 별도 검색 query 계약은 없다.
+         */
         get: operations["OpsController_all"];
         put?: never;
         post?: never;
@@ -1137,15 +1140,19 @@ export interface components {
         };
         LeadDto: {
             id: number;
+            /** @description FQ 클라이언트 검색 대상. 원문을 보존한다. */
             name: string;
+            /** @description FQ 클라이언트 검색 대상. 원문을 보존한다. */
             school?: string | null;
             /** @description first | wait2nd | second | hold | enrolled | failed */
             stage: string;
             ownerId?: number | null;
             studentId?: number | null;
+            /** @description FQ 클라이언트 검색 대상. 원문을 보존한다. */
             ownerName?: string | null;
             /** @description 실패한 경우 어디서 멈췄나 (§24) */
             stopAt?: string | null;
+            /** @description FQ 클라이언트 검색 대상. 원문을 보존한다. */
             reason?: string | null;
             createdAt: string;
             /** @description 접수한 지 며칠 */
