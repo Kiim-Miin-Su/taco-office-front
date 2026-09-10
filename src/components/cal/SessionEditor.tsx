@@ -58,7 +58,7 @@ export function SessionEditor({ draft, meta, onClose }: {
     values: draft
       ? {
           kindKey: 'class', subKey: '', mode: 'offline',
-          start: hm(draft.startMin), end: hm(Math.min(24 * 60 - 1, draft.startMin + 60)),
+          start: hm(draft.startMin), end: hm(Math.min(24 * 60, draft.startMin + 60)),
           teacherId: '', roomId: draft.roomId === null ? '' : String(draft.roomId),
           title: '', days: [], studentIds: [],
         }

@@ -2213,7 +2213,7 @@ export interface operations {
                     "application/json": components["schemas"]["OccurrenceListDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2286,7 +2286,7 @@ export interface operations {
                     "application/json": components["schemas"]["HorizonDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2367,7 +2367,7 @@ export interface operations {
                     "application/json": components["schemas"]["AttendanceMutationResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2444,7 +2444,7 @@ export interface operations {
                     "application/json": components["schemas"]["AttendanceMutationResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2521,7 +2521,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2598,7 +2598,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2675,7 +2675,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2754,7 +2754,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2833,7 +2833,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2912,7 +2912,7 @@ export interface operations {
                     "application/json": components["schemas"]["RosterResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;

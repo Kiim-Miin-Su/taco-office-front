@@ -6,10 +6,17 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, mondayOf, monthBounds, monthGrid, splitPanes, step,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, mondayOf, monthBounds, monthGrid, parseHm, splitPanes, step,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 import type { Occurrence } from '@/api/types';
+
+it.each(['12:60','12:99','24:01','25:00','1:9','-1:00'])('시각 %s를 합산 보정하지 않고 거절한다', value=>{
+  expect(parseHm(value)).toBeNull();
+});
+it.each([['00:00',0],['9:30',570],['23:59',1439],['24:00',1440]] as const)('시각 %s는 %s분이다',(value,expected)=>{
+  expect(parseHm(value)).toBe(expected);
+});
 
 it('새 일정의 요일128조합은 ONCE 또는 정렬된 WEEKLY 계약이며 입력 배열을 변경하지 않는다', () => {
   const codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];

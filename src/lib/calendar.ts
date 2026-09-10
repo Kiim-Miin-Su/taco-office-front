@@ -267,12 +267,14 @@ export function buildRrule(days: number[]): string {
   return `WEEKLY:${[...days].sort((a, b) => a - b).map((d) => DOW_CODE[d]).join(',')}`;
 }
 
-/** 'HH:MM' ↔ 분 — 폼 입력용. 표시는 hhmm() 그대로 */
+/** 시/분을 각각 검증한다. 24:00은 종료값1440이며 시작 허용 여부는 lessonTimeIssue가 판정한다. */
 export const parseHm = (v: string): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v);
   if (!m) return null;
-  const n = +m[1] * 60 + +m[2];
-  return n >= 0 && n < 24 * 60 ? n : null;
+  const hours = Number(m[1]);
+  const minutes = Number(m[2]);
+  if (minutes > 59 || hours > 24 || (hours === 24 && minutes !== 0)) return null;
+  return hours * 60 + minutes;
 };
 
 /* ── 선택 · 앱 내부 클립보드 (TBO-41E · CALENDAR §5.2) ─────────────── */
