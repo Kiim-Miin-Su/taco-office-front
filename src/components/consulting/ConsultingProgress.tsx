@@ -1,4 +1,5 @@
 import { cn } from '@/components/ui';
+import { CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
 
 interface ConsultingProgressProps {
   value: number;
@@ -20,7 +21,7 @@ export function ConsultingProgress({
   const safeValue = safeMax > 0
     ? Math.max(0, Math.min(safeMax, Number.isFinite(value) ? Math.floor(value) : 0))
     : 0;
-  const active = complete ? 'bg-green' : 'bg-blue';
+  const active = CONSULTING_STAGE_BY_KEY[complete ? 'done' : segmented ? 'contract' : 'running'].markerClass;
 
   if (segmented) {
     return (

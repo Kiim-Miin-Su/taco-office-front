@@ -44,4 +44,37 @@ describe('§26 조회 계약 통합', () => {
     view.rerender(<ConsultingPage />);
     expect(view.queryByText('회차 기록 — 테스트 학생')).toBeNull();
   });
+
+  it('단계 선택은 표시만 바꾸고 전체 건수·잠긴 카드의 권한은 유지한다', () => {
+    query.data = { items: [item, { ...item, id: 2, stage: 'running', studentNames: ['진행 학생'], canOpen: false }], canSeeAmounts: false };
+    const view = render(<ConsultingPage />);
+    expect(view.getByRole('button', { name: '전체 2', pressed: true })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '진행 1' }));
+    expect(view.getByRole('button', { name: '진행 1', pressed: true })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '테스트 학생 컨설팅 상세' })).toBeNull();
+    expect(view.getByRole('button', { name: '진행 학생 컨설팅 상세 잠김' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '종료 0' }));
+    expect(view.queryByRole('button', { name: /컨설팅 상세/ })).toBeNull();
+    expect(view.getByRole('button', { name: '전체 2' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '전체 2' }));
+    expect(view.getByRole('button', { name: '테스트 학생 컨설팅 상세' })).toBeTruthy();
+  });
+
+  it('새 응답과 오류는 선택 상태를 유지하되 과거 결과·건수를 재사용하지 않는다', () => {
+    const view = render(<ConsultingPage />);
+    fireEvent.click(view.getByRole('button', { name: '진행 0' }));
+    query.data = { items: [{ ...item, stage: 'running' }], canSeeAmounts: false };
+    view.rerender(<ConsultingPage />);
+    expect(view.getByRole('button', { name: '진행 1', pressed: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: '테스트 학생 컨설팅 상세' })).toBeTruthy();
+    query.isError = true;
+    query.error = new ApiError('INTERNAL', '조회 실패', 500);
+    view.rerender(<ConsultingPage />);
+    expect(view.queryByRole('group', { name: '컨설팅 단계 필터' })).toBeNull();
+    expect(view.queryByRole('button', { name: /컨설팅 상세/ })).toBeNull();
+    query.isError = false;
+    query.data = { items: [], canSeeAmounts: false };
+    view.rerender(<ConsultingPage />);
+    expect(view.getByRole('button', { name: '진행 0', pressed: true })).toBeTruthy();
+  });
 });

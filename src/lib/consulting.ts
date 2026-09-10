@@ -8,13 +8,23 @@ export const CONSULTING_TYPES: Readonly<Record<string, string>> = {
 };
 
 export const CONSULTING_STAGES = [
-  { key: 'contract', label: '계약', tone: 'warning' },
-  { key: 'running', label: '진행', tone: 'info' },
-  { key: 'done', label: '종료', tone: 'success' },
-] as const satisfies ReadonlyArray<{ key: Consulting['stage']; label: string; tone: Tone }>;
+  { key: 'contract', label: '계약', tone: 'info', markerClass: 'bg-blue' },
+  { key: 'running', label: '진행', tone: 'purple', markerClass: 'bg-violet' },
+  { key: 'done', label: '종료', tone: 'success', markerClass: 'bg-green' },
+] as const satisfies ReadonlyArray<{ key: Consulting['stage']; label: string; tone: Tone; markerClass: string }>;
 
-export const CONSULTING_STAGE_BY_KEY: Readonly<Record<string, { label: string; tone: Tone }>> =
-  Object.fromEntries(CONSULTING_STAGES.map(({ key, label, tone }) => [key, { label, tone }]));
+export type ConsultingStageFilterValue = 'all' | Consulting['stage'];
+export type ConsultingStageCounts = Record<ConsultingStageFilterValue, number>;
+
+/** 권한으로 투영된 목록만 사용한다. 선택은 UI 상태이며 원본 목록/건수를 변경하지 않는다. */
+export function consultingStageView(items: Consulting[], selected: ConsultingStageFilterValue) {
+  const counts: ConsultingStageCounts = { all: items.length, contract: 0, running: 0, done: 0 };
+  for (const item of items) counts[item.stage] += 1;
+  return { counts, items: selected === 'all' ? items : items.filter((item) => item.stage === selected) };
+}
+
+export const CONSULTING_STAGE_BY_KEY: Readonly<Record<string, { label: string; tone: Tone; markerClass: string }>> =
+  Object.fromEntries(CONSULTING_STAGES.map(({ key, label, tone, markerClass }) => [key, { label, tone, markerClass }]));
 
 export const CONSULTING_SHARES: Readonly<Record<string, { label: string; tone: Tone }>> = {
   all: { label: '전체 공개', tone: 'neutral' },

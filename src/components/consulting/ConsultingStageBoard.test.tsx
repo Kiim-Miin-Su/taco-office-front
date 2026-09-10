@@ -34,7 +34,9 @@ describe('ConsultingStageBoard', () => {
     expect(view.getByText('진행')).toBeTruthy();
     expect(view.getByText('종료')).toBeTruthy();
     expect(view.getByRole('img', { name: '계약 3/5' }).children).toHaveLength(5);
-    expect(view.getByRole('img', { name: '회차 1/4' })).toBeTruthy();
+    expect(view.getByRole('img', { name: '회차 1/4' }).firstElementChild?.classList.contains('bg-violet')).toBe(true);
+    expect(view.getByRole('img', { name: '계약 3/5' }).firstElementChild?.classList.contains('bg-blue')).toBe(true);
+    expect(view.getByRole('img', { name: '컨설팅 종료' }).firstElementChild?.classList.contains('bg-green')).toBe(true);
     expect(view.getByRole('img', { name: '컨설팅 종료' }).firstElementChild?.getAttribute('style')).toContain('width: 100%');
     expect(view.getByText('2026-08-15 · 종료')).toBeTruthy();
   });

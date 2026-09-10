@@ -8,6 +8,7 @@ import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { ConsultingStageBoard } from '@/components/consulting/ConsultingStageBoard';
+import { ConsultingStageFilters } from '@/components/consulting/ConsultingStageFilters';
 import { useConsulting } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import type { Consulting } from '@/api/types';
@@ -17,6 +18,8 @@ import {
   CONSULTING_STAGE_BY_KEY,
   consultingContractStep,
   consultingTypeLabel,
+  consultingStageView,
+  type ConsultingStageFilterValue,
 } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
 type View = 'board' | 'list';
@@ -26,6 +29,8 @@ export default function ConsultingPage() {
   const d = q.data;
   const [view, setView] = useState<View>('board');
   const [openId, setOpenId] = useState<number | null>(null);
+  const [stage, setStage] = useState<ConsultingStageFilterValue>('all');
+  const stageView = consultingStageView(q.isError ? [] : d?.items ?? [], stage);
 
   const open = q.isError ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
 
@@ -85,11 +90,14 @@ export default function ConsultingPage() {
         {q.isError ? (
           <Banner tone="danger">{apiMessage(q.error)}</Banner>
         ) : view === 'board' ? (
-          <ConsultingStageBoard
-            items={d?.items ?? []}
-            loading={q.isLoading}
-            onOpen={(item) => setOpenId(item.id)}
-          />
+          <>
+            <ConsultingStageFilters value={stage} counts={stageView.counts} onChange={(next) => { setStage(next); setOpenId(null); }} />
+            <ConsultingStageBoard
+              items={stageView.items}
+              loading={q.isLoading}
+              onOpen={(item) => setOpenId(item.id)}
+            />
+          </>
         ) : (
           <>
             <Banner tone="info">
@@ -100,8 +108,8 @@ export default function ConsultingPage() {
             ) : null}
             <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatCard label="전체" value={d?.items.length ?? '—'} note="건" />
-              <StatCard label="진행 중" value={(d?.items ?? []).filter((c) => c.stage === 'running').length} tone="success" />
-              <StatCard label="계약 중" value={(d?.items ?? []).filter((c) => c.stage === 'contract').length} tone="warning" />
+              <StatCard label="진행 중" value={stageView.counts.running} tone={CONSULTING_STAGE_BY_KEY.running.tone} />
+              <StatCard label="계약 중" value={stageView.counts.contract} tone={CONSULTING_STAGE_BY_KEY.contract.tone} />
               <StatCard label="비공개" value={(d?.items ?? []).filter((c) => c.share === 'private' || c.share === 'picked').length} tone="danger" note="공개 범위 제한" />
             </div>
             <Panel title="컨설팅 건">
