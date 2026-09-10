@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Meta, Occurrence } from '@/api/types';
 
 const mocks = vi.hoisted(() => ({
-  occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(),
+  occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(),
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
 }));
@@ -31,7 +31,9 @@ vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { child
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/cal/SessionEditor', () => ({ SessionEditor: () => null }));
 vi.mock('@/components/cal/TeacherSchedule', () => ({ TeacherSchedule: () => null }));
-vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: () => null }));
+vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: ({ occ }: { occ: Occurrence | null }) => {
+  mocks.detail(occ); return null;
+} }));
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences,
   useScheduleWrite: () => ({ mutate: mocks.write }),
@@ -64,6 +66,18 @@ beforeEach(() => {
 });
 
 describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
+  it('열린 상세는 최신 출결 판정을 따르고 목록에서 사라진 회차 snapshot을 복원하지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }));
+    expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
+    const latest = { ...items[0], canceled: true, attendanceMode: 'unavailable' };
+    mocks.occurrences.mockReturnValue({ data: { items: [latest, items[1]] }, isLoading: false });
+    view.rerender(<SchedulePage />);
+    expect(mocks.detail).toHaveBeenLastCalledWith(latest);
+    mocks.occurrences.mockReturnValue({ data: { items: [items[1]] }, isLoading: false });
+    view.rerender(<SchedulePage />);
+    expect(mocks.detail).toHaveBeenLastCalledWith(null);
+  });
   it.each(['일간', '주간', '월간', '학생별', '선생님별'])('%s에서도 Meta 과목색을 블록과 범례에 동일하게 전달한다', (viewName) => {
     mocks.occurrences.mockReturnValue({ data: { items: [{ ...items[0], subKey: 'writing' }] }, isLoading: false });
     const view = render(<SchedulePage />);

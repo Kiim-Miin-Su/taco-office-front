@@ -411,6 +411,12 @@ export function useAttendanceWrite(): UseMutationResult<
   AttendanceMutationResult, unknown, AttendanceWriteCommand
 > {
   const qc = useQueryClient();
+  const reconcile = () => {
+    void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+    void qc.invalidateQueries({ queryKey: ['board'] });
+    void qc.invalidateQueries({ queryKey: qk.accounting });
+    void qc.invalidateQueries({ queryKey: ['exec'] });
+  };
   return useMutation({
     mutationFn: async (w) => {
       const path = `/schedule/${w.serId}/${w.onDate}/attendance`;
@@ -418,11 +424,14 @@ export function useAttendanceWrite(): UseMutationResult<
         ? (await api.put<AttendanceMutationResult>(path, w.body)).data
         : (await api.delete<AttendanceMutationResult>(path)).data;
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-      void qc.invalidateQueries({ queryKey: ['board'] });
-      void qc.invalidateQueries({ queryKey: qk.accounting });
-      void qc.invalidateQueries({ queryKey: ['exec'] });
+    onSuccess: reconcile,
+    onError: (error) => {
+      // 일정/다른 출결 쓰기가 먼저 끝났다면 서버가 내려주는 새 attendanceMode를 읽는다.
+      // 가역 출결도 성공 사실을 미리 만들지 않는다. 일반 입력/권한 오류는 그대로 둔다.
+      if (error instanceof ApiError && (
+        error.status === 409 && error.code === 'ATTENDANCE_NOT_AVAILABLE'
+        || error.status === 404 && ['OCCURRENCE_NOT_FOUND', 'ATTENDANCE_NOT_FOUND'].includes(error.code)
+      )) reconcile();
     },
   });
 }

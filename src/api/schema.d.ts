@@ -148,10 +148,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** 종료 회차 출결 확정/정정 — 현재값 ATT와 append-only LOG를 함께 저장 */
+        /**
+         * 종료 회차 출결 확정/정정 — 현재값 ATT와 append-only LOG를 함께 저장
+         * @description 일정 변경과 같은 부모 SER를 먼저 잠근 뒤 최신 투영 회차의 종료/취소 여부를 검사한다. 정상 재투영은 사라진 회차로 오인하지 않는다. 종료 전 또는 취소된 회차는 ATTENDANCE_NOT_AVAILABLE409, 없는 회차는 OCCURRENCE_NOT_FOUND404이며 ATT/LOG를 저장하지 않는다.
+         */
         put: operations["ScheduleController_saveAttendance"];
         post?: never;
-        /** 회차 출결 현재값 초기화 — 삭제 전 값은 LOG에 보존 */
+        /**
+         * 회차 출결 현재값 초기화 — 삭제 전 값은 LOG에 보존
+         * @description 일정 변경과 같은 부모 SER를 먼저 잠근 뒤 최신 투영 회차의 종료/취소 여부를 검사한다. 정상 재투영은 사라진 회차로 오인하지 않는다. 종료 전 또는 취소된 회차는 ATTENDANCE_NOT_AVAILABLE409, 없는 회차는 OCCURRENCE_NOT_FOUND404이며 ATT/LOG를 저장하지 않는다.
+         */
         delete: operations["ScheduleController_clearAttendance"];
         options?: never;
         head?: never;
@@ -2397,7 +2403,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description OCCURRENCE_NOT_FOUND: 회차 없음 */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2406,7 +2412,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description ATTENDANCE_NOT_AVAILABLE: 최신 회차가 종료 전 또는 취소됨 */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2474,7 +2480,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description OCCURRENCE_NOT_FOUND: 회차 없음. ATTENDANCE_NOT_FOUND: 초기화할 출결 없음 */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2483,7 +2489,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description ATTENDANCE_NOT_AVAILABLE: 최신 회차가 종료 전 또는 취소됨 */
             409: {
                 headers: {
                     [name: string]: unknown;

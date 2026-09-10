@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { api, ApiError } from './client';
-import { qk, useScheduleWrite } from './queries';
+import { qk, useAttendanceWrite, useScheduleWrite } from './queries';
 import type { OccurrenceList } from './types';
 import { clearSessionQueries } from './session-cache';
 
@@ -242,4 +242,56 @@ it('다중 이동 실패는 같은 묶음의 취소 낙관값만 보존한다', 
     .toMatchObject({ startMin: 600, endMin: 660, canceled: true });
   await act(async () => { cancel.reject(failure); await pb; });
   for (const queryKey of [key, secondKey]) expect(client.getQueryData(queryKey)).toEqual(original);
+});
+
+it.each([
+  new ApiError('OCCURRENCE_NOT_FOUND', '회차 없음', 404),
+  new ApiError('ATTENDANCE_NOT_FOUND', '출결 없음', 404),
+  new ApiError('ATTENDANCE_NOT_AVAILABLE', '출결 불가', 409),
+])('출결 $code는 최신 서버 판정/목록을 재조회한다', async (error) => {
+  vi.spyOn(api, 'put').mockRejectedValue(error);
+  const server: OccurrenceList = { ...original, items: [{ ...original.items[0], canceled: true, attendanceMode: 'unavailable' }] };
+  const get = vi.spyOn(api, 'get').mockResolvedValue({ data: server });
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => {
+    useQuery({ queryKey: key, queryFn: async () => (await api.get<OccurrenceList>('/schedule/occurrences')).data });
+    return useAttendanceWrite();
+  }, { wrapper });
+  await act(async () => {
+    await expect(view.result.current.mutateAsync({ action: 'save', serId: 1, onDate: range.from,
+      body: { result: 'completed' } })).rejects.toBe(error);
+  });
+  await waitFor(() => expect(client.getQueryData(key)).toEqual(server));
+  expect(get).toHaveBeenCalledOnce();
+  expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
+    ['schedule', 'occurrences'], ['board'], qk.accounting, ['exec'],
+  ]);
+});
+
+it.each([
+  new ApiError('ATTENDANCE_REASON_REQUIRED', '사유 필요', 400),
+  new ApiError('FORBIDDEN', '권한 없음', 403),
+])('출결 $code는 입력/권한 오류를 유지하고 추가 무효화하지 않는다', async (error) => {
+  vi.spyOn(api, 'put').mockRejectedValue(error);
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => useAttendanceWrite(), { wrapper });
+  await act(async () => {
+    await expect(view.result.current.mutateAsync({ action: 'save', serId: 1, onDate: range.from,
+      body: { result: 'completed' } })).rejects.toBe(error);
+  });
+  expect(invalidate).not.toHaveBeenCalled();
+});
+
+it.each(['save', 'clear'] as const)('출결 %s 성공은 기존 네 소비 key만 갱신한다', async (action) => {
+  vi.spyOn(api, action === 'save' ? 'put' : 'delete').mockResolvedValue({ data: { attendance: null } });
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => useAttendanceWrite(), { wrapper });
+  await act(async () => {
+    await view.result.current.mutateAsync(action === 'save'
+      ? { action, serId: 1, onDate: range.from, body: { result: 'completed' } }
+      : { action, serId: 1, onDate: range.from });
+  });
+  expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
+    ['schedule', 'occurrences'], ['board'], qk.accounting, ['exec'],
+  ]);
 });

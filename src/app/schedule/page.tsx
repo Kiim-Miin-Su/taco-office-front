@@ -485,7 +485,8 @@ function AdminSchedulePage() {
    */
   const open = useMemo(() => {
     if (!s.open) return null;
-    return all.find((o) => o.serId === s.open!.serId && o.onDate === s.open!.onDate) ?? s.open;
+    // 삭제/다른 날짜 이동으로 조회 범위를 벗어나면 옛 출결 권한/시간을 표시하지 않는다.
+    return all.find((o) => o.serId === s.open!.serId && o.onDate === s.open!.onDate) ?? null;
   }, [all, s.open]);
 
   const startDivider = (e: ReactPointerEvent<HTMLButtonElement>) => {
