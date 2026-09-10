@@ -6,17 +6,27 @@
 
 'use client';
 import { useEffect, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
+import { onSessionExpired } from '@/api/client';
+import { clearSessionQueries } from '@/api/session-cache';
 import { useSession } from '@/store/useSession';
 import { canAccessAppRoute } from './navigation';
 
 /** 페이지를 mount하기 전에 차단한다. 페이지 내부의 return만으로는 hook의 GET을 막을 수 없다. */
 export function RouteAccess({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const pathname = usePathname();
   const router = useRouter();
   const me = useSession((s) => s.me);
   const ready = useSession((s) => s.ready);
   const allowed = ready && canAccessAppRoute(pathname, me);
+
+  // 앱 공통 인증 경계 한 곳에서만 구독한다. 기존 사용자 상태/캐시 정리와 route 전이를 재사용한다.
+  useEffect(() => onSessionExpired(() => {
+    useSession.getState().signOut();
+    clearSessionQueries(queryClient);
+  }), [queryClient]);
 
   useEffect(() => {
     if (ready && !allowed) router.replace(me ? '/schedule' : '/login');

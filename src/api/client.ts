@@ -61,48 +61,86 @@ export function isConflict(e: unknown): boolean {
 }
 
 let accessToken: string | null = null;
+// 명시적 설정(로그인/로그아웃·초기 복구) 경계만 증가한다. 자동 Access 갱신은 사용자 전환이 아니다.
+let sessionGeneration = 0;
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
+  sessionGeneration += 1;
 };
 
+type Retryable = AxiosRequestConfig & { _retried?: boolean; _sessionGeneration?: number };
+const authPaths = new Set(['/auth/login', '/auth/refresh', '/auth/logout']);
+const isAuthAction = (url?: string) => authPaths.has((url ?? '').split('?')[0]);
+const sessionChanged = () => new ApiError('SESSION_CHANGED', '로그인 상태가 바뀌어 이전 요청을 취소했습니다.', 0);
+
+/** UI/캐시 정리는 RouteAccess가 구독한다. Axios는 store/router/QueryClient를 소유하지 않는다. */
+const expiryListeners = new Set<() => void>();
+export function onSessionExpired(listener: () => void): () => void {
+  expiryListeners.add(listener);
+  return () => { expiryListeners.delete(listener); };
+}
+function expireSession(generation: number): void {
+  if (generation !== sessionGeneration) return;
+  setAccessToken(null);
+  for (const listener of expiryListeners) listener();
+}
+
 api.interceptors.request.use((cfg) => {
-  if (accessToken) cfg.headers.Authorization = `Bearer ${accessToken}`;
+  const owned = cfg as Retryable;
+  owned._sessionGeneration ??= sessionGeneration;
+  if (!isAuthAction(cfg.url) && owned._sessionGeneration !== sessionGeneration) throw sessionChanged();
+  // 이 인스턴스의 Bearer는 메모리 토큰 하나만 권위다. 재시도 config의 오래된 헤더도 제거한다.
+  if (accessToken && !isAuthAction(cfg.url)) cfg.headers.Authorization = `Bearer ${accessToken}`;
+  else cfg.headers.delete('Authorization');
   return cfg;
 });
 
 /** 재발급은 동시에 하나만 — 나머지는 이 약속을 기다린다 */
-let inFlight: Promise<string> | null = null;
+let inFlight: { generation: number; promise: Promise<void> } | null = null;
 
-async function renew(): Promise<string> {
-  inFlight ??= api
-    .post<RefreshResult>('/auth/refresh')
-    .then((r) => {
-      setAccessToken(r.data.accessToken);
-      return r.data.accessToken;
-    })
-    .finally(() => {
-      inFlight = null;
-    });
-  return inFlight;
+function renew(generation: number): Promise<void> {
+  if (inFlight?.generation === generation) return inFlight.promise;
+  const flight = {
+    generation,
+    promise: api.post<RefreshResult>('/auth/refresh').then((r) => {
+      if (generation !== sessionGeneration) throw sessionChanged();
+      accessToken = r.data.accessToken;
+    }).finally(() => { if (inFlight === flight) inFlight = null; }),
+  };
+  inFlight = flight;
+  return flight.promise;
 }
 
-type Retryable = AxiosRequestConfig & { _retried?: boolean };
-
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    if (!isAuthAction(r.config.url)
+      && (r.config as Retryable)._sessionGeneration !== sessionGeneration) throw sessionChanged();
+    return r;
+  },
   async (err: AxiosError<Partial<ApiErrorResponse>>) => {
+    if (err instanceof ApiError) throw err;
     const cfg = err.config as Retryable | undefined;
     const status = err.response?.status ?? 0;
 
-    // 재발급 자체가 401 이면 더 볼 것이 없다 — 로그아웃이다
-    const isRefresh = cfg?.url?.includes('/auth/refresh');
-    if (status === 401 && cfg && !cfg._retried && !isRefresh) {
-      cfg._retried = true;
-      try {
-        await renew();
-        return api(cfg);
-      } catch {
-        setAccessToken(null);
+    if (cfg && !isAuthAction(cfg.url)) {
+      const generation = cfg._sessionGeneration;
+      if (generation !== sessionGeneration) throw sessionChanged();
+      if (status === 401) {
+        if (!cfg._retried) {
+          cfg._retried = true;
+          try {
+            // 다른 보호 요청이 이미 갱신했다면 늦게 도착한 옛401도 같은 Access를 재사용한다.
+            if (!accessToken || cfg.headers?.Authorization === `Bearer ${accessToken}`) await renew(generation);
+          } catch (refreshError) {
+            if (generation !== sessionGeneration) throw sessionChanged();
+            // 만료 확정만 세션을 폐기한다. 네트워크/서버 장애를 로그아웃으로 위장하지 않는다.
+            if (refreshError instanceof ApiError && refreshError.status === 401) expireSession(generation);
+            throw refreshError;
+          }
+          if (generation !== sessionGeneration) throw sessionChanged();
+          return api(cfg);
+        }
+        expireSession(generation);
       }
     }
 

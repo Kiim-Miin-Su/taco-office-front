@@ -13,6 +13,17 @@ const response = (config: InternalAxiosRequestConfig, data: unknown, status = 20
   config, data, status, statusText: String(status), headers: {},
 });
 
+/** 지연 응답 순서를 명시하며 sleep 없이 로그인/로그아웃과 경합시킨다. */
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+const unauthorized = (config: InternalAxiosRequestConfig) => new AxiosError(
+  'unauthorized', AxiosError.ERR_BAD_REQUEST, config, undefined,
+  response(config, { code: 'UNAUTHORIZED', message: '로그인이 필요합니다' }, 401),
+);
+
 afterEach(() => {
   api.defaults.adapter = originalAdapter;
   setAccessToken(null);
@@ -108,5 +119,136 @@ describe('공용 API 오류 경계', () => {
     api.defaults.adapter = adapter;
     await expect(api.post('/auth/refresh')).rejects.toMatchObject({ status: 401, code: 'UNAUTHORIZED' });
     expect(adapter).toHaveBeenCalledOnce();
+  });
+
+  it.each(['/auth/login', '/auth/logout'])('%s의 401은 보호 요청처럼 갱신/재전송하지 않는다', async (url) => {
+    const adapter = vi.fn<AxiosAdapter>(async (config) => { throw unauthorized(config); });
+    api.defaults.adapter = adapter;
+    await expect(api.post(url)).rejects.toMatchObject({ status: 401 });
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+
+  it('토큰 제거 후 요청에 남은 Authorization을 재사용하지 않는다', async () => {
+    setAccessToken(null);
+    api.defaults.adapter = async (config) => {
+      expect(config.headers.Authorization).toBeUndefined();
+      return response(config, {});
+    };
+    await api.get('/meta', { headers: { Authorization: 'Bearer discarded' } });
+  });
+
+  it.each(['logout', 'new login', 'new login + failed refresh'] as const)(
+    '늦은 refresh가 현재 세션을 덮어쓰거나 옛 요청을 재전송하지 않는다: %s', async (mode) => {
+      const started = deferred(), release = deferred();
+      setAccessToken('old-session');
+      let protectedCalls = 0;
+      api.defaults.adapter = async (config) => {
+        if (config.url === '/auth/refresh') {
+          started.resolve(); await release.promise;
+          if (mode === 'new login + failed refresh') throw unauthorized(config);
+          return response(config, { accessToken: 'late-old-refresh' });
+        }
+        if (config.url === '/meta') { if (++protectedCalls === 1) throw unauthorized(config); }
+        return response(config, { authorization: config.headers.Authorization ?? null });
+      };
+      const pending = api.get('/meta').catch((error: unknown) => error);
+      await started.promise;
+      setAccessToken(mode === 'logout' ? null : 'new-session');
+      release.resolve();
+      expect(await pending).toMatchObject({ code: 'SESSION_CHANGED', status: 0 });
+      expect(protectedCalls).toBe(1);
+      expect((await api.get('/health')).data.authorization).toBe(mode === 'logout' ? null : 'Bearer new-session');
+    },
+  );
+
+  it.each([200, 401])('사용자 전환 뒤 도착한 이전 HTTP%s를 다음 세션에 반영하지 않는다', async (status) => {
+    const started = deferred(), release = deferred();
+    setAccessToken('old-session');
+    const adapter = vi.fn<AxiosAdapter>(async (config) => {
+      started.resolve(); await release.promise;
+      if (status === 401) throw unauthorized(config);
+      return response(config, { previousUserPrivateData: true });
+    });
+    api.defaults.adapter = adapter;
+    const pending = api.get('/meta').catch((error: unknown) => error);
+    await started.promise;
+    setAccessToken('new-session');
+    release.resolve();
+    expect(await pending).toMatchObject({ code: 'SESSION_CHANGED', status: 0 });
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+
+  it('refresh의 일시 네트워크 실패는 인증 만료로 바꾸거나 현재 토큰을 지우지 않는다', async () => {
+    setAccessToken('current');
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/auth/refresh') throw new AxiosError('offline', AxiosError.ERR_NETWORK, config);
+      if (config.url === '/meta') throw unauthorized(config);
+      return response(config, { authorization: config.headers.Authorization });
+    };
+    await expect(api.get('/meta')).rejects.toMatchObject({ code: 'NETWORK', status: 0 });
+    expect((await api.get('/health')).data.authorization).toBe('Bearer current');
+  });
+
+  it('갱신 후에도 보호 요청이401이면 Access를 제거하고 반복하지 않는다', async () => {
+    setAccessToken('current');
+    const adapter = vi.fn<AxiosAdapter>(async (config) => {
+      if (config.url === '/auth/refresh') return response(config, { accessToken: 'renewed' });
+      if (config.url === '/meta') throw unauthorized(config);
+      return response(config, { authorization: config.headers.Authorization ?? null });
+    });
+    api.defaults.adapter = adapter;
+    await expect(api.get('/meta')).rejects.toMatchObject({ status: 401 });
+    expect(adapter).toHaveBeenCalledTimes(3);
+    expect((await api.get('/health')).data.authorization).toBeNull();
+  });
+
+  it('같은 세션의 옛401이 늦게 오면 이미 갱신된 Access를 재사용한다', async () => {
+    const started = deferred(), release = deferred();
+    setAccessToken('old');
+    let refreshes = 0;
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/auth/refresh') { refreshes += 1; return response(config, { accessToken: 'renewed' }); }
+      if (config.headers.Authorization === 'Bearer old') {
+        if (config.url === '/meta') { started.resolve(); await release.promise; }
+        throw unauthorized(config);
+      }
+      return response(config, {});
+    };
+    const slow = api.get('/meta');
+    await started.promise;
+    await api.get('/consulting');
+    release.resolve();
+    await slow;
+    expect(refreshes).toBe(1);
+  });
+
+  it('이전 갱신의 finally는 새 세션의 단일 갱신을 지우지 않는다', async () => {
+    const oldStarted = deferred(), oldRelease = deferred(), newStarted = deferred(), newRelease = deferred();
+    let refreshes = 0;
+    const counts = new Map<string, number>();
+    setAccessToken('old');
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/auth/refresh') {
+        if (++refreshes === 1) { oldStarted.resolve(); await oldRelease.promise; return response(config, { accessToken: 'old-renewed' }); }
+        newStarted.resolve(); await newRelease.promise;
+        return response(config, { accessToken: 'new-renewed' });
+      }
+      const count = (counts.get(config.url!) ?? 0) + 1;
+      counts.set(config.url!, count);
+      if (count === 1) throw unauthorized(config);
+      return response(config, { authorization: config.headers.Authorization });
+    };
+    const oldRequest = api.get('/meta').catch((error: unknown) => error);
+    await oldStarted.promise;
+    setAccessToken('new');
+    const next = api.get('/consulting');
+    await newStarted.promise;
+    oldRelease.resolve();
+    expect(await oldRequest).toMatchObject({ code: 'SESSION_CHANGED' });
+    const follower = api.get('/ops');
+    newRelease.resolve();
+    expect((await next).data.authorization).toBe('Bearer new-renewed');
+    expect((await follower).data.authorization).toBe('Bearer new-renewed');
+    expect(refreshes).toBe(2);
   });
 });

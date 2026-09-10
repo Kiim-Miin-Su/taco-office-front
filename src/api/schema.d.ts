@@ -636,7 +636,10 @@ export interface components {
             ok: true;
         };
         LoginDto: {
-            /** @example kim@tnacademy.kr */
+            /**
+             * Format: email
+             * @example kim@tnacademy.kr
+             */
             email: string;
             /** @example ******** */
             password: string;
@@ -1886,7 +1889,7 @@ export interface operations {
                     "application/json": components["schemas"]["LoginResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description BAD_REQUEST: 이메일·비밀번호 최소8자·추가 키 검증 실패. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1895,7 +1898,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description UNAUTHORIZED: 인증 정보/서명/만료/숫자 계정 식별자가 유효하지 않음. 로그인 실패는 refresh/replay하지 않는다. 보호 요청은 refresh 후에도401이면 세션을 종료한다. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1968,7 +1971,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description UNAUTHORIZED: 인증 정보/서명/만료/숫자 계정 식별자가 유효하지 않음. 로그인 실패는 refresh/replay하지 않는다. 보호 요청은 refresh 후에도401이면 세션을 종료한다. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2113,7 +2116,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description UNAUTHORIZED: 인증 정보/서명/만료/숫자 계정 식별자가 유효하지 않음. 로그인 실패는 refresh/replay하지 않는다. 보호 요청은 refresh 후에도401이면 세션을 종료한다. */
             401: {
                 headers: {
                     [name: string]: unknown;
