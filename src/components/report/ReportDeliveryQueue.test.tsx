@@ -4,8 +4,8 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReportDeliveryQueue as Queue, ReportDetail } from '@/api/types';
 import * as queries from '@/api/queries';
 import * as reportExport from '@/lib/report-export';
@@ -54,6 +54,8 @@ const queue: Queue = {
 describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
   const mutateAsync = vi.fn();
 
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
   beforeEach(() => {
     vi.mocked(queries.useReportDelivery).mockReturnValue({ data: queue, isLoading: false, isError: false } as never);
     vi.mocked(queries.useReportDeliverySend).mockReturnValue({ mutateAsync, isPending: false } as never);
@@ -83,5 +85,29 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     expect(mutateAsync.mock.calls[0]?.[0]).not.toBeInstanceOf(Array);
     expect(await view.findByText('1명까지 저장했습니다. 나머지는 이력을 확인한 뒤 다시 시도해 주세요.'))
       .toBeTruthy();
+  });
+
+  it('재조회로 미작성 수업이 유입되면 기존 선택도 서버 canSend 판정에 따라 발송에서 제외한다', () => {
+    const onOpenReport = vi.fn();
+    const view = render(<ReportDeliveryQueue onOpenReport={onOpenReport} />);
+    fireEvent.click(view.getByRole('checkbox', { name: /학생A/ }));
+    expect((view.getByRole('button', { name: '1명 보내기' }) as HTMLButtonElement).disabled).toBe(false);
+
+    const incoming: ReportDetail = { ...report(14, 21, '학생A'), state: 'none', written: false,
+      canExport: false, canDeliver: false, exportFiles: [] };
+    const current: Queue = { ...queue, remaining: 1, blocked: 2, students: [
+      { ...queue.students[0], reports: [first, incoming], canSend: false, blockedCount: 1 },
+      ...queue.students.slice(1),
+    ] };
+    vi.mocked(queries.useReportDelivery).mockReturnValue({ data: current, isLoading: false, isError: false } as never);
+    view.rerender(<ReportDeliveryQueue onOpenReport={onOpenReport} />);
+    const checkbox = view.getByRole('checkbox', { name: /학생A/ }) as HTMLInputElement;
+    expect(checkbox.disabled).toBe(true);
+    expect(checkbox.checked).toBe(false);
+    const send = view.getByRole('button', { name: '0명 보내기' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(send);
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(reportExport.renderReportPng).not.toHaveBeenCalled();
   });
 });
