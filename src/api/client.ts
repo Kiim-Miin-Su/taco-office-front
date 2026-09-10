@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: client.ts — ApiError, api, apiMessage, isConflict, setAccessToken (client)
+ * 책임/재사용: 공용 Axios 헤더·오류·401 재발급 경계다. 토큰을 로그/영속 저장하지 않고 JWT/권한의 최종 검증은 서버에 위임한다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * Axios 인스턴스 **하나**. 화면마다 fetch 를 부르지 않는다.
  *
@@ -9,6 +15,7 @@
  * 그렇게 하지 않으면 새로고침 한 번에 재발급이 열 번 날아간다.
  */
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
+import type { ApiErrorResponse, RefreshResult } from './types';
 
 export class ApiError extends Error {
   constructor(
@@ -68,7 +75,7 @@ let inFlight: Promise<string> | null = null;
 
 async function renew(): Promise<string> {
   inFlight ??= api
-    .post<{ accessToken: string }>('/auth/refresh')
+    .post<RefreshResult>('/auth/refresh')
     .then((r) => {
       setAccessToken(r.data.accessToken);
       return r.data.accessToken;
@@ -83,7 +90,7 @@ type Retryable = AxiosRequestConfig & { _retried?: boolean };
 
 api.interceptors.response.use(
   (r) => r,
-  async (err: AxiosError<{ code?: string; message?: string }>) => {
+  async (err: AxiosError<Partial<ApiErrorResponse>>) => {
     const cfg = err.config as Retryable | undefined;
     const status = err.response?.status ?? 0;
 

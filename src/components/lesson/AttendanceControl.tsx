@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: AttendanceControl.tsx — AttendanceControl (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 회차 출결 현재값 — Figma `M2_v3 · 출결 확정`의 선택 구조를 공용 UI로 옮긴다.
  * 권한·시각은 다시 계산하지 않고 서버 `attendanceMode`만 소비한다 (D-R35).

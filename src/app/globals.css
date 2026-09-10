@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: globals.css (style)
+ * 책임/재사용: 기존 styles/tokens.css와 Tailwind 매핑을 재사용한다. 화면별 색/상태 사전을 중복 정의하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 @import '../styles/tokens.css';
 
 @tailwind base;

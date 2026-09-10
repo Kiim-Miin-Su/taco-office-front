@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Panel.tsx — Panel, LevelBar (ui)
+ * 책임/재사용: props와 공용 시각 토큰으로 표현한다. 업무 권한·정산 판정, Axios 호출, 서버 캐시를 소유하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /** 흰 카드 한 장 — Figma 스펙 카드의 패널과 같은 자리. */
 import type { ReactNode } from 'react';
 import { cn } from './cn';

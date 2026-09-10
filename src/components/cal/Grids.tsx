@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Grids.tsx — ColAxis, DropData, GridProps, DayGridProps, DayGrid 등 (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 격자 셋 — **배치만** 한다. 칸의 생김새와 행동은 전부 `CalCell`·`EventBlock` 이 갖는다.
  *

@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Legend.tsx — Legend (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * Cal/Legend Group — 범례를 화면 안에 둔다. 사용자 교육이 따로 필요 없게.
  * 관리자 v2 §07~11·§89: 과목색과 온라인 점선/사선을 설명한다.

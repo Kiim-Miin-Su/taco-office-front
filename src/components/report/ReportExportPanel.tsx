@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: ReportExportPanel.tsx — ReportExportPanel (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /** §50 리포트 전문 — 서버 파일명과 기존 ReportPreview를 학생별 PNG·본문 복사에 연결한다. */
 'use client';
 

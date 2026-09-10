@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: change-request.ts — ChreqType, ChangeReqDraft, EMPTY_DRAFT, changeReqBody, changeReqReady (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 import type { ChangeReqCreate } from '@/api/types';
 import { lessonTimeIssue } from '@/lib/calendar';
 

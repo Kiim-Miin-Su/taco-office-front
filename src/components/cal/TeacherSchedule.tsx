@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: TeacherSchedule.tsx — TeacherSchedule (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /** 강사 PPTX §8·§9: 웹/모바일 캘린더의 기본은 오늘 수업 목록이며 관리자 주간표와 다르다. */
 'use client';
 import { useEffect, useMemo, useState } from 'react';

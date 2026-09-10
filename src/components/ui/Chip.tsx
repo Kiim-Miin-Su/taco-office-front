@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Chip.tsx — Tone, ChipStyle, ChipSize, ChipProps, Chip (ui)
+ * 책임/재사용: props와 공용 시각 토큰으로 표현한다. 업무 권한·정산 판정, Axios 호출, 서버 캐시를 소유하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * UI/Chip — Figma `UI/Chip` (tone 6 × style 3 = 18 변형).
  * 상태 배지·필터 칩·범례가 전부 이것 하나를 쓴다.

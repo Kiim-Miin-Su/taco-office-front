@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: money.test.ts (test)
+ * 책임/재사용: 기존 대상 함수를 import하여 정상/거절/경계 회귀를 검증한다. 테스트 안에 제품 규칙을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 금액 — `null` 과 `0` 이 다른 것이 요점이다.
  * 「미입력·가려짐」과 「0원 확정」을 같은 화면으로 만들면 회계에서 사고가 난다.

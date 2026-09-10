@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: AppShell.tsx — AppShell (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 인증된 업무 화면의 공용 셸. 메뉴/본문은 권한과 역할별 명세에 따라 조립한다.
  * 업무 탭은 상단 한 벌. 원본의 도메인별 좌우 패널은 해당 페이지가 소유한다.

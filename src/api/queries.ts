@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: queries.ts — qk, sessionQueryKey, opsQueryKey, RangeParams, BoardParams 등 (query)
+ * 책임/재사용: qk/sessionQueryKey와 공용 api를 재사용한다. 서버 상태 복제 금지; 가역 mutation은 cancel/snapshot/patch/rollback/reconcile을 함께 검증한다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 서버에서 읽어 오는 것 — **화면은 여기를 통해서만 데이터를 만난다.**
  *
@@ -14,7 +20,7 @@ import { api } from './client';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch,
-  Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
+  OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
 } from './types';
@@ -484,16 +490,16 @@ export type DrawerWrite =
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
 export function useDrawerWrite(): UseMutationResult<
-  { ok: true } | ChangeReqResult, unknown, DrawerWrite
+  OkResult | ChangeReqResult, unknown, DrawerWrite
 > {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (w: DrawerWrite) => {
       if (w.kind === 'todo') {
-        return (await api.patch<{ ok: true }>(`/drawer/todos/${w.id}`, { done: w.done })).data;
+        return (await api.patch<OkResult>(`/drawer/todos/${w.id}`, { done: w.done })).data;
       }
       if (w.kind === 'notiRead') {
-        return (await api.patch<{ ok: true }>(`/drawer/notis/${w.id}/read`)).data;
+        return (await api.patch<OkResult>(`/drawer/notis/${w.id}/read`)).data;
       }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },

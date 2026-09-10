@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Board.tsx — BoardColumn, BoardProps, Board (ui)
+ * 책임/재사용: props와 공용 시각 토큰으로 표현한다. 업무 권한·정산 판정, Axios 호출, 서버 캐시를 소유하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 단계 보드 — 상담(§23) · 컨설팅(§26) · 기획(§61) · 컴플레인(§67) · 회계(§52) 가 같은 모양이다.
  * 탭마다 보드를 새로 그리면 칸 너비와 카드 높이가 조금씩 달라진다.

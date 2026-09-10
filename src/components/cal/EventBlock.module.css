@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: EventBlock.module.css (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /* 관리자 v2 §07~11: 원본 과목색을 배경·좌측 막대에 사용한다.
    색 값은 Meta/기존 토큰에서 --event-color로 주입하며 범례도 같은 모양을 쓴다. */
 .subject {

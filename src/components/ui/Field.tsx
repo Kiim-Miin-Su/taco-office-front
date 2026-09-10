@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Field.tsx — Label, FieldError, InputProps, Input, SelectProps 등 (ui)
+ * 책임/재사용: props와 공용 시각 토큰으로 표현한다. 업무 권한·정산 판정, Axios 호출, 서버 캐시를 소유하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * Form/Input · Form/Select · Form/Textarea · Form/Checkbox · Form/Field Error.
  * 라벨·에러 자리를 한곳에서 정해 둔다 — 화면마다 다르면 폼이 조금씩 어긋나 보인다.

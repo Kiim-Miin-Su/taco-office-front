@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: Overlay.tsx — Drawer, Dialog, Scope, RecurrenceScope, ConflictGuard 등 (ui)
+ * 책임/재사용: props와 공용 시각 토큰으로 표현한다. 업무 권한·정산 판정, Axios 호출, 서버 캐시를 소유하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * Overlay/* — 서랍 · 다이얼로그 · 확인창 · Data/Toast.
  * 겹침 경고(Overlay/Conflict Guard)와 반복 범위(Overlay/Recurrence Scope)가 이 위에 올라간다.

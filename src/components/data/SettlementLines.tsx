@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: SettlementLines.tsx — LineType, SettlementLine, SettlementLines (component)
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * Data/Settlement Line — 정산 명세 (item · bonus · cut · total · tax).
  * 「왜 이 금액인가」를 강사가 직접 검산할 수 있어야 한다.

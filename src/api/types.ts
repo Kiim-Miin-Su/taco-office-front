@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: types.ts — OkResult, ApiErrorResponse, Me, Meta, Kind 등 (contract)
+ * 책임/재사용: backend DTO/OpenAPI에서 생성한 타입만 별칭으로 소비한다. 응답 타입을 손으로 복제하지 않고 요청/응답/오류를 생성 계약과 대조한다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * API 타입 — **생성물에서만 가져온다.**
  *
@@ -10,6 +16,9 @@
 import type { components, paths } from './schema';
 
 type S = components['schemas'];
+
+export type OkResult = S['OkDto'];
+export type ApiErrorResponse = S['ApiErrorDto'];
 
 export type Me = S['MeDto'];
 

@@ -1,3 +1,9 @@
+/** @file-guide
+ * 목적: page.tsx — OpsPage (route)
+ * 책임/재사용: 기존 셸/도메인 컴포넌트를 조립하고 화면 선택·초안만 소유한다. API DTO는 생성 타입, 서버 데이터는 Query 캐시를 사용한다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+
 /**
  * 탭 10 운영 — §59 마케팅 · §61 기획 · §63 회의 · §64 할 일 · §67 컴플레인.
  * 집행 비용은 대표만 봅니다 (D-R39) — 서버가 null 로 내려줍니다.
