@@ -784,9 +784,15 @@ export interface components {
             subKey?: string | null;
             /** @enum {string} */
             mode: "offline" | "online";
-            /** @description 첫 회차 날짜 */
+            /**
+             * Format: date
+             * @description 첫 회차 날짜
+             */
             fromDate: string;
-            /** @description 없으면 열린 반복 */
+            /**
+             * Format: date
+             * @description 없으면 열린 반복
+             */
             toDate?: string | null;
             /** @description ONCE | DAILY[/n] | WEEKLY:MO,WE[/n] — formatRule() 이 정한 형식만 받는다 */
             rrule: string;
@@ -795,7 +801,7 @@ export interface components {
             teacherId?: number | null;
             roomId?: number | null;
             title?: string | null;
-            /** @description 정식 명단 */
+            /** @description 정식 명단. 생략/빈 배열 허용, null과 중복 ID는 거절 */
             studentIds?: number[];
         };
         WriteResultDto: {
@@ -810,15 +816,22 @@ export interface components {
         };
         OccurrenceRefDto: {
             serId: number;
-            /** @description 화면에 보이던 날짜. 이동 EXC를 찾고 상대 날짜 간격을 보존한다 */
+            /**
+             * Format: date
+             * @description 화면에 보이던 날짜. 이동 EXC를 찾고 상대 날짜 간격을 보존한다
+             */
             date: string;
-            /** @description 규칙상 원래 날짜 — EXC 키 */
+            /**
+             * Format: date
+             * @description 규칙상 원래 날짜 — EXC 키
+             */
             onDate: string;
         };
         OccurrencePasteDto: {
             sources: components["schemas"]["OccurrenceRefDto"][];
             /** @enum {string} */
             scope: "this" | "future" | "all";
+            /** Format: date */
             targetDate: string;
             /** @description 붙여넣기 기준 시각 — 자정부터 분 */
             targetStartMin: number;
@@ -834,6 +847,7 @@ export interface components {
         };
         OccurrenceMoveItemDto: {
             source: components["schemas"]["OccurrenceRefDto"];
+            /** Format: date */
             date: string;
             startMin: number;
             endMin: number;
@@ -851,24 +865,32 @@ export interface components {
              * @enum {string}
              */
             scope: "this" | "future" | "all";
-            /** @description 규칙상 원래 날짜 — EXC 의 키다. 옮긴 회차도 이 값으로 찾는다 */
+            /**
+             * Format: date
+             * @description 규칙상 원래 날짜 — EXC 의 키다. 옮긴 회차도 이 값으로 찾는다
+             */
             onDate: string;
             /** @description 0~1439 */
             startMin?: number | null;
             endMin?: number | null;
             teacherId?: number | null;
             roomId?: number | null;
-            /** @description 다른 날로 옮길 때만 */
+            /**
+             * Format: date
+             * @description 다른 날로 옮길 때만
+             */
             date?: string | null;
         };
         OccurrenceDeleteDto: {
             /** @enum {string} */
             scope: "this" | "future" | "all";
+            /** Format: date */
             onDate: string;
         };
         RosterPatchDto: {
             /** @enum {string} */
             op: "add" | "dropOnce" | "undoOnce" | "dropAll";
+            /** Format: date */
             onDate: string;
             studentId: number;
         };
