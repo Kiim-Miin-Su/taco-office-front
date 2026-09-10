@@ -2212,7 +2212,7 @@ export interface operations {
                     "application/json": components["schemas"]["OccurrenceListDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2285,7 +2285,7 @@ export interface operations {
                     "application/json": components["schemas"]["HorizonDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2366,7 +2366,7 @@ export interface operations {
                     "application/json": components["schemas"]["AttendanceMutationResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2442,7 +2442,7 @@ export interface operations {
                     "application/json": components["schemas"]["AttendanceMutationResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2519,7 +2519,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2596,7 +2596,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2673,7 +2673,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2752,7 +2752,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2831,7 +2831,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2910,7 +2910,7 @@ export interface operations {
                     "application/json": components["schemas"]["RosterResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 저장 전체를 취소하며 {code,message}로 반환한다 */
             400: {
                 headers: {
                     [name: string]: unknown;
