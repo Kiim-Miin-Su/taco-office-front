@@ -150,13 +150,11 @@ describe('관리자 §85 색상 계열·접근성 교정과 강사 테마 경계
     });
   });
 
-  it('강사의 바탕·글자는 유지하고 상태색 대비는 셸 범위에서 보강하며 primary는 blue를 참조한다', () => {
-    expect(declarations(teacher)).toMatchObject({
-      bg: '#F4F6FA', card: '#FFFFFF', inset: '#F8FAFC', line: '#E5EAF1', 'line-2': '#D8E0EA',
-      fg: '#0F172A', 'fg-2': '#334155', 'fg-subtle': '#64748B', primary: 'var(--blue)',
-      red: '#BC183C', green: '#127036', amber: '#9E4908', violet: '#7537E1',
-    });
-    expect(Object.keys(declarations(teacher)).some((name) => /^(kind|sub)-/.test(name))).toBe(false);
+  it('강사 표면은 웜 브랜드를 그대로 쓴다 — 별도 팔레트 블록 없음 (2026-09-12 파이프라인 결정 · C25)', () => {
+    // Figma 강사 페이지가 파일 웜 브랜드로 그려져 있으므로 코드도 :root 하나만 갖는다.
+    // data-ui='teacher' 후크는 남아 있되(AppShell), CSS 오버라이드는 0이어야 한다.
+    expect(teacher).toBe('');
+    expect(Object.keys(declarations(teacher))).toHaveLength(0);
   });
 
   it('예정 상태의 blue는 공용 대비 교정값이며 primary도 같은 투명도 매핑을 사용한다', () => {

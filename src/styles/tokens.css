@@ -100,19 +100,7 @@
   --f-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 }
 
-/* 강사는 기존 바탕과 상태색 의미를 유지하고 글자 대비를 보강한다. 모달도 같은 변수를 상속한다. */
-[data-ui='teacher'] {
-  --bg: #F4F6FA;
-  --card: #FFFFFF;
-  --inset: #F8FAFC;
-  --line: #E5EAF1;
-  --line-2: #D8E0EA;
-  --fg: #0F172A;
-  --fg-2: #334155;
-  --fg-subtle: #64748B;
-  --primary: var(--blue);
-  --red: #BC183C;
-  --green: #127036;
-  --amber: #9E4908;
-  --violet: #7537E1;
-}
+/* 강사 표면 팔레트 — 2026-09-12 파이프라인 결정(v2.pptx→Figma→components→Next.js)으로
+   Figma 강사 페이지의 웜 브랜드(:root 파일 브랜드와 동일 계열)를 그대로 쓴다.
+   이전 슬레이트 오버라이드(#F4F6FA·#0F172A·primary=blue)는 M4-b(C25)에서 제거 —
+   AppShell 의 data-ui='teacher' 후크는 향후 의도적 분화를 위해 유지한다. */

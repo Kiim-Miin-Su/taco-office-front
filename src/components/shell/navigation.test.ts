@@ -22,11 +22,12 @@ const teacher: Me = {
 };
 
 describe('명세서 탭 노출 SSOT', () => {
-  it.each(['top', 'sidebar'] as const)('%s에서 대표 10탭, 강사 2탭만 노출한다', (surface) => {
+  it.each(['top', 'sidebar'] as const)('%s에서 대표 10탭, 강사 3탭(개인 홈 포함)만 노출한다', (surface) => {
     expect(adminNavItemsFor(surface, ceo)).toHaveLength(10);
-    expect(adminNavItemsFor(surface, teacher).map((x) => x.href)).toEqual(['/schedule', '/reports']);
+    expect(adminNavItemsFor(surface, teacher).map((x) => x.href)).toEqual(['/teacher', '/schedule', '/reports']);
     expect(adminNavItemsFor(surface, null)).toEqual([]);
-    expect(adminNavItemsFor(surface, ceo)[0]).toBe(ADMIN_NAV_ITEMS[0]);
+    // 관리자 노출분은 표 객체 그대로여야 한다(복제 금지) — 첫 항목은 personalOnly 홈을 건너뛴 /schedule
+    expect(adminNavItemsFor(surface, ceo)[0]).toBe(ADMIN_NAV_ITEMS.find((x) => x.href === '/schedule'));
   });
 
   it.each(['manager', 'admin'] as const)('%s도 money=false면 회계 탭 자체가 없다 (§52)', (role) => {

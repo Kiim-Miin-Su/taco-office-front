@@ -85,7 +85,7 @@ describe('AdminNavigation', () => {
     expect(active.classList.contains('text-white')).toBe(true);
     expect(active.classList.contains('bg-header-active')).toBe(false);
     expect(view.queryByRole('link', { name: '스케줄' })).toBeNull();
-    expect(view.getAllByRole('link').map((link) => link.textContent)).toEqual(['캘린더', '리포트']);
+    expect(view.getAllByRole('link').map((link) => link.textContent)).toEqual(['홈', '캘린더', '리포트']);
   });
 
   it('최종 canAdminPage 플래그가 바뀌면 같은 메뉴의 활성 색과 라벨을 갱신한다', () => {
