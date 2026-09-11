@@ -15,7 +15,7 @@ const item = (overrides: Partial<Consulting>): Consulting => ({
   stage: 'contract',
   contractStep: 3,
   studentNames: ['김민준'],
-  ownerName: '이수현',
+  ownerName: '김범준',
   sessions: 5,
   endOn: null,
   createdAt: '2026-09-01',

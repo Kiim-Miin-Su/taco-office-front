@@ -20,7 +20,7 @@ const occurrence: Occurrence = {
   subKey: 'ap-chem',
   title: 'AP Chemistry',
   teacherId: 6,
-  teacherName: '김서영',
+  teacherName: '이다현',
   roomId: 1,
   roomName: '2층 A강의실',
   zaccId: null,

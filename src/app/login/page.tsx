@@ -17,9 +17,9 @@ import type { LoginBody, LoginResult } from '@/api/types';
 /** 개발 시드 계정 — 역할별로 화면이 어떻게 갈리는지 바로 볼 수 있게 */
 const DEMO = [
   { email: 'ceo@tnacademy.kr', label: '대표 · 김민선' },
-  { email: 'admin@tnacademy.kr', label: '관리자 · 박관리' },
-  { email: 'head@tnacademy.kr', label: '교수실장 · 이수현' },
-  { email: 't01@tnacademy.kr', label: '강사 · 김서영' },
+  { email: 'admin@tnacademy.kr', label: '관리자 · 김민수' },
+  { email: 'head@tnacademy.kr', label: '매니저 · 김범준' },
+  { email: 't01@tnacademy.kr', label: '강사 · 이다현' },
 ];
 
 export default function LoginPage() {
