@@ -7,10 +7,18 @@
 import type { Consulting } from '@/api/types';
 import type { Tone } from '@/components/ui';
 
+/** §29 원문 종류 10종 — 이름은 원문 그대로, 코드 대응은 D-R44(원문 기반)로 확정. 모르는 코드는 원문 보존. */
 export const CONSULTING_TYPES: Readonly<Record<string, string>> = {
-  admissions: '입시',
-  essay: '에세이',
-  roadmap: '로드맵',
+  admissions: '국제학교 지원',
+  boarding: '미국 보딩스쿨',
+  transfer: '편입·전학',
+  essay: '에세이 지도',
+  interview: '인터뷰 대비',
+  exam: '입학시험 대비',
+  roadmap: '연간 로드맵',
+  college: '대학 지원',
+  portfolio: '포트폴리오',
+  visa: '비자·서류',
 };
 
 export const CONSULTING_STAGES = [

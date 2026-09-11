@@ -114,6 +114,7 @@ export type RosterOp = RosterPatch['op'];
 /** 컨설팅 — 금액은 대표만 (D-R39) */
 export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];
+export type ConsItem = S['ConsItemDto'];
 export type ConsultingSession = S['ConsultingSessionDto'];
 
 /** 교재 */

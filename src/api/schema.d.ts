@@ -488,6 +488,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consulting/{id}/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 진행 항목 체크/해제 — 47D-B 유일 쓰기 (N-18 §4-17)
+         * @description 공개 범위(csCanFull)·종료 잠금은 서버가 판정한다. 진행률 숫자는 저장하지 않는다 — 원장 행만 바뀐다.
+         */
+        patch: operations["ConsultingController_toggleItem"];
+        trace?: never;
+    };
     "/board": {
         parameters: {
             query?: never;
@@ -1449,6 +1469,24 @@ export interface components {
             /** @description 연결된 수업이 있으면 그 SER */
             serId?: number | null;
         };
+        ConsItemDto: {
+            id: number;
+            /** @description 건별 항목 순번 */
+            seq: number;
+            label: string;
+            /** @description 필수 지정은 종료 전이 게이트(47D-C)와 함께 확정 — 지금은 표기만 */
+            required: boolean;
+            done: boolean;
+            /** @description 처리자 이름 — 미완료면 null */
+            doneBy?: string | null;
+            /**
+             * Format: date
+             * @description 처리일 — 미완료면 null
+             */
+            doneOn?: string | null;
+            /** @description template(§29 자동 생성분) | manual(N-18-a 확정 전 쓰기 없음) */
+            source: string;
+        };
         ConsultingDto: {
             id: number;
             /** @description 종류 코드. 원본 §29에 종류 10개가 있으며 저장 코드와의 대응은 생성 계약에서 정리한다. 조회는 기존 코드를 보존하고 시드 3종으로 제한하지 않는다. */
@@ -1475,11 +1513,16 @@ export interface components {
             /** @description 내용(회차 기록)을 열 수 있는가 — csCanFull() */
             canOpen: boolean;
             sessionsLog: components["schemas"]["ConsultingSessionDto"][];
+            items: components["schemas"]["ConsItemDto"][];
         };
         ConsultingListDto: {
             items: components["schemas"]["ConsultingDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
+        };
+        ConsItemToggleDto: {
+            /** @description true = 완료 처리(처리자·시각 서버 기록) · false = 해제 */
+            done: boolean;
         };
         CheckMarkDto: {
             /** @enum {string} */
@@ -4419,6 +4462,80 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_toggleItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsItemToggleDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsItemDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 내용이 공개 범위 밖 (수납만 공개 등) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 보이지 않는 건·없는 항목 — 존재를 누출하지 않는다 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code ITEM_LOCKED — 종료된 건 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

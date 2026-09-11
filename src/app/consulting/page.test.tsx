@@ -12,7 +12,10 @@ import type { Consulting } from '@/api/types';
 import ConsultingPage from './page';
 
 const query = vi.hoisted(() => ({ data: undefined as unknown, isError: false, isLoading: false, error: null as unknown }));
-vi.mock('@/api/queries', () => ({ useConsulting: () => query }));
+vi.mock('@/api/queries', () => ({
+  useConsulting: () => query,
+  useToggleConsultingItem: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+}));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -20,6 +23,7 @@ const item: Consulting = {
   id: 1, consType: 'future_type', stage: 'contract', contractStep: null, studentNames: ['테스트 학생'],
   createdAt: '2026-09-07', share: 'all', canOpen: true, sessions: null,
   sessionsLog: [{ id: 1, seq: 1, onDate: null }],
+  items: [],
 };
 
 describe('§26 조회 계약 통합', () => {
@@ -46,7 +50,7 @@ describe('§26 조회 계약 통합', () => {
   it('재조회 후 열람 권한이 사라지면 이미 연 상세도 닫는다', () => {
     const view = render(<ConsultingPage />);
     fireEvent.click(view.getByRole('button', { name: '테스트 학생 컨설팅 상세' }));
-    query.data = { items: [{ ...item, canOpen: false, sessionsLog: [] }], canSeeAmounts: false };
+    query.data = { items: [{ ...item, canOpen: false, sessionsLog: [], items: [] }], canSeeAmounts: false };
     view.rerender(<ConsultingPage />);
     expect(view.queryByText('회차 기록 — 테스트 학생')).toBeNull();
   });

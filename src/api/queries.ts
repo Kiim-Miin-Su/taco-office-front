@@ -27,6 +27,7 @@ import type {
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
+  ConsItem,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -569,5 +570,16 @@ export function useDeleteTeacherUnav(): UseMutationResult<{ ok: true }, unknown,
   return useMutation({
     mutationFn: async (id) => (await api.delete<{ ok: true }>(`/teacher/unavailable/${id}`)).data,
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(['teacher', 'unavailable'], viewerId) }),
+  });
+}
+
+/** §31 진행 항목 체크/해제 — 판정(공개 범위·종료 잠금)은 서버. 성공/실패 모두 목록 재조회. */
+export function useToggleConsultingItem(): UseMutationResult<ConsItem, unknown, { consId: number; itemId: number; done: boolean }> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async ({ consId, itemId, done }) =>
+      (await api.patch<ConsItem>(`/consulting/${consId}/items/${itemId}`, { done })).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.consulting, viewerId) }),
   });
 }

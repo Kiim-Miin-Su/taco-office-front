@@ -12,11 +12,12 @@
 import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
+import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { ConsultingStageBoard } from '@/components/consulting/ConsultingStageBoard';
 import { ConsultingStageFilters } from '@/components/consulting/ConsultingStageFilters';
-import { useConsulting } from '@/api/queries';
+import { useConsulting, useToggleConsultingItem } from '@/api/queries';
 import { apiMessage } from '@/api/client';
+import { ConsultingProgress } from '@/components/consulting/ConsultingProgress';
 import type { Consulting } from '@/api/types';
 import {
   CONSULTING_CONTRACT_STEPS,
@@ -32,6 +33,7 @@ type View = 'board' | 'list';
 
 export default function ConsultingPage() {
   const q = useConsulting();
+  const toggle = useToggleConsultingItem();
   const d = q.data;
   const [view, setView] = useState<View>('board');
   const [openId, setOpenId] = useState<number | null>(null);
@@ -67,9 +69,9 @@ export default function ConsultingPage() {
       },
     },
     {
-      key: 'n', head: '회차', width: 80, align: 'right',
-      // 내용이 안 열리는 건은 기록이 아예 안 내려온다 — 0/N 을 「기록 없음」으로 오해하지 않게 자물쇠를 보인다
-      cell: (r) => (r.canOpen ? (r.sessions ? `${r.sessionsLog.length}/${r.sessions}` : `${r.sessionsLog.length}`) : '잠김'),
+      key: 'n', head: '회차 기록', width: 110, align: 'right',
+      // 기록 행 수 ≠ 완료 회차 (N-18 §4-17 — 기록과 완료를 구분). 잠긴 건은 기록이 아예 안 내려온다.
+      cell: (r) => (r.canOpen ? `기록 ${r.sessionsLog.length}건${r.sessions ? ` / 약정 ${r.sessions}회` : ''}` : '잠김'),
     },
     { key: 'o', head: '담당', width: 90, cell: (r) => r.ownerName ?? '—' },
     {
@@ -85,7 +87,7 @@ export default function ConsultingPage() {
       <AppShell>
         <PageHeader
           title="컨설팅"
-          sub="계약 → 진행 → 종료. 계약 단계는 5칸, 진행 단계는 완료 회차로 표시합니다."
+          sub="계약 → 진행 → 종료. 계약 단계는 5칸, 진행은 기록 회차와 진행 항목으로 표시합니다."
         />
 
         <Tabs className="mb-3" value={view} onChange={setView} options={[
@@ -129,6 +131,55 @@ export default function ConsultingPage() {
             </Panel>
           </>
         )}
+
+        {open ? (
+          <Panel
+            className="mt-4"
+            title={`진행 항목 — ${open.items.filter((i) => i.done).length}/${open.items.length}`}
+            sub="기록과 완료는 다릅니다 — 항목은 이 원장, 회차는 아래 기록으로 셉니다 (§31)"
+          >
+            {open.items.length === 0 ? (
+              <p className="p-4 text-[12px] text-fg-subtle">
+                이 유형의 기본 항목표는 확정 전입니다 (N-18-a) — 원문 §31 이 항목을 주는 유형은 국제학교 지원뿐입니다.
+              </p>
+            ) : (
+              <>
+                <div className="px-1 pb-3">
+                  <ConsultingProgress
+                    value={open.items.filter((i) => i.done).length}
+                    max={open.items.length}
+                    label={`진행 항목 ${open.items.filter((i) => i.done).length}/${open.items.length}`}
+                  />
+                </div>
+                <ul className="divide-y divide-line">
+                  {open.items.map((i) => (
+                    <li key={i.id} className="flex items-center gap-3 px-1 py-2">
+                      <button
+                        type="button"
+                        aria-pressed={i.done}
+                        disabled={toggle.isPending || open.stage === 'done'}
+                        title={open.stage === 'done' ? '종료된 컨설팅 — 항목이 잠겨 있습니다' : i.done ? '완료 해제' : '완료 처리'}
+                        onClick={() => toggle.mutate({ consId: open.id, itemId: i.id, done: !i.done })}
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[11px] font-bold ${i.done ? 'border-green bg-green text-card' : 'border-line bg-card text-transparent'}`}
+                      >
+                        ✓
+                      </button>
+                      <span className={`min-w-0 grow truncate text-[12.5px] ${i.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>{i.label}</span>
+                      {i.required ? <Chip tone="warning">필수</Chip> : null}
+                      {i.done ? (
+                        <span className="shrink-0 text-[11px] text-fg-subtle">{i.doneBy ?? ''} · {i.doneOn ?? ''}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {toggle.isError ? <Banner tone="danger" className="mt-2">{apiMessage(toggle.error)}</Banner> : null}
+            <div className="mt-3 border-t border-line pt-2">
+              <Button size="sm" disabled title="학생별 추가·제외 규칙 확정 전 (N-18-a) — 표시만">항목 추가</Button>
+            </div>
+          </Panel>
+        ) : null}
 
         {open ? (
           <Panel

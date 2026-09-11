@@ -68,14 +68,14 @@ function ConsultingCard({ item }: { item: Consulting }) {
             label={item.stage === 'done'
               ? '컨설팅 종료'
               : item.canOpen
-                ? `회차 ${completedSessions}/${totalSessions || '미정'}`
+                ? `기록 ${completedSessions}건 / 약정 ${totalSessions || '미정'}회`
                 : '회차 기록 잠김'}
           />
           <p className="mt-1.5 text-[10px] text-fg-subtle">
             {item.stage === 'done'
               ? `${item.endOn ?? '종료일 미정'} · 종료`
               : item.canOpen
-                ? `회차 ${completedSessions}/${totalSessions || '미정'}`
+                ? `기록 ${completedSessions}건 / 약정 ${totalSessions || '미정'}회`
                 : '회차 기록 잠김'}
           </p>
         </div>
