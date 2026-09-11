@@ -573,6 +573,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/guides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 수업 안내 — 이번 주 담당 학생·교재·진단·수업 설정 (강사 덱 §10~13) */
+        get: operations["TeacherController_guides"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teacher/suggestions": {
         parameters: {
             query?: never;
@@ -1724,6 +1741,61 @@ export interface components {
             /** @description 최근 날짜·이른 시각 순 */
             lessons: components["schemas"]["TeacherHistoryLessonDto"][];
             settlement: components["schemas"]["TeacherSettlementDto"];
+        };
+        TeacherGuideLessonDto: {
+            /** @description YYYY-MM-DD (KST) */
+            onDate: string;
+            startMin: number;
+            durMin: number;
+            subKey?: string | null;
+            title?: string | null;
+        };
+        TeacherGuideBookDto: {
+            issueId: number;
+            code: string;
+            title: string;
+            subKey?: string | null;
+            level?: string | null;
+            /** @description SE | TE */
+            seTe: string;
+            /** @description 배부일 YYYY-MM-DD */
+            issuedOn: string;
+            /** @description 반환일 — null 이면 사용 중 */
+            returnedOn?: string | null;
+        };
+        TeacherGuideDiagDto: {
+            /** @description 응시일 YYYY-MM-DD */
+            onDate?: string | null;
+            levelSummary: string;
+            strengths?: string | null;
+            weaknesses?: string | null;
+        };
+        TeacherGuideStudentDto: {
+            studentId: number;
+            name: string;
+            grade?: string | null;
+            school?: string | null;
+            targetExam?: string | null;
+            /** @description 지도 강도 — stu.guidance 원문 (미설정 null) */
+            guidance?: string | null;
+            /** @description 수업 언어 — stu.lang 원문 (ko·en 등) */
+            lang?: string | null;
+            /** @description 이번 주 내 수업 횟수 (취소 제외) */
+            weekCount: number;
+            /** @description 이번 주 내 수업 회차 (시각 순) */
+            lessons: components["schemas"]["TeacherGuideLessonDto"][];
+            /** @description 교재 — 사용 중 먼저, 반환분은 이력 */
+            books: components["schemas"]["TeacherGuideBookDto"][];
+            /** @description 최신 진단 — 없으면 null */
+            diag?: components["schemas"]["TeacherGuideDiagDto"] | null;
+        };
+        TeacherGuidesDto: {
+            /** @description 이번 주 월요일 YYYY-MM-DD (KST) */
+            weekFrom: string;
+            /** @description 이번 주 일요일 YYYY-MM-DD (KST) */
+            weekTo: string;
+            /** @description 첫 수업 시각 순 */
+            students: components["schemas"]["TeacherGuideStudentDto"][];
         };
         TeacherSuggestionDto: {
             id: number;
@@ -4612,6 +4684,80 @@ export interface operations {
                 };
             };
             /** @description 강사 전용 — 다른 강사의 정산은 누구도 여기서 볼 수 없다 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_guides: {
+        parameters: {
+            query?: {
+                /** @description 조회할 주의 아무 날짜 YYYY-MM-DD — 없으면 오늘(KST) 주 */
+                week?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherGuidesDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -25,7 +25,7 @@ import type {
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
-  TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions,
+  TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -49,6 +49,7 @@ export const qk = {
   teacherHome: ['teacher', 'home'] as const,
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
+  teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -260,6 +261,16 @@ export function useCreateTeacherSuggestion(): UseMutationResult<TeacherSuggestio
   return useMutation({
     mutationFn: async (w) => (await api.post<TeacherSuggestion>('/teacher/suggestions', w)).data,
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherSuggestions, viewerId) }),
+  });
+}
+
+/** 수업 안내 — 이번 주 담당 학생·교재·진단. week 생략이면 서버가 오늘(KST) 주로 판정한다. */
+export function useTeacherGuides(week?: string): UseQueryResult<TeacherGuides> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherGuides(week), viewerId),
+    queryFn: async () => (await api.get<TeacherGuides>('/teacher/guides', { params: week ? { week } : {} })).data,
+    staleTime: 60 * 1000,
   });
 }
 
