@@ -19,9 +19,9 @@ import { useAccounting } from '@/api/queries';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won } from '@/lib/money';
 
-/** 금액 칸 하나 — null 이면 볼 권한이 없다는 뜻이다. 0 으로 바꿔 쓰지 않는다. */
-function Won({ v, bold }: { v: number | null; bold?: boolean }) {
-  if (v === null) return <span className="text-[11px] text-fg-subtle">가려짐</span>;
+/** 공용 원화 포맷을 재사용한다. 미확인 입금과 권한 가림을 호출부에서 구별한다. */
+function Won({ v, bold, empty }: { v: number | null; bold?: boolean; empty?: string }) {
+  if (v === null) return <span className="text-[11px] text-fg-subtle">{won(v, { empty })}</span>;
   return <span className={bold ? 'font-bold' : undefined}>{won(v)}</span>;
 }
 
@@ -53,10 +53,10 @@ export default function AccountingPage() {
   ];
 
   const payCols: Array<Column<Payment>> = [
-    { key: 'd', head: '입금일', width: 110, cell: (r) => <span className="font-bold">{r.paidOn}</span> },
+    { key: 'd', head: '입금일', width: 110, cell: (r) => <span className="font-bold">{r.paidOn ?? '미확인'}</span> },
     { key: 's', head: '학생', width: 130, cell: (r) => r.studentName ?? '—' },
-    { key: 'a', head: '금액', width: 130, align: 'right', cell: (r) => <Won v={r.amount} bold /> },
-    { key: 'm', head: '수단', width: 100, cell: (r) => (r.method === 'cash' ? '현금' : '계좌') },
+    { key: 'a', head: '금액', width: 130, align: 'right', cell: (r) => <Won v={r.amount} bold empty={s?.canSeeAmounts ? '미확인' : undefined} /> },
+    { key: 'm', head: '수단', width: 100, cell: (r) => (r.method === 'cash' ? '현금' : r.method === 'bank' || r.method === 'transfer' ? '계좌' : r.method ?? '미확인') },
     { key: 'i', head: '청구서', width: 100, cell: (r) => (r.invId ? `INV-${r.invId}` : '—') },
   ];
 

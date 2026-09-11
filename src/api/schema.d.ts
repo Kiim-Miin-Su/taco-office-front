@@ -1196,9 +1196,14 @@ export interface components {
         };
         PaymentDto: {
             id: number;
-            paidOn: string;
+            /**
+             * Format: date
+             * @description 입금일 — 미확인 날짜는 null이며 문자열 null이 아니다
+             */
+            paidOn: string | null;
             studentId?: number | null;
             studentName?: string | null;
+            /** @description 실제 입금액. null은 미확인 또는 금액 권한 없음; summary.canSeeAmounts로 구분. 0은 확인된 0원 */
             amount: number | null;
             method?: string | null;
             invId?: number | null;
