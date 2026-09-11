@@ -1492,6 +1492,8 @@ export interface components {
              * @enum {string}
              */
             state: "draft" | "ready" | "sent" | "read";
+            /** @description 아직 안 보냄 (GUIDE_PENDING_DB 파생) — 화면은 이 값만 읽는다 */
+            pending: boolean;
             studentName?: string | null;
             teacherName?: string | null;
             serTitle?: string | null;

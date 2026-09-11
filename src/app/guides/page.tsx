@@ -21,14 +21,13 @@ import type { Guide, PerLessonNotice } from '@/api/types';
 type Tab = 'once' | 'each';
 
 const REASON: Record<string, string> = { new: '첫 수업', teacher_change: '강사 교체' };
-/** guide_state_t 그대로. draft·ready 가 「아직 안 보냄」이다 — 서버와 같은 낱말을 쓴다. */
+/** guide_state_t 그대로 이름표만 단다. 「보내야 함」 판정은 서버 `pending`이 정본이다 (GUIDE_PENDING_DB). */
 const STATE: Record<string, { label: string; tone: 'danger' | 'warning' | 'success' | 'info' }> = {
   draft: { label: '작성 중', tone: 'danger' },
   ready: { label: '보낼 준비', tone: 'warning' },
   sent: { label: '보냄', tone: 'success' },
   read: { label: '읽음', tone: 'info' },
 };
-const PENDING = ['draft', 'ready'];
 const CHANNEL: Record<string, string> = { sms: '문자', kakao: '카카오', email: '이메일', app: '앱' };
 
 export default function GuidesPage() {
@@ -84,8 +83,8 @@ export default function GuidesPage() {
         ) : null}
 
         <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="안내 — 보내야 함" value={(d?.guides ?? []).filter((g) => PENDING.includes(g.state)).length} tone="danger" />
-          <StatCard label="안내 — 보냄" value={(d?.guides ?? []).filter((g) => !PENDING.includes(g.state)).length} tone="success" />
+          <StatCard label="안내 — 보내야 함" value={(d?.guides ?? []).filter((g) => g.pending).length} tone="danger" />
+          <StatCard label="안내 — 보냄" value={(d?.guides ?? []).filter((g) => !g.pending).length} tone="success" />
           <StatCard label="회차 안내 — 아직" value={(d?.perLesson ?? []).filter((p) => !p.sentAt).length} tone="warning" />
           <StatCard label="회차 안내 — 보냄" value={(d?.perLesson ?? []).filter((p) => p.sentAt).length} tone="success" />
         </div>
