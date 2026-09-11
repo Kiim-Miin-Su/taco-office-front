@@ -27,12 +27,15 @@ export interface AdminNavItem {
   badgeSurfaces?: readonly AdminNavSurface[];
   /** 서버의 최종 플래그를 소비한다. 역할/직함을 화면에서 다시 판정하지 않는다. */
   requires?: readonly (keyof Pick<Me, 'canAdminPage' | 'canCrudAll' | 'canMoney'>)[];
+  /** 개인용(강사) UI 전용 — 관리자 화면 사용자는 메뉴·직접 URL 모두 닫는다. */
+  personalOnly?: boolean;
 }
 
 const BOTH = ['top', 'sidebar'] as const satisfies readonly AdminNavSurface[];
 const ADMIN = ['canAdminPage', 'canCrudAll'] as const;
 
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
+  { href: '/teacher', label: '홈', surfaces: BOTH, icon: 'calendar', personalOnly: true },
   { href: '/schedule', label: '스케줄', personalLabel: '캘린더', surfaces: BOTH, icon: 'calendar' },
   { href: '/intake', label: '상담', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/consulting', label: '컨설팅', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
@@ -55,6 +58,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
 ] as const;
 
 export function canAccessNavItem(item: AdminNavItem, me: Me | null): boolean {
+  if (item.personalOnly && me?.canAdminPage) return false;
   return Boolean(me && (item.requires ?? []).every((flag) => me[flag] === true));
 }
 

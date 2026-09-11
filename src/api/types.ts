@@ -22,6 +22,10 @@ export type ApiErrorResponse = S['ApiErrorDto'];
 
 export type Me = S['MeDto'];
 
+/** 강사 홈 — GET /teacher/home (강사 전용, 서버가 본인 고정) */
+export type TeacherHome = S['TeacherHomeDto'];
+export type TeacherLesson = S['TeacherLessonDto'];
+
 /** 코드표 — 색과 이름의 유일한 출처. 프론트에 KIND/SUB 를 복사해 두지 않는다 (D-R18) */
 export type Meta = S['MetaDto'];
 export type Kind = S['KindDto'];

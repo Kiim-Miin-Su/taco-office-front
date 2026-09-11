@@ -13,6 +13,7 @@ export { StatCard } from './StatCard';
 export { Banner } from './Banner';
 export { Table, type Column } from './Table';
 export { PageHeader } from './PageHeader';
+export { QueryState } from './QueryState';
 export { Panel, LevelBar } from './Panel';
 export { Board, type BoardColumn } from './Board';
 export { Segmented, Tabs } from './Segmented';

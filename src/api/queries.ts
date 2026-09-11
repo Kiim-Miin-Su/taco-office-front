@@ -24,7 +24,7 @@ import type {
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
-  ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery,
+  ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -45,6 +45,7 @@ export const qk = {
   exec: (p: ExecQuery) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
   drawer: ['drawer'] as const,
+  teacherHome: ['teacher', 'home'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -229,6 +230,16 @@ export function useGuides(): UseQueryResult<Guides> {
  * §34 수업 현황판 — 저장하지 않는 값이라 **오래 들고 있으면 안 된다** (D-R4).
  * 교재를 방금 배부했는데 마크가 그대로면 화면을 아무도 안 믿는다.
  */
+/** 강사 홈 — 서버가 본인으로 고정한다. 다른 역할은 403(강사 전용 화면). */
+export function useTeacherHome(): UseQueryResult<TeacherHome> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherHome, viewerId),
+    queryFn: async () => (await api.get<TeacherHome>('/teacher/home')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
 export function useBoard(p: BoardParams): UseQueryResult<Board> {
   const viewerId = useViewerId();
   return useQuery({

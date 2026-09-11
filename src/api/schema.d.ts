@@ -539,6 +539,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 강사 홈 — 오늘·다가오는 수업·주간 요약·오늘 할 일·내 설정 (강사 덱 §7~9) */
+        get: operations["TeacherController_home"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exec": {
         parameters: {
             query?: never;
@@ -1523,6 +1540,73 @@ export interface components {
             todoCount: number;
             /** @description 강사면 자기 것만 본다 — 그 강사 id */
             scopedTeacherId?: number | null;
+        };
+        TeacherLessonDto: {
+            serId: number;
+            /** @description YYYY-MM-DD (KST) */
+            onDate: string;
+            /** @description KST 0~1439 분 */
+            startMin: number;
+            /** @description 분 단위 수업 길이 */
+            durMin: number;
+            /** @description class·mock·gpa·study… (kind.key) */
+            kindKey: string;
+            subKey?: string | null;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            title?: string | null;
+            /** @description 대면이면 강의실 이름 */
+            roomName?: string | null;
+            /** @description 강의실 지점 (강남·송도·제주) */
+            roomBranch?: string | null;
+            /** @description 온라인이면 줌 계정 라벨 */
+            zaccLabel?: string | null;
+            /** @description 수강 학생 이름 (·, 구분) */
+            students?: string | null;
+            canceled: boolean;
+            /**
+             * @description 리포트 상태 — rep 행이 없으면 none
+             * @enum {string}
+             */
+            repState: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+        };
+        TeacherWeekDto: {
+            /** @description 이번 주(월~일) 취소 제외 수업 수 */
+            lessons: number;
+            /** @description 이번 주 총 시수(분) */
+            minutes: number;
+            /** @description 이번 주 지나간 수업 중 미작성 후보 수 */
+            unwritten: number;
+        };
+        TeacherTodoDto: {
+            /** @description 지나간 수업 중 리포트 미작성 후보 (REPORT_UNWRITTEN_CANDIDATE_DB) */
+            unwrittenReports: number;
+            /** @description 승인 대기(wait) 리포트 */
+            waitingApprovals: number;
+            /** @description 진행 중(pending) 스케줄 변경 요청 */
+            openChangeRequests: number;
+            /** @description 진행 중(pending) 내 요청 — 시급 변경·불가 시간 등(req) */
+            openStaffRequests: number;
+        };
+        TeacherSettingsDto: {
+            name: string;
+            /** @description IANA 시간대 — staff.tz */
+            timezone: string;
+            /** @description 현재 적용 시급(원/시간) — 본인만 조회 */
+            wageRate?: number | null;
+            /** @description 그 시급 적용 시작일 */
+            wageFrom?: string | null;
+        };
+        TeacherHomeDto: {
+            /** @description 기준일 YYYY-MM-DD (KST 오늘) */
+            todayDate: string;
+            /** @description 오늘 수업 (시각 순) */
+            today: components["schemas"]["TeacherLessonDto"][];
+            /** @description 내일부터 7일 */
+            upcoming: components["schemas"]["TeacherLessonDto"][];
+            week: components["schemas"]["TeacherWeekDto"];
+            todo: components["schemas"]["TeacherTodoDto"];
+            settings: components["schemas"]["TeacherSettingsDto"];
         };
         ExecStatDto: {
             key: string;
@@ -4227,6 +4311,77 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_home: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherHomeDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 — 다른 역할은 관리자 화면을 쓴다 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             404: {
