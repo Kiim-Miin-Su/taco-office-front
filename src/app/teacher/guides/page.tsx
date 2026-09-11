@@ -87,7 +87,9 @@ export default function TeacherGuidesPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <QueryState query={q} isEmpty={(d) => d.students.length === 0}>
+        {/* 빈 주에도 주 내비는 살아 있어야 한다 — QA C28: isEmpty 로 좌측 레일까지 삼키면
+            materialization horizon 밖 주에서 과거 주로 돌아갈 길이 없다. 빈 목록은 레일 안에서 말한다. */}
+        <QueryState query={q} isEmpty={() => false}>
           {(d) => {
             const picked = d.students.find((s) => s.studentId === pickedId) ?? d.students[0];
             return (
@@ -108,9 +110,13 @@ export default function TeacherGuidesPage() {
                       </div>
                     </div>
                     <ul className="rounded-b-xl border border-t-0 border-line bg-card">
-                      {d.students.map((s) => (
-                        <StudentRow key={s.studentId} s={s} active={picked?.studentId === s.studentId} onPick={() => setPickedId(s.studentId)} />
-                      ))}
+                      {d.students.length === 0 ? (
+                        <li className="px-3 py-6 text-center text-[12.5px] text-fg-subtle">이 주에는 담당 수업이 없습니다.</li>
+                      ) : (
+                        d.students.map((s) => (
+                          <StudentRow key={s.studentId} s={s} active={picked?.studentId === s.studentId} onPick={() => setPickedId(s.studentId)} />
+                        ))
+                      )}
                     </ul>
                   </aside>
 
