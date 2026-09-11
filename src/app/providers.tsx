@@ -1,4 +1,5 @@
-'use client';
+'use client'; // CSR
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, setAccessToken } from '@/api/client';
@@ -31,7 +32,9 @@ function SessionBoot({ children }: { children: ReactNode }) {
         if (alive) setTried(true);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [setMe]);
 
   if (!tried) {
@@ -41,12 +44,17 @@ function SessionBoot({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-  const [qc] = useState(() => new QueryClient({
-    defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
-  }));
+  const [qc] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+      }),
+  );
   return (
     <QueryClientProvider client={qc}>
-      <SessionBoot><RouteAccess>{children}</RouteAccess></SessionBoot>
+      <SessionBoot>
+        <RouteAccess>{children}</RouteAccess>
+      </SessionBoot>
     </QueryClientProvider>
   );
 }
