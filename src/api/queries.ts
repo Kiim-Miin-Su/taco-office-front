@@ -25,6 +25,7 @@ import type {
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
+  TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -47,6 +48,7 @@ export const qk = {
   drawer: ['drawer'] as const,
   teacherHome: ['teacher', 'home'] as const,
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
+  teacherSuggestions: ['teacher', 'suggestions'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -238,6 +240,26 @@ export function useTeacherHome(): UseQueryResult<TeacherHome> {
     queryKey: sessionQueryKey(qk.teacherHome, viewerId),
     queryFn: async () => (await api.get<TeacherHome>('/teacher/home')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/** 건의 사항 — 내 목록+이달 쿼터. canPost 는 서버 판정 플래그 소비만 (월 3회 = 서버가 센다). */
+export function useTeacherSuggestions(): UseQueryResult<TeacherSuggestions> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherSuggestions, viewerId),
+    queryFn: async () => (await api.get<TeacherSuggestions>('/teacher/suggestions')).data,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** 건의 등록 — 낙관 갱신 없음(CONTRACTS: 쿼터는 서버가 센다). 성공·실패 모두 목록을 다시 묻는다. */
+export function useCreateTeacherSuggestion(): UseMutationResult<TeacherSuggestion, unknown, TeacherSuggestionCreate> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<TeacherSuggestion>('/teacher/suggestions', w)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherSuggestions, viewerId) }),
   });
 }
 

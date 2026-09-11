@@ -25,6 +25,9 @@ export type Me = S['MeDto'];
 /** 강사 홈 — GET /teacher/home (강사 전용, 서버가 본인 고정) */
 export type TeacherHome = S['TeacherHomeDto'];
 export type TeacherHistory = S['TeacherHistoryDto'];
+export type TeacherSuggestions = S['TeacherSuggestionsDto'];
+export type TeacherSuggestion = S['TeacherSuggestionDto'];
+export type TeacherSuggestionCreate = S['TeacherSuggestionCreateDto'];
 export type TeacherHistoryLesson = S['TeacherHistoryLessonDto'];
 export type TeacherLesson = S['TeacherLessonDto'];
 

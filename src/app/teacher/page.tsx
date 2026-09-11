@@ -123,7 +123,7 @@ export default function TeacherHomePage() {
                         <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/schedule">캘린더 <span aria-hidden>›</span></Link></li>
                         <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/reports">리포트 <span aria-hidden>›</span></Link></li>
                         <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/teacher/history">수업 히스토리 <span aria-hidden>›</span></Link></li>
-                        <li className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-fg-subtle">건의 사항 <Chip size="compact" tone="neutral">준비 중</Chip></li>
+                        <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/teacher/suggestions">건의 사항 <span aria-hidden>›</span></Link></li>
                       </ul>
                     </Panel>
                   </aside>

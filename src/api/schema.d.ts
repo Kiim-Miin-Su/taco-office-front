@@ -573,6 +573,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 건의 사항 — 내가 보낸 것 + 이달 쿼터 (덱 §33~34 · D-11·D-12) */
+        get: operations["TeacherController_suggestions"];
+        put?: never;
+        /** 건의 등록 — 월 3회는 서버가 센다 (초과: SUGGESTION_QUOTA_EXCEEDED) */
+        post: operations["TeacherController_createSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exec": {
         parameters: {
             query?: never;
@@ -1706,6 +1724,50 @@ export interface components {
             /** @description 최근 날짜·이른 시각 순 */
             lessons: components["schemas"]["TeacherHistoryLessonDto"][];
             settlement: components["schemas"]["TeacherSettlementDto"];
+        };
+        TeacherSuggestionDto: {
+            id: number;
+            /**
+             * @description 수업·시급·스케줄·기타 (D-11 확정)
+             * @enum {string}
+             */
+            category: "lesson" | "pay" | "schedule" | "etc";
+            body: string;
+            /**
+             * @description 접수됨·확인 중·답변 완료 (D-12)
+             * @enum {string}
+             */
+            state: "open" | "reviewing" | "done";
+            /** @description 등록일 YYYY-MM-DD (KST) */
+            createdOn: string;
+            reply?: string | null;
+            /** @description 답변한 관리자 이름 */
+            replyBy?: string | null;
+            /** @description 답변일 YYYY-MM-DD (KST) */
+            replyOn?: string | null;
+        };
+        TeacherSuggestionsDto: {
+            /** @description 쿼터 기준 달 YYYY-MM (KST) */
+            yearMonth: string;
+            /** @description 이달 등록 수 */
+            used: number;
+            /** @description 월 한도 — 서버 상수 */
+            limit: number;
+            /** @description 남은 횟수 */
+            remaining: number;
+            /** @description 지금 등록 가능한가 — 서버가 판정한 값만 소비한다 */
+            canPost: boolean;
+            /** @description 최근 순 */
+            items: components["schemas"]["TeacherSuggestionDto"][];
+        };
+        TeacherSuggestionCreateDto: {
+            /**
+             * @description D-11 분류 4종
+             * @enum {string}
+             */
+            category: "lesson" | "pay" | "schedule" | "etc";
+            /** @description 건의 내용 — 1~2000자 */
+            body: string;
         };
         ExecStatDto: {
             key: string;
@@ -4573,6 +4635,150 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_suggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherSuggestionsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_createSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherSuggestionCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherSuggestionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 이달 한도 소진 — code SUGGESTION_QUOTA_EXCEEDED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
