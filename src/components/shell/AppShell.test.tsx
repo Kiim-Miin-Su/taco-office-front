@@ -137,3 +137,35 @@ describe('원본 관리자 공용 셸', () => {
     expect(view.queryByRole('button', { name: '전체 화면 종료' })).toBeNull();
   });
 });
+
+describe('U1 워크스페이스 셸 확장 — 헤더 도구와 함수형 패널', () => {
+  it('leftTool/rightTool을 관리자 헤더 양끝에만 렌더하고 강사에게는 마운트하지 않는다', () => {
+    const view = render(<QueryClientProvider client={new QueryClient()}>
+      <AppShell leftTool={<button>☰ 토글</button>} rightTool={<button>» 토글</button>}><h1>본문</h1></AppShell>
+    </QueryClientProvider>);
+    expect(view.getByRole('button', { name: '☰ 토글' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '» 토글' })).toBeTruthy();
+    cleanup();
+    useSession.setState({ me: { ...me, canAdminPage: false, role: 'teacher' }, ready: true });
+    const teacher = render(<QueryClientProvider client={new QueryClient()}>
+      <AppShell leftTool={<button>☰ 토글</button>} rightTool={<button>» 토글</button>}><h1>본문</h1></AppShell>
+    </QueryClientProvider>);
+    expect(teacher.queryByRole('button', { name: '☰ 토글' })).toBeNull();
+    expect(teacher.queryByRole('button', { name: '» 토글' })).toBeNull();
+  });
+
+  it('함수형 패널은 openDrawer를 받아 전역 서랍을 지정 pane으로 연다 — 서랍 상태는 셸 소유 그대로', () => {
+    const view = render(<QueryClientProvider client={new QueryClient()}>
+      <AppShell
+        sidePanel={({ openDrawer }) => <button onClick={() => openDrawer('chreqs')}>이력 열기</button>}
+        rightPanel={({ openDrawer }) => <button onClick={() => openDrawer('zoom')}>줌 열기</button>}
+      ><h1>본문</h1></AppShell>
+    </QueryClientProvider>);
+    fireEvent.click(view.getByRole('button', { name: '줌 열기' }));
+    const dialog = view.getByRole('dialog', { name: '서랍' });
+    expect(within(dialog).getByText('zoom')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
+    fireEvent.click(view.getByRole('button', { name: '이력 열기' }));
+    expect(within(view.getByRole('dialog', { name: '서랍' })).getByText('chreqs')).toBeTruthy();
+  });
+});

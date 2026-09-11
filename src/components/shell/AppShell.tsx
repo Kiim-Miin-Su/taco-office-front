@@ -18,16 +18,23 @@ import { api } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
 import { useDrawer, useUnwritten } from '@/api/queries';
 import { AppDrawer, DrawerButton, type DrawerPane } from '@/components/drawer/AppDrawer';
+
+/** 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다. */
+export type WorkspacePanelApi = { openDrawer: (pane: DrawerPane) => void };
+type PanelSlot = ReactNode | ((api: WorkspacePanelApi) => ReactNode);
 import { Banner, Button, Dialog, Logo, cn } from '@/components/ui';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
 import { ROLE_LABEL } from '@/lib/roles';
 import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
 import styles from './AppShell.module.css';
 
-export function AppShell({ children, sidePanel, rightPanel, onToday, flush = false }: {
+export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool, onToday, flush = false }: {
   children: ReactNode;
-  sidePanel?: ReactNode;
-  rightPanel?: ReactNode;
+  sidePanel?: PanelSlot;
+  rightPanel?: PanelSlot;
+  /** 헤더 좌/우 끝의 화면 소유 도구 — 원본 Top bar 의 ☰/» 토글 자리다. */
+  leftTool?: ReactNode;
+  rightTool?: ReactNode;
   onToday?: () => void;
   flush?: boolean;
 }) {
@@ -45,6 +52,9 @@ export function AppShell({ children, sidePanel, rightPanel, onToday, flush = fal
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
   const isAdmin = Boolean(me?.canAdminPage);
+  const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
+  const side = typeof sidePanel === 'function' ? sidePanel({ openDrawer }) : sidePanel;
+  const right = typeof rightPanel === 'function' ? rightPanel({ openDrawer }) : rightPanel;
 
   useEffect(() => {
     const sync = () => setFullScreen(Boolean(document.fullscreenElement));
@@ -79,6 +89,7 @@ export function AppShell({ children, sidePanel, rightPanel, onToday, flush = fal
   return (
     <div data-ui={me?.canAdminPage ? 'admin' : 'teacher'} className={cn(styles.shell, 'bg-bg text-fg')}>
       <header className={cn(styles.header, isAdmin ? 'border-b border-header-line bg-header' : 'bg-fg')}>
+        {isAdmin && leftTool ? <div className="mr-1 flex shrink-0 items-center">{leftTool}</div> : null}
         <Logo size={isAdmin ? 26 : 22} withMark={!isAdmin} onDark className="mr-auto shrink-0 sm:mr-3" />
         {isAdmin ? <div className="flex shrink-0 items-center gap-2 border-header-line sm:border-x sm:px-3">
           {onToday ? <button type="button" onClick={onToday} className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
@@ -114,14 +125,15 @@ export function AppShell({ children, sidePanel, rightPanel, onToday, flush = fal
           className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
           <ShieldCheck size={14} aria-hidden />권한
         </button>
+        {isAdmin && rightTool ? <div className="ml-1 flex shrink-0 items-center">{rightTool}</div> : null}
       </header>
       <div className={styles.workspace}>
-        {isAdmin && sidePanel ? <div className={cn(styles.panel, 'border-r border-line bg-card')}>{sidePanel}</div> : null}
+        {isAdmin && side ? <div className={cn(styles.panel, 'border-r border-line bg-card')}>{side}</div> : null}
         <main className={cn(styles.main, !flush && 'p-3 sm:p-6')}>
           {screenError ? <Banner tone="warning" className="mb-3">{screenError}</Banner> : null}
           {isAdmin ? children : <div className="mx-auto max-w-[1440px]">{children}</div>}
         </main>
-        {isAdmin && rightPanel ? <div className={cn(styles.panel, 'border-l border-line')}>{rightPanel}</div> : null}
+        {isAdmin && right ? <div className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
       </div>
       <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} />
       <Dialog open={permissions} onClose={() => setPermissions(false)} title="권한" width={800}

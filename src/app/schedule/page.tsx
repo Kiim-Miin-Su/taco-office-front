@@ -22,6 +22,10 @@ import {
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { AppShell } from '@/components/shell/AppShell';
+import { ScheduleSidebar } from '@/components/shell/ScheduleSidebar';
+import { WorkspaceRail } from '@/components/shell/WorkspaceRail';
+import { useWorkspace } from '@/store/useWorkspace';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
 import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
@@ -32,7 +36,7 @@ import eventStyles from '@/components/cal/EventBlock.module.css';
 import { Legend } from '@/components/cal/Legend';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
-import { useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
+import { useDrawer, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
@@ -170,6 +174,12 @@ function AdminSchedulePage() {
   const hz = useHorizon();
   const write = useScheduleWrite();
   const canEdit = useCan('canCrudAll');
+  /* ── 워크스페이스 셸 (U1 · 원본§07) — 접힘은 전역 store 하나, 배지는 셸과 같은 조회를 공유한다 ── */
+  const sidebarOpen = useWorkspace((w) => w.sidebarOpen);
+  const railOpen = useWorkspace((w) => w.railOpen);
+  const toggleSidebar = useWorkspace((w) => w.toggleSidebar);
+  const toggleRail = useWorkspace((w) => w.toggleRail);
+  const drawerData = useDrawer(true).data;
 
   /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
   const [dragging, setDragging] = useState<Occurrence | null>(null);
@@ -635,7 +645,38 @@ function AdminSchedulePage() {
 
   return (
     <RequireAuth>
-      <AppShell>
+      <AppShell
+        leftTool={(
+          <button type="button" onClick={toggleSidebar} aria-label={sidebarOpen ? '사이드바 접기' : '사이드바 펼치기'}
+            className="flex h-[30px] items-center rounded-md border border-header-tool-line bg-header-tool px-2 text-line-2">
+            {sidebarOpen ? <PanelLeftClose size={15} aria-hidden /> : <PanelLeftOpen size={15} aria-hidden />}
+          </button>
+        )}
+        rightTool={(
+          <button type="button" onClick={toggleRail} aria-label={railOpen ? '바로가기 접기' : '바로가기 펼치기'}
+            className="flex h-[30px] items-center rounded-md border border-header-tool-line bg-header-tool px-2 text-line-2">
+            {railOpen ? <PanelRightClose size={15} aria-hidden /> : <PanelRightOpen size={15} aria-hidden />}
+          </button>
+        )}
+        sidePanel={sidebarOpen ? ({ openDrawer }) => (
+          <ScheduleSidebar
+            meta={meta.data}
+            items={all}
+            canEdit={canEdit}
+            splitOn={s.panes.length === 2}
+            onCreate={() => setDraft({ date: activeModel.pane.date, startMin: 540, roomId: null })}
+            onHistory={() => openDrawer('chreqs')}
+            onSplit={() => go({ t: 'split' })}
+          />
+        ) : undefined}
+        rightPanel={railOpen ? ({ openDrawer }) => (
+          <WorkspaceRail
+            approvals={drawerData?.approvals.count ?? 0}
+            unread={drawerData?.notis.filter((n) => !n.read).length ?? 0}
+            onOpen={openDrawer}
+          />
+        ) : undefined}
+      >
         <DndContext sensors={sensors} collisionDetection={calendarCollision} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <PageHeader
           title="스케줄"

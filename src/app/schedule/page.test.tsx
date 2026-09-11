@@ -39,6 +39,7 @@ vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate: mocks.write }),
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
   useMeta: mocks.meta,
+  useDrawer: () => ({ data: { approvals: { count: 0 }, notis: [] } }),
 }));
 
 import SchedulePage from './page';
