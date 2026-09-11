@@ -36,6 +36,8 @@ const ADMIN = ['canAdminPage', 'canCrudAll'] as const;
 
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { href: '/teacher', label: '홈', surfaces: BOTH, icon: 'calendar', personalOnly: true },
+  // 홈 바로가기로 여는 개인용 하위 화면 — 메뉴에는 없고 URL 규칙만 공유한다 (탭 활성은 홈이 담당)
+  { href: '/teacher/history', label: '수업 히스토리', surfaces: [], personalOnly: true },
   { href: '/schedule', label: '스케줄', personalLabel: '캘린더', surfaces: BOTH, icon: 'calendar' },
   { href: '/intake', label: '상담', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/consulting', label: '컨설팅', surfaces: BOTH, icon: 'calendar', requires: ADMIN },

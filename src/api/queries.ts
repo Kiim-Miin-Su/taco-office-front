@@ -24,7 +24,7 @@ import type {
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
-  ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome,
+  ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -46,6 +46,7 @@ export const qk = {
   horizon: ['schedule', 'horizon'] as const,
   drawer: ['drawer'] as const,
   teacherHome: ['teacher', 'home'] as const,
+  teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -236,6 +237,16 @@ export function useTeacherHome(): UseQueryResult<TeacherHome> {
   return useQuery({
     queryKey: sessionQueryKey(qk.teacherHome, viewerId),
     queryFn: async () => (await api.get<TeacherHome>('/teacher/home')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** 수업 히스토리 — 월 기록+본인 정산. month 생략이면 서버가 이번 달(KST)로 판정한다 (D-R7·D-R32·D-15). */
+export function useTeacherHistory(month?: string): UseQueryResult<TeacherHistory> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherHistory(month), viewerId),
+    queryFn: async () => (await api.get<TeacherHistory>('/teacher/history', { params: month ? { month } : {} })).data,
     staleTime: 60 * 1000,
   });
 }

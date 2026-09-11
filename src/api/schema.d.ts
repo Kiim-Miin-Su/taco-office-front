@@ -556,6 +556,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 수업 히스토리 — 월 기록 + 본인 정산 (강사 덱 §29~31 · D-R7·D-R32·D-15) */
+        get: operations["TeacherController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exec": {
         parameters: {
             query?: never;
@@ -1607,6 +1624,88 @@ export interface components {
             week: components["schemas"]["TeacherWeekDto"];
             todo: components["schemas"]["TeacherTodoDto"];
             settings: components["schemas"]["TeacherSettingsDto"];
+        };
+        TeacherHistoryStatsDto: {
+            /** @description 종료된 수업 (취소 제외) */
+            doneCount: number;
+            doneMinutes: number;
+            /** @description 리포트 제출분 — 승인 여부는 보지 않는다 (D-R7) */
+            writtenCount: number;
+            writtenMinutes: number;
+            /** @description 종료 후 미작성 */
+            unwrittenCount: number;
+            unwrittenMinutes: number;
+        };
+        TeacherHistoryLessonDto: {
+            serId: number;
+            /** @description YYYY-MM-DD (KST) */
+            onDate: string;
+            /** @description KST 0~1439 분 */
+            startMin: number;
+            /** @description 분 단위 수업 길이 */
+            durMin: number;
+            kindKey: string;
+            subKey?: string | null;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            title?: string | null;
+            /** @description 수강 학생 이름 (·, 구분) */
+            students?: string | null;
+            /** @description 명단 수 — «외 N명» 표기용 */
+            studentCount: number;
+            /** @enum {string} */
+            repState: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            canceled: boolean;
+            /** @description 최초 제출 시각 (KST) YYYY-MM-DD HH:mm — 재제출은 바꾸지 않는다 (D-R7) */
+            submittedAt?: string | null;
+            /** @description 제출분 수업료 — 그 수업일 시급×시간, 정수 절사. 가산 정책 미확정으로 단일 시급 (경계 기록) */
+            pay?: number | null;
+            /** @description 제출분 확정 지각 차감 (D-R32 — 최초 제출 기준) */
+            lateCut?: number | null;
+            /** @description 종료 후 미제출분 — 지금 제출하면 붙는 차감 (D-R32) */
+            penaltyIfNow?: number | null;
+        };
+        TeacherSettlementDto: {
+            /** @description YYYY-MM */
+            yearMonth: string;
+            /** @description true면 payout 저장값, false면 실시간 계산 */
+            confirmed: boolean;
+            /** @description payout.state — 확정 행이 있을 때만 */
+            state?: string | null;
+            /** @description 제출 인정 시수(분) */
+            writtenMinutes: number;
+            /** @description 시급×인정 시수 (정수 절사) */
+            gross: number;
+            /** @description 지각 차감 합 (D-R32) */
+            lateCut: number;
+            /** @description 소득세 3% 절사 (D-15) */
+            incomeTax: number;
+            /** @description 지방소득세 = 소득세의 10% 절사 */
+            localTax: number;
+            /** @description 실지급 (예정)액 */
+            net: number;
+            /** @description 종료 후 미작성 — 지금 쓰면 들어올 몫 */
+            unwrittenCount: number;
+            unwrittenMinutes: number;
+            /** @description 미작성분 예상 금액 (시급 기준) */
+            unwrittenAmount: number;
+            /** @description 이 달 남은 예정 수업 */
+            remainingCount: number;
+            remainingMinutes: number;
+            /** @description 남은 예정 예상 금액 (시급 기준) */
+            remainingAmount: number;
+        };
+        TeacherHistoryDto: {
+            /** @description YYYY-MM */
+            month: string;
+            stats: components["schemas"]["TeacherHistoryStatsDto"];
+            /** @description 현재 적용 시급 — 본인만 */
+            wageRate?: number | null;
+            /** @description 그 시급 적용 시작일 */
+            wageFrom?: string | null;
+            /** @description 최근 날짜·이른 시각 순 */
+            lessons: components["schemas"]["TeacherHistoryLessonDto"][];
+            settlement: components["schemas"]["TeacherSettlementDto"];
         };
         ExecStatDto: {
             key: string;
@@ -4377,6 +4476,80 @@ export interface operations {
                 };
             };
             /** @description 강사 전용 — 다른 역할은 관리자 화면을 쓴다 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_history: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM (KST) — 없으면 이번 달 */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherHistoryDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 — 다른 강사의 정산은 누구도 여기서 볼 수 없다 */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -16,22 +16,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Button, Chip, PageHeader, Panel, QueryState, type Tone } from '@/components/ui';
 import { useTeacherHome } from '@/api/queries';
 import type { TeacherLesson } from '@/api/types';
-
-const hm = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-const hours = (min: number): string => (min % 60 === 0 ? String(min / 60) : (min / 60).toFixed(1));
-
-/** rep_state_t 이름표 — 판정은 서버 값 그대로, 여기는 표기만 (SKILLS §3). */
-const REP: Record<string, { label: string; tone: Tone } | undefined> = {
-  none: { label: '리포트 미작성', tone: 'danger' },
-  draft: { label: '작성 중', tone: 'warning' },
-  wait: { label: '승인 대기', tone: 'warning' },
-  ok: { label: '승인 완료', tone: 'success' },
-  rej: { label: '반려', tone: 'danger' },
-  plan: { label: '수업 예정', tone: 'info' },
-};
-
-const DOW = ['일', '월', '화', '수', '목', '금', '토'];
-const md = (iso: string): string => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))} ${DOW[new Date(`${iso}T00:00:00+09:00`).getUTCDay() === undefined ? 0 : new Date(`${iso}T09:00:00Z`).getUTCDay()]}`;
+import { REP, hm, hours, md } from '@/components/teacher/format';
 
 function LessonRow({ l, withDate }: { l: TeacherLesson; withDate?: boolean }) {
   const rep = l.canceled ? { label: '수업 취소', tone: 'neutral' as Tone } : REP[l.repState];
@@ -137,7 +122,7 @@ export default function TeacherHomePage() {
                       <ul className="flex flex-col gap-2 text-[13px] font-bold text-fg">
                         <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/schedule">캘린더 <span aria-hidden>›</span></Link></li>
                         <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/reports">리포트 <span aria-hidden>›</span></Link></li>
-                        <li className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-fg-subtle">수업 히스토리 <Chip size="compact" tone="neutral">준비 중</Chip></li>
+                        <li><Link className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5" href="/teacher/history">수업 히스토리 <span aria-hidden>›</span></Link></li>
                         <li className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-fg-subtle">건의 사항 <Chip size="compact" tone="neutral">준비 중</Chip></li>
                       </ul>
                     </Panel>
