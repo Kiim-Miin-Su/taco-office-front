@@ -608,6 +608,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/unavailable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 불가 시간 — 2주 격자 메타 + 내 등록 (원본 §15/16 · N-20 날짜별 7일 전 마감) */
+        get: operations["TeacherController_unavailable"];
+        put?: never;
+        /** 불가 시간 등록 — 마감·겹침은 서버가 판정 (UNAV_DEADLINE · UNAV_OVERLAP) */
+        post: operations["TeacherController_createUnavailable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/unavailable/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 불가 시간 삭제 — 열린 날짜(오늘+7 이후)의 본인 등록만 (UNAV_LOCKED) */
+        delete: operations["TeacherController_deleteUnavailable"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exec": {
         parameters: {
             query?: never;
@@ -1840,6 +1875,54 @@ export interface components {
             category: "lesson" | "pay" | "schedule" | "etc";
             /** @description 건의 내용 — 1~2000자 */
             body: string;
+        };
+        TeacherUnavCycleDto: {
+            /** @description 입사일 기준 N번째 2주 (1부터) — 표시/묶음용 (§4-17) */
+            index: number;
+            /** @description 회차 시작 YYYY-MM-DD */
+            from: string;
+            /** @description 회차 끝(14일째) YYYY-MM-DD */
+            to: string;
+            /** @description 입사일 — 회차 기준점 (원본 §15) */
+            hiredOn: string;
+        };
+        TeacherUnavBlockDto: {
+            id: number;
+            /** @description 등록 날짜 YYYY-MM-DD (KST) — 판정 기준 (N-20) */
+            onDate: string;
+            /** @description 0=일 … 6=토 — onDate 에서 파생 */
+            dow: number;
+            /** @description KST 분 (480=08:00) */
+            startMin: number;
+            /** @description KST 분 (1380=23:00) */
+            endMin: number;
+            /** @description 사유 — 관리자가 조정 가능성을 판단한다 (v26 필수) */
+            reason: string;
+            /** @description 마감 전(onDate ≥ 오늘+7)이면 삭제 가능 — 서버 판정 */
+            canDelete: boolean;
+        };
+        TeacherUnavDto: {
+            cycle: components["schemas"]["TeacherUnavCycleDto"];
+            /** @description 오늘 (KST) */
+            today: string;
+            /** @description 등록이 열리는 첫 날짜 = max(회차 시작, 오늘+7). 회차 끝을 넘으면 이 회차 전체가 마감 */
+            openFrom: string;
+            /** @description 회차 14일 중 잠긴 날짜 수 */
+            lockedDays: number;
+            /** @description 회차 14일 중 열린 날짜 수 */
+            openDays: number;
+            /** @description 회차 안 내 등록 — 날짜·시각 순. 날짜 미상(legacy) 행은 싣지 않는다 */
+            blocks: components["schemas"]["TeacherUnavBlockDto"][];
+        };
+        TeacherUnavCreateDto: {
+            /** @description 등록 날짜 YYYY-MM-DD — 오늘(KST)+7일 이후만 (N-20 날짜별 마감) */
+            onDate: string;
+            /** @description 시작 분 — 격자 08:00(480)~22:50 */
+            startMin: number;
+            /** @description 끝 분 — 08:10(490)~23:00(1380), 시작보다 커야 한다 */
+            endMin: number;
+            /** @description 사유 1~500자 — 필수. 관리자가 조정 가능성을 판단한다 (v26) */
+            reason: string;
         };
         ExecStatDto: {
             key: string;
@@ -4920,6 +5003,223 @@ export interface operations {
                 };
             };
             /** @description 이달 한도 소진 — code SUGGESTION_QUOTA_EXCEEDED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_unavailable: {
+        parameters: {
+            query?: {
+                /** @description 조회할 2주 회차 안의 아무 날짜 YYYY-MM-DD — 없으면 오늘(KST) */
+                anchor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherUnavDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_createUnavailable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherUnavCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherUnavBlockDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code UNAV_DEADLINE(7일 전 마감) | UNAV_OVERLAP(본인 겹침) | TIME_RANGE | INVALID_DATE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_deleteUnavailable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { ok: true } */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code UNAV_LOCKED — 마감분·legacy 는 관리자 조정 */
             409: {
                 headers: {
                     [name: string]: unknown;

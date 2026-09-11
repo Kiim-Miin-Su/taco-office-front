@@ -26,6 +26,7 @@ import type {
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
+  TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -50,6 +51,7 @@ export const qk = {
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
   teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
+  teacherUnav: (anchor: string | undefined) => ['teacher', 'unavailable', anchor ?? 'current'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -537,5 +539,35 @@ export function useDrawerWrite(): UseMutationResult<
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
       if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: qk.ops });
     },
+  });
+}
+
+/** 불가 시간 — 2주 격자 메타 + 내 등록. anchor 생략이면 오늘(KST) 회차. */
+export function useTeacherUnav(anchor?: string): UseQueryResult<TeacherUnav> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherUnav(anchor), viewerId),
+    queryFn: async () => (await api.get<TeacherUnav>('/teacher/unavailable', { params: anchor ? { anchor } : {} })).data,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** 불가 시간 등록 — 마감·겹침 판정은 서버(UNAV_DEADLINE·UNAV_OVERLAP). 성공/실패 모두 재조회. */
+export function useCreateTeacherUnav(): UseMutationResult<TeacherUnavBlock, unknown, TeacherUnavCreate> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<TeacherUnavBlock>('/teacher/unavailable', w)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(['teacher', 'unavailable'], viewerId) }),
+  });
+}
+
+/** 불가 시간 삭제 — 열린 날짜의 본인 등록만 (UNAV_LOCKED 는 서버 판정). */
+export function useDeleteTeacherUnav(): UseMutationResult<{ ok: true }, unknown, number> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (id) => (await api.delete<{ ok: true }>(`/teacher/unavailable/${id}`)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(['teacher', 'unavailable'], viewerId) }),
   });
 }

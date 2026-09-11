@@ -40,6 +40,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { href: '/teacher/history', label: '수업 히스토리', surfaces: [], personalOnly: true },
   { href: '/teacher/suggestions', label: '건의 사항', surfaces: [], personalOnly: true },
   { href: '/teacher/guides', label: '수업 안내', surfaces: [], personalOnly: true },
+  { href: '/teacher/unavailable', label: '불가 시간', surfaces: [], personalOnly: true },
   { href: '/schedule', label: '스케줄', personalLabel: '캘린더', surfaces: BOTH, icon: 'calendar' },
   { href: '/intake', label: '상담', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/consulting', label: '컨설팅', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
