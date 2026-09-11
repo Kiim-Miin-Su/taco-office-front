@@ -19,7 +19,7 @@ import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
-  Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, Guides, Horizon, Meta,
+  Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, ExecQuery, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
@@ -42,7 +42,7 @@ export const qk = {
   books: ['books'] as const,
   guides: ['guides'] as const,
   board: (p: BoardParams) => ['board', p] as const,
-  exec: (p: RangeParams) => ['exec', p] as const,
+  exec: (p: ExecQuery) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
   drawer: ['drawer'] as const,
 };
@@ -239,7 +239,7 @@ export function useBoard(p: BoardParams): UseQueryResult<Board> {
 }
 
 /** §69 대표 보고 — 여기도 집계는 저장하지 않는다 (D-R4) */
-export function useExec(p: RangeParams): UseQueryResult<Exec> {
+export function useExec(p: ExecQuery): UseQueryResult<Exec> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.exec(p), viewerId),

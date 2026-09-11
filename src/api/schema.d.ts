@@ -4258,7 +4258,9 @@ export interface operations {
     ExecController_range: {
         parameters: {
             query: {
+                /** @description 집계 시작일(포함). 실제 YYYY-MM-DD 날짜 */
                 from: string;
+                /** @description 집계 종료일(포함). 시작일 이후 또는 같은 날짜 */
                 to: string;
             };
             header?: never;

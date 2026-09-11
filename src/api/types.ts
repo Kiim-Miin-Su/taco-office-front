@@ -123,6 +123,7 @@ export type BoardWeek = S['BoardWeekDto'];
 
 /** 대표 보고 — 집계도 저장하지 않는다 (D-R4) */
 export type Exec = S['ExecDto'];
+export type ExecQuery = NonNullable<paths['/exec']['get']['parameters']['query']>;
 export type ExecStat = S['ExecStatDto'];
 export type ExecReport = S['ExecReportDto'];
 
