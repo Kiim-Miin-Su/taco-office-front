@@ -548,11 +548,15 @@ export function useAttendanceWrite(): UseMutationResult<
    여덟 칸을 **한 번에** 읽는다. 칸마다 훅을 두면 배지 숫자와 목록이 서로 다른
    시각의 데이터를 보게 된다 — 「3건이라는데 두 줄뿐」이 정확히 그렇게 생긴다. */
 
-export function useDrawer(enabled = true): UseQueryResult<Drawer> {
+/**
+ * 서랍 — `notiWindow` 는 **알림을 보여 주는 범위**만 정한다 (N-7 · D-16: 지우는 규칙이 아니다).
+ * 범위가 키에 들어가야 「예전 것도 보기」가 캐시를 갈아 끼운다.
+ */
+export function useDrawer(enabled = true, notiWindow: 'month' | 'all' = 'month'): UseQueryResult<Drawer> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey(qk.drawer, viewerId),
-    queryFn: async () => (await api.get<Drawer>('/drawer')).data,
+    queryKey: sessionQueryKey([...qk.drawer, notiWindow], viewerId),
+    queryFn: async () => (await api.get<Drawer>('/drawer', { params: { notiWindow } })).data,
     enabled,
     // 결재·알림은 남이 바꾼다. 서랍을 다시 열면 다시 읽는다.
     staleTime: 30 * 1000,
@@ -563,6 +567,7 @@ export function useDrawer(enabled = true): UseQueryResult<Drawer> {
 export type DrawerWrite =
   | { kind: 'todo'; id: number; done: boolean }
   | { kind: 'notiRead'; id: number }
+  | { kind: 'notiReadAll' }
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
 export function useDrawerWrite(): UseMutationResult<
@@ -577,9 +582,13 @@ export function useDrawerWrite(): UseMutationResult<
       if (w.kind === 'notiRead') {
         return (await api.patch<OkResult>(`/drawer/notis/${w.id}/read`)).data;
       }
+      if (w.kind === 'notiReadAll') {
+        return (await api.patch<OkResult>('/drawer/notis/read-all')).data;
+      }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
     onSuccess: (_r, w) => {
+      // 창(month/all)마다 키가 다르므로 서랍 전체를 무효화한다
       void qc.invalidateQueries({ queryKey: qk.drawer });
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
       if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: qk.ops });

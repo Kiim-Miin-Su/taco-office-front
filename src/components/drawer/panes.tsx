@@ -172,34 +172,129 @@ export function TodosPane({ todos, meId, box, onBox, onToggle, busy }: {
 
 /* ── §16 알림 ────────────────────────────────────────────────────── */
 
-export function NotisPane({ notis, onRead, busy }: {
-  notis: Noti[]; onRead: (id: number) => void; busy: boolean;
+/**
+ * §16 알림 — 분류 칩 · 날짜 묶음 · 전부 읽음 · 보관.
+ *
+ * 분류와 색은 **서버가 파생해서 준다** (`lib/noti.ts`) — 화면에 코드표를 두지 않는다 (D-R18).
+ * 「1개월」은 조회 범위이고 **지운 것이 아니다** (N-7 · D-16) — 창 밖 건수를 그대로 말해 준다.
+ */
+export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadAll, onWiden, widened, busy }: {
+  notis: Noti[];
+  /** 관리자·대표는 **남의 알림도 본다**. 읽음 처리는 내게 온 것만 되므로 그 경계를 화면이 말한다 */
+  meId: number | null;
+  windowDays: number;
+  olderCount: number;
+  onRead: (id: number) => void;
+  onReadAll: () => void;
+  onWiden: (all: boolean) => void;
+  widened: boolean;
+  busy: boolean;
 }) {
-  if (notis.length === 0) return <Empty>알림이 없습니다</Empty>;
+  const [filter, setFilter] = useState<string>('all');
+  const mine = (n: Noti) => meId !== null && n.toId === meId;
+  const unread = notis.filter((n) => !n.read).length;
+  /** 「전부 읽음」이 실제로 바꿀 수 있는 수 — 남의 알림은 서버가 거절한다 */
+  const myUnread = notis.filter((n) => !n.read && mine(n)).length;
+
+  /** 칩 — 전체·안 읽음 다음에 분류별. 건수는 지금 보이는 목록에서 센다(같은 배열이다) */
+  const cats = new Map<string, { label: string; count: number }>();
+  notis.forEach((n) => {
+    const hit = cats.get(n.category) ?? { label: n.categoryLabel, count: 0 };
+    hit.count += 1;
+    cats.set(n.category, hit);
+  });
+
+  /* 목록은 서버가 「안 읽은 것 먼저」로 주지만, §16 은 **날짜로 묶어** 보여 준다.
+     그 순서 그대로 묶으면 오늘/어제가 두 번씩 나온다 — 그리는 순서만 날짜순으로 되돌린다. */
+  const shown = notis
+    .filter((n) => (filter === 'all' ? true : filter === 'unread' ? !n.read : n.category === filter))
+    .slice()
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
+  /** 날짜 묶음 — 오늘 · 어제 · 그 밖 (§16) */
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const groupOf = (at: string) => (at.slice(0, 10) === today ? '오늘' : at.slice(0, 10) === yesterday ? '어제' : at.slice(0, 10));
+  const groups: Array<[string, Noti[]]> = [];
+  shown.forEach((n) => {
+    const g = groupOf(n.at);
+    const last = groups[groups.length - 1];
+    if (last && last[0] === g) last[1].push(n);
+    else groups.push([g, [n]]);
+  });
+
   return (
-    <ul className="flex flex-col gap-1.5">
-      {notis.map((n) => (
-        <li
-          key={n.id}
-          className={`rounded-lg border p-2.5 ${n.read ? 'border-line bg-card' : 'border-blue/30 bg-blue/5'}`}
-        >
-          <div className="flex items-start gap-2">
-            <Chip tone={NOTI_TONE[n.tone] ?? 'info'} styleKind="outline">
-              {{ alarm: '알림', ok: '완료', warn: '주의' }[n.tone] ?? n.tone}
-            </Chip>
-            <p className="min-w-0 flex-1 text-[12px] text-fg">{n.body}</p>
-            {!n.read ? (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onRead(n.id)}>읽음</Button>
-            ) : null}
-          </div>
-          <p className="mt-1 flex gap-2 text-[11px] text-fg-subtle">
-            <span>{n.fromName ?? '시스템'}</span>
-            <span>{n.at.slice(5, 16).replace('T', ' ')}</span>
-            {n.link ? <Link href={n.link} className="ml-auto font-bold text-blue hover:underline">원본</Link> : null}
-          </p>
-        </li>
+    <div className="flex flex-col gap-3">
+      <p className="text-[12px] text-fg-subtle">
+        {unread > 0 ? <>읽지 않은 알림 <b className="text-fg">{unread}건</b>{unread !== myUnread ? <> (내게 온 것 {myUnread}건)</> : null}. </> : <>읽지 않은 알림이 없습니다. </>}
+        독촉과 재알람은 정산에 그대로 반영되므로 처리 여부를 여기서 확인하세요.
+      </p>
+
+      <div className="flex flex-wrap gap-1">
+        {[
+          { key: 'all', label: `전체 ${notis.length}` },
+          { key: 'unread', label: `안 읽음 ${unread}` },
+          ...[...cats.entries()].map(([key, v]) => ({ key, label: `${v.label} ${v.count}` })),
+        ].map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            aria-pressed={filter === c.key}
+            onClick={() => setFilter(c.key)}
+            className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors ${
+              filter === c.key ? 'border-fg bg-fg text-card' : 'border-line bg-card text-fg-subtle hover:border-primary/50'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {shown.length === 0 ? <Empty>이 분류에는 알림이 없습니다</Empty> : null}
+
+      {groups.map(([g, rows]) => (
+        <section key={g}>
+          <h3 className="mb-1.5 text-[12px] font-bold text-fg-subtle">{g}</h3>
+          <ul className="flex flex-col gap-1.5">
+            {rows.map((n) => (
+              <li
+                key={n.id}
+                className={`rounded-lg border p-2.5 ${n.read ? 'border-line bg-card' : 'border-blue/30 bg-blue/5'}`}
+              >
+                <div className="flex items-start gap-2">
+                  <Chip tone={NOTI_TONE[n.tone] ?? 'info'} styleKind="outline">{n.categoryLabel}</Chip>
+                  <p className="min-w-0 flex-1 text-[12px] text-fg">{n.body}</p>
+                  {!n.read && mine(n) ? (
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => onRead(n.id)}>읽음</Button>
+                  ) : !n.read ? (
+                    <Chip size="compact" tone="neutral">남의 알림</Chip>
+                  ) : null}
+                </div>
+                <p className="mt-1 flex gap-2 text-[11px] text-fg-subtle">
+                  <span>{n.fromName ?? '시스템'}</span>
+                  <span>{n.at.slice(5, 16).replace('T', ' ')}</span>
+                  {n.link ? <Link href={n.link} className="ml-auto font-bold text-blue hover:underline">원본</Link> : null}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        <Button variant="primary" disabled={busy || myUnread === 0} onClick={onReadAll}>전부 읽음으로 표시</Button>
+        {widened ? (
+          <Button size="sm" disabled={busy} onClick={() => onWiden(false)}>최근 30일만 보기</Button>
+        ) : olderCount > 0 ? (
+          <Button size="sm" disabled={busy} onClick={() => onWiden(true)}>예전 알림 {olderCount}건도 보기</Button>
+        ) : null}
+        <span className="text-[11px] text-fg-subtle">
+          {widened
+            ? '보관된 전부를 보고 있습니다.'
+            : `최근 ${windowDays}일만 보입니다 — 예전 것은 지운 것이 아니라 접어 둔 것입니다.`}
+        </span>
+      </div>
+    </div>
   );
 }
 

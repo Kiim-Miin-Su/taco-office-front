@@ -900,6 +900,26 @@ export interface paths {
         patch: operations["DrawerController_notiRead"];
         trace?: never;
     };
+    "/drawer/notis/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * §16 「전부 읽음으로 표시」 — 내게 온 안 읽은 알림 전부
+         * @description 보이는 창(30일)과 무관하게 내 것 전부를 읽음으로 바꾼다. 행을 지우지 않는다 (N-7).
+         */
+        patch: operations["DrawerController_notiReadAll"];
+        trace?: never;
+    };
     "/drawer/change-requests": {
         parameters: {
             query?: never;
@@ -2538,6 +2558,13 @@ export interface components {
              * @enum {string}
              */
             tone: "alarm" | "ok" | "warn";
+            /**
+             * @description §16 분류 칩. 색과 같은 방식으로 링크에서 파생한다 — 표에 컬럼이 없다 (lib/noti.ts)
+             * @enum {string}
+             */
+            category: "report_due" | "report" | "schedule" | "request" | "etc";
+            /** @description 분류 이름 — 코드표는 서버가 소유한다 (D-R18) */
+            categoryLabel: string;
         };
         MemberDto: {
             id: number;
@@ -2595,8 +2622,12 @@ export interface components {
             approvals: components["schemas"]["ApFlowDto"];
             /** @description §15 할 일 */
             todos: components["schemas"]["DrawerTodoDto"][];
-            /** @description §16 알림 */
+            /** @description §16 알림 — 기본은 최근 30일 (D-16: 조회 범위 제한이지 삭제가 아니다) */
             notis: components["schemas"]["NotiDto"][];
+            /** @description 목록에 보이는 기간(일). notiWindow=all 이면 0 */
+            notiWindowDays: number;
+            /** @description 창 밖에 남아 있는 알림 수 — **지운 것이 아니다** (N-7 영구 보관) */
+            notiOlderCount: number;
             /** @description §17 구성원 */
             members: components["schemas"]["MemberDto"][];
             /** @description §17 시간대 그룹 */
@@ -2613,6 +2644,11 @@ export interface components {
         TodoDoneDto: {
             /** @description 완료로 바꿀지 여부 */
             done: boolean;
+        };
+        NotiReadAllDto: {
+            ok: boolean;
+            /** @description 이번에 읽음으로 바뀐 수 */
+            marked: number;
         };
         ConflictRowDto: {
             serId: number;
@@ -6574,7 +6610,10 @@ export interface operations {
     };
     DrawerController_all: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 기본 month(최근 30일). all 이면 보관된 전부 */
+                notiWindow?: "month" | "all";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6741,6 +6780,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OkDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_notiReadAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotiReadAllDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

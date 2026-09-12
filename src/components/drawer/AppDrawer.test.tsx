@@ -68,7 +68,8 @@ describe('공용 서랍의 제어형 선택', () => {
     expect(close).toHaveBeenCalledOnce();
     view.rerender(<AppDrawer open={false} pane="chreqNew" onPaneChange={change} onClose={close} />);
     expect(view.queryByRole('dialog')).toBeNull();
-    expect(mocks.drawer).toHaveBeenLastCalledWith(false);
+    // C38 — 서랍은 알림 조회 범위(기본 month)를 함께 넘긴다. 닫히면 여전히 조회를 끈다
+    expect(mocks.drawer).toHaveBeenLastCalledWith(false, 'month');
     expect(mocks.meta).toHaveBeenLastCalledWith(false);
     view.rerender(<AppDrawer open pane="approvals" onPaneChange={change} onClose={close} />);
     expect(view.getByText('승인 내용')).toBeTruthy();
