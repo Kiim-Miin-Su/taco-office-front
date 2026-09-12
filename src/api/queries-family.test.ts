@@ -35,6 +35,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   zoom: qk.zoom(undefined),
   drawer: qk.drawer(),
   tracking: qk.tracking(3, '2026-09-11'),
+  // §65 보고서 키는 `ops` 갈래 안에 산다 — 기획 결재가 운영 목록을 함께 바꾸기 때문이다 (C56)
+  plan: qk.plan(3),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
@@ -130,6 +132,38 @@ describe('무효화 표기', () => {
       const buries = /invalidateQueries|Invalidate\(\)|invalidate\b/.test(h.body)
         || [...helperNames].some((n) => h.body.includes(n));
       expect(buries, `${h.name} 이 쓰기 뒤에 아무것도 안 버린다`).toBe(true);
+    }
+  });
+});
+
+/**
+ * C56 에서 실제로 겪은 것 — **기획 결재가 보고서를 다시 읽지 않았다.**
+ *
+ * `sessionQueryKey` 는 사용자 id 를 키의 **꼬리**가 아니라 **가운데**에 끼운다
+ * (`['ops','viewer',7]`). 그래서 `['ops','plan',3,'viewer',7]` 은 그 앞자락에 안 걸린다.
+ * 갈래 전체를 버릴 때는 **사용자 꼬리 없는 `family.X`** 를 써야 한다 (C48).
+ */
+describe('C56 — 기획 보고서 키가 무효화에 실제로 걸리는가', () => {
+  const VIEWER = 7;
+  const plan = sessionQueryKey(qk.plan(3), VIEWER);
+  const list = sessionQueryKey(qk.ops, VIEWER);
+
+  it('사용자 꼬리가 낀 ops 앞자락으로는 보고서가 안 걸린다 — 이것이 그 버그였다', () => {
+    expect(startsWith(plan, list)).toBe(false);
+  });
+
+  it('family.ops 로는 목록과 보고서가 함께 걸린다', () => {
+    expect(startsWith(plan, family.ops)).toBe(true);
+    expect(startsWith(list, family.ops)).toBe(true);
+  });
+
+  it('기획 결재 훅은 family.ops 를 쓴다 — 소스에서 직접 본다', () => {
+    const src = readFileSync(join(__dirname, 'queries.ts'), 'utf8');
+    const body = src.slice(src.indexOf('function usePlanInvalidate'), src.indexOf('export function usePlanDetail'));
+    expect(body).toContain('queryKey: family.ops');
+    for (const hook of ['useDecidePlanDue', 'useReviewPlan']) {
+      const h = src.slice(src.indexOf(`export function ${hook}`));
+      expect(h.slice(0, 400)).toContain('usePlanInvalidate()');
     }
   });
 });

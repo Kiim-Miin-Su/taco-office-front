@@ -33,7 +33,7 @@ import type {
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
   Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
-  Lead, LeadFail, LeadResume, MfbThread, LessonTracking,
+  Lead, LeadFail, LeadResume, MfbThread, LessonTracking, PlanDetail,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -65,6 +65,8 @@ export const qk = {
   gpa: (anchor: string | undefined) => ['gpa', anchor ?? 'current'] as const,
   zoom: (onDate: string | undefined) => ['zoom', onDate ?? 'today'] as const,
   catalog: ['catalog'] as const,
+  /** §65 기획 보고서 — 창을 열 때만 도는 질의. 갈래 전체는 `family.plan` (C56) */
+  plan: (id: number) => ['ops', 'plan', id] as const,
   /** §79 수강 학생 — 창을 열 때만 도는 질의. 갈래 전체를 버릴 때는 `family.tracking` (C55) */
   tracking: (serId: number, onDate: string) => ['schedule', 'tracking', serId, onDate] as const,
 };
@@ -858,6 +860,56 @@ export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number }
   const invalidate = useOpsInvalidate();
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<Lead>(`/ops/leads/${id}/resume`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/* ══ §65 기획 보고서 — 창을 열 때만 부른다 (C56) ═══════════════════════
+   기한 결재와 최종 결재는 **보고서 전체**를 돌려받는다. 단추가 열리는지는 서버가 정하므로
+   (`canReview` · `reviewBlockedReason`) 한 줄만 갈아 끼우면 단추 상태가 뒤처진다.     */
+
+/**
+ * 기획 결재 뒤 무엇을 다시 읽는가 — **`family.ops` 앞자락 전체**다.
+ *
+ * `useOpsInvalidate` 는 `sessionQueryKey(qk.ops, viewerId)` = `['ops','viewer',N]` 를 쓴다.
+ * 보고서 키는 `['ops','plan',3,'viewer',N]` 이라 **그 앞자락에 걸리지 않는다** — 사용자 꼬리가
+ * 가운데 끼어 있기 때문이다(C48 이 적어 둔 바로 그 함정).
+ *
+ * 실제로 그랬다. 기한 승인은 201 로 저장됐는데 화면의 칩이 「기한 제안」 그대로였고
+ * 「최종 승인」도 안 열렸다. **단위 시험은 전부 통과했다** — 브라우저에서만 보였다.
+ */
+function usePlanInvalidate() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: family.ops });
+}
+
+export function usePlanDetail(id: number | null): UseQueryResult<PlanDetail> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.plan(id ?? 0), viewerId),
+    queryFn: async () => (await api.get<PlanDetail>(`/ops/plans/${id}`)).data,
+    enabled: id !== null,
+  });
+}
+
+/** 기한 승인 · 반려 — 대표 전용 (409: CEO_ONLY · NO_DUE · DUE_ALREADY_APPROVED) */
+export function useDecidePlanDue(): UseMutationResult<PlanDetail, unknown, { id: number; approve: boolean }> {
+  const invalidate = usePlanInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, approve }) =>
+      (await api.post<PlanDetail>(`/ops/plans/${id}/due`, { approve })).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 최종 승인 · 보완 요청 — 기한이 먼저 승인돼야 열린다 (409: DUE_NOT_APPROVED …) */
+export function useReviewPlan(): UseMutationResult<
+  PlanDetail, unknown, { id: number; decision: 'approve' | 'rework'; reason?: string }
+> {
+  const invalidate = usePlanInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) =>
+      (await api.post<PlanDetail>(`/ops/plans/${id}/review`, body)).data,
     onSettled: invalidate,
   });
 }

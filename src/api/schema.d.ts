@@ -699,6 +699,66 @@ export interface paths {
         patch: operations["OpsController_editPost"];
         trace?: never;
     };
+    "/ops/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * §65 기획 보고서 — 목표 · 과제 · 리서치 · 결정 요청
+         * @description 단추가 열리는지도 서버가 정한다 — 원문 §61·§65 「대표는 기한을 먼저 승인해야 최종 승인이 열립니다」. 막힌 이유를 문장으로 함께 내려보낸다.
+         */
+        get: operations["OpsController_planDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/plans/{id}/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 기한 승인 · 반려 — 대표 전용 (원문 §65)
+         * @description 반려는 기한을 지운다 — 승인 안 된 날짜가 §62 기한 표에 남으면 「대표를 지나오지 않은 마감」이 섞인다.
+         */
+        post: operations["OpsController_decidePlanDue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/plans/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 최종 승인 · 보완 요청 — 기한이 먼저 승인돼야 열린다 (원문 §61·§65)
+         * @description 화면이 단추를 숨기는 것과 별개로 서버가 막는다 (DUE_NOT_APPROVED).
+         */
+        post: operations["OpsController_reviewPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consulting": {
         parameters: {
             query?: never;
@@ -2245,13 +2305,46 @@ export interface components {
         PlanDto: {
             id: number;
             title: string;
-            /** @description draft | review | rework | approved | done */
-            stage: string;
+            /**
+             * @description 코드값 — 이름은 stageLabel 을 쓴다
+             * @enum {string}
+             */
+            stage: "draft" | "review" | "rework" | "approved" | "done";
+            /** @description 단계 이름 — 낱말은 서버가 만든다 (D-R18 · C56) */
+            stageLabel: string;
             goal?: string | null;
             ask?: string | null;
             dueOn?: string | null;
             ownerName?: string | null;
             overdueDays: number;
+            /**
+             * @description 기한 상태 — due_on 과 due_approved_at 에서 파생
+             * @enum {string}
+             */
+            dueState: "none" | "proposed" | "approved";
+        };
+        PlanDueRowDto: {
+            /** @description 한 표 안에서 겹치지 않는 키 — `plan:3` · `task:11` */
+            key: string;
+            /** @enum {string} */
+            kind: "plan" | "task";
+            /** @description 구분 이름 — 원문 「기획 마감 · 과제」 */
+            kindLabel: string;
+            /** @example 2026-08-25 */
+            dueOn: string;
+            /** @description 남은 날 한 낱말 */
+            dueLabel: string;
+            /** @description 지난 날 수 — 0 이면 안 지났다. 붉게 칠하는 판정이 이 값 하나다 */
+            overdueDays: number;
+            /** @description 내용 — 기획 제목 또는 과제 제목 */
+            title: string;
+            /** @description 어느 기획인가 */
+            planId: number;
+            planTitle: string;
+            ownerName?: string | null;
+            /** @enum {string} */
+            stage: "draft" | "review" | "rework" | "approved" | "done";
+            stageLabel: string;
         };
         MeetingDto: {
             id: number;
@@ -2345,6 +2438,10 @@ export interface components {
             complaints: components["schemas"]["ComplaintDto"][];
             todos: components["schemas"]["TodoDto"][];
             plans: components["schemas"]["PlanDto"][];
+            /** @description §62 기획 기한 — 기획 마감과 과제 기한을 날짜 순으로 섞은 표 */
+            planDues: components["schemas"]["PlanDueRowDto"][];
+            /** @description 기한 지난 것 — 서버가 센다 (D-R37) */
+            planOverdue: number;
             meetings: components["schemas"]["MeetingDto"][];
             marketing: components["schemas"]["MarketingDto"][];
             /** @description §60 대표 피드백 — 코멘트가 달린 활동만 */
@@ -2385,6 +2482,59 @@ export interface components {
         };
         MfbEditDto: {
             body: string;
+        };
+        PlanTaskDto: {
+            id: number;
+            title: string;
+            done: boolean;
+            toName?: string | null;
+            dueOn?: string | null;
+            /** @description 지난 날 수 — 끝난 과제는 0 */
+            overdueDays: number;
+        };
+        PlanDetailDto: {
+            id: number;
+            title: string;
+            /** @enum {string} */
+            stage: "draft" | "review" | "rework" | "approved" | "done";
+            stageLabel: string;
+            ownerName?: string | null;
+            /** @description 작성일 YYYY-MM-DD */
+            createdOn: string;
+            /** @description 1 · 목표 */
+            goal?: string | null;
+            /** @description 2 · 과제 — TODO 에서 온다 */
+            tasks: components["schemas"]["PlanTaskDto"][];
+            /** @description 끝낸 과제 / 전체 — 화면이 다시 세지 않는다 (D-R37) */
+            taskDone: number;
+            /** @description 3 · 리서치 */
+            research?: string | null;
+            /** @description 4 · 결정 요청 */
+            ask?: string | null;
+            dueOn?: string | null;
+            /** @enum {string} */
+            dueState: "none" | "proposed" | "approved";
+            /** @description 띠에 쓰는 이름 */
+            dueStateLabel: string;
+            /** @description 기한을 승인한 사람 */
+            dueApprovedByName?: string | null;
+            overdueDays: number;
+            /** @description 기한을 승인·반려할 수 있는가 — 대표이고 아직 제안 상태일 때 */
+            canDecideDue: boolean;
+            /** @description 최종 승인·보완 요청을 할 수 있는가 — **기한이 먼저 승인돼야 열린다** (원문 §61·§65) */
+            canReview: boolean;
+            /** @description 단추가 닫혀 있는 이유 — 열려 있으면 null */
+            reviewBlockedReason: string | null;
+        };
+        PlanDueDecisionDto: {
+            /** @description true 면 승인, false 면 반려 */
+            approve: boolean;
+        };
+        PlanReviewDto: {
+            /** @enum {string} */
+            decision: "approve" | "rework";
+            /** @description 보완 요청 사유 — 되돌릴 때는 필수다 */
+            reason?: string;
         };
         ConsultingSessionDto: {
             id: number;
@@ -6669,6 +6819,229 @@ export interface operations {
                 content?: never;
             };
             /** @description code NOT_AUTHOR */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_planDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 기획 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_decidePlanDue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanDueDecisionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 기획 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CEO_ONLY | NO_DUE | DUE_ALREADY_APPROVED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_reviewPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanReviewDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 기획 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code DUE_NOT_APPROVED | NOT_REVIEWABLE | REASON_REQUIRED */
             409: {
                 headers: {
                     [name: string]: unknown;

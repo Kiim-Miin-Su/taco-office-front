@@ -5,7 +5,8 @@
  */
 
 /**
- * 탭 10 운영 — §59 마케팅 · §60 대표 피드백 · §61 기획 · §63 회의 · §64 할 일 · §67 컴플레인.
+ * 탭 10 운영 — §59 마케팅 · §60 대표 피드백 · §61 기획 · §62 기획 기한 · §65 기획 보고서 ·
+ * §63 회의 · §64 할 일 · §67 컴플레인.
  * 집행 비용은 대표만 봅니다 (D-R39) — 서버가 null 로 내려줍니다.
  *
  * 원문 §59·§60 은 「마케팅」 안의 **속 갈래**(트래킹 · 대표 피드백 · 회의 속기록)입니다.
@@ -15,24 +16,31 @@
 import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
+import { Banner, Board, BoardColumn, Button, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
 import { useOps } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
-import type { Complaint, Marketing, Meeting, Plan, Todo } from '@/api/types';
+import { PlanReport } from '@/components/ops/PlanReport';
+import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue, Todo } from '@/api/types';
 import { won } from '@/lib/money';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
 const AREA: Record<string, string> = { lesson: '수업', intake: '상담', book: '교재', schedule: '스케줄', teacher: '선생님' };
 const SRC: Record<string, string> = { meeting: '회의', complaint: '컴플레인', consulting: '컨설팅', plan: '기획', manual: '직접' };
-const PLAN_STAGE: Array<{ key: string; label: string; tone: 'neutral' | 'info' | 'danger' | 'success' | 'purple' }> = [
-  { key: 'draft', label: '작성 중', tone: 'neutral' },
-  { key: 'review', label: '검토 요청', tone: 'info' },
-  { key: 'rework', label: '보완 요청', tone: 'danger' },
-  { key: 'approved', label: '승인', tone: 'success' },
-  { key: 'done', label: '완료', tone: 'purple' },
+/**
+ * 단계의 **색**만 여기서 고른다 — 이름은 서버가 준 `stageLabel` 이다 (D-R18 · C56).
+ * 한동안 이 배열이 이름까지 들고 있었고, §62 기한 표와 §65 보고서가 생기면서
+ * 같은 낱말을 세 곳에서 적을 뻔했다.
+ */
+const PLAN_STAGE: Array<{ key: string; tone: 'neutral' | 'info' | 'danger' | 'success' | 'purple' }> = [
+  { key: 'draft', tone: 'neutral' },
+  { key: 'review', tone: 'info' },
+  { key: 'rework', tone: 'danger' },
+  { key: 'approved', tone: 'success' },
+  { key: 'done', tone: 'purple' },
 ];
+const planTone = (stage: string) => PLAN_STAGE.find((s) => s.key === stage)?.tone ?? 'neutral';
 const CPL_STAGE: Array<{ key: string; label: string; tone: 'danger' | 'warning' | 'success' }> = [
   { key: 'received', label: '접수', tone: 'danger' },
   { key: 'acting', label: '대응', tone: 'warning' },
@@ -43,6 +51,9 @@ export default function OpsPage() {
   const [tab, setTab] = useState<Tab>('todo');
   // 원문 §59·§60 의 속 갈래 — 「트래킹 / 대표 피드백」
   const [mktTab, setMktTab] = useState<'track' | 'fb'>('track');
+  // 원문 §61·§62 의 속 갈래 — 「단계 보드 / 기한」
+  const [planTab, setPlanTab] = useState<'board' | 'due'>('board');
+  const [planId, setPlanId] = useState<number | null>(null);
   const viewerId = useSession((s) => s.me?.id ?? null);
   const q = useOps();
   const d = q.data;
@@ -91,9 +102,25 @@ export default function OpsPage() {
       } },
   ];
 
-  const planCols: Array<BoardColumn<Plan>> = PLAN_STAGE.map((s) => ({
-    key: s.key, label: s.label, tone: s.tone, items: (d?.plans ?? []).filter((p) => p.stage === s.key),
-  }));
+  const planCols: Array<BoardColumn<Plan>> = PLAN_STAGE.map((s) => {
+    const items = (d?.plans ?? []).filter((p) => p.stage === s.key);
+    // 칸 이름도 서버가 준 낱말에서 나온다 — 비어 있는 칸만 코드값을 쓸 일이 없도록 기본값을 둔다
+    return { key: s.key, label: items[0]?.stageLabel ?? s.key, tone: s.tone, items };
+  });
+  /** §62 기획 기한 — 「남은 날」도 「구분」도 서버가 만든 낱말이다 (D-R18 · D-R37) */
+  const dueCols: Array<Column<PlanDue>> = [
+    { key: 'd', head: '기한', width: 90, cell: (r) => r.dueOn.slice(5) },
+    { key: 'l', head: '남은 날', width: 100, align: 'right',
+      cell: (r) => <span className={r.overdueDays > 0 ? 'font-bold text-red' : 'font-bold'}>{r.dueLabel}</span> },
+    { key: 'k', head: '구분', width: 100, cell: (r) => <Chip tone={r.kind === 'plan' ? 'neutral' : 'info'}>{r.kindLabel}</Chip> },
+    { key: 't', head: '내용', cell: (r) => <span className="font-bold">{r.title}</span> },
+    { key: 'p', head: '기획', width: 180, cell: (r) => <span className="text-fg-subtle">{r.planTitle}</span> },
+    { key: 'o', head: '담당', width: 90, cell: (r) => r.ownerName ?? '—' },
+    { key: 's', head: '단계', width: 110, cell: (r) => <Chip tone={planTone(r.stage)}>{r.stageLabel}</Chip> },
+    { key: 'x', head: '', width: 70,
+      cell: (r) => <Button size="sm" variant="secondary" onClick={() => setPlanId(r.planId)}>열기</Button> },
+  ];
+
   const cplCols: Array<BoardColumn<Complaint>> = CPL_STAGE.map((s) => ({
     key: s.key, label: s.label, tone: s.tone, items: (d?.complaints ?? []).filter((c) => c.stage === s.key),
   }));
@@ -156,17 +183,42 @@ export default function OpsPage() {
           </>
         )
         : tab === 'plan' ? (
-          <Board columns={planCols} itemKey={(p) => p.id} renderCard={(p) => (
-            <>
-              <div className="text-[12px] font-bold text-fg">{p.title}</div>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-[10px] text-fg-subtle">{p.ownerName ?? '—'}</span>
-                {p.overdueDays > 0
-                  ? <Chip tone="danger">{p.overdueDays}일 지남</Chip>
-                  : <span className="text-[10px] text-fg-subtle">{p.dueOn ?? ''}</span>}
-              </div>
-            </>
-          )} />
+          <>
+            <Segmented
+              className="mb-3"
+              value={planTab}
+              onChange={setPlanTab}
+              options={[
+                { value: 'board', label: `단계 보드 ${d?.plans.length ?? 0}` },
+                { value: 'due', label: `기한 ${d?.planDues.length ?? 0}` },
+              ]}
+            />
+            {planTab === 'due' ? (
+              <>
+                {/* 원문 §62 머리 띠 — 숫자는 서버가 센다 (D-R37) */}
+                <Banner tone={d?.planOverdue ? 'danger' : 'neutral'} className="mb-3">
+                  <b>기한 지난 것 {d?.planOverdue ?? 0}건</b>
+                  <span className="ml-2 text-[12px] text-fg-2">대표는 기한을 봅니다 · 지나면 붉게 나옵니다</span>
+                </Banner>
+                <Table columns={dueCols} rows={d?.planDues ?? []} rowKey={(r) => r.key}
+                  empty="기한이 걸린 기획이 없습니다" />
+              </>
+            ) : (
+              <Board columns={planCols} itemKey={(p) => p.id} renderCard={(p) => (
+                <button type="button" className="block w-full text-left" onClick={() => setPlanId(p.id)}>
+                  <div className="text-[12px] font-bold text-fg">{p.title}</div>
+                  <div className="mt-1 flex items-center justify-between gap-1">
+                    <span className="text-[10px] text-fg-subtle">{p.ownerName ?? '—'}</span>
+                    {/* 기한이 대표를 지나왔는지는 서버가 판정한다 (원문 §61·§65) */}
+                    {p.dueState === 'proposed' ? <Chip tone="warning">기한 제안</Chip> : null}
+                    {p.overdueDays > 0
+                      ? <Chip tone="danger">{p.overdueDays}일 지남</Chip>
+                      : <span className="text-[10px] text-fg-subtle">{p.dueOn ?? ''}</span>}
+                  </div>
+                </button>
+              )} />
+            )}
+          </>
         ) : (
           <Board columns={cplCols} itemKey={(c) => c.id} renderCard={(c) => (
             <>
@@ -184,6 +236,7 @@ export default function OpsPage() {
           담당자는 세 곳을 봐야 합니다. 출처를 표시해서 <b>한 목록</b>으로 모읍니다.
         </p>
       </Panel>
+      <PlanReport planId={planId} onClose={() => setPlanId(null)} />
     </AppShell></RequireAuth>
   );
 }

@@ -108,6 +108,10 @@ export type Todo = S['TodoDto'];
 export type Plan = S['PlanDto'];
 export type Meeting = S['MeetingDto'];
 export type Marketing = S['MarketingDto'];
+/** §62 기획 기한 · §65 기획 보고서 */
+export type PlanDueRow = S['PlanDueRowDto'];
+export type PlanDetail = S['PlanDetailDto'];
+export type PlanTask = S['PlanTaskDto'];
 /** §79 수강 학생 — 학생 트래킹 */
 export type LessonTracking = S['LessonTrackingDto'];
 export type TrackedStudent = S['TrackedStudentDto'];
