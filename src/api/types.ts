@@ -33,6 +33,11 @@ export type TeacherGuideStudent = S['TeacherGuideStudentDto'];
 export type TeacherSuggestions = S['TeacherSuggestionsDto'];
 export type TeacherSuggestion = S['TeacherSuggestionDto'];
 export type TeacherSuggestionCreate = S['TeacherSuggestionCreateDto'];
+/** 강사 §8 내 설정 — 시간대·시급과 올린 요청 이력 */
+export type TeacherSettings = S['TeacherSettingsDto'];
+/** 강사 §8 내 설정 변경 요청 (C39) — 올리기만 하고 적용은 관리자 승인 뒤다 */
+export type TeacherSettingRequest = S['TeacherSettingRequestDto'];
+export type TeacherSettingReqCreate = S['TeacherSettingReqCreateDto'];
 export type TeacherHistoryLesson = S['TeacherHistoryLessonDto'];
 export type TeacherLesson = S['TeacherLessonDto'];
 

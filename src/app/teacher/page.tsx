@@ -10,13 +10,130 @@
  * 판정(미작성·할 일 수·시급)은 서버가 한다 — 화면은 숫자와 상태만 그린다 (D-R39 · SKILLS §3).
  */
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Button, Chip, PageHeader, Panel, QueryState, type Tone } from '@/components/ui';
-import { useTeacherHome } from '@/api/queries';
-import type { TeacherLesson } from '@/api/types';
+import { apiMessage } from '@/api/client';
+import { Banner, Button, Chip, Input, Label, PageHeader, Panel, QueryState, Select, type Tone } from '@/components/ui';
+import { useCreateSettingRequest, useTeacherHome } from '@/api/queries';
+import type { TeacherLesson, TeacherSettings } from '@/api/types';
 import { REP, hm, hours, md } from '@/components/teacher/format';
+
+const REQ_STATE: Record<string, { label: string; tone: Tone }> = {
+  pending: { label: '승인 대기', tone: 'info' },
+  approved: { label: '승인', tone: 'success' },
+  rejected: { label: '반려', tone: 'danger' },
+};
+
+/**
+ * §8 우측 레일 「내 설정」 — 시간대 / 기본 시급, **각각 변경 요청 버튼**.
+ * 원문 그대로 「관리자 승인 후 적용」이고 시급은 **한 달에 한 번**이다 — 두 판정 다 서버가 한다.
+ */
+function MySettings({ s }: { s: TeacherSettings }) {
+  const ask = useCreateSettingRequest();
+  const [open, setOpen] = useState<'wage' | 'tz' | null>(null);
+  const [rate, setRate] = useState('');
+  const [tz, setTz] = useState('');
+  const [reason, setReason] = useState('');
+
+  const close = () => { setOpen(null); setRate(''); setTz(''); setReason(''); ask.reset(); };
+  const submit = () => {
+    if (open === 'wage') {
+      const n = Number(rate);
+      if (!Number.isInteger(n) || n <= 0) return;
+      ask.mutate({ reqType: 'wage_change', rate: n, ...(reason.trim() ? { reason: reason.trim() } : {}) }, { onSuccess: close });
+    } else if (open === 'tz' && tz) {
+      ask.mutate({ reqType: 'tz_change', timezone: tz, ...(reason.trim() ? { reason: reason.trim() } : {}) }, { onSuccess: close });
+    }
+  };
+
+  return (
+    <Panel title="내 설정" sub="관리자 승인 후 적용 · 시급은 한 달에 한 번 신청할 수 있습니다">
+      <dl className="text-[13px]">
+        <dt className="text-fg-subtle">시간대</dt>
+        <dd className="mb-2 flex items-center justify-between font-bold text-fg">
+          {s.timezone === 'Asia/Seoul' ? 'Seoul UTC+9' : s.timezone}
+          <Button
+            size="sm"
+            disabled={!s.canAskTz || ask.isPending}
+            title={s.canAskTz ? undefined : '올린 요청이 처리 중입니다'}
+            onClick={() => { setOpen(open === 'tz' ? null : 'tz'); setTz(''); }}
+          >
+            변경 요청
+          </Button>
+        </dd>
+        <dt className="text-fg-subtle">기본 시급 · 나만 볼 수 있습니다</dt>
+        <dd className="flex items-center justify-between font-bold text-fg">
+          {s.wageRate === null || s.wageRate === undefined ? '—' : `${s.wageRate.toLocaleString('ko-KR')}원/시간`}
+          <Button
+            size="sm"
+            disabled={!s.canAskWage || ask.isPending}
+            title={s.canAskWage ? undefined : `${s.wageAskableOn}부터 다시 신청할 수 있습니다`}
+            onClick={() => { setOpen(open === 'wage' ? null : 'wage'); setRate(''); }}
+          >
+            변경 신청
+          </Button>
+        </dd>
+        {s.wageFrom ? <dd className="mt-1 text-[11px] text-fg-subtle">{s.wageFrom} 적용</dd> : null}
+        {!s.canAskWage && s.wageAskableOn ? (
+          <dd className="mt-1 text-[11px] text-fg-subtle">시급은 한 달에 한 번 — {s.wageAskableOn}부터 다시 됩니다</dd>
+        ) : null}
+      </dl>
+
+      {open ? (
+        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-line bg-inset p-3">
+          {open === 'wage' ? (
+            <span>
+              <Label htmlFor="ask-rate" hint="원/시간">바라는 시급</Label>
+              <Input id="ask-rate" type="number" min={1} inputMode="numeric" value={rate}
+                placeholder={s.wageRate === null || s.wageRate === undefined ? '' : String(s.wageRate)}
+                onChange={(e) => setRate(e.target.value)} />
+            </span>
+          ) : (
+            <span>
+              <Label htmlFor="ask-tz">바라는 시간대</Label>
+              <Select id="ask-tz" value={tz} onChange={(e) => setTz(e.target.value)}>
+                <option value="">선택</option>
+                {s.timezones.filter((t) => t.tz !== s.timezone).map((t) => (
+                  <option key={t.tz} value={t.tz}>{t.name} · {t.tz}</option>
+                ))}
+              </Select>
+            </span>
+          )}
+          <span>
+            <Label htmlFor="ask-reason" hint="선택">사유</Label>
+            <Input id="ask-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="한 줄로 적어 주세요" />
+          </span>
+          <span className="flex gap-2">
+            <Button variant="primary" disabled={ask.isPending || (open === 'wage' ? rate === '' : tz === '')} onClick={submit}>
+              {ask.isPending ? '올리는 중…' : '요청 올리기'}
+            </Button>
+            <Button onClick={close}>취소</Button>
+          </span>
+          {ask.isError ? <Banner tone="danger">{apiMessage(ask.error)}</Banner> : null}
+        </div>
+      ) : null}
+
+      {s.requests.length > 0 ? (
+        <ol className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
+          {s.requests.map((r) => (
+            <li key={r.id} className="flex items-center gap-2 text-[12px]">
+              <Chip size="compact" tone={REQ_STATE[r.state]?.tone ?? 'neutral'}>{REQ_STATE[r.state]?.label ?? r.state}</Chip>
+              <span className="min-w-0 grow truncate text-fg">{r.label} {r.asked ? `→ ${r.asked}` : ''}</span>
+              <span className="shrink-0 text-fg-subtle">{r.createdOn.slice(5)}</span>
+            </li>
+          ))}
+          {s.requests.some((r) => r.state === 'rejected' && r.rejectReason) ? (
+            <li className="text-[11px] text-red">
+              반려 사유 — {s.requests.find((r) => r.state === 'rejected' && r.rejectReason)?.rejectReason}
+            </li>
+          ) : null}
+        </ol>
+      ) : null}
+    </Panel>
+  );
+}
 
 function LessonRow({ l, withDate }: { l: TeacherLesson; withDate?: boolean }) {
   const rep = l.canceled ? { label: '수업 취소', tone: 'neutral' as Tone } : REP[l.repState];
@@ -91,23 +208,7 @@ export default function TeacherHomePage() {
                   </div>
 
                   <aside className="w-full shrink-0 lg:w-[344px]">
-                    <Panel title="내 설정" sub="관리자 승인 후 적용">
-                      <dl className="text-[13px]">
-                        <dt className="text-fg-subtle">시간대</dt>
-                        <dd className="mb-2 flex items-center justify-between font-bold text-fg">
-                          {d.settings.timezone === 'Asia/Seoul' ? 'Seoul UTC+9' : d.settings.timezone}
-                          <Button size="sm" disabled title="정책 확정 전 — 표시만">변경 요청</Button>
-                        </dd>
-                        <dt className="text-fg-subtle">기본 시급 · 나만 볼 수 있습니다</dt>
-                        <dd className="flex items-center justify-between font-bold text-fg">
-                          {d.settings.wageRate === null || d.settings.wageRate === undefined
-                            ? '—'
-                            : `${d.settings.wageRate.toLocaleString('ko-KR')}원/시간`}
-                          <Button size="sm" disabled title="정책 확정 전 — 표시만">변경 신청</Button>
-                        </dd>
-                        {d.settings.wageFrom ? <dd className="mt-1 text-[11px] text-fg-subtle">{d.settings.wageFrom} 적용</dd> : null}
-                      </dl>
-                    </Panel>
+                    <MySettings s={d.settings} />
 
                     <Panel className="mt-4" title="오늘 할 일">
                       <ul className="flex flex-col gap-2">

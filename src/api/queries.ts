@@ -27,6 +27,7 @@ import type {
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
+  TeacherSettingRequest, TeacherSettingReqCreate,
   ConsItem,
   Invoice, PaymentCreate, Expense, ExpenseReview,
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
@@ -288,6 +289,23 @@ export function useTeacherHome(): UseQueryResult<TeacherHome> {
     queryKey: sessionQueryKey(qk.teacherHome, viewerId),
     queryFn: async () => (await api.get<TeacherHome>('/teacher/home')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * 내 설정 변경 요청 (강사 §8) — **올리기만 한다.** 적용은 관리자 승인 뒤라
+ * 낙관 갱신을 하지 않고 홈을 다시 읽는다. 「한 달에 한 번」 판정도 서버 것을 그대로 쓴다.
+ */
+export function useCreateSettingRequest(): UseMutationResult<TeacherSettingRequest, unknown, TeacherSettingReqCreate> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<TeacherSettingRequest>('/teacher/requests', w)).data,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherHome, viewerId) });
+      // 올린 요청은 서랍 §14 승인 대기함에도 같은 행으로 보인다 (D-R26)
+      void qc.invalidateQueries({ queryKey: qk.drawer });
+    },
   });
 }
 

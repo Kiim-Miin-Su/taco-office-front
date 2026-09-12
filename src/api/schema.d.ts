@@ -760,6 +760,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 내 설정 변경 요청 — 시급·시간대 (강사 덱 §8 우측 레일)
+         * @description 올리기만 한다. **관리자 승인 후 적용**이며 시급은 한 달에 한 번이다 — 판정은 서버.
+         */
+        post: operations["TeacherController_createSettingRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gpa": {
         parameters: {
             query?: never;
@@ -1991,6 +2011,26 @@ export interface components {
             /** @description 진행 중(pending) 내 요청 — 시급 변경·불가 시간 등(req) */
             openStaffRequests: number;
         };
+        TeacherTimezoneDto: {
+            /** @description IANA 이름 — staff.tz 에 그대로 들어간다 */
+            tz: string;
+            name: string;
+        };
+        TeacherSettingRequestDto: {
+            id: number;
+            /** @enum {string} */
+            reqType: "wage_change" | "tz_change";
+            /** @description 사람이 읽는 요청 이름 — 코드표는 서버가 소유한다 (D-R18) */
+            label: string;
+            /** @description 무엇으로 바꿔 달라고 했는지 한 줄 */
+            asked?: string | null;
+            /** @enum {string} */
+            state: "pending" | "approved" | "rejected";
+            /** @description 올린 날 YYYY-MM-DD */
+            createdOn: string;
+            /** @description 반려 사유 (D-R13) */
+            rejectReason?: string | null;
+        };
         TeacherSettingsDto: {
             name: string;
             /** @description IANA 시간대 — staff.tz */
@@ -1999,6 +2039,16 @@ export interface components {
             wageRate?: number | null;
             /** @description 그 시급 적용 시작일 */
             wageFrom?: string | null;
+            /** @description 고를 수 있는 시간대 — TZG 표가 코드표다 */
+            timezones: components["schemas"]["TeacherTimezoneDto"][];
+            /** @description 최근 내 설정 요청 (새것 먼저) */
+            requests: components["schemas"]["TeacherSettingRequestDto"][];
+            /** @description 시급 변경을 지금 신청할 수 있는가 — **한 달에 한 번**이다 (강사 덱 §8 원문) */
+            canAskWage: boolean;
+            /** @description 못 하면 언제부터 되는지 YYYY-MM-DD */
+            wageAskableOn?: string | null;
+            /** @description 시간대 변경을 지금 신청할 수 있는가 — 진행 중인 건이 있으면 false */
+            canAskTz: boolean;
         };
         TeacherHomeDto: {
             /** @description 기준일 YYYY-MM-DD (KST 오늘) */
@@ -2239,6 +2289,16 @@ export interface components {
             endMin: number;
             /** @description 사유 1~500자 — 필수. 관리자가 조정 가능성을 판단한다 (v26) */
             reason: string;
+        };
+        TeacherSettingReqCreateDto: {
+            /** @enum {string} */
+            reqType: "wage_change" | "tz_change";
+            /** @description 시급 변경일 때 바라는 시급(원/시간). 정수 */
+            rate?: number;
+            /** @description 시간대 변경일 때 바라는 IANA 시간대 — TZG 에 있는 값만 */
+            timezone?: string;
+            /** @description 사유 (선택) */
+            reason?: string;
         };
         GpaCycleDto: {
             id: number;
@@ -6140,6 +6200,77 @@ export interface operations {
                 };
             };
             /** @description code UNAV_LOCKED — 마감분·legacy 는 관리자 조정 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_createSettingRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherSettingReqCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherSettingRequestDto"];
+                };
+            };
+            /** @description code RATE_REQUIRED | TZ_REQUIRED | TZ_UNKNOWN */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code WAGE_REQ_MONTHLY_QUOTA | REQ_PENDING | TZ_SAME */
             409: {
                 headers: {
                     [name: string]: unknown;
