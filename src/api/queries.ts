@@ -28,6 +28,7 @@ import type {
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
   ConsItem,
+  Invoice, PaymentCreate,
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   Lead, LeadFail, LeadResume,
 } from './types';
@@ -184,6 +185,34 @@ export function useAccounting(): UseQueryResult<Accounting> {
     queryKey: sessionQueryKey(qk.accounting, viewerId),
     queryFn: async () => (await api.get<Accounting>('/accounting')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+function useAccountingInvalidate() {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.accounting, viewerId) });
+}
+
+/**
+ * 입금 한 줄 등록 (A-D2 · §53 ⑤ 입금 기록).
+ * 누계·상태 전이·초과 거절은 서버가 판정한다 — 낙관 갱신을 하지 않는 이유다.
+ * 돈이 들어온 사실을 서버 확정 전에 화면이 먼저 그리면 안 된다 (AGENT §현행 인계 E).
+ */
+export function useCreatePayment(): UseMutationResult<Invoice, unknown, PaymentCreate> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<Invoice>('/accounting/payments', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 잘못 적은 줄 정정 — 부분 납부(partial) 인 동안만. 완납 거절은 서버 문구를 그대로 보인다 */
+export function useDeletePayment(): UseMutationResult<OkResult, unknown, number> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (id) => (await api.delete<OkResult>(`/accounting/payments/${id}`)).data,
+    onSettled: invalidate,
   });
 }
 

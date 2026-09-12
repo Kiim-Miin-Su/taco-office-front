@@ -438,11 +438,48 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 회계 — 청구서 · 입금 · 정산. 금액은 대표만 값이 채워진다 */
+        /** 회계 — 청구서 · 입금 · 정산 (D-R9 · v2 §76 — 대표 전용, 사람별 예외는 canMoney) */
         get: operations["AccountingController_all"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 입금 한 줄 등록 — 분납은 줄을 늘린다 (A-D2 · v2 §53 ⑤ 입금 기록)
+         * @description 누계·상태 전이(partial/paid)·초과 거절은 서버 한 곳에서 한다. 화면은 잔여를 placeholder 로만 쓴다.
+         */
+        post: operations["AccountingController_addPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 입금 줄 삭제 — 부분 납부(partial) 정정일 때만. 완납은 되돌리지 않는다 */
+        delete: operations["AccountingController_removePayment"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1436,6 +1473,8 @@ export interface components {
             issuedOn?: string | null;
             dueOn?: string | null;
             paidAt?: string | null;
+            /** @description 청구액 − 확정 누계. 다음 입금의 placeholder 다 (A-D2) */
+            remaining: number | null;
             /** @description 예정일이 지났는데 안 들어온 날 수. 0이면 연체 아님 */
             overdueDays: number;
             lines: components["schemas"]["InvoiceLineDto"][];
@@ -1452,6 +1491,8 @@ export interface components {
             /** @description 실제 입금액. null은 미확인 또는 금액 권한 없음; summary.canSeeAmounts로 구분. 0은 확인된 0원 */
             amount: number | null;
             method?: string | null;
+            /** @description 청구액과 다를 때의 사유 · 분납 회차 메모 (A-D2) */
+            reason?: string | null;
             invId?: number | null;
         };
         PayoutDto: {
@@ -1473,6 +1514,18 @@ export interface components {
             invoices: components["schemas"]["InvoiceDto"][];
             payments: components["schemas"]["PaymentDto"][];
             payouts: components["schemas"]["PayoutDto"][];
+        };
+        PaymentCreateDto: {
+            /** @description 어느 청구서에 붙는 입금인가 */
+            invId: number;
+            /** @description 이번에 들어온 금액(원). 누계가 청구액을 넘으면 OVERPAY 로 거절한다 */
+            amount: number;
+            /** @description 입금일 YYYY-MM-DD */
+            paidOn: string;
+            /** @enum {string} */
+            method?: "transfer" | "cash";
+            /** @description 청구액과 다를 때의 사유 — 분납 회차 메모로도 쓴다 */
+            reason?: string;
         };
         LeadDto: {
             id: number;
@@ -4563,6 +4616,150 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_addPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCreateDto"];
+            };
+        };
+        responses: {
+            /** @description 누계와 전이가 반영된 청구서 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 청구서 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code OVERPAY(남은 금액 초과) | INV_NOT_BILLABLE(초안·취소) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_removePayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { ok: true } */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 입금 기록 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code INV_PAID_LOCKED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

@@ -5,10 +5,11 @@
  */
 
 /**
- * §53 청구서 · §55 들어온 돈 · §57 강사료 정산.
+ * §53 청구서 · §55 들어온 돈 · §57 강사료 정산 · ⑤ 입금 기록(C36-a).
  *
- * 금액은 대표만 봅니다 (D-R39). **가리는 일을 화면이 하지 않는다** — 서버가 null 로 내려주고
- * 화면은 그것을 「가려짐」으로 그린다. 화면에서만 감추면 네트워크 탭에 그대로 보인다.
+ * 회계 탭 자체가 대표 전용이다 (D-R9 · v2 §76 — 원본 컷 머리글 「회계 〔대표·이사〕」).
+ * 그래도 금액은 서버가 null 로 내려보내는 쪽을 유지한다 — **가리는 일을 화면이 하지 않는다.**
+ * 사람별 예외(STAFF.can_money)로 열린 사람에게만 값이 채워진다.
  */
 'use client';
 import { useState } from 'react';
@@ -16,6 +17,7 @@ import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
 import { useAccounting } from '@/api/queries';
+import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won } from '@/lib/money';
 
@@ -35,7 +37,7 @@ const STATE: Record<string, { label: string; tone: 'neutral' | 'info' | 'success
 };
 
 export default function AccountingPage() {
-  const [tab, setTab] = useState<'inv' | 'pay' | 'payout'>('inv');
+  const [tab, setTab] = useState<'inv' | 'record' | 'pay' | 'payout'>('inv');
   const q = useAccounting();
   const s = q.data?.summary;
 
@@ -54,6 +56,10 @@ export default function AccountingPage() {
     { key: 'ti', head: '내역', cell: (r) => r.lines.map((l) => l.label).join(' + ') || r.title },
     { key: 'am', head: '금액', width: 120, align: 'right', cell: (r) => <Won v={r.amount} bold /> },
     { key: 'pd', head: '수납', width: 120, align: 'right', cell: (r) => <Won v={r.paidAmount} /> },
+    {
+      key: 'rm', head: '남은 금액', width: 120, align: 'right',
+      cell: (r) => (r.remaining === 0 ? <span className="text-fg-subtle">—</span> : <Won v={r.remaining} />),
+    },
     {
       key: 'stt',
       head: '상태',
@@ -148,6 +154,7 @@ export default function AccountingPage() {
           onChange={setTab}
           options={[
             { value: 'inv', label: `청구서 ${q.data?.invoices.length ?? 0}` },
+            { value: 'record', label: '입금 기록' },
             { value: 'pay', label: `들어온 돈 ${q.data?.payments.length ?? 0}` },
             { value: 'payout', label: `강사료 정산 ${q.data?.payouts.length ?? 0}` },
           ]}
@@ -159,6 +166,8 @@ export default function AccountingPage() {
           <Banner tone="danger">회계는 매니저 이상만 볼 수 있습니다. 또는 서버에 닿지 못했습니다.</Banner>
         ) : tab === 'inv' ? (
           <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
+        ) : tab === 'record' ? (
+          <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (
           <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
         ) : (
