@@ -86,6 +86,7 @@ export type ReportSendHistoryList = S['ReportSendHistoryListDto'];
 /** 회계 — 금액은 canSeeProfit 이 아니면 서버가 null 로 내려준다 (D-R39) */
 export type Accounting = S['AccountingDto'];
 export type Invoice = S['InvoiceDto'];
+export type InvoiceIssue = S['InvoiceIssueDto'];
 export type Payment = S['PaymentDto'];
 /** 입금 한 줄 등록 — 분납은 줄을 늘린다 (A-D2 · C36-a) */
 export type PaymentCreate = S['PaymentCreateDto'];

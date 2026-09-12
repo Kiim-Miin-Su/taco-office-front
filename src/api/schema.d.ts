@@ -485,6 +485,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 청구서 한 장 발행 — 줄은 서버가 만든다 (§53 「+ 새 청구서 발행」)
+         * @description 줄(INV_LINE)을 받지 않는다. 원문 명세가 「횟수는 서버가 occ() 로 센다 — 프론트가 세면 예외(EXC)를 빠뜨린다」고 적었다(D-R37). 누구의 어느 달인지만 주면 과목별 회차·단가·소계·합계를 서버가 만든다. 되돌리기는 없다 — 잘못 냈으면 취소하고 새로 만든다(원문 규칙 줄).
+         */
+        post: operations["AccountingController_issueInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/payments": {
         parameters: {
             query?: never;
@@ -1884,6 +1904,24 @@ export interface components {
             expenses: components["schemas"]["ExpenseDto"][];
             /** @description §56 분류별 확정 지출 합계 — 화면이 더하지 않는다 */
             expenseTotals: components["schemas"]["ExpenseTotalDto"][];
+        };
+        InvoiceIssueDto: {
+            /** @description 누구에게 */
+            studentId: number;
+            /**
+             * @description 어느 달 — YYYY-MM
+             * @example 2026-08
+             */
+            yearMonth: string;
+            /**
+             * @description 청구 종류
+             * @enum {string}
+             */
+            invType: "tuition" | "consulting";
+            /** @description 제목 — 비우면 서버가 「2026년 8월 수업료」처럼 짓는다 */
+            title?: string;
+            /** @description 납기일 — YYYY-MM-DD */
+            dueOn?: string;
         };
         PaymentCreateDto: {
             /** @description 어느 청구서에 붙는 입금인가 */
@@ -5431,6 +5469,80 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_issueInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceIssueDto"];
+            };
+        };
+        responses: {
+            /** @description 줄까지 채워진 청구서 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 학생 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code INV_DUPLICATE(같은 학생·달·종류가 이미 있음) | INV_NO_LESSONS(그 달 수업 없음) | INV_NO_RATE(단가표에 없는 과목) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

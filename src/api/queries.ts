@@ -29,7 +29,7 @@ import type {
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
   TeacherSettingRequest, TeacherSettingReqCreate,
   ConsItem,
-  Invoice, PaymentCreate, Expense, ExpenseReview,
+  Invoice, InvoiceIssue, PaymentCreate, Expense, ExpenseReview,
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
   Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
@@ -255,6 +255,20 @@ export function useDeletePayment(): UseMutationResult<OkResult, unknown, number>
  * 법인카드 심사 (A-D3 · §56). 증액·영수증·자기 승인 판정은 전부 서버 —
  * 화면은 미리 막아 주기만 하고, 최종 거절 문구는 서버 것을 그대로 보인다.
  */
+/**
+ * 청구서 발행 (§53 「+ 새 청구서 발행」 · C50).
+ *
+ * **줄을 보내지 않는다.** 누구의 어느 달인지만 보내면 서버가 과목별 회차를 세어 줄을 만든다 —
+ * 원문 명세가 「횟수는 서버가 occ() 로 센다 · 프론트가 세면 예외를 빠뜨린다」고 적었다 (D-R37).
+ */
+export function useIssueInvoice(): UseMutationResult<Invoice, unknown, InvoiceIssue> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<Invoice>('/accounting/invoices', w)).data,
+    onSettled: invalidate,
+  });
+}
+
 export function useReviewExpense(): UseMutationResult<Expense, unknown, { id: number; body: ExpenseReview }> {
   const invalidate = useAccountingInvalidate();
   return useMutation({

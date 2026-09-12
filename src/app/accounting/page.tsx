@@ -19,6 +19,7 @@ import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/compo
 import { useAccounting } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
+import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won, wonTone } from '@/lib/money';
@@ -189,7 +190,10 @@ export default function AccountingPage() {
         ) : q.isError ? (
           <Banner tone="danger">회계는 매니저 이상만 볼 수 있습니다. 또는 서버에 닿지 못했습니다.</Banner>
         ) : tab === 'inv' ? (
-          <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
+          <>
+            <InvoiceIssuer />
+            <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
+          </>
         ) : tab === 'record' ? (
           <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (
