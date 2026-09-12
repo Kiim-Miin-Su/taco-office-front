@@ -39,7 +39,7 @@ const data = (): TeacherHistory => ({
   wageRate: 45000, wageFrom: '2026-09-12',
   lessons: [lesson()],
   settlement: {
-    yearMonth: '2026-09', confirmed: false, state: null, writtenMinutes: 540, gross: 378000,
+    yearMonth: '2026-09', confirmed: false, saved: false, writtenMinutes: 540, gross: 378000,
     lateCut: 20000, incomeTax: 10740, localTax: 1074, net: 346186,
     unwrittenCount: 1, unwrittenMinutes: 60, unwrittenAmount: 42000,
     remainingCount: 4, remainingMinutes: 300, remainingAmount: 225000,
@@ -86,4 +86,31 @@ it('정산 줄의 산식은 좁은 화면에서 **잘리지 않고 아래로 내
   expect(how.className).toContain('w-full');
   expect(how.className).toContain('sm:truncate');
   expect(how.className).not.toMatch(/(^|\s)truncate(\s|$)/);
+});
+
+/**
+ * 정산 상태는 **서버 결론 하나**만 읽는다 (N-27 · 대표 결정 2026-09-12).
+ *
+ * 전에는 `payout.state` 낱말로 「지급 완료 / 마감 작성 중 / 확정」을 화면이 갈랐다.
+ * 그 낱말에 정본이 없어서, 저장만 된 정산이 강사에게 「확정」으로 보였다.
+ * 지금 화면이 아는 사실은 둘뿐이다 — 확정됐는가(`confirmed`) · 저장값인가(`saved`).
+ */
+const settle = (over: Partial<TeacherHistory['settlement']>) => {
+  const d = data();
+  return { ...d, settlement: { ...d.settlement, ...over } };
+};
+
+it.each([
+  { confirmed: true, saved: true, chip: '확정', tail: '실지급액' },
+  { confirmed: false, saved: true, chip: '마감 작성 중', tail: '실지급 예정액' },
+  { confirmed: false, saved: false, chip: '실시간 계산', tail: '실지급 예정액' },
+])('정산 상태는 확정 여부와 저장 여부 둘로만 말한다 — %o', async ({ confirmed, saved, chip, tail }) => {
+  mocks.history.mockReturnValue({ data: settle({ confirmed, saved }), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  await waitFor(() => expect(view.getByText('2026년 9월 정산')).toBeTruthy());
+  const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+  expect(view.getByText(chip)).toBeTruthy();
+  expect(text).toContain(tail);
+  // 낱말이 아니라 결론을 읽는다 — 「지급 완료」는 낱말이 정해질 때까지 만들지 않는다 (N-27)
+  expect(text).not.toContain('지급 완료');
 });

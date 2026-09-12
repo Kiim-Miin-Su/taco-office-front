@@ -91,6 +91,7 @@ export type Payment = S['PaymentDto'];
 export type PaymentCreate = S['PaymentCreateDto'];
 /** 나간 돈 §56 — 부대비용·법인카드 (A-D3·A-D5 · C36-b) */
 export type Expense = S['ExpenseDto'];
+export type ExpenseTotal = S['ExpenseTotalDto'];
 export type ExpenseReview = S['ExpenseReviewDto'];
 export type Payout = S['PayoutDto'];
 export type MoneySummary = S['MoneySummaryDto'];

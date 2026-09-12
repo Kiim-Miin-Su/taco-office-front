@@ -17,7 +17,7 @@
 import { useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useReviewExpense } from '@/api/queries';
-import type { Expense, Me } from '@/api/types';
+import type { Expense, ExpenseTotal, Me } from '@/api/types';
 import { Banner, Button, Chip, Input, Label, Panel } from '@/components/ui';
 import { won } from '@/lib/money';
 
@@ -27,7 +27,13 @@ const STATE: Record<string, { label: string; tone: 'warning' | 'success' | 'dang
   rejected: { label: '반려', tone: 'danger' },
 };
 
-export function ExpenseReview({ expenses, me }: { expenses: Expense[]; me: Me | null }) {
+/**
+ * §56 나간 돈 — 심사와 분류별 합계.
+ *
+ * 분류별 합계는 **서버가 준 것을 그대로 보여 준다** (C43-b · 대표 지시 「전부 단일 진실원」).
+ * 전에는 여기서 지출 줄을 직접 더했는데, 머리의 「남은 돈」과 같은 돈을 두 곳에서 세는 일이었다.
+ */
+export function ExpenseReview({ expenses, totals, me }: { expenses: Expense[]; totals: ExpenseTotal[]; me: Me | null }) {
   const pending = expenses.filter((e) => e.state === 'pending');
   const settled = expenses.filter((e) => e.state !== 'pending');
   const [pickedId, setPickedId] = useState<number | null>(null);
@@ -35,16 +41,6 @@ export function ExpenseReview({ expenses, me }: { expenses: Expense[]; me: Me | 
   const review = useReviewExpense();
   const [form, setForm] = useState({ amount: '', reason: '' });
   const [armed, setArmed] = useState<'approve' | 'reject' | null>(null);
-
-  /** 분류별 합계 — 확정된 것만 센다. 결재 중인 신청은 아직 나간 돈이 아니다 (exec 와 같은 기준) */
-  const byCategory = new Map<string, { label: string; sum: number }>();
-  expenses
-    .filter((e) => e.state === 'approved')
-    .forEach((e) => {
-      const hit = byCategory.get(e.category) ?? { label: e.categoryLabel, sum: 0 };
-      hit.sum += e.amount ?? 0;
-      byCategory.set(e.category, hit);
-    });
 
   const amount = Number(form.amount);
   const mine = picked !== null && me !== null && picked.requesterId === me.id;
@@ -74,13 +70,13 @@ export function ExpenseReview({ expenses, me }: { expenses: Expense[]; me: Me | 
   return (
     <div className="flex flex-col gap-4">
       <Panel title="분류별 지출" sub="확정된 것만 셉니다 — 결재 중인 신청은 아직 나간 돈이 아닙니다 (A-D5 간이 5분류 + 임대료)">
-        {byCategory.size === 0 ? (
+        {totals.length === 0 ? (
           <p className="px-1 py-4 text-center text-[13px] text-fg-subtle">확정된 지출이 없습니다.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {[...byCategory.entries()].map(([key, v]) => (
-              <span key={key} className="rounded-lg border border-line bg-card px-3 py-1.5 text-[12.5px]">
-                <span className="text-fg-subtle">{v.label}</span> <b className="ml-1 text-fg">{won(v.sum)}</b>
+            {totals.map((t) => (
+              <span key={t.category} className="rounded-lg border border-line bg-card px-3 py-1.5 text-[12.5px]">
+                <span className="text-fg-subtle">{t.categoryLabel}</span> <b className="ml-1 text-fg">{won(t.sum)}</b>
               </span>
             ))}
           </div>

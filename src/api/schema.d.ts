@@ -1616,7 +1616,8 @@ export interface components {
             incomeTax: number | null;
             localTax: number | null;
             net: number | null;
-            state: string;
+            /** @description 확정됐는가 — 누가 확정했는가(confirmed_by)로 본다 (N-27) */
+            confirmed: boolean;
         };
         ExpenseDto: {
             id: number;
@@ -1644,6 +1645,14 @@ export interface components {
             reviewerName?: string | null;
             reviewedAt?: string | null;
         };
+        ExpenseTotalDto: {
+            /** @enum {string} */
+            category: "rent" | "book" | "supply" | "ent" | "fee" | "etc";
+            /** @description 분류 이름 — 코드표는 서버가 소유한다 (D-R18) */
+            categoryLabel: string;
+            /** @description 확정된 지출의 합 — 권한이 없으면 null (D-R39) */
+            sum: number | null;
+        };
         AccountingDto: {
             summary: components["schemas"]["MoneySummaryDto"];
             invoices: components["schemas"]["InvoiceDto"][];
@@ -1651,6 +1660,8 @@ export interface components {
             payouts: components["schemas"]["PayoutDto"][];
             /** @description 나간 돈 §56 — 부대비용·법인카드 신청분 */
             expenses: components["schemas"]["ExpenseDto"][];
+            /** @description §56 분류별 확정 지출 합계 — 화면이 더하지 않는다 */
+            expenseTotals: components["schemas"]["ExpenseTotalDto"][];
         };
         PaymentCreateDto: {
             /** @description 어느 청구서에 붙는 입금인가 */
@@ -2153,10 +2164,10 @@ export interface components {
         TeacherSettlementDto: {
             /** @description YYYY-MM */
             yearMonth: string;
-            /** @description true면 payout 저장값, false면 실시간 계산 */
+            /** @description 확정됐는가 — 누가 확정했는가(confirmed_by)로 본다 (N-27) */
             confirmed: boolean;
-            /** @description payout.state — 확정 행이 있을 때만 */
-            state?: string | null;
+            /** @description 저장된 정산 행에서 온 숫자인가 — false 면 실시간 계산이다 */
+            saved: boolean;
             /** @description 제출 인정 시수(분) */
             writtenMinutes: number;
             /** @description 시급×인정 시수 (정수 절사) */

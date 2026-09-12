@@ -25,7 +25,7 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 0, canSeeAmounts },
-    invoices: [], payouts: [], expenses: [],
+    invoices: [], payouts: [], expenses: [], expenseTotals: [],
     payments: [
       { id: 1, studentName: '미확인 학생', paidOn: null, amount: null, method: null },
       { id: 2, studentName: '영원 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 0 : null, method: 'cash' },
@@ -61,7 +61,7 @@ const HEAD_LABELS = ['보낸 청구서', '받은 돈', '못 받은 돈', '기한
 
 function mount(summary: Accounting['summary']) {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], payments: [] };
+  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [] };
   api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -102,4 +102,34 @@ it('금액 권한이 없으면 다섯 칸은 가려지고 「손봐야 할 것�
   expect(HEAD_LABELS.slice(0, 5).map(l => view.getByText(l).parentElement!.textContent))
     .toEqual(['보낸 청구서가려짐', '받은 돈가려짐', '못 받은 돈가려짐', '기한 지남가려짐', '남은 돈가려짐']);
   expect(view.getByText('손봐야 할 것').parentElement!.textContent).toContain('4건');
+});
+
+/**
+ * §57 강사료 정산 — 상태 칩은 **서버 결론 하나**만 읽는다 (N-27 · 대표 결정 2026-09-12).
+ *
+ * 전에는 `payout.state === 'confirmed'` 일 때만 「확정」이라 했다. 그 낱말에 정본이 없어
+ * 시드가 넣은 확정 정산(`confirmed_by` 가 채워진 행)이 「대기」로 보이고 있었다.
+ */
+const payout = (confirmed: boolean): Accounting['payouts'][number] => ({
+  id: 1, staffId: 6, staffName: '이다현', yearMonth: '2026-08', hours: '48.00',
+  gross: 2016000, lateRepCut: 25000, incomeTax: 59730, localTax: 5973, net: 1925297, confirmed,
+});
+
+it.each([
+  { confirmed: true, label: '확정' },
+  { confirmed: false, label: '대기' },
+])('정산 상태 칩은 확정 여부 하나만 읽는다 — %o', async ({ confirmed, label }) => {
+  useSession.getState().signIn('fixture', me);
+  const data: Accounting = {
+    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [payout(confirmed)],
+  };
+  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산 1' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '강사료 정산 1' }));
+  const row = within(view.getByText('이다현').closest('tr')!);
+  expect(row.getAllByRole('cell').at(-1)!.textContent).toBe(label);
 });

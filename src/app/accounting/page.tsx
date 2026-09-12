@@ -132,7 +132,8 @@ export default function AccountingPage() {
       head: '상태',
       width: 90,
       cell: (r) => (
-        <Chip tone={r.state === 'confirmed' ? 'success' : 'warning'}>{r.state === 'confirmed' ? '확정' : '대기'}</Chip>
+        // 낱말로 다시 판정하지 않는다 — 서버가 confirmed_by 로 낸 결론을 그대로 쓴다 (N-27)
+        <Chip tone={r.confirmed ? 'success' : 'warning'}>{r.confirmed ? '확정' : '대기'}</Chip>
       ),
     },
   ];
@@ -194,7 +195,7 @@ export default function AccountingPage() {
         ) : tab === 'pay' ? (
           <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
         ) : tab === 'out' ? (
-          <ExpenseReview expenses={q.data?.expenses ?? []} me={me} />
+          <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} me={me} />
         ) : (
           <Table columns={poCols} rows={q.data?.payouts ?? []} rowKey={(r) => r.id} />
         )}

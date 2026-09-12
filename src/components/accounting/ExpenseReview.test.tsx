@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Expense, Me } from '@/api/types';
+import type { Expense, ExpenseTotal, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { ExpenseReview } from './ExpenseReview';
 
@@ -34,14 +34,14 @@ afterEach(() => {
   api.defaults.adapter = originalAdapter; useSession.getState().signOut();
 });
 
-function setup(expenses: Expense[], adapter?: typeof api.defaults.adapter) {
+function setup(expenses: Expense[], adapter?: typeof api.defaults.adapter, totals: ExpenseTotal[] = []) {
   useSession.getState().signIn('fixture', me);
   if (adapter) api.defaults.adapter = adapter;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   clients.push(client);
   return render(
     <QueryClientProvider client={client}>
-      <ExpenseReview expenses={expenses} me={me} />
+      <ExpenseReview expenses={expenses} totals={totals} me={me} />
     </QueryClientProvider>,
   );
 }
@@ -52,9 +52,26 @@ it('신청 금액은 placeholder 로만 보이고 확정 칸은 비어 있다 (A
   const amount = view.getByLabelText('확정 금액') as HTMLInputElement;
   expect(amount.value).toBe('');
   expect(amount.placeholder).toBe('145000');
-  // 분류별 합계는 승인된 것만 센다 — 대기 중인 145,000 은 아직 나간 돈이 아니다
+});
+
+/**
+ * 분류별 합계는 **서버가 준 것을 그대로 보여 준다** (C43-b · 대표 지시 「전부 단일 진실원」).
+ * 전에는 화면이 지출 줄을 직접 더했다 — 머리의 「남은 돈」과 같은 돈을 두 곳에서 세는 일이었다.
+ */
+it('분류별 합계는 화면이 더하지 않는다 — 줄이 몇 개든 서버 숫자를 쓴다', () => {
+  const view = setup(
+    [card(), approved],
+    undefined,
+    [{ category: 'ent', categoryLabel: '접대비', sum: 1400000 }],
+  );
   expect(view.container.textContent).toContain('1,400,000원');
-  expect(view.container.textContent).not.toContain('145,000원 ');
+  // 대기 중인 145,000 은 서버가 안 보냈으니 합계에도 없다
+  expect(view.container.textContent).not.toContain('1,545,000원');
+});
+
+it('서버가 합계를 안 보내면 없다고 말한다 — 줄에서 다시 세지 않는다', () => {
+  const view = setup([card(), approved], undefined, []);
+  expect(view.container.textContent).toContain('확정된 지출이 없습니다');
 });
 
 it('증액은 버튼이 잠기고 이유를 말한다 — 재신청으로 보낸다 (A-D3)', () => {

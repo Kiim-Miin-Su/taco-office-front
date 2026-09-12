@@ -172,17 +172,21 @@ export default function TeacherHistoryPage() {
                     <div className="mt-4 rounded-xl bg-fg p-5 text-card">
                       <div className="mb-1 flex items-center gap-2">
                         <h3 className="grow text-[15px] font-bold">{ymLabel} 정산</h3>
+                        {/*
+                          확정 여부는 서버가 `confirmed_by` 로 낸 결론 하나만 쓴다 (N-27 · 대표 결정).
+                          전에는 `payout.state` 낱말로 셋을 갈랐는데 그 낱말에 정본이 없어,
+                          마감 작성 중인 정산이 「확정」으로 보였다. 「지급 완료」는 낱말이 정해지면
+                          그때 다시 만든다 — 지금 없는 구분을 있는 척 보여 주지 않는다.
+                        */}
                         <Chip size="compact" tone={s.confirmed ? 'success' : 'info'}>
-                          {s.confirmed
-                            ? s.state === 'paid' ? '지급 완료' : s.state === 'draft' ? '마감 작성 중' : '확정'
-                            : '실시간 계산'}
+                          {s.confirmed ? '확정' : s.saved ? '마감 작성 중' : '실시간 계산'}
                         </Chip>
                       </div>
                       <SRow name="수업료 · 시급 기준" how={`제출 인정 ${hours(s.writtenMinutes)}시간 (리포트 쓴 수업만 · D-R7)`} amount={won(s.gross)} />
                       <SRow name="리포트 지각 제출 차감" how="수업 종료 시각 기준 두 구간" amount={s.lateCut > 0 ? `−${won(s.lateCut)}` : '없음'} />
                       <SRow name="원천징수" how="소득세 3% + 지방소득세 · 각각 절사" amount={`−${won(s.incomeTax + s.localTax)}`} />
                       <div className="mt-2 flex items-baseline justify-between border-t border-card/25 pt-3">
-                        <b className="text-[14px]">실지급 {s.confirmed ? '' : '예정'}액</b>
+                        <b className="text-[14px]">{s.confirmed ? '실지급액' : '실지급 예정액'}</b>
                         <b className="text-[24px]">{won(s.net)}</b>
                       </div>
                       {s.unwrittenCount > 0 ? (
