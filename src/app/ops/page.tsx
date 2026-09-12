@@ -6,7 +6,7 @@
 
 /**
  * 탭 10 운영 — §59 마케팅 · §60 대표 피드백 · §61 기획 · §62 기획 기한 · §65 기획 보고서 ·
- * §63 회의 · §64 할 일 · §67 컴플레인.
+ * §63 회의 · §66 회의 상세 · §64 할 일 · §67 컴플레인.
  * 집행 비용은 대표만 봅니다 (D-R39) — 서버가 null 로 내려줍니다.
  *
  * 원문 §59·§60 은 「마케팅」 안의 **속 갈래**(트래킹 · 대표 피드백 · 회의 속기록)입니다.
@@ -17,10 +17,11 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
-import { useOps } from '@/api/queries';
+import { useMeta, useOps } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
+import { MeetingDetail } from '@/components/ops/MeetingDetail';
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue, Todo } from '@/api/types';
 import { won } from '@/lib/money';
 
@@ -54,9 +55,12 @@ export default function OpsPage() {
   // 원문 §61·§62 의 속 갈래 — 「단계 보드 / 기한」
   const [planTab, setPlanTab] = useState<'board' | 'due'>('board');
   const [planId, setPlanId] = useState<number | null>(null);
+  const [meetingId, setMeetingId] = useState<number | null>(null);
   const viewerId = useSession((s) => s.me?.id ?? null);
   const q = useOps();
   const d = q.data;
+  // 할 일 배정의 담당자 목록 — 창을 열 때만 필요하다
+  const meta = useMeta(meetingId !== null);
 
   const todoCols: Array<Column<Todo>> = [
     { key: 'done', head: '', width: 40, align: 'center',
@@ -71,13 +75,16 @@ export default function OpsPage() {
   ];
 
   const meetingCols: Array<Column<Meeting>> = [
-    { key: 'k', head: '종류', width: 90, cell: (r) => <Chip tone="info">{r.mtType}</Chip> },
+    // 낱말은 서버가 만든다 — 한동안 이 칩이 「general」 「plan」을 그대로 찍고 있었다 (D-R18 · C57)
+    { key: 'k', head: '종류', width: 110, cell: (r) => <Chip tone="info">{r.mtTypeLabel}</Chip> },
     { key: 't', head: '제목', cell: (r) => <span className="font-bold">{r.title ?? '—'}</span> },
     { key: 'd', head: '일시', width: 110, cell: (r) => r.onDate ?? '—' },
     { key: 'a', head: '참석', width: 100,
       cell: (r) => <span className={r.confirmed < r.attendees ? 'text-amber' : 'text-green'}>{r.confirmed}/{r.attendees}</span> },
     { key: 'm', head: '속기록', width: 100,
       cell: (r) => r.hasMinutes ? <Chip tone="success">작성 완료</Chip> : <Chip tone="danger">미작성</Chip> },
+    { key: 'x', head: '', width: 70,
+      cell: (r) => <Button size="sm" variant="secondary" onClick={() => setMeetingId(r.id)}>열기</Button> },
   ];
 
   const mktCols: Array<Column<Marketing>> = [
@@ -237,6 +244,7 @@ export default function OpsPage() {
         </p>
       </Panel>
       <PlanReport planId={planId} onClose={() => setPlanId(null)} />
+      <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} onClose={() => setMeetingId(null)} />
     </AppShell></RequireAuth>
   );
 }

@@ -33,7 +33,7 @@ import type {
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
   Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
-  Lead, LeadFail, LeadResume, MfbThread, LessonTracking, PlanDetail,
+  Lead, LeadFail, LeadResume, MfbThread, LessonTracking, PlanDetail, MeetingDetail,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -67,6 +67,8 @@ export const qk = {
   catalog: ['catalog'] as const,
   /** §65 기획 보고서 — 창을 열 때만 도는 질의. 갈래 전체는 `family.plan` (C56) */
   plan: (id: number) => ['ops', 'plan', id] as const,
+  /** §66 회의 상세 — 창을 열 때만 도는 질의. 갈래는 `family.ops` 안이다 (C57) */
+  meeting: (id: number) => ['ops', 'meeting', id] as const,
   /** §79 수강 학생 — 창을 열 때만 도는 질의. 갈래 전체를 버릴 때는 `family.tracking` (C55) */
   tracking: (serId: number, onDate: string) => ['schedule', 'tracking', serId, onDate] as const,
 };
@@ -869,7 +871,8 @@ export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number }
    (`canReview` · `reviewBlockedReason`) 한 줄만 갈아 끼우면 단추 상태가 뒤처진다.     */
 
 /**
- * 기획 결재 뒤 무엇을 다시 읽는가 — **`family.ops` 앞자락 전체**다.
+ * 운영 창(§65 기획 보고서 · §66 회의 상세)에서 쓰고 난 뒤 무엇을 다시 읽는가 —
+ * **`family.ops` 앞자락 전체**다.
  *
  * `useOpsInvalidate` 는 `sessionQueryKey(qk.ops, viewerId)` = `['ops','viewer',N]` 를 쓴다.
  * 보고서 키는 `['ops','plan',3,'viewer',N]` 이라 **그 앞자락에 걸리지 않는다** — 사용자 꼬리가
@@ -878,7 +881,7 @@ export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number }
  * 실제로 그랬다. 기한 승인은 201 로 저장됐는데 화면의 칩이 「기한 제안」 그대로였고
  * 「최종 승인」도 안 열렸다. **단위 시험은 전부 통과했다** — 브라우저에서만 보였다.
  */
-function usePlanInvalidate() {
+function useOpsFamilyInvalidate() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries({ queryKey: family.ops });
 }
@@ -894,7 +897,7 @@ export function usePlanDetail(id: number | null): UseQueryResult<PlanDetail> {
 
 /** 기한 승인 · 반려 — 대표 전용 (409: CEO_ONLY · NO_DUE · DUE_ALREADY_APPROVED) */
 export function useDecidePlanDue(): UseMutationResult<PlanDetail, unknown, { id: number; approve: boolean }> {
-  const invalidate = usePlanInvalidate();
+  const invalidate = useOpsFamilyInvalidate();
   return useMutation({
     mutationFn: async ({ id, approve }) =>
       (await api.post<PlanDetail>(`/ops/plans/${id}/due`, { approve })).data,
@@ -906,10 +909,45 @@ export function useDecidePlanDue(): UseMutationResult<PlanDetail, unknown, { id:
 export function useReviewPlan(): UseMutationResult<
   PlanDetail, unknown, { id: number; decision: 'approve' | 'rework'; reason?: string }
 > {
-  const invalidate = usePlanInvalidate();
+  const invalidate = useOpsFamilyInvalidate();
   return useMutation({
     mutationFn: async ({ id, ...body }) =>
       (await api.post<PlanDetail>(`/ops/plans/${id}/review`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/* ══ §66 회의 상세 — 창을 열 때만 부른다 (C57) ═════════════════════════
+   속기록 저장과 할 일 배정은 **회의 전체**를 돌려받는다. 「참석 N/M 확인」과 「끝낸 할 일 수」를
+   서버가 세므로, 한 줄만 갈아 끼우면 머리의 숫자가 뒤처진다 (D-R37).              */
+
+export function useMeetingDetail(id: number | null): UseQueryResult<MeetingDetail> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.meeting(id ?? 0), viewerId),
+    queryFn: async () => (await api.get<MeetingDetail>(`/ops/meetings/${id}`)).data,
+    enabled: id !== null,
+  });
+}
+
+/** 속기록 저장 — 누가 언제 저장했는지는 서버가 남긴다 */
+export function useWriteMinutes(): UseMutationResult<MeetingDetail, unknown, { id: number; minutes: string }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, minutes }) =>
+      (await api.post<MeetingDetail>(`/ops/meetings/${id}/minutes`, { minutes })).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 할 일 배정 — TODO 와 담당자 알림이 한 트랜잭션이다 (원문 §66 연동) */
+export function useAssignMeetingTask(): UseMutationResult<
+  MeetingDetail, unknown, { id: number; title: string; toId: number; dueOn?: string }
+> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) =>
+      (await api.post<MeetingDetail>(`/ops/meetings/${id}/todos`, body)).data,
     onSettled: invalidate,
   });
 }

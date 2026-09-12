@@ -37,6 +37,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   tracking: qk.tracking(3, '2026-09-11'),
   // §65 보고서 키는 `ops` 갈래 안에 산다 — 기획 결재가 운영 목록을 함께 바꾸기 때문이다 (C56)
   plan: qk.plan(3),
+  meeting: qk.meeting(4),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
@@ -159,11 +160,12 @@ describe('C56 — 기획 보고서 키가 무효화에 실제로 걸리는가', 
 
   it('기획 결재 훅은 family.ops 를 쓴다 — 소스에서 직접 본다', () => {
     const src = readFileSync(join(__dirname, 'queries.ts'), 'utf8');
-    const body = src.slice(src.indexOf('function usePlanInvalidate'), src.indexOf('export function usePlanDetail'));
+    const body = src.slice(src.indexOf('function useOpsFamilyInvalidate'), src.indexOf('export function useMeetingDetail'));
     expect(body).toContain('queryKey: family.ops');
-    for (const hook of ['useDecidePlanDue', 'useReviewPlan']) {
+    // §66 회의 쓰기도 같은 앞자락을 쓴다 — 창을 열어 둔 채 저장해도 화면이 따라온다 (C57)
+    for (const hook of ['useDecidePlanDue', 'useReviewPlan', 'useWriteMinutes', 'useAssignMeetingTask']) {
       const h = src.slice(src.indexOf(`export function ${hook}`));
-      expect(h.slice(0, 400)).toContain('usePlanInvalidate()');
+      expect(h.slice(0, 400)).toContain('useOpsFamilyInvalidate()');
     }
   });
 });

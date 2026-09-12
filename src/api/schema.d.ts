@@ -759,6 +759,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/meetings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * §66 회의 상세 — 참석 · 사전 자료 · 속기록 · 할 일
+         * @description 참석은 세 값이다 — 아직 답 안 함(null) · 참석 · 불참. null 을 false 로 접지 않는다.
+         */
+        get: operations["OpsController_meetingDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/meetings/{id}/minutes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 속기록 저장 — 누가 언제 저장했는지 서버가 남긴다 (원문 §66)
+         * @description 화면이 보낸 시각을 믿지 않는다. 시계가 틀린 기계에서 저장하면 회의록의 순서가 뒤집힌다.
+         */
+        post: operations["OpsController_writeMinutes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/meetings/{id}/todos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 할 일 배정 — TODO 와 담당자 알림을 한 트랜잭션에서 (원문 §66 연동)
+         * @description 밖에서 알림을 보내면 할 일은 안 만들어졌는데 알림만 가서 받은 사람이 자기 목록에서 그것을 못 찾는다 (D-R43).
+         */
+        post: operations["OpsController_assignMeetingTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consulting": {
         parameters: {
             query?: never;
@@ -2348,7 +2408,13 @@ export interface components {
         };
         MeetingDto: {
             id: number;
-            mtType: string;
+            /**
+             * @description 코드값 — 이름은 mtTypeLabel 을 쓴다
+             * @enum {string}
+             */
+            mtType: "plan" | "consulting" | "marketing" | "dev" | "general";
+            /** @description 회의 종류 이름 — 낱말은 서버가 만든다 (D-R18 · C57) */
+            mtTypeLabel: string;
             title?: string | null;
             onDate?: string | null;
             attendees: number;
@@ -2535,6 +2601,64 @@ export interface components {
             decision: "approve" | "rework";
             /** @description 보완 요청 사유 — 되돌릴 때는 필수다 */
             reason?: string;
+        };
+        MeetingAttendeeDto: {
+            staffId: number;
+            name: string;
+            title?: string | null;
+            /**
+             * @description waiting | in | out — null 을 false 로 접지 않는다
+             * @enum {string}
+             */
+            state: "waiting" | "in" | "out";
+            /** @description 칩에 쓰는 이름 — 낱말은 서버가 만든다 (D-R18) */
+            stateLabel: string;
+        };
+        MeetingTaskDto: {
+            id: number;
+            title: string;
+            done: boolean;
+            toName?: string | null;
+            dueOn?: string | null;
+            /** @description 지난 날 수 — 끝난 할 일은 0 */
+            overdueDays: number;
+        };
+        MeetingDetailDto: {
+            id: number;
+            /** @enum {string} */
+            mtType: "plan" | "consulting" | "marketing" | "dev" | "general";
+            mtTypeLabel: string;
+            title?: string | null;
+            onDate?: string | null;
+            attendees: components["schemas"]["MeetingAttendeeDto"][];
+            /** @description 참석하겠다고 답한 사람 수 */
+            confirmed: number;
+            /** @description 참석 머리글 — 원문 「참석 N/M 확인」 */
+            attendLabel: string;
+            /** @description ① 사전 자료 — 파일 주소 */
+            preFiles: string[];
+            /** @description ② 속기록 본문 */
+            minutes?: string | null;
+            /** @description 마지막 저장 시각 (KST ISO) — 없으면 아직 저장한 적이 없다 */
+            minutesAt?: string | null;
+            minutesByName?: string | null;
+            minutesTemplates: ("[정한 것]" | "[누가 무엇을]" | "[다음 회의까지]" | "[보류]")[];
+            minutesHint: string;
+            /** @description ③ 할 일 */
+            tasks: components["schemas"]["MeetingTaskDto"][];
+            /** @description 끝낸 할 일 수 — 화면이 다시 세지 않는다 */
+            taskDone: number;
+        };
+        MinutesWriteDto: {
+            /** @description 속기록 본문 */
+            minutes: string;
+        };
+        MeetingTaskCreateDto: {
+            title: string;
+            /** @description 누구에게 */
+            toId: number;
+            /** @description 기한 YYYY-MM-DD — 비우면 기한 없음 */
+            dueOn?: string;
         };
         ConsultingSessionDto: {
             id: number;
@@ -7047,6 +7171,233 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_meetingDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 회의 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_writeMinutes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinutesWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 회의 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_assignMeetingTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingTaskCreateDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 회의 없음 · 담당자 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
