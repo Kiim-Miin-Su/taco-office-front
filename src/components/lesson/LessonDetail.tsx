@@ -208,7 +208,14 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
           {rosterResult ? (
             <ConflictGuard
               result="ok"
-              message={`명단을 반영했습니다 · ${rosterResult.count}/${rosterResult.cap}명`}
+              message={`명단을 반영했습니다 · ${rosterResult.count}/${rosterResult.cap}명${
+                // N-17-a 표기 표본 — 대표 단가는 구간 값(예외 제외), 총액은 예외 합산 (서버 계산·§54)
+                rosterResult.priced && rosterResult.unitPrice != null && rosterResult.total != null
+                  ? ` · 1인 ${rosterResult.unitPrice.toLocaleString('ko-KR')}원(${rosterResult.tierHeads}인 구간${
+                      rosterResult.overrideCount ? ` · 예외 ${rosterResult.overrideCount}명` : ''
+                    }) · 수업당 ${rosterResult.total.toLocaleString('ko-KR')}원`
+                  : ' · 단가표 미등록 — 가격은 표시하지 않습니다'
+              }`}
             />
           ) : null}
 

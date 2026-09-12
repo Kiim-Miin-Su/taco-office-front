@@ -50,6 +50,11 @@ const result: RosterResult = {
   serIds: [3],
   count: 2,
   cap: 4,
+  priced: true,
+  unitPrice: 45000,
+  total: 90000,
+  tierHeads: 2,
+  overrideCount: 0,
   needGuide: ['신규학생'],
   needBook: ['신규학생'],
 };
@@ -112,7 +117,7 @@ describe('LessonDetail 명단 결과', () => {
       { kind: 'roster', serId: 3, body: { op: 'add', onDate: '2026-09-03', studentId: 2 } },
       expect.any(Object),
     );
-    expect(view.getByText('명단을 반영했습니다 · 2/4명')).toBeTruthy();
+    expect(view.getByText('명단을 반영했습니다 · 2/4명 · 1인 45,000원(2인 구간) · 수업당 90,000원')).toBeTruthy();
     expect(view.getByText('수업 안내가 필요합니다')).toBeTruthy();
     expect(view.getByText('교재 배부 확인이 필요합니다')).toBeTruthy();
   });
