@@ -960,6 +960,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/drawer/change-requests/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §20 변경 요청 **반영**·반려 — 반영하면 시간표가 실제로 바뀐다
+         * @description 원문 §20 안내 그대로: 「겹치면 넣을 수 없습니다 · 반영하면 시간표가 바뀌고 이력에 남습니다」. 반영은 기존 일정 쓰기(patch·remove)를 그대로 타므로 3범위·겹침·참조 방어가 한 벌이다. 범위는 apply_all 이면 이후 전체, 아니면 이 회차만이다(D-R16). 시간표 변경과 요청 종결이 한 트랜잭션이라, 겹쳐서 막히면 요청도 대기로 되돌아간다. 줌 계정 변경은 아직 배정 경로가 없어 CHREQ_NOT_APPLICABLE 로 거절한다.
+         */
+        post: operations["DrawerController_reviewChangeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/drawer/change-requests": {
         parameters: {
             query?: never;
@@ -2687,9 +2707,14 @@ export interface components {
             reqType: "time_move" | "teacher" | "room" | "cancel";
             serId: number;
             onDate: string;
+            /** @description 올린 사람이 적은 **신청** 사유 — 반려해도 지워지지 않는다 (v4.18) */
             reason: string;
+            /** @description 반려 사유 (D-R13). 옛 행은 없을 수 있다 */
+            rejectReason?: string | null;
             state: string;
             byName?: string | null;
+            /** @description 무엇을 바꿔 달라는가 — 「강사 → KJ」 (§20 이력 줄 · D-R18) */
+            asked?: string | null;
             /** @description 선택 회차부터 이후 전체 적용 */
             applyAll: boolean;
             at: string;
@@ -2753,6 +2778,15 @@ export interface components {
             state: "approved" | "rejected";
             /** @description 승인이 **실제로 바꾼 것** — 「45,000원/시간 · 2026-09-12부터」처럼. 적용 대상이 없으면 null */
             applied?: string | null;
+        };
+        ChreqReviewDto: {
+            /**
+             * @description 반영(approve) 또는 반려(reject)
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** @description 반려 사유 — 반려면 필수 (D-R13). 신청 사유를 덮어쓰지 않는다 */
+            reason?: string | null;
         };
         ConflictRowDto: {
             serId: number;
@@ -7098,6 +7132,85 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReqReviewDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReqReviewResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_reviewChangeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChreqReviewDto"];
             };
         };
         responses: {

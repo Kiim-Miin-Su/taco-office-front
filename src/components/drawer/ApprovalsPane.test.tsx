@@ -53,7 +53,7 @@ it('승인은 두 번 눌러야 나간다', () => {
   fireEvent.click(approve);
   expect(onReview).not.toHaveBeenCalled();
   fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 승인' }));
-  expect(onReview).toHaveBeenCalledWith({ id: 1, decision: 'approve', reason: undefined });
+  expect(onReview).toHaveBeenCalledWith({ id: 1, kind: 'req', decision: 'approve', reason: undefined });
 });
 
 it('반려는 사유를 적어야 열린다 (D-R13) — 그리고 적은 사유가 그대로 간다', () => {
@@ -62,7 +62,7 @@ it('반려는 사유를 적어야 열린다 (D-R13) — 그리고 적은 사유�
   fireEvent.change(view.getByLabelText('사유'), { target: { value: '3개월 뒤 재검토' } });
   fireEvent.click(view.getByRole('button', { name: '반려' }));
   fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 반려' }));
-  expect(onReview).toHaveBeenCalledWith({ id: 1, decision: 'reject', reason: '3개월 뒤 재검토' });
+  expect(onReview).toHaveBeenCalledWith({ id: 1, kind: 'req', decision: 'reject', reason: '3개월 뒤 재검토' });
 });
 
 it('사유를 고치면 확정이 풀린다 — 다른 글자를 두고 눌러 버리지 않게', () => {
@@ -87,4 +87,33 @@ it('처리할 줄이 하나도 없으면 안내는 예전대로 「그 화면에
   );
   expect(view.container.textContent).toContain('줄을 눌러 그 화면에서');
   expect(view.container.textContent).not.toContain('반려에도 사유가 남습니다');
+});
+
+it('변경 요청 줄도 같은 자리에서 처리한다 — 갈래는 서버가 준 kind 그대로 넘어간다 (C42)', () => {
+  const onReview = vi.fn();
+  const view = render(
+    <ApprovalsPane
+      flow={flow([row({
+        kind: 'chreq', id: 7, title: '강사 변경 요청',
+        sub: 'MAP Reading · 2026-08-28 · 강사 → KJ · (이 회차만)',
+        asked: '강사 → KJ', reqType: 'teacher',
+      })])}
+      onGo={vi.fn()} onReview={onReview}
+    />,
+  );
+  expect(view.container.textContent).toContain('강사 → KJ');
+  fireEvent.click(view.getByRole('button', { name: '승인' }));
+  fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 승인' }));
+  expect(onReview).toHaveBeenCalledWith({ id: 7, kind: 'chreq', decision: 'approve', reason: undefined });
+});
+
+it('반영 경로가 없는 줄은 단추를 그리지 않는다 — 줌 계정 변경 (C42 경계)', () => {
+  const view = render(
+    <ApprovalsPane
+      flow={flow([row({ kind: 'chreq', id: 8, title: '강의실 변경 요청', canAct: false })])}
+      onGo={vi.fn()} onReview={vi.fn()}
+    />,
+  );
+  expect(view.queryByRole('button', { name: '승인' })).toBeNull();
+  expect(view.getByRole('link')).toBeTruthy();
 });

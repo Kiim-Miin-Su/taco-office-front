@@ -116,8 +116,11 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
               error={reviewError}
               onReview={(v) => {
                 setReviewError(null);
+                // 갈래마다 경로가 다르다 — 어느 줄인지는 서버가 준 kind 로 안다
                 write.mutate(
-                  { kind: 'reqReview', id: v.id, decision: v.decision, reason: v.reason },
+                  v.kind === 'chreq'
+                    ? { kind: 'chreqReview', id: v.id, decision: v.decision, reason: v.reason }
+                    : { kind: 'reqReview', id: v.id, decision: v.decision, reason: v.reason },
                   { onError: (e) => setReviewError(apiMessage(e)) },
                 );
               }}

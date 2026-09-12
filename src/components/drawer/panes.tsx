@@ -56,7 +56,7 @@ const Section = ({ title, count, children }: { title: string; count?: number; ch
    말해 주고, 나머지는 지금처럼 그 화면으로 보낸다 — 눌러도 아무 일이 없는 승인 단추를
    그리는 것보다 「아직 저기서 합니다」가 정직하다.                        */
 
-export interface ApReview { id: number; decision: 'approve' | 'reject'; reason?: string }
+export interface ApReview { id: number; kind: string; decision: 'approve' | 'reject'; reason?: string }
 
 function ApBody({ r }: { r: ApRow }) {
   return (
@@ -87,7 +87,7 @@ function ApActions({ r, onReview, busy }: {
   const [reason, setReason] = useState('');
   const send = (decision: 'approve' | 'reject') => {
     setArmed(null);
-    onReview({ id: r.id, decision, reason: reason.trim() || undefined });
+    onReview({ id: r.id, kind: r.kind, decision, reason: reason.trim() || undefined });
   };
   return (
     <div className="mt-2 border-t border-line pt-2">
@@ -580,12 +580,25 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent,
 const CHREQ_TONE: Record<string, Tone> = { pending: 'warning', approved: 'success', rejected: 'danger' };
 const CHREQ_LABEL: Record<string, string> = { pending: '대기', approved: '반영', rejected: '반려' };
 
+/** 원문 §20 의 탭 — 「확인 대기 · 반영 · 반려 · 전체」 */
+const CHREQ_TABS = [
+  { value: 'pending', label: '확인 대기' },
+  { value: 'approved', label: '반영' },
+  { value: 'rejected', label: '반려' },
+  { value: 'all', label: '전체' },
+] as const;
+export type ChreqTab = (typeof CHREQ_TABS)[number]['value'];
+
 export function ChangeReqsPane({ rows }: { rows: ChangeReq[] }) {
+  const [tab, setTab] = useState<ChreqTab>('pending');
+  const shown = tab === 'all' ? rows : rows.filter((c) => c.state === tab);
   const cols: Array<Column<ChangeReq>> = [
     { key: 'type', head: '무엇', width: 72, cell: (c) => REQ_TYPE_LABEL[c.reqType] ?? c.reqType },
     { key: 'what', head: '대상', cell: (c) => (
       <span className="text-fg-2">
         {c.serId ? `#${c.serId}` : '—'}{c.onDate ? ` · ${c.onDate}` : ''}
+        {/* 무엇을 바꿔 달라는가 — 서버가 만든 문장 (D-R18) */}
+        {c.asked ? <span className="ml-1 font-bold text-fg">{c.asked}</span> : null}
         {c.applyAll ? <Chip tone="purple" className="ml-1">이후 전체</Chip> : null}
       </span>
     ) },
@@ -597,11 +610,37 @@ export function ChangeReqsPane({ rows }: { rows: ChangeReq[] }) {
   ];
   return (
     <>
+      <div className="mb-3 flex flex-wrap gap-1">
+        {CHREQ_TABS.map((t) => {
+          const n = t.value === 'all' ? rows.length : rows.filter((c) => c.state === t.value).length;
+          return (
+            <button
+              key={t.value} type="button" onClick={() => setTab(t.value)} aria-pressed={tab === t.value}
+              className={`rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors ${
+                tab === t.value ? 'bg-primary text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
+            >
+              {t.label} {n}
+            </button>
+          );
+        })}
+      </div>
       <Banner tone="neutral" className="mb-3">
-        반영하면 그날 회차에 <b>예외(EXC)</b> 가 생깁니다 — 규칙은 그대로 두고 그날만 달라집니다 (D-R21).
-        반영·반려는 스케줄 화면에서 합니다 (D-R27).
+        강사·학생·강의실이 <b>겹치면 넣을 수 없습니다</b> — <b>반영하면 시간표가 바뀌고 이력에 남습니다</b>.
+        반영·반려는 <b>승인 대기함</b>에서 합니다.
       </Banner>
-      <Table columns={cols} rows={rows} rowKey={(c) => c.id} empty="변경 요청이 없습니다" />
+      <Table columns={cols} rows={shown} rowKey={(c) => c.id} empty={
+        tab === 'pending' ? '확인할 요청이 없습니다' : '해당하는 요청이 없습니다'
+      } />
+      {/* 반려 사유는 신청 사유와 다른 칸이다 (v4.18) — 둘 다 남는다 */}
+      {shown.some((c) => c.rejectReason) ? (
+        <ul className="mt-3 flex flex-col gap-1.5">
+          {shown.filter((c) => c.rejectReason).map((c) => (
+            <li key={c.id} className="rounded bg-red/5 px-2 py-1 text-[11px] text-red">
+              #{c.id} {c.onDate} — {c.rejectReason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </>
   );
 }

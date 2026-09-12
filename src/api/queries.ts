@@ -593,6 +593,7 @@ export type DrawerWrite =
   | { kind: 'notiRead'; id: number }
   | { kind: 'notiReadAll' }
   | { kind: 'reqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
+  | { kind: 'chreqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
 export function useDrawerWrite(): UseMutationResult<
@@ -615,6 +616,11 @@ export function useDrawerWrite(): UseMutationResult<
           `/drawer/requests/${w.id}/review`, { decision: w.decision, reason: w.reason },
         )).data;
       }
+      if (w.kind === 'chreqReview') {
+        return (await api.post<ReqReviewResult>(
+          `/drawer/change-requests/${w.id}/review`, { decision: w.decision, reason: w.reason },
+        )).data;
+      }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
     onSuccess: (_r, w) => {
@@ -624,6 +630,13 @@ export function useDrawerWrite(): UseMutationResult<
       if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: qk.ops });
       // 승인은 **실제로 적용된다** — 강사 홈의 시급·시간대가 바뀌었으므로 함께 다시 읽는다
       if (w.kind === 'reqReview') void qc.invalidateQueries({ queryKey: qk.teacherHome });
+      // 반영하면 **시간표가 바뀐다** — 달력·현황판·강사 홈을 함께 다시 읽는다 (§20)
+      if (w.kind === 'chreqReview') {
+        void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
+        void qc.invalidateQueries({ queryKey: ['board'] });
+        void qc.invalidateQueries({ queryKey: ['exec'] });
+        void qc.invalidateQueries({ queryKey: qk.teacherHome });
+      }
     },
   });
 }
