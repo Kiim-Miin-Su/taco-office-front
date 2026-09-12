@@ -58,6 +58,8 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     badgeSurfaces: ['sidebar'],
     requires: ADMIN,
   },
+  // §82 GPA 관리 — 상단 10탭 밖의 관리자 화면. kind='gpa' 수업 상세에서 연다 (URL 전용).
+  { href: '/gpa', label: 'GPA 관리', surfaces: [], requires: ADMIN },
   // §76은 업무 탭이 아니라 상단 유틸리티에서 여는 모달이다. 옛 URL 접근만 유지한다.
   { href: '/permissions', label: '권한', surfaces: [] },
 ] as const;

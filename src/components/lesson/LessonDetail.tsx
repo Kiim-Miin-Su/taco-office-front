@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { Banner, Button, Chip, ConflictGuard, Dialog, Drawer, RecurrenceScope, Select } from '../ui';
 import { hhmm } from '@/lib/calendar';
 import { useScheduleWrite } from '@/api/queries';
+import Link from 'next/link';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import type { Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
@@ -204,6 +205,12 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
             </div>
           </section>
 
+          {occ.kindKey === 'gpa' ? (
+            <p className="text-[12px]">
+              <Link href="/gpa" className="font-bold text-primary underline">GPA 관리 보드 열기 →</Link>
+              <span className="ml-1.5 text-fg-subtle">배정·잔여·회차 소비 (§82 · 학부모 비공개)</span>
+            </p>
+          ) : null}
           {err ? <div role="alert"><Banner tone="danger">{err}</Banner></div> : null}
           {rosterResult ? (
             <ConflictGuard

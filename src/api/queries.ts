@@ -28,6 +28,7 @@ import type {
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
   ConsItem,
+  GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -53,6 +54,7 @@ export const qk = {
   teacherSuggestions: ['teacher', 'suggestions'] as const,
   teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
   teacherUnav: (anchor: string | undefined) => ['teacher', 'unavailable', anchor ?? 'current'] as const,
+  gpa: (anchor: string | undefined) => ['gpa', anchor ?? 'current'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -581,5 +583,55 @@ export function useToggleConsultingItem(): UseMutationResult<ConsItem, unknown, 
     mutationFn: async ({ consId, itemId, done }) =>
       (await api.patch<ConsItem>(`/consulting/${consId}/items/${itemId}`, { done })).data,
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.consulting, viewerId) }),
+  });
+}
+
+/* ══ GPA 관리 (v2 §4.5·§82 · N-13 채택) — 판정은 전부 서버, 화면은 값만 그린다 ══ */
+
+export function useGpaBoard(anchor?: string): UseQueryResult<GpaBoard> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.gpa(anchor), viewerId),
+    queryFn: async () => (await api.get<GpaBoard>('/gpa', { params: anchor ? { anchor } : {} })).data,
+    staleTime: 30 * 1000,
+  });
+}
+
+function useGpaInvalidate() {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return () => qc.invalidateQueries({ queryKey: sessionQueryKey(['gpa'], viewerId) });
+}
+
+/** 회차 소비 기록 — wait 로 등록. 초과 여부는 서버 잔여로만 판단한다. */
+export function useCreateGpaUse(): UseMutationResult<GpaUse, unknown, GpaUseCreate> {
+  const invalidate = useGpaInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<GpaUse>('/gpa/uses', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useSetGpaUseState(): UseMutationResult<GpaUse, unknown, { id: number; state: 'wait' | 'ok' }> {
+  const invalidate = useGpaInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, state }) => (await api.patch<GpaUse>(`/gpa/uses/${id}`, { state })).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useDeleteGpaUse(): UseMutationResult<{ ok: true }, unknown, number> {
+  const invalidate = useGpaInvalidate();
+  return useMutation({
+    mutationFn: async (id) => (await api.delete<{ ok: true }>(`/gpa/uses/${id}`)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePutGpaAlloc(): UseMutationResult<GpaStudent, unknown, { cycleId: number; studentId: number; points: number }> {
+  const invalidate = useGpaInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.put<GpaStudent>('/gpa/allocs', w)).data,
+    onSettled: invalidate,
   });
 }

@@ -115,6 +115,10 @@ export type RosterOp = RosterPatch['op'];
 export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];
 export type ConsItem = S['ConsItemDto'];
+export type GpaBoard = S['GpaBoardDto'];
+export type GpaStudent = S['GpaStudentDto'];
+export type GpaUse = S['GpaUseDto'];
+export type GpaUseCreate = S['GpaUseCreateDto'];
 export type ConsultingSession = S['ConsultingSessionDto'];
 
 /** 교재 */
