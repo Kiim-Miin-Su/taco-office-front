@@ -98,7 +98,8 @@ export function CalCell({
               {head}
             </button>
           ) : isToday ? <span className="rounded bg-blue px-1 font-bold text-white">{head}</span> : <span>{head}</span>}
-          <span className="ml-auto">{items.length}건</span>
+          {/* 빈 날짜에는 수를 적지 않는다 — 원문 §09 의 빈 칸에는 「0건」이 없다 */}
+          {items.length > 0 ? <span className="ml-auto">{items.length}건</span> : null}
         </div>
       ) : null}
 

@@ -33,7 +33,7 @@ function occurrence(serId: number, date: string, startMin: number, extra: Partia
   return {
     serId, date, onDate: date, startMin, endMin: startMin + 60, kindKey: 'class', subKey: 'writing',
     mode: 'offline', roomName: '2층 강의실', canceled: false, hasException: false, recurring: true,
-    repState: 'plan', written: false, attendanceMode: 'unavailable', attendance: null,
+    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null,
     students: [{ id: 1, name: '담당 학생', grade: 'G9', droppedOnce: false }], ...extra,
   };
 }

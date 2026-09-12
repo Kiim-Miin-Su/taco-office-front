@@ -34,7 +34,7 @@ const occurrence: Occurrence = {
   canceled: false,
   hasException: false,
   recurring: true,
-  repState: 'none',
+  repState: 'none', ended: true,
   written: false,
   attendanceMode: 'manage',
   attendance: null,

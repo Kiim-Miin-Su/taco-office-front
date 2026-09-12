@@ -117,6 +117,63 @@ export function boundsOf(view: View, date: string): { from: string; to: string }
   return { from: w[0], to: w[6] };
 }
 
+/**
+ * **집계 범위** — 격자 범위와 같지 않은 보기가 하나 있다.
+ *
+ * 월간 격자는 그 달을 덮는 6주라서 앞뒤 달 날짜가 흐리게 섞여 있다. 상단 집계의 라벨은
+ * 「2026년 8월」이므로 집계는 **그 달**이어야 한다 — 안 그러면 화면이 「8월」이라 적어 놓고
+ * 7월 27일치를 함께 세게 된다. 나머지 보기는 보이는 범위가 곧 기간이다 (N-19).
+ */
+export function summaryBoundsOf(view: View, date: string): { from: string; to: string } {
+  return view === 'month' ? monthBounds(date) : boundsOf(view, date);
+}
+
+/** 기간 집계 한 줄 (v2 §09 상단) */
+export interface PeriodSummary {
+  /** 일정 N건 — 취소도 포함한 이 기간의 전부 */
+  total: number;
+  /** 현장 — `mode === 'offline'` */
+  onsite: number;
+  online: number;
+  /** 시수 — 취소·휴강은 뺀다 (D-R11) */
+  hours: number;
+  /** 승인 대기 — **이 기간 리포트**다. 상단 내비의 결재함 배지와 다른 수다 */
+  waiting: number;
+  /** 리포트 미제출 — 끝났는데 아직 제출하지 않은 것 */
+  unsubmitted: number;
+  /** 취소·휴강 — 건수에는 남아 있고 시수에서만 빠진 것 (D-R11) */
+  canceled: number;
+  /** 이 회차만 다름 — 예외가 붙은 회차 */
+  exceptions: number;
+  /** 리포트 쓴 수업 — 「썼다」는 제출부터다 (D-R7) */
+  written: number;
+}
+
+/**
+ * 상단 집계 — **칸에 그린 것과 같은 배열**에서 센다 (N-19).
+ *
+ * 원문 §09 는 상단에 268건이라 적어 놓고 날짜 칸 건수 합은 200이다. 그 어긋남은
+ * 상단과 칸이 서로 다른 것을 셌기 때문에 생긴다. 그래서 여기 들어오는 배열은 격자가
+ * 받는 바로 그 배열이고, 이 함수는 **새 판정을 만들지 않는다** — 현장/온라인·승인 대기·
+ * 미제출은 전부 서버가 회차에 붙여 보낸 값이다.
+ */
+export function periodSummary(items: readonly Occurrence[]): PeriodSummary {
+  let onsite = 0; let online = 0; let minutes = 0; let waiting = 0; let unsubmitted = 0;
+  let canceled = 0; let exceptions = 0; let written = 0;
+  for (const o of items) {
+    if (o.mode === 'online') online += 1; else onsite += 1;
+    // 취소·휴강은 시수에서 뺀다 (D-R11). 건수에서는 빼지 않는다 — 일정은 있었다.
+    if (o.canceled) canceled += 1; else minutes += o.endMin - o.startMin;
+    if (o.hasException) exceptions += 1;
+    if (o.written) written += 1;
+    if (o.repState === 'wait') waiting += 1;
+    // 「썼다」는 제출한 순간부터다(rules.ts REPORT_WRITTEN). 그래서 끝난 수업의 **초안**도
+    // 미제출이다 — `repState === 'none'` 으로만 세면 초안을 저장해 둔 만큼 수가 줄어든다.
+    if (o.ended && o.repState !== 'na' && !o.written) unsubmitted += 1;
+  }
+  return { total: items.length, onsite, online, hours: minutes / 60, waiting, unsubmitted, canceled, exceptions, written };
+}
+
 /** 보기를 옮길 때 날짜가 얼마나 움직이나 */
 export function step(view: View, date: string, dir: -1 | 1): string {
   if (view === 'day') return addDays(date, dir);

@@ -28,7 +28,7 @@ const occurrence: Occurrence = {
   canceled: false,
   hasException: false,
   recurring: true,
-  repState: 'ok',
+  repState: 'ok', ended: true,
   written: true,
   attendanceMode: 'readonly',
   attendance: null,

@@ -9,6 +9,7 @@ import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { useDndContext, type DndContextProps, type DragEndEvent } from '@dnd-kit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Meta, Occurrence } from '@/api/types';
+import { KO_DOW, dowOf, monthGrid } from '@/lib/calendar';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(),
@@ -55,7 +56,7 @@ const items: Occurrence[] = [1, 2].map((id) => ({
   serId: id, date: '2026-09-01', onDate: '2026-09-01', startMin: 600 + id * 60,
   endMin: 660 + id * 60, kindKey: 'class', title: id === 1 ? '선택된 수업' : '다른 수업',
   teacherId: id * 11, mode: 'offline', canceled: false, hasException: false, recurring: false,
-  repState: 'plan', written: false, attendanceMode: 'unavailable', attendance: null,
+  repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null,
   students: [{ id, name: id === 1 ? '선택 학생' : '다른 학생', droppedOnce: false }],
 }));
 
@@ -289,5 +290,67 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     expect(mocks.context!.draggableNodes.size).toBe(before.drag * 2);
     expect(mocks.context!.droppableContainers.size).toBe(before.drop * 2);
     expect(view.getAllByRole('button', { name: /선택된 수업/ })).toHaveLength(2);
+  });
+});
+
+describe('월간 상단 집계와 날짜 칸이 같은 것을 센다 (v2 §09 · N-19)', () => {
+  const occurrence = (serId: number, date: string, extra: Partial<Occurrence> = {}): Occurrence => ({
+    serId, date, onDate: date, startMin: 600, endMin: 690, kindKey: 'class', title: `수업 ${serId}`,
+    mode: 'offline', canceled: false, hasException: false, recurring: false,
+    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+  });
+
+  // 9월 격자는 8/31 ~ 10/4 다. 앞뒤 달 칸은 **격자에는 있고 집계에는 없다**.
+  const month = [
+    ...[1, 2, 3, 4, 5].map((id) => occurrence(id, '2026-09-01')),
+    occurrence(6, '2026-09-02', { mode: 'online', ended: true, repState: 'none' }),
+  ];
+  const neighbors = [occurrence(91, '2026-08-31'), occurrence(92, '2026-08-31'), occurrence(93, '2026-10-01')];
+
+  const openMonth = () => {
+    mocks.occurrences.mockReturnValue({ data: { items: [...month, ...neighbors] }, isLoading: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    return view;
+  };
+  const cellCount = (view: ReturnType<typeof render>, date: string): number => {
+    const head = view.getByRole('button', { name: `${date} (${KO_DOW[dowOf(date)]}) 날짜 선택` }).parentElement!;
+    const badge = within(head).queryByText(/건$/);
+    return badge ? Number(badge.textContent!.replace('건', '')) : 0;
+  };
+
+  it('이 달 칸 건수 합 = 상단 「일정 N건」 — 흐린 앞뒤 달 칸은 그려지되 세지 않는다', () => {
+    const view = openMonth();
+    const grid = monthGrid('2026-09-01');
+    const mine = grid.filter((d) => d.startsWith('2026-09'));
+    const sum = mine.reduce((total, d) => total + cellCount(view, d), 0);
+
+    expect(sum).toBe(month.length);
+    expect(view.getByTitle(/이 달 1일~말일 기준/).textContent).toBe(`일정 ${sum}건`);
+    // 머리에 적힌 수도 같아야 한다 — 같은 「9월」 옆에 두 수가 붙으면 그것이 원문의 어긋남이다
+    expect(view.getByTitle(/아래 표의 「일정 N건」과 같은 수/).textContent!.trim()).toBe(`${sum}건`);
+
+    // 앞뒤 달 칸은 화면에 남아 있다 — 숨겨서 수를 맞춘 것이 아니다
+    expect(cellCount(view, '2026-08-31')).toBe(2);
+    expect(cellCount(view, '2026-10-01')).toBe(1);
+    expect(grid.reduce((total, d) => total + cellCount(view, d), 0)).toBe(month.length + neighbors.length);
+  });
+
+  it('상단 갈래는 같은 투영에서 나온다 — 현장+온라인=건수, 미제출은 서버 판정 그대로', () => {
+    const view = openMonth();
+    expect(view.getByTitle(/현장 \+ 온라인/).textContent).toBe('현장 5 / 온라인 1');
+    expect(view.getByTitle(/승인을 기다리는/).textContent).toBe('승인 대기 0');
+    expect(view.getByTitle(/초안도 미제출/).textContent).toBe('리포트 미제출 1');
+    // 바닥 칩도 같은 기간이다 — 앞뒤 달 3건이 섞이면 「6건인데 취소·휴강 …」 이 된다
+    expect(view.getByText('취소·휴강 0')).toBeTruthy();
+    expect(view.getByText('리포트 쓴 수업 0')).toBeTruthy();
+  });
+
+  it('「+N건 더」는 실제로 접힌 수다 — 건수−3 이 아니라 건수 − 보여 준 수다 (N-19)', () => {
+    const view = openMonth();
+    const cell = within(view.getByRole('button', { name: '2026-09-01 (화) 날짜 선택' }).parentElement!.parentElement!);
+    const shown = cell.getAllByRole('button', { name: /수업 \d/ });
+    expect(shown).toHaveLength(3);
+    expect(cell.getByRole('button', { name: `+${month.filter((o) => o.date === '2026-09-01').length - shown.length}건 더` })).toBeTruthy();
   });
 });

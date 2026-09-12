@@ -17,7 +17,7 @@ const key = qk.occurrences(range);
 const original: OccurrenceList = { ...range, items: [{
   serId: 1, date: range.from, onDate: range.from, startMin: 600, endMin: 660,
   kindKey: 'meeting', title: '회귀', mode: 'offline', canceled: false, hasException: false,
-  recurring: true, repState: 'plan', written: false, attendanceMode: 'unavailable', attendance: null, students: [],
+  recurring: true, repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [],
 }] };
 let client: QueryClient;
 beforeEach(() => {

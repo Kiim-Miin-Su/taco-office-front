@@ -34,14 +34,15 @@ import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor
 import { eventColorStyle, type DragData } from '@/components/cal/EventBlock';
 import eventStyles from '@/components/cal/EventBlock.module.css';
 import { Legend } from '@/components/cal/Legend';
+import { PeriodSummaryBar } from '@/components/cal/PeriodSummaryBar';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 import { useDrawer, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  boundingRange, boundsOf, clampSplitRatio, label, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, resizePatch, slotStartMin,
-  selectOccurrenceKeys, selectedOccurrences, splitPanes, step, todayKst, unsplitPanes, updatePane,
+  boundingRange, boundsOf, clampSplitRatio, label, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, periodSummary, resizePatch, slotStartMin,
+  selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type SelectMode, type View,
 } from '@/lib/calendar';
 import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
@@ -472,19 +473,21 @@ function AdminSchedulePage() {
       : (meta.data?.staff ?? []).map((x) => ({ id: x.id, name: x.name, sub: x.title ?? '' }));
     const people = peopleSource.map((person) => {
       const list = mine(person.id);
-      const live = list.filter((o) => !o.canceled);
-      return {
-        ...person,
-        n: list.length,
-        hours: live.reduce((total, o) => total + (o.endMin - o.startMin), 0) / 60,
-      };
+      // 시수 산식은 기간 집계와 **같은 함수**다 — 두 곳에서 따로 세면 칩과 상단 줄이 갈린다 (D-R11).
+      return { ...person, n: list.length, hours: periodSummary(list).hours };
     }).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'ko'));
     const grid = pane.view === 'month' ? monthGrid(pane.date) : [];
+    // 상단 집계는 **칸에 그린 것과 같은 배열**에서 센다 (N-19). 월간 격자만 앞뒤 달이
+    // 섞여 있어 그 달로 자른다 — 라벨이 「N월」이면 세는 것도 그 달이어야 한다.
+    const summaryRange = summaryBoundsOf(pane.view, pane.date);
+    const summary = periodSummary(
+      items.filter((o) => o.date >= summaryRange.from && o.date <= summaryRange.to),
+    );
     const head = pane.view === 'month'
       ? `${pane.date.slice(0, 4)}년 ${+pane.date.slice(5, 7)}월`
       : pane.view === 'day' ? label(pane.date) : `${label(paneRange.from)} – ${label(paneRange.to)}`;
     const outOfHorizon = !!hz.data && (paneRange.from < hz.data.from || paneRange.to > hz.data.to);
-    return { pane, range: paneRange, items, columns, people, grid, head, outOfHorizon };
+    return { pane, range: paneRange, items, columns, people, grid, head, summary, outOfHorizon };
   }), [all, hz.data, meta.data, s.panes]);
 
   const activeModel = paneModels[s.focused] ?? paneModels[0];
@@ -519,7 +522,7 @@ function AdminSchedulePage() {
   /** 기본/분할이 이 렌더러 하나를 1~2회 쓴다. 별도 Split 화면은 만들지 않는다 (§4.1). */
   const renderPane = (model: (typeof paneModels)[number], index: number) => {
     const paneIndex = index as CalendarPaneIndex;
-    const { pane, items, columns, people, grid, head, outOfHorizon } = model;
+    const { pane, items, columns, people, grid, head, summary, outOfHorizon } = model;
     const focused = s.focused === paneIndex;
     const side = s.panes.length === 1 ? '단일' : paneIndex === 0 ? '왼쪽' : '오른쪽';
     const basis = s.panes.length === 1 ? 1 : paneIndex === 0 ? s.ratio : 1 - s.ratio;
@@ -548,13 +551,14 @@ function AdminSchedulePage() {
           <span className={`text-[11px] font-bold ${focused ? 'text-blue' : 'text-fg-subtle'}`}>{side} 표</span>
           <Chip>{VIEWS.find((view) => view.value === pane.view)?.label}</Chip>
           <span className="min-w-0 truncate text-[12px] font-bold text-fg">{head}</span>
-          <span className="text-[10px] text-fg-subtle">{items.length}건</span>
           <div className="ml-auto flex items-center gap-1">
             <Button size="sm" aria-label={`${side} 표 이전 기간`} onClick={() => go({ t: 'step', dir: -1 })}>‹</Button>
             <Button size="sm" onClick={() => go({ t: 'today' })}>오늘</Button>
             <Button size="sm" aria-label={`${side} 표 다음 기간`} onClick={() => go({ t: 'step', dir: 1 })}>›</Button>
           </div>
         </div>
+
+        <PeriodSummaryBar summary={summary} month={pane.view === 'month'} />
 
         {outOfHorizon ? (
           <div className="mb-2">
@@ -634,10 +638,12 @@ function AdminSchedulePage() {
         {!q.isLoading && items.length === 0 && !outOfHorizon ? (
           <p className="mt-3 text-[12px] text-fg-subtle">이 기간에 수업이 없습니다.</p>
         ) : null}
+        {/* 바닥 칩도 **상단 줄과 같은 기간**을 센다 — 한 표 안에서 범위가 갈리면
+            「45건인데 리포트 쓴 수업 47」 같은 수가 나온다 (N-19). */}
         <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-fg-subtle">
-          <Chip>취소·휴강 {items.filter((o) => o.canceled).length}</Chip>
-          <Chip>이 회차만 다름 {items.filter((o) => o.hasException).length}</Chip>
-          <Chip>리포트 쓴 수업 {items.filter((o) => o.written).length}</Chip>
+          <Chip>취소·휴강 {summary.canceled}</Chip>
+          <Chip>이 회차만 다름 {summary.exceptions}</Chip>
+          <Chip>리포트 쓴 수업 {summary.written}</Chip>
         </div>
       </section>
     );
@@ -694,7 +700,11 @@ function AdminSchedulePage() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Chip tone="info">● {s.panes.length === 1 ? '단일 표' : s.focused === 0 ? '왼쪽 표 선택됨' : '오른쪽 표 선택됨'}</Chip>
           <span className="text-[12px] font-bold text-fg">{activeModel.head}</span>
-          <span className="text-[11px] text-fg-subtle">{activeModel.items.length}건</span>
+          {/* 머리와 표의 집계는 **같은 수**여야 한다 — 같은 「2026년 9월」 옆에 다른 수가 붙으면
+              그것이 곧 원문 §09 의 268 vs 200 이다 (N-19). */}
+          <span className="text-[11px] text-fg-subtle" title="고른 표의 기간 집계 — 아래 표의 「일정 N건」과 같은 수입니다">
+            {activeModel.summary.total}건
+          </span>
           {s.cursor ? <Chip tone="info">붙여넣기 위치 {label(s.cursor.date)} · {Math.floor(s.cursor.startMin / 60)}:{String(s.cursor.startMin % 60).padStart(2, '0')}</Chip> : null}
         </div>
 

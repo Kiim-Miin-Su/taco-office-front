@@ -16,7 +16,7 @@ function occurrence(serId: number): Occurrence {
   return {
     serId, date: '2026-09-01', onDate: '2026-09-01', startMin: 540 + serId * 60,
     endMin: 600 + serId * 60, kindKey: 'class', title: `수업 ${serId}`, mode: 'offline',
-    canceled: false, hasException: false, recurring: false, repState: 'plan', written: false,
+    canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false,
     attendanceMode: 'unavailable', attendance: null, students: [],
   };
 }
@@ -71,7 +71,8 @@ describe('관리자 달력 날짜 정확성', () => {
     const view = render(<MonthGrid date="2026-09-01" grid={monthGrid('2026-09-01')} items={[]}
       onPickDate={onPickDate} onAdd={onAdd} />);
     const dateButton = view.getByRole('button', { name: '2026-09-03 (목) 날짜 선택' });
-    expect(within(dateButton.parentElement!).getByText('0건')).toBeTruthy();
+    // 원문 §09 의 빈 칸에는 수가 없다 — 「0건」을 적지 않는다
+    expect(within(dateButton.parentElement!).queryByText('0건')).toBeNull();
     fireEvent.click(dateButton);
     expect(onPickDate).toHaveBeenCalledOnce();
     expect(onPickDate).toHaveBeenCalledWith('2026-09-03');

@@ -6,7 +6,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, mondayOf, monthBounds, monthGrid, parseHm, splitPanes, step,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, mondayOf, monthBounds, monthGrid, parseHm,
+  periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 import type { Occurrence } from '@/api/types';
@@ -33,7 +34,7 @@ describe('강사 캘린더 기본 오늘 목록 (§8·§9)', () => {
   const occurrence = (serId: number, date: string, startMin = 600, extra: Partial<Occurrence> = {}): Occurrence => ({
     serId, date, onDate: date, startMin, endMin: startMin + 60, kindKey: 'class',
     mode: 'offline', canceled: false, hasException: false, recurring: true,
-    repState: 'plan', written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
   });
 
   it('오늘과 다음 7일을 실제 날짜·시작 시각순으로 나누고 원본을 바꾸지 않는다', () => {
@@ -333,5 +334,66 @@ describe('선택·클립보드 산수 (§5.2)', () => {
     }
     expect(movePlacements(items, source, source.date, 1380)).toBeNull();
     expect(movePlacements([...items, { ...source, endMin: Number.NaN }], source, source.date, 615)).toBeNull();
+  });
+});
+
+describe('기간 집계 — 상단 줄과 날짜 칸이 같은 것을 센다 (v2 §09 · N-19)', () => {
+  const occurrence = (serId: number, date: string, extra: Partial<Occurrence> = {}): Occurrence => ({
+    serId, date, onDate: date, startMin: 600, endMin: 690, kindKey: 'class',
+    mode: 'offline', canceled: false, hasException: false, recurring: false,
+    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+  });
+
+  it('현장 + 온라인 = 일정 건수다 — 원문 92 + 176 = 268 이 그렇게 닫힌다', () => {
+    const items = [
+      occurrence(1, '2026-08-03'),
+      occurrence(2, '2026-08-03', { mode: 'online' }),
+      occurrence(3, '2026-08-04', { mode: 'online', canceled: true }),
+    ];
+    const s = periodSummary(items);
+    expect(s.total).toBe(3);
+    expect(s.onsite + s.online).toBe(s.total);
+    expect([s.onsite, s.online]).toEqual([1, 2]);
+  });
+
+  it('취소·휴강은 건수에는 남고 시수에서만 빠진다 (D-R11)', () => {
+    const s = periodSummary([
+      occurrence(1, '2026-08-03'),
+      occurrence(2, '2026-08-03', { canceled: true }),
+    ]);
+    expect(s.total).toBe(2);
+    expect(s.hours).toBe(1.5);
+    expect(s.canceled).toBe(1);
+  });
+
+  it('바닥 칩의 셋도 같은 기간에서 나온다 — 한 표 안에서 범위가 갈리지 않는다', () => {
+    const s = periodSummary([
+      occurrence(1, '2026-08-03', { hasException: true }),
+      occurrence(2, '2026-08-03', { written: true, repState: 'ok', ended: true }),
+      occurrence(3, '2026-08-04', { canceled: true, hasException: true }),
+    ]);
+    expect([s.total, s.canceled, s.exceptions, s.written]).toEqual([3, 1, 2, 1]);
+    expect(s.written).toBeLessThanOrEqual(s.total);
+  });
+
+  it('리포트 미제출은 「끝났는데 제출 안 함」이다 — **끝난 초안도 미제출**이다', () => {
+    const s = periodSummary([
+      occurrence(1, '2026-08-03', { ended: true, repState: 'none' }),
+      occurrence(2, '2026-08-03', { ended: true, repState: 'draft' }),
+      occurrence(3, '2026-08-04', { ended: false, repState: 'draft' }),
+      occurrence(4, '2026-08-04', { ended: true, repState: 'na' }),
+      occurrence(5, '2026-08-05', { ended: true, repState: 'wait', written: true }),
+      occurrence(6, '2026-08-05', { ended: true, repState: 'ok', written: true }),
+    ]);
+    expect(s.unsubmitted).toBe(2);
+    expect(s.waiting).toBe(1);
+  });
+
+  it('월간 집계 범위는 격자(6주)가 아니라 그 달이다 — 라벨이 「8월」이면 세는 것도 8월이다', () => {
+    expect(summaryBoundsOf('month', '2026-08-01')).toEqual(monthBounds('2026-08-01'));
+    expect(boundsOf('month', '2026-08-01')).toEqual({ from: '2026-07-27', to: '2026-09-06' });
+    for (const view of ['day', 'week', 'student', 'teacher'] as const) {
+      expect(summaryBoundsOf(view, '2026-08-03')).toEqual(boundsOf(view, '2026-08-03'));
+    }
   });
 });
