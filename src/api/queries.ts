@@ -33,7 +33,7 @@ import type {
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
   Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
-  Lead, LeadFail, LeadResume,
+  Lead, LeadFail, LeadResume, MfbThread,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -835,6 +835,40 @@ export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number }
   const invalidate = useOpsInvalidate();
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<Lead>(`/ops/leads/${id}/resume`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/* ══ §60 대표 피드백 — 세 쓰기 모두 글타래 전체를 돌려받는다 ═══════════════
+   한 줄만 붙여 놓으면 「고쳤습니다 / 확인 필요」와 머리의 「고쳐야 할 것 N건」을
+   화면이 스스로 다시 세게 된다. 판정은 서버 한 곳이다 (D-R37 · D-R39).       */
+
+/** 대표 코멘트 — 관리자 전원에게 알림 (409: CEO_ONLY) */
+export function useMfbComment(): UseMutationResult<MfbThread[], unknown, { mktId: number; body: string }> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ mktId, body }) =>
+      (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/comments`, { body })).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 담당자 답변 — 코멘트를 쓴 대표에게만 알림 (409: NOT_OWNER·NOT_A_COMMENT) */
+export function useMfbReply(): UseMutationResult<MfbThread[], unknown, { mktId: number; parentId: number; body: string }> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ mktId, ...body }) =>
+      (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/replies`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 답 고치기 — 자기가 쓴 글만 (409: NOT_AUTHOR) */
+export function useMfbEdit(): UseMutationResult<MfbThread[], unknown, { id: number; body: string }> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, body }) =>
+      (await api.patch<MfbThread[]>(`/ops/marketing/feedback/${id}`, { body })).data,
     onSettled: invalidate,
   });
 }

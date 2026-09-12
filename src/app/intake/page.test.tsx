@@ -26,6 +26,7 @@ const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', r
   { ...lead, id: 4, name: '진행중학생', stage: 'first' }];
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
+  feedback: [], feedbackNeedsFix: 0, canComment: false,
 };
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });

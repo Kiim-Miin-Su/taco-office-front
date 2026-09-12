@@ -23,8 +23,10 @@ const me: Me = {
 };
 const response: Ops = {
   leads: [], complaints: [], todos: [], plans: [], meetings: [], suggestions: [], canSeeAmounts: true,
-  marketing: [{ id: 1, channel: '검수 채널', item: '광고', impressions: 3000, inquiries: 12, enrolled: 2,
-    cost: 246800, costPerEnroll: 123400 }],
+  feedback: [], feedbackNeedsFix: 0, canComment: true,
+  marketing: [{ id: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
+    title: null, name: '검수 채널 · 광고', byId: null, byName: null,
+    impressions: 3000, inquiries: 12, enrolled: 2, cost: 246800, costPerEnroll: 123400 }],
 };
 const clients: QueryClient[] = [];
 function setup(viewer = me) {
@@ -87,7 +89,9 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup();
     await waitFor(() => expect(view.getByText('0원')).toBeTruthy());
     expect(view.queryByText('가려짐')).toBeNull();
-    expect(view.getByText('—')).toBeTruthy();
+    // 「등록당」은 표의 마지막 칸이다 — C53 이 담당 칸을 더하면서 「—」가 화면에 둘이 되었다
+    const cells = view.container.querySelectorAll('tbody tr td');
+    expect(cells[cells.length - 1]?.textContent).toBe('—');
   });
 
   it('같은 사용자 권한 회수 직후 기존 비용을 숨기고 새 응답도 비공개로 유지한다', async () => {

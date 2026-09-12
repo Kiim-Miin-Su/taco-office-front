@@ -5,15 +5,20 @@
  */
 
 /**
- * 탭 10 운영 — §59 마케팅 · §61 기획 · §63 회의 · §64 할 일 · §67 컴플레인.
+ * 탭 10 운영 — §59 마케팅 · §60 대표 피드백 · §61 기획 · §63 회의 · §64 할 일 · §67 컴플레인.
  * 집행 비용은 대표만 봅니다 (D-R39) — 서버가 null 로 내려줍니다.
+ *
+ * 원문 §59·§60 은 「마케팅」 안의 **속 갈래**(트래킹 · 대표 피드백 · 회의 속기록)입니다.
+ * 여기서는 트래킹과 대표 피드백 둘을 그 자리에 두었습니다 — 회의 속기록은 「회의」 갈래입니다.
  */
 'use client';
 import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
+import { Banner, Board, BoardColumn, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
 import { useOps } from '@/api/queries';
+import { useSession } from '@/store/useSession';
+import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import type { Complaint, Marketing, Meeting, Plan, Todo } from '@/api/types';
 import { won } from '@/lib/money';
 
@@ -36,6 +41,9 @@ const CPL_STAGE: Array<{ key: string; label: string; tone: 'danger' | 'warning' 
 
 export default function OpsPage() {
   const [tab, setTab] = useState<Tab>('todo');
+  // 원문 §59·§60 의 속 갈래 — 「트래킹 / 대표 피드백」
+  const [mktTab, setMktTab] = useState<'track' | 'fb'>('track');
+  const viewerId = useSession((s) => s.me?.id ?? null);
   const q = useOps();
   const d = q.data;
 
@@ -62,8 +70,11 @@ export default function OpsPage() {
   ];
 
   const mktCols: Array<Column<Marketing>> = [
-    { key: 'c', head: '채널', width: 120, cell: (r) => <span className="font-bold">{r.channel}</span> },
-    { key: 'i', head: '항목', width: 90, cell: (r) => r.item },
+    // 낱말은 서버가 만든다 — 한동안 이 표는 「instagram」 「ad」를 그대로 찍고 있었다 (D-R18 · C53)
+    { key: 'n', head: '활동', cell: (r) => <span className="font-bold">{r.name}</span> },
+    { key: 'c', head: '채널', width: 110, cell: (r) => <Chip>{r.channelLabel}</Chip> },
+    { key: 'i', head: '항목', width: 100, cell: (r) => r.itemLabel },
+    { key: 'b', head: '담당', width: 90, cell: (r) => r.byName ?? '—' },
     { key: 'im', head: '노출', width: 100, align: 'right', cell: (r) => won(r.impressions, { unit: false, empty: '—' }) },
     { key: 'iq', head: '문의', width: 80, align: 'right', cell: (r) => r.inquiries ?? '—' },
     { key: 'e', head: '등록', width: 80, align: 'right',
@@ -108,7 +119,7 @@ export default function OpsPage() {
         { value: 'complaint', label: `컴플레인 ${d?.complaints.length ?? 0}` },
         { value: 'plan', label: `기획 ${d?.plans.length ?? 0}` },
         { value: 'meeting', label: `회의 ${d?.meetings.length ?? 0}` },
-        { value: 'mkt', label: `마케팅 ${d?.marketing.length ?? 0}` },
+        { value: 'mkt', label: `마케팅 ${d?.marketing.length ?? 0}${d?.feedbackNeedsFix ? ` · 피드백 ${d.feedbackNeedsFix}` : ''}` },
       ]} />
 
       {q.isLoading ? <Banner tone="neutral">불러오는 중…</Banner>
@@ -117,10 +128,31 @@ export default function OpsPage() {
         : tab === 'meeting' ? <Table columns={meetingCols} rows={d?.meetings ?? []} rowKey={(r) => r.id} />
         : tab === 'mkt' ? (
           <>
-            <Table columns={mktCols} rows={d?.marketing ?? []} rowKey={(r) => r.id} />
-            {d && !d.canSeeAmounts ? (
-              <Banner tone="warning" className="mt-3">집행 비용과 등록당 비용은 <b>대표만</b> 봅니다 (D-R39).</Banner>
-            ) : null}
+            <Segmented
+              className="mb-3"
+              value={mktTab}
+              onChange={setMktTab}
+              options={[
+                { value: 'track', label: `트래킹 ${d?.marketing.length ?? 0}` },
+                { value: 'fb', label: `대표 피드백 ${d?.feedback.length ?? 0}` },
+              ]}
+            />
+            {mktTab === 'fb' ? (
+              <MarketingFeedback
+                threads={d?.feedback ?? []}
+                needsFix={d?.feedbackNeedsFix ?? 0}
+                canComment={d?.canComment === true}
+                viewerId={viewerId}
+                marketing={d?.marketing ?? []}
+              />
+            ) : (
+              <>
+                <Table columns={mktCols} rows={d?.marketing ?? []} rowKey={(r) => r.id} />
+                {d && !d.canSeeAmounts ? (
+                  <Banner tone="warning" className="mt-3">집행 비용과 등록당 비용은 <b>대표만</b> 봅니다 (D-R39).</Banner>
+                ) : null}
+              </>
+            )}
           </>
         )
         : tab === 'plan' ? (

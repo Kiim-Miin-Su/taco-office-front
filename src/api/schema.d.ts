@@ -622,6 +622,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/marketing/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 대표 코멘트 — 관리자 전원에게 알림 (원문 §60)
+         * @description 「대표가 코멘트를 남기면 관리자 전원에게 알림이 갑니다」. 쓸 때의 종류를 kind 로 적는다 — 쓴 사람의 지금 역할로 되짚지 않는다.
+         */
+        post: operations["OpsController_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/marketing/{id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 담당자 답변 — 코멘트를 쓴 대표에게만 알림 (원문 §60)
+         * @description 「담당자 답변은 대표에게만」. 어느 코멘트에 대한 답인지 parentId 로 들고 있어야 「고쳤습니다」 판정이 한 곳에 산다.
+         */
+        post: operations["OpsController_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/marketing/feedback/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 답 고치기 — 자기가 쓴 글만 (원문 §60) */
+        patch: operations["OpsController_editPost"];
+        trace?: never;
+    };
     "/consulting": {
         parameters: {
             query?: never;
@@ -2134,8 +2191,21 @@ export interface components {
         };
         MarketingDto: {
             id: number;
+            /** @description 코드값 — 이름은 channelLabel 을 쓴다 */
             channel: string;
+            /** @description 코드값 — 이름은 itemLabel 을 쓴다 */
             item: string;
+            /** @description 채널 이름 */
+            channelLabel: string;
+            /** @description 항목 이름 */
+            itemLabel: string;
+            /** @description 활동 이름 — 원문 §59·§60 카드 제목 (옛 행은 null) */
+            title?: string | null;
+            /** @description 카드에 쓰는 이름 — title 이 없으면 채널·항목으로 부른다 */
+            name: string;
+            byId?: number | null;
+            /** @description 담당자 — §60 답변을 쓸 수 있는 사람 */
+            byName?: string | null;
             url?: string | null;
             impressions?: number | null;
             clicks?: number | null;
@@ -2145,6 +2215,45 @@ export interface components {
             cost?: number | null;
             /** @description 등록당 비용 */
             costPerEnroll?: number | null;
+        };
+        MfbPostDto: {
+            id: number;
+            /**
+             * @description 쓸 때의 종류 — 역할로 되짚지 않는다
+             * @enum {string}
+             */
+            kind: "comment" | "reply";
+            /** @description 칩에 쓰는 이름 — 낱말은 서버가 만든다 (D-R18) */
+            kindLabel: string;
+            body: string;
+            byId: number;
+            byName?: string | null;
+            /** @description KST ISO */
+            at: string;
+        };
+        MfbThreadDto: {
+            /** @description 마케팅 활동 id */
+            mktId: number;
+            /** @description 카드 이름 — MarketingDto.name 과 같은 자리에서 나온다 */
+            name: string;
+            channelLabel: string;
+            itemLabel: string;
+            url?: string | null;
+            /** @description 담당자 — 답변을 쓸 수 있는 사람 */
+            byName?: string | null;
+            /**
+             * @description 판정은 서버가 한다
+             * @enum {string}
+             */
+            state: "fixed" | "needs_fix";
+            /** @description 칩에 쓰는 이름 */
+            stateLabel: string;
+            /** @description 가장 나중 대표 코멘트의 시각 — 카드 오른쪽 위 */
+            at: string;
+            /** @description 코멘트와 그 답변이 시각 순으로 섞여 있다 */
+            posts: components["schemas"]["MfbPostDto"][];
+            /** @description 내가 답변을 쓸 수 있는가 — 담당자이거나 담당자가 없을 때 */
+            canReply: boolean;
         };
         SuggestionDto: {
             id: number;
@@ -2164,6 +2273,12 @@ export interface components {
             plans: components["schemas"]["PlanDto"][];
             meetings: components["schemas"]["MeetingDto"][];
             marketing: components["schemas"]["MarketingDto"][];
+            /** @description §60 대표 피드백 — 코멘트가 달린 활동만 */
+            feedback: components["schemas"]["MfbThreadDto"][];
+            /** @description 고쳐야 할 것 — 서버가 센다 (D-R37) */
+            feedbackNeedsFix: number;
+            /** @description 대표 코멘트를 남길 수 있는가 — 원문 §60 「대표가 코멘트하면」 (D-R39) */
+            canComment: boolean;
             suggestions: components["schemas"]["SuggestionDto"][];
             /** @description 집행 비용을 볼 수 있는가 */
             canSeeAmounts: boolean;
@@ -2183,6 +2298,19 @@ export interface components {
              * @enum {string}
              */
             to?: "first" | "wait2nd" | "second" | "hold";
+        };
+        MfbCommentWriteDto: {
+            /** @description 코멘트 본문 */
+            body: string;
+        };
+        MfbReplyWriteDto: {
+            /** @description 어느 코멘트에 대한 답인가 */
+            parentId: number;
+            /** @description 답변 본문 */
+            body: string;
+        };
+        MfbEditDto: {
+            body: string;
         };
         ConsultingSessionDto: {
             id: number;
@@ -6167,6 +6295,231 @@ export interface operations {
                 content?: never;
             };
             /** @description code NOT_FAILED | UNCLASSIFIED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfbCommentWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfbThreadDto"][];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 마케팅 활동 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CEO_ONLY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfbReplyWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfbThreadDto"][];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 코멘트 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code NOT_A_COMMENT | NOT_OWNER */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_editPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfbEditDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfbThreadDto"][];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 글 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code NOT_AUTHOR */
             409: {
                 headers: {
                     [name: string]: unknown;

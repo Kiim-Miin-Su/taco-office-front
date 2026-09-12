@@ -108,6 +108,9 @@ export type Todo = S['TodoDto'];
 export type Plan = S['PlanDto'];
 export type Meeting = S['MeetingDto'];
 export type Marketing = S['MarketingDto'];
+/** §60 대표 피드백 — 카드 한 장(글타래)과 그 안의 글 한 줄 */
+export type MfbThread = S['MfbThreadDto'];
+export type MfbPost = S['MfbPostDto'];
 export type Suggestion = S['SuggestionDto'];
 
 /** 스케줄 쓰기 — 자원 + scope 한 형태 (D-R16 · D-R21) */
