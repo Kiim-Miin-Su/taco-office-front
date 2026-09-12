@@ -19,7 +19,7 @@ import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
-  Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, ExecQuery, Guides, Horizon, Meta,
+  Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
@@ -50,6 +50,7 @@ export const qk = {
   consulting: ['consulting'] as const,
   books: ['books'] as const,
   guides: ['guides'] as const,
+  guideTemplates: ['guides', 'templates'] as const,
   board: (p: BoardParams) => ['board', p] as const,
   exec: (p: ExecQuery) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
@@ -102,6 +103,7 @@ export const family = {
   teacherUnav: ['teacher', 'unavailable'] as const,
   gpa: ['gpa'] as const,
   zoom: ['zoom'] as const,
+  guides: ['guides'] as const,
 };
 
 /** 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다. */
@@ -317,6 +319,50 @@ export function useBooks(): UseQueryResult<Books> {
 }
 
 /** §41·§42 안내 — 강사면 서버가 자기 것만 내려준다 */
+/* ══ §43 「문구 관리」와 「안내 작성」 (C51) ═══════════════════════════════════
+   틀은 안내와 끊어져 있다 — 안내를 만들 때 본문을 **복사해** 넣는다.
+   그래서 틀을 고쳐도 이미 쓴 안내는 안 바뀐다(보낸 말이 나중에 달라지면 안 된다). */
+
+export function useGuideTemplates(enabled = true): UseQueryResult<GuideTemplate[]> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.guideTemplates, viewerId),
+    queryFn: async () => (await api.get<GuideTemplate[]>('/guides/templates')).data,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+function useGuidesInvalidate() {
+  const qc = useQueryClient();
+  return () => { void qc.invalidateQueries({ queryKey: family.guides }); };
+}
+
+export function useCreateGuideTemplate(): UseMutationResult<GuideTemplate, unknown, GuideTemplateWrite> {
+  const invalidate = useGuidesInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<GuideTemplate>('/guides/templates', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePatchGuideTemplate(): UseMutationResult<GuideTemplate, unknown, { id: number } & GuideTemplateWrite> {
+  const invalidate = useGuidesInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<GuideTemplate>(`/guides/templates/${id}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 안내 작성 — 「썼다」만 보낸다. 어느 상태가 되는지는 서버가 정한다 (D-R18) */
+export function useWriteGuideBody(): UseMutationResult<Guide, unknown, { id: number } & GuideBody> {
+  const invalidate = useGuidesInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.put<Guide>(`/guides/${id}/body`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
 export function useGuides(): UseQueryResult<Guides> {
   const viewerId = useViewerId();
   return useQuery({

@@ -65,6 +65,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
      상단 10탭에는 넣지 않는다(원문의 탭 구성을 바꾸지 않는다). 서랍 단추와 URL 로만 연다. */
   { href: '/zoom', label: '줌 계정 관리', surfaces: [], requires: ADMIN },
   { href: '/programs', label: '프로그램 · 과목 관리', surfaces: [], requires: ADMIN },
+  { href: '/phrases', label: '문구 관리', surfaces: [], requires: ADMIN },
   // §76은 업무 탭이 아니라 상단 유틸리티에서 여는 모달이다. 옛 URL 접근만 유지한다.
   { href: '/permissions', label: '권한', surfaces: [] },
 ] as const;

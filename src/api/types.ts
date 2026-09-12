@@ -164,6 +164,9 @@ export type Book = S['BookDto'];
 /** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */
 export type Guides = S['GuidesDto'];
 export type Guide = S['GuideDto'];
+export type GuideTemplate = S['GuideTemplateDto'];
+export type GuideTemplateWrite = S['GuideTemplateWriteDto'];
+export type GuideBody = S['GuideBodyDto'];
 export type PerLessonNotice = S['PerLessonNoticeDto'];
 
 /** 수업 현황판 — 저장하지 않는다. 매번 계산된 값이 내려온다 (D-R4) */

@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { useGuides } from '@/api/queries';
 import type { Guide, PerLessonNotice } from '@/api/types';
+import { GuideWriter } from '@/components/guides/GuideWriter';
 
 type Tab = 'once' | 'each';
 
@@ -34,6 +35,7 @@ const CHANNEL: Record<string, string> = { sms: '문자', kakao: '카카오', ema
 
 export default function GuidesPage() {
   const [tab, setTab] = useState<Tab>('once');
+  const [writing, setWriting] = useState<Guide | null>(null);
   const q = useGuides();
   const d = q.data;
 
@@ -52,6 +54,13 @@ export default function GuidesPage() {
     {
       key: 'd', head: '기한', width: 110,
       cell: (r) => (r.overdueDays > 0 ? <Chip tone="danger">{r.overdueDays}일 지남</Chip> : (r.dueOn ?? '—')),
+    },
+    {
+      key: 'x', head: '', width: 100,
+      // 보낸 안내에는 단추를 두지 않는다 — 눌러도 서버가 막을 것을 미리 말해 준다 (pending 은 서버 파생)
+      cell: (r) => (r.pending
+        ? <Button size="sm" variant="secondary" onClick={() => setWriting(r)}>안내 작성</Button>
+        : <span className="text-fg-subtle">—</span>),
     },
   ];
 
@@ -75,7 +84,9 @@ export default function GuidesPage() {
           right={(
             <div className="flex items-center gap-2">
               {d?.todoCount ? <Chip tone="danger" styleKind="solid">{d.todoCount}건 남음</Chip> : null}
-              {/* 원문 §43 머리의 단추다 — 「매번」은 회차마다 줌 계정을 붙여 보내므로 여기서 계정으로 간다 */}
+              {/* 원문 §43 머리의 단추 둘이다 — 「매번」은 회차마다 줌 계정을 붙여 보내고,
+                  안내 본문은 문구 틀에서 꺼내 쓴다 */}
+              <Link href="/phrases"><Button size="sm" variant="secondary">문구 관리</Button></Link>
               <Link href="/zoom"><Button size="sm" variant="secondary">줌 계정 관리</Button></Link>
             </div>
           )}
@@ -105,6 +116,8 @@ export default function GuidesPage() {
           value={tab}
           onChange={setTab}
         />
+
+        {writing ? <GuideWriter guide={writing} onClose={() => setWriting(null)} /> : null}
 
         <Panel className="mt-3" title={tab === 'once' ? '안내 — 보내면 끝' : '회차 안내 — 회차마다 다시'}>
           {tab === 'once' ? (

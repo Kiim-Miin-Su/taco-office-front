@@ -37,7 +37,9 @@ const SAMPLE: Record<string, readonly unknown[]> = {
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
-const CONST_SAMPLE: readonly (readonly unknown[])[] = [qk.horizon, qk.accounting, qk.ops, qk.teacherHome];
+const CONST_SAMPLE: readonly (readonly unknown[])[] = [
+  qk.horizon, qk.accounting, qk.ops, qk.teacherHome, qk.guides, qk.guideTemplates,
+];
 
 describe('갈래 앞자락', () => {
   it('인자를 받는 키는 하나도 빠짐없이 어떤 갈래에 속한다', () => {
