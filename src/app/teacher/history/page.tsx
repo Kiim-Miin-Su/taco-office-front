@@ -53,52 +53,81 @@ function StatCard({ tag, value, sub, tint, action }: {
   );
 }
 
-/** 정산 패널 한 줄 — 왼쪽 항목·가운데 산식·오른쪽 금액 */
+/**
+ * 정산 패널 한 줄 — 왼쪽 항목·가운데 산식·오른쪽 금액.
+ *
+ * 좁은 화면에서는 셋을 한 줄에 넣을 수 없다. 산식을 줄여 없애는 대신 **아래로 접는다** —
+ * 「제출 인정 9…」처럼 잘린 산식은 금액이 어디서 나왔는지 말해 주지 못한다 (원본 모바일 §30).
+ */
 function SRow({ name, how, amount }: { name: string; how?: string; amount: string }) {
   return (
-    <div className="flex items-baseline gap-3 border-b border-card/15 py-2.5 text-[13px] last:border-b-0">
-      <span className="w-40 shrink-0 font-bold">{name}</span>
-      <span className="min-w-0 grow truncate opacity-75">{how}</span>
-      <b className="shrink-0 text-[14px]">{amount}</b>
+    <div className="flex flex-wrap items-baseline gap-x-3 border-b border-card/15 py-2.5 text-[13px] last:border-b-0 sm:flex-nowrap">
+      <span className="shrink-0 font-bold sm:w-40">{name}</span>
+      <b className="ml-auto shrink-0 text-[14px] sm:order-last">{amount}</b>
+      {how ? <span className="min-w-0 w-full grow opacity-75 sm:w-auto sm:truncate">{how}</span> : null}
     </div>
   );
 }
 
+/**
+ * 수업 기록 한 줄.
+ *
+ * 웹은 한 줄(시각·학생·과목·대면·시수·상태·금액)이고, **모바일은 세 줄로 접는다** —
+ * 원본 모바일(§30·§31)이 그렇게 보여 준다. 같은 값을 같은 순서로 두되 줄만 나눈다:
+ *   ① 시각 · 학생 · 시수   ② 과목 + 종류 배지   ③ 대면/비대면 · 리포트 상태 · 금액
+ *
+ * 접지 않으면 금액 칸(`w-28`)이 393px 밖으로 나가 **본문 전체가 가로로 밀린다**
+ * (실측 scrollWidth 513). 가로로 밀린 화면에서는 오른쪽 금액을 볼 수가 없다.
+ */
 function Row({ l }: { l: TeacherHistoryLesson }) {
   const rep = l.canceled ? { label: '수업 취소', tone: 'neutral' as Tone } : REP[l.repState];
+  const who = l.students
+    ? `${l.students.split(', ')[0]}${l.studentCount > 1 ? ` 외 ${l.studentCount - 1}명` : ''}`
+    : '미배정';
+  const money = l.canceled ? (
+    <div className="text-[11px] text-fg-subtle">— · 시수·정산 제외</div>
+  ) : l.pay !== null && l.pay !== undefined ? (
+    <>
+      <div className="text-[13px] font-bold text-fg">{won(l.pay)}</div>
+      {l.lateCut ? <div className="text-[11px] font-bold text-red">−{won(l.lateCut)} 지각</div> : null}
+    </>
+  ) : l.penaltyIfNow !== null && l.penaltyIfNow !== undefined ? (
+    <>
+      <div className="text-[13px] font-bold text-fg">보류</div>
+      <div className="text-[11px] font-bold text-red">
+        {l.penaltyIfNow > 0 ? `−${won(l.penaltyIfNow)} 지각` : '지금 쓰면 차감 없음'}
+      </div>
+    </>
+  ) : (
+    <div className="text-[13px] text-fg-subtle">—</div>
+  );
+
   return (
-    <li className={`flex items-center gap-3 border-b border-line px-1 py-3 last:border-b-0 ${l.canceled ? 'opacity-55' : ''}`}>
-      <div className="w-14 shrink-0 text-[13px] font-bold text-fg">{hm(l.startMin)}</div>
-      <div className="w-24 shrink-0 truncate text-[13px] font-bold text-fg">
-        {l.students ? `${l.students.split(', ')[0]}${l.studentCount > 1 ? ` 외 ${l.studentCount - 1}명` : ''}` : '미배정'}
-      </div>
-      <div className="flex min-w-0 grow items-center gap-2">
-        <span className={`truncate text-[14px] font-bold text-fg ${l.canceled ? 'line-through' : ''}`}>
-          {l.title ?? l.subKey ?? l.kindKey}
-        </span>
-        {kindChips(l).map((c) => <Chip key={c.label} size="compact" tone={c.tone}>{c.label}</Chip>)}
-      </div>
-      <Chip size="compact" tone="neutral">{l.canceled ? '취소' : l.mode === 'online' ? '비대면' : '대면'}</Chip>
-      <div className="w-10 shrink-0 text-right text-[13px] font-bold text-fg">{l.canceled ? '0h' : `${hours(l.durMin)}h`}</div>
-      {rep ? <Chip size="compact" tone={rep.tone}>{rep.label}</Chip> : null}
-      <div className="w-28 shrink-0 text-right">
-        {l.canceled ? (
-          <div className="text-[11px] text-fg-subtle">— <br />시수·정산 제외</div>
-        ) : l.pay !== null && l.pay !== undefined ? (
-          <>
-            <div className="text-[13px] font-bold text-fg">{won(l.pay)}</div>
-            {l.lateCut ? <div className="text-[11px] font-bold text-red">−{won(l.lateCut)} 지각</div> : null}
-          </>
-        ) : l.penaltyIfNow !== null && l.penaltyIfNow !== undefined ? (
-          <>
-            <div className="text-[13px] font-bold text-fg">보류</div>
-            <div className="text-[11px] font-bold text-red">
-              {l.penaltyIfNow > 0 ? `−${won(l.penaltyIfNow)} 지각` : '지금 쓰면 차감 없음'}
-            </div>
-          </>
-        ) : (
-          <div className="text-[13px] text-fg-subtle">—</div>
-        )}
+    <li className={`border-b border-line px-1 py-3 last:border-b-0 ${l.canceled ? 'opacity-55' : ''}`}>
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+        {/* ① 시각 · 학생 · 시수 — 웹에서는 `contents` 로 풀려 한 줄에 합류한다 */}
+        <div className="flex items-center gap-3 sm:contents">
+          <div className="w-14 shrink-0 text-[13px] font-bold text-fg sm:order-1">{hm(l.startMin)}</div>
+          <div className="min-w-0 grow truncate text-[13px] font-bold text-fg sm:order-2 sm:w-24 sm:grow-0">{who}</div>
+          <div className="shrink-0 text-right text-[13px] font-bold text-fg sm:order-5 sm:w-10">
+            {l.canceled ? '0h' : `${hours(l.durMin)}h`}
+          </div>
+        </div>
+
+        {/* ② 과목 */}
+        <div className="flex min-w-0 items-center gap-2 sm:order-3 sm:grow">
+          <span className={`truncate text-[14px] font-bold text-fg ${l.canceled ? 'line-through' : ''}`}>
+            {l.title ?? l.subKey ?? l.kindKey}
+          </span>
+          {kindChips(l).map((c) => <Chip key={c.label} size="compact" tone={c.tone}>{c.label}</Chip>)}
+        </div>
+
+        {/* ③ 대면 · 상태 · 금액 — 웹 순서(대면 → 시수 → 상태 → 금액)는 order 로 그대로 지킨다 */}
+        <div className="flex items-center gap-2 sm:contents">
+          <span className="sm:order-4"><Chip size="compact" tone="neutral">{l.canceled ? '취소' : l.mode === 'online' ? '비대면' : '대면'}</Chip></span>
+          {rep ? <span className="sm:order-6"><Chip size="compact" tone={rep.tone}>{rep.label}</Chip></span> : null}
+          <div className="ml-auto shrink-0 text-right sm:order-7 sm:ml-0 sm:w-28">{money}</div>
+        </div>
       </div>
     </li>
   );
