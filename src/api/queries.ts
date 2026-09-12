@@ -29,6 +29,7 @@ import type {
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
   ConsItem,
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
+  Lead, LeadFail, LeadResume,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -583,6 +584,33 @@ export function useToggleConsultingItem(): UseMutationResult<ConsItem, unknown, 
     mutationFn: async ({ consId, itemId, done }) =>
       (await api.patch<ConsItem>(`/consulting/${consId}/items/${itemId}`, { done })).data,
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.consulting, viewerId) }),
+  });
+}
+
+/* ══ §24 상담 실패 이력 (N-25 채택 · C35) — 이전 단계 보존·판정은 서버 한 곳 ══ */
+
+function useOpsInvalidate() {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  // opsQueryKey 는 canMoney 세그먼트가 붙는다 — 접두 무효화로 두 권한 캐시를 함께 재조회한다.
+  return () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.ops, viewerId) });
+}
+
+/** 실패 확정 — 서버가 그 순간의 단계를 fail_from 으로 명시 기록 (409: ALREADY_FAILED·ENROLLED_LOCKED) */
+export function useFailLead(): UseMutationResult<Lead, unknown, { id: number } & LeadFail> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<Lead>(`/ops/leads/${id}/fail`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 되살리기 — 지정값 → 명시값 → 도달 기록 역순, 미분류면 409 UNCLASSIFIED (추정 이관 금지) */
+export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number } & LeadResume> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<Lead>(`/ops/leads/${id}/resume`, body)).data,
+    onSettled: invalidate,
   });
 }
 

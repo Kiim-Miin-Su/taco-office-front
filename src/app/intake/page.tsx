@@ -5,17 +5,19 @@
  */
 
 /**
- * §23 상담 단계 보드 · §24 등록 실패 — 중단 지점 분류.
+ * §23 상담 단계 보드 · §24 등록 실패 — 중단 지점 분류 + 실패 지정/되살리기 input (N-25 · C35).
  *
  * 「그냥 실패」로 묶으면 고칠 곳을 못 찾는다. 어디서 멈췄는지를 세어 둔다.
+ * 실패 전이 순간의 이전 단계는 서버가 fail_from 으로 명시 기록한다 — 화면은 추정하지 않는다.
  */
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
-import { useOps } from '@/api/queries';
-import type { Lead } from '@/api/types';
+import { Banner, Board, BoardColumn, Button, Chip, Column, Label, PageHeader, Panel, Select, StatCard, Table, Tabs, Textarea } from '@/components/ui';
+import { useFailLead, useOps, useResumeLead } from '@/api/queries';
+import { apiMessage } from '@/api/client';
+import type { Lead, LeadFail, LeadResume } from '@/api/types';
 import { SearchField, type SearchFieldHandle } from '@/components/ui/SearchField';
 import { SearchEmpty } from '@/components/ui/SearchEmpty';
 import { FAILURE_SEARCH_LABEL, filterLeadsByQuery } from '@/lib/intake-search';
@@ -29,12 +31,26 @@ const STAGES: Array<{ key: string; label: string; tone: 'neutral' | 'info' | 'wa
   { key: 'failed', label: '실패', tone: 'danger' },
 ];
 
-/** 기존 저장 코드. 원본 fail.from/at{}와의 이관은 N-25 확정 후 별도 청크에서 처리한다. */
+/**
+ * 기존 저장 코드 4어휘. 원본 fail.from/at{} 대응은 N-25 채택(§4-17 · C35)으로 종결 —
+ * from 은 lead.fail_from(전이 순간 서버 기록), at 은 stop_at. 레거시 건은 추정 이관 없이 미분류로 둔다.
+ */
 const STOP: Record<string, string> = {
   before_first: '1차 상담 전 이탈',
   after_first: '1차 후 미진행',
   before_book: '상담 예약 전 이탈',
   after_second: '2차 후 미등록',
+};
+/** 실패 지정 select 순서 — 깔때기 순. 라벨은 STOP 한 곳만 쓴다. 키는 생성 계약의 4어휘 그대로다. */
+type StopKey = LeadFail['stopAt'];
+type ResumeKey = NonNullable<LeadResume['to']>;
+const STOP_ORDER: readonly StopKey[] = ['before_book', 'before_first', 'after_first', 'after_second'];
+const ACTIVE_STAGES = STAGES.filter((s) => s.key !== 'enrolled' && s.key !== 'failed');
+const stageLabel = (key: string | null | undefined) => STAGES.find((s) => s.key === key)?.label ?? key ?? '—';
+/** 되살릴 단계 판정 근거 라벨 — 판정 자체는 서버 응답(revivalStage/Source)만 그린다 */
+const REVIVAL_SOURCE: Record<string, string> = {
+  explicit: '실패 때 서버가 기록한 명시값',
+  log: '도달 기록 역순 판정',
 };
 
 export default function IntakePage() {
@@ -43,6 +59,22 @@ export default function IntakePage() {
   const searchRef = useRef<SearchFieldHandle>(null);
   const q = useOps();
   const leads = useMemo(() => q.data?.leads ?? [], [q.data]);
+
+  // §24 실패 지정/되살리기 초안 — 서버 판정(코드) 결과만 소비하고, 성공하면 재조회로 갈아탄다.
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [stopAt, setStopAt] = useState<StopKey | ''>('');
+  const [reason, setReason] = useState('');
+  const [resumeTo, setResumeTo] = useState<ResumeKey | ''>('');
+  const [armed, setArmed] = useState<'fail' | 'resume' | null>(null);
+  const fail = useFailLead();
+  const resume = useResumeLead();
+  const selected = leads.find((l) => l.id === selectedId) ?? null;
+
+  const pick = (l: Lead) => {
+    setSelectedId((cur) => (cur === l.id ? null : l.id));
+    setStopAt(''); setReason(''); setResumeTo(''); setArmed(null);
+    fail.reset(); resume.reset();
+  };
 
   const columns: Array<BoardColumn<Lead>> = STAGES.map((s) => ({
     key: s.key, label: s.label, tone: s.tone,
@@ -106,7 +138,12 @@ export default function IntakePage() {
             columns={columns}
             itemKey={(l) => l.id}
             renderCard={(l) => (
-              <>
+              <button
+                type="button"
+                aria-pressed={selectedId === l.id}
+                onClick={() => pick(l)}
+                className={`block w-full rounded text-left ${selectedId === l.id ? 'outline outline-2 outline-blue' : ''}`}
+              >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-[12px] font-bold text-fg">{l.name}</span>
                   <span className="text-[10px] text-fg-subtle">{l.ageDays}일</span>
@@ -116,7 +153,7 @@ export default function IntakePage() {
                   <span className="text-[10px] text-fg-subtle">{l.ownerName ?? '미배정'}</span>
                   {l.stopAt ? <Chip tone="danger">{STOP[l.stopAt] ?? l.stopAt}</Chip> : null}
                 </div>
-              </>
+              </button>
             )}
           />
         ) : (
@@ -134,6 +171,102 @@ export default function IntakePage() {
             </Panel>
           </>
         )}
+
+      {selected ? (
+        <Panel
+          className="mt-4"
+          title={`실패 이력 — ${selected.name}`}
+          sub="이전 단계는 전이 순간에 서버가 명시값으로 기록합니다 — 화면은 추정하지 않습니다 (§24 · N-25)"
+          right={<button type="button" className="text-[12px] text-fg-subtle" onClick={() => pick(selected)}>닫기</button>}
+        >
+          {selected.stage === 'enrolled' ? (
+            <p className="p-1 text-[12.5px] text-fg-2">
+              등록 완료된 건입니다 — 실패 전환은 서버가 막습니다 (ENROLLED_LOCKED).
+            </p>
+          ) : selected.stage === 'failed' ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-[12.5px] text-fg-2">
+                중단 지점 <b>{STOP[selected.stopAt ?? ''] ?? '분류 안 됨'}</b>
+                {selected.reason ? <> · 사유 「{selected.reason}」</> : null}
+              </p>
+              {selected.revivalStage ? (
+                <Banner tone="info">
+                  되살리면 <b>{stageLabel(selected.revivalStage)}</b> 단계로 돌아갑니다 —
+                  근거: {REVIVAL_SOURCE[selected.revivalSource ?? ''] ?? '—'}.
+                </Banner>
+              ) : (
+                <Banner tone="warning">
+                  미분류 — 실패 전 단계 이력이 없는 레거시 건입니다. 추정 이관을 하지 않으므로(N-25) 되살릴 단계를 직접 지정해야 합니다.
+                </Banner>
+              )}
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-52">
+                  <Label htmlFor="lead-resume-to">되살릴 단계{selected.revivalStage ? ' (비우면 판정값)' : ' (지정 필수)'}</Label>
+                  <Select id="lead-resume-to" value={resumeTo}
+                    onChange={(e) => { setResumeTo(e.target.value as ResumeKey | ''); setArmed(null); }}>
+                    <option value="">{selected.revivalStage ? `판정값 — ${stageLabel(selected.revivalStage)}` : '단계 선택'}</option>
+                    {ACTIVE_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </Select>
+                </div>
+                <Button
+                  size="sm"
+                  variant={armed === 'resume' ? 'primary' : 'secondary'}
+                  disabled={resume.isPending || (!selected.revivalStage && !resumeTo)}
+                  title={!selected.revivalStage && !resumeTo ? '미분류 — 단계를 지정해야 합니다' : undefined}
+                  onClick={() => {
+                    if (armed === 'resume') {
+                      resume.mutate({ id: selected.id, ...(resumeTo ? { to: resumeTo } : {}) }, { onSettled: () => setArmed(null) });
+                    } else setArmed('resume');
+                  }}
+                >
+                  {armed === 'resume' ? '한 번 더 누르면 되살리기' : '되살리기'}
+                </Button>
+              </div>
+              {resume.isError ? <Banner tone="danger">{apiMessage(resume.error)}</Banner> : null}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-52">
+                  <Label htmlFor="lead-stop-at">중단 지점 (필수)</Label>
+                  <Select id="lead-stop-at" value={stopAt}
+                    onChange={(e) => { setStopAt(e.target.value as StopKey | ''); setArmed(null); }}>
+                    <option value="">지점 선택</option>
+                    {STOP_ORDER.map((k) => <option key={k} value={k}>{STOP[k]}</option>)}
+                  </Select>
+                </div>
+                <div className="min-w-60 grow">
+                  <Label htmlFor="lead-fail-reason" hint="비우면 기존 사유 유지">사유 (선택 · 500자)</Label>
+                  <Textarea id="lead-fail-reason" rows={2} maxLength={500} className="min-h-[44px]"
+                    value={reason} onChange={(e) => setReason(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={armed === 'fail' ? 'danger' : 'secondary'}
+                  disabled={fail.isPending || !stopAt}
+                  title={!stopAt ? '중단 지점을 먼저 고릅니다 (§24 4어휘)' : undefined}
+                  onClick={() => {
+                    if (armed === 'fail' && stopAt) {
+                      fail.mutate(
+                        { id: selected.id, stopAt, ...(reason.trim() ? { reason: reason.trim() } : {}) },
+                        { onSettled: () => setArmed(null) },
+                      );
+                    } else setArmed('fail');
+                  }}
+                >
+                  {armed === 'fail' ? '한 번 더 누르면 실패 확정' : '실패로 분류'}
+                </Button>
+                <span className="text-[11px] text-fg-subtle">
+                  현재 단계 「{stageLabel(selected.stage)}」를 서버가 명시값(fail_from)으로 보존합니다.
+                </span>
+              </div>
+              {fail.isError ? <Banner tone="danger">{apiMessage(fail.error)}</Banner> : null}
+            </div>
+          )}
+        </Panel>
+      ) : null}
     </AppShell></RequireAuth>
   );
 }

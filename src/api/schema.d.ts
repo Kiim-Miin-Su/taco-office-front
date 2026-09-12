@@ -468,6 +468,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/leads/{id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 상담 실패 전이 — 이전 단계를 명시값으로 보존 (v2 §24 · N-25 §4-17 · C35)
+         * @description fail_from 은 전이 순간의 실제 단계를 서버가 기록한다 — 추정이 아니라 사실이다. 도달 기록(append-only)에 failed 를 남긴다.
+         */
+        post: operations["OpsController_failLead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 실패 건 되살리기 — 지정값 → fail_from 명시값 → 도달 기록 역순, 없으면 UNCLASSIFIED
+         * @description 레거시(stop_at 만 있는) 건은 추정하지 않는다 — 미분류로 거절하고 단계 지정을 요구한다 (N-25).
+         */
+        post: operations["OpsController_resumeLead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consulting": {
         parameters: {
             query?: never;
@@ -1453,6 +1493,12 @@ export interface components {
             createdAt: string;
             /** @description 접수한 지 며칠 */
             ageDays: number;
+            /** @description 실패 당시 이전 단계 명시값 — 전이 때 서버가 라이브 기록. 레거시 NULL */
+            failFrom?: string | null;
+            /** @description 되살릴 단계 판정 결과(failed 건만) — null 이면 미분류(단계 지정 필요) */
+            revivalStage?: string | null;
+            /** @description 판정 근거 — 'explicit'(명시값) | 'log'(도달 기록) | null(미분류) */
+            revivalSource?: string | null;
         };
         ComplaintDto: {
             id: number;
@@ -1534,6 +1580,22 @@ export interface components {
             suggestions: components["schemas"]["SuggestionDto"][];
             /** @description 집행 비용을 볼 수 있는가 */
             canSeeAmounts: boolean;
+        };
+        LeadFailDto: {
+            /**
+             * @description 중단 지점 분류 (§24 · 기존 4어휘)
+             * @enum {string}
+             */
+            stopAt: "before_book" | "before_first" | "after_first" | "after_second";
+            /** @description 사유 — 500자 이내. 생략하면 기존 사유 유지 */
+            reason?: string;
+        };
+        LeadResumeDto: {
+            /**
+             * @description 되살릴 단계 지정 — 생략하면 서버 판정(명시값 → 도달 기록). 미분류인데 생략하면 409 UNCLASSIFIED
+             * @enum {string}
+             */
+            to?: "first" | "wait2nd" | "second" | "hold";
         };
         ConsultingSessionDto: {
             id: number;
@@ -4574,6 +4636,156 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_failLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadFailDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 상담 건 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code ALREADY_FAILED | ENROLLED_LOCKED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_resumeLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadResumeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 상담 건 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code NOT_FAILED | UNCLASSIFIED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

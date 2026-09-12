@@ -88,6 +88,9 @@ export type MoneySummary = S['MoneySummaryDto'];
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];
 export type Lead = S['LeadDto'];
+/** §24 실패 전이/되살리기 입력 — 판정 코드(ALREADY_FAILED 등)는 서버가 낸다 (N-25 · C35) */
+export type LeadFail = S['LeadFailDto'];
+export type LeadResume = S['LeadResumeDto'];
 export type Complaint = S['ComplaintDto'];
 export type Todo = S['TodoDto'];
 export type Plan = S['PlanDto'];
