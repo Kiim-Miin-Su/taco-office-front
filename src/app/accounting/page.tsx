@@ -5,7 +5,7 @@
  */
 
 /**
- * §53 청구서 · §55 들어온 돈 · §57 강사료 정산 · ⑤ 입금 기록(C36-a).
+ * §53 청구서 · §55 들어온 돈 · §56 나간 돈 · §57 강사료 정산 · ⑤ 입금 기록(C36-a·C36-b).
  *
  * 회계 탭 자체가 대표 전용이다 (D-R9 · v2 §76 — 원본 컷 머리글 「회계 〔대표·이사〕」).
  * 그래도 금액은 서버가 null 로 내려보내는 쪽을 유지한다 — **가리는 일을 화면이 하지 않는다.**
@@ -18,6 +18,8 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
 import { useAccounting } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
+import { ExpenseReview } from '@/components/accounting/ExpenseReview';
+import { useSession } from '@/store/useSession';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won } from '@/lib/money';
 
@@ -37,8 +39,9 @@ const STATE: Record<string, { label: string; tone: 'neutral' | 'info' | 'success
 };
 
 export default function AccountingPage() {
-  const [tab, setTab] = useState<'inv' | 'record' | 'pay' | 'payout'>('inv');
+  const [tab, setTab] = useState<'inv' | 'record' | 'pay' | 'out' | 'payout'>('inv');
   const q = useAccounting();
+  const me = useSession((s) => s.me);
   const s = q.data?.summary;
 
   const invCols: Array<Column<Invoice>> = [
@@ -156,6 +159,7 @@ export default function AccountingPage() {
             { value: 'inv', label: `청구서 ${q.data?.invoices.length ?? 0}` },
             { value: 'record', label: '입금 기록' },
             { value: 'pay', label: `들어온 돈 ${q.data?.payments.length ?? 0}` },
+            { value: 'out', label: `나간 돈 ${q.data?.expenses.length ?? 0}` },
             { value: 'payout', label: `강사료 정산 ${q.data?.payouts.length ?? 0}` },
           ]}
         />
@@ -170,6 +174,8 @@ export default function AccountingPage() {
           <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (
           <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
+        ) : tab === 'out' ? (
+          <ExpenseReview expenses={q.data?.expenses ?? []} me={me} />
         ) : (
           <Table columns={poCols} rows={q.data?.payouts ?? []} rowKey={(r) => r.id} />
         )}

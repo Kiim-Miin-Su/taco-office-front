@@ -28,7 +28,7 @@ import type {
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
   TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
   ConsItem,
-  Invoice, PaymentCreate,
+  Invoice, PaymentCreate, Expense, ExpenseReview,
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   Lead, LeadFail, LeadResume,
 } from './types';
@@ -212,6 +212,18 @@ export function useDeletePayment(): UseMutationResult<OkResult, unknown, number>
   const invalidate = useAccountingInvalidate();
   return useMutation({
     mutationFn: async (id) => (await api.delete<OkResult>(`/accounting/payments/${id}`)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * 법인카드 심사 (A-D3 · §56). 증액·영수증·자기 승인 판정은 전부 서버 —
+ * 화면은 미리 막아 주기만 하고, 최종 거절 문구는 서버 것을 그대로 보인다.
+ */
+export function useReviewExpense(): UseMutationResult<Expense, unknown, { id: number; body: ExpenseReview }> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, body }) => (await api.post<Expense>(`/accounting/expenses/${id}/review`, body)).data,
     onSettled: invalidate,
   });
 }

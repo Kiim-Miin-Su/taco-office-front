@@ -485,6 +485,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/expenses/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 법인카드 심사 — 승인(감액 가능·증액 금지)·반려 (A-D3 · v2 §56 법인카드)
+         * @description 신청 금액은 placeholder 일 뿐이고 확정 금액은 사람이 넣는다 (대표 지시 2026-08-25). 판정은 전부 서버.
+         */
+        post: operations["AccountingController_reviewExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops": {
         parameters: {
             query?: never;
@@ -1509,11 +1529,39 @@ export interface components {
             net: number | null;
             state: string;
         };
+        ExpenseDto: {
+            id: number;
+            /** @description 사용일 YYYY-MM-DD */
+            spendOn: string;
+            /** @enum {string} */
+            category: "rent" | "book" | "supply" | "ent" | "fee" | "etc";
+            /** @description 분류 이름 — 코드표는 서버가 소유한다 (D-R18) */
+            categoryLabel: string;
+            merchant?: string | null;
+            purpose?: string | null;
+            /** @description 직원이 올린 신청 금액 — 승인 칸의 placeholder 다 (A-1) */
+            requestedAmount: number | null;
+            /** @description 확정 금액. null 은 미심사이거나 금액 권한 없음 */
+            amount: number | null;
+            /** @description 신청액과 다를 때 필수 (A-3) */
+            reason?: string | null;
+            /** @description 영수증 없이는 승인할 수 없다 (A-4) */
+            hasReceipt: boolean;
+            requesterName?: string | null;
+            /** @description 본인 신청은 본인이 승인할 수 없다 (A-5) */
+            requesterId: number | null;
+            /** @enum {string} */
+            state: "pending" | "approved" | "rejected";
+            reviewerName?: string | null;
+            reviewedAt?: string | null;
+        };
         AccountingDto: {
             summary: components["schemas"]["MoneySummaryDto"];
             invoices: components["schemas"]["InvoiceDto"][];
             payments: components["schemas"]["PaymentDto"][];
             payouts: components["schemas"]["PayoutDto"][];
+            /** @description 나간 돈 §56 — 부대비용·법인카드 신청분 */
+            expenses: components["schemas"]["ExpenseDto"][];
         };
         PaymentCreateDto: {
             /** @description 어느 청구서에 붙는 입금인가 */
@@ -1525,6 +1573,14 @@ export interface components {
             /** @enum {string} */
             method?: "transfer" | "cash";
             /** @description 청구액과 다를 때의 사유 — 분납 회차 메모로도 쓴다 */
+            reason?: string;
+        };
+        ExpenseReviewDto: {
+            /** @enum {string} */
+            decision: "approve" | "reject";
+            /** @description 확정 금액. 승인일 때 필수이며 신청 금액을 넘을 수 없다 (A-D3) */
+            amount?: number;
+            /** @description 신청액과 다르거나 반려일 때 필수 (A-3) */
             reason?: string;
         };
         LeadDto: {
@@ -4756,6 +4812,84 @@ export interface operations {
             };
             /** @description code INV_PAID_LOCKED */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_reviewExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseReviewDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseDto"];
+                };
+            };
+            /** @description code AMOUNT_REASON_REQUIRED(사유·확정 금액 누락) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code SELF_APPROVAL_FORBIDDEN(본인 신청 자기 심사) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 지출 건 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code EXPENSE_ALREADY_REVIEWED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CARD_AMOUNT_EXCEEDS_REQUEST(증액) | CARD_RECEIPT_REQUIRED(영수증 없음) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

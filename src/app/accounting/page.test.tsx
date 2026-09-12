@@ -25,7 +25,7 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { invoiceCount: 0, billed: null, collected: null, outstanding: null, overdueCount: 0, canSeeAmounts },
-    invoices: [], payouts: [],
+    invoices: [], payouts: [], expenses: [],
     payments: [
       { id: 1, studentName: '미확인 학생', paidOn: null, amount: null, method: null },
       { id: 2, studentName: '영원 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 0 : null, method: 'cash' },

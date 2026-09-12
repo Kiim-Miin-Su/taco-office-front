@@ -84,6 +84,9 @@ export type Invoice = S['InvoiceDto'];
 export type Payment = S['PaymentDto'];
 /** 입금 한 줄 등록 — 분납은 줄을 늘린다 (A-D2 · C36-a) */
 export type PaymentCreate = S['PaymentCreateDto'];
+/** 나간 돈 §56 — 부대비용·법인카드 (A-D3·A-D5 · C36-b) */
+export type Expense = S['ExpenseDto'];
+export type ExpenseReview = S['ExpenseReviewDto'];
 export type Payout = S['PayoutDto'];
 export type MoneySummary = S['MoneySummaryDto'];
 
