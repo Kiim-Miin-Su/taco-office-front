@@ -24,7 +24,7 @@ afterEach(() => { cleanup(); clients.splice(0).forEach(c => c.clear()); api.defa
 it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단을 구별하고 추가 조회하지 않는다', async (canSeeAmounts) => {
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
-    summary: { invoiceCount: 0, billed: null, collected: null, outstanding: null, overdueCount: 0, canSeeAmounts },
+    summary: { sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 0, canSeeAmounts },
     invoices: [], payouts: [], expenses: [],
     payments: [
       { id: 1, studentName: '미확인 학생', paidOn: null, amount: null, method: null },
@@ -49,4 +49,57 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   expect(cells('기존 이체')[3]).toBe('계좌');
   expect(view.container.textContent).not.toContain('null');
   expect(get).toHaveBeenCalledTimes(1);
+});
+
+/**
+ * §52·§56 회계 머리 **여섯 칸** — 원문의 낱말과 차례 그대로인가 (C43).
+ *
+ * 값은 손대지 않는다. 화면이 「보낸 청구서 − 받은 돈」을 다시 빼면 같은 이름의 숫자가
+ * 두 곳에서 나오게 되므로, 서버가 준 `unpaid` 를 **그대로** 보여 주는지까지 본다 (D-R18).
+ */
+const HEAD_LABELS = ['보낸 청구서', '받은 돈', '못 받은 돈', '기한 지남', '남은 돈', '손봐야 할 것'];
+
+function mount(summary: Accounting['summary']) {
+  useSession.getState().signIn('fixture', me);
+  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], payments: [] };
+  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  return render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+}
+
+it('머리 여섯 칸은 원문의 낱말과 차례 그대로이고, 서버가 준 값을 다시 계산하지 않는다', async () => {
+  // §52 원본 표본 — 7,214,000 − 4,377,400 = 2,836,600 이 원문 안에서 닫힌다
+  const view = mount({
+    sent: 7214000, collected: 4377400, unpaid: 2836600,
+    overdue: 1170000, net: -3052172, todo: 6, canSeeAmounts: true,
+  });
+  await waitFor(() => expect(view.getByText('6건')).toBeTruthy());
+
+  const heads = HEAD_LABELS.map(l => view.getByText(l).parentElement!);
+  expect(heads.map(h => h.textContent)).toEqual([
+    '보낸 청구서7,214,000원',
+    '받은 돈4,377,400원',
+    '못 받은 돈2,836,600원',
+    '기한 지남1,170,000원',
+    '남은 돈−3,052,172원',
+    '손봐야 할 것6건납부 기한이 지난 청구서',
+  ]);
+  // 차례도 원문 그대로다 — 못 받은 돈은 받은 돈 **뒤**에 온다
+  const order = [...view.container.querySelectorAll('div')].map(d => d.textContent);
+  expect(order.filter(t => HEAD_LABELS.includes(t ?? ''))).toEqual(HEAD_LABELS);
+});
+
+it('서버가 「못 받은 돈」을 다르게 주면 화면은 그 값을 그대로 쓴다 — 빼서 고치지 않는다', async () => {
+  const view = mount({ sent: 1000, collected: 400, unpaid: 999, overdue: 0, net: 0, todo: 0, canSeeAmounts: true });
+  await waitFor(() => expect(view.getByText('999원')).toBeTruthy());
+  expect(view.getByText('못 받은 돈').parentElement!.textContent).toBe('못 받은 돈999원');
+});
+
+it('금액 권한이 없으면 다섯 칸은 가려지고 「손봐야 할 것」은 건수라 그대로 보인다 (D-R39)', async () => {
+  const view = mount({ sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 4, canSeeAmounts: false });
+  await waitFor(() => expect(view.getByText('4건')).toBeTruthy());
+  expect(HEAD_LABELS.slice(0, 5).map(l => view.getByText(l).parentElement!.textContent))
+    .toEqual(['보낸 청구서가려짐', '받은 돈가려짐', '못 받은 돈가려짐', '기한 지남가려짐', '남은 돈가려짐']);
+  expect(view.getByText('손봐야 할 것').parentElement!.textContent).toContain('4건');
 });

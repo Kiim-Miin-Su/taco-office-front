@@ -1545,11 +1545,18 @@ export interface components {
             reason?: string;
         };
         MoneySummaryDto: {
-            invoiceCount: number;
-            billed: number | null;
+            /** @description 보낸 청구서 — 초안·취소를 뺀 청구액 합 */
+            sent: number | null;
+            /** @description 받은 돈 — 같은 집합의 확정 입금 합 */
             collected: number | null;
-            outstanding: number | null;
-            overdueCount: number;
+            /** @description 못 받은 돈 = 보낸 청구서 − 받은 돈 */
+            unpaid: number | null;
+            /** @description 기한 지남 — **금액**이다. 못 받은 돈의 부분집합 */
+            overdue: number | null;
+            /** @description 남은 돈 = 받은 돈 − 나간 돈(승인 지출 + 확정 정산). 음수가 정상이다 */
+            net: number | null;
+            /** @description 손봐야 할 것 — 건수라 가리지 않는다 (§69 회계 배지와 같은 판정) */
+            todo: number;
             /** @description 금액을 볼 수 있는가 (D-R39 · 사람별 예외까지 반영된 canMoney) */
             canSeeAmounts: boolean;
         };

@@ -21,7 +21,17 @@ import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment, Payout } from '@/api/types';
-import { won } from '@/lib/money';
+import { won, wonTone } from '@/lib/money';
+
+/**
+ * 머리 여섯 칸의 금액 — 값이 길어 26px 로는 1440 폭에서 여섯 칸이 넘친다.
+ * 줄이는 것은 **글자 크기뿐**이다. 자릿수를 접거나(「약 721만」) 「원」을 떼지 않는다 —
+ * 대표가 보는 머리는 원문과 같은 금액이어야 한다.
+ */
+function Head({ v, loaded }: { v: number | null | undefined; loaded: boolean }) {
+  // 아직 안 받았으면 「—」다. 「가려짐」은 **권한이 없어서 서버가 안 줬다**는 뜻이라 불러오는 중에 쓰면 거짓말이 된다.
+  return <span className="text-[20px]">{won(v, loaded ? {} : { empty: '—' })}</span>;
+}
 
 /** 공용 원화 포맷을 재사용한다. 미확인 입금과 권한 가림을 호출부에서 구별한다. */
 function Won({ v, bold, empty }: { v: number | null; bold?: boolean; empty?: string }) {
@@ -132,15 +142,24 @@ export default function AccountingPage() {
       <AppShell>
         <PageHeader title="회계" sub="청구서 → 전달 → 입금 → 기록. 강사료는 리포트를 쓴 수업만 계산합니다." />
 
-        <div className="mb-4 grid grid-cols-4 gap-3">
-          <StatCard label="청구서" value={s?.invoiceCount ?? '—'} note="전체" />
-          <StatCard label="청구 합계" value={won(s?.billed)} tone="info" />
-          <StatCard label="수납" value={won(s?.collected)} tone="success" />
+        {/*
+          회계 머리 **여섯 칸** — §52·§56 원문 그대로의 낱말·차례다 (C43).
+          값은 전부 서버가 낸다. 화면이 「보낸 청구서 − 받은 돈」을 빼서 「못 받은 돈」을 만들면
+          같은 이름의 숫자가 두 곳에서 나오게 된다 (D-R18).
+          「남은 돈」의 색만 부호를 따른다 — 원문 표본은 음수(빨강) 한 가지뿐이라 양수는 공백이고,
+          그 자리에서 빨강은 사실이 아니다 (D-R44).
+        */}
+        <div className="mb-4 grid grid-cols-6 gap-3">
+          <StatCard label="보낸 청구서" value={<Head v={s?.sent} loaded={!!s} />} tone="info" />
+          <StatCard label="받은 돈" value={<Head v={s?.collected} loaded={!!s} />} tone="success" />
+          <StatCard label="못 받은 돈" value={<Head v={s?.unpaid} loaded={!!s} />} tone="warning" />
+          <StatCard label="기한 지남" value={<Head v={s?.overdue} loaded={!!s} />} tone="danger" />
+          <StatCard label="남은 돈" value={<Head v={s?.net} loaded={!!s} />} tone={wonTone(s?.net)} />
           <StatCard
-            label="연체"
-            value={s?.overdueCount ?? '—'}
-            note={s?.outstanding === null ? '금액은 대표만' : `미수 ${won(s?.outstanding ?? 0)}`}
-            tone="danger"
+            label="손봐야 할 것"
+            value={s ? `${s.todo}건` : '—'}
+            note="납부 기한이 지난 청구서"
+            tone={s && s.todo > 0 ? 'danger' : 'neutral'}
           />
         </div>
 
