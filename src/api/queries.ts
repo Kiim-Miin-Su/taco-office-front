@@ -53,7 +53,8 @@ export const qk = {
   board: (p: BoardParams) => ['board', p] as const,
   exec: (p: ExecQuery) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
-  drawer: ['drawer'] as const,
+  /* 알림 범위가 키에 들어간다 — 「예전 것도 보기」가 캐시를 갈아 끼워야 하기 때문이다 (N-7 · D-16) */
+  drawer: (notiWindow: 'month' | 'all' = 'month') => ['drawer', notiWindow] as const,
   teacherHome: ['teacher', 'home'] as const,
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
@@ -87,9 +88,15 @@ export function sessionQueryKey<T extends readonly unknown[]>(key: T, viewerId: 
  */
 export const family = {
   occurrences: ['schedule', 'occurrences'] as const,
+  horizon: ['schedule', 'horizon'] as const,
   reports: ['reports'] as const,
+  reportDeliveries: ['reports', 'deliveries'] as const,
   board: ['board'] as const,
   exec: ['exec'] as const,
+  accounting: ['accounting'] as const,
+  ops: ['ops'] as const,
+  drawer: ['drawer'] as const,
+  teacherHome: ['teacher', 'home'] as const,
   teacherHistory: ['teacher', 'history'] as const,
   teacherGuides: ['teacher', 'guides'] as const,
   teacherUnav: ['teacher', 'unavailable'] as const,
@@ -331,7 +338,7 @@ export function useCreateSettingRequest(): UseMutationResult<TeacherSettingReque
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherHome, viewerId) });
       // 올린 요청은 서랍 §14 승인 대기함에도 같은 행으로 보인다 (D-R26)
-      void qc.invalidateQueries({ queryKey: qk.drawer });
+      void qc.invalidateQueries({ queryKey: family.drawer });
     },
   });
 }
@@ -429,12 +436,12 @@ function refreshReportConsumers(
   detail?: ReportDetail,
 ): void {
   if (detail) qc.setQueryData(sessionQueryKey(qk.reportDetail(detail.serId, detail.onDate), viewerId), detail);
-  void qc.invalidateQueries({ queryKey: ['reports'] });
-  void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-  void qc.invalidateQueries({ queryKey: qk.accounting });
-  void qc.invalidateQueries({ queryKey: ['board'] });
-  void qc.invalidateQueries({ queryKey: ['exec'] });
-  void qc.invalidateQueries({ queryKey: qk.drawer });
+  void qc.invalidateQueries({ queryKey: family.reports });
+  void qc.invalidateQueries({ queryKey: family.occurrences });
+  void qc.invalidateQueries({ queryKey: family.accounting });
+  void qc.invalidateQueries({ queryKey: family.board });
+  void qc.invalidateQueries({ queryKey: family.exec });
+  void qc.invalidateQueries({ queryKey: family.drawer });
 }
 
 /** 상태/담당자가 바뀐 거절만 재조회한다. 입력 오류·통신 실패는 작성 중인 초안을 보존한다. */
@@ -485,7 +492,7 @@ export function useReportDeliverySend(): UseMutationResult<ReportSendHistory, un
     ).data.item,
     onSettled: () => {
       // 여러 학생 중 일부만 성공해도 큐와 이력은 반드시 서버 상태로 다시 맞춘다.
-      void qc.invalidateQueries({ queryKey: ['reports', 'deliveries'] });
+      void qc.invalidateQueries({ queryKey: family.reportDeliveries });
     },
   });
 }
@@ -499,7 +506,7 @@ export function useReportDeliveryResend(): UseMutationResult<ReportSendHistory, 
       await api.post<ReportDeliveryResult>(`/reports/deliveries/${sendId}/resend`, { requestKey })
     ).data.item,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['reports', 'deliveries'] });
+      void qc.invalidateQueries({ queryKey: family.reportDeliveries });
     },
   });
 }
@@ -522,9 +529,9 @@ export function useScheduleWrite(): UseMutationResult<
   const qc = useQueryClient();
   // 성공과 오래된 회차 거절이 같은 서버 정본을 다시 읽는다. 전체 캐시 무효화는 하지 않는다.
   const reconcile = () => {
-    void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-    void qc.invalidateQueries({ queryKey: ['board'] });
-    void qc.invalidateQueries({ queryKey: qk.horizon });
+    void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.board });
+    void qc.invalidateQueries({ queryKey: family.horizon });
   };
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
@@ -565,10 +572,10 @@ export function useAttendanceWrite(): UseMutationResult<
 > {
   const qc = useQueryClient();
   const reconcile = () => {
-    void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-    void qc.invalidateQueries({ queryKey: ['board'] });
-    void qc.invalidateQueries({ queryKey: qk.accounting });
-    void qc.invalidateQueries({ queryKey: ['exec'] });
+    void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.board });
+    void qc.invalidateQueries({ queryKey: family.accounting });
+    void qc.invalidateQueries({ queryKey: family.exec });
   };
   return useMutation({
     mutationFn: async (w) => {
@@ -600,7 +607,7 @@ export function useAttendanceWrite(): UseMutationResult<
 export function useDrawer(enabled = true, notiWindow: 'month' | 'all' = 'month'): UseQueryResult<Drawer> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey([...qk.drawer, notiWindow], viewerId),
+    queryKey: sessionQueryKey(qk.drawer(notiWindow), viewerId),
     queryFn: async () => (await api.get<Drawer>('/drawer', { params: { notiWindow } })).data,
     enabled,
     // 결재·알림은 남이 바꾼다. 서랍을 다시 열면 다시 읽는다.
@@ -652,17 +659,17 @@ export function useDrawerWrite(): UseMutationResult<
     },
     onSuccess: (_r, w) => {
       // 창(month/all)마다 키가 다르므로 서랍 전체를 무효화한다
-      void qc.invalidateQueries({ queryKey: qk.drawer });
+      void qc.invalidateQueries({ queryKey: family.drawer });
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
-      if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: qk.ops });
+      if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: family.ops });
       // 승인은 **실제로 적용된다** — 강사 홈의 시급·시간대가 바뀌었으므로 함께 다시 읽는다
-      if (w.kind === 'reqReview') void qc.invalidateQueries({ queryKey: qk.teacherHome });
+      if (w.kind === 'reqReview') void qc.invalidateQueries({ queryKey: family.teacherHome });
       // 반영하면 **시간표가 바뀐다** — 달력·현황판·강사 홈을 함께 다시 읽는다 (§20)
       if (w.kind === 'chreqReview') {
-        void qc.invalidateQueries({ queryKey: ['schedule', 'occurrences'] });
-        void qc.invalidateQueries({ queryKey: ['board'] });
-        void qc.invalidateQueries({ queryKey: ['exec'] });
-        void qc.invalidateQueries({ queryKey: qk.teacherHome });
+        void qc.invalidateQueries({ queryKey: family.occurrences });
+        void qc.invalidateQueries({ queryKey: family.board });
+        void qc.invalidateQueries({ queryKey: family.exec });
+        void qc.invalidateQueries({ queryKey: family.teacherHome });
       }
     },
   });

@@ -3,6 +3,8 @@
  * 책임/재사용: 실제 qk/family/sessionQueryKey 를 그대로 쓴다. 키 모양을 테스트에 다시 적지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { family, qk, sessionQueryKey } from './queries';
 
@@ -31,7 +33,11 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   teacherUnav: qk.teacherUnav(undefined),
   gpa: qk.gpa('2026-09-01'),
   zoom: qk.zoom(undefined),
+  drawer: qk.drawer(),
 };
+
+/** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
+const CONST_SAMPLE: readonly (readonly unknown[])[] = [qk.horizon, qk.accounting, qk.ops, qk.teacherHome];
 
 describe('갈래 앞자락', () => {
   it('인자를 받는 키는 하나도 빠짐없이 어떤 갈래에 속한다', () => {
@@ -60,9 +66,66 @@ describe('갈래 앞자락', () => {
   });
 
   it('갈래마다 실제로 걸리는 키가 하나는 있다 — 아무 데도 안 쓰는 앞자락은 두지 않는다', () => {
-    const keys = Object.values(SAMPLE);
+    const keys = [...Object.values(SAMPLE), ...CONST_SAMPLE];
     for (const [name, head] of Object.entries(family)) {
       expect(keys.some((k) => startsWith(k, head)), `${name} 갈래에 걸리는 키가 없다`).toBe(true);
+    }
+  });
+});
+
+/**
+ * 무효화가 **어떤 모양으로 적혀 있는가**를 소스에서 직접 본다.
+ *
+ * C48 에서 한 번 당했다 — `sessionQueryKey(['zoom'], viewerId)` 는 사용자 꼬리를 앞자락에
+ * 끼워 넣어 **아무 키에도 안 걸렸다.** 오류가 안 나고 화면만 옛 값을 보여 줬다.
+ * 그래서 표기를 두 가지로만 좁히고, 기계가 그 둘인지 본다.
+ *
+ *   · `family.X`                        — 갈래 전체를 버린다 (뒤에 무엇이 붙든)
+ *   · `sessionQueryKey(qk.Y, viewerId)` — 이 사용자의 **그 키 하나**만 버린다
+ *
+ * 두 번째는 `qk.Y` 가 **인자를 안 받는 상수**여야 한다. 인자를 받는 키는 뒤에 조각이 더
+ * 붙으므로, 그 모양으로 적으면 앞자락이 짧아져 다시 안 걸린다.
+ */
+describe('무효화 표기', () => {
+  const src = readFileSync(join(__dirname, 'queries.ts'), 'utf8');
+  const args = [...src.matchAll(/invalidateQueries\(\{\s*queryKey:\s*([^}]+?)\s*\}\)/g)].map((m) => m[1].trim());
+
+  it('무효화는 family 앞자락이거나 정확한 한 키다 — 그 사이는 없다', () => {
+    expect(args.length).toBeGreaterThan(20);
+    const constKeys = new Set(Object.entries(qk).filter(([, v]) => Array.isArray(v)).map(([k]) => k));
+    for (const a of args) {
+      const asFamily = /^family\.(\w+)$/.exec(a);
+      const asExact = /^sessionQueryKey\(qk\.(\w+),\s*\w+\)$/.exec(a);
+      expect(Boolean(asFamily || asExact), `모양이 둘 중 하나가 아니다: ${a}`).toBe(true);
+      if (asFamily) {
+        expect(Object.keys(family), `family.${asFamily[1]} 가 없다`).toContain(asFamily[1]);
+      }
+      if (asExact) {
+        // 인자를 받는 키를 이 모양으로 적으면 앞자락이 짧아져 아무것도 안 걸린다
+        expect(constKeys, `qk.${asExact[1]} 는 인자를 받는다 — family 앞자락을 쓰라`).toContain(asExact[1]);
+      }
+    }
+  });
+
+  it('쓰기 훅은 하나도 빠짐없이 캐시를 버린다', () => {
+    /*
+     * 함수 본문을 중괄호로 끊으려다 두 번 틀렸다 — 시그니처의 타입 리터럴
+     * (`UseMutationResult<T, unknown, { id: number }>`) 이 먼저 열고 닫아서 본문 전에 끝난다.
+     * 다음 `export` 앞까지 자르는 편이 단순하고 안 틀린다. 뒤따르는 주석이 딸려 오므로 지운다.
+     */
+    const starts = [...src.matchAll(/^export (?:function|const) (\w+)/gm)];
+    const hooks = starts.map((m, i) => ({
+      name: m[1],
+      body: src.slice(m.index ?? 0, starts[i + 1]?.index ?? src.length)
+        .replace(/\/\*[\s\S]*?\*\//g, ''),
+    })).filter((h) => /UseMutationResult/.test(h.body) && /^use[A-Z]/.test(h.name));
+    expect(hooks.length).toBeGreaterThan(20);
+    const helpers = /function (refreshReportConsumers|reconcileReportError|use\w*Invalidate)/g;
+    const helperNames = new Set([...src.matchAll(helpers)].map((m) => m[1]));
+    for (const h of hooks) {
+      const buries = /invalidateQueries|Invalidate\(\)|invalidate\b/.test(h.body)
+        || [...helperNames].some((n) => h.body.includes(n));
+      expect(buries, `${h.name} 이 쓰기 뒤에 아무것도 안 버린다`).toBe(true);
     }
   });
 });

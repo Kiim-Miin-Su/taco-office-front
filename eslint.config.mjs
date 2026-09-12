@@ -29,6 +29,18 @@ export default tseslint.config(
             '색을 여기 적지 마세요. src/styles/tokens.css 에 토큰을 만들고 Tailwind 의 kind-*/sub-* 로 쓰세요 (D-R41).',
         },
         {
+          /*
+           * C48 에서 한 번 당한 자리 — `sessionQueryKey(['zoom'], viewerId)`.
+           * sessionQueryKey 는 사용자 id 를 키의 **꼬리**에 붙이므로, 배열 리터럴을 넘기면
+           * `['zoom','viewer',1]` 이 되는데 실제 키는 `['zoom','2026-09-13','viewer',1]` 이다.
+           * 앞자락이 아니라서 **어디에도 안 걸리고 오류도 안 난다** — 화면만 옛 값을 보여 준다.
+           * 갈래를 버릴 때는 `family.X`, 키 하나면 `qk.X` 를 넘긴다.
+           */
+          selector: "CallExpression[callee.name='sessionQueryKey'] > ArrayExpression",
+          message:
+            'sessionQueryKey 에 배열을 직접 넘기지 마세요. 갈래 전체는 family.X, 키 하나는 qk.X 입니다 (C48).',
+        },
+        {
           // D-R39 — 권한 판정은 서버가 내려준 플래그를 읽기만 한다.
           selector: "BinaryExpression[operator=/^[=!]==?$/] > MemberExpression[property.name='role']",
           message:
