@@ -33,6 +33,17 @@ const KIND_LABEL: Record<string, string> = {
 };
 const NOTI_TONE: Record<string, Tone> = { alarm: 'info', ok: 'success', warn: 'warning' };
 
+/**
+ * 서랍 맨 아래의 **목적지 단추** — 원문 §18 「프로그램 · 과목 전체 열기」와 §21 「줌 계정 관리」다.
+ * 서랍은 읽기만 하고 쓰기는 목적지에서 한다는 원문의 갈래를 이 한 줄이 잇는다.
+ */
+const OpenAll = ({ href, children }: { href: string; children: React.ReactNode }) => (
+  <Link href={href} className="mt-3 block">
+    {/* 색·높이는 UI/Button 이 소유한다 — 여기서 다시 칠하지 않는다 (D-R41) */}
+    <Button variant="primary" className="w-full">{children}</Button>
+  </Link>
+);
+
 const Empty = ({ children }: { children: React.ReactNode }) => (
   <p className="px-1 py-8 text-center text-[12px] text-fg-subtle">{children}</p>
 );
@@ -422,9 +433,8 @@ export function KindsPane({ kinds }: { kinds: KindRow[] }) {
       <span className="inline-block h-3 w-3 rounded-full" style={{ background: k.color }} aria-hidden />
     ) },
     { key: 'name', head: '이름', cell: (k) => <span className="font-bold text-fg">{k.name}</span> },
-    { key: 'grp', head: '묶음', cell: (k) => (
-      { lesson: '수업', intake: '상담', meeting: '회의' }[k.grp] ?? k.grp
-    ) },
+    // 묶음 이름은 서버가 만든다 — 화면이 코드표를 다시 적으니 원문(「상담·진단」)과 갈렸다 (C48 · D-R18)
+    { key: 'grp', head: '묶음', cell: (k) => k.grpLabel },
     { key: 'cap', head: '정원', align: 'right', cell: (k) => `${k.cap}명` },
     { key: 'rep', head: '리포트', align: 'center', cell: (k) => (
       k.rep ? <Chip tone="success">대상</Chip> : <Chip tone="neutral">아님</Chip>
@@ -436,6 +446,8 @@ export function KindsPane({ kinds }: { kinds: KindRow[] }) {
         <b>리포트 대상</b>인 종류만 리포트를 씁니다 (D-R6). 상담·회의는 아무리 지나도 「안 쓴 리포트」가 되지 않습니다.
       </Banner>
       <Table columns={cols} rows={kinds} rowKey={(k) => k.key} />
+      {/* 원문 §18 의 마지막 줄이다 — 서랍은 보여 주기만 하고, 만들고 고치는 자리는 따로 있다 */}
+      <OpenAll href="/programs">프로그램 · 과목 전체 열기</OpenAll>
     </>
   );
 }
@@ -686,6 +698,8 @@ export function ZoomPane({ rows }: { rows: ZoomAccount[] }) {
         ))}
         {rows.length === 0 ? <Empty>줌 계정이 없습니다</Empty> : null}
       </div>
+      {/* 원문 §21 의 마지막 줄이다 — 로그인 정보는 여기 오지 않고, 고치는 자리는 목적지에 있다 */}
+      <OpenAll href="/zoom">줌 계정 관리</OpenAll>
     </>
   );
 }

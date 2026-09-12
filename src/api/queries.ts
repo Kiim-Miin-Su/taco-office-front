@@ -31,6 +31,8 @@ import type {
   ConsItem,
   Invoice, PaymentCreate, Expense, ExpenseReview,
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
+  ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
+  Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
   Lead, LeadFail, LeadResume,
 } from './types';
 
@@ -58,6 +60,8 @@ export const qk = {
   teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
   teacherUnav: (anchor: string | undefined) => ['teacher', 'unavailable', anchor ?? 'current'] as const,
   gpa: (anchor: string | undefined) => ['gpa', anchor ?? 'current'] as const,
+  zoom: (onDate: string | undefined) => ['zoom', onDate ?? 'today'] as const,
+  catalog: ['catalog'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -69,6 +73,29 @@ type ViewerId = number | 'anonymous';
 export function sessionQueryKey<T extends readonly unknown[]>(key: T, viewerId: ViewerId) {
   return [...key, 'viewer', viewerId] as const;
 }
+
+/**
+ * **갈래 앞자락** — 뒤에 무엇이 붙든(기준일·달·조건) 그 갈래를 통째로 버릴 때 쓴다.
+ *
+ * `sessionQueryKey` 는 사용자 id 를 키의 **꼬리**에 붙인다. 그래서 갈래를 버리겠다고
+ * `sessionQueryKey(['zoom'], viewerId)` 를 쓰면 `['zoom','viewer',1]` 이 되는데,
+ * 실제 키는 `['zoom','2026-09-13','viewer',1]` 이라 **어디에도 걸리지 않는다** —
+ * 조용히 아무것도 안 버리고 화면은 옛 값을 계속 보여 준다.
+ * 앞자락에는 꼬리를 넣지 않는다. 남의 캐시까지 함께 버려도 손해는 다시 받아오는 것뿐이다.
+ *
+ * 앞자락이 정말 `qk` 의 앞자락인지는 `queries-family.test.ts` 가 기계로 확인한다.
+ */
+export const family = {
+  occurrences: ['schedule', 'occurrences'] as const,
+  reports: ['reports'] as const,
+  board: ['board'] as const,
+  exec: ['exec'] as const,
+  teacherHistory: ['teacher', 'history'] as const,
+  teacherGuides: ['teacher', 'guides'] as const,
+  teacherUnav: ['teacher', 'unavailable'] as const,
+  gpa: ['gpa'] as const,
+  zoom: ['zoom'] as const,
+};
 
 /** 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다. */
 export function opsQueryKey(viewerId: ViewerId, canMoney: boolean) {
@@ -654,20 +681,18 @@ export function useTeacherUnav(anchor?: string): UseQueryResult<TeacherUnav> {
 /** 불가 시간 등록 — 마감·겹침 판정은 서버(UNAV_DEADLINE·UNAV_OVERLAP). 성공/실패 모두 재조회. */
 export function useCreateTeacherUnav(): UseMutationResult<TeacherUnavBlock, unknown, TeacherUnavCreate> {
   const qc = useQueryClient();
-  const viewerId = useViewerId();
   return useMutation({
     mutationFn: async (w) => (await api.post<TeacherUnavBlock>('/teacher/unavailable', w)).data,
-    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(['teacher', 'unavailable'], viewerId) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: family.teacherUnav }),
   });
 }
 
 /** 불가 시간 삭제 — 열린 날짜의 본인 등록만 (UNAV_LOCKED 는 서버 판정). */
 export function useDeleteTeacherUnav(): UseMutationResult<{ ok: true }, unknown, number> {
   const qc = useQueryClient();
-  const viewerId = useViewerId();
   return useMutation({
     mutationFn: async (id) => (await api.delete<{ ok: true }>(`/teacher/unavailable/${id}`)).data,
-    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(['teacher', 'unavailable'], viewerId) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: family.teacherUnav }),
   });
 }
 
@@ -722,8 +747,7 @@ export function useGpaBoard(anchor?: string): UseQueryResult<GpaBoard> {
 
 function useGpaInvalidate() {
   const qc = useQueryClient();
-  const viewerId = useViewerId();
-  return () => qc.invalidateQueries({ queryKey: sessionQueryKey(['gpa'], viewerId) });
+  return () => qc.invalidateQueries({ queryKey: family.gpa });
 }
 
 /** 회차 소비 기록 — wait 로 등록. 초과 여부는 서버 잔여로만 판단한다. */
@@ -755,6 +779,114 @@ export function usePutGpaAlloc(): UseMutationResult<GpaStudent, unknown, { cycle
   const invalidate = useGpaInvalidate();
   return useMutation({
     mutationFn: async (w) => (await api.put<GpaStudent>('/gpa/allocs', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/* ══ 줌 계정 관리 (§21 목적지 · 대표 결정 2026-09-12 신설) ══════════════════
+   점유·「지금 가능」·「만석 시간대」는 **서버가 한 배열에서 센다** — 화면은 그리기만 한다. */
+
+export function useZoom(onDate?: string): UseQueryResult<ZoomBoard> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.zoom(onDate), viewerId),
+    queryFn: async () => (await api.get<ZoomBoard>('/zoom', { params: onDate ? { onDate } : {} })).data,
+    staleTime: 30 * 1000,
+  });
+}
+
+function useZoomInvalidate() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.zoom });
+    // 배정은 시간표를 다시 그린다 — 스케줄 캐시도 함께 버린다
+    void qc.invalidateQueries({ queryKey: family.occurrences });
+  };
+}
+
+export function useCreateZoomAccount(): UseMutationResult<ZoomAcct, unknown, ZoomAccountCreate> {
+  const invalidate = useZoomInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<ZoomAcct>('/zoom/accounts', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePatchZoomAccount(): UseMutationResult<ZoomAcct, unknown, { id: number } & ZoomAccountPatch> {
+  const invalidate = useZoomInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<ZoomAcct>(`/zoom/accounts/${id}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * 배정 — 회차 하나(onDate 를 주면)거나 규칙 전체. 겹침 판정은 서버가 한다.
+ *
+ * 부르는 화면이 **아직 없다.** 원문의 시작 자리는 §43 안내 할 일의 「계정 배정 →」인데,
+ * 그 줄을 그리려면 §43 「매번」 목록이 지금의 PNOTI 행이 아니라 **그날 온라인 회차**여야 한다 —
+ * 목록의 정체가 바뀌는 일이라 블록 G(수업 안내)에서 한다. 서버 경로와 서랍의 줌 변경 요청은
+ * 이미 이 배정을 쓴다 (C48).
+ */
+export function useAssignZoom(): UseMutationResult<ZoomAssignResult, unknown, ZoomAssign> {
+  const invalidate = useZoomInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<ZoomAssignResult>('/zoom/assign', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/* ══ 프로그램·과목 관리 (§18 목적지 · 대표 결정 2026-09-12 신설) ═══════════════
+   코드(key)는 만들 때만 정한다 — 시간표가 그 낱말로 저장돼 있어 바꾸는 자리를 두지 않는다.
+   지우기도 없다: 과목은 끄고, 프로그램은 원문에 끄는 자리조차 없어 고치기만 둔다. */
+
+export function useCatalog(): UseQueryResult<Catalog> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.catalog, viewerId),
+    queryFn: async () => (await api.get<Catalog>('/catalog')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
+function useCatalogInvalidate() {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return () => {
+    void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.catalog, viewerId) });
+    // 코드표가 바뀌면 화면 곳곳의 이름·색이 바뀐다 — meta 도 함께 버린다
+    void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
+  };
+}
+
+export function useCreateKind(): UseMutationResult<CatalogKind, unknown, KindCreate> {
+  const invalidate = useCatalogInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<CatalogKind>('/catalog/kinds', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePatchKind(): UseMutationResult<CatalogKind, unknown, { key: string } & KindPatch> {
+  const invalidate = useCatalogInvalidate();
+  return useMutation({
+    mutationFn: async ({ key, ...body }) => (await api.patch<CatalogKind>(`/catalog/kinds/${key}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCreateSub(): UseMutationResult<CatalogSub, unknown, SubCreate> {
+  const invalidate = useCatalogInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<CatalogSub>('/catalog/subs', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePatchSub(): UseMutationResult<CatalogSub, unknown, { key: string } & SubPatch> {
+  const invalidate = useCatalogInvalidate();
+  return useMutation({
+    mutationFn: async ({ key, ...body }) => (await api.patch<CatalogSub>(`/catalog/subs/${key}`, body)).data,
     onSettled: invalidate,
   });
 }

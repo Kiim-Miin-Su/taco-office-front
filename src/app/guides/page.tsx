@@ -14,7 +14,8 @@
 import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
+import Link from 'next/link';
+import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { useGuides } from '@/api/queries';
 import type { Guide, PerLessonNotice } from '@/api/types';
 
@@ -70,7 +71,13 @@ export default function GuidesPage() {
         <PageHeader
           title="수업 안내"
           sub="§41 한 번만 나가는 안내 · §42 회차마다 나가는 안내"
-          right={d?.todoCount ? <Chip tone="danger" styleKind="solid">{d.todoCount}건 남음</Chip> : null}
+          right={(
+            <div className="flex items-center gap-2">
+              {d?.todoCount ? <Chip tone="danger" styleKind="solid">{d.todoCount}건 남음</Chip> : null}
+              {/* 원문 §43 머리의 단추다 — 「매번」은 회차마다 줌 계정을 붙여 보내므로 여기서 계정으로 간다 */}
+              <Link href="/zoom"><Button size="sm" variant="secondary">줌 계정 관리</Button></Link>
+            </div>
+          )}
         />
 
         <Banner tone="info">

@@ -130,6 +130,27 @@ export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];
 export type ConsItem = S['ConsItemDto'];
 export type GpaBoard = S['GpaBoardDto'];
+
+/* ══ 줌 계정 관리 — §21 서랍의 「줌 계정 관리」가 가는 자리 (대표 결정 2026-09-12 신설) ══ */
+export type ZoomBoard = S['ZoomBoardDto'];
+export type ZoomAcct = S['ZoomAcctDto'];
+
+/* ══ 프로그램·과목 관리 — §18 의 「프로그램 · 과목 전체 열기」가 가는 자리 (신설) ══ */
+export type Catalog = S['CatalogDto'];
+export type CatalogKind = S['KindRowsDto'];
+export type CatalogSub = S['SubRowDto'];
+export type KindCreate = S['KindCreateDto'];
+export type KindPatch = S['KindPatchDto'];
+export type SubCreate = S['SubCreateDto'];
+export type SubPatch = S['SubPatchDto'];
+export type ZoomAccountCreate = S['ZoomAccountCreateDto'];
+export type ZoomAccountPatch = S['ZoomAccountPatchDto'];
+export type ZoomAssign = S['ZoomAssignDto'];
+export type ZoomAssignResult = S['ZoomAssignResultDto'];
+
+/* ══ 올린 파일 — Neon 안에 둔다 (대표 결정 2026-09-12 · D6 · A-D4) ══ */
+export type FileRef = S['FileRefDto'];
+export type FileUpload = S['FileUploadDto'];
 export type GpaStudent = S['GpaStudentDto'];
 export type GpaUse = S['GpaUseDto'];
 export type GpaUseCreate = S['GpaUseCreateDto'];
