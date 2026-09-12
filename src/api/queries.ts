@@ -33,7 +33,7 @@ import type {
   GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
   ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
   Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
-  Lead, LeadFail, LeadResume, MfbThread,
+  Lead, LeadFail, LeadResume, MfbThread, LessonTracking,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -65,6 +65,8 @@ export const qk = {
   gpa: (anchor: string | undefined) => ['gpa', anchor ?? 'current'] as const,
   zoom: (onDate: string | undefined) => ['zoom', onDate ?? 'today'] as const,
   catalog: ['catalog'] as const,
+  /** §79 수강 학생 — 창을 열 때만 도는 질의. 갈래 전체를 버릴 때는 `family.tracking` (C55) */
+  tracking: (serId: number, onDate: string) => ['schedule', 'tracking', serId, onDate] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -106,6 +108,7 @@ export const family = {
   zoom: ['zoom'] as const,
   guides: ['guides'] as const,
   books: ['books'] as const,
+  tracking: ['schedule', 'tracking'] as const,
 };
 
 /** 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다. */
@@ -630,6 +633,8 @@ export function useScheduleWrite(): UseMutationResult<
     void qc.invalidateQueries({ queryKey: family.occurrences });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.horizon });
+    // 명단을 고치면 §79 카드의 정원·단가·학생 목록이 함께 달라진다 (C55)
+    void qc.invalidateQueries({ queryKey: family.tracking });
   };
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
@@ -827,6 +832,24 @@ export function useFailLead(): UseMutationResult<Lead, unknown, { id: number } &
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<Lead>(`/ops/leads/${id}/fail`, body)).data,
     onSettled: invalidate,
+  });
+}
+
+/**
+ * §79 수강 학생 — 수업 상세 창을 **열 때만** 부른다 (C55).
+ *
+ * 회차 목록에 끼워 넣으면 한 주치 회차마다 학생별 질의가 붙는다. `enabled` 로 창이 열린
+ * 동안에만 돌린다.
+ */
+export function useLessonTracking(
+  serId: number | null, onDate: string | null, enabled: boolean,
+): UseQueryResult<LessonTracking> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.tracking(serId ?? 0, onDate ?? ''), viewerId),
+    queryFn: async () =>
+      (await api.get<LessonTracking>('/schedule/tracking', { params: { serId, onDate } })).data,
+    enabled: enabled && serId !== null && onDate !== null,
   });
 }
 

@@ -47,8 +47,9 @@ it.each(['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'])('%s404는 낙
   expect(set).toHaveBeenCalledWith(key, original);
   await waitFor(() => expect(client.getQueryData<OccurrenceList>(key)?.items).toHaveLength(0));
   expect(get).toHaveBeenCalledOnce();
+  // 명단이 바뀌면 §79 카드의 정원·단가·학생 목록도 달라진다 — 네 번째가 그것이다 (C55)
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.horizon,
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'],
   ]);
 });
 
@@ -70,7 +71,7 @@ it.each([
   expect(invalidate).not.toHaveBeenCalled();
 });
 
-it('정상 저장도 같은 세 key만 갱신하고 mutation 결과를 그대로 반환한다', async () => {
+it('정상 저장도 같은 네 key만 갱신하고 mutation 결과를 그대로 반환한다', async () => {
   const data = { effScope: 'this', log: [], projected: 1, serIds: [1] };
   vi.spyOn(api, 'patch').mockResolvedValue({ data });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
@@ -79,8 +80,9 @@ it('정상 저장도 같은 세 key만 갱신하고 mutation 결과를 그대로
     await expect(view.result.current.mutateAsync({ kind: 'patch', serId: 1,
       body: { scope: 'this', onDate: range.from, startMin: 610 } })).resolves.toEqual(data);
   });
+  // 명단이 바뀌면 §79 카드의 정원·단가·학생 목록도 달라진다 — 네 번째가 그것이다 (C55)
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.horizon,
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'],
   ]);
 });
 
@@ -115,7 +117,7 @@ it.each(['different fields', 'same field', 'different occurrences'])(
     expect(items[mode === 'different occurrences' ? 1 : 0][mode === 'different fields' ? 'endMin' : 'startMin']).toBe(mode === 'different fields' ? 680 : 620);
     expect(invalidate).not.toHaveBeenCalled();
     await act(async () => { b.resolve(saved); await pb; });
-    expect(invalidate).toHaveBeenCalledTimes(3);
+    expect(invalidate).toHaveBeenCalledTimes(4);
   },
 );
 
@@ -219,7 +221,7 @@ it('낙관하지 않는 명단 성공도 진행 중 이동과 묶고 마지막�
   await act(async () => { roster.resolve(saved); await pb; });
   expect(invalidate).not.toHaveBeenCalled();
   await act(async () => { move.reject(failure); await pa; });
-  expect(invalidate).toHaveBeenCalledTimes(3);
+  expect(invalidate).toHaveBeenCalledTimes(4);
 });
 
 it('다중 이동 실패는 같은 묶음의 취소 낙관값만 보존한다', async () => {

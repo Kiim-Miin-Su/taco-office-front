@@ -34,6 +34,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   gpa: qk.gpa('2026-09-01'),
   zoom: qk.zoom(undefined),
   drawer: qk.drawer(),
+  tracking: qk.tracking(3, '2026-09-11'),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */

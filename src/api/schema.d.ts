@@ -126,6 +126,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * §79 수강 학생 — 정원 · 교재 · 안내 · 30일 출결 · 미수 · 최신 리포트 3건
+         * @description 금액(단가·총액·미수)은 canMoney 인 사람에게만 값이 간다 (D-R39). 「진도 평균」은 저장할 자리가 없어 싣지 않는다 (N-31).
+         */
+        get: operations["ScheduleController_tracking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/horizon": {
         parameters: {
             query?: never;
@@ -1563,6 +1583,60 @@ export interface components {
             /** @example 2026-08-30 */
             to: string;
             items: components["schemas"]["OccurrenceDto"][];
+        };
+        TrackedReportDto: {
+            repId: number;
+            /** @example 2026-08-19 */
+            onDate: string;
+            subjectName?: string | null;
+            teacherName?: string | null;
+            /** @description 기한 안에 냈는가 — 차감 0 이면 정시 */
+            onTime: boolean;
+            /** @description 칩에 쓰는 이름 — 낱말은 서버가 만든다 (D-R18) */
+            onTimeLabel: string;
+            /** @description 본문 발췌 — 원문 카드의 두 줄 */
+            excerpt?: string | null;
+            /** @description 숙제 줄 */
+            homework?: string | null;
+        };
+        TrackedStudentDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            /** @description 그날만 빠진 학생인가 (D-R21) */
+            droppedOnce: boolean;
+            /** @description 반납하지 않은 배부 교재 수 — 원문 「교재 N」 */
+            bookCount: number;
+            /** @description 이 수업의 안내가 나갔는가 — 원문 「안내 됨 / 안내 없음」 */
+            guided: boolean;
+            /** @description 최근 30일 중 진행된 회차 수 */
+            attendDone: number;
+            /** @description 최근 30일 중 출결이 확정된 회차 수 */
+            attendTotal: number;
+            /** @description 미수 합계 — 볼 수 없으면 null */
+            unpaid?: number | null;
+            /** @description 최신 리포트 3건 — 쓴 것만 */
+            reports: components["schemas"]["TrackedReportDto"][];
+        };
+        LessonTrackingDto: {
+            serId: number;
+            /** @example 2026-08-21 */
+            onDate: string;
+            /** @description KIND.cap — 정원 */
+            cap: number;
+            /** @description 지금 인원 — 그날 빠진 학생은 빼고 센다 (D-R21) */
+            count: number;
+            /** @description 몇 명 더 넣을 수 있는가 — 화면이 cap − count 를 다시 하지 않는다 */
+            canAdd: number;
+            /** @description 머리줄 문장 — 원문 「정원 4명 · 1명 더 넣을 수 있습니다」 */
+            capLabel: string;
+            /** @description 인원 구간 단가표가 있는가 */
+            priced: boolean;
+            unitPrice?: number | null;
+            total?: number | null;
+            /** @description 금액을 볼 수 있는가 — 단가·총액·미수가 이 값에 따라 null 이 된다 */
+            canSeeAmounts: boolean;
+            students: components["schemas"]["TrackedStudentDto"][];
         };
         HorizonDto: {
             /** @description 펼쳐 둔 기간의 시작 */
@@ -4055,6 +4129,81 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_tracking: {
+        parameters: {
+            query: {
+                serId: number;
+                /** @description EXC 키와 같은 규칙상 날짜 */
+                onDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonTrackingDto"];
+                };
+            };
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 회차 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             409: {

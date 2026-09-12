@@ -108,6 +108,10 @@ export type Todo = S['TodoDto'];
 export type Plan = S['PlanDto'];
 export type Meeting = S['MeetingDto'];
 export type Marketing = S['MarketingDto'];
+/** §79 수강 학생 — 학생 트래킹 */
+export type LessonTracking = S['LessonTrackingDto'];
+export type TrackedStudent = S['TrackedStudentDto'];
+export type TrackedReport = S['TrackedReportDto'];
 /** §60 대표 피드백 — 카드 한 장(글타래)과 그 안의 글 한 줄 */
 export type MfbThread = S['MfbThreadDto'];
 export type MfbPost = S['MfbPostDto'];

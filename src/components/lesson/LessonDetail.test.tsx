@@ -6,13 +6,20 @@
 
 import { fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Occurrence, RosterResult } from '@/api/types';
+import type { LessonTracking, Occurrence, RosterResult } from '@/api/types';
 
-const { mutate, permissions } = vi.hoisted(() => ({ mutate: vi.fn(), permissions: { canEdit: true } }));
+const { mutate, permissions, tracking } = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  permissions: { canEdit: true },
+  /** §79 는 명단 줄의 「교재 N · 안내 없음」과 오른쪽 트래킹 칸이 **같은 질의**를 읽는다 (C55) */
+  tracking: { data: undefined as LessonTracking | undefined, isLoading: false, isError: false },
+}));
 
 vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate, isPending: false }),
   useAttendanceWrite: () => ({ mutate: vi.fn(), isPending: false }),
+  // §79 학생 트래킹은 창을 열 때만 도는 별도 질의다 — 이 파일은 명단 계약만 본다 (C55)
+  useLessonTracking: () => tracking,
 }));
 vi.mock('@/store/useSession', () => ({ useCan: () => permissions.canEdit }));
 
@@ -120,5 +127,35 @@ describe('LessonDetail 명단 결과', () => {
     expect(view.getByText('명단을 반영했습니다 · 2/4명 · 1인 45,000원(2인 구간) · 수업당 90,000원')).toBeTruthy();
     expect(view.getByText('수업 안내가 필요합니다')).toBeTruthy();
     expect(view.getByText('교재 배부 확인이 필요합니다')).toBeTruthy();
+  });
+});
+
+/**
+ * §79 — 명단 줄의 「교재 N · 안내 없음」은 오른쪽 트래킹 칸과 **같은 값**에서 나온다 (C55).
+ * 두 곳이 각자 세면 같은 학생이 왼쪽에서는 「교재 0」, 오른쪽에서는 「교재 1」이 된다.
+ */
+describe('§79 명단 줄의 교재 · 안내 칩', () => {
+  beforeEach(() => { permissions.canEdit = true; tracking.data = undefined; });
+
+  it('트래킹 값이 오기 전에는 칩을 그리지 않는다 — 0 을 지어내지 않는다', () => {
+    const v = render(<LessonDetail occ={occurrence} onClose={() => {}} />);
+    expect(v.queryByText(/^교재 \d+$/)).toBeNull();
+    expect(v.queryByText('안내 없음')).toBeNull();
+  });
+
+  it('값이 오면 서버가 준 그대로 붙인다', () => {
+    tracking.data = {
+      serId: occurrence.serId, onDate: occurrence.onDate, cap: 4, count: 1, canAdd: 3,
+      capLabel: '정원 4명 · 3명 더 넣을 수 있습니다',
+      priced: false, unitPrice: null, total: null, canSeeAmounts: false,
+      students: occurrence.students.map((s, i) => ({
+        id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce,
+        bookCount: i === 0 ? 2 : 0, guided: i === 0, attendDone: 0, attendTotal: 0,
+        unpaid: null, reports: [],
+      })),
+    };
+    const v = render(<LessonDetail occ={occurrence} onClose={() => {}} />);
+    expect(v.getByText('교재 2')).toBeTruthy();
+    expect(v.getByText('안내 됨')).toBeTruthy();
   });
 });

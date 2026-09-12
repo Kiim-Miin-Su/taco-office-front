@@ -5,7 +5,7 @@
  */
 
 /**
- * §12 수업 상세 — 준비 8단계.
+ * §12 수업 상세 — 준비 8단계 · §79 수강 학생.
  *
  * 일정 확정 → 강사 → 강의실/줌 → 교재 → 안내 → 줌 안내 → 리포트 → 피드백
  *
@@ -19,12 +19,13 @@
 import { useEffect, useState } from 'react';
 import { Banner, Button, Chip, ConflictGuard, Dialog, Drawer, RecurrenceScope, Select } from '../ui';
 import { hhmm } from '@/lib/calendar';
-import { useScheduleWrite } from '@/api/queries';
+import { useLessonTracking, useScheduleWrite } from '@/api/queries';
 import Link from 'next/link';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import type { Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
 import { AttendanceControl } from './AttendanceControl';
+import { StudentTracking } from './StudentTracking';
 
 /** 준비 8단계 — 명세서 §12. 순서가 곧 화면의 순서다. */
 const STEPS = [
@@ -71,6 +72,8 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
   const [err, setErr] = useState<string | null>(null);
   const [pick, setPick] = useState('');
   const [rosterResult, setRosterResult] = useState<RosterResult | null>(null);
+  // 아래 「학생 트래킹」 칸과 **같은 질의**다 — 키가 같아 요청이 한 번만 나간다 (C55)
+  const tracking = useLessonTracking(occ?.serId ?? null, occ?.onDate ?? null, !!occ);
 
   useEffect(() => {
     setRosterResult(null);
@@ -99,6 +102,9 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
   };
   const enrolled = new Set(occ.students.map((st) => st.id));
   const addable = (allStudents ?? []).filter((st) => !enrolled.has(st.id));
+  // 원문 §79 는 명단 줄에도 「교재 N · 안내 없음」을 붙인다. 아래 트래킹 칸과 **같은 질의**라
+  // 요청이 늘지 않는다 — 두 곳이 다른 곳에서 세면 숫자가 갈린다 (D-R37).
+  const facts = new Map((tracking.data?.students ?? []).map((t) => [t.id, t]));
 
   /** 반복이면 범위를 먼저 묻고, 단발이면 바로 'this' 로 보낸다 */
   const withScope = (mode: 'edit' | 'delete', run: (s: Scope) => void) => {
@@ -164,10 +170,21 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
             <div className="flex flex-col gap-1">
               {/* 그날만 빠진 학생은 지우지 않고 회색으로 남긴다 (D-R21) */}
               {occ.students.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 rounded-lg border border-line px-2 py-1.5">
+                <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-line px-2 py-1.5">
                   <Chip tone={s.droppedOnce ? 'neutral' : 'info'}>
                     {s.droppedOnce ? <s>{s.name}</s> : s.name}
                   </Chip>
+                  {s.grade ? <Chip>{s.grade}</Chip> : null}
+                  {facts.has(s.id) ? (
+                    <>
+                      <Chip tone={facts.get(s.id)!.bookCount > 0 ? 'neutral' : 'warning'}>
+                        교재 {facts.get(s.id)!.bookCount}
+                      </Chip>
+                      <Chip tone={facts.get(s.id)!.guided ? 'success' : 'warning'}>
+                        {facts.get(s.id)!.guided ? '안내 됨' : '안내 없음'}
+                      </Chip>
+                    </>
+                  ) : null}
                   {s.droppedOnce ? <span className="text-[11px] text-fg-subtle">그날 빠짐</span> : null}
                   {canEdit ? (
                     <span className="ml-auto flex gap-1">
@@ -203,7 +220,22 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
                 </div>
               ) : null}
             </div>
+
+            {/* 원문 §79 의 초록 상자 — 넣고 빼는 단추 바로 아래에 있어야 읽힌다 */}
+            {canEdit ? (
+              <Banner tone="success" className="mt-2">
+                <b>넣거나 빼면 함께 일어납니다</b>
+                <ul className="mt-1 list-disc pl-4 text-[11.5px] leading-relaxed">
+                  <li>학생 시간표에 이 수업이 바로 들어가거나 빠집니다</li>
+                  <li>수업 안내와 교재 배정이 필요하면 물어봅니다</li>
+                  <li>정원이 바뀌면 1인 단가가 다시 계산됩니다</li>
+                </ul>
+              </Banner>
+            ) : null}
           </section>
+
+          {/* §79 오른쪽 칸 — 창을 열 때만 부른다 (C55) */}
+          <StudentTracking serId={occ.serId} onDate={occ.onDate} />
 
           {occ.kindKey === 'gpa' ? (
             <p className="text-[12px]">
