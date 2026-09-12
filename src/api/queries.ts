@@ -19,7 +19,7 @@ import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
-  Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
+  Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
@@ -49,6 +49,7 @@ export const qk = {
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   books: ['books'] as const,
+  bookHistory: ['books', 'history'] as const,
   guides: ['guides'] as const,
   guideTemplates: ['guides', 'templates'] as const,
   board: (p: BoardParams) => ['board', p] as const,
@@ -104,6 +105,7 @@ export const family = {
   gpa: ['gpa'] as const,
   zoom: ['zoom'] as const,
   guides: ['guides'] as const,
+  books: ['books'] as const,
 };
 
 /** 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다. */
@@ -309,6 +311,42 @@ export function useConsulting(): UseQueryResult<ConsultingList> {
 }
 
 /** §36 교재 — 거의 안 바뀐다 */
+/* ══ §39 판(VERS) · §40 이력(HIST) — C52 ═══════════════════════════════════
+   「더 나중 판이 있다」는 **서버가 판정한다**(`hasNewer`). 화면이 두 낱말을 비교하면
+   카드 배지와 머리 띠가 갈린다 (D-R39). 이력은 쓰는 화면이 없다 — 다른 쓰기의 부수효과다. */
+
+export function useBookHistory(enabled = true): UseQueryResult<BookHistoryRow[]> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bookHistory, viewerId),
+    queryFn: async () => (await api.get<BookHistoryRow[]>('/books/history')).data,
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+function useBooksInvalidate() {
+  const qc = useQueryClient();
+  return () => { void qc.invalidateQueries({ queryKey: family.books }); };
+}
+
+export function useAddBookVersion(): UseMutationResult<BookVersion, unknown, { libId: number } & BookVersionCreate> {
+  const invalidate = useBooksInvalidate();
+  return useMutation({
+    mutationFn: async ({ libId, ...body }) => (await api.post<BookVersion>(`/books/${libId}/versions`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 「판 버튼을 눌러 바꿉니다」 — 오늘부터 이 판을 쓴다 */
+export function useUseBookVersion(): UseMutationResult<BookVersion, unknown, number> {
+  const invalidate = useBooksInvalidate();
+  return useMutation({
+    mutationFn: async (versId) => (await api.patch<BookVersion>(`/books/versions/${versId}/use`, {})).data,
+    onSettled: invalidate,
+  });
+}
+
 export function useBooks(): UseQueryResult<Books> {
   const viewerId = useViewerId();
   return useQuery({

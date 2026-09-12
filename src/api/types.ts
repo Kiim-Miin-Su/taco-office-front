@@ -159,6 +159,9 @@ export type ConsultingSession = S['ConsultingSessionDto'];
 
 /** 교재 */
 export type Books = S['BooksDto'];
+export type BookVersion = S['BookVersionDto'];
+export type BookVersionCreate = S['BookVersionCreateDto'];
+export type BookHistoryRow = S['BookHistoryRowDto'];
 export type Book = S['BookDto'];
 
 /** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */

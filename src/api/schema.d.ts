@@ -696,6 +696,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/books/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 교재 이력 (§40)
+         * @description 이 화면에는 쓰기가 없다. 이력은 배부·업로드·교체·안내 같은 **다른 쓰기의 부수효과**로 쌓인다 (원본 §40 「여기에 남는 것」).
+         */
+        get: operations["BooksController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 새 판 올리기 (§39)
+         * @description 파일은 POST /files 로 먼저 올리고 그 주소를 준다. 이력(교재 업로드)이 같은 트랜잭션에서 함께 남는다.
+         */
+        post: operations["BooksController_addVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/versions/{id}/use": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 이 판을 오늘부터 쓴다 — §39 「판 버튼을 눌러 바꿉니다」
+         * @description 시작일을 오늘로 당긴다. 이미 쓰고 있는 판은 다시 당기지 않는다(이력에 같은 일이 두 번 남는다).
+         */
+        patch: operations["BooksController_useVersion"];
+        trace?: never;
+    };
     "/guides": {
         parameters: {
             query?: never;
@@ -2293,6 +2353,18 @@ export interface components {
             pages?: number | null;
             /** @description SE 학생용 · TE 교사용 */
             seTe?: string | null;
+            /** @description 지금 쓰는 판 (예: v2026.03) */
+            edition?: string | null;
+            /** @description 가장 나중 판 */
+            latestEdition?: string | null;
+            /** @description 더 나중 판이 있는가 — 판단은 서버가 한다 */
+            hasNewer: boolean;
+            /** @description 지금 쓰는 판의 id */
+            versId?: number | null;
+            /** @description 가장 나중 판의 id — ⇧ 가 가는 곳 */
+            latestVersId?: number | null;
+            /** @description 지금 쓰는 판에 파일이 붙어 있는가 */
+            hasFile: boolean;
         };
         BooksDto: {
             items: components["schemas"]["BookDto"][];
@@ -2300,6 +2372,45 @@ export interface components {
             bySub: {
                 [key: string]: number;
             };
+            /** @description 더 나중 판이 있는 교재 수 */
+            newerCount: number;
+            /** @description 파일 없는 교재 수 */
+            noFileCount: number;
+        };
+        BookHistoryRowDto: {
+            id: number;
+            /** @enum {string} */
+            action: "book_issue" | "book_upload" | "book_swap" | "book_drop" | "guide_write" | "guide_send" | "guide_ack" | "teacher_req" | "teacher_swap";
+            /** @description 칩과 줄에 쓰는 이름 — 낱말은 서버가 만든다 (D-R18) */
+            actionLabel: string;
+            /** @description 어느 표를 가리키는가 */
+            entity: string;
+            refId: number;
+            /** @description 무엇에 대한 일인가 — 읽을 때 원본 표에서 이어 붙인다 */
+            subject?: string | null;
+            byName?: string | null;
+            /** @description KST ISO */
+            at: string;
+        };
+        BookVersionCreateDto: {
+            /**
+             * @description 판 이름 — 원본 배지 모양 그대로 (예: v2026.08)
+             * @example v2026.08
+             */
+            edition: string;
+            /** @description 파일 주소 — POST /files 가 돌려준 것. 없으면 파일 없는 판이다 */
+            fileUrl?: string;
+            /** @description 이 판을 언제부터 쓰는가 — 비우면 오늘부터 */
+            fromDate?: string;
+        };
+        BookVersionDto: {
+            id: number;
+            libId: number;
+            edition: string;
+            fileUrl?: string | null;
+            fromDate?: string | null;
+            /** @description 지금 쓰는 판인가 — 판단은 서버가 한다 */
+            inUse: boolean;
         };
         GuideDto: {
             id: number;
@@ -6361,6 +6472,228 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_history: {
+        parameters: {
+            query?: {
+                /** @description 기본 200 */
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookHistoryRowDto"][];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_addVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookVersionCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookVersionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 교재 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code VERS_DUPLICATE — 같은 교재에 같은 판 이름 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_useVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookVersionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 판 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code VERS_ALREADY_IN_USE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

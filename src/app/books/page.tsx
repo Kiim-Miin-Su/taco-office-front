@@ -14,8 +14,9 @@
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Chip, Column, PageHeader, Panel, StatCard, Table } from '@/components/ui';
+import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
 import { useBooks } from '@/api/queries';
+import { BookHistory, BookVersionAdder, BookVersionBadge } from '@/components/books/BookVersions';
 import type { Book } from '@/api/types';
 
 const SE_TE: Record<string, { label: string; tone: 'info' | 'purple' }> = {
@@ -24,6 +25,8 @@ const SE_TE: Record<string, { label: string; tone: 'info' | 'purple' }> = {
 };
 
 export default function BooksPage() {
+  const [tab, setTab] = useState<'shelf' | 'history'>('shelf');
+  const [adding, setAdding] = useState<Book | null>(null);
   const q = useBooks();
   const d = q.data;
   const [sub, setSub] = useState<string | null>(null);
@@ -41,6 +44,15 @@ export default function BooksPage() {
     { key: 'gr', head: '학년', width: 80, cell: (r) => r.grade ?? '—' },
     { key: 'pg', head: '쪽수', width: 80, align: 'right', cell: (r) => (r.pages ? `${r.pages}쪽` : '—') },
     {
+      key: 'v', head: '판', width: 170,
+      // 「더 나중 판이 있다」는 서버가 판정한다 — 여기서 두 낱말을 비교하지 않는다 (D-R39)
+      cell: (r) => <BookVersionBadge book={r} />,
+    },
+    {
+      key: 'up', head: '', width: 90,
+      cell: (r) => <Button size="sm" variant="secondary" onClick={() => setAdding(r)}>판 올리기</Button>,
+    },
+    {
       key: 'se', head: '구분', width: 90,
       cell: (r) => {
         const t = r.seTe ? SE_TE[r.seTe] : undefined;
@@ -54,9 +66,35 @@ export default function BooksPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <PageHeader title="교재" sub="§36 — 코드 · 과목 · 쪽수 · 학생용/교사용" />
+        <PageHeader title="교재" sub="서가 · 판 · 이력 — 코드 · 과목 · 쪽수 · 학생용/교사용" />
 
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* 원본 §39 머리의 띠 둘 — 숫자는 서버가 센다. 화면이 다시 세면 카드 배지와 갈린다 */}
+        {d && d.newerCount > 0 ? (
+          <Banner tone="warning" className="mb-2">
+            더 최신 판이 있는 교재 <b>{d.newerCount}종</b> — 판 옆의 <b>⇧</b> 를 눌러 바꿉니다.
+          </Banner>
+        ) : null}
+        {d && d.noFileCount > 0 ? (
+          <Banner tone="danger" className="mb-2">
+            파일이 없는 교재 <b>{d.noFileCount}종</b> — 강사에게 보낼 파일이 없습니다.
+          </Banner>
+        ) : null}
+
+        <Tabs
+          className="mb-3"
+          options={[
+            { value: 'shelf', label: `서가 ${d?.items.length ?? 0}` },
+            { value: 'history', label: '이력' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+
+        {tab === 'history' ? <BookHistory /> : null}
+
+        {adding ? <BookVersionAdder book={adding} onClose={() => setAdding(null)} /> : null}
+
+        <div className={`mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 ${tab === 'history' ? 'hidden' : ''}`}>
           <StatCard label="전체" value={d?.items.length ?? '—'} note="권" />
           <StatCard label="과목 수" value={subs.length || '—'} tone="info" />
           <StatCard label="학생용" value={(d?.items ?? []).filter((b) => b.seTe === 'SE').length} tone="info" note="SE" />
@@ -64,6 +102,7 @@ export default function BooksPage() {
         </div>
 
         <Panel
+          className={tab === 'history' ? 'hidden' : undefined}
           title="교재 목록"
           sub={sub ? `${sub} 만 보는 중` : '과목 칩을 눌러 좁힐 수 있습니다'}
           right={
