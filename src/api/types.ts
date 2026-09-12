@@ -153,6 +153,9 @@ export type Exec = S['ExecDto'];
 export type ExecQuery = NonNullable<paths['/exec']['get']['parameters']['query']>;
 export type ExecStat = S['ExecStatDto'];
 export type ExecReport = S['ExecReportDto'];
+/** §69 6영역 · §73 결재함 — 이동만 (N-12 · C37) */
+export type ExecArea = S['ExecAreaDto'];
+export type ExecInbox = S['ExecInboxDto'];
 
 /** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
 export type RepState = Occurrence['repState'];

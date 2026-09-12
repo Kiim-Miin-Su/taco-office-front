@@ -2349,11 +2349,50 @@ export interface components {
             /** @description D-R13 — 반려(rej)하면 사유가 반드시 있다 */
             rejectReason?: string | null;
         };
+        ExecAreaDto: {
+            /** @description money · mkt · ops · consulting · complaint · lesson (대표 관심순 고정 · D-R25) */
+            key: string;
+            label: string;
+            /** @description 무엇을 살펴볼 것으로 세는지 한 줄 */
+            review: string;
+            /** @description 살펴볼 것 건수. 마케팅은 정보성이라 항상 0 이다 */
+            count: number;
+            /** @description 줄을 누르면 가는 곳 — 결재 흐름은 이동만 한다 (D-R27) */
+            go: string;
+        };
+        ExecInboxDto: {
+            id: number;
+            /** @enum {string} */
+            rptType: "day" | "week" | "month";
+            /** @description RPT 키 날짜 (주간=월요일 · 월간=1일 · D-R23) */
+            onDate: string;
+            /** @description «26년 8월 21일 금요일» · «08-17 ~ 08-23» 처럼 사람이 읽는 기간 */
+            label: string;
+            /** @enum {string} */
+            state: "draft" | "sent" | "ok" | "rej";
+            /** @description apFlow 와 같은 세 낱말 — waiting · back · done */
+            apState: string;
+            /** @description 6영역 중 메모를 적은 수 (§69 «담당 x/6 기재») */
+            filled: number;
+            /** @description 이 기간의 살펴볼 것 합계 (§73 줄 배지) */
+            reviewCount: number;
+            rejectReason?: string | null;
+            /** @description 이 줄이 가리키는 뷰 — day | week | month */
+            go: string;
+        };
         ExecDto: {
             from: string;
             to: string;
             stats: components["schemas"]["ExecStatDto"][];
             reports: components["schemas"]["ExecReportDto"][];
+            /** @description §69 6영역 — 대표 관심순 고정 */
+            areas: components["schemas"]["ExecAreaDto"][];
+            /** @description 살펴볼 것 — 6영역 배지의 합 (§69 머리) */
+            reviewCount: number;
+            /** @description 이 기간 보고의 «담당 x/6 기재» 중 x. 보고가 없으면 0 */
+            filled: number;
+            /** @description §73 결재함 — 이동만 (N-12) */
+            inbox: components["schemas"]["ExecInboxDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
             /** @description 저장하지 않는다 — 이 시각에 센 값이다 (D-R4) */
