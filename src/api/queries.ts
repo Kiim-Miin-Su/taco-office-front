@@ -22,7 +22,7 @@ import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, Books, ConsultingList, Exec, ExecQuery, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
-  ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue,
+  ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
@@ -581,15 +581,22 @@ export function useDrawer(enabled = true, notiWindow: 'month' | 'all' = 'month')
   });
 }
 
-/** 서랍에서 하는 쓰기 셋 — 승인·반려는 없다 (D-R27) */
+/**
+ * 서랍에서 하는 쓰기.
+ *
+ * §14 승인 대기함의 **요청(REQ) 처리**가 여기 있다 — 원문 §14 가 줄마다 반려·승인을 갖고
+ * D-R13(반려 사유 필수)의 절 칸에도 14 가 들어 있다. D-R27 의 「이동만」은 §75 결재 흐름
+ * 오버레이의 규칙이고, 적용 경로가 있는 갈래만 서버가 `canAct` 로 열어 준다.
+ */
 export type DrawerWrite =
   | { kind: 'todo'; id: number; done: boolean }
   | { kind: 'notiRead'; id: number }
   | { kind: 'notiReadAll' }
+  | { kind: 'reqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
 export function useDrawerWrite(): UseMutationResult<
-  OkResult | ChangeReqResult, unknown, DrawerWrite
+  OkResult | ChangeReqResult | ReqReviewResult, unknown, DrawerWrite
 > {
   const qc = useQueryClient();
   return useMutation({
@@ -603,6 +610,11 @@ export function useDrawerWrite(): UseMutationResult<
       if (w.kind === 'notiReadAll') {
         return (await api.patch<OkResult>('/drawer/notis/read-all')).data;
       }
+      if (w.kind === 'reqReview') {
+        return (await api.post<ReqReviewResult>(
+          `/drawer/requests/${w.id}/review`, { decision: w.decision, reason: w.reason },
+        )).data;
+      }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
     onSuccess: (_r, w) => {
@@ -610,6 +622,8 @@ export function useDrawerWrite(): UseMutationResult<
       void qc.invalidateQueries({ queryKey: qk.drawer });
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
       if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: qk.ops });
+      // 승인은 **실제로 적용된다** — 강사 홈의 시급·시간대가 바뀌었으므로 함께 다시 읽는다
+      if (w.kind === 'reqReview') void qc.invalidateQueries({ queryKey: qk.teacherHome });
     },
   });
 }

@@ -48,47 +48,123 @@ const Section = ({ title, count, children }: { title: string; count?: number; ch
 );
 
 /* ── §14 승인 대기함 ─────────────────────────────────────────────────
-   줄을 누르면 **그 화면으로 간다.** 여기서 승인하지 않는다 (D-R27) —
-   오버레이에서 누르는 승인은 근거를 안 보고 누르는 승인이다.              */
+   원문 §14 는 **줄마다 「반려」「승인」**을 갖는다. D-R27 의 「이동만」은 §75 결재 흐름
+   오버레이의 규칙이고, D-R13(반려 사유 필수)의 절 칸에는 14 가 들어 있다 —
+   반려 사유가 필수인 화면이 곧 반려하는 화면이다.
 
-function ApList({ rows, onGo }: { rows: ApRow[]; onGo: () => void }) {
+   다만 **적용 경로가 실제로 있는 갈래만** 여기서 처리한다. 서버가 줄마다 `canAct` 로
+   말해 주고, 나머지는 지금처럼 그 화면으로 보낸다 — 눌러도 아무 일이 없는 승인 단추를
+   그리는 것보다 「아직 저기서 합니다」가 정직하다.                        */
+
+export interface ApReview { id: number; decision: 'approve' | 'reject'; reason?: string }
+
+function ApBody({ r }: { r: ApRow }) {
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        <Chip tone={r.state === 'back' ? 'danger' : 'info'} styleKind="outline">
+          {KIND_LABEL[r.kind] ?? r.kind}
+        </Chip>
+        <span className="truncate text-[12px] font-bold text-fg">{r.title}</span>
+        <span className="ml-auto shrink-0 text-[11px] text-fg-subtle">{r.at.slice(5, 10)}</span>
+      </div>
+      <p className="mt-1 text-[11px] text-fg-subtle">
+        {[r.byName, r.sub].filter(Boolean).join(' · ') || '—'}
+      </p>
+      {/* 반려는 사유가 반드시 있다 (D-R13) — 없으면 왜 되돌아왔는지 아무도 모른다 */}
+      {r.state === 'back' && r.why ? (
+        <p className="mt-1.5 rounded bg-red/5 px-2 py-1 text-[11px] text-red">{r.why}</p>
+      ) : null}
+    </>
+  );
+}
+
+/** 한 줄 처리 — 두 번 눌러야 나간다. 반려는 사유를 적어야 단추가 열린다 (D-R13). */
+function ApActions({ r, onReview, busy }: {
+  r: ApRow; onReview: (v: ApReview) => void; busy: boolean;
+}) {
+  const [armed, setArmed] = useState<'approve' | 'reject' | null>(null);
+  const [reason, setReason] = useState('');
+  const send = (decision: 'approve' | 'reject') => {
+    setArmed(null);
+    onReview({ id: r.id, decision, reason: reason.trim() || undefined });
+  };
+  return (
+    <div className="mt-2 border-t border-line pt-2">
+      <Label htmlFor={`ap-why-${r.id}`} hint="반려 시 필수">사유</Label>
+      <Input
+        id={`ap-why-${r.id}`}
+        value={reason}
+        onChange={(e) => { setReason(e.target.value); setArmed(null); }}
+        placeholder="반려 사유 · 승인 메모"
+      />
+      <div className="mt-1.5 flex justify-end gap-1.5">
+        <Button
+          size="sm"
+          variant={armed === 'reject' ? 'primary' : 'secondary'}
+          disabled={busy || !reason.trim()}
+          onClick={() => (armed === 'reject' ? send('reject') : setArmed('reject'))}
+        >
+          {armed === 'reject' ? '한 번 더 누르면 반려' : '반려'}
+        </Button>
+        <Button
+          size="sm"
+          variant={armed === 'approve' ? 'primary' : 'dark'}
+          disabled={busy}
+          onClick={() => (armed === 'approve' ? send('approve') : setArmed('approve'))}
+        >
+          {armed === 'approve' ? '한 번 더 누르면 승인' : '승인'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ApList({ rows, onGo, onReview, busy }: {
+  rows: ApRow[]; onGo: () => void;
+  onReview?: (v: ApReview) => void; busy?: boolean;
+}) {
   if (rows.length === 0) return <Empty>없습니다</Empty>;
   return (
     <ul className="flex flex-col gap-1.5">
       {rows.map((r) => (
         <li key={`${r.kind}-${r.id}`}>
-          <Link
-            href={r.go} onClick={onGo}
-            className="block rounded-lg border border-line bg-card p-2.5 transition-colors hover:border-blue hover:bg-blue/5"
-          >
-            <div className="flex items-center gap-1.5">
-              <Chip tone={r.state === 'back' ? 'danger' : 'info'} styleKind="outline">
-                {KIND_LABEL[r.kind] ?? r.kind}
-              </Chip>
-              <span className="truncate text-[12px] font-bold text-fg">{r.title}</span>
-              <span className="ml-auto shrink-0 text-[11px] text-fg-subtle">{r.at.slice(5, 10)}</span>
+          {r.canAct && onReview ? (
+            <div className="rounded-lg border border-line bg-card p-2.5">
+              <ApBody r={r} />
+              <ApActions r={r} onReview={onReview} busy={!!busy} />
             </div>
-            <p className="mt-1 text-[11px] text-fg-subtle">
-              {[r.byName, r.sub].filter(Boolean).join(' · ') || '—'}
-            </p>
-            {/* 반려는 사유가 반드시 있다 (D-R13) — 없으면 왜 되돌아왔는지 아무도 모른다 */}
-            {r.state === 'back' && r.why ? (
-              <p className="mt-1.5 rounded bg-red/5 px-2 py-1 text-[11px] text-red">{r.why}</p>
-            ) : null}
-          </Link>
+          ) : (
+            <Link
+              href={r.go} onClick={onGo}
+              className="block rounded-lg border border-line bg-card p-2.5 transition-colors hover:border-blue hover:bg-blue/5"
+            >
+              <ApBody r={r} />
+            </Link>
+          )}
         </li>
       ))}
     </ul>
   );
 }
 
-export function ApprovalsPane({ flow, onGo }: { flow: ApFlow; onGo: () => void }) {
+export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
+  flow: ApFlow; onGo: () => void;
+  onReview?: (v: ApReview) => void; busy?: boolean; error?: string | null;
+}) {
+  const actionable = [...flow.back, ...flow.waiting, ...flow.mine].filter((r) => r.canAct).length;
   return (
     <>
       <Banner tone="info" className="mb-4">
         올라온 것은 <b>전건이 뜹니다</b> — 자동 승인도 조건부 통과도 없습니다 (D-R34).
-        승인·반려는 <b>줄을 눌러 그 화면에서</b> 합니다 (D-R27).
+        {actionable > 0 ? (
+          <> <b>요청</b>은 여기서 처리하고, <b>반려에도 사유가 남습니다</b> (D-R13).
+            나머지 갈래는 <b>줄을 눌러 그 화면에서</b> 합니다.</>
+        ) : (
+          <> 승인·반려는 <b>줄을 눌러 그 화면에서</b> 합니다.</>
+        )}
       </Banner>
+      {error ? <Banner tone="danger" className="mb-4">{error}</Banner> : null}
       {flow.missingKinds.length > 0 ? (
         <Banner tone="warning" className="mb-4">
           아직 표가 없어 이 목록에 오지 않는 갈래가 있습니다 —{' '}
@@ -97,13 +173,13 @@ export function ApprovalsPane({ flow, onGo }: { flow: ApFlow; onGo: () => void }
         </Banner>
       ) : null}
       <Section title="되돌아온 것" count={flow.back.length}>
-        <ApList rows={flow.back} onGo={onGo} />
+        <ApList rows={flow.back} onGo={onGo} onReview={onReview} busy={busy} />
       </Section>
       <Section title="기다리는 것" count={flow.waiting.length}>
-        <ApList rows={flow.waiting} onGo={onGo} />
+        <ApList rows={flow.waiting} onGo={onGo} onReview={onReview} busy={busy} />
       </Section>
       <Section title="내가 올린 것" count={flow.mine.length}>
-        <ApList rows={flow.mine} onGo={onGo} />
+        <ApList rows={flow.mine} onGo={onGo} onReview={onReview} busy={busy} />
       </Section>
     </>
   );

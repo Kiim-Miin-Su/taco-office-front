@@ -940,6 +940,26 @@ export interface paths {
         patch: operations["DrawerController_notiReadAll"];
         trace?: never;
     };
+    "/drawer/requests/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §14 승인 대기함 — 요청 승인·반려 (승인하면 **실제로 적용된다**)
+         * @description 원문 §14 는 줄마다 반려·승인을 갖는다(D-R27 의 「이동만」은 §75 결재 흐름의 규칙이고, D-R13 반려 사유 필수의 절 칸에는 14 가 있다). 승인은 시급이면 WAGE 새 줄(from_date=승인일·소급 없음·D8), 시간대면 STAFF.tz 를 바꾼다. 그 밖의 갈래는 적용 대상이 없어 상태만 닫는다. 잠금·적용·LOG·NOTI 가 한 트랜잭션이다.
+         */
+        post: operations["DrawerController_reviewRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/drawer/change-requests": {
         parameters: {
             query?: never;
@@ -2576,8 +2596,14 @@ export interface components {
             state: "waiting" | "back" | "done";
             /** @description 반려면 반드시 있다 (D-R13) */
             why?: string | null;
-            /** @description 누르면 갈 곳 — 오버레이에서 승인하지 않는다 (D-R27) */
+            /** @description 누르면 갈 곳 — §75 결재 흐름은 여전히 이동만 한다 (D-R27) */
             go: string;
+            /** @description REQ 갈래의 요청 종류 (wage_change · tz_change …) */
+            reqType?: string | null;
+            /** @description 무엇을 바라는가 — 서버가 만든 문장을 그대로 그린다 (D-R18) */
+            asked?: string | null;
+            /** @description 이 사람이 **지금** 이 줄을 여기서 처리할 수 있는가 (§14). 화면은 이 값만 보고 단추를 그린다 */
+            canAct?: boolean;
         };
         ApFlowDto: {
             /** @description 되돌아온 것 — 맨 위 (§75) */
@@ -2711,6 +2737,22 @@ export interface components {
             ok: boolean;
             /** @description 이번에 읽음으로 바뀐 수 */
             marked: number;
+        };
+        ReqReviewDto: {
+            /**
+             * @description 승인(approve) 또는 반려(reject)
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** @description 반려 사유 — 반려면 필수 (D-R13) */
+            reason?: string | null;
+        };
+        ReqReviewResultDto: {
+            id: number;
+            /** @enum {string} */
+            state: "approved" | "rejected";
+            /** @description 승인이 **실제로 바꾼 것** — 「45,000원/시간 · 2026-09-12부터」처럼. 적용 대상이 없으면 null */
+            applied?: string | null;
         };
         ConflictRowDto: {
             serId: number;
@@ -6986,6 +7028,85 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotiReadAllDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_reviewRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReqReviewDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReqReviewResultDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

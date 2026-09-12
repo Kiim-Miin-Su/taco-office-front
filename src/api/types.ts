@@ -187,4 +187,6 @@ export type ZoomAccount = S['ZoomAccountDto'];
 /** 요청 본문의 oneOf를 그대로 쓴다 — 종류별 필수 필드가 컴파일 단계에서 갈린다. */
 export type ChangeReqCreate = paths['/drawer/change-requests']['post']['requestBody']['content']['application/json'];
 export type ChangeReqResult = S['ChangeReqResultDto'];
+/** §14 요청 처리 결과 — `applied` 가 승인이 **실제로 바꾼 것**이다 */
+export type ReqReviewResult = S['ReqReviewResultDto'];
 export type ConflictRow = S['ConflictRowDto'];

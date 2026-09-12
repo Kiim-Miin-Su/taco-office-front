@@ -53,6 +53,8 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const [submitError, setSubmitError] = useState<string | null>(null);
   /** §16 — 보여 주는 범위. 지우는 규칙이 아니다 (N-7 · D-16) */
   const [notiWindow, setNotiWindow] = useState<'month' | 'all'>('month');
+  /** 서버가 거절한 말을 **그대로** 띄운다 — 화면이 이유를 다시 지어내지 않는다 */
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const meId = useSession((s) => s.me?.id ?? null);
   // 닫혀 있으면 부르지 않는다 — 모든 화면이 서랍을 들고 있으므로 열 때만 읽는다
@@ -108,7 +110,19 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
 
       {data ? (
         <>
-          {pane === 'approvals' ? <ApprovalsPane flow={data.approvals} onGo={onClose} /> : null}
+          {pane === 'approvals' ? (
+            <ApprovalsPane
+              flow={data.approvals} onGo={onClose} busy={write.isPending}
+              error={reviewError}
+              onReview={(v) => {
+                setReviewError(null);
+                write.mutate(
+                  { kind: 'reqReview', id: v.id, decision: v.decision, reason: v.reason },
+                  { onError: (e) => setReviewError(apiMessage(e)) },
+                );
+              }}
+            />
+          ) : null}
           {pane === 'todos' ? (
             <TodosPane
               todos={data.todos} meId={meId} box={box} onBox={setBox}
