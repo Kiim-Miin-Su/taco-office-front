@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import { readFileSync } from 'node:fs';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import usage from '@/lib/component-usage.json';
 import { DesignSystemDialog } from './DesignSystemDialog';
@@ -66,8 +66,17 @@ it('컴포넌트 갤러리는 열두 장이고 「N회 씀」은 세어 둔 값�
     '알림 상자', '표', '구역 제목', '주별 칸', '서랍 · 대화상자', '갈래']) {
     expect(v.getAllByText(name).length, name).toBeGreaterThan(0);
   }
-  expect(v.getByText(`${usage.counts.button}회 씀`)).toBeTruthy();
-  expect(v.getByText(`${usage.counts.field}회 씀`)).toBeTruthy();
+  /*
+   * 「N회 씀」은 **그 카드 안에서** 찾는다. 두 컴포넌트의 횟수가 우연히 같아지면
+   * 화면 전체에서 찾을 때 「여럿이 걸렸다」로 빨개진다 — 실제로 button 과 badge 가 같은 날 그랬다.
+   * 세어 둔 값이 맞는지를 보는 시험이지 값이 서로 다른지를 보는 시험이 아니다.
+   */
+  const usedIn = (name: string) => {
+    const card = v.getAllByText(name)[0].closest('article, li, section, div[class*="rounded"]')!;
+    return within(card as HTMLElement).getByText(/\d+회 씀/).textContent;
+  };
+  expect(usedIn('버튼')).toBe(`${usage.counts.button}회 씀`);
+  expect(usedIn('입력 묶음')).toBe(`${usage.counts.field}회 씀`);
 });
 
 it('갈래 단추는 개수를 달고 있다 — 색 9 · 크기 8 · 컴포넌트 12', () => {

@@ -16,12 +16,13 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting, useOtherIncome, useTuition } from '@/api/queries';
+import { useAccounting, useInvBoard, useOtherIncome, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
 import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { OtherIncome } from '@/components/accounting/OtherIncome';
+import { InvoiceBoard } from '@/components/accounting/InvoiceBoard';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won, wonTone } from '@/lib/money';
@@ -56,12 +57,19 @@ const STATE_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'd
 };
 
 export default function AccountingPage() {
-  const [tab, setTab] = useState<'inv' | 'tuition' | 'other' | 'record' | 'pay' | 'out' | 'payout'>('inv');
+  /*
+   * 처음 열리는 탭은 **청구서**다. 트래킹 보드가 탭 줄의 첫 자리인 것은 컷의 순서이고,
+   * 처음부터 고르지 않는 것은 **질의를 하나 더 부르지 않기 위해서**다 — 회계를 열어 바로
+   * 「들어온 돈」으로 가는 사람에게도 보드가 따라 불려 온다(C50 이 고쳐 둔 자리 · 회귀가 요청 1건을 센다).
+   */
+  const [tab, setTab] = useState<'board' | 'inv' | 'tuition' | 'other' | 'record' | 'pay' | 'out' | 'payout'>('inv');
   const q = useAccounting();
   // §54 는 다른 질의다 — 그 탭을 열 때만 부른다 (달을 안 주면 서버가 이번 달로 정한다)
   const tuition = useTuition(undefined, tab === 'tuition');
   // §57 도 다른 질의다 — 그 탭을 열 때만 부른다 (C66)
   const otherIncome = useOtherIncome(tab === 'other');
+  // §52 도 다른 질의다 — 그 탭을 열 때만 부른다 (C69)
+  const invBoard = useInvBoard(tab === 'board');
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
 
@@ -187,6 +195,7 @@ export default function AccountingPage() {
           value={tab}
           onChange={setTab}
           options={[
+            { value: 'board', label: '트래킹 보드' },
             { value: 'inv', label: `청구서 ${q.data?.invoices.length ?? 0}` },
             { value: 'tuition', label: '수업료 계산' },
             { value: 'other', label: '그 밖의 수입' },
@@ -201,6 +210,8 @@ export default function AccountingPage() {
           <Banner tone="neutral">불러오는 중…</Banner>
         ) : q.isError ? (
           <Banner tone="danger">회계는 매니저 이상만 볼 수 있습니다. 또는 서버에 닿지 못했습니다.</Banner>
+        ) : tab === 'board' ? (
+          <InvoiceBoard data={invBoard.data} loading={invBoard.isLoading} />
         ) : tab === 'inv' ? (
           <>
             <InvoiceIssuer />

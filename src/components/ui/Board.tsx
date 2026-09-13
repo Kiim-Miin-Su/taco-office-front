@@ -15,6 +15,10 @@ import { Chip, type Tone } from './Chip';
 export interface BoardColumn<T> {
   key: string;
   label: string;
+  /** 칸 이름 아래 한 줄 — 컷의 칸마다 이 설명이 있다 (§52 「보냈습니다 · 입금을 기다립니다」) */
+  sub?: string;
+  /** 칸 머리 오른쪽에 이름표와 함께 서는 값 — §52 의 칸 합계 같은 것 */
+  note?: ReactNode;
   tone?: Tone;
   items: T[];
 }
@@ -35,9 +39,14 @@ export function Board<T>({ columns, renderCard, itemKey, empty = '없습니다',
     >
       {columns.map((c) => (
         <section key={c.key} className="rounded-xl border border-line bg-inset p-2.5">
-          <header className="mb-2 flex items-center justify-between px-0.5">
-            <span className="text-[12px] font-bold text-fg">{c.label}</span>
-            <Chip tone={c.tone ?? 'neutral'}>{c.items.length}</Chip>
+          <header className="mb-2 px-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-bold text-fg">{c.label}</span>
+              {/* 건수는 **서버가 센 값이 있으면 그것**을 쓴다 — 없을 때만 배열을 센다 (D-R37) */}
+              <Chip tone={c.tone ?? 'neutral'}>{c.items.length}</Chip>
+            </div>
+            {c.sub ? <p className="mt-0.5 text-[10.5px] text-fg-subtle">{c.sub}</p> : null}
+            {c.note ? <div className="mt-1 text-[13px] font-bold text-fg">{c.note}</div> : null}
           </header>
           <div className="flex flex-col gap-2">
             {c.items.length === 0 ? (

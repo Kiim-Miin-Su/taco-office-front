@@ -525,6 +525,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 회계 트래킹 보드 — 칸 넷 (§52)
+         * @description **칸은 `inv.state` 하나로 갈린다** (대표 결정 2026-09-13 · N-28 「단일 진실원과 자동 전이에 유리하게」). 두 축(`state` + 「PAY 행이 있는가」)으로 가르면 판정이 두 벌이 되어 같은 청구서가 어느 칸에 있는지 두 곳이 다르게 답한다. 전이는 이미 자동이다 — 입금이 들어오면 `addPayment` 가 상태를 옮긴다. 「50% 냄」·「연체」는 칸을 정하는 값이 아니라 **카드에 적히는 값**이다. 칸은 비어도 선다(어휘이지 데이터가 아니다) · 건수와 합계도 서버가 센다 (D-R37).
+         */
+        get: operations["AccountingController_invoiceBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/other-income": {
         parameters: {
             query?: never;
@@ -2473,6 +2493,46 @@ export interface components {
             /** @description 다음 달로 넘길 돈 */
             carryAmount?: number | null;
             items: components["schemas"]["TuitionRowDto"][];
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
+        };
+        InvBoardCardDto: {
+            invId: number;
+            studentId: number;
+            studentName: string;
+            grade?: string | null;
+            /** @description 청구 종류 코드 */
+            invType: string;
+            /** @description 종류 이름 — §53 카드의 배지 (D-R18) */
+            invTypeLabel: string;
+            title: string;
+            /** @description 상태의 이름 — 화면이 코드값을 찍지 않는다 */
+            stateLabel: string;
+            amount?: number | null;
+            paid?: number | null;
+            /** @description 받은 비율 0~100 — 일부 납부에만 */
+            paidPercent?: number | null;
+            dueOn?: string | null;
+            /** @description 기한이 지난 날 수 — 0이면 연체 아님 (서버가 센다) */
+            overdueDays: number;
+            /** @description 「D-21」·「1일 지남」·「오늘」 — 낱말도 서버가 만든다 (D-R18) */
+            whenLabel: string;
+        };
+        InvBoardColumnDto: {
+            key: string;
+            /** @description 칸 이름 — §52 컷의 낱말 */
+            label: string;
+            /** @description 칸 아래 한 줄 — §52 컷의 낱말 */
+            sub: string;
+            /** @description 그 칸의 건수 — 화면이 배열을 세지 않는다 (D-R37) */
+            count: number;
+            /** @description 그 칸의 금액 합계 */
+            amount?: number | null;
+            cards: components["schemas"]["InvBoardCardDto"][];
+        };
+        InvBoardDto: {
+            /** @description 칸 넷. **비어도 선다** — 칸은 어휘이지 데이터가 아니다 */
+            columns: components["schemas"]["InvBoardColumnDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
         };
@@ -6594,6 +6654,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TuitionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_invoiceBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvBoardDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
