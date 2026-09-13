@@ -1,6 +1,6 @@
 /** @file-guide
  * 목적: DesignSystemDialog.tsx — DesignSystemDialogProps, DesignSystemDialog (component)
- * 책임/재사용: 기존 UI 프리미티브/도메인 훅을 조합하고 표시 상태만 소유한다. 권한·정산 판정과 서버 진실을 재구현하지 않는다.
+ * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
