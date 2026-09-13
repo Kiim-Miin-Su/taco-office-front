@@ -50,6 +50,25 @@ const result: LoginResult = {
 };
 
 describe('LoginPage — 생성 로그인 계약', () => {
+  it('5개 이메일 바로 채우기는 이름·권한을 생성하지 않고 서버가 반환한 사용자를 그대로 저장한다', async () => {
+    const serverResult: LoginResult = {
+      ...result,
+      user: { ...result.user, id: 4, name: '강민지', role: 'manager', roleLabel: '매니저', title: '매니저',
+        canSeeProfit: false, canMoney: false, canHide: false },
+    };
+    post.mockResolvedValueOnce({ data: serverResult });
+    const view = render(<LoginPage />);
+    for (const email of ['ceo', 'admin', 'head', 'coord', 't02'].map((name) => `${name}@tnacademy.kr`)) {
+      expect(view.getByRole('button', { name: email })).toBeTruthy();
+    }
+    expect(view.queryByText(/이다현|김민선|김민수|김범준|강민지|김재훈/)).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr' }));
+    expect(signIn).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole('button', { name: '들어가기' }));
+    await waitFor(() => expect(signIn).toHaveBeenCalledWith(serverResult.accessToken, serverResult.user));
+    expect(post).toHaveBeenCalledWith('/auth/login', { email: 'coord@tnacademy.kr', password: 'taco1234!' });
+  });
+
   it('입력은 2개를 유지하고 이메일 한 타는 폼 update 1회·요청 0회다', () => {
     const onRender = vi.fn();
     const view = render(<Profiler id="login" onRender={onRender}><LoginPage /></Profiler>);

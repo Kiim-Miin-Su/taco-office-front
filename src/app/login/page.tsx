@@ -14,12 +14,13 @@ import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo } from '@/components/ui';
 import type { LoginBody, LoginResult } from '@/api/types';
 
-/** 개발 시드 계정 — 역할별로 화면이 어떻게 갈리는지 바로 볼 수 있게 */
+/** 개발 시드 이메일 바로 채우기. 이름·역할은 DB의 LoginResult만 신뢰한다. */
 const DEMO = [
-  { email: 'ceo@tnacademy.kr', label: '대표 · 김민선' },
-  { email: 'admin@tnacademy.kr', label: '관리자 · 김민수' },
-  { email: 'head@tnacademy.kr', label: '매니저 · 김범준' },
-  { email: 't01@tnacademy.kr', label: '강사 · 이다현' },
+  { email: 'ceo@tnacademy.kr' },
+  { email: 'admin@tnacademy.kr' },
+  { email: 'head@tnacademy.kr' },
+  { email: 'coord@tnacademy.kr' },
+  { email: 't02@tnacademy.kr' },
 ];
 
 export default function LoginPage() {
@@ -87,7 +88,7 @@ export default function LoginPage() {
                 key={d.email} size="sm" variant="ghost"
                 onClick={() => { setEmail(d.email); setPassword('taco1234!'); }}
               >
-                {d.label}
+                {d.email}
               </Button>
             ))}
           </div>
