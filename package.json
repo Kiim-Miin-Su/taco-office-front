@@ -14,7 +14,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "types:gen": "openapi-typescript ../taco_office_back/openapi.json -o src/api/schema.d.ts"
+    "types:gen": "openapi-typescript ../taco_office_back/openapi.json -o src/api/schema.d.ts",
+    "usage:gen": "node scripts/component-usage.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -10,7 +10,8 @@
  */
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Home, Maximize, Minimize, ShieldCheck, Inbox } from 'lucide-react';
+import { ArrowLeft, Home, Maximize, Minimize, Palette, ShieldCheck, Inbox } from 'lucide-react';
+import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/store/useSession';
@@ -49,6 +50,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [drawer, setDrawer] = useState(false);
   const [drawerPane, setDrawerPane] = useState<DrawerPane>('approvals');
   const [permissions, setPermissions] = useState(false);
+  /** §85·§86 — 원문에서 이것은 라우트가 아니라 머리의 「디자인」이 여는 창이다 (C60) */
+  const [design, setDesign] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
   const isAdmin = Boolean(me?.canAdminPage);
@@ -121,6 +124,10 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
             <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>
           </div>
         </details>
+        {isAdmin ? <button type="button" onClick={() => setDesign(true)}
+          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+          <Palette size={14} aria-hidden /><span className="hidden xl:inline">디자인</span>
+        </button> : null}
         <button type="button" onClick={() => setPermissions(true)}
           className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
           <ShieldCheck size={14} aria-hidden />권한
@@ -136,6 +143,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         {isAdmin && right ? <div className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
       </div>
       <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} />
+      <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
       <Dialog open={permissions} onClose={() => setPermissions(false)} title="권한" width={800}
         footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>
         <div className="max-h-[70dvh] overflow-y-auto"><PermissionMatrix me={me} /></div>
