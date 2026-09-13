@@ -2,14 +2,14 @@
   "version": 1,
   "counts": {
     "button": 154,
-    "badge": 148,
+    "badge": 151,
     "mark": 2,
     "input": 98,
     "field": 90,
     "stat": 56,
-    "banner": 118,
+    "banner": 119,
     "table": 32,
-    "panel": 92,
+    "panel": 93,
     "board": 5,
     "overlay": 13,
     "tabs": 16

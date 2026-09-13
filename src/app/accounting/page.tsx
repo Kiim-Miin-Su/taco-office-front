@@ -16,11 +16,12 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting, useTuition } from '@/api/queries';
+import { useAccounting, useOtherIncome, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
 import { TuitionTable } from '@/components/accounting/TuitionTable';
+import { OtherIncome } from '@/components/accounting/OtherIncome';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won, wonTone } from '@/lib/money';
@@ -41,20 +42,26 @@ function Won({ v, bold, empty }: { v: number | null; bold?: boolean; empty?: str
   return <span className={bold ? 'font-bold' : undefined}>{won(v)}</span>;
 }
 
-const STATE: Record<string, { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }> = {
-  draft: { label: '작성 중', tone: 'neutral' },
-  sent: { label: '전달', tone: 'info' },
-  unpaid: { label: '미납', tone: 'danger' },
-  partial: { label: '일부 납부', tone: 'warning' },
-  paid: { label: '입금 완료', tone: 'success' },
-  void: { label: '취소', tone: 'neutral' },
+/**
+ * 청구서 상태의 **빛깔**만 화면이 정한다 — 낱말은 줄이 들고 온다 (`InvoiceDto.stateLabel` · D-R18 · C66).
+ *
+ * 이 자리가 낱말까지 갖고 있었다. 그러면 상태 이름이 바뀌던 날 **이 파일만 뒤처지고**
+ * 같은 행을 §53 표와 §57 줄이 다르게 부른다 — C64 가 청구 종류에서 고친 것과 같은 모양이다.
+ * 코드표를 `/meta` 에서 따로 받지 않는다 — 그러면 C50 이 고쳐 둔 「회계 화면에 들어갈 때마다
+ * 코드표를 받아 오던」 자리로 되돌아간다(회귀가 요청 1건을 센다). **줄이 제 낱말을 들고 온다.**
+ * 빛깔은 어휘가 아니라 표시 판단이고 값은 토큰에서 온다 (D-R41).
+ */
+const STATE_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'danger'> = {
+  draft: 'neutral', sent: 'info', unpaid: 'danger', partial: 'warning', paid: 'success', void: 'neutral',
 };
 
 export default function AccountingPage() {
-  const [tab, setTab] = useState<'inv' | 'tuition' | 'record' | 'pay' | 'out' | 'payout'>('inv');
+  const [tab, setTab] = useState<'inv' | 'tuition' | 'other' | 'record' | 'pay' | 'out' | 'payout'>('inv');
   const q = useAccounting();
   // §54 는 다른 질의다 — 그 탭을 열 때만 부른다 (달을 안 주면 서버가 이번 달로 정한다)
   const tuition = useTuition(undefined, tab === 'tuition');
+  // §57 도 다른 질의다 — 그 탭을 열 때만 부른다 (C66)
+  const otherIncome = useOtherIncome(tab === 'other');
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
 
@@ -85,7 +92,7 @@ export default function AccountingPage() {
         r.overdueDays > 0 ? (
           <Chip tone="danger">연체 {r.overdueDays}일</Chip>
         ) : (
-          <Chip tone={STATE[r.state]?.tone ?? 'neutral'}>{STATE[r.state]?.label ?? r.state}</Chip>
+          <Chip tone={STATE_TONE[r.state] ?? 'neutral'}>{r.stateLabel}</Chip>
         ),
     },
     { key: 'due', head: '예정일', width: 100, cell: (r) => r.dueOn ?? '—' },
@@ -182,6 +189,7 @@ export default function AccountingPage() {
           options={[
             { value: 'inv', label: `청구서 ${q.data?.invoices.length ?? 0}` },
             { value: 'tuition', label: '수업료 계산' },
+            { value: 'other', label: '그 밖의 수입' },
             { value: 'record', label: '입금 기록' },
             { value: 'pay', label: `들어온 돈 ${q.data?.payments.length ?? 0}` },
             { value: 'out', label: `나간 돈 ${q.data?.expenses.length ?? 0}` },
@@ -198,6 +206,8 @@ export default function AccountingPage() {
             <InvoiceIssuer />
             <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
           </>
+        ) : tab === 'other' ? (
+          <OtherIncome data={otherIncome.data} loading={otherIncome.isLoading} />
         ) : tab === 'tuition' ? (
           <TuitionTable data={tuition.data} loading={tuition.isLoading} />
         ) : tab === 'record' ? (
@@ -210,10 +220,17 @@ export default function AccountingPage() {
           <Table columns={poCols} rows={q.data?.payouts ?? []} rowKey={(r) => r.id} />
         )}
 
-        <Banner tone="info" className="mt-4">
-          정산은 <b>「리포트를 썼는가」 하나</b>로 계산합니다 — 승인 여부는 보지 않습니다 (D-R7). 깎이는 것은 지각뿐이고, 기준은
-          수업이 끝난 시각부터 분 단위입니다 (D-R32).
-        </Banner>
+        {/*
+          * 정산 설명은 **정산 탭에서만** 선다. 탭 밖에 있어서 청구서·수업료 계산·입금 기록·들어온 돈 …
+          * 어느 탭을 열어도 「정산은 …」이 따라붙고 있었다 — 화면이 지금 보고 있는 것과
+          * 상관없는 말을 하면, 읽는 사람은 그 말이 이 표에 대한 설명이라고 읽는다.
+          */}
+        {tab === 'payout' ? (
+          <Banner tone="info" className="mt-4">
+            정산은 <b>「리포트를 썼는가」 하나</b>로 계산합니다 — 승인 여부는 보지 않습니다 (D-R7). 깎이는 것은 지각뿐이고, 기준은
+            수업이 끝난 시각부터 분 단위입니다 (D-R32).
+          </Banner>
+        ) : null}
       </AppShell>
     </RequireAuth>
   );

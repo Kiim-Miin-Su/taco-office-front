@@ -20,7 +20,7 @@ import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
-  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList, Tuition,
+  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList, OtherIncome, Tuition,
   TeacherDiagCreate, TeacherGuideDiag, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
@@ -50,6 +50,8 @@ export const qk = {
   accounting: ['accounting'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
+  /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66) */
+  otherIncome: ['accounting', 'other-income'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   /** §28 회계 — 같은 탭의 다른 질의다. 갈래 앞자락은 `family.consulting` (C58) */
@@ -254,6 +256,16 @@ export function useTuition(month?: string, enabled = true): UseQueryResult<Tuiti
   return useQuery({
     queryKey: sessionQueryKey(qk.tuition(month), viewerId),
     queryFn: async () => (await api.get<Tuition>('/accounting/tuition', { params: month ? { month } : {} })).data,
+    enabled,
+  });
+}
+
+/** §57 그 밖의 수입 — 그 탭을 열 때만 부른다 (§27 학생별 탭과 같은 선례 · C59) */
+export function useOtherIncome(enabled = true): UseQueryResult<OtherIncome> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.otherIncome, viewerId),
+    queryFn: async () => (await api.get<OtherIncome>('/accounting/other-income')).data,
     enabled,
   });
 }

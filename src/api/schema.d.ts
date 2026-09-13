@@ -525,6 +525,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/other-income": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 그 밖의 수입 — 수업료가 아닌 돈 (§57)
+         * @description 컷의 줄 셋(진단고사 + 상담 비용 · 컨설팅비 · MAP + CAT)은 대표가 정한 청구 종류 그대로다 (N-37 · C64). **데이터가 0건이어도 줄은 선다** — 종류는 어휘이지 데이터가 아니다. 건수·금액·받음은 §52 머리와 **같은 어휘**(`INV_BILLABLE`)로 세어 초안과 취소를 뺀다. 「청구 안 함 N」은 그 종류의 **초안 건수**로 읽었다 — 원문이 뜻을 안 적었고, 「청구서 없이 받은 돈」으로 읽으려면 종류마다 새 표가 필요한데 원문이 그런 표를 말한 적이 없다 (N-37 ②). 컷 오른쪽의 「일별 · 주별 · 월별」은 눌렀을 때 무엇이 달라지는지 컷이 보여 주지 않아 만들지 않았다 (N-40).
+         */
+        get: operations["AccountingController_otherIncome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/invoices": {
         parameters: {
             query?: never;
@@ -2322,6 +2342,8 @@ export interface components {
             paidAmount: number | null;
             /** @enum {string} */
             state: "draft" | "sent" | "unpaid" | "partial" | "paid" | "void";
+            /** @description 상태의 이름 — 낱말은 서버가 만든다 (D-R18) */
+            stateLabel: string;
             issuedOn?: string | null;
             dueOn?: string | null;
             paidAt?: string | null;
@@ -2451,6 +2473,42 @@ export interface components {
             /** @description 다음 달로 넘길 돈 */
             carryAmount?: number | null;
             items: components["schemas"]["TuitionRowDto"][];
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
+        };
+        OtherIncomeItemDto: {
+            invId: number;
+            studentName: string;
+            title: string;
+            /** @description 청구서 상태 — 낱말은 화면이 짓지 않는다 (D-R18) */
+            stateLabel: string;
+            /** @description 아직 청구하지 않은 건인가 (draft) */
+            unbilled: boolean;
+            issuedOn?: string | null;
+            dueOn?: string | null;
+            amount?: number | null;
+            paid?: number | null;
+        };
+        OtherIncomeRowDto: {
+            /** @description 청구 종류 코드 */
+            key: string;
+            /** @description 줄 제목 — §57 컷의 낱말 */
+            label: string;
+            /** @description 부제 — §57 컷의 낱말 */
+            sub: string;
+            /** @description 건수 — 보낸 청구서만 센다(초안·취소 제외 · §52 머리와 같은 어휘) */
+            count: number;
+            /** @description 「청구 안 함 N」 — 아직 초안인 청구서 건수. 건수에 들어 있지 않다 */
+            unbilled: number;
+            /** @description 금액 합계 */
+            amount?: number | null;
+            /** @description 받은 돈 합계 */
+            paid?: number | null;
+            items: components["schemas"]["OtherIncomeItemDto"][];
+        };
+        OtherIncomeDto: {
+            /** @description 컷의 세 줄. **데이터가 0건이어도 줄은 선다** — 종류는 어휘이지 데이터가 아니다 */
+            rows: components["schemas"]["OtherIncomeRowDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
         };
@@ -6528,6 +6586,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TuitionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_otherIncome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherIncomeDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

@@ -133,3 +133,24 @@ it.each([
   const row = within(view.getByText('이다현').closest('tr')!);
   expect(row.getAllByRole('cell').at(-1)!.textContent).toBe(label);
 });
+
+/**
+ * 탭 밖에 있던 정산 설명이 **어느 탭을 열어도 따라붙고 있었다** (C66).
+ *
+ * 청구서 표 밑에 「정산은 …」이 서 있으면, 읽는 사람은 그 말이 **이 표에 대한 설명**이라고 읽는다.
+ */
+it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙지 않는다', async () => {
+  useSession.getState().signIn('fixture', me);
+  const data: Accounting = {
+    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [payout(true)],
+  };
+  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산 1' })).toBeTruthy());
+  expect(view.queryByText(/정산은/)).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '강사료 정산 1' }));
+  expect(view.getByText(/정산은/)).toBeTruthy();
+});

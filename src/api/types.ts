@@ -93,6 +93,9 @@ export type Accounting = S['AccountingDto'];
 /* §54 수업료 계산 (C65) — 청구서가 쓰는 바로 그 계산을 미리 보는 자리다 */
 export type Tuition = S['TuitionDto'];
 export type TuitionRow = S['TuitionRowDto'];
+export type OtherIncome = S['OtherIncomeDto'];
+export type OtherIncomeRow = S['OtherIncomeRowDto'];
+export type OtherIncomeItem = S['OtherIncomeItemDto'];
 export type Invoice = S['InvoiceDto'];
 export type InvoiceIssue = S['InvoiceIssueDto'];
 export type Payment = S['PaymentDto'];
