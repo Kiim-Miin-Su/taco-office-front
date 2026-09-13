@@ -10,7 +10,7 @@ import type { Me } from '@/api/types';
 import { PermissionMatrix } from './PermissionMatrix';
 
 const manager: Me = {
-  id: 3, name: '담당자', role: 'manager', title: null, canAdminPage: true,
+  id: 3, name: '담당자', role: 'manager', roleLabel: '매니저', title: null, canAdminPage: true,
   canCrudAll: true, canSeeProfit: false, canCrudAttendance: true, canMoney: false,
   canWage: false, canApprove: false, canHide: false, canGpaPack: false,
 };

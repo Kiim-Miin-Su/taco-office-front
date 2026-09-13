@@ -14,7 +14,7 @@ import AccountingPage from './page';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
-const me: Me = { id: 1, name: '대표', role: 'ceo', title: null, canAdminPage: true, canCrudAll: true,
+const me: Me = { id: 1, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true };
 const originalAdapter = api.defaults.adapter;

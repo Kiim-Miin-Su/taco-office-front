@@ -29,7 +29,7 @@ vi.mock('@/components/drawer/AppDrawer', () => ({
 }));
 
 const me: Me = {
-  id: 1, name: '김민선', role: 'ceo', title: '대표', canAdminPage: true, canCrudAll: true,
+  id: 1, name: '김민선', role: 'ceo', roleLabel: '대표', title: '대표', canAdminPage: true, canCrudAll: true,
   canMoney: true, canWage: true, canApprove: true, canSeeProfit: true, canHide: true,
   canCrudAttendance: true, canGpaPack: true,
 };

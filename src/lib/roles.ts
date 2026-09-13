@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: roles.ts — ROLES, RoleKey, ROLE_LABEL, ROLE_TONE, REQ_TYPE_LABEL (util)
+ * 목적: roles.ts — ROLES, RoleKey, ROLE_TONE, ROLE_BAR, REQ_TYPE_LABEL (util)
  * 책임/재사용: 현재 lib 계층의 순수 계산/표시 방어를 우선 재사용한다. UI·네트워크·DB 부수효과와 서버 업무 권위를 섞지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -20,12 +20,20 @@ export const ROLES = [
 
 export type RoleKey = (typeof ROLES)[number]['key'];
 
-export const ROLE_LABEL: Record<string, string> =
-  Object.fromEntries(ROLES.map((r) => [r.key, r.label]));
-
 /** 강사만 회색, 나머지는 파랑 — 「관리 화면에 들어오는 사람」이 한눈에 갈린다 */
 export const ROLE_TONE: Record<string, 'neutral' | 'info'> = {
   teacher: 'neutral', manager: 'info', admin: 'info', ceo: 'info',
+};
+
+/**
+ * §17 묶음 머리의 **왼쪽 띠 색**. 값은 토큰에서만 꺼낸다 (D-R41).
+ *
+ * 컷은 묶음마다 다른 색을 쓴다(파랑 · 보라 · 청록 · 주황). `ROLE_TONE` 은 두 가지뿐이라
+ * 그 자리에 쓰면 네 묶음 중 셋이 같은 색이 된다 — 묶음을 나눈 뜻이 사라진다.
+ * 그래서 표를 따로 두되 **여기 한 곳에만** 둔다.
+ */
+export const ROLE_BAR: Record<string, string> = {
+  teacher: 'bg-blue', manager: 'bg-violet', admin: 'bg-green', ceo: 'bg-amber',
 };
 
 /**

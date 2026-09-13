@@ -12,7 +12,7 @@ import type { Me } from './types';
 import { opsQueryKey, qk, sessionQueryKey, type OccParams } from './queries';
 import { clearSessionQueries, revalidateSession } from './session-cache';
 
-const me: Me = { id: 5, name: '강사', role: 'teacher', title: null, canAdminPage: false, canCrudAll: false,
+const me: Me = { id: 5, name: '강사', role: 'teacher', roleLabel: '강사', title: null, canAdminPage: false, canCrudAll: false,
   canSeeProfit: false, canCrudAttendance: false, canMoney: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false };
 const originalAdapter = api.defaults.adapter;
 afterEach(() => { api.defaults.adapter = originalAdapter; useSession.getState().signOut(); });

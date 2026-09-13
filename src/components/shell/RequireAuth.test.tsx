@@ -19,7 +19,7 @@ import { RouteAccess } from './RequireAuth';
 import { AdminTopNavigation } from './AdminNavigation';
 
 const teacher: Me = {
-  id: 5, name: '강사', role: 'teacher', title: null, canAdminPage: false, canCrudAll: false,
+  id: 5, name: '강사', role: 'teacher', roleLabel: '강사', title: null, canAdminPage: false, canCrudAll: false,
   canSeeProfit: false, canCrudAttendance: false, canMoney: false, canWage: false,
   canApprove: false, canHide: false, canGpaPack: false,
 };
@@ -84,7 +84,7 @@ it.each(['refresh rejected', 'retry rejected'] as const)('최종401은 화면과
   expect(calls).toBe(mode === 'refresh rejected' ? 2 : 3);
 });
 
-const manager: Me = { ...teacher, role: 'manager', canAdminPage: true, canCrudAll: true, canMoney: true };
+const manager: Me = { ...teacher, role: 'manager', roleLabel: '매니저', canAdminPage: true, canCrudAll: true, canMoney: true };
 function visibleContent() {
   function Content() {
     const me = useSession((s) => s.me);

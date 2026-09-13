@@ -12,7 +12,7 @@ import { useSession } from '@/store/useSession';
 import { InvoiceIssuer } from './InvoiceIssuer';
 
 const me: Me = {
-  id: 1, name: '관리자', role: 'admin', title: null, canAdminPage: true, canCrudAll: true,
+  id: 1, name: '관리자', role: 'admin', roleLabel: '관리자', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: false, canCrudAttendance: true, canMoney: true, canWage: false,
   canApprove: true, canHide: true, canGpaPack: true,
 };

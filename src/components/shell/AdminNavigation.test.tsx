@@ -14,7 +14,7 @@ const { AdminTopNavigation } = navigation;
 const me: Me = {
   id: 1,
   name: '김민선',
-  role: 'ceo',
+  role: 'ceo', roleLabel: '대표',
   title: '대표',
   canAdminPage: true,
   canCrudAll: true,

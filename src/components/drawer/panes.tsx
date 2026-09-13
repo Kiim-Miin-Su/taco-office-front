@@ -12,7 +12,7 @@
  * 그래야 §14 승인 대기함과 §75 결재 흐름이 **같은 숫자**를 말한다 (D-R26).
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, StatCard, Table, Textarea,
@@ -21,10 +21,10 @@ import {
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
 import type {
   ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo,
-  KindRow, Member, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
+  KindRow, MemberGroup, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
 import { hhmm, label, lessonTimeIssue } from '@/lib/calendar';
-import { REQ_TYPE_LABEL, ROLE_LABEL, ROLE_TONE } from '@/lib/roles';
+import { REQ_TYPE_LABEL, ROLE_BAR } from '@/lib/roles';
 import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
 
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
@@ -388,35 +388,93 @@ export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadA
 
 /* ── §17 구성원 · 시간대 ─────────────────────────────────────────── */
 
-export function MembersPane({ members, tzGroups, tz }: {
-  members: Member[]; tzGroups: TzGroup[]; tz: string;
+/**
+ * 그 사람 시간대의 **지금 몇 시**.
+ *
+ * 이것만은 화면이 센다 — 서버가 준 시각은 보내는 순간 이미 지난 시각이고,
+ * 컷의 시계는 **돌아야** 한다. 시간대 이름(「서울」)은 여전히 서버 표에서 꺼낸다 (D-R18).
+ * 저장값이 표에 없는 시간대면 `Intl` 이 던진다 — 줄을 통째로 잃지 않게 막고 「—」를 적는다.
+ */
+function localHhmm(tz: string, now: number): string {
+  try {
+    return new Intl.DateTimeFormat('ko-KR', {
+      timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(now);
+  } catch {
+    return '—';
+  }
+}
+
+/** 1분마다 다시 그린다 — 컷이 분까지만 적으므로 초 단위로 깨울 이유가 없다 */
+function useMinuteTick(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+/**
+ * 원문 §17 은 **표가 아니라 묶음 목록**이다 — 묶음 머리(색 띠 · 이름 · 인원)와
+ * 줄마다 「이름 · 시간대 · **그 사람의 지금 시각**」이다. 지금까지는 네 열짜리 표였고
+ * **각자의 시각이 없었다** — 그 칸이 이 화면의 용도다(해외 강사에게 언제 연락할 수 있나).
+ *
+ * **묶음은 역할 4종이다.** 컷의 묶음은 「강사 13 · 코디네이터 4 · 상담실장 1 · …」이고
+ * **같은 사람이 두 묶음에 나온다**(Kim 은 강사이자 코디네이터다) — 즉 컷이 묶는 것은
+ * 역할이 아니라 **직함이고, 한 사람이 여럿을 가진다.** 우리 저장소는 `staff.title` 한 칸뿐이라
+ * 그 모양을 적을 수 없다. 없는 표를 지어내지 않고(D-R44 · N-25) **역할로 묶고 직함은 줄에 적는다.**
+ * 직함을 여러 개 갖는 것이 맞다면 표를 파는 일이므로 대표 결정이다 (N-41).
+ *
+ * 컷의 둘째 문장 「여기서 바꾼 시간대는 각자의 화면에만 적용됩니다」는 **적지 않는다** —
+ * 이 서랍에는 바꾸는 자리가 없고, 그 문장은 없는 단추를 있다고 말한다 (C68 에서 되돌린 것과 같은 자리).
+ */
+export function MembersPane({ groups, tzGroups, tz }: {
+  groups: MemberGroup[]; tzGroups: TzGroup[]; tz: string;
 }) {
+  const now = useMinuteTick();
+  /*
+   * 시간대는 **사람의 이름으로** 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18).
+   * 그 이름은 이미 「시간대 그룹」이 들고 있으므로 새로 짓지 않고 거기서 찾는다.
+   * 표에 없는 값은 감추지 않고 저장값 그대로 보인다 — 새 시간대가 생긴 것을 알아야 한다.
+   */
   const tzName = (value: string) => tzGroups.find((g) => g.tz === value)?.name ?? value;
-  const cols: Array<Column<Member>> = [
-    { key: 'name', head: '이름', cell: (m) => (
-      <span className={m.active ? 'font-bold text-fg' : 'text-fg-subtle line-through'}>{m.name}</span>
-    ) },
-    { key: 'title', head: '직함', cell: (m) => m.title ?? '—' },
-    { key: 'role', head: '역할', cell: (m) => (
-      // 역할을 비교하지 않는다 — 이름도 색도 표에서 꺼낸다 (D-R39)
-      <Chip tone={ROLE_TONE[m.role] ?? 'neutral'}>{ROLE_LABEL[m.role] ?? m.role}</Chip>
-    ) },
-    /*
-     * 시간대는 **사람의 이름으로** 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18).
-     * 그 이름은 이미 아래 「시간대 그룹」이 들고 있으므로 새로 짓지 않고 거기서 찾는다.
-     * 표에 없는 값은 감추지 않고 저장값 그대로 보인다 — 새 시간대가 생긴 것을 알아야 한다.
-     */
-    { key: 'tz', head: '시간대', align: 'right', cell: (m) => tzName(m.tz ?? tz) },
-  ];
+
   return (
     <>
       <Banner tone="neutral" className="mb-3">
+        관리자 화면은 <b>{tzName(tz)} 고정</b>입니다 (D-R12).
+        옆의 시각은 <b>그 사람이 있는 곳의 지금</b>입니다.
         직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다 (D-R39).
-        <b> 관리자 화면의 모든 시각은 {tzName(tz)}</b> 로 고정입니다 (D-R12).
       </Banner>
-      <Section title="구성원" count={members.length}>
-        <Table columns={cols} rows={members} rowKey={(m) => m.id} />
-      </Section>
+
+      {groups.map((g) => (
+        <section key={g.role} className="mb-3">
+          <div className="flex items-center gap-2 overflow-hidden rounded-lg border border-line bg-card">
+            {/* 색은 토큰에서 꺼낸다 — 여기서 hex 를 적지 않는다 (D-R41) */}
+            <span className={`h-8 w-1 shrink-0 rounded-r ${ROLE_BAR[g.role] ?? 'bg-line'}`} aria-hidden />
+            {/* 이름도 인원도 서버가 만든 것이다 — 화면이 다시 짓거나 세지 않는다 (D-R18 · D-R37) */}
+            <span className="py-1.5 text-[12px] font-bold text-fg">{g.label}</span>
+            <span className="text-[12px] text-fg-subtle">{g.count}</span>
+          </div>
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {g.members.map((m) => (
+              <li key={m.id} className="flex items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2">
+                <span className={`text-[12px] font-bold ${m.active ? 'text-fg' : 'text-fg-subtle line-through'}`}>
+                  {m.name}
+                </span>
+                <span className="text-[11px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
+                {/* 직함은 컷의 묶음 이름이 있던 자리다 — 묶음으로 못 옮기는 대신 줄에 남긴다 */}
+                {m.title ? <Chip size="compact" tone="neutral">{m.title}</Chip> : null}
+                <span className="ml-auto text-[12px] tabular-nums text-fg-2">{localHhmm(m.tz ?? tz, now)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      {groups.length === 0 ? <Empty>구성원이 없습니다</Empty> : null}
+
+      {/* 컷에는 없다. 다만 위의 「서울」이 무엇을 가리키는지는 여기서만 알 수 있어 남긴다 */}
       <Section title="시간대 그룹" count={tzGroups.length}>
         <Table
           columns={[

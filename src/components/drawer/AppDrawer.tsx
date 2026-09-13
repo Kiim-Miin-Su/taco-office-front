@@ -163,7 +163,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
             />
           ) : null}
           {pane === 'members' ? (
-            <MembersPane members={data.members} tzGroups={data.tzGroups} tz={data.tz} />
+            <MembersPane groups={data.memberGroups} tzGroups={data.tzGroups} tz={data.tz} />
           ) : null}
           {pane === 'kinds' ? <KindsPane kinds={data.kinds} /> : null}
           {pane === 'chreqNew' ? (

@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push: 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 
 const me: Me = {
-  id: 6, name: '이다현', role: 'teacher', title: null, canAdminPage: false, canCrudAll: false,
+  id: 6, name: '이다현', role: 'teacher', roleLabel: '강사', title: null, canAdminPage: false, canCrudAll: false,
   canSeeProfit: false, canCrudAttendance: false, canMoney: false, canWage: false,
   canApprove: false, canHide: false, canGpaPack: false,
 };

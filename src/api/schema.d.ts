@@ -1738,6 +1738,8 @@ export interface components {
             role: "teacher" | "manager" | "admin" | "ceo";
             /** @description 직함 — 권한과 무관 */
             title: string | null;
+            /** @description 역할의 이름 — 「강사」·「매니저」… 판정이 아니라 표시용이다 */
+            roleLabel: string;
             /** @description 관리자 백오피스 진입 */
             canAdminPage: boolean;
             /** @description 전 항목 CRUD */
@@ -4123,6 +4125,15 @@ export interface components {
             tz?: string | null;
             active: boolean;
         };
+        MemberGroupDto: {
+            /** @description 역할 코드값 — 색·차례를 고르는 열쇠일 뿐 판정이 아니다 */
+            role: string;
+            /** @description 묶음 머리의 이름 — 「강사」·「매니저」… */
+            label: string;
+            /** @description 인원. `members.length` 와 **같은 배열**에서 나온다 */
+            count: number;
+            members: components["schemas"]["MemberDto"][];
+        };
         TzGroupDto: {
             id: number;
             name: string;
@@ -4181,8 +4192,10 @@ export interface components {
             notiWindowDays: number;
             /** @description 창 밖에 남아 있는 알림 수 — **지운 것이 아니다** (N-7 영구 보관) */
             notiOlderCount: number;
-            /** @description §17 구성원 */
+            /** @description §17 구성원 — 묶지 않은 전체 (다른 화면이 쓴다) */
             members: components["schemas"]["MemberDto"][];
+            /** @description §17 역할 묶음 — 사람이 없는 역할은 빠진다 */
+            memberGroups: components["schemas"]["MemberGroupDto"][];
             /** @description §17 시간대 그룹 */
             tzGroups: components["schemas"]["TzGroupDto"][];
             /** @description §18 수업 종류 */

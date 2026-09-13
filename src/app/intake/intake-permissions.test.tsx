@@ -22,12 +22,12 @@ vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () =
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 
 const manager: Me = {
-  id: 2, name: '매니저', role: 'manager', title: null, canAdminPage: true, canCrudAll: true,
+  id: 2, name: '매니저', role: 'manager', roleLabel: '매니저', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: false, canCrudAttendance: true, canMoney: false, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true,
 };
 const teacher: Me = {
-  ...manager, id: 1, name: '강사', role: 'teacher', canAdminPage: false, canCrudAll: false,
+  ...manager, id: 1, name: '강사', role: 'teacher', roleLabel: '강사', canAdminPage: false, canCrudAll: false,
   canCrudAttendance: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false,
 };
 const ceo: Me = { ...manager, id: 4, name: '대표', role: 'ceo', canSeeProfit: true, canMoney: true };

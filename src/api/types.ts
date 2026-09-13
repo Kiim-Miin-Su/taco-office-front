@@ -249,6 +249,7 @@ export type ApFlow = S['ApFlowDto'];
 export type DrawerTodo = S['DrawerTodoDto'];
 export type Noti = S['NotiDto'];
 export type Member = S['MemberDto'];
+export type MemberGroup = S['MemberGroupDto'];
 export type TzGroup = S['TzGroupDto'];
 export type KindRow = S['KindRowDto'];
 export type ChangeReq = S['ChangeReqDto'];

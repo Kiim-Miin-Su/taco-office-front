@@ -25,7 +25,6 @@ export type WorkspacePanelApi = { openDrawer: (pane: DrawerPane) => void };
 type PanelSlot = ReactNode | ((api: WorkspacePanelApi) => ReactNode);
 import { Banner, Button, Dialog, Logo, cn } from '@/components/ui';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
-import { ROLE_LABEL } from '@/lib/roles';
 import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
 import styles from './AppShell.module.css';
 
@@ -118,7 +117,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">
             {isAdmin ? <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span> : null}
             <span>{me?.name}</span>
-            {me ? <span className="rounded bg-header-tool px-1.5 py-0.5 text-[10px]">{me.title || ROLE_LABEL[me.role]}</span> : null}
+            {/* 역할의 낱말도 서버가 만든다 — 화면이 제 표를 들면 서랍 §17 과 여기가 갈린다 (D-R18) */}
+            {me ? <span className="rounded bg-header-tool px-1.5 py-0.5 text-[10px]">{me.title || me.roleLabel}</span> : null}
           </summary>
           <div className="absolute right-0 top-full z-30 mt-1 min-w-28 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
             <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>

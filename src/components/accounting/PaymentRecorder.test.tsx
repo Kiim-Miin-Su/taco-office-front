@@ -12,7 +12,7 @@ import { useSession } from '@/store/useSession';
 import { PaymentRecorder } from './PaymentRecorder';
 
 const me: Me = {
-  id: 1, name: '대표', role: 'ceo', title: null, canAdminPage: true, canCrudAll: true,
+  id: 1, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true,
 };

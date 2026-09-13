@@ -11,12 +11,12 @@ import {
 } from './navigation';
 
 const ceo: Me = {
-  id: 1, name: '대표', role: 'ceo', title: null, canAdminPage: true, canCrudAll: true,
+  id: 1, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true,
 };
 const teacher: Me = {
-  ...ceo, id: 2, role: 'teacher', canAdminPage: false, canCrudAll: false,
+  ...ceo, id: 2, role: 'teacher', roleLabel: '강사', canAdminPage: false, canCrudAll: false,
   canSeeProfit: false, canCrudAttendance: false, canMoney: false, canWage: false,
   canApprove: false, canHide: false, canGpaPack: false,
 };

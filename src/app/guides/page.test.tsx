@@ -17,7 +17,7 @@ vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { child
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
 const me: Me = {
-  id: 4, name: '대표', role: 'ceo', title: null, canAdminPage: true, canCrudAll: true,
+  id: 4, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true,
 };
