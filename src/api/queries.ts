@@ -20,7 +20,8 @@ import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
-  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
+  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList,
+  TeacherDiagCreate, TeacherGuideDiag, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
@@ -481,6 +482,20 @@ export function useTeacherGuides(week?: string): UseQueryResult<TeacherGuides> {
     queryKey: sessionQueryKey(qk.teacherGuides(week), viewerId),
     queryFn: async () => (await api.get<TeacherGuides>('/teacher/guides', { params: week ? { week } : {} })).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * 진단 리포트 쓰기 — 강사만 (강사 원문 슬라이드 20 · 47).
+ *
+ * 쓰고 나면 수업 안내 갈래를 통째로 버린다 — 「아직 진단 기록이 없습니다」가 그 자리에서
+ * 새 기록으로 바뀌어야 하고, 주를 바꿔 가며 본 캐시도 같이 낡는다.
+ */
+export function useCreateDiagnostic(): UseMutationResult<TeacherGuideDiag, unknown, TeacherDiagCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<TeacherGuideDiag>('/teacher/diagnostics', body)).data,
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.teacherGuides }); },
   });
 }
 

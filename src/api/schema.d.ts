@@ -1177,6 +1177,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 진단 리포트 작성 — 강사만 (강사 원문 슬라이드 20 · 47)
+         * @description 원문 권한 표가 「진단 리포트 작성 — 강사 **가능** · 나머지 **조회**」라 적는다. 역할만으로는 남의 학생 진단을 쓸 수 있어, 서버가 **그 학생이 정말 내 학생인지** 다시 본다 (수업 안내와 같은 담당 판정을 쓴다 — 두 곳이 따로 판정하면 「안내에는 보이는데 진단은 못 쓰는 학생」이 생긴다). 고치는 자리는 없다 — 진단은 그때의 판단이라 쌓고, 읽기는 늘 최신 한 건이다.
+         */
+        post: operations["TeacherController_createDiagnostic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teacher/unavailable": {
         parameters: {
             query?: never;
@@ -3298,6 +3318,8 @@ export interface components {
             settlement: components["schemas"]["TeacherSettlementDto"];
         };
         TeacherGuideLessonDto: {
+            /** @description 이 회차의 시리즈 id */
+            serId: number;
             /** @description YYYY-MM-DD (KST) */
             onDate: string;
             startMin: number;
@@ -3324,6 +3346,10 @@ export interface components {
             levelSummary: string;
             strengths?: string | null;
             weaknesses?: string | null;
+            /** @description 권장 커리큘럼 — 원문 04 진단 리포트의 둘째 줄 */
+            curriculum?: string | null;
+            /** @description 쓴 사람 — 조회하는 쪽이 누구 글인지 알아야 한다 */
+            byName?: string | null;
         };
         TeacherGuideStudentDto: {
             studentId: number;
@@ -3395,6 +3421,20 @@ export interface components {
             category: "lesson" | "pay" | "schedule" | "etc";
             /** @description 건의 내용 — 1~2000자 */
             body: string;
+        };
+        TeacherDiagCreateDto: {
+            /** @description 누구의 진단인가 — 서버가 내 담당 학생인지 다시 본다 */
+            studentId: number;
+            /** @description 현재 수준 — 원문 「현재 수준 · 강점과 약점」의 첫 줄 */
+            levelSummary: string;
+            /** @description 강점 */
+            strengths?: string;
+            /** @description 약점 */
+            weaknesses?: string;
+            /** @description 권장 커리큘럼 — 원문 04 의 둘째 줄 */
+            curriculum?: string;
+            /** @description 어느 회차에서 봤는가 — 안 주면 null */
+            serId?: number | null;
         };
         TeacherUnavCycleDto: {
             /** @description 입사일 기준 N번째 2주 (1부터) — 표시/묶음용 (§4-17) */
@@ -9112,6 +9152,77 @@ export interface operations {
                 };
             };
             /** @description 이달 한도 소진 — code SUGGESTION_QUOTA_EXCEEDED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_createDiagnostic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherDiagCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherGuideDiagDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 내 담당 학생·내 수업이 아니다 — 남의 학생인지 없는 학생인지 구분해 주지 않는다 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code EMPTY_BODY — 현재 수준이 비었다 */
             409: {
                 headers: {
                     [name: string]: unknown;

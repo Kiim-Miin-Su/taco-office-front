@@ -30,6 +30,10 @@ export type TeacherUnav = S['TeacherUnavDto'];
 export type TeacherUnavBlock = S['TeacherUnavBlockDto'];
 export type TeacherUnavCreate = S['TeacherUnavCreateDto'];
 export type TeacherGuideStudent = S['TeacherGuideStudentDto'];
+
+/* 진단 리포트 (C61) — 강사 원문 슬라이드 20 「04 진단 리포트」. 쓰는 사람은 강사뿐이다(슬라이드 47) */
+export type TeacherGuideDiag = S['TeacherGuideDiagDto'];
+export type TeacherDiagCreate = S['TeacherDiagCreateDto'];
 export type TeacherSuggestions = S['TeacherSuggestionsDto'];
 export type TeacherSuggestion = S['TeacherSuggestionDto'];
 export type TeacherSuggestionCreate = S['TeacherSuggestionCreateDto'];

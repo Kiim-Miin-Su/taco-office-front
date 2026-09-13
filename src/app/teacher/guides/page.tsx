@@ -18,6 +18,7 @@ import { Button, Chip, PageHeader, Panel, QueryState } from '@/components/ui';
 import { useTeacherGuides } from '@/api/queries';
 import type { TeacherGuideStudent } from '@/api/types';
 import { hm, md } from '@/components/teacher/format';
+import { DiagnosticForm } from '@/components/teacher/DiagnosticForm';
 
 const addDays = (iso: string, n: number): string => {
   const d = new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000);
@@ -83,6 +84,8 @@ function BookCard({ code, title, seTe, issuedOn, returnedOn }: {
 export default function TeacherGuidesPage() {
   const [week, setWeek] = useState<string | undefined>(undefined);
   const [pickedId, setPickedId] = useState<number | null>(null);
+  /** 진단을 쓰고 있는 학생 — 한 번에 한 명 (화면이 두 폼을 들고 있으면 어느 쪽을 저장했는지 흐려진다) */
+  const [writing, setWriting] = useState<number | null>(null);
   const q = useTeacherGuides(week);
   return (
     <RequireAuth>
@@ -156,19 +159,43 @@ export default function TeacherGuidesPage() {
                         <p className="mt-3 text-[11px] text-fg-subtle">교재 변경 요청·받기는 정책 확정 전이라 표시만 합니다.</p>
                       </Panel>
 
-                      <Panel className="mt-4" title="진단 요약" sub={picked.diag?.onDate ? `${picked.diag.onDate} 기록` : '최근 진단 기록'}>
-                        {picked.diag ? (
+                      <Panel
+                        className="mt-4"
+                        title="진단 요약"
+                        sub={picked.diag?.onDate ? `${picked.diag.onDate} 기록${picked.diag.byName ? ` · ${picked.diag.byName}` : ''}` : '최근 진단 기록'}
+                        right={
+                          writing === picked.studentId
+                            ? null
+                            : (
+                              <Button size="sm" variant="primary" onClick={() => setWriting(picked.studentId)}>
+                                {picked.diag ? '다시 진단' : '진단 쓰기'}
+                              </Button>
+                            )
+                        }
+                      >
+                        {writing === picked.studentId ? (
+                          <DiagnosticForm
+                            studentId={picked.studentId}
+                            studentName={picked.name}
+                            serId={picked.lessons[0]?.serId ?? null}
+                            onDone={() => setWriting(null)}
+                            onCancel={() => setWriting(null)}
+                          />
+                        ) : picked.diag ? (
                           <dl className="flex flex-col gap-2 text-[13px]">
                             <div><dt className="font-bold text-fg">수준</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.levelSummary}</dd></div>
                             {picked.diag.strengths ? <div><dt className="font-bold text-green">잘하는 것</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.strengths}</dd></div> : null}
                             {picked.diag.weaknesses ? <div><dt className="font-bold text-red">보완할 것</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.weaknesses}</dd></div> : null}
+                            {picked.diag.curriculum ? <div><dt className="font-bold text-fg">권장 커리큘럼</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.curriculum}</dd></div> : null}
                           </dl>
                         ) : (
                           <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">아직 진단 기록이 없습니다.</p>
                         )}
-                        <p className="mt-3 border-t border-line pt-2 text-[11px] text-fg-subtle">
-                          영역별 스타일 평가는 저장처 확정 전이라 싣지 않습니다 — 진단 기록 원문을 그대로 보여 줍니다.
-                        </p>
+                        {writing === picked.studentId ? null : (
+                          <p className="mt-3 border-t border-line pt-2 text-[11px] text-fg-subtle">
+                            영역별 스타일 평가는 저장처 확정 전이라 싣지 않습니다 — 진단 기록 원문을 그대로 보여 줍니다.
+                          </p>
+                        )}
                       </Panel>
                     </div>
                   ) : null}
