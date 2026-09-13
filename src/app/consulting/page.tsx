@@ -12,12 +12,13 @@
 import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
+import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, TabCards, Table } from '@/components/ui';
 import { ConsultingStageBoard } from '@/components/consulting/ConsultingStageBoard';
 import { ConsultingStageFilters } from '@/components/consulting/ConsultingStageFilters';
-import { useConsulting, useToggleConsultingItem } from '@/api/queries';
+import { useConsulting, useConsAccounting, useToggleConsultingItem } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { ConsultingProgress } from '@/components/consulting/ConsultingProgress';
+import { ConsultingAccounting } from '@/components/consulting/ConsultingAccounting';
 import type { Consulting } from '@/api/types';
 import {
   CONSULTING_CONTRACT_STEPS,
@@ -29,18 +30,25 @@ import {
   type ConsultingStageFilterValue,
 } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
-type View = 'board' | 'list';
+
+/** 원문 §26~§28 탭 머리 — 보기 하나가 탭 하나다 */
+type View = 'board' | 'list' | 'money';
 
 export default function ConsultingPage() {
   const q = useConsulting();
   const toggle = useToggleConsultingItem();
   const d = q.data;
   const [view, setView] = useState<View>('board');
+  /**
+   * §28 은 다른 질의다. **탭을 안 열어도 부른다** — 원문 컷의 탭 머리가 어느 보기에서든
+   * 「회계 · ₩1,300,000 남음」을 이미 달고 있기 때문이다. 그 한 줄이 이 질의의 값이다.
+   */
+  const money = useConsAccounting();
   const [openId, setOpenId] = useState<number | null>(null);
   const [stage, setStage] = useState<ConsultingStageFilterValue>('all');
   const stageView = consultingStageView(q.isError ? [] : d?.items ?? [], stage);
 
-  const open = q.isError ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
+  const open = q.isError || view === 'money' ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
 
   const cols: Array<Column<Consulting>> = [
     { key: 't', head: '종류', width: 80, cell: (r) => <Chip tone="purple">{consultingTypeLabel(r.consType)}</Chip> },
@@ -90,13 +98,22 @@ export default function ConsultingPage() {
           sub="계약 → 진행 → 종료. 계약 단계는 5칸, 진행은 기록 회차와 진행 항목으로 표시합니다."
         />
 
-        <Tabs className="mb-3" value={view} onChange={setView} options={[
-          { value: 'board', label: '단계 보드' },
-          { value: 'list', label: '목록' },
-        ]} />
+        <TabCards
+          className="mb-3" label="컨설팅 보기" value={view} onChange={setView}
+          options={[
+            { value: 'board', label: '단계 보드', sub: `${stageView.counts.all}건`, badge: stageView.counts.running },
+            { value: 'list', label: '목록', sub: `${stageView.counts.done}건 끝남` },
+            // 「남음」은 §28 을 열어 본 뒤에만 안다 — 서버가 센 값이 없으면 자리를 비운다 (D-R37)
+            { value: 'money', label: '회계', sub: money.data ? `${won(money.data.totalDue)} 남음` : undefined },
+          ]}
+        />
 
         {q.isError ? (
           <Banner tone="danger">{apiMessage(q.error)}</Banner>
+        ) : view === 'money' ? (
+          money.isError
+            ? <Banner tone="danger">{apiMessage(money.error)}</Banner>
+            : <ConsultingAccounting data={money.data} loading={money.isLoading} />
         ) : view === 'board' ? (
           <>
             <ConsultingStageFilters value={stage} counts={stageView.counts} onChange={(next) => { setStage(next); setOpenId(null); }} />

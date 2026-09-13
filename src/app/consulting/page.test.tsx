@@ -12,9 +12,14 @@ import type { Consulting } from '@/api/types';
 import ConsultingPage from './page';
 
 const query = vi.hoisted(() => ({ data: undefined as unknown, isError: false, isLoading: false, error: null as unknown }));
+const empty = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null };
 vi.mock('@/api/queries', () => ({
   useConsulting: () => query,
-  useToggleConsultingItem: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+  // §28 은 그 탭을 열 때만 도는 다른 질의다 — 이 시험은 §26 쪽만 본다
+  useConsAccounting: () => ({ data: undefined, isError: false, isLoading: false, error: null }),
+  useToggleConsultingItem: () => empty,
+  useAddConsPayment: () => empty,
+  useConsToInvoice: () => empty,
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));

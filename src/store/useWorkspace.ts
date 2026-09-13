@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: useWorkspace.ts — useWorkspace (store)
- * 책임/재사용: 워크스페이스 셸의 양쪽 접힘 상태 한 곳만 소유한다. 서버 업무 판정을 복제하지 않는다.
+ * 목적: useWorkspace.ts — useWorkspace (auth)
+ * 책임/재사용: 공용 인증/권한 경계만 소유한다. 토큰·쿠키 원문을 노출하지 않고 만료/익명/권한 회수 경계를 회귀로 검증한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 

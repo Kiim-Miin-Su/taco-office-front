@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: client.ts — ApiError, api, apiMessage, isConflict, setAccessToken (client)
+ * 목적: client.ts — ApiError, api, apiMessage, isConflict, getSessionGeneration 등 (client)
  * 책임/재사용: 공용 Axios 헤더·오류·401 재발급 경계다. 토큰을 로그/영속 저장하지 않고 JWT/권한의 최종 검증은 서버에 위임한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */

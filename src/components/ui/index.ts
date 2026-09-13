@@ -17,5 +17,6 @@ export { QueryState } from './QueryState';
 export { Panel, LevelBar } from './Panel';
 export { Board, type BoardColumn } from './Board';
 export { Segmented, Tabs } from './Segmented';
+export { TabCards, type TabCardOption } from './TabCards';
 export { Label, FieldError, Input, Select, Textarea, Checkbox, CountedTextarea } from './Field';
 export { Drawer, Dialog, RecurrenceScope, ConflictGuard, Toast, type Scope } from './Overlay';

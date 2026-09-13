@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: queries.ts — qk, sessionQueryKey, opsQueryKey, RangeParams, BoardParams 등 (query)
+ * 목적: queries.ts — qk, sessionQueryKey, family, opsQueryKey, RangeParams 등 (query)
  * 책임/재사용: qk/sessionQueryKey와 공용 api를 재사용한다. 서버 상태 복제 금지; 가역 mutation은 cancel/snapshot/patch/rollback/reconcile을 함께 검증한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -19,7 +19,8 @@ import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
-  Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
+  Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
+  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
@@ -48,6 +49,8 @@ export const qk = {
   accounting: ['accounting'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
+  /** §28 회계 — 같은 탭의 다른 질의다. 갈래 앞자락은 `family.consulting` (C58) */
+  consAccounting: ['consulting', 'accounting'] as const,
   books: ['books'] as const,
   bookHistory: ['books', 'history'] as const,
   guides: ['guides'] as const,
@@ -112,6 +115,7 @@ export const family = {
   zoom: ['zoom'] as const,
   guides: ['guides'] as const,
   books: ['books'] as const,
+  consulting: ['consulting'] as const,
   tracking: ['schedule', 'tracking'] as const,
 };
 
@@ -818,6 +822,47 @@ export function useToggleConsultingItem(): UseMutationResult<ConsItem, unknown, 
     mutationFn: async ({ consId, itemId, done }) =>
       (await api.patch<ConsItem>(`/consulting/${consId}/items/${itemId}`, { done })).data,
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.consulting, viewerId) }),
+  });
+}
+
+
+/* ══ §28 컨설팅 회계 (C58) ═════════════════════════════════════════════
+ * 「남음」도 머리 세 칸도 서버가 뺀 숫자를 그대로 그린다. 화면이 계약 − 받음을 다시 하면
+ * 금액이 가려진 줄에서 합계가 갈린다 (D-R37).
+ * ═══════════════════════════════════════════════════════════════════ */
+
+export function useConsAccounting(enabled = true): UseQueryResult<ConsAccounting> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.consAccounting, viewerId),
+    queryFn: async () => (await api.get<ConsAccounting>('/consulting/accounting')).data,
+    enabled,
+  });
+}
+
+/** 컨설팅 탭 전체를 버린다 — 납부 한 줄이 단계 보드의 계약 단계까지 흔들 수 있다 */
+function useConsultingFamilyInvalidate(): () => void {
+  const qc = useQueryClient();
+  return () => { void qc.invalidateQueries({ queryKey: family.consulting }); };
+}
+
+/** 납부 넣기 — §28 동작 ①. 돌려받은 줄 하나로 화면을 고쳐 그린다. */
+export function useAddConsPayment(): UseMutationResult<ConsAccountRow, unknown, { consId: number } & ConsPaymentCreate> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, ...body }) =>
+      (await api.post<ConsAccountRow>(`/consulting/${consId}/payments`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 청구서로 전환 — §28 동작 ②. 청구서가 생기므로 회계 탭(§53)도 함께 버린다. */
+export function useConsToInvoice(): UseMutationResult<ConsAccountRow, unknown, { consId: number }> {
+  const qc = useQueryClient();
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId }) => (await api.post<ConsAccountRow>(`/consulting/${consId}/invoice`, {})).data,
+    onSettled: () => { invalidate(); void qc.invalidateQueries({ queryKey: family.accounting }); },
   });
 }
 

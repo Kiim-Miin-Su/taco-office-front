@@ -859,6 +859,66 @@ export interface paths {
         patch: operations["ConsultingController_toggleItem"];
         trace?: never;
     };
+    "/consulting/accounting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 컨설팅 회계 — 계약 금액 · 받은 돈 · 남은 돈 (§28)
+         * @description 머리 세 칸과 줄의 「남음」을 **서버가 뺀다** (D-R37). 화면이 계약 − 받음을 다시 하면 가려진 줄에서 합계가 갈린다. 원문 규칙 「수납만 공개(vis='pay')여도 이 화면의 금액은 보입니다」는 새 판정이 아니라 csCanAmount 그대로다.
+         */
+        get: operations["ConsultingController_accounting"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consulting/{id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 납부 넣기 — §28 동작 ①
+         * @description cons_pay 원장에 한 줄 더한다. 받은 합은 저장하지 않는다 — 읽을 때 원장을 더한다 (D-R37).
+         */
+        post: operations["ConsultingController_addPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consulting/{id}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 청구서로 전환 — §28 동작 ② · 연동 「INV 에 csid 로 연결」
+         * @description **남은 돈으로** 청구서를 낸다. 계약 전액으로 내면 이미 받은 돈이 §53 미수금에 한 번 더 얹힌다. 전환 뒤에도 납부 기록은 cons_pay 에 그대로 남는다 — cs_id 는 연결이지 소유가 아니다.
+         */
+        post: operations["ConsultingController_toInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/board": {
         parameters: {
             query?: never;
@@ -2730,6 +2790,55 @@ export interface components {
         ConsItemToggleDto: {
             /** @description true = 완료 처리(처리자·시각 서버 기록) · false = 해제 */
             done: boolean;
+        };
+        ConsPaymentDto: {
+            id: number;
+            amount: number;
+            /** @example 2026-07-12 */
+            paidOn: string;
+            memo?: string | null;
+            byName?: string | null;
+        };
+        ConsAccountRowDto: {
+            id: number;
+            /** @description 학생 — 여럿이면 쉼표로 잇는다 */
+            studentName: string;
+            /** @description 종류 코드 */
+            consType: string;
+            /** @enum {string} */
+            stage: "contract" | "running" | "done";
+            /** @description 단계 이름 — 낱말은 서버가 만든다 (D-R18) */
+            stageLabel: string;
+            /** @description 계약 금액 — 못 보면 null */
+            amount?: number | null;
+            /** @description 받은 돈 — 납부 기록의 합 */
+            paid?: number | null;
+            /** @description 남은 돈 — 서버가 뺀다 */
+            due?: number | null;
+            /** @description 납부 기록 — 청구서로 전환해도 그대로 남는다 */
+            payments: components["schemas"]["ConsPaymentDto"][];
+            /** @description 전환된 청구서 — 없으면 null */
+            invId?: number | null;
+            /** @description 청구서로 전환할 수 있는가 — 이미 살아 있는 청구서가 있으면 false */
+            canInvoice: boolean;
+        };
+        ConsAccountingDto: {
+            items: components["schemas"]["ConsAccountRowDto"][];
+            /** @description 계약 금액 합계 — 못 보면 null */
+            totalAmount?: number | null;
+            /** @description 받은 돈 합계 */
+            totalPaid?: number | null;
+            /** @description 남은 돈 합계 */
+            totalDue?: number | null;
+            /** @description 금액을 볼 수 있는가 — 공개 범위와 D-R39 두 층을 모두 통과해야 한다 */
+            canSeeAmounts: boolean;
+        };
+        ConsPaymentCreateDto: {
+            /** @description 받은 금액 — 0 원은 기록이 아니라 실수다 */
+            amount: number;
+            /** @example 2026-07-12 */
+            paidOn: string;
+            memo?: string;
         };
         CheckMarkDto: {
             /** @enum {string} */
@@ -7540,6 +7649,222 @@ export interface operations {
                 content?: never;
             };
             /** @description code ITEM_LOCKED — 종료된 건 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_accounting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsAccountingDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_addPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsPaymentCreateDto"];
+            };
+        };
+        responses: {
+            /** @description 바뀐 줄 하나 — 화면이 숫자를 다시 만들지 않게 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsAccountRowDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 금액이 공개 범위 밖 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 보이지 않는 건 — 존재를 누출하지 않는다 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CONS_PAY_LOCKED — 종료된 건 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_toInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsAccountRowDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 금액이 공개 범위 밖 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 보이지 않는 건 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CONS_INV_EXISTS · CONS_INV_NOT_PAID_STEP · CONS_INV_NOTHING_DUE · CONS_INV_STUDENT_AMBIGUOUS */
             409: {
                 headers: {
                     [name: string]: unknown;

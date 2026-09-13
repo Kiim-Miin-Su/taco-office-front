@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: types.ts — OkResult, ApiErrorResponse, Me, Meta, Kind 등 (contract)
+ * 목적: types.ts — OkResult, ApiErrorResponse, Me, TeacherHome, TeacherHistory 등 (contract)
  * 책임/재사용: backend DTO/OpenAPI에서 생성한 타입만 별칭으로 소비한다. 응답 타입을 손으로 복제하지 않고 요청/응답/오류를 생성 계약과 대조한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -145,6 +145,12 @@ export type RosterOp = RosterPatch['op'];
 export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];
 export type ConsItem = S['ConsItemDto'];
+
+/* §28 컨설팅 회계 (C58) — 「남음」과 머리 세 칸은 서버가 만든 숫자다. 화면은 그리기만 한다 (D-R37) */
+export type ConsAccounting = S['ConsAccountingDto'];
+export type ConsAccountRow = S['ConsAccountRowDto'];
+export type ConsPayment = S['ConsPaymentDto'];
+export type ConsPaymentCreate = S['ConsPaymentCreateDto'];
 export type GpaBoard = S['GpaBoardDto'];
 
 /* ══ 줌 계정 관리 — §21 서랍의 「줌 계정 관리」가 가는 자리 (대표 결정 2026-09-12 신설) ══ */

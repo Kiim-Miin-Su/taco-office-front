@@ -19,7 +19,11 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 describe('실제 useConsulting 연결', () => {
   it('네 필터 왕복이 기존 사용자별 캐시 하나를 소비하고 GET을 추가하지 않는다', async () => {
     const row: Consulting = { id: 1, stage: 'contract', consType: 'future_type', studentNames: ['필터 학생'], createdAt: '2026-09-11', share: 'all', canOpen: true, sessionsLog: [], items: [] };
-    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [row], canSeeAmounts: false } });
+    const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) => (
+      url === '/consulting/accounting'
+        ? { data: { items: [], totalAmount: 0, totalPaid: 0, totalDue: 0, canSeeAmounts: false } }
+        : { data: { items: [row], canSeeAmounts: false } }
+    ) as never);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(<QueryClientProvider client={client}><ConsultingPage /></QueryClientProvider>);
     try {
@@ -28,9 +32,11 @@ describe('실제 useConsulting 연결', () => {
         await act(async () => { fireEvent.click(view.getByRole('button', { name })); });
         expect(view.getByRole('button', { name, pressed: true })).toBeTruthy();
       }
-      expect(get).toHaveBeenCalledTimes(1);
-      expect(get).toHaveBeenCalledWith('/consulting');
-      expect(client.getQueryCache().getAll()).toHaveLength(1);
+      // 화면이 부르는 GET 은 화면 수만큼이다 — §26 목록 하나, §28 회계 하나 (C58).
+      // 지켜야 할 것은 **필터를 눌러도 그 수가 안 는다**는 것이다.
+      const urls = get.mock.calls.map(([u]) => u).sort();
+      expect(urls).toEqual(['/consulting', '/consulting/accounting']);
+      expect(client.getQueryCache().getAll()).toHaveLength(2);
       expect(view.getByRole('button', { name: '필터 학생 컨설팅 상세' })).toBeTruthy();
     } finally { view.unmount(); client.clear(); get.mockRestore(); }
   });
