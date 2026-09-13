@@ -6,13 +6,13 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Noti } from '@/api/types';
+import { addDays, todayKst } from '@/lib/calendar';
 import { NotisPane } from './panes';
 
 afterEach(cleanup);
 
-const iso = (d: Date) => d.toISOString().slice(0, 19);
-const today = iso(new Date());
-const yesterday = iso(new Date(Date.now() - 86400000));
+const today = `${todayKst()}T12:00:00+09:00`;
+const yesterday = `${addDays(todayKst(), -1)}T12:00:00+09:00`;
 
 const ME = 1;
 const notis: Noti[] = [
@@ -23,7 +23,16 @@ const notis: Noti[] = [
 
 function setup(over: Partial<Parameters<typeof NotisPane>[0]> = {}) {
   const props: Parameters<typeof NotisPane>[0] = {
-    notis, meId: ME, windowDays: 30, olderCount: 4, busy: false,
+    notis,
+    categories: [
+      { key: 'report_due', label: '작성 독촉', count: 2 },
+      { key: 're_alarm', label: '재알람', count: 0 },
+      { key: 'report', label: '리포트', count: 1 },
+      { key: 'schedule', label: '일정 변경', count: 0 },
+      { key: 'request', label: '요청 처리', count: 0 },
+      { key: 'etc', label: '알림', count: 0 },
+    ],
+    meId: ME, windowDays: 30, olderCount: 4, busy: false,
     onRead: vi.fn(), onReadAll: vi.fn(), onWiden: vi.fn(), widened: false,
     ...over,
   };

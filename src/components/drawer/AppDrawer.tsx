@@ -93,7 +93,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
     }
   }
 
-  const count = data?.approvals.count ?? 0;
+  const count = data?.approvals.inboxCount ?? 0;
   const unread = data?.notis.filter((n) => !n.read).length ?? 0;
   // 시간대는 사람의 이름으로 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18)
   const tzName = data ? (data.tzGroups.find((g) => g.tz === data.tz)?.name ?? data.tz) : '';
@@ -146,14 +146,17 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
           ) : null}
           {pane === 'todos' ? (
             <TodosPane
-              todos={data.todos} meId={meId} box={box} onBox={setBox}
+              todos={data.todos} members={data.members} meId={meId} box={box} onBox={setBox}
               busy={write.isPending}
               onToggle={(id, done) => write.mutate({ kind: 'todo', id, done })}
+              onCreate={(body) => write.mutate({ kind: 'todoCreate', body })}
+              onClear={() => write.mutate({ kind: 'todoClear' })}
             />
           ) : null}
           {pane === 'notis' ? (
             <NotisPane
               notis={data.notis} meId={meId} busy={write.isPending}
+              categories={data.notiCategories}
               windowDays={data.notiWindowDays}
               olderCount={data.notiOlderCount}
               widened={notiWindow === 'all'}

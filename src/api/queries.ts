@@ -25,7 +25,8 @@ import type {
   TeacherDiagCreate, TeacherGuideDiag, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
-  ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
+  ChangeReqCreate, ChangeReqResult, Drawer, DrawerTodoClearResult, DrawerTodoCreate,
+  DrawerTodoCreateResult, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
   ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
   ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
   TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
@@ -814,20 +815,30 @@ export function useDrawer(enabled = true, notiWindow: 'month' | 'all' = 'month')
  */
 export type DrawerWrite =
   | { kind: 'todo'; id: number; done: boolean }
+  | { kind: 'todoCreate'; body: DrawerTodoCreate }
+  | { kind: 'todoClear' }
   | { kind: 'notiRead'; id: number }
   | { kind: 'notiReadAll' }
   | { kind: 'reqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
   | { kind: 'chreqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
-export function useDrawerWrite(): UseMutationResult<
-  OkResult | ChangeReqResult | ReqReviewResult, unknown, DrawerWrite
-> {
+type DrawerWriteResult = OkResult | DrawerTodoCreateResult | DrawerTodoClearResult | ChangeReqResult | ReqReviewResult;
+type DrawerWriteContext = { snapshots: Array<[readonly unknown[], Drawer | undefined]> };
+
+export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, DrawerWrite, DrawerWriteContext> {
   const qc = useQueryClient();
+  const me = useSession((s) => s.me);
   return useMutation({
     mutationFn: async (w: DrawerWrite) => {
       if (w.kind === 'todo') {
         return (await api.patch<OkResult>(`/drawer/todos/${w.id}`, { done: w.done })).data;
+      }
+      if (w.kind === 'todoCreate') {
+        return (await api.post<DrawerTodoCreateResult>('/drawer/todos', w.body)).data;
+      }
+      if (w.kind === 'todoClear') {
+        return (await api.delete<DrawerTodoClearResult>('/drawer/todos/completed')).data;
       }
       if (w.kind === 'notiRead') {
         return (await api.patch<OkResult>(`/drawer/notis/${w.id}/read`)).data;
@@ -847,11 +858,48 @@ export function useDrawerWrite(): UseMutationResult<
       }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
+    onMutate: async (w) => {
+      if (!['todo', 'todoCreate', 'todoClear', 'notiRead', 'notiReadAll'].includes(w.kind)) {
+        return { snapshots: [] };
+      }
+      // 가역 UI만 먼저 바꾼다. 실패 시 아래 snapshot으로 정확히 되돌린다.
+      await qc.cancelQueries({ queryKey: family.drawer });
+      const snapshots = qc.getQueriesData<Drawer>({ queryKey: family.drawer });
+      for (const [key, current] of snapshots) {
+        if (!current) continue;
+        let next = current;
+        if (w.kind === 'todo') {
+          next = { ...current, todos: current.todos.map((t) => t.id === w.id ? { ...t, done: w.done } : t) };
+        } else if (w.kind === 'todoClear') {
+          next = { ...current, todos: current.todos.filter((t) => !t.done) };
+        } else if (w.kind === 'todoCreate') {
+          const toId = w.body.toId ?? me?.id ?? null;
+          const toName = current.members.find((member) => member.id === toId)?.name ?? null;
+          next = {
+            ...current,
+            todos: [{
+              id: -Date.now(), title: w.body.title, fromId: me?.id ?? null, fromName: me?.name ?? null,
+              toId, toName, dueOn: w.body.dueOn ?? null, done: false, src: 'manual', srcLabel: '직접 등록',
+              overdueDays: 0, go: null,
+            }, ...current.todos],
+          };
+        } else if (w.kind === 'notiRead') {
+          next = { ...current, notis: current.notis.map((n) => n.id === w.id ? { ...n, read: true } : n) };
+        } else if (w.kind === 'notiReadAll') {
+          next = { ...current, notis: current.notis.map((n) => n.toId === me?.id ? { ...n, read: true } : n) };
+        }
+        qc.setQueryData(key, next);
+      }
+      return { snapshots };
+    },
+    onError: (_error, _w, context) => {
+      context?.snapshots.forEach(([key, value]) => qc.setQueryData(key, value));
+    },
     onSuccess: (_r, w) => {
-      // 창(month/all)마다 키가 다르므로 서랍 전체를 무효화한다
-      void qc.invalidateQueries({ queryKey: family.drawer });
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
-      if (w.kind === 'todo') void qc.invalidateQueries({ queryKey: family.ops });
+      if (w.kind === 'todo' || w.kind === 'todoCreate' || w.kind === 'todoClear') {
+        void qc.invalidateQueries({ queryKey: family.ops });
+      }
       // 승인은 **실제로 적용된다** — 강사 홈의 시급·시간대가 바뀌었으므로 함께 다시 읽는다
       if (w.kind === 'reqReview') void qc.invalidateQueries({ queryKey: family.teacherHome });
       // 반영하면 **시간표가 바뀐다** — 달력·현황판·강사 홈을 함께 다시 읽는다 (§20)
@@ -862,6 +910,8 @@ export function useDrawerWrite(): UseMutationResult<
         void qc.invalidateQueries({ queryKey: family.teacherHome });
       }
     },
+    // 창(month/all)마다 키가 다르므로 성공·실패 모두 서버 값으로 화해한다.
+    onSettled: () => qc.invalidateQueries({ queryKey: family.drawer }),
   });
 }
 

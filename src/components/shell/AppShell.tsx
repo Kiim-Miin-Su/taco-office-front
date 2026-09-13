@@ -18,7 +18,7 @@ import { useSession } from '@/store/useSession';
 import { api } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
 import { useDrawer, useUnwritten } from '@/api/queries';
-import { AppDrawer, DrawerButton, type DrawerPane } from '@/components/drawer/AppDrawer';
+import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
 
 /** 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다. */
 export type WorkspacePanelApi = { openDrawer: (pane: DrawerPane) => void };
@@ -43,8 +43,10 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const queryClient = useQueryClient();
   const me = useSession((s) => s.me);
   const signOut = useSession((s) => s.signOut);
-  const drawerData = useDrawer(Boolean(me)).data;
-  const unwritten = useUnwritten().data;
+  const isAdmin = Boolean(me?.canAdminPage);
+  // 강사는 관리자 서랍의 존재와 배지 숫자도 받지 않는다 — 숨김이 아니라 조회부터 끈다 (D-R39).
+  const drawerData = useDrawer(isAdmin).data;
+  const unwritten = useUnwritten(undefined, isAdmin).data;
   // 서랍은 **전역**이다 — 탭마다 따로 두면 탭을 옮길 때 닫힌다
   const [drawer, setDrawer] = useState(false);
   const [drawerPane, setDrawerPane] = useState<DrawerPane>('approvals');
@@ -53,7 +55,6 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [design, setDesign] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
-  const isAdmin = Boolean(me?.canAdminPage);
   const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
   const side = typeof sidePanel === 'function' ? sidePanel({ openDrawer }) : sidePanel;
   const right = typeof rightPanel === 'function' ? rightPanel({ openDrawer }) : rightPanel;
@@ -75,8 +76,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
     }
   }
 
-  const approvalCount = drawerData?.approvals.count ?? 0;
-  const unreadCount = drawerData?.notis.filter((n) => !n.read).length ?? 0;
+  const approvalCount = drawerData?.approvals.inboxCount ?? 0;
   const badges: AdminNavBadges = {
     reports: unwritten?.total ?? 0,
     approvals: approvalCount,
@@ -112,7 +112,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         {isAdmin ? <button type="button" onClick={() => { setDrawerPane('approvals'); setDrawer(true); }}
           className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-amber">
           <Inbox size={14} aria-hidden />승인 대기 <span className="rounded bg-amber/20 px-1.5">{approvalCount}</span>
-        </button> : <DrawerButton onOpen={() => setDrawer(true)} count={approvalCount} unread={unreadCount} />}
+        </button> : null}
         <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">
             {isAdmin ? <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span> : null}
@@ -128,10 +128,10 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
           <Palette size={14} aria-hidden /><span className="hidden xl:inline">디자인</span>
         </button> : null}
-        <button type="button" onClick={() => setPermissions(true)}
+        {isAdmin ? <button type="button" onClick={() => setPermissions(true)}
           className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
           <ShieldCheck size={14} aria-hidden />권한
-        </button>
+        </button> : null}
         {isAdmin && rightTool ? <div className="ml-1 flex shrink-0 items-center">{rightTool}</div> : null}
       </header>
       <div className={styles.workspace}>
@@ -142,9 +142,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         </main>
         {isAdmin && right ? <div className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
       </div>
-      <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} />
+      {isAdmin ? <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} /> : null}
       <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
-      <Dialog open={permissions} onClose={() => setPermissions(false)} title="권한" width={800}
+      <Dialog open={isAdmin && permissions} onClose={() => setPermissions(false)} title="권한" width={800}
         footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>
         <div className="max-h-[70dvh] overflow-y-auto"><PermissionMatrix me={me} /></div>
       </Dialog>

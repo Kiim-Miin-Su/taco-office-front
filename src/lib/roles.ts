@@ -14,7 +14,7 @@
 export const ROLES = [
   { key: 'teacher', label: '강사', desc: '수업과 자기 리포트만' },
   { key: 'manager', label: '매니저', desc: '관리 화면 전부 · 돈 숫자만 잠김' },
-  { key: 'admin', label: '관리자', desc: '매니저와 같음 · 계정 관리 추가' },
+  { key: 'admin', label: '관리자', desc: '현재 매니저와 동일 · 추후 분리 예정' },
   { key: 'ceo', label: '대표', desc: '전부 · 손익과 단가까지' },
 ] as const;
 

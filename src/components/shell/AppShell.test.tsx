@@ -12,12 +12,12 @@ import type { Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { AppShell } from './AppShell';
 
-const mocks = vi.hoisted(() => ({ back: vi.fn(), replace: vi.fn(), post: vi.fn() }));
+const mocks = vi.hoisted(() => ({ back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/board', useRouter: () => mocks }));
 vi.mock('@/api/client', () => ({ api: { post: mocks.post }, setAccessToken: vi.fn() }));
 vi.mock('@/api/queries', () => ({
-  useDrawer: () => ({ data: { approvals: { count: 3 }, notis: [{ read: false }] } }),
-  useUnwritten: () => ({ data: { total: 2 } }),
+  useDrawer: mocks.drawer,
+  useUnwritten: mocks.unwritten,
 }));
 vi.mock('@/components/drawer/AppDrawer', () => ({
   AppDrawer: ({ open, pane, onPaneChange, onClose }: {
@@ -42,6 +42,8 @@ function shell(extra: { sidePanel?: ReactNode; rightPanel?: ReactNode; onToday?:
 
 beforeEach(() => {
   useSession.setState({ me, ready: true });
+  mocks.drawer.mockReturnValue({ data: { approvals: { count: 3, inboxCount: 3 }, notis: [{ read: false }] } });
+  mocks.unwritten.mockReturnValue({ data: { total: 2 } });
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
 });
 afterEach(() => {
@@ -73,6 +75,11 @@ describe('원본 관리자 공용 셸', () => {
     expect(view.getByRole('link', { name: '캘린더' })).toBeTruthy();
     expect(view.queryByRole('link', { name: '오늘 전체' })).toBeNull();
     expect(view.queryByRole('button', { name: '전체 화면' })).toBeNull();
+    expect(view.queryByRole('button', { name: '권한' })).toBeNull();
+    expect(view.queryByRole('button', { name: /승인 대기/ })).toBeNull();
+    expect(view.queryByRole('dialog', { name: '서랍' })).toBeNull();
+    expect(mocks.drawer).toHaveBeenLastCalledWith(false);
+    expect(mocks.unwritten).toHaveBeenLastCalledWith(undefined, false);
     expect(view.getByRole('img', { name: '티엔아카데미' })).toBeTruthy();
   });
 

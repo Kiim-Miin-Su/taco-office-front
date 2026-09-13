@@ -44,10 +44,11 @@ describe('명세서 탭 노출 SSOT', () => {
     expect(canAccessAppRoute('/ops', { ...ceo, canAdminPage: false })).toBe(false);
     expect(canAccessAppRoute('/ops', { ...ceo, canCrudAll: false })).toBe(false);
     expect(adminNavItemsFor('top', ceo).some((x) => x.href === '/permissions')).toBe(false);
-    expect(canAccessAppRoute('/permissions', teacher)).toBe(true);
+    expect(canAccessAppRoute('/permissions', teacher)).toBe(false);
+    expect(canAccessAppRoute('/permissions', ceo)).toBe(true);
   });
 
-  it.each(['/accounting', '/ops', '/exec', '/intake', '/consulting', '/books', '/guides', '/board'])(
+  it.each(['/accounting', '/ops', '/exec', '/intake', '/consulting', '/books', '/guides', '/board', '/permissions'])(
     '강사 직접 URL %s도 차단한다', (path) => {
       expect(canAccessAppRoute(path, teacher)).toBe(false);
       expect(canAccessAppRoute(path + '/1', teacher)).toBe(false);

@@ -15,15 +15,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, StatCard, Table, Textarea,
+  Banner, Button, Checkbox, Chip, ConflictGuard, Dialog, Input, Label, Segmented, Select, StatCard, Table, Textarea,
   type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
 import type {
-  ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo,
+  ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo, DrawerTodoCreate,
   KindRow, MemberGroup, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
-import { hhmm, label, lessonTimeIssue } from '@/lib/calendar';
+import {
+  addDays, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, step, todayKst, weekDays,
+} from '@/lib/calendar';
 import { REQ_TYPE_LABEL, ROLE_BAR } from '@/lib/roles';
 import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
 
@@ -75,7 +77,7 @@ function ApBody({ r }: { r: ApRow }) {
     <>
       <div className="flex items-center gap-1.5">
         <Chip tone={r.state === 'back' ? 'danger' : 'info'} styleKind="outline">
-          {KIND_LABEL[r.kind] ?? r.kind}
+          {r.categoryLabel ?? KIND_LABEL[r.kind] ?? r.kind}
         </Chip>
         <span className="truncate text-[12px] font-bold text-fg">{r.title}</span>
         <span className="ml-auto shrink-0 text-[11px] text-fg-subtle">{r.at.slice(5, 10)}</span>
@@ -164,11 +166,13 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
   flow: ApFlow; onGo: () => void;
   onReview?: (v: ApReview) => void; busy?: boolean; error?: string | null;
 }) {
-  const actionable = [...flow.back, ...flow.waiting, ...flow.mine].filter((r) => r.canAct).length;
+  const [filter, setFilter] = useState<string>('all');
+  const actionable = flow.inbox.filter((r) => r.canAct).length;
+  const shown = flow.inbox.filter((row) => filter === 'all' || row.category === filter);
   return (
     <>
       <Banner tone="info" className="mb-4">
-        올라온 것은 <b>전건이 뜹니다</b> — 자동 승인도 조건부 통과도 없습니다 (D-R34).
+        강사와 코디네이터가 올린 요청은 <b>전건이 뜹니다</b> — 자동 승인도 조건부 통과도 없습니다 (D-R34).
         {actionable > 0 ? (
           <> <b>요청</b>은 여기서 처리하고, <b>반려에도 사유가 남습니다</b> (D-R13).
             나머지 갈래는 <b>줄을 눌러 그 화면에서</b> 합니다.</>
@@ -184,15 +188,27 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
           없는 것이 아니라 못 세는 것입니다.
         </Banner>
       ) : null}
-      <Section title="되돌아온 것" count={flow.back.length}>
-        <ApList rows={flow.back} onGo={onGo} onReview={onReview} busy={busy} />
-      </Section>
-      <Section title="기다리는 것" count={flow.waiting.length}>
-        <ApList rows={flow.waiting} onGo={onGo} onReview={onReview} busy={busy} />
-      </Section>
-      <Section title="내가 올린 것" count={flow.mine.length}>
-        <ApList rows={flow.mine} onGo={onGo} onReview={onReview} busy={busy} />
-      </Section>
+      <div className="mb-3 flex flex-wrap gap-1" aria-label="승인 요청 분류">
+        {[
+          { key: 'all', label: '전체', count: flow.inboxCount },
+          ...flow.categories.filter((category) => category.count > 0 || category.key !== 'other'),
+        ].map((category) => (
+          <button
+            key={category.key}
+            type="button"
+            aria-pressed={filter === category.key}
+            onClick={() => setFilter(category.key)}
+            className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors ${
+              filter === category.key
+                ? 'border-fg bg-fg text-card'
+                : 'border-line bg-card text-fg-subtle hover:border-primary/50'
+            }`}
+          >
+            {category.label} {category.count}
+          </button>
+        ))}
+      </div>
+      <ApList rows={shown} onGo={onGo} onReview={onReview} busy={busy} />
     </>
   );
 }
@@ -200,15 +216,105 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
 /* ── §15 할 일 ───────────────────────────────────────────────────── */
 
 export type TodoBox = 'in' | 'out' | 'all';
+export type TodoPeriod = 'day' | 'week' | 'month';
 
-export function TodosPane({ todos, meId, box, onBox, onToggle, busy }: {
+/** §15 기간 이동·그룹은 달력과 같은 KST 날짜 유틸을 재사용한다. */
+export function todoPeriodBounds(period: TodoPeriod, anchor: string): { from: string; to: string } {
+  if (period === 'day') return { from: anchor, to: anchor };
+  if (period === 'month') return monthBounds(anchor);
+  const days = weekDays(anchor);
+  return { from: days[0], to: days[6] };
+}
+
+function stepTodoPeriod(period: TodoPeriod, anchor: string, direction: -1 | 1): string {
+  if (period === 'month') return step('month', anchor, direction);
+  return addDays(anchor, (period === 'week' ? 7 : 1) * direction);
+}
+
+function todoPeriodLabel(period: TodoPeriod, anchor: string): string {
+  const range = todoPeriodBounds(period, anchor);
+  if (period === 'month') return `${+anchor.slice(0, 4)}년 ${+anchor.slice(5, 7)}월`;
+  if (period === 'day') return label(anchor);
+  return `${label(range.from)} — ${label(range.to)}`;
+}
+
+const TODO_SOURCE_DOT: Record<string, string> = {
+  meeting: 'bg-violet', complaint: 'bg-red', consulting: 'bg-amber', plan: 'bg-green', manual: 'bg-blue',
+};
+
+export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate, onClear, busy }: {
   todos: DrawerTodo[]; meId: number | null;
+  members: DrawerData['members'];
   box: TodoBox; onBox: (b: TodoBox) => void;
   onToggle: (id: number, done: boolean) => void; busy: boolean;
+  onCreate: (body: DrawerTodoCreate) => void;
+  onClear: () => void;
 }) {
-  const rows = todos.filter((t) =>
+  const [period, setPeriod] = useState<TodoPeriod>('week');
+  const [anchor, setAnchor] = useState(todayKst);
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState('');
+  const [toId, setToId] = useState(meId ? String(meId) : '');
+  const [dueOn, setDueOn] = useState(todayKst);
+
+  const scoped = todos.filter((t) =>
     box === 'all' ? true : box === 'in' ? t.toId === meId : t.fromId === meId);
+  const range = todoPeriodBounds(period, anchor);
+  // 날짜가 없는 할 일은 어느 기간에서도 잃지 않고 별도 묶음으로 보여 준다.
+  const rows = scoped.filter((t) => !t.dueOn || (t.dueOn >= range.from && t.dueOn <= range.to));
   const left = rows.filter((t) => !t.done).length;
+  const overdue = rows.filter((t) => !t.done && t.overdueDays > 0).length;
+  const done = rows.filter((t) => t.done).length;
+  const dated = rows.filter((t) => t.dueOn);
+  const dayKeys = period === 'week'
+    ? weekDays(anchor)
+    : period === 'day'
+      ? [anchor]
+      : [...new Set(dated.map((t) => t.dueOn!))].sort();
+  const undated = rows.filter((t) => !t.dueOn);
+
+  const submit = () => {
+    const clean = title.trim();
+    if (!clean) return;
+    onCreate({
+      title: clean,
+      ...(toId ? { toId: Number(toId) } : {}),
+      ...(dueOn ? { dueOn } : {}),
+    });
+    setTitle('');
+    setCreating(false);
+  };
+
+  const renderRows = (items: DrawerTodo[]) => items.length === 0 ? (
+    <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[11px] text-fg-subtle">할 일 없음</p>
+  ) : (
+    <ul className="flex flex-col gap-1.5">
+      {items.map((t) => (
+        <li key={t.id} className="flex items-start gap-2 rounded-lg border border-line bg-card p-2.5">
+          <Checkbox
+            checked={t.done} disabled={busy}
+            onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
+            className="mt-0.5 shrink-0"
+            aria-label={`${t.title} 완료`}
+          />
+          <div className="min-w-0 flex-1">
+            <p className={`text-[12px] font-bold ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>
+              {t.title}
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-fg-subtle">
+              <span className={`h-2 w-2 rounded-full ${TODO_SOURCE_DOT[t.src] ?? 'bg-line'}`} aria-hidden />
+              <span>{t.srcLabel}</span>
+              <span>· {t.fromName ?? '—'} → {t.toName ?? '—'}</span>
+              {t.overdueDays > 0 ? <Chip tone="danger">{t.overdueDays}일 지남</Chip> : null}
+            </p>
+          </div>
+          {t.go ? (
+            <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <>
@@ -223,37 +329,79 @@ export function TodosPane({ todos, meId, box, onBox, onToggle, busy }: {
             { value: 'all', label: '전체' },
           ]}
         />
-        <span className="ml-auto text-[11px] text-fg-subtle">남은 것 {left}건</span>
+        <Button className="ml-auto" variant="primary" size="sm" onClick={() => setCreating(true)}>+ 할 일</Button>
       </div>
 
-      {rows.length === 0 ? <Empty>할 일이 없습니다</Empty> : (
-        <ul className="flex flex-col gap-1.5">
-          {rows.map((t) => (
-            <li key={t.id} className="flex items-start gap-2 rounded-lg border border-line bg-card p-2.5">
-              <Checkbox
-                checked={t.done} disabled={busy}
-                onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
-                className="mt-0.5 shrink-0"
-                aria-label={`${t.title} 완료`}
-              />
-              <div className="min-w-0 flex-1">
-                <p className={`truncate text-[12px] font-bold ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>
-                  {t.title}
-                </p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-subtle">
-                  <span>{t.fromName ?? '—'} → {t.toName ?? '—'}</span>
-                  {t.dueOn ? <span>· {t.dueOn}</span> : null}
-                  {/* 기한이 지난 것은 색으로만 말하지 않고 며칠인지 적는다 */}
-                  {t.overdueDays > 0 ? <Chip tone="danger">{t.overdueDays}일 지남</Chip> : null}
-                </p>
-              </div>
-              {t.go ? (
-                <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Segmented
+          value={period}
+          onChange={setPeriod}
+          options={[
+            { value: 'day', label: '일간' },
+            { value: 'week', label: '주간' },
+            { value: 'month', label: '월간' },
+          ]}
+        />
+        <div className="ml-auto flex items-center gap-1">
+          <Button size="sm" aria-label="이전 기간" onClick={() => setAnchor(stepTodoPeriod(period, anchor, -1))}>‹</Button>
+          <span className="min-w-[150px] text-center text-[11px] font-bold text-fg">{todoPeriodLabel(period, anchor)}</span>
+          <Button size="sm" aria-label="다음 기간" onClick={() => setAnchor(stepTodoPeriod(period, anchor, 1))}>›</Button>
+          <Button size="sm" onClick={() => setAnchor(todayKst())}>오늘</Button>
+        </div>
+      </div>
+
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <StatCard className="p-2" label="할 일" value={rows.length} />
+        <StatCard className="p-2" label="안 끝난 것" value={left} tone="info" />
+        <StatCard className="p-2" label="기한 지남" value={overdue} tone="danger" />
+      </div>
+
+      <div className="mb-3 flex justify-end">
+        <Button size="sm" variant="secondary" disabled={busy || done === 0} onClick={onClear}>끝난 것 지우기</Button>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {dayKeys.map((day) => {
+          const items = rows.filter((t) => t.dueOn === day);
+          return (
+            <section key={day}>
+              <h3 className="mb-1.5 flex items-center gap-2 text-[12px] font-bold text-fg">
+                <span>{KO_DOW[dowOf(day)]}요일</span>
+                <span className="text-fg-subtle">{day.slice(5).replace('-', '/')}</span>
+                <Chip tone={items.some((t) => !t.done) ? 'info' : 'neutral'}>{items.filter((t) => !t.done).length}</Chip>
+              </h3>
+              {renderRows(items)}
+            </section>
+          );
+        })}
+        {undated.length > 0 ? <section><h3 className="mb-1.5 text-[12px] font-bold text-fg">기한 없음</h3>{renderRows(undated)}</section> : null}
+        {rows.length === 0 ? <Empty>이 기간에는 할 일이 없습니다</Empty> : null}
+      </div>
+
+      <Dialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="할 일 만들기"
+        footer={(
+          <>
+            <Button onClick={() => setCreating(false)}>취소</Button>
+            <Button variant="primary" disabled={busy || !title.trim()} onClick={submit}>만들기</Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col gap-3">
+          <div><Label htmlFor="todo-title">할 일</Label><Input id="todo-title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div>
+            <Label htmlFor="todo-to">담당자</Label>
+            <Select id="todo-to" value={toId} onChange={(e) => setToId(e.target.value)}>
+              {members.filter((member) => member.active).map((member) => (
+                <option key={member.id} value={member.id}>{member.name}</option>
+              ))}
+            </Select>
+          </div>
+          <div><Label htmlFor="todo-due">기한</Label><Input id="todo-due" type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} /></div>
+        </div>
+      </Dialog>
     </>
   );
 }
@@ -266,8 +414,9 @@ export function TodosPane({ todos, meId, box, onBox, onToggle, busy }: {
  * 분류와 색은 **서버가 파생해서 준다** (`lib/noti.ts`) — 화면에 코드표를 두지 않는다 (D-R18).
  * 「1개월」은 조회 범위이고 **지운 것이 아니다** (N-7 · D-16) — 창 밖 건수를 그대로 말해 준다.
  */
-export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadAll, onWiden, widened, busy }: {
+export function NotisPane({ notis, categories, meId, windowDays, olderCount, onRead, onReadAll, onWiden, widened, busy }: {
   notis: Noti[];
+  categories: DrawerData['notiCategories'];
   /** 관리자·대표는 **남의 알림도 본다**. 읽음 처리는 내게 온 것만 되므로 그 경계를 화면이 말한다 */
   meId: number | null;
   windowDays: number;
@@ -284,14 +433,6 @@ export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadA
   /** 「전부 읽음」이 실제로 바꿀 수 있는 수 — 남의 알림은 서버가 거절한다 */
   const myUnread = notis.filter((n) => !n.read && mine(n)).length;
 
-  /** 칩 — 전체·안 읽음 다음에 분류별. 건수는 지금 보이는 목록에서 센다(같은 배열이다) */
-  const cats = new Map<string, { label: string; count: number }>();
-  notis.forEach((n) => {
-    const hit = cats.get(n.category) ?? { label: n.categoryLabel, count: 0 };
-    hit.count += 1;
-    cats.set(n.category, hit);
-  });
-
   /* 목록은 서버가 「안 읽은 것 먼저」로 주지만, §16 은 **날짜로 묶어** 보여 준다.
      그 순서 그대로 묶으면 오늘/어제가 두 번씩 나온다 — 그리는 순서만 날짜순으로 되돌린다. */
   const shown = notis
@@ -300,8 +441,8 @@ export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadA
     .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
   /** 날짜 묶음 — 오늘 · 어제 · 그 밖 (§16) */
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today = todayKst();
+  const yesterday = addDays(today, -1);
   const groupOf = (at: string) => (at.slice(0, 10) === today ? '오늘' : at.slice(0, 10) === yesterday ? '어제' : at.slice(0, 10));
   const groups: Array<[string, Noti[]]> = [];
   shown.forEach((n) => {
@@ -322,7 +463,7 @@ export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadA
         {[
           { key: 'all', label: `전체 ${notis.length}` },
           { key: 'unread', label: `안 읽음 ${unread}` },
-          ...[...cats.entries()].map(([key, v]) => ({ key, label: `${v.label} ${v.count}` })),
+          ...categories.map((category) => ({ key: category.key, label: `${category.label} ${category.count}` })),
         ].map((c) => (
           <button
             key={c.key}

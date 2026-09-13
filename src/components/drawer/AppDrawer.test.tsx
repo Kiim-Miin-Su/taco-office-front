@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.drawer.mockReturnValue({
     data: {
-      approvals: { count: 2 }, notis: [], kinds: [], zoomAccounts: [], members: [],
+      approvals: { count: 2, inboxCount: 2 }, notis: [], notiCategories: [], kinds: [], zoomAccounts: [], members: [],
       tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }],
     },
     isLoading: false, isError: false,

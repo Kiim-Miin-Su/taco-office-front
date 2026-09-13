@@ -66,8 +66,8 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { href: '/zoom', label: '줌 계정 관리', surfaces: [], requires: ADMIN },
   { href: '/programs', label: '프로그램 · 과목 관리', surfaces: [], requires: ADMIN },
   { href: '/phrases', label: '문구 관리', surfaces: [], requires: ADMIN },
-  // §76은 업무 탭이 아니라 상단 유틸리티에서 여는 모달이다. 옛 URL 접근만 유지한다.
-  { href: '/permissions', label: '권한', surfaces: [] },
+  // §76은 업무 탭이 아니라 상단 유틸리티에서 여는 관리자 모달이다. 옛 URL도 같은 관리자 경계를 쓴다.
+  { href: '/permissions', label: '권한', surfaces: [], requires: ADMIN },
 ] as const;
 
 export function canAccessNavItem(item: AdminNavItem, me: Me | null): boolean {

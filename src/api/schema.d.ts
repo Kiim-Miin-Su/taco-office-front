@@ -1428,7 +1428,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 서랍 여덟 칸을 한 번에 — 결재 5종 정규화 포함 (D-R26 · D-R34) */
+        /** 서랍 여덟 칸을 한 번에 — 승인함/결재 흐름 정규화 포함 (D-R26 · D-R34) */
         get: operations["DrawerController_all"];
         put?: never;
         post?: never;
@@ -1453,6 +1453,40 @@ export interface paths {
         head?: never;
         /** §15 할 일 체크 — 내가 주고받은 것만 */
         patch: operations["DrawerController_todoDone"];
+        trace?: never;
+    };
+    "/drawer/todos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** §15 수동 할 일 만들기 — 다른 사람 배정은 canCrudAll만 */
+        post: operations["DrawerController_createTodo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drawer/todos/completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** §15 끝난 것 지우기 — 내가 볼 수 있는 완료 할 일만 */
+        delete: operations["DrawerController_clearDoneTodos"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/drawer/notis/{id}/read": {
@@ -4045,7 +4079,7 @@ export interface components {
         };
         ApRowDto: {
             /** @enum {string} */
-            kind: "rep" | "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            kind: "rep" | "rpt" | "plan" | "req" | "chreq" | "gpapack" | "suggestion" | "missing";
             id: number;
             title: string;
             sub?: string | null;
@@ -4064,6 +4098,19 @@ export interface components {
             asked?: string | null;
             /** @description 이 사람이 **지금** 이 줄을 여기서 처리할 수 있는가 (§14). 화면은 이 값만 보고 단추를 그린다 */
             canAct?: boolean;
+            /**
+             * @description §14 필터 분류 — 서버 코드표가 정한다
+             * @enum {string}
+             */
+            category: "schedule_change" | "book_change" | "tz_change" | "wage_change" | "suggestion" | "gpa_request" | "missing" | "other";
+            /** @description §14 필터 이름 — 화면에 코드표를 복제하지 않는다 */
+            categoryLabel: string;
+        };
+        ApCategoryDto: {
+            /** @enum {string} */
+            key: "schedule_change" | "book_change" | "tz_change" | "wage_change" | "suggestion" | "gpa_request" | "missing" | "other";
+            label: string;
+            count: number;
         };
         ApFlowDto: {
             /** @description 되돌아온 것 — 맨 위 (§75) */
@@ -4072,8 +4119,14 @@ export interface components {
             waiting: components["schemas"]["ApRowDto"][];
             /** @description 내가 올린 것 */
             mine: components["schemas"]["ApRowDto"][];
-            /** @description 배지 숫자 — 손이 가야 하는 것만 센다 */
+            /** @description §14에 실제로 보이는 미처리 요청·건의·GPA·누락 */
+            inbox: components["schemas"]["ApRowDto"][];
+            /** @description §14 원문 순서의 필터와 DB 기반 건수 */
+            categories: components["schemas"]["ApCategoryDto"][];
+            /** @description §75 결재 흐름 배지 — 되돌아온 것 + 기다리는 것 */
             count: number;
+            /** @description §14 승인 대기함 배지 — inbox와 같은 배열의 길이 */
+            inboxCount: number;
             /** @description 아직 표가 없어 못 세는 갈래 (N-13 대기) */
             missingKinds: string[];
         };
@@ -4088,6 +4141,8 @@ export interface components {
             done: boolean;
             /** @enum {string} */
             src: "meeting" | "complaint" | "consulting" | "plan" | "manual";
+            /** @description 출처 이름 — 서버 코드표가 정한다 (D-R18) */
+            srcLabel: string;
             /** @description 기한이 지난 날 수. 0이면 안 지남 */
             overdueDays: number;
             /** @description 출처가 있으면 원본으로 갈 곳 */
@@ -4107,12 +4162,18 @@ export interface components {
              */
             tone: "alarm" | "ok" | "warn";
             /**
-             * @description §16 분류 칩. 색과 같은 방식으로 링크에서 파생한다 — 표에 컬럼이 없다 (lib/noti.ts)
+             * @description §16 분류 칩. NOTI.category가 정본이며 과거 null 행만 링크 fallback을 쓴다
              * @enum {string}
              */
-            category: "report_due" | "report" | "schedule" | "request" | "etc";
+            category: "report_due" | "re_alarm" | "report" | "schedule" | "request" | "etc";
             /** @description 분류 이름 — 코드표는 서버가 소유한다 (D-R18) */
             categoryLabel: string;
+        };
+        NotiCategoryDto: {
+            /** @enum {string} */
+            key: "report_due" | "re_alarm" | "report" | "schedule" | "request" | "etc";
+            label: string;
+            count: number;
         };
         MemberDto: {
             id: number;
@@ -4188,6 +4249,8 @@ export interface components {
             todos: components["schemas"]["DrawerTodoDto"][];
             /** @description §16 알림 — 기본은 최근 30일 (D-16: 조회 범위 제한이지 삭제가 아니다) */
             notis: components["schemas"]["NotiDto"][];
+            /** @description §16 원문 순서의 분류와 현재 조회 창 건수 */
+            notiCategories: components["schemas"]["NotiCategoryDto"][];
             /** @description 목록에 보이는 기간(일). notiWindow=all 이면 0 */
             notiWindowDays: number;
             /** @description 창 밖에 남아 있는 알림 수 — **지운 것이 아니다** (N-7 영구 보관) */
@@ -4210,6 +4273,24 @@ export interface components {
         TodoDoneDto: {
             /** @description 완료로 바꿀지 여부 */
             done: boolean;
+        };
+        TodoCreateDto: {
+            title: string;
+            /** @description 생략하면 나에게 배정. 다른 사람 배정은 canCrudAll만 */
+            toId?: number;
+            /**
+             * @description KST 기준 기한
+             * @example 2026-09-14
+             */
+            dueOn?: string;
+        };
+        TodoCreateResultDto: {
+            id: number;
+        };
+        TodoClearDto: {
+            ok: boolean;
+            /** @description 이번에 삭제된 완료 할 일 수 */
+            deleted: number;
         };
         NotiReadAllDto: {
             ok: boolean;
@@ -10679,6 +10760,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OkDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_createTodo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoCreateResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_clearDoneTodos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoClearDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

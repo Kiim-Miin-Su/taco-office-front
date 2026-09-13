@@ -26,10 +26,22 @@ afterEach(cleanup);
 const row = (over: Partial<ApRow> = {}): ApRow => ({
   kind: 'req', id: 1, title: '시급 변경 요청', sub: '42,000원/시간 → 45,000원/시간',
   byId: 6, byName: '이다현', at: '2026-09-12 10:00', state: 'waiting', why: null, go: '/ops',
-  reqType: 'wage_change', asked: '42,000원/시간 → 45,000원/시간', canAct: true, ...over,
+  reqType: 'wage_change', asked: '42,000원/시간 → 45,000원/시간', canAct: true,
+  category: 'wage_change', categoryLabel: '시급 변경', ...over,
 });
 const flow = (waiting: ApRow[]): ApFlow => ({
-  back: [], waiting, mine: [], count: waiting.length, missingKinds: [],
+  back: [], waiting, mine: [], inbox: waiting, count: waiting.length, inboxCount: waiting.length,
+  categories: [
+    { key: 'schedule_change', label: '스케줄 변경', count: waiting.filter((r) => r.category === 'schedule_change').length },
+    { key: 'book_change', label: '교재 변경', count: 0 },
+    { key: 'tz_change', label: '시간대 변경', count: waiting.filter((r) => r.category === 'tz_change').length },
+    { key: 'wage_change', label: '시급 변경', count: waiting.filter((r) => r.category === 'wage_change').length },
+    { key: 'suggestion', label: '건의 사항', count: 0 },
+    { key: 'gpa_request', label: 'GPA 요청', count: 0 },
+    { key: 'missing', label: '빠진 것', count: waiting.filter((r) => r.category === 'missing').length },
+    { key: 'other', label: '기타', count: 0 },
+  ],
+  missingKinds: [],
 });
 
 function panel(waiting: ApRow[], onReview = vi.fn()) {
@@ -38,7 +50,7 @@ function panel(waiting: ApRow[], onReview = vi.fn()) {
 }
 
 it('처리할 수 있는 줄에만 단추가 붙는다 — 나머지는 그 화면으로 보내는 링크 그대로다', () => {
-  const { view } = panel([row(), row({ kind: 'rep', id: 2, title: '리포트', canAct: false, reqType: null })]);
+  const { view } = panel([row(), row({ kind: 'missing', id: 2, title: '줌 계정 미배정', canAct: false, reqType: null, category: 'missing', categoryLabel: '빠진 것' })]);
   const cards = view.getAllByRole('listitem');
   expect(within(cards[0]).getByRole('button', { name: '승인' })).toBeTruthy();
   expect(within(cards[1]).queryByRole('button', { name: '승인' })).toBeNull();
@@ -96,7 +108,7 @@ it('변경 요청 줄도 같은 자리에서 처리한다 — 갈래는 서버�
       flow={flow([row({
         kind: 'chreq', id: 7, title: '강사 변경 요청',
         sub: 'MAP Reading · 2026-08-28 · 강사 → KJ · (이 회차만)',
-        asked: '강사 → KJ', reqType: 'teacher',
+        asked: '강사 → KJ', reqType: 'teacher', category: 'schedule_change', categoryLabel: '스케줄 변경',
       })])}
       onGo={vi.fn()} onReview={onReview}
     />,
@@ -110,7 +122,7 @@ it('변경 요청 줄도 같은 자리에서 처리한다 — 갈래는 서버�
 it('반영 경로가 없는 줄은 단추를 그리지 않는다 — 줌 계정 변경 (C42 경계)', () => {
   const view = render(
     <ApprovalsPane
-      flow={flow([row({ kind: 'chreq', id: 8, title: '강의실 변경 요청', canAct: false })])}
+      flow={flow([row({ kind: 'chreq', id: 8, title: '강의실 변경 요청', canAct: false, category: 'schedule_change', categoryLabel: '스케줄 변경' })])}
       onGo={vi.fn()} onReview={vi.fn()}
     />,
   );

@@ -677,7 +677,7 @@ function AdminSchedulePage() {
         ) : undefined}
         rightPanel={railOpen ? ({ openDrawer }) => (
           <WorkspaceRail
-            approvals={drawerData?.approvals.count ?? 0}
+            approvals={drawerData?.approvals.inboxCount ?? 0}
             unread={drawerData?.notis.filter((n) => !n.read).length ?? 0}
             onOpen={openDrawer}
           />
