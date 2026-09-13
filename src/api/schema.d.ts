@@ -505,6 +505,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/tuition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 수업료 계산 — 학생별 이번 달 진행과 금액 (§54)
+         * @description 원문 §54 의 「연동: **청구서 생성 시 이 계산 결과를 씁니다**」가 이 화면의 정체다 — 청구서가 쓰는 바로 그 계산(`invoice-lines.ts`)을 미리 보는 자리라, 단가를 여기서 다시 세지 않는다 (D-R22). 세는 것도 나누는 것도 서버다 — 화면이 회차를 세면 취소·「그날만 빠진」을 빠뜨리고(D-R21), 화면이 %를 내면 머리 칸과 갈린다 (D-R37). 결강은 금액에서 빠지고 「넘길 돈」으로 따로 선다.
+         */
+        get: operations["AccountingController_tuition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/invoices": {
         parameters: {
             query?: never;
@@ -2385,6 +2405,54 @@ export interface components {
             expenses: components["schemas"]["ExpenseDto"][];
             /** @description §56 분류별 확정 지출 합계 — 화면이 더하지 않는다 */
             expenseTotals: components["schemas"]["ExpenseTotalDto"][];
+        };
+        TuitionRowDto: {
+            studentId: number;
+            name: string;
+            grade?: string | null;
+            /** @description 이번 달에 **이미 한** 수업 수 */
+            done: number;
+            /** @description 이번 달 전체 수업 수 (결강 제외) */
+            total: number;
+            /** @description 얼마나 갔나 — 0~100. 화면이 나누지 않는다 */
+            percent: number;
+            /** @description 결강·휴강 수 — 취소된 회차와 「그날만 빠진」 것을 합쳐 센다 (D-R21) */
+            canceled: number;
+            /** @description 대표 단가 — 가장 많이 쓰인 1회 단가. 못 보면 null */
+            unitPrice?: number | null;
+            /** @description 그 단가가 학생별 예외(STURATE)에서 왔는가 — 「개별 단가」 / 「일반」 */
+            unitPriceOverride: boolean;
+            /** @description 이 달에 붙은 단가의 가짓수 — 0(단가 없음) · 1(그 값) · 2 이상(여러 단가) */
+            priceCount: number;
+            /** @description 지금까지 금액 — 이미 한 수업의 합 */
+            doneAmount?: number | null;
+            /** @description 다음 달로 넘길 돈 — 결강한 회차의 합 */
+            carryAmount?: number | null;
+            /** @description 내역 — 청구서가 쓸 바로 그 줄이다 */
+            lines: components["schemas"]["InvoiceLineDto"][];
+        };
+        TuitionDto: {
+            /** @description YYYY-MM */
+            month: string;
+            /** @description 오늘 (KST) — 「오늘 08-21 기준」의 그 날 */
+            today: string;
+            /** @description 이 달에서 지난 날 수 */
+            daysPast: number;
+            /** @description 남은 날 수 */
+            daysLeft: number;
+            /** @description 한 수업 (전체 학생 합) */
+            doneCount: number;
+            /** @description 이번 달 전체 */
+            totalCount: number;
+            /** @description 결강 · 휴강 */
+            canceledCount: number;
+            /** @description 지금까지 금액 */
+            doneAmount?: number | null;
+            /** @description 다음 달로 넘길 돈 */
+            carryAmount?: number | null;
+            items: components["schemas"]["TuitionRowDto"][];
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
         };
         InvoiceIssueDto: {
             /** @description 누구에게 */
@@ -6384,6 +6452,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountingDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_tuition: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM — 없으면 이번 달(KST) */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuitionDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

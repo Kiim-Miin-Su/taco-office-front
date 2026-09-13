@@ -20,7 +20,7 @@ import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
-  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList,
+  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList, Tuition,
   TeacherDiagCreate, TeacherGuideDiag, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
@@ -48,6 +48,8 @@ export const qk = {
   reportDelivery: (onDate?: string) => ['reports', 'deliveries', onDate ?? 'yesterday'] as const,
   reportDeliveryHistory: (p: ReportDeliveryHistoryParams) => ['reports', 'deliveries', 'history', p] as const,
   accounting: ['accounting'] as const,
+  /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
+  tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   /** §28 회계 — 같은 탭의 다른 질의다. 갈래 앞자락은 `family.consulting` (C58) */
@@ -238,6 +240,21 @@ export function useAccounting(): UseQueryResult<Accounting> {
     queryKey: sessionQueryKey(qk.accounting, viewerId),
     queryFn: async () => (await api.get<Accounting>('/accounting')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * §54 수업료 계산 — 그 탭을 열 때만 돈다.
+ *
+ * 청구서가 쓰는 바로 그 계산이라(§54 연동 줄) 화면은 받은 숫자를 그리기만 한다 —
+ * %도 합계도 서버가 낸 값이다 (D-R37).
+ */
+export function useTuition(month?: string, enabled = true): UseQueryResult<Tuition> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.tuition(month), viewerId),
+    queryFn: async () => (await api.get<Tuition>('/accounting/tuition', { params: month ? { month } : {} })).data,
+    enabled,
   });
 }
 

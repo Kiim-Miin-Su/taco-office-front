@@ -16,10 +16,11 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting } from '@/api/queries';
+import { useAccounting, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
+import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment, Payout } from '@/api/types';
 import { won, wonTone } from '@/lib/money';
@@ -50,8 +51,10 @@ const STATE: Record<string, { label: string; tone: 'neutral' | 'info' | 'success
 };
 
 export default function AccountingPage() {
-  const [tab, setTab] = useState<'inv' | 'record' | 'pay' | 'out' | 'payout'>('inv');
+  const [tab, setTab] = useState<'inv' | 'tuition' | 'record' | 'pay' | 'out' | 'payout'>('inv');
   const q = useAccounting();
+  // §54 는 다른 질의다 — 그 탭을 열 때만 부른다 (달을 안 주면 서버가 이번 달로 정한다)
+  const tuition = useTuition(undefined, tab === 'tuition');
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
 
@@ -178,6 +181,7 @@ export default function AccountingPage() {
           onChange={setTab}
           options={[
             { value: 'inv', label: `청구서 ${q.data?.invoices.length ?? 0}` },
+            { value: 'tuition', label: '수업료 계산' },
             { value: 'record', label: '입금 기록' },
             { value: 'pay', label: `들어온 돈 ${q.data?.payments.length ?? 0}` },
             { value: 'out', label: `나간 돈 ${q.data?.expenses.length ?? 0}` },
@@ -194,6 +198,8 @@ export default function AccountingPage() {
             <InvoiceIssuer />
             <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
           </>
+        ) : tab === 'tuition' ? (
+          <TuitionTable data={tuition.data} loading={tuition.isLoading} />
         ) : tab === 'record' ? (
           <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (

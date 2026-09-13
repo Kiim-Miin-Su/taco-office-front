@@ -89,6 +89,10 @@ export type ReportSendHistoryList = S['ReportSendHistoryListDto'];
 
 /** 회계 — 금액은 canSeeProfit 이 아니면 서버가 null 로 내려준다 (D-R39) */
 export type Accounting = S['AccountingDto'];
+
+/* §54 수업료 계산 (C65) — 청구서가 쓰는 바로 그 계산을 미리 보는 자리다 */
+export type Tuition = S['TuitionDto'];
+export type TuitionRow = S['TuitionRowDto'];
 export type Invoice = S['InvoiceDto'];
 export type InvoiceIssue = S['InvoiceIssueDto'];
 export type Payment = S['PaymentDto'];
