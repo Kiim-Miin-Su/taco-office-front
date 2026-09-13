@@ -9,31 +9,36 @@ import type { OtherIncome as OtherIncomeData } from '@/api/types';
 import { OtherIncome } from './OtherIncome';
 
 const base: OtherIncomeData = {
-  canSeeAmounts: true,
+  canSeeAmounts: true, span: 'month',
   rows: [
     {
       key: 'consulting', label: '컨설팅비', sub: '진학 컨설팅 · 인터뷰 준비',
       count: 6, unbilled: 2, amount: 8_400_000, paid: 800_000,
-      items: [
+      groups: [
         {
-          invId: 11, studentName: '고은성', title: '대입 컨설팅 · 연간 패키지',
-          stateLabel: '전달', unbilled: false, issuedOn: '2026-08-01', dueOn: '2026-08-20',
-          amount: 4_800_000, paid: 0,
-        },
-        {
-          invId: 12, studentName: '이하린', title: '보딩스쿨 EC 컨설팅 · 정기',
-          stateLabel: '작성 중', unbilled: true, issuedOn: null, dueOn: null,
-          amount: 600_000, paid: 0,
+          key: '2026-08-01', label: '2026년 8월', count: 2, amount: 5_400_000, paid: 0,
+          items: [
+            {
+              invId: 11, studentName: '고은성', title: '대입 컨설팅 · 연간 패키지',
+              stateLabel: '전달', unbilled: false, issuedOn: '2026-08-01', dueOn: '2026-08-20',
+              amount: 4_800_000, paid: 0,
+            },
+            {
+              invId: 12, studentName: '이하린', title: '보딩스쿨 EC 컨설팅 · 정기',
+              stateLabel: '작성 중', unbilled: true, issuedOn: null, dueOn: null,
+              amount: 600_000, paid: 0,
+            },
+          ],
         },
       ],
     },
     {
       key: 'diag_intake', label: '진단고사 + 상담 비용', sub: '진단고사 · 입학 상담',
-      count: 4, unbilled: 0, amount: 210_000, paid: 90_000, items: [],
+      count: 4, unbilled: 0, amount: 210_000, paid: 90_000, groups: [],
     },
     {
       key: 'exam_fee', label: 'MAP + CAT', sub: 'MAP · CAT 응시료',
-      count: 7, unbilled: 5, amount: 210_000, paid: 90_000, items: [],
+      count: 7, unbilled: 5, amount: 210_000, paid: 90_000, groups: [],
     },
   ],
 };
@@ -52,7 +57,7 @@ it('줄 셋의 제목과 부제는 **서버가 준 낱말**이다 — 화면이 
 
 it('줄이 0건이어도 **사라지지 않는다** — 종류는 어휘이지 데이터가 아니다', () => {
   const d = clone();
-  d.rows = d.rows.map((r) => ({ ...r, count: 0, unbilled: 0, amount: 0, paid: 0, items: [] }));
+  d.rows = d.rows.map((r) => ({ ...r, count: 0, unbilled: 0, amount: 0, paid: 0, groups: [] }));
   const v = render(<OtherIncome data={d} />);
   expect(v.getByText('진단고사 + 상담 비용')).toBeTruthy();
   expect(v.getAllByText('0건')).toHaveLength(3);
@@ -96,11 +101,48 @@ it('금액을 못 보면 배너로 알리고 **건수는 그대로 보인다** (
   d.canSeeAmounts = false;
   d.rows = d.rows.map((r) => ({
     ...r, amount: null, paid: null,
-    items: r.items.map((i) => ({ ...i, amount: null, paid: null })),
+    groups: r.groups.map((g) => ({
+      ...g, amount: null, paid: null,
+      items: g.items.map((i) => ({ ...i, amount: null, paid: null })),
+    })),
   }));
   const v = render(<OtherIncome data={d} />);
   expect(v.getByText(/금액은 대표만 봅니다/)).toBeTruthy();
   expect(v.getByText('6건')).toBeTruthy();
   expect(v.getByText('청구 안 함 2')).toBeTruthy();
   expect(v.queryByText('8,400,000원')).toBeNull();
+});
+
+/**
+ * 대표 결정 2026-09-13 (N-40): 「일/주/월 + 유저 선택 시 날짜별 → 서브 그룹」.
+ * 눈금은 **줄의 숫자를 바꾸지 않는다** — 펼쳤을 때의 묶음만 달라진다.
+ */
+it('눈금 셋을 컷의 낱말로 보여 주고 고른 것을 알린다', () => {
+  const picked: string[] = [];
+  const v = render(<OtherIncome data={clone()} span="month" onSpanChange={(s) => picked.push(s)} />);
+  for (const word of ['일별', '주별', '월별']) expect(v.getByRole('button', { name: word })).toBeTruthy();
+  fireEvent.click(v.getByRole('button', { name: '주별' }));
+  expect(picked).toEqual(['week']);
+});
+
+it('펼치면 **날짜 묶음 머리**가 서고 그 머리의 숫자도 서버 값이다', () => {
+  const d = clone();
+  // 줄 안에 두 건뿐인데 서버가 묶음을 「2건 · 5,400,000원」이라 했다면 그것이 맞다
+  const v = render(<OtherIncome data={d} />);
+  fireEvent.click(v.getByRole('button', { name: /컨설팅비/ }));
+  expect(v.getByText('2026년 8월')).toBeTruthy();
+  expect(v.getByText('2건 · 5,400,000원')).toBeTruthy();
+});
+
+it('묶음이 여럿이면 여럿을 그린다 — 화면이 날짜로 다시 묶지 않는다', () => {
+  const d = clone();
+  d.rows[0].groups = [
+    { key: '2026-09-01', label: '2026년 9월', count: 1, amount: 200_000, paid: 0, items: [d.rows[0].groups[0].items[0]] },
+    { key: 'none', label: '날짜 없음', count: 1, amount: 600_000, paid: 0, items: [d.rows[0].groups[0].items[1]] },
+  ];
+  const v = render(<OtherIncome data={d} />);
+  fireEvent.click(v.getByRole('button', { name: /컨설팅비/ }));
+  expect(v.getByText('2026년 9월')).toBeTruthy();
+  // 발행일이 없는 건도 버리지 않는다
+  expect(v.getByText('날짜 없음')).toBeTruthy();
 });

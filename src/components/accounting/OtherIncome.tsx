@@ -18,21 +18,32 @@
  * 토큰이 두 벌이 되므로(D-R41) 뜻이 가장 가까운 토큰에 맞췄다 — 컨설팅은 보라(토큰 설명이
  * 「컨설팅 · GPA」다) · 진단고사는 초록 · 응시료는 주황. **값은 여전히 토큰에서만 온다.**
  *
- * ── 만들지 않은 것 ───────────────────────────────────────────────────────
- * 컷 오른쪽의 「일별 · 주별 · 월별」은 **눌렀을 때 무엇이 달라지는지 컷이 한 번도 보여 주지 않는다.**
- * 기간으로 읽으면 이 줄의 숫자가 「그 달」이 되고, 쪼개기로 읽으면 줄이 여러 개가 된다 — 읽기마다
- * 숫자의 뜻이 달라진다. 지금 이 줄은 §52 머리 여섯 칸과 같은 **전 기간**이다 (N-40).
+ * ── 「일별 · 주별 · 월별」 ────────────────────────────────────────────────
+ * 대표 결정 2026-09-13 (N-40): 「**일/주/월 + 유저 선택 시 날짜별 → 서브 그룹**」.
+ * 그래서 이 토글은 **줄의 숫자를 바꾸지 않는다** — 접힌 줄은 여전히 **전 기간**의 합계이고
+ * (§52 머리 여섯 칸과 같다), **줄을 펼쳤을 때 그 눈금으로 날짜 묶음이 생긴다.**
+ * 묶는 것도 묶음의 합계도 서버가 한다 — 화면은 눈금을 고르기만 한다.
  */
 'use client';
 import { useState } from 'react';
 import type { OtherIncome as OtherIncomeData, OtherIncomeRow } from '@/api/types';
-import { Banner, Chip, Panel, cn } from '@/components/ui';
+import { Banner, Chip, Panel, Segmented, cn } from '@/components/ui';
 import { won } from '@/lib/money';
 
 export interface OtherIncomeProps {
   data?: OtherIncomeData;
   loading?: boolean;
+  /** 날짜 눈금 — 고르는 것은 화면, 묶는 것은 서버다 (N-40) */
+  span?: string;
+  onSpanChange?: (span: string) => void;
 }
+
+/** 컷 오른쪽의 세 단추 — 낱말은 컷의 것이다 */
+const SPANS = [
+  { value: 'day', label: '일별' },
+  { value: 'week', label: '주별' },
+  { value: 'month', label: '월별' },
+];
 
 /** 종류마다의 빛깔 — 값이 아니라 **토큰 이름**이다 (위 주석) */
 const TONE: Record<string, { bar: string; dot: string }> = {
@@ -71,21 +82,30 @@ function Row({ row }: { row: OtherIncomeRow }) {
 
       {open ? (
         <div className="border-t border-line">
-          {row.items.length === 0 ? (
+          {row.groups.length === 0 ? (
             <p className="px-4 py-3 text-[12px] text-fg-subtle">이 종류로 낸 청구서가 아직 없습니다.</p>
           ) : (
-            <ul className="divide-y divide-line">
-              {row.items.map((it) => (
-                <li key={it.invId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                  <span className="text-[12.5px] font-bold text-fg">{it.studentName}</span>
-                  <span className="min-w-0 grow truncate text-[12px] text-fg-2">{it.title}</span>
-                  {/* 상태 낱말도 서버가 짓는다 — 화면이 코드값을 찍지 않는다 (D-R18) */}
-                  <Chip tone={it.unbilled ? 'neutral' : 'info'}>{it.stateLabel}</Chip>
-                  <span className="w-24 shrink-0 text-right text-[12.5px] font-bold">{won(it.amount)}</span>
-                  <span className="w-24 shrink-0 text-right text-[11.5px] text-fg-subtle">받음 {won(it.paid)}</span>
-                </li>
-              ))}
-            </ul>
+            row.groups.map((g) => (
+              <div key={g.key}>
+                {/* 날짜 묶음 머리 — 이름도 건수도 합계도 서버가 만든 값이다 (N-40 · D-R37) */}
+                <div className="flex items-baseline justify-between gap-2 bg-inset px-4 py-1.5">
+                  <span className="text-[11.5px] font-bold text-fg-2">{g.label}</span>
+                  <span className="text-[11px] text-fg-subtle">{g.count}건 · {won(g.amount)}</span>
+                </div>
+                <ul className="divide-y divide-line">
+                  {g.items.map((it) => (
+                    <li key={it.invId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                      <span className="text-[12.5px] font-bold text-fg">{it.studentName}</span>
+                      <span className="min-w-0 grow truncate text-[12px] text-fg-2">{it.title}</span>
+                      {/* 상태 낱말도 서버가 짓는다 — 화면이 코드값을 찍지 않는다 (D-R18) */}
+                      <Chip tone={it.unbilled ? 'neutral' : 'info'}>{it.stateLabel}</Chip>
+                      <span className="w-24 shrink-0 text-right text-[12.5px] font-bold">{won(it.amount)}</span>
+                      <span className="w-24 shrink-0 text-right text-[11.5px] text-fg-subtle">받음 {won(it.paid)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
           )}
         </div>
       ) : null}
@@ -93,7 +113,7 @@ function Row({ row }: { row: OtherIncomeRow }) {
   );
 }
 
-export function OtherIncome({ data, loading }: OtherIncomeProps) {
+export function OtherIncome({ data, loading, span = 'month', onSpanChange }: OtherIncomeProps) {
   return (
     <>
       {data && !data.canSeeAmounts ? (
@@ -101,7 +121,13 @@ export function OtherIncome({ data, loading }: OtherIncomeProps) {
           금액은 대표만 봅니다 — 서버가 값을 내려보내지 않습니다. 건수는 금액과 무관해 그대로 보입니다.
         </Banner>
       ) : null}
-      <Panel title="그 밖의 수입" sub="수업료가 아닌 돈 · 누르면 자세히 봅니다">
+      <Panel
+        title="그 밖의 수입"
+        sub="수업료가 아닌 돈 · 누르면 자세히 봅니다"
+        right={onSpanChange
+          ? <Segmented options={SPANS} value={span} onChange={onSpanChange} />
+          : undefined}
+      >
         {data ? (
           <div className="flex flex-col gap-2">
             {data.rows.map((r) => <Row key={r.key} row={r} />)}

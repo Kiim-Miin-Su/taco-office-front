@@ -20,8 +20,8 @@ import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
-  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList, InvBoard,
-  OtherIncome, Tuition,
+  CarryRow, ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList,
+  InvBoard, OtherIncome, Tuition,
   TeacherDiagCreate, TeacherGuideDiag, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
@@ -51,8 +51,8 @@ export const qk = {
   accounting: ['accounting'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
-  /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66) */
-  otherIncome: ['accounting', 'other-income'] as const,
+  /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
+  otherIncome: (span: string) => ['accounting', 'other-income', span] as const,
   /** §52 트래킹 보드 — 같은 갈래의 또 다른 질의다 (C69) */
   invBoard: ['accounting', 'board'] as const,
   ops: ['ops'] as const,
@@ -264,11 +264,11 @@ export function useTuition(month?: string, enabled = true): UseQueryResult<Tuiti
 }
 
 /** §57 그 밖의 수입 — 그 탭을 열 때만 부른다 (§27 학생별 탭과 같은 선례 · C59) */
-export function useOtherIncome(enabled = true): UseQueryResult<OtherIncome> {
+export function useOtherIncome(span = 'month', enabled = true): UseQueryResult<OtherIncome> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey(qk.otherIncome, viewerId),
-    queryFn: async () => (await api.get<OtherIncome>('/accounting/other-income')).data,
+    queryKey: sessionQueryKey(qk.otherIncome(span), viewerId),
+    queryFn: async () => (await api.get<OtherIncome>('/accounting/other-income', { params: { span } })).data,
     enabled,
   });
 }
@@ -280,6 +280,26 @@ export function useInvBoard(enabled = true): UseQueryResult<InvBoard> {
     queryKey: sessionQueryKey(qk.invBoard, viewerId),
     queryFn: async () => (await api.get<InvBoard>('/accounting/board')).data,
     enabled,
+  });
+}
+
+/**
+ * §54 「이월 처리」 — 받아 놓고 못 해 준 수업을 다음 달로 (N-39).
+ *
+ * 성공하면 **수업료 갈래와 회계 갈래를 함께 버린다** — 이 달의 단추가 사라지고
+ * 다음 달의 「넘어온 돈」이 생긴다. 어느 달을 보고 있든 값이 바뀐다.
+ */
+export function useCarryTuition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { studentId: number; month: string }) =>
+      (await api.post<CarryRow>('/accounting/tuition/carry', body)).data,
+    /*
+     * **갈래는 맨앞자락 그대로 버린다.** `sessionQueryKey(family.accounting, viewerId)` 로 쓰면
+     * 사용자 꼬리가 가운데 끼어 **아무것도 안 걸린다** — 오류도 안 나고 화면만 옛 값을 보여 준다.
+     * 처음에 그렇게 썼고 `queries-family` 회귀가 그 자리에서 잡았다 (C48 이 만든 검사다).
+     */
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
   });
 }
 

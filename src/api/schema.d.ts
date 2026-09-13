@@ -554,11 +554,31 @@ export interface paths {
         };
         /**
          * 그 밖의 수입 — 수업료가 아닌 돈 (§57)
-         * @description 컷의 줄 셋(진단고사 + 상담 비용 · 컨설팅비 · MAP + CAT)은 대표가 정한 청구 종류 그대로다 (N-37 · C64). **데이터가 0건이어도 줄은 선다** — 종류는 어휘이지 데이터가 아니다. 건수·금액·받음은 §52 머리와 **같은 어휘**(`INV_BILLABLE`)로 세어 초안과 취소를 뺀다. 「청구 안 함 N」은 그 종류의 **초안 건수**로 읽었다 — 원문이 뜻을 안 적었고, 「청구서 없이 받은 돈」으로 읽으려면 종류마다 새 표가 필요한데 원문이 그런 표를 말한 적이 없다 (N-37 ②). 컷 오른쪽의 「일별 · 주별 · 월별」은 눌렀을 때 무엇이 달라지는지 컷이 보여 주지 않아 만들지 않았다 (N-40).
+         * @description 컷의 줄 셋(진단고사 + 상담 비용 · 컨설팅비 · MAP + CAT)은 대표가 정한 청구 종류 그대로다 (N-37 · C64). **데이터가 0건이어도 줄은 선다** — 종류는 어휘이지 데이터가 아니다. 건수·금액·받음은 §52 머리와 **같은 어휘**(`INV_BILLABLE`)로 세어 초안과 취소를 뺀다. 「청구 안 함 N」은 그 종류의 **초안 건수**로 읽었다 — 원문이 뜻을 안 적었고, 「청구서 없이 받은 돈」으로 읽으려면 종류마다 새 표가 필요한데 원문이 그런 표를 말한 적이 없다 (N-37 ②). 컷 오른쪽의 「일별 · 주별 · 월별」(`span`)은 **줄의 숫자를 바꾸지 않는다** — 줄은 여전히 전 기간의 합계이고, **줄을 펼쳤을 때 그 눈금으로 날짜 묶음이 생긴다** (대표 결정 2026-09-13 · N-40 「일/주/월 + 유저 선택 시 날짜별 → 서브 그룹」). 자르는 기준은 발행일이고 발행일이 없는 건은 「날짜 없음」 묶음에 모인다 — 버리지 않는다.
          */
         get: operations["AccountingController_otherIncome"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/tuition/carry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 이월 처리 — 받아 놓고 못 해 준 수업을 다음 달로 (§54)
+         * @description 대표 결정 2026-09-13 (N-39): 「이월 처리는 **수업이 결제 됐으나 정해진 시수가 채워지지 않은 경우**」. 그래서 **돈을 안 받았으면 넘길 것이 없다** — 그냥 안 청구된 것이고 §54 가 이미 빼고 있다. 넘긴 사실은 `carry` 한 줄로 남고 다음 달 §54 가 그 줄을 읽는다 — 저장하지 않고 화면에서만 옮기면 다음 달에 같은 결강이 또 넘어오거나 아예 안 넘어온다. **한 달은 한 번만** 넘긴다.
+         */
+        post: operations["AccountingController_carryTuition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2470,6 +2490,12 @@ export interface components {
             doneAmount?: number | null;
             /** @description 다음 달로 넘길 돈 — 결강한 회차의 합 */
             carryAmount?: number | null;
+            /** @description 이월 처리를 누를 수 있는가 (N-39) */
+            carryable: boolean;
+            /** @description 이미 넘겼으면 그 시각 — 한 달은 한 번만 넘긴다 */
+            carriedAt?: string | null;
+            /** @description 지난달에서 **넘어온** 돈 — 이 달이 받은 것이다 */
+            carriedIn?: number | null;
             /** @description 내역 — 청구서가 쓸 바로 그 줄이다 */
             lines: components["schemas"]["InvoiceLineDto"][];
         };
@@ -2549,6 +2575,17 @@ export interface components {
             amount?: number | null;
             paid?: number | null;
         };
+        OtherIncomeGroupDto: {
+            /** @description 묶음 키 — 날짜 눈금의 시작일, 없으면 `none` */
+            key: string;
+            /** @description 사람이 읽는 이름 — 낱말도 서버가 만든다 (D-R18) */
+            label: string;
+            /** @description 그 묶음의 건수 — 화면이 세지 않는다 (D-R37) */
+            count: number;
+            amount?: number | null;
+            paid?: number | null;
+            items: components["schemas"]["OtherIncomeItemDto"][];
+        };
         OtherIncomeRowDto: {
             /** @description 청구 종류 코드 */
             key: string;
@@ -2564,13 +2601,41 @@ export interface components {
             amount?: number | null;
             /** @description 받은 돈 합계 */
             paid?: number | null;
-            items: components["schemas"]["OtherIncomeItemDto"][];
+            /** @description 펼쳤을 때의 날짜 묶음 — 눈금은 `span` 이 정한다 (N-40). 줄의 합계는 묶음의 합이다 */
+            groups: components["schemas"]["OtherIncomeGroupDto"][];
         };
         OtherIncomeDto: {
             /** @description 컷의 세 줄. **데이터가 0건이어도 줄은 선다** — 종류는 어휘이지 데이터가 아니다 */
             rows: components["schemas"]["OtherIncomeRowDto"][];
+            /**
+             * @description 지금 고른 날짜 눈금
+             * @enum {string}
+             */
+            span: "day" | "week" | "month";
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
+        };
+        TuitionCarryDto: {
+            /** @description 누구의 */
+            studentId: number;
+            /**
+             * @description 어느 달에서 넘기는가 — YYYY-MM
+             * @example 2026-08
+             */
+            month: string;
+        };
+        CarryRowDto: {
+            id: number;
+            studentId: number;
+            /** @description 못 해 준 수업이 있던 달 */
+            fromMonth: string;
+            /** @description 넘겨 받는 달 */
+            toMonth: string;
+            amount: number;
+            /** @description 못 해 준 회차 수 */
+            sessions: number;
+            invId?: number | null;
+            at: string;
         };
         InvoiceIssueDto: {
             /** @description 누구에게 */
@@ -6787,7 +6852,10 @@ export interface operations {
     };
     AccountingController_otherIncome: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 펼쳤을 때의 날짜 눈금 — 없으면 월별 */
+                span?: "day" | "week" | "month";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6846,6 +6914,81 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_carryTuition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TuitionCarryDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarryRowDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code CARRY_NOT_PAID(완납 아님) | CARRY_NOTHING(못 해 준 수업 없음) | CARRY_DUPLICATE(이미 넘김) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

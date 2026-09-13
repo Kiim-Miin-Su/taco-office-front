@@ -26,6 +26,12 @@
  *    그래서 고르지 않고 컷 그대로 대표 단가를 적는다. 정확한 줄은 「내역」에 있다.
  *    다만 **단가표에 그 과목이 없으면 「단가 없음」**이라 적는다 — 컷에 없는 경우이고,
  *    ₩0 을 시급이라고 적는 것은 §53 의 `INV_NO_RATE`(「0원 청구서는 조용히 틀린 청구서다」)와 어긋난다.
+ *
+ * ── 「이월 처리」 ─────────────────────────────────────────────────────────
+ * 대표 결정 2026-09-13 (N-39): 「이월 처리는 **수업이 결제 됐으나 정해진 시수가 채워지지 않은 경우**」.
+ * 그래서 단추는 **줄마다 서지 않는다** — 서버가 `carryable` 이라 한 줄에만 선다.
+ * 화면이 「완납인가」를 다시 읽으면 **단추가 서는 줄과 서버가 받아 주는 줄이 갈려** 「눌리는데
+ * 거절당하는 단추」가 된다 (D-R39). 이미 넘긴 달은 단추 대신 넘긴 시각을 적는다.
  */
 'use client';
 import { useState } from 'react';
@@ -36,6 +42,9 @@ import { MASKED, won } from '@/lib/money';
 export interface TuitionTableProps {
   data?: Tuition;
   loading?: boolean;
+  /** 이월 처리 — 누를 수 있는 줄인지는 **서버가 정한다** (N-39) */
+  onCarry?: (studentId: number) => void;
+  carryingId?: number | null;
 }
 
 /** 컷의 머리 다섯 상자 — 값이 위, 이름이 아래다 */
@@ -70,7 +79,7 @@ function ProgressBar({ row }: { row: TuitionRow }) {
   );
 }
 
-export function TuitionTable({ data, loading }: TuitionTableProps) {
+export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTableProps) {
   const [openId, setOpenId] = useState<number | null>(null);
   const rows = data?.items ?? [];
   const open = rows.find((r) => r.studentId === openId) ?? null;
@@ -130,15 +139,31 @@ export function TuitionTable({ data, loading }: TuitionTableProps) {
         : <span className="text-fg-subtle">—</span>),
     },
     {
-      key: 'x', head: '', width: 70, align: 'right',
+      key: 'x', head: '', width: 150, align: 'right',
       cell: (r) => (
-        <button
-          type="button"
-          className="rounded-md border border-line px-2 py-1 text-[11.5px] font-bold text-fg-2 hover:bg-inset"
-          onClick={(e) => { e.stopPropagation(); setOpenId(r.studentId); }}
-        >
-          내역
-        </button>
+        <span className="flex items-center justify-end gap-1.5">
+          {/* 넘어온 돈이 있으면 먼저 말한다 — 이 달이 받은 것이다 */}
+          {r.carriedIn ? <Chip tone="info">이월 받음 {won(r.carriedIn)}</Chip> : null}
+          {r.carriedAt ? (
+            <span className="text-[11px] text-fg-subtle">넘김 {r.carriedAt.slice(5, 10)}</span>
+          ) : r.carryable && onCarry ? (
+            <button
+              type="button"
+              disabled={carryingId === r.studentId}
+              className="rounded-md bg-primary px-2 py-1 text-[11.5px] font-bold text-white disabled:opacity-50"
+              onClick={(e) => { e.stopPropagation(); onCarry(r.studentId); }}
+            >
+              {carryingId === r.studentId ? '넘기는 중…' : '이월 처리'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="rounded-md border border-line px-2 py-1 text-[11.5px] font-bold text-fg-2 hover:bg-inset"
+            onClick={(e) => { e.stopPropagation(); setOpenId(r.studentId); }}
+          >
+            내역
+          </button>
+        </span>
       ),
     },
   ];

@@ -2,7 +2,7 @@
   "version": 1,
   "counts": {
     "button": 154,
-    "badge": 154,
+    "badge": 155,
     "mark": 2,
     "input": 98,
     "field": 90,
@@ -12,6 +12,6 @@
     "panel": 93,
     "board": 6,
     "overlay": 13,
-    "tabs": 16
+    "tabs": 17
   }
 }

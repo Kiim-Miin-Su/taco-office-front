@@ -95,6 +95,7 @@ export type Tuition = S['TuitionDto'];
 export type TuitionRow = S['TuitionRowDto'];
 export type OtherIncome = S['OtherIncomeDto'];
 export type InvBoard = S['InvBoardDto'];
+export type CarryRow = S['CarryRowDto'];
 export type InvBoardCard = S['InvBoardCardDto'];
 export type OtherIncomeRow = S['OtherIncomeRowDto'];
 export type OtherIncomeItem = S['OtherIncomeItemDto'];

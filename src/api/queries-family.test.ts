@@ -38,6 +38,9 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   // §65 보고서 키는 `ops` 갈래 안에 산다 — 기획 결재가 운영 목록을 함께 바꾸기 때문이다 (C56)
   plan: qk.plan(3),
   meeting: qk.meeting(4),
+  tuition: qk.tuition('2026-09'),
+  // §57 의 날짜 눈금이 키에 든다 — 눈금을 바꾸면 다른 답이 온다 (C70 · N-40)
+  otherIncome: qk.otherIncome('month'),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
@@ -46,6 +49,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.books, qk.bookHistory,
   // §28 회계 — `consulting` 갈래 안에 산다. 납부 한 줄이 단계 보드까지 흔든다 (C58)
   qk.consulting, qk.consAccounting, qk.consStudents,
+  // §52 트래킹 보드 — 회계 갈래 안에 산다 (C69)
+  qk.invBoard,
 ];
 
 describe('갈래 앞자락', () => {

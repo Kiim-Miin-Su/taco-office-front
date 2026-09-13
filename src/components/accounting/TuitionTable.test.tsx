@@ -18,6 +18,7 @@ const base: Tuition = {
       studentId: 1, name: '이하린', grade: 'G9',
       done: 8, total: 11, percent: 73, canceled: 2,
       unitPrice: 140_000, unitPriceOverride: true, priceCount: 1,
+      carryable: false, carriedAt: null, carriedIn: 0,
       doneAmount: 1_365_000, carryAmount: 420_000,
       lines: [
         { subKey: 'sat-read', label: 'SAT Reading', count: 8, unitPrice: 140_000, amount: 1_120_000 },
@@ -27,6 +28,7 @@ const base: Tuition = {
       studentId: 2, name: '김태린', grade: 'G5',
       done: 13, total: 20, percent: 65, canceled: 0,
       unitPrice: 120_000, unitPriceOverride: false, priceCount: 1,
+      carryable: false, carriedAt: null, carriedIn: 0,
       doneAmount: 2_220_000, carryAmount: 0,
       lines: [],
     },
@@ -148,4 +150,50 @@ it('막대의 길이와 밑에 적은 값이 **같은 분모**다 — 반쯤 찬
   expect(v.getByText('73%')).toBeTruthy();
   // 막대는 한 토막이다 — 결강은 제 칸에서 센다
   expect(bar.children.length).toBe(1);
+});
+
+/**
+ * 대표 결정 2026-09-13 (N-39): 「이월 처리는 **수업이 결제 됐으나 정해진 시수가 채워지지 않은
+ * 경우**」. 그 판정은 서버가 한다 — 화면이 「완납인가」를 다시 읽으면 **단추가 서는 줄과 서버가
+ * 받아 주는 줄이 갈려** 「눌리는데 거절당하는 단추」가 된다.
+ */
+it('「이월 처리」는 **서버가 된다고 한 줄에만** 선다', () => {
+  const d = clone();
+  d.items[0].carryable = true;
+  const v = render(<TuitionTable data={d} onCarry={() => {}} />);
+  expect(v.getAllByRole('button', { name: '이월 처리' })).toHaveLength(1);
+});
+
+it('넘길 돈이 있어도 **서버가 아니라면** 단추가 서지 않는다 — 돈을 안 받았으면 넘길 것이 없다', () => {
+  const d = clone();
+  // 결강 2회 · 넘길 돈 420,000원이지만 청구서가 완납이 아니다
+  d.items[0].carryable = false;
+  const v = render(<TuitionTable data={d} onCarry={() => {}} />);
+  expect(v.getByText('420,000원')).toBeTruthy();
+  expect(v.queryByRole('button', { name: '이월 처리' })).toBeNull();
+});
+
+it('누르면 그 학생으로 알린다', () => {
+  const d = clone();
+  d.items[0].carryable = true;
+  const asked: number[] = [];
+  const v = render(<TuitionTable data={d} onCarry={(id) => asked.push(id)} />);
+  fireEvent.click(v.getByRole('button', { name: '이월 처리' }));
+  expect(asked).toEqual([1]);
+});
+
+it('이미 넘긴 달은 단추 대신 **넘긴 날**을 적는다 — 한 달은 한 번만 넘긴다', () => {
+  const d = clone();
+  d.items[0].carryable = false;
+  d.items[0].carriedAt = '2026-09-01 10:20';
+  const v = render(<TuitionTable data={d} onCarry={() => {}} />);
+  expect(v.getByText('넘김 09-01')).toBeTruthy();
+  expect(v.queryByRole('button', { name: '이월 처리' })).toBeNull();
+});
+
+it('지난달에서 **넘어온 돈**은 그 줄에 적는다 — 이 달이 받은 것이다', () => {
+  const d = clone();
+  d.items[1].carriedIn = 70_000;
+  const v = render(<TuitionTable data={d} />);
+  expect(v.getByText('이월 받음 70,000원')).toBeTruthy();
 });

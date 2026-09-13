@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting, useInvBoard, useOtherIncome, useTuition } from '@/api/queries';
+import { useAccounting, useCarryTuition, useInvBoard, useOtherIncome, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
@@ -66,8 +66,12 @@ export default function AccountingPage() {
   const q = useAccounting();
   // §54 는 다른 질의다 — 그 탭을 열 때만 부른다 (달을 안 주면 서버가 이번 달로 정한다)
   const tuition = useTuition(undefined, tab === 'tuition');
+  // §54 이월 처리 — 누를 수 있는 줄인지는 서버가 정한다 (N-39)
+  const carry = useCarryTuition();
   // §57 도 다른 질의다 — 그 탭을 열 때만 부른다 (C66)
-  const otherIncome = useOtherIncome(tab === 'other');
+  // §57 의 날짜 눈금은 화면이 고르고 서버가 묶는다 (N-40)
+  const [incomeSpan, setIncomeSpan] = useState('month');
+  const otherIncome = useOtherIncome(incomeSpan, tab === 'other');
   // §52 도 다른 질의다 — 그 탭을 열 때만 부른다 (C69)
   const invBoard = useInvBoard(tab === 'board');
   const me = useSession((s) => s.me);
@@ -218,9 +222,22 @@ export default function AccountingPage() {
             <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
           </>
         ) : tab === 'other' ? (
-          <OtherIncome data={otherIncome.data} loading={otherIncome.isLoading} />
+          <OtherIncome
+            data={otherIncome.data}
+            loading={otherIncome.isLoading}
+            span={incomeSpan}
+            onSpanChange={setIncomeSpan}
+          />
         ) : tab === 'tuition' ? (
-          <TuitionTable data={tuition.data} loading={tuition.isLoading} />
+          <TuitionTable
+            data={tuition.data}
+            loading={tuition.isLoading}
+            carryingId={carry.isPending ? carry.variables?.studentId ?? null : null}
+            onCarry={(studentId) => {
+              const month = tuition.data?.month;
+              if (month) carry.mutate({ studentId, month });
+            }}
+          />
         ) : tab === 'record' ? (
           <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (
