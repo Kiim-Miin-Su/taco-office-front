@@ -25,13 +25,13 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 0, canSeeAmounts },
-    invoices: [], payouts: [], expenses: [], expenseTotals: [],
+    invoices: [], payouts: [], expenses: [], expenseTotals: [], payCategories: [],
     payments: [
-      { id: 1, studentName: '미확인 학생', paidOn: null, amount: null, method: null },
-      { id: 2, studentName: '영원 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 0 : null, method: 'cash' },
-      { id: 3, studentName: '입금 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 123400 : null, method: 'bank' },
-      { id: 4, studentName: '다른 수단', paidOn: null, amount: null, method: 'card' },
-      { id: 5, studentName: '기존 이체', paidOn: '2026-09-11', amount: null, method: 'transfer' },
+      { id: 1, studentName: '미확인 학생', paidOn: null, amount: null, method: null, category: 'etc', categoryLabel: '기타' },
+      { id: 2, studentName: '영원 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 0 : null, method: 'cash', category: 'etc', categoryLabel: '기타' },
+      { id: 3, studentName: '입금 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 123400 : null, method: 'bank', category: 'etc', categoryLabel: '기타' },
+      { id: 4, studentName: '다른 수단', paidOn: null, amount: null, method: 'card', category: 'etc', categoryLabel: '기타' },
+      { id: 5, studentName: '기존 이체', paidOn: '2026-09-11', amount: null, method: 'transfer', category: 'etc', categoryLabel: '기타' },
     ],
   };
   const get = vi.fn(async config => ({ config, status: 200, statusText: 'OK', headers: {}, data }));
@@ -41,12 +41,13 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 5' })).toBeTruthy());
   fireEvent.click(view.getByRole('button', { name: '들어온 돈 5' }));
   const cells = (name: string) => within(view.getByText(name).closest('tr')!).getAllByRole('cell').map(c => c.textContent);
-  expect(cells('미확인 학생').slice(0, 4)).toEqual(['미확인', '미확인 학생', canSeeAmounts ? '미확인' : '가려짐', '미확인']);
-  expect(cells('영원 학생').slice(0, 4)).toEqual(['2026-09-11', '영원 학생', canSeeAmounts ? '0원' : '가려짐', '현금']);
-  expect(cells('입금 학생')[2]).toBe(canSeeAmounts ? '123,400원' : '가려짐');
-  expect(cells('입금 학생')[3]).toBe('계좌');
-  expect(cells('다른 수단')[3]).toBe('card');
-  expect(cells('기존 이체')[3]).toBe('계좌');
+  // 칸 차례 — 입금일 · 학생 · **분류**(C71) · 금액 · 수단
+  expect(cells('미확인 학생').slice(0, 5)).toEqual(['미확인', '미확인 학생', '기타', canSeeAmounts ? '미확인' : '가려짐', '미확인']);
+  expect(cells('영원 학생').slice(0, 5)).toEqual(['2026-09-11', '영원 학생', '기타', canSeeAmounts ? '0원' : '가려짐', '현금']);
+  expect(cells('입금 학생')[3]).toBe(canSeeAmounts ? '123,400원' : '가려짐');
+  expect(cells('입금 학생')[4]).toBe('계좌');
+  expect(cells('다른 수단')[4]).toBe('card');
+  expect(cells('기존 이체')[4]).toBe('계좌');
   expect(view.container.textContent).not.toContain('null');
   expect(get).toHaveBeenCalledTimes(1);
 });
@@ -61,7 +62,7 @@ const HEAD_LABELS = ['보낸 청구서', '받은 돈', '못 받은 돈', '기한
 
 function mount(summary: Accounting['summary']) {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [] };
+  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [], payCategories: [] };
   api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -122,7 +123,7 @@ it.each([
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [payout(confirmed)],
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [payout(confirmed)],
   };
   api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -143,7 +144,7 @@ it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙�
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [payout(true)],
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [payout(true)],
   };
   api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -153,4 +154,35 @@ it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙�
   expect(view.queryByText(/정산은/)).toBeNull();
   fireEvent.click(view.getByRole('button', { name: '강사료 정산 1' }));
   expect(view.getByText(/정산은/)).toBeTruthy();
+});
+
+/**
+ * §55 의 **분류 여섯** — 대표 결정 2026-09-13 (N-37 ③ 「Entity, DTO 의 정합성과 단일 진실원 해결」).
+ * 저장된 칸이 아니라 서버가 읽어 만든 값이고, **건수가 0이어도 칩이 선다**(분류는 어휘다).
+ */
+it('분류 칩 여섯은 건수가 0이어도 서고 낱말은 서버가 준 것이다', async () => {
+  useSession.getState().signIn('fixture', me);
+  const data: Accounting = {
+    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [],
+    payCategories: [
+      { key: 'tuition', label: '수업료', count: 2, amount: 100 },
+      { key: 'gpa', label: 'GPA 관리비', count: 0, amount: 0 },
+      { key: 'consulting', label: '컨설팅비', count: 0, amount: 0 },
+      { key: 'diag_intake', label: '진단고사 · 상담', count: 0, amount: 0 },
+      { key: 'exam_fee', label: '시험 응시료', count: 0, amount: 0 },
+      { key: 'etc', label: '기타', count: 1, amount: 30 },
+    ],
+  };
+  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 0' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '들어온 돈 0' }));
+  expect(view.getByText('수업료 2')).toBeTruthy();
+  // 0 인 분류도 사라지지 않는다 — 「이 학원은 GPA 관리를 안 한다」고 말하게 된다
+  expect(view.getByText('GPA 관리비 0')).toBeTruthy();
+  expect(view.getByText('시험 응시료 0')).toBeTruthy();
+  expect(view.getByText('기타 1')).toBeTruthy();
 });

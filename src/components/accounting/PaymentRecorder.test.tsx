@@ -24,7 +24,7 @@ const inv = (over: Partial<Invoice> = {}): Invoice => ({
 });
 const line: Payment = {
   id: 3, invId: 9, studentId: 11, studentName: '고은설', amount: 200000, paidOn: '2026-08-23',
-  method: 'transfer', reason: '1회차 분납',
+  method: 'transfer', reason: '1회차 분납', category: 'tuition', categoryLabel: '수업료',
 };
 
 const originalAdapter = api.defaults.adapter;

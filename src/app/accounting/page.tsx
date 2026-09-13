@@ -114,6 +114,14 @@ export default function AccountingPage() {
     { key: 'd', head: '입금일', width: 110, cell: (r) => <span className="font-bold">{r.paidOn ?? '미확인'}</span> },
     { key: 's', head: '학생', width: 130, cell: (r) => r.studentName ?? '—' },
     {
+      /*
+       * §55 의 **분류** — 저장된 칸이 아니라 서버가 읽어 만든 값이다 (N-37 ③ · 대표 결정).
+       * 화면이 `invId` 로 「기타인가」를 다시 판정하면 칩줄의 건수와 표가 갈린다 (D-R39).
+       */
+      key: 'c', head: '분류', width: 110,
+      cell: (r) => <Chip tone={r.category === 'etc' ? 'neutral' : 'info'}>{r.categoryLabel}</Chip>,
+    },
+    {
       key: 'a',
       head: '금액',
       width: 130,
@@ -241,7 +249,17 @@ export default function AccountingPage() {
         ) : tab === 'record' ? (
           <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (
-          <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
+          <>
+            {/* 컷 §55 의 분류 칩줄 — **건수가 0이어도 선다.** 분류는 어휘이지 데이터가 아니다 */}
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11.5px] font-bold text-fg-subtle">분류</span>
+              <Chip tone="neutral">전체 {q.data?.payments.length ?? 0}</Chip>
+              {(q.data?.payCategories ?? []).map((c) => (
+                <Chip key={c.key} tone={c.count > 0 ? 'info' : 'neutral'}>{c.label} {c.count}</Chip>
+              ))}
+            </div>
+            <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
+          </>
         ) : tab === 'out' ? (
           <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} me={me} />
         ) : (

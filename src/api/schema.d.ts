@@ -2408,6 +2408,10 @@ export interface components {
             /** @description 청구액과 다를 때의 사유 · 분납 회차 메모 (A-D2) */
             reason?: string | null;
             invId?: number | null;
+            /** @description 분류 코드 — 여섯 (N-37 ③) */
+            category: string;
+            /** @description 분류 이름 — §55 컷의 낱말 */
+            categoryLabel: string;
         };
         PayoutDto: {
             id: number;
@@ -2458,6 +2462,15 @@ export interface components {
             /** @description 확정된 지출의 합 — 권한이 없으면 null (D-R39) */
             sum: number | null;
         };
+        PayCategoryDto: {
+            key: string;
+            /** @description §55 컷의 낱말 */
+            label: string;
+            /** @description 그 분류의 건수 — 화면이 세지 않는다 (D-R37) */
+            count: number;
+            /** @description 그 분류로 들어온 돈 */
+            amount?: number | null;
+        };
         AccountingDto: {
             summary: components["schemas"]["MoneySummaryDto"];
             invoices: components["schemas"]["InvoiceDto"][];
@@ -2467,6 +2480,8 @@ export interface components {
             expenses: components["schemas"]["ExpenseDto"][];
             /** @description §56 분류별 확정 지출 합계 — 화면이 더하지 않는다 */
             expenseTotals: components["schemas"]["ExpenseTotalDto"][];
+            /** @description §55 분류 칩 여섯 — **건수가 0이어도 선다**(분류는 어휘이지 데이터가 아니다). 화면이 세지 않는다 (D-R37) */
+            payCategories: components["schemas"]["PayCategoryDto"][];
         };
         TuitionRowDto: {
             studentId: number;
