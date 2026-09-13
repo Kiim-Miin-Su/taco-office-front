@@ -27,16 +27,27 @@ import type { Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
 import { AttendanceControl } from './AttendanceControl';
 import { StudentTracking } from './StudentTracking';
 
-/** 준비 8단계 — 명세서 §12. 순서가 곧 화면의 순서다. */
+/**
+ * 준비 단계 — 명세서 §12. 순서가 곧 화면의 순서다.
+ *
+ * 이름은 컷의 낱말로 맞췄다 — 「강사 배정」·「교재 배정」·「수업 안내」·「강사 피드백」.
+ * **「줌 안내」는 온라인 수업에만 선다** (`online` 이 참일 때만). 컷도 온라인 §12 가 아홉 줄,
+ * 현장 §79 가 「준비 4 / 7」로 일곱 줄이라 **줌 갈래가 조건부**다. 전에는 `o.mode === 'online' ? null : null`
+ * 이라 **양쪽이 같은 죽은 삼항**이어서 현장 수업에도 줌 안내가 서 있었다.
+ *
+ * 아직 컷과 다른 것: 컷의 「대표 지시 할 일」과 「수강 학생」이 단계에 없고(수강 학생은 아래 별도 칸이다),
+ * 우리에게만 「리포트」가 있으며, 컷의 「줌 계정」을 우리는 현장·온라인 공용으로 「강의실 · 줌」이라 부른다.
+ * 줄마다의 부제값(「1명 / 정원 4명 · 이담흔」 같은 것)과 「준비 N / M」 머리도 아직 없다.
+ */
 const STEPS = [
-  { key: 'fixed', label: '일정 확정' },
-  { key: 'teacher', label: '강사' },
-  { key: 'place', label: '강의실 · 줌' },
-  { key: 'book', label: '교재' },
-  { key: 'guide', label: '안내' },
-  { key: 'zoom', label: '줌 안내' },
-  { key: 'report', label: '리포트' },
-  { key: 'feedback', label: '피드백' },
+  { key: 'fixed', label: '일정 확정', online: false },
+  { key: 'teacher', label: '강사 배정', online: false },
+  { key: 'place', label: '강의실 · 줌', online: false },
+  { key: 'book', label: '교재 배정', online: false },
+  { key: 'guide', label: '수업 안내', online: false },
+  { key: 'zoom', label: '줌 안내', online: true },
+  { key: 'report', label: '리포트', online: false },
+  { key: 'feedback', label: '강사 피드백', online: false },
 ] as const;
 
 /** 무엇이 됐는지는 회차가 이미 들고 있다 — 화면이 다시 판정하지 않는다 (D-R4) */
@@ -47,7 +58,7 @@ function doneOf(o: Occurrence): Record<string, boolean | null> {
     place: o.mode === 'online' ? o.zaccId !== null : o.roomId !== null,
     book: null,      // 현황판이 clChk() 로 판정한다 — 여기서는 모른다고 적는다
     guide: null,
-    zoom: o.mode === 'online' ? null : null,
+    zoom: null,      // 온라인에서만 서고, 됐는지는 현황판이 판정한다
     report: o.written,
     feedback: null,
   };
@@ -81,6 +92,8 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
 
   if (!occ) return null;
   const done = doneOf(occ);
+  // 줌 갈래는 온라인에만 선다 — 컷의 온라인 아홉 줄 / 현장 일곱 줄 (위 STEPS 주석)
+  const steps = STEPS.filter((s) => !s.online || occ.mode === 'online');
 
   /**
    * 수강 학생은 3범위가 아니라 **2범위**다 — 다이얼로그 없이 줄 버튼으로 바로 간다
@@ -141,9 +154,9 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
           </div>
 
           <section>
-            <h3 className="mb-2 text-[12px] font-bold text-fg">준비 8단계</h3>
+            <h3 className="mb-2 text-[12px] font-bold text-fg">준비 {steps.length}단계</h3>
             <ol className="flex flex-col gap-1">
-              {STEPS.map((s, i) => {
+              {steps.map((s, i) => {
                 const v = done[s.key];
                 return (
                   <li key={s.key} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2">

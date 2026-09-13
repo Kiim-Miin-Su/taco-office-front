@@ -390,6 +390,7 @@ export function NotisPane({ notis, meId, windowDays, olderCount, onRead, onReadA
 export function MembersPane({ members, tzGroups, tz }: {
   members: Member[]; tzGroups: TzGroup[]; tz: string;
 }) {
+  const tzName = (value: string) => tzGroups.find((g) => g.tz === value)?.name ?? value;
   const cols: Array<Column<Member>> = [
     { key: 'name', head: '이름', cell: (m) => (
       <span className={m.active ? 'font-bold text-fg' : 'text-fg-subtle line-through'}>{m.name}</span>
@@ -399,13 +400,18 @@ export function MembersPane({ members, tzGroups, tz }: {
       // 역할을 비교하지 않는다 — 이름도 색도 표에서 꺼낸다 (D-R39)
       <Chip tone={ROLE_TONE[m.role] ?? 'neutral'}>{ROLE_LABEL[m.role] ?? m.role}</Chip>
     ) },
-    { key: 'tz', head: '시간대', align: 'right', cell: (m) => m.tz ?? tz },
+    /*
+     * 시간대는 **사람의 이름으로** 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18).
+     * 그 이름은 이미 아래 「시간대 그룹」이 들고 있으므로 새로 짓지 않고 거기서 찾는다.
+     * 표에 없는 값은 감추지 않고 저장값 그대로 보인다 — 새 시간대가 생긴 것을 알아야 한다.
+     */
+    { key: 'tz', head: '시간대', align: 'right', cell: (m) => tzName(m.tz ?? tz) },
   ];
   return (
     <>
       <Banner tone="neutral" className="mb-3">
         직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다 (D-R39).
-        <b> 관리자 화면의 모든 시각은 {tz}</b> 로 고정입니다 (D-R12).
+        <b> 관리자 화면의 모든 시각은 {tzName(tz)}</b> 로 고정입니다 (D-R12).
       </Banner>
       <Section title="구성원" count={members.length}>
         <Table columns={cols} rows={members} rowKey={(m) => m.id} />

@@ -109,11 +109,19 @@ export default function OpsPage() {
       } },
   ];
 
-  const planCols: Array<BoardColumn<Plan>> = PLAN_STAGE.map((s) => {
-    const items = (d?.plans ?? []).filter((p) => p.stage === s.key);
-    // 칸 이름도 서버가 준 낱말에서 나온다 — 비어 있는 칸만 코드값을 쓸 일이 없도록 기본값을 둔다
-    return { key: s.key, label: items[0]?.stageLabel ?? s.key, tone: s.tone, items };
-  });
+  /*
+   * 칸 이름은 **줄에서 빌려 오지 않는다.** 전에는 `items[0]?.stageLabel ?? s.key` 였고,
+   * 그래서 **줄이 하나도 없는 칸은 빌려 올 데가 없어 코드값 `done` 을 그대로 찍었다** —
+   * 나머지 넷은 줄이 있어서 우연히 맞았을 뿐이다. 낱말은 데이터가 아니라 어휘라
+   * 서버가 `planStages` 로 따로 준다 (D-R18).
+   */
+  const stageLabel = (key: string) => d?.planStages.find((v) => v.key === key)?.label ?? key;
+  const planCols: Array<BoardColumn<Plan>> = PLAN_STAGE.map((s) => ({
+    key: s.key,
+    label: stageLabel(s.key),
+    tone: s.tone,
+    items: (d?.plans ?? []).filter((p) => p.stage === s.key),
+  }));
   /** §62 기획 기한 — 「남은 날」도 「구분」도 서버가 만든 낱말이다 (D-R18 · D-R37) */
   const dueCols: Array<Column<PlanDue>> = [
     { key: 'd', head: '기한', width: 90, cell: (r) => r.dueOn.slice(5) },
@@ -139,7 +147,8 @@ export default function OpsPage() {
 
       <div className="mb-4 grid grid-cols-4 gap-3">
         <StatCard label="열린 할 일" value={openTodos.length}
-          note={`기한 지난 것 ${openTodos.filter((t) => t.overdueDays > 0).length}건`}
+          /* 「기한 지난 것」만 적으면 바로 밑 §62 띠의 「기한 지난 것 N건」(기획)과 **같은 말이 두 숫자**가 된다 */
+          note={`기한 지난 할 일 ${openTodos.filter((t) => t.overdueDays > 0).length}건`}
           tone={openTodos.some((t) => t.overdueDays > 0) ? 'danger' : 'neutral'} />
         <StatCard label="접수 컴플레인" value={(d?.complaints ?? []).filter((c) => c.stage === 'received').length}
           note="24시간 넘으면 대표 피드백으로" tone="danger" />

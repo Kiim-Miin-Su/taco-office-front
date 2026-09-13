@@ -2621,6 +2621,12 @@ export interface components {
              */
             dueState: "none" | "proposed" | "approved";
         };
+        PlanStageDto: {
+            /** @description 저장값 */
+            key: string;
+            /** @description 사람이 읽는 이름 */
+            label: string;
+        };
         PlanDueRowDto: {
             /** @description 한 표 안에서 겹치지 않는 키 — `plan:3` · `task:11` */
             key: string;
@@ -2742,6 +2748,8 @@ export interface components {
             complaints: components["schemas"]["ComplaintDto"][];
             todos: components["schemas"]["TodoDto"][];
             plans: components["schemas"]["PlanDto"][];
+            /** @description §61 칸 다섯의 이름 — 빈 칸도 이름을 갖는다 (D-R18) */
+            planStages: components["schemas"]["PlanStageDto"][];
             /** @description §62 기획 기한 — 기획 마감과 과제 기한을 날짜 순으로 섞은 표 */
             planDues: components["schemas"]["PlanDueRowDto"][];
             /** @description 기한 지난 것 — 서버가 센다 (D-R37) */

@@ -90,7 +90,7 @@ export function ReportDeliveryQueue({ onOpenReport }: { onOpenReport: (report: R
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[18px] font-bold text-fg">{query.data.onDate} 수업분</h2>
-          <p className="mt-1 text-[12px] text-fg-subtle">승인 완료된 리포트만 학생 단위로 묶어 private Blob에 보존합니다.</p>
+          <p className="mt-1 text-[12px] text-fg-subtle">어제 한 수업을 오늘 보냅니다 — 승인된 리포트만 학생별로 묶습니다.</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[12px] font-bold text-fg-subtle">보낼 수 있음 {query.data.remaining}명</span>

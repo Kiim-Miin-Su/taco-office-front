@@ -26,16 +26,26 @@ import {
   NotisPane, TodosPane, ZoomPane, type ChangeReqDraft, type TodoBox,
 } from './panes';
 
-/** 여덟 칸 — Figma `Spec/02 우측 서랍` 의 순서 그대로 */
+/**
+ * 여덟 칸 — Figma `Spec/02 우측 서랍` 의 순서 그대로.
+ *
+ * **이름이 두 벌이면 안 된다.** 오른쪽 레일은 「승인 대기함」·「프로그램」·「줌 계정」이라 부르는데
+ * 여기 탭은 「승인」·「종류」·「줌」이라 줄여 부르고 있었다 — **같은 칸을 같은 화면이 두 이름으로**
+ * 불렀다. 레일의 낱말이 컷의 낱말이므로 그쪽으로 맞춘다.
+ *
+ * `title` 은 **창의 제목**이다. 전에는 어느 칸을 열든 제목이 「서랍」이었다 — 컷은 칸마다
+ * 제목이 다르다(승인 대기함 · 알림 · 구성원 · 시간대 …). 「서랍」은 이 창이 무엇인지가 아니라
+ * 이 창이 **어떻게 생겼는지**를 말하는 이름이다.
+ */
 const PANES = [
-  { key: 'approvals', label: '승인' },
-  { key: 'todos', label: '할 일' },
-  { key: 'notis', label: '알림' },
-  { key: 'members', label: '구성원' },
-  { key: 'kinds', label: '종류' },
-  { key: 'chreqNew', label: '변경 요청' },
-  { key: 'chreqs', label: '이력' },
-  { key: 'zoom', label: '줌' },
+  { key: 'approvals', label: '승인 대기함', title: '승인 대기함' },
+  { key: 'todos', label: '할 일', title: '할 일 · 피드백' },
+  { key: 'notis', label: '알림', title: '알림' },
+  { key: 'members', label: '구성원', title: '구성원 · 시간대' },
+  { key: 'kinds', label: '프로그램', title: '프로그램 · 과목' },
+  { key: 'chreqNew', label: '변경 요청', title: '변경 요청' },
+  { key: 'chreqs', label: '이력', title: '변경 요청 · 이력' },
+  { key: 'zoom', label: '줌 계정', title: '줌 계정' },
 ] as const;
 export type DrawerPane = (typeof PANES)[number]['key'];
 
@@ -79,12 +89,14 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
 
   const count = data?.approvals.count ?? 0;
   const unread = data?.notis.filter((n) => !n.read).length ?? 0;
+  // 시간대는 사람의 이름으로 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18)
+  const tzName = data ? (data.tzGroups.find((g) => g.tz === data.tz)?.name ?? data.tz) : '';
 
   return (
     <Drawer
       open={open} onClose={onClose} width={560}
-      title="서랍"
-      sub={data ? `결재 ${count}건 · 안 읽은 알림 ${unread}건 · 모든 시각 ${data.tz}` : undefined}
+      title={PANES.find((p) => p.key === pane)?.title ?? '서랍'}
+      sub={data ? `결재 ${count}건 · 안 읽은 알림 ${unread}건 · 모든 시각 ${tzName}` : undefined}
     >
       <nav aria-label="서랍 메뉴" className="mb-4 flex flex-wrap gap-1 border-b border-line pb-2">
         {PANES.map((p) => {

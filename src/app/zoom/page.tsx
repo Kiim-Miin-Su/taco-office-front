@@ -82,8 +82,8 @@ export default function ZoomAccountsPage() {
 
         <div className="mb-4 grid grid-cols-4 gap-3">
           <StatCard label="계정" value={board ? `${board.accounts.length}개` : '—'} note="꺼진 것 포함" />
-          <StatCard label="지금 가능" value={board ? `${board.freeNow}개` : '—'} tone="success" note="하루 내내 빈 계정" />
-          <StatCard label="만석 시간대" value={board ? `${board.fullHours}칸` : '—'} tone="danger" note="한 계정도 안 남은 시간" />
+          <StatCard label="지금 가능" value={board ? `${board.freeNow}개` : '—'} tone="success" note="지금 비어 있는 계정" />
+          <StatCard label="만석 시간대" value={board ? `${board.fullHours}` : '—'} tone="danger" note="한 계정도 안 남은 시간" />
           <StatCard label="기준일" value={board?.onDate ?? '—'} note="KST" />
         </div>
 

@@ -17,9 +17,15 @@ const kstDateTime = (value: string) => new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short',
 }).format(new Date(value));
 
+/*
+ * 사람에게 보이는 자리에 **저장소 이름을 적지 않는다.** 「private Blob」과 「RSEND」는
+ * 우리가 파일을 어디에 두는지와 어느 표에 적는지를 가리키는 **내부 이름**이고,
+ * 학부모에게 나갈 리포트를 보내는 사람이 알 일이 아니다. 저장소를 바꾸면 이 문장도
+ * 함께 틀리게 되므로, 여기서는 **무엇이 남는지**만 말한다.
+ */
 const historyAction = (row: ReportSendHistory) => row.sourceSendId
-  ? `재발송 기록 · private Blob ${row.fileCount}장 재사용`
-  : `private Blob ${row.fileCount}장 보존`;
+  ? `다시 보냄 · 파일 ${row.fileCount}장 그대로`
+  : `파일 ${row.fileCount}장 보관`;
 
 export function ReportDeliveryHistory({
   onDate, repId, compact = false,
@@ -53,7 +59,7 @@ export function ReportDeliveryHistory({
       <div className="mb-2 flex items-end justify-between gap-3">
         <div>
           <h3 className="text-[13px] font-bold text-fg">내보내기 이력</h3>
-          {!compact ? <p className="mt-0.5 text-[11px] text-fg-subtle">RSEND 원문과 private Blob 파일을 덮어쓰지 않고 보관합니다.</p> : null}
+          {!compact ? <p className="mt-0.5 text-[11px] text-fg-subtle">보낸 내용과 파일을 덮어쓰지 않고 그대로 보관합니다.</p> : null}
         </div>
         <span className="text-[11px] text-fg-subtle">{query.data?.items.length ?? 0}건</span>
       </div>
@@ -84,7 +90,7 @@ export function ReportDeliveryHistory({
           )}
       {!compact ? (
         <Banner tone="info" className="mt-3">
-          여기의 완료는 private Blob 보존과 내부 감사 이력 완료입니다. 카카오·알림톡 실발송은 별도 외부 연동입니다.
+          여기의 「완료」는 파일이 보관되고 이력이 남았다는 뜻입니다. 카카오·알림톡으로 실제 보내는 것은 아직 별도입니다.
         </Banner>
       ) : null}
     </section>

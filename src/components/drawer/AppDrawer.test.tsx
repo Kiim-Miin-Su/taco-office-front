@@ -26,7 +26,7 @@ vi.mock('./panes', async (importOriginal) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.drawer.mockReturnValue({
-    data: { approvals: { count: 2 }, notis: [], kinds: [], tz: 'Asia/Seoul' },
+    data: { approvals: { count: 2 }, notis: [], kinds: [], tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }] },
     isLoading: false, isError: false,
   });
   mocks.meta.mockReturnValue({ data: { staff: [], rooms: [], zaccs: [] } });
@@ -37,11 +37,11 @@ describe('공용 서랍의 제어형 선택', () => {
   it('외부 선택을 본문과 접근성 활성 표시가 함께 따른다', () => {
     const view = render(<AppDrawer open pane="kinds" onPaneChange={() => undefined} onClose={() => undefined} />);
     const nav = within(view.getByRole('navigation', { name: '서랍 메뉴' }));
-    const active = nav.getByRole('button', { name: '종류' });
+    const active = nav.getByRole('button', { name: '프로그램' });
     expect(active.getAttribute('aria-pressed')).toBe('true');
     expect(active.classList.contains('bg-primary')).toBe(true);
     expect(active.classList.contains('bg-blue')).toBe(false);
-    expect(nav.getByRole('button', { name: '승인 2' }).getAttribute('aria-pressed')).toBe('false');
+    expect(nav.getByRole('button', { name: '승인 대기함 2' }).getAttribute('aria-pressed')).toBe('false');
     expect(view.getByText('종류 내용')).toBeTruthy();
     expect(view.queryByText('승인 내용')).toBeNull();
   });
@@ -49,7 +49,7 @@ describe('공용 서랍의 제어형 선택', () => {
   it('탭 클릭은 변경 의도만 전달하고 부모가 바꾼 선택을 렌더한다', () => {
     const change = vi.fn();
     const view = render(<AppDrawer open pane="approvals" onPaneChange={change} onClose={() => undefined} />);
-    fireEvent.click(view.getByRole('button', { name: '종류' }));
+    fireEvent.click(view.getByRole('button', { name: '프로그램' }));
     expect(change).toHaveBeenCalledOnce();
     expect(change).toHaveBeenCalledWith('kinds');
     expect(view.getByText('승인 내용')).toBeTruthy();

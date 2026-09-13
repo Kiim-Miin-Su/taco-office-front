@@ -29,7 +29,7 @@ const leads: Lead[] = [
 ];
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
-  feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0,
+  feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
 };
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });

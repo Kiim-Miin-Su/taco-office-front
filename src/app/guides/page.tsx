@@ -80,7 +80,7 @@ export default function GuidesPage() {
       <AppShell>
         <PageHeader
           title="수업 안내"
-          sub="§41 한 번만 나가는 안내 · §42 회차마다 나가는 안내"
+          sub="한 번 — 첫 수업 · 강사 교체 · 보강 · 매번 — 온라인 줌 계정"
           right={(
             <div className="flex items-center gap-2">
               {d?.todoCount ? <Chip tone="danger" styleKind="solid">{d.todoCount}건 남음</Chip> : null}

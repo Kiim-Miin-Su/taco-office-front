@@ -34,7 +34,7 @@ const ceo: Me = { ...manager, id: 4, name: '대표', role: 'ceo', canSeeProfit: 
 const response: Ops = {
   leads: [{ id: 71, name: '접근 검수 학생', stage: 'first', createdAt: '2026-09-10', ageDays: 0 }],
   complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
-  feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0,
+  feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
 };
 const clients: QueryClient[] = [];
 

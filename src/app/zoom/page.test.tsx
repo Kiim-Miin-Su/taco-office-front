@@ -53,7 +53,7 @@ it('머리 숫자는 서버가 센 값을 그대로 쓴다 — 화면이 다시 
   await waitFor(() => expect(view.getByText('a@tn.kr')).toBeTruthy());
   const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
   expect(text).toContain('5개');   // 지금 가능
-  expect(text).toContain('1칸');   // 만석 시간대
+  expect(text).toContain('만석 시간대');  // 단위 없이 숫자만 — 컷의 「1」
   expect(text).toContain('2개');   // 계정 수 (꺼진 것 포함)
   expect(text).toContain('2026-08-21');
 });
