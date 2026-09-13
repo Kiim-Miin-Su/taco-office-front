@@ -20,6 +20,13 @@ const me: Me = {
 const meta = {
   kinds: [], subs: [], rooms: [], zaccs: [], staff: [],
   students: [{ id: 7, name: '양찬욱', grade: 'G10', school: null }],
+  // 종류 목록도 서버가 준다 — 화면이 코드표를 다시 적지 않는다 (D-R18 · C64)
+  invTypes: [
+    { key: 'tuition', label: '수업료 청구', sub: '정규 수업', other: false },
+    { key: 'consulting', label: '컨설팅비 청구', sub: '진학 컨설팅 · 인터뷰 준비', other: true },
+    { key: 'diag_intake', label: '진단고사 + 상담 비용', sub: '진단고사 · 입학 상담', other: true },
+    { key: 'exam_fee', label: 'MAP + CAT 응시료', sub: 'MAP · CAT 응시료', other: true },
+  ],
 };
 
 const made: Invoice = {
@@ -108,4 +115,13 @@ it('거절 이유는 서버 문장을 그대로 보여 준다 — 화면이 이�
   fireEvent.click(view.getByRole('button', { name: '발행' }));
   await waitFor(() => expect(view.getByText(/수업이 없습니다/)).toBeTruthy());
   expect(view.queryByText('SAT Math')).toBeNull();
+});
+
+it('종류 목록을 서버에서 받아 그린다 — 화면에 코드표를 다시 적지 않는다 (D-R18 · C64)', async () => {
+  const view = setup();
+  fireEvent.click(view.getByRole('button', { name: '+ 새 청구서 발행' }));
+  await waitFor(() => expect(view.getByRole('option', { name: 'MAP + CAT 응시료' })).toBeTruthy());
+  const select = view.getByLabelText('종류') as HTMLSelectElement;
+  expect([...select.options].map((o) => o.value)).toEqual(meta.invTypes.map((t) => t.key));
+  expect([...select.options].map((o) => o.textContent)).toEqual(meta.invTypes.map((t) => t.label));
 });

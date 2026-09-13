@@ -76,9 +76,11 @@ export function InvoiceIssuer() {
             </div>
             <div>
               <Label htmlFor="iv-type">종류</Label>
+              {/* 낱말도 목록도 서버가 준다 — 종류가 늘어도 이 자리는 그대로다 (D-R18) */}
               <Select id="iv-type" value={invType} onChange={(e) => setInvType(e.target.value as InvType)}>
-                <option value="tuition">수업료 청구</option>
-                <option value="consulting">컨설팅비 청구</option>
+                {(meta.data?.invTypes ?? []).map((t) => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
               </Select>
             </div>
           </div>

@@ -1721,6 +1721,16 @@ export interface components {
             grade?: string | null;
             school?: string | null;
         };
+        InvTypeDto: {
+            /** @description 저장되는 코드값 */
+            key: string;
+            /** @description 이름 — §53 카드의 배지 */
+            label: string;
+            /** @description 부제 — §57 「그 밖의 수입」 줄의 설명 */
+            sub: string;
+            /** @description 수업료가 아닌 돈인가 — §57 이 세는 것 */
+            other: boolean;
+        };
         MetaDto: {
             kinds: components["schemas"]["KindDto"][];
             subs: components["schemas"]["SubDto"][];
@@ -1728,6 +1738,8 @@ export interface components {
             zaccs: components["schemas"]["ZaccDto"][];
             staff: components["schemas"]["StaffBriefDto"][];
             students: components["schemas"]["StudentBriefDto"][];
+            /** @description 청구 종류 넷 — 낱말은 서버가 만든다 (D-R18) */
+            invTypes: components["schemas"]["InvTypeDto"][];
         };
         AttendanceDto: {
             id: number;
@@ -2386,7 +2398,7 @@ export interface components {
              * @description 청구 종류
              * @enum {string}
              */
-            invType: "tuition" | "consulting";
+            invType: "tuition" | "consulting" | "diag_intake" | "exam_fee";
             /** @description 제목 — 비우면 서버가 「2026년 8월 수업료」처럼 짓는다 */
             title?: string;
             /** @description 납기일 — YYYY-MM-DD */
