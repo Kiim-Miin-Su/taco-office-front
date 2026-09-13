@@ -21,6 +21,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Input, Label, PageHeader, Panel, StatCard, Table, type Column } from '@/components/ui';
 import { apiMessage } from '@/api/client';
 import { useCreateZoomAccount, usePatchZoomAccount, useZoom } from '@/api/queries';
+import { ZoomGrid } from '@/components/zoom/ZoomGrid';
 import type { ZoomAcct } from '@/api/types';
 
 const EMPTY = { label: '', loginEmail: '', joinUrl: '', meetingId: '', loginSecret: '', meetingPw: '' };
@@ -33,6 +34,8 @@ export default function ZoomAccountsPage() {
   const [form, setForm] = useState({ ...EMPTY });
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  /** 참가 링크는 **펼쳐야** 보인다 — 표에 늘 떠 있으면 화면 공유 중에 그대로 찍힌다 */
+  const [shownUrl, setShownUrl] = useState<number | null>(null);
   const [draft, setDraft] = useState({ ...EMPTY });
 
   const board = q.data;
@@ -48,6 +51,16 @@ export default function ZoomAccountsPage() {
       cell: (r) => <Chip size="compact" tone={r.hasSecret ? 'success' : 'warning'}>{r.hasSecret ? '저장됨' : '없음'}</Chip>,
     },
     { key: 'u', head: '오늘 쓰는 회차', width: 120, align: 'right', cell: (r) => `${r.usedCount}건` },
+    {
+      // 서랍(§21)이 격자가 되면서 옮겨 온 자리다 — 없앤 것이 아니다.
+      // 로그인 정보와 **같은 줄에 두지 않는다**: 값은 펼쳐야 보인다.
+      key: 'j', head: '참가 링크', width: 110,
+      cell: (r) => (
+        <Button size="sm" variant="ghost" onClick={() => setShownUrl(shownUrl === r.id ? null : r.id)}>
+          {shownUrl === r.id ? '숨기기' : '보기'}
+        </Button>
+      ),
+    },
     {
       key: 'a', head: '상태', width: 90,
       cell: (r) => <Chip tone={r.active ? 'success' : 'neutral'}>{r.active ? '켜짐' : '꺼짐'}</Chip>,
@@ -82,7 +95,12 @@ export default function ZoomAccountsPage() {
 
         <div className="mb-4 grid grid-cols-4 gap-3">
           <StatCard label="계정" value={board ? `${board.accounts.length}개` : '—'} note="꺼진 것 포함" />
-          <StatCard label="지금 가능" value={board ? `${board.freeNow}개` : '—'} tone="success" note="지금 비어 있는 계정" />
+          <StatCard
+            label="지금 가능"
+            value={board && board.nowHour !== null ? `${board.freeNow}개` : '—'}
+            tone="success"
+            note={board?.nowHour == null ? '오늘만 셉니다' : `${String(board.nowHour).padStart(2, '0')}시에 비어 있는 계정`}
+          />
           <StatCard label="만석 시간대" value={board ? `${board.fullHours}` : '—'} tone="danger" note="한 계정도 안 남은 시간" />
           <StatCard label="기준일" value={board?.onDate ?? '—'} note="KST" />
         </div>
@@ -152,41 +170,22 @@ export default function ZoomAccountsPage() {
         ) : null}
 
         <Panel className="mb-4" title={`하루 점유 ${board?.onDate ?? ''}`} sub={`${board?.fromHour ?? 8}시 ~ ${board?.toHour ?? 21}시 · 색이 찬 칸은 그 시간에 쓰는 중입니다`}>
-          {board && board.rows.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="text-[12px]">
-                <thead>
-                  <tr>
-                    <th className="px-2 py-1 text-left font-bold">계정</th>
-                    {board.rows[0].slots.map((s) => (
-                      <th key={s.hour} className="w-9 px-0 py-1 text-center font-normal text-fg-subtle">{String(s.hour).padStart(2, '0')}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {board.rows.map((r) => (
-                    <tr key={r.zaccId}>
-                      <td className="whitespace-nowrap px-2 py-1 font-bold">{r.label}</td>
-                      {r.slots.map((s) => (
-                        <td key={s.hour} className="px-0.5 py-1">
-                          <div
-                            className={`h-5 rounded ${s.busy > 0 ? 'bg-red/70' : 'bg-line'}`}
-                            title={`${String(s.hour).padStart(2, '0')}시 · ${s.busy}건`}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">켜진 계정이 없습니다.</p>
-          )}
+          {/* 서랍 §21 과 **같은 컴포넌트**다. 같은 것을 두 모양으로 그리면 한쪽만 고쳐진다 */}
+          {board ? <ZoomGrid board={board} /> : null}
+          {board && board.freeLabels.length > 0 ? (
+            <p className="mt-3 text-[12px] text-fg-2">
+              지금 쓸 수 있는 계정 — <b className="text-fg">{board.freeLabels.join(' · ')}</b>
+            </p>
+          ) : null}
         </Panel>
 
         <Panel title={`계정 ${board?.accounts.length ?? 0}개`} sub="끄면 새 배정에서 빠집니다. 이미 붙은 회차는 그대로 둡니다">
           <Table columns={cols} rows={board?.accounts ?? []} rowKey={(r) => r.id} empty="줌 계정이 없습니다" />
+          {shownUrl !== null ? (
+            <p className="mt-2 break-all rounded bg-inset px-2 py-1.5 text-[11px] text-fg-2">
+              {board?.accounts.find((a) => a.id === shownUrl)?.joinUrl ?? '—'}
+            </p>
+          ) : null}
         </Panel>
       </AppShell>
     </RequireAuth>

@@ -1175,12 +1175,18 @@ export function usePutGpaAlloc(): UseMutationResult<GpaStudent, unknown, { cycle
 /* ══ 줌 계정 관리 (§21 목적지 · 대표 결정 2026-09-12 신설) ══════════════════
    점유·「지금 가능」·「만석 시간대」는 **서버가 한 배열에서 센다** — 화면은 그리기만 한다. */
 
-export function useZoom(onDate?: string): UseQueryResult<ZoomBoard> {
+/**
+ * `enabled` 는 **서랍(§21)** 때문에 있다. 서랍은 여덟 칸을 한 번에 받지만 격자는 거기 없다 —
+ * 칸을 **열 때만** 부른다. 서랍 payload 에 격자를 얹으면 §21 을 안 여는 사람도 매번 값을 치른다.
+ * 같은 훅을 쓰므로 서랍과 「줌 계정 관리」가 같은 숫자를 본다.
+ */
+export function useZoom(onDate?: string, enabled = true): UseQueryResult<ZoomBoard> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.zoom(onDate), viewerId),
     queryFn: async () => (await api.get<ZoomBoard>('/zoom', { params: onDate ? { onDate } : {} })).data,
     staleTime: 30 * 1000,
+    enabled,
   });
 }
 

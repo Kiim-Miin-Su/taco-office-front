@@ -15,14 +15,15 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, Table, Textarea,
+  Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, StatCard, Table, Textarea,
   type Column, type Tone,
 } from '@/components/ui';
+import { ZoomGrid } from '@/components/zoom/ZoomGrid';
 import type {
   ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo,
-  KindRow, Member, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount,
+  KindRow, Member, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
-import { hhmm, lessonTimeIssue } from '@/lib/calendar';
+import { hhmm, label, lessonTimeIssue } from '@/lib/calendar';
 import { REQ_TYPE_LABEL, ROLE_LABEL, ROLE_TONE } from '@/lib/roles';
 import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
 
@@ -665,45 +666,73 @@ export function ChangeReqsPane({ rows }: { rows: ChangeReq[] }) {
 
 /* ── §21 줌 계정 ─────────────────────────────────────────────────── */
 
-export function ZoomPane({ rows }: { rows: ZoomAccount[] }) {
+/**
+ * 원문 §21 은 **격자 한 판과 숫자 둘**이다 — 계정 카드 목록이 아니었다.
+ * 「8월 21일 기준 · 동시 5개가 한도입니다」 로 시작해 계정 × 시간 격자, 「지금 가능」·「만석 시간대」,
+ * 그리고 지금 쓸 수 있는 계정 이름줄이 온다. 지금까지는 카드 목록이라 **언제 비는지를 볼 수 없었다.**
+ *
+ * 격자는 「줌 계정 관리」와 **같은 컴포넌트·같은 질의**다. 두 화면이 갈리지 않는다.
+ * 격자는 칸을 **열 때만** 부른다 — 서랍을 열 때마다 딸려오면 §21 을 안 쓰는 사람도 값을 치른다.
+ *
+ * 겹침 경고는 서랍 payload 가 주는 것이고 격자와 출처가 다르다. 그래서 **겹친 계정 이름만** 말하고
+ * 건수를 두 번 적지 않는다 — 배정 건수는 「줌 계정 관리」의 표가 가진다 (D-R22).
+ */
+export function ZoomPane({ rows, board, loading }: {
+  rows: ZoomAccount[]; board?: ZoomBoard; loading?: boolean;
+}) {
   const bad = rows.filter((z) => z.overlaps > 0);
-  const [shown, setShown] = useState<number | null>(null);
+  const live = rows.filter((z) => z.active).length;
 
   return (
     <>
-      <Banner tone="warning" className="mb-3">
-        로그인 정보는 <b>이 화면에 내려오지 않습니다.</b> 학생 참가 링크와 같은 자리에 두지 않는 것이 규칙입니다.
-      </Banner>
+      {board ? (
+        <p className="mb-3 text-[13px] text-fg-2">
+          {/* 날짜는 달력과 **같은 낱말**로 적는다 — 이 화면만 ISO 를 쓰면 여섯째 날짜 모양이 된다 */}
+          <b>{label(board.onDate)}</b> 기준 · 동시 <b>{live}개</b>가 한도입니다.
+          칸이 비어 있으면 그 시간에 그 계정을 쓸 수 있습니다.
+        </p>
+      ) : null}
+
       {bad.length > 0 ? (
         <ConflictGuard
           result="blocking"
           message={`${bad.length}개 계정이 같은 시간에 두 수업을 잡고 있습니다`}
-          dates={bad.map((z) => `${z.label} · ${z.overlaps}건`)}
+          dates={bad.map((z) => z.label)}
         />
       ) : null}
-      <div className="mt-3 flex flex-col gap-1.5">
-        {rows.map((z) => (
-          <div key={z.id} className="rounded-lg border border-line bg-card p-2.5">
-            <div className="flex items-center gap-2">
-              <span className={`text-[12px] font-bold ${z.active ? 'text-fg' : 'text-fg-subtle line-through'}`}>
-                {z.label}
-              </span>
-              <Chip tone={z.overlaps > 0 ? 'danger' : 'neutral'}>{z.assigned}건 배정</Chip>
-              {z.overlaps > 0 ? <Chip tone="danger" styleKind="solid">겹침 {z.overlaps}</Chip> : null}
-              {z.joinUrl ? (
-                <Button size="sm" variant="ghost" className="ml-auto"
-                  onClick={() => setShown(shown === z.id ? null : z.id)}>
-                  {shown === z.id ? '숨기기' : '참가 링크'}
-                </Button>
-              ) : null}
-            </div>
-            {shown === z.id && z.joinUrl ? (
-              <p className="mt-1.5 break-all rounded bg-inset px-2 py-1 text-[11px] text-fg-2">{z.joinUrl}</p>
-            ) : null}
+
+      {board ? (
+        <>
+          <div className="mt-3 rounded-lg border border-line bg-card p-2.5">
+            <ZoomGrid board={board} compact />
           </div>
-        ))}
-        {rows.length === 0 ? <Empty>줌 계정이 없습니다</Empty> : null}
-      </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {/* 「지금」은 오늘만 뜻이 있다 — 다른 날을 보면 서버가 nowHour 를 비운다 */}
+            <StatCard
+              label="지금 가능"
+              value={board.nowHour === null ? '—' : `${board.freeNow}`}
+              tone="success"
+              note={board.nowHour === null ? '오늘만 셉니다' : `${String(board.nowHour).padStart(2, '0')}시 기준`}
+            />
+            <StatCard label="만석 시간대" value={`${board.fullHours}`} tone="danger" note="한 계정도 안 남은 시간" />
+          </div>
+
+          {board.freeLabels.length > 0 ? (
+            <p className="mt-2.5 text-[12px] text-fg-2">
+              지금 쓸 수 있는 계정 — <b className="text-fg">{board.freeLabels.join(' · ')}</b>
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="px-1 py-6 text-center text-[13px] text-fg-subtle">
+          {loading ? '점유를 세는 중입니다…' : '점유를 읽지 못했습니다.'}
+        </p>
+      )}
+
+      <Banner tone="warning" className="mt-3">
+        로그인 정보는 <b>이 화면에 내려오지 않습니다.</b> 학생 참가 링크와 같은 자리에 두지 않는 것이 규칙입니다.
+      </Banner>
       {/* 원문 §21 의 마지막 줄이다 — 로그인 정보는 여기 오지 않고, 고치는 자리는 목적지에 있다 */}
       <OpenAll href="/zoom">줌 계정 관리</OpenAll>
     </>

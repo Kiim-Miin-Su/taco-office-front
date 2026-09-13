@@ -4282,8 +4282,12 @@ export interface components {
             toHour: number;
             accounts: components["schemas"]["ZoomAcctDto"][];
             rows: components["schemas"]["ZoomRowDto"][];
-            /** @description 지금 비어 있는 계정 수 — §21 머리의 「지금 가능」 */
+            /** @description 이 셈이 선 시각(KST 시). 오늘이 아니면 null */
+            nowHour: number | null;
+            /** @description 지금 이 시각에 비어 있는 계정 수 — §21 머리의 「지금 가능」 */
             freeNow: number;
+            /** @description 지금 쓸 수 있는 계정 이름 — §21 아래줄 */
+            freeLabels: string[];
             /** @description 한 칸도 안 남은 시간대 수 — §21 머리의 「만석 시간대」 */
             fullHours: number;
         };

@@ -8,11 +8,12 @@ import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppDrawer } from './AppDrawer';
 
-const mocks = vi.hoisted(() => ({ drawer: vi.fn(), meta: vi.fn(), write: vi.fn() }));
+const mocks = vi.hoisted(() => ({ drawer: vi.fn(), meta: vi.fn(), write: vi.fn(), zoom: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
   useMeta: mocks.meta,
   useDrawerWrite: () => ({ mutate: mocks.write, mutateAsync: mocks.write, isPending: false }),
+  useZoom: mocks.zoom,
 }));
 vi.mock('@/store/useSession', () => ({
   useSession: (select: (state: { me: { id: number } }) => unknown) => select({ me: { id: 1 } }),
@@ -26,10 +27,14 @@ vi.mock('./panes', async (importOriginal) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.drawer.mockReturnValue({
-    data: { approvals: { count: 2 }, notis: [], kinds: [], tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }] },
+    data: {
+      approvals: { count: 2 }, notis: [], kinds: [], zoomAccounts: [], members: [],
+      tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }],
+    },
     isLoading: false, isError: false,
   });
   mocks.meta.mockReturnValue({ data: { staff: [], rooms: [], zaccs: [] } });
+  mocks.zoom.mockReturnValue({ data: undefined, isLoading: false });
 });
 afterEach(cleanup);
 
@@ -78,5 +83,18 @@ describe('공용 서랍의 제어형 선택', () => {
     expect((view.getByPlaceholderText(placeholder) as HTMLTextAreaElement).value).toBe('저장하지 않은 변경 사유');
     expect(mocks.meta).toHaveBeenLastCalledWith(true);
     expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  /*
+   * C72 — §21 격자는 서랍 payload 에 없다. 칸을 **열 때만** 부른다.
+   * 여덟 칸에 얹으면 §21 을 안 쓰는 사람도 서랍을 열 때마다 점유 질의를 치른다 (C50 의 교훈).
+   */
+  it('§21 점유는 그 칸을 열 때만 부른다 — 서랍을 여는 것만으로는 부르지 않는다', () => {
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(mocks.zoom).toHaveBeenLastCalledWith(undefined, false);
+    view.rerender(<AppDrawer open pane="zoom" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(mocks.zoom).toHaveBeenLastCalledWith(undefined, true);
+    view.rerender(<AppDrawer open={false} pane="zoom" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(mocks.zoom).toHaveBeenLastCalledWith(undefined, false);
   });
 });

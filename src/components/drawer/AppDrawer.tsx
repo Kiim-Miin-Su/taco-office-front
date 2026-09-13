@@ -17,7 +17,7 @@
 'use client';
 import { useState } from 'react';
 import { Drawer, Chip, Banner } from '@/components/ui';
-import { useDrawer, useDrawerWrite, useMeta } from '@/api/queries';
+import { useDrawer, useDrawerWrite, useMeta, useZoom } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useSession } from '@/store/useSession';
 import type { ChangeReqResult } from '@/api/types';
@@ -70,6 +70,12 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   // 닫혀 있으면 부르지 않는다 — 모든 화면이 서랍을 들고 있으므로 열 때만 읽는다
   const { data, isLoading, isError } = useDrawer(open, notiWindow);
   const { data: meta } = useMeta(open && pane === 'chreqNew');
+  /*
+   * §21 격자는 서랍 payload 에 없다 — **칸을 열 때만** 부른다.
+   * 여덟 칸에 얹으면 §21 을 안 여는 사람도 매번 점유 질의를 치른다.
+   * 「줌 계정 관리」와 같은 훅이므로 두 화면의 「지금 가능」이 갈리지 않는다.
+   */
+  const zoom = useZoom(undefined, open && pane === 'zoom');
   const write = useDrawerWrite();
 
   async function submitChangeReq() {
@@ -171,7 +177,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
             />
           ) : null}
           {pane === 'chreqs' ? <ChangeReqsPane rows={data.changeReqs} /> : null}
-          {pane === 'zoom' ? <ZoomPane rows={data.zoomAccounts} /> : null}
+          {pane === 'zoom' ? <ZoomPane rows={data.zoomAccounts} board={zoom.data} loading={zoom.isLoading} /> : null}
         </>
       ) : null}
     </Drawer>
