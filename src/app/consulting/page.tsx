@@ -15,10 +15,11 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, TabCards, Table } from '@/components/ui';
 import { ConsultingStageBoard } from '@/components/consulting/ConsultingStageBoard';
 import { ConsultingStageFilters } from '@/components/consulting/ConsultingStageFilters';
-import { useConsulting, useConsAccounting, useToggleConsultingItem } from '@/api/queries';
+import { useConsulting, useConsAccounting, useConsStudents, useToggleConsultingItem } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { ConsultingProgress } from '@/components/consulting/ConsultingProgress';
 import { ConsultingAccounting } from '@/components/consulting/ConsultingAccounting';
+import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
 import type { Consulting } from '@/api/types';
 import {
   CONSULTING_CONTRACT_STEPS,
@@ -31,8 +32,13 @@ import {
 } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
 
-/** 원문 §26~§28 탭 머리 — 보기 하나가 탭 하나다 */
-type View = 'board' | 'list' | 'money';
+/**
+ * 원문 §26~§28 탭 머리 넷 — 「단계 보드 · 학생별 · 이력 · 회계」.
+ *
+ * 「이력」은 새 질의가 아니다. 이미 받은 `items` 를 **끝난 것만** 거르는 화면 선택이고,
+ * 그 선례는 C5-a 의 단계 필터다 — `all` 이 DB/API stage 가 아니었던 것과 같은 자리.
+ */
+type View = 'board' | 'students' | 'history' | 'money';
 
 export default function ConsultingPage() {
   const q = useConsulting();
@@ -44,11 +50,16 @@ export default function ConsultingPage() {
    * 「회계 · ₩1,300,000 남음」을 이미 달고 있기 때문이다. 그 한 줄이 이 질의의 값이다.
    */
   const money = useConsAccounting();
+  // §27 은 그 탭을 열 때만 부른다 — 탭 머리의 「N명」도 이 질의가 센 값이라 열기 전에는 비워 둔다
+  const students = useConsStudents(view === 'students');
   const [openId, setOpenId] = useState<number | null>(null);
   const [stage, setStage] = useState<ConsultingStageFilterValue>('all');
   const stageView = consultingStageView(q.isError ? [] : d?.items ?? [], stage);
+  /** 「이력」 — 끝난 것만. 같은 응답을 거를 뿐 질의를 늘리지 않는다 (C5-a 선례) */
+  const done = (q.isError ? [] : d?.items ?? []).filter((c) => c.stage === 'done');
 
-  const open = q.isError || view === 'money' ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
+  const detailView = view === 'board' || view === 'history';
+  const open = q.isError || !detailView ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
 
   const cols: Array<Column<Consulting>> = [
     { key: 't', head: '종류', width: 80, cell: (r) => <Chip tone="purple">{consultingTypeLabel(r.consType)}</Chip> },
@@ -102,8 +113,10 @@ export default function ConsultingPage() {
           className="mb-3" label="컨설팅 보기" value={view} onChange={setView}
           options={[
             { value: 'board', label: '단계 보드', sub: `${stageView.counts.all}건`, badge: stageView.counts.running },
-            { value: 'list', label: '목록', sub: `${stageView.counts.done}건 끝남` },
-            // 「남음」은 §28 을 열어 본 뒤에만 안다 — 서버가 센 값이 없으면 자리를 비운다 (D-R37)
+            // 학생 수는 §27 질의가 센 값이다 — 목록의 이름을 모아 세지 않는다 (D-R37)
+            { value: 'students', label: '학생별', sub: students.data ? `${students.data.items.length}명` : undefined },
+            { value: 'history', label: '이력', sub: `${stageView.counts.done}건 끝남` },
+            // 「남음」도 서버가 뺀 값이다. 아직 없으면 자리를 비운다
             { value: 'money', label: '회계', sub: money.data ? `${won(money.data.totalDue)} 남음` : undefined },
           ]}
         />
@@ -114,6 +127,17 @@ export default function ConsultingPage() {
           money.isError
             ? <Banner tone="danger">{apiMessage(money.error)}</Banner>
             : <ConsultingAccounting data={money.data} loading={money.isLoading} />
+        ) : view === 'students' ? (
+          students.isError
+            ? <Banner tone="danger">{apiMessage(students.error)}</Banner>
+            : (
+              <ConsultingStudents
+                items={students.data?.items}
+                loading={students.isLoading}
+                // 「열기」는 그 건의 항목·회차로 간다 — 이력 탭이 그 자리다 (§31)
+                onOpen={(consId) => { setView('history'); setOpenId(consId); }}
+              />
+            )
         ) : view === 'board' ? (
           <>
             <ConsultingStageFilters value={stage} counts={stageView.counts} onChange={(next) => { setStage(next); setOpenId(null); }} />
@@ -126,24 +150,24 @@ export default function ConsultingPage() {
         ) : (
           <>
             <Banner tone="info">
-              역할 권한과 건별 <b>공개 범위</b>를 모두 통과해야 보입니다. 열람할 수 없는 건은 목록에서도 제외됩니다.
+              끝난 컨설팅입니다. 역할 권한과 건별 <b>공개 범위</b>를 모두 통과해야 보이며, 열람할 수 없는 건은 목록에서도 제외됩니다.
             </Banner>
             {d && !d.canSeeAmounts ? (
               <Banner tone="neutral" className="mt-2">금액은 대표만 볼 수 있으며 서버가 빈 값으로 내려줍니다.</Banner>
             ) : null}
             <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard label="끝남" value={stageView.counts.done} tone={CONSULTING_STAGE_BY_KEY.done.tone} note="건" />
               <StatCard label="전체" value={d?.items.length ?? '—'} note="건" />
               <StatCard label="진행 중" value={stageView.counts.running} tone={CONSULTING_STAGE_BY_KEY.running.tone} />
               <StatCard label="계약 중" value={stageView.counts.contract} tone={CONSULTING_STAGE_BY_KEY.contract.tone} />
-              <StatCard label="비공개" value={(d?.items ?? []).filter((c) => c.share === 'private' || c.share === 'picked').length} tone="danger" note="공개 범위 제한" />
             </div>
-            <Panel title="컨설팅 건">
+            <Panel title="끝난 컨설팅">
               <Table
                 columns={cols}
-                rows={d?.items ?? []}
+                rows={done}
                 rowKey={(r) => r.id}
                 onRowClick={(r) => setOpenId(r.canOpen && openId !== r.id ? r.id : null)}
-                empty={q.isLoading ? '불러오는 중…' : '컨설팅 건이 없습니다'}
+                empty={q.isLoading ? '불러오는 중…' : '끝난 컨설팅이 없습니다'}
               />
             </Panel>
           </>

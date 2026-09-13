@@ -36,7 +36,9 @@ describe('실제 useConsulting 연결', () => {
       // 지켜야 할 것은 **필터를 눌러도 그 수가 안 는다**는 것이다.
       const urls = get.mock.calls.map(([u]) => u).sort();
       expect(urls).toEqual(['/consulting', '/consulting/accounting']);
-      expect(client.getQueryCache().getAll()).toHaveLength(2);
+      // §27 학생별은 그 탭을 열기 전에는 **부르지 않는다** — 캐시에 자리만 있고 GET 은 0 이다
+      expect(urls).not.toContain('/consulting/students');
+      expect(client.getQueryCache().getAll()).toHaveLength(3);
       expect(view.getByRole('button', { name: '필터 학생 컨설팅 상세' })).toBeTruthy();
     } finally { view.unmount(); client.clear(); get.mockRestore(); }
   });

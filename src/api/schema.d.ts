@@ -879,6 +879,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consulting/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 컨설팅 학생별 — CONS 를 학생 기준으로 재구성 (§27)
+         * @description 원문 규칙 「**csCan() 으로 볼 수 있는 것만 집계합니다**」 그대로다 — 안 보이는 건은 건수에도 합계에도 안 들어간다. 기록 회차·끝낸 항목·받은 돈·건수를 **서버가 센다** (D-R37). 화면이 배열 길이를 세면 내용이 잠긴 건에서 「항목 0/0」이 된다. 한 건에 학생이 여럿이면 그 학생들 모두의 줄에 걸린다(슬라이드 29 「학생 여러 명」).
+         */
+        get: operations["ConsultingController_students"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consulting/{id}/payments": {
         parameters: {
             query?: never;
@@ -2831,6 +2851,51 @@ export interface components {
             /** @description 남은 돈 합계 */
             totalDue?: number | null;
             /** @description 금액을 볼 수 있는가 — 공개 범위와 D-R39 두 층을 모두 통과해야 한다 */
+            canSeeAmounts: boolean;
+        };
+        ConsStudentCaseDto: {
+            id: number;
+            /** @description 종류 코드 */
+            consType: string;
+            /** @enum {string} */
+            stage: "contract" | "running" | "done";
+            /** @description 단계 이름 — 낱말은 서버가 만든다 (D-R18) */
+            stageLabel: string;
+            /**
+             * @description 건이 생긴 날 — 계약 시작일이라는 칸은 원문에 없다
+             * @example 2026-07-12
+             */
+            createdOn: string;
+            /** @description 종료 예정일 — 미정이면 null */
+            endOn?: string | null;
+            ownerName?: string | null;
+            /** @description 기록된 회차 수 — 완료 회차가 아니다 (N-18 §4-17) */
+            sessionsLogged: number;
+            /** @description 약정 회차 — 미정이면 null */
+            sessions?: number | null;
+            itemsDone: number;
+            itemsTotal: number;
+            /** @description 계약 금액 — 못 보면 null */
+            amount?: number | null;
+            /** @description 받은 돈 */
+            paid?: number | null;
+            /** @description 진행 항목 — 내용이 잠긴 건은 빈 배열이다 (목록 계약과 같은 규약) */
+            items: components["schemas"]["ConsItemDto"][];
+        };
+        ConsStudentDto: {
+            studentId: number;
+            name: string;
+            /** @description 학년 — 없으면 null */
+            grade?: string | null;
+            /** @description 이 사람이 볼 수 있는 건만 센다 — 원문 규칙 「csCan() 으로 볼 수 있는 것만 집계합니다」 */
+            caseCount: number;
+            amount?: number | null;
+            paid?: number | null;
+            cases: components["schemas"]["ConsStudentCaseDto"][];
+        };
+        ConsStudentsDto: {
+            items: components["schemas"]["ConsStudentDto"][];
+            /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
         };
         ConsPaymentCreateDto: {
@@ -7681,6 +7746,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsAccountingDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_students: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsStudentsDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

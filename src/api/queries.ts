@@ -20,7 +20,7 @@ import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
-  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
+  ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
   OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
   OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
   ChangeReqCreate, ChangeReqResult, Drawer, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
@@ -51,6 +51,8 @@ export const qk = {
   consulting: ['consulting'] as const,
   /** §28 회계 — 같은 탭의 다른 질의다. 갈래 앞자락은 `family.consulting` (C58) */
   consAccounting: ['consulting', 'accounting'] as const,
+  /** §27 학생별 — CONS 를 학생 기준으로 재구성한 같은 갈래의 다른 질의 (C59) */
+  consStudents: ['consulting', 'students'] as const,
   books: ['books'] as const,
   bookHistory: ['books', 'history'] as const,
   guides: ['guides'] as const,
@@ -836,6 +838,19 @@ export function useConsAccounting(enabled = true): UseQueryResult<ConsAccounting
   return useQuery({
     queryKey: sessionQueryKey(qk.consAccounting, viewerId),
     queryFn: async () => (await api.get<ConsAccounting>('/consulting/accounting')).data,
+    enabled,
+  });
+}
+
+/**
+ * §27 학생별 — 탭을 열 때만 돈다. 탭 머리의 「N명」은 **이 질의가 센 값**이라
+ * 화면이 목록의 학생 이름을 모아 세지 않는다 (D-R37).
+ */
+export function useConsStudents(enabled = true): UseQueryResult<ConsStudents> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.consStudents, viewerId),
+    queryFn: async () => (await api.get<ConsStudents>('/consulting/students')).data,
     enabled,
   });
 }

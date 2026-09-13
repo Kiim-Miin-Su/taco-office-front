@@ -151,6 +151,11 @@ export type ConsAccounting = S['ConsAccountingDto'];
 export type ConsAccountRow = S['ConsAccountRowDto'];
 export type ConsPayment = S['ConsPaymentDto'];
 export type ConsPaymentCreate = S['ConsPaymentCreateDto'];
+
+/* §27 컨설팅 학생별 (C59) — 「csCan() 으로 볼 수 있는 것만 집계합니다」는 서버가 지킨다 */
+export type ConsStudents = S['ConsStudentsDto'];
+export type ConsStudent = S['ConsStudentDto'];
+export type ConsStudentCase = S['ConsStudentCaseDto'];
 export type GpaBoard = S['GpaBoardDto'];
 
 /* ══ 줌 계정 관리 — §21 서랍의 「줌 계정 관리」가 가는 자리 (대표 결정 2026-09-12 신설) ══ */

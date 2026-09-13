@@ -17,6 +17,7 @@ vi.mock('@/api/queries', () => ({
   useConsulting: () => query,
   // §28 은 그 탭을 열 때만 도는 다른 질의다 — 이 시험은 §26 쪽만 본다
   useConsAccounting: () => ({ data: undefined, isError: false, isLoading: false, error: null }),
+  useConsStudents: () => ({ data: undefined, isError: false, isLoading: false, error: null }),
   useToggleConsultingItem: () => empty,
   useAddConsPayment: () => empty,
   useConsToInvoice: () => empty,

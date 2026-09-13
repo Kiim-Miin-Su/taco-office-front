@@ -45,7 +45,7 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.horizon, qk.accounting, qk.ops, qk.teacherHome, qk.guides, qk.guideTemplates,
   qk.books, qk.bookHistory,
   // §28 회계 — `consulting` 갈래 안에 산다. 납부 한 줄이 단계 보드까지 흔든다 (C58)
-  qk.consulting, qk.consAccounting,
+  qk.consulting, qk.consAccounting, qk.consStudents,
 ];
 
 describe('갈래 앞자락', () => {
