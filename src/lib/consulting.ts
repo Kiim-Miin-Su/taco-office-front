@@ -47,8 +47,13 @@ export const CONSULTING_SHARES: Readonly<Record<string, { label: string; tone: T
   private: { label: '전체 비공개', tone: 'danger' },
 };
 
-/** 계약서 → 피드백 → 학부모 전달 → 서명본 → 수납. */
-export const CONSULTING_CONTRACT_STEPS = ['계약서', '피드백', '학부모 전달', '서명본', '수납'] as const;
+/**
+ * 계약서 준비 → 피드백 → 전달 → 서명 → 수납.
+ *
+ * 컷 §30 의 다섯 걸음 이름 그대로다. 우리는 「학부모 전달」·「서명본」이라 적고 있었는데,
+ * §29 의 설명 줄도 「계약서 → 피드백 → 전달 → 서명 → 수납」이라 같은 낱말을 쓴다.
+ */
+export const CONSULTING_CONTRACT_STEPS = ['계약서 준비', '피드백', '전달', '서명', '수납'] as const;
 
 export function consultingTypeLabel(value: string): string {
   return CONSULTING_TYPES[value] ?? value;

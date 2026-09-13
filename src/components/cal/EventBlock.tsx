@@ -37,9 +37,9 @@ export const STATUS_LOOK: Record<string, string> = {
   rej: 'bg-violet/10 text-violet border-violet/40',
 };
 
-/** 범례에 쓰는 이름 — 순서가 곧 「안 씀 → 승인」 흐름이다 */
+/** 범례에 쓰는 이름 — 순서가 곧 「미작성 → 승인」 흐름이다 */
 export const STATUS_LABEL: Array<[keyof typeof STATUS_LOOK, string]> = [
-  ['none', '안 씀'], ['plan', '예정'], ['wait', '승인 대기'], ['ok', '승인'], ['rej', '반려'],
+  ['none', '미작성'], ['plan', '예정'], ['wait', '승인 대기'], ['ok', '승인'], ['rej', '반려'],
 ];
 
 /** 드래그 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */

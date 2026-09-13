@@ -33,11 +33,14 @@ import { useCan } from '@/store/useSession';
 
 type Span = 'day' | 'week' | 'month';
 
-const COPY: Record<Span, { title: string; sub: string }> = {
-  day: { title: '수업 현황판', sub: '수업별 교재 · 안내 · 줌 · 리포트를 확인합니다.' },
-  week: { title: '주별 현황판', sub: '한 주를 한눈에. 빠진 칸이 어느 요일에 몰리는지 보입니다.' },
-  month: { title: '월별 현황판', sub: '월간 완료율과 주차별 미완료 항목을 함께 확인합니다.' },
-};
+/**
+ * 제목과 부제는 **탭이 바뀌어도 그대로다** — 컷 §34·§35·§36 이 셋 다 같은 한 줄을 쓴다.
+ *
+ * 전에는 탭마다 제목과 부제를 바꿔 달았고, 그래서 탭 이름이 「주간」인데 바로 위 제목은
+ * 「주별 현황판」이라 **한 화면 안에서 낱말이 갈렸다.** 탭 이름도 컷의 「일별 · 주별 · 월별」로 맞췄다.
+ */
+const TITLE = '수업 현황판';
+const SUB = '수업마다 교재 · 안내 · 줌 · 리포트가 다 됐는지 한눈에 봅니다';
 
 function periodLabel(span: Span, anchor: string, range: { from: string; to: string }): string {
   if (span === 'day') return label(anchor);
@@ -101,14 +104,14 @@ export default function BoardPage() {
     <RequireAuth>
       <AppShell>
         <PageHeader
-          title={COPY[span].title}
-          sub={COPY[span].sub}
+          title={TITLE}
+          sub={SUB}
           right={
             <Segmented
               options={[
-                { value: 'day', label: '일간' },
-                { value: 'week', label: '주간' },
-                { value: 'month', label: '월간' },
+                { value: 'day', label: '일별' },
+                { value: 'week', label: '주별' },
+                { value: 'month', label: '월별' },
               ]}
               value={span}
               onChange={setSpan}

@@ -14,7 +14,8 @@ import { Chip, type Tone } from './Chip';
 import type { RepState } from '@/api/types';
 
 const LABEL: Record<string, string> = {
-  na: '해당 없음', plan: '예정', none: '안 씀', draft: '작성 중',
+  // 컷 §47 상태 칸의 낱말이다 — 탭 이름 「안 쓴 리포트」와 칸의 「미작성」은 서로 다른 자리다
+  na: '해당 없음', plan: '예정', none: '미작성', draft: '작성 중',
   wait: '승인 대기', ok: '승인', rej: '반려',
 };
 const TONE: Record<string, Tone> = {

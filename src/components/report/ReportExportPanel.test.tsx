@@ -12,8 +12,8 @@ import { ReportExportPanel } from './ReportExportPanel';
 
 const fields: ReportField[] = [
   { key: 'content', label: '③ 수업 내용', hint: '', min: 1, max: 2000 },
-  { key: 'progress', label: '④ 진도', hint: '', min: 1, max: 2000 },
-  { key: 'homework', label: '⑤ 과제', hint: '', min: 1, max: 2000 },
+  { key: 'progress', label: '④ 진도 페이지', hint: '', min: 1, max: 2000 },
+  { key: 'homework', label: '⑤ 숙제 페이지', hint: '', min: 1, max: 2000 },
 ];
 
 const detail: ReportDetail = {
@@ -48,11 +48,11 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     ] };
     const view = render(<ReportExportPanel detail={source} />);
     expect(view.getByText(label)).toBeTruthy();
-    fireEvent.click(view.getByText('PNG 저장'));
+    fireEvent.click(view.getByText('PNG로 저장'));
     await waitFor(() => expect(download).toHaveBeenCalledOnce());
     expect(download.mock.calls[0][0].textContent).toContain(label);
     expect(download.mock.calls[0][0].textContent).toContain('2026-09-04');
-    fireEvent.click(view.getByText('본문 복사'));
+    fireEvent.click(view.getByText('글자로 복사'));
     await waitFor(() => expect(copy).toHaveBeenCalledWith(`서버 본문 ${label}`));
   });
 
@@ -63,7 +63,7 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     expect(view.getAllByText('학생A').length).toBeGreaterThan(0);
     fireEvent.change(view.getByLabelText('출력할 학생'), { target: { value: '5' } });
     expect(view.getAllByText('학생B').length).toBeGreaterThan(0);
-    fireEvent.click(view.getByText('PNG 저장'));
+    fireEvent.click(view.getByText('PNG로 저장'));
 
     await waitFor(() => expect(download).toHaveBeenCalledOnce());
     expect(download.mock.calls[0]?.[1]).toBe('20260903_학생B_학년미정_AP Chemistry_16:00.png');

@@ -28,7 +28,8 @@ const STAGES: Array<{ key: string; label: string; tone: 'neutral' | 'info' | 'wa
   { key: 'second', label: '2차 상담', tone: 'info' },
   { key: 'hold', label: '보류', tone: 'neutral' },
   { key: 'enrolled', label: '등록', tone: 'success' },
-  { key: 'failed', label: '실패', tone: 'danger' },
+  // 컷 §23 의 여섯째 칸 이름이다 — 「실패」가 아니라 「등록 실패」
+  { key: 'failed', label: '등록 실패', tone: 'danger' },
 ];
 
 /**

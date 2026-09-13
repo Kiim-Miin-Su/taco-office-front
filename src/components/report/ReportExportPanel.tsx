@@ -86,8 +86,8 @@ export function ReportExportPanel({ detail }: { detail: ReportDetail }) {
 
       {message ? <Banner tone={message.tone}><span aria-live="polite">{message.text}</span></Banner> : null}
       <div className="flex justify-end gap-2">
-        <Button disabled={busy !== null} onClick={() => void copyText()}>본문 복사</Button>
-        <Button variant="primary" disabled={busy !== null} onClick={() => void savePng()}>PNG 저장</Button>
+        <Button disabled={busy !== null} onClick={() => void copyText()}>글자로 복사</Button>
+        <Button variant="primary" disabled={busy !== null} onClick={() => void savePng()}>PNG로 저장</Button>
       </div>
       {detail.canDeliver ? <ReportDeliveryHistory repId={detail.id} compact /> : null}
     </section>
