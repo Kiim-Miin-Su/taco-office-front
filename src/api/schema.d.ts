@@ -146,6 +146,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 겹침 미리보기 — 무엇과·누구와 겹치는가
+         * @description 막는 것은 ser_occ 의 EXCLUDE 이고 이 응답은 설명이다. 비어 있어도 저장을 건너뛰지 않는다. 강사·강의실·줌 중 준 자원만 본다 — 하나도 주지 않으면 빈 배열이다.
+         */
+        get: operations["ScheduleController_conflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/horizon": {
         parameters: {
             query?: never;
@@ -2400,6 +2420,24 @@ export interface components {
             prepTotal: number;
             /** @description 머리 문장 — 원문 「3가지 남았습니다」 · 다 됐으면 「다 됐습니다」 */
             prepRemainLabel: string;
+        };
+        ConflictRowDto: {
+            serId: number;
+            onDate: string;
+            startMin: number;
+            endMin: number;
+            title?: string | null;
+            /**
+             * @description 무엇이 겹치는가
+             * @enum {string}
+             */
+            with: "teacher" | "room" | "zoom";
+            /** @description 누구와 겹치는가 — 이름을 보여 준다 */
+            whoName?: string | null;
+        };
+        ConflictPreviewDto: {
+            /** @description 비어 있어도 **저장을 건너뛰지 않는다** — 그 사이에 남이 그 자리를 잡을 수 있다 */
+            conflicts: components["schemas"]["ConflictRowDto"][];
         };
         HorizonDto: {
             /** @description 펼쳐 둔 기간의 시작 */
@@ -5310,20 +5348,6 @@ export interface components {
             /** @description 반려 사유 — 반려면 필수 (D-R13). 신청 사유를 덮어쓰지 않는다 */
             reason?: string | null;
         };
-        ConflictRowDto: {
-            serId: number;
-            onDate: string;
-            startMin: number;
-            endMin: number;
-            title?: string | null;
-            /**
-             * @description 무엇이 겹치는가
-             * @enum {string}
-             */
-            with: "teacher" | "room" | "zoom";
-            /** @description 누구와 겹치는가 — 이름을 보여 준다 */
-            whoName?: string | null;
-        };
         ChangeReqResultDto: {
             /** @description 만들어진 요청 id. 겹쳐서 막혔으면 없다 */
             id?: number | null;
@@ -6064,6 +6088,89 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_conflicts: {
+        parameters: {
+            query: {
+                /** @description 놓일 달력 날짜 — EXC 키가 아니라 span 을 만드는 날짜다 */
+                date: string;
+                startMin: number;
+                endMin: number;
+                teacherId?: number;
+                roomId?: number;
+                zaccId?: number;
+                /** @description 자기 자신과는 겹치지 않는다 — 옮기는 회차의 SER */
+                exceptSerId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictPreviewDto"];
+                };
+            };
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             409: {

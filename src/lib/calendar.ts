@@ -11,7 +11,7 @@
  * 여기서 나눈다 (`AGENT.md §6.1-2`). 보기마다 fetch 하면 전환할 때마다 왕복이 생기고,
  * 같은 날짜가 보기마다 다른 응답에서 오면 색이 갈린다.
  */
-import type { Occurrence } from '@/api/types';
+import type { ConflictRow, Occurrence } from '@/api/types';
 
 export type View = 'day' | 'week' | 'month' | 'student' | 'teacher';
 
@@ -488,4 +488,18 @@ export function movePlacements<T extends OccurrenceIdentity>(
     offsetMinutes: deltaMinutes,
   }));
   return placed.some((x) => lessonTimeIssue(x.startMin, x.endMin)) ? null : placed;
+}
+
+/**
+ * 겹침 한 줄을 사람 말로 — **낱말은 한 벌이다.**
+ *
+ * §19 변경 요청과 §07~§11 일정 이동은 같은 겹침을 받는다. 두 화면이 각자 문장을 만들면
+ * 같은 사실이 자리마다 다르게 읽힌다 (D-R18 의 짝). 판정은 서버가 하고 여기는 **늘어놓기만** 한다.
+ */
+const CONFLICT_WITH: Record<string, string> = { teacher: ' (강사)', room: ' (강의실)', zoom: ' (줌)' };
+
+export function conflictLines(rows: readonly ConflictRow[]): string[] {
+  return rows.map((row) => (
+    `${row.onDate} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.whoName ?? ''}${CONFLICT_WITH[row.with] ?? ''}`
+  ));
 }

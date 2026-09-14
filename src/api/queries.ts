@@ -18,6 +18,7 @@ import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimis
 import type {
   Accounting,
   AttendanceMutationResult,
+  ConflictRow,
   AttendanceWrite,
   Board,
   BookHistory,
@@ -952,6 +953,25 @@ export function useExec(p: ExecQuery): UseQueryResult<Exec> {
    (`AGENT.md §6.1-2`). 서버가 영향받은 규칙 id 를 돌려주므로 그것만 믿는다.          */
 
 /** 펼쳐 둔 기간 — 화면이 「비었다」와 「아직 안 펼쳤다」를 구분하려고 읽는다 */
+/**
+ * 겹침 미리보기 — **캐시하지 않는다.**
+ *
+ * 부딪힌 그 순간의 사실이라 stale 이 되면 거짓이 된다. 저장이 409 로 막힌 뒤에 한 번 물어
+ * **누구와 부딪혔는지**만 채운다 — 막는 것은 DB 이고 이것은 설명이다 (D-R43).
+ */
+export async function fetchConflicts(q: {
+  date: string; startMin: number; endMin: number;
+  teacherId?: number | null; roomId?: number | null; zaccId?: number | null; exceptSerId?: number | null;
+}): Promise<ConflictRow[]> {
+  const params: Record<string, string | number> = { date: q.date, startMin: q.startMin, endMin: q.endMin };
+  if (q.teacherId) params.teacherId = q.teacherId;
+  if (q.roomId) params.roomId = q.roomId;
+  if (q.zaccId) params.zaccId = q.zaccId;
+  if (q.exceptSerId) params.exceptSerId = q.exceptSerId;
+  const res = await api.get<{ conflicts: ConflictRow[] }>('/schedule/conflicts', { params });
+  return res.data.conflicts;
+}
+
 export function useHorizon(): UseQueryResult<Horizon> {
   const viewerId = useViewerId();
   return useQuery({

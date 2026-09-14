@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, INITIAL_PANE, mondayOf, monthBounds, monthGrid, paneView, parseHm,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, paneView, parseHm,
   periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
@@ -181,6 +181,19 @@ describe('분할 표 상태 (§4)', () => {
     // 한 번 읽는 bounding range 도 개인 표의 기간을 따라간다 — 주간이면 그 주, 일간이면 그 하루
     expect(boundingRange([teacher])).toEqual({ from: '2026-08-17', to: '2026-08-23' });
     expect(boundingRange([{ ...teacher, personPeriod: 'day' }])).toEqual({ from: '2026-08-20', to: '2026-08-20' });
+  });
+
+  it('겹침 낱말은 한 벌이다 — §19 요청과 §07~§11 이동이 같은 문장을 쓴다', () => {
+    expect(conflictLines([
+      { serId: 1, onDate: '2026-09-02', startMin: 600, endMin: 660, with: 'teacher', whoName: '김재훈' },
+      { serId: 2, onDate: '2026-09-02', startMin: 630, endMin: 690, with: 'room', whoName: '현장 3호' },
+      { serId: 3, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'zoom', whoName: null },
+    ])).toEqual([
+      '2026-09-02 10:00–11:00 · 김재훈 (강사)',
+      '2026-09-02 10:30–11:30 · 현장 3호 (강의실)',
+      '2026-09-02 15:00–16:00 ·  (줌)',
+    ]);
+    expect(conflictLines([])).toEqual([]);
   });
 
   it('divider는 화면 비율이 아니라 실제 152px 최소 폭으로 제한한다', () => {

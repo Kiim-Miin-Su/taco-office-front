@@ -13,7 +13,7 @@ import { KO_DOW, dowOf, monthGrid } from '@/lib/calendar';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(),
-  download: vi.fn(),
+  download: vi.fn(), conflicts: vi.fn(),
   permissions: { canAdminPage: true, canCrudAll: true } as Record<string, boolean>,
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
@@ -47,6 +47,7 @@ vi.mock('@/api/queries', () => ({
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
   useMeta: mocks.meta,
   useDrawer: () => ({ data: { approvals: { count: 0 }, notis: [] } }),
+  fetchConflicts: mocks.conflicts,
 }));
 vi.mock('@/lib/png-export', () => ({ downloadElementPng: mocks.download }));
 
@@ -77,6 +78,7 @@ beforeEach(() => {
   mocks.occurrences.mockReturnValue({ data: { items }, isLoading: false, isError: false });
   mocks.meta.mockReturnValue({ data: meta });
   mocks.download.mockResolvedValue(undefined);
+  mocks.conflicts.mockResolvedValue([]);
   mocks.permissions.canAdminPage = true;
   mocks.permissions.canCrudAll = true;
 });
@@ -415,6 +417,65 @@ describe('개인 표의 기간 축 (§10·§11)', () => {
     expect(view.queryByText('사람을 고르세요')).toBeNull();
     expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
     expect(view.queryByRole('button', { name: /다른 수업/ })).toBeNull();
+  });
+});
+
+/**
+ * 겹침으로 막혔을 때 **누구와** 부딪혔는지까지 말한다 (§19 · D-R43).
+ * 막는 것은 DB 이고 이 물음은 **막힌 뒤**에 한 번 간다 — 미리 물어서 저장을 건너뛰지 않는다.
+ */
+describe('겹침 설명 (§19 · D-R43)', () => {
+  const rect = (top: number, height = 28) => ({ top, height, left: 0, right: 120, width: 120, bottom: top + height });
+  const drop = (occ: Occurrence): DragEndEvent => ({
+    activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 300, y: 0 },
+    active: { id: 'move-test', data: { current: { type: 'move', occ } },
+      rect: { current: { initial: rect(200, 56), translated: rect(214, 56) } } },
+    over: { id: 'slot-test', disabled: false, rect: rect(200),
+      data: { current: { type: 'slot', date: '2026-09-02', colAxis: 'room', colId: 3, slotMin: 900 } } },
+  } as unknown as DragEndEvent);
+  const finish = (event: DragEndEvent) => {
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: new MouseEvent('pointerdown') }));
+    act(() => mocks.drag!.onDragEnd?.(event));
+  };
+  const conflictError = {
+    response: { status: 409, data: { code: 'RESOURCE_CONFLICT', message: '같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다' } },
+  };
+
+  it('409 면 놓으려던 그 자리를 다시 물어 상대 이름까지 붙인다', async () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.(conflictError));
+    mocks.conflicts.mockResolvedValue([
+      { serId: 9, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'room', whoName: '현장 3호' },
+    ]);
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+
+    // 물어보는 자리는 **놓으려던 곳**이다 — 원래 자리가 아니다
+    expect(mocks.conflicts).toHaveBeenCalledWith(expect.objectContaining({
+      date: '2026-09-02', startMin: 915, roomId: 3, exceptSerId: 1,
+    }));
+    expect(view.getByText(/같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다/)).toBeTruthy();
+    // 설명은 한 왕복 뒤에 붙는다 — 가짜 타이머를 쓰는 스위트라 microtask 만 흘려보낸다
+    await act(async () => { await Promise.resolve(); });
+    expect(view.getByText(/현장 3호 \(강의실\)/)).toBeTruthy();
+  });
+
+  it('겹침이 아니면 묻지 않는다 — 실패마다 한 번씩 더 도는 왕복을 만들지 않는다', () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.({
+      response: { status: 400, data: { code: 'BAD_RANGE', message: '값이 허용 범위를 벗어났습니다' } },
+    }));
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+    expect(mocks.conflicts).not.toHaveBeenCalled();
+    expect(view.getByText('값이 허용 범위를 벗어났습니다')).toBeTruthy();
+  });
+
+  it('설명을 못 가져와도 원래 문구는 그대로 선다 — 실패가 실패를 덮지 않는다', async () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.(conflictError));
+    mocks.conflicts.mockRejectedValue(new Error('네트워크'));
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+    await act(async () => { await Promise.resolve(); });
+    expect(view.getByText('같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다')).toBeTruthy();
   });
 });
 

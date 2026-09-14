@@ -25,7 +25,7 @@ import type {
   KindRow, MemberGroup, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
 import {
-  addDays, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, step, todayKst, weekDays,
+  addDays, conflictLines, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, step, todayKst, weekDays,
 } from '@/lib/calendar';
 import { REQ_TYPE_LABEL, ROLE_BAR } from '@/lib/roles';
 import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
@@ -753,9 +753,7 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent,
         <ConflictGuard
           result="blocking"
           message={`${conflicts.length}건과 겹칩니다 — 제출되지 않았습니다`}
-          dates={conflicts.map((c) =>
-            `${c.onDate} ${hhmm(c.startMin)}–${hhmm(c.endMin)} · ${c.whoName ?? ''}${
-              { teacher: ' (강사)', room: ' (강의실)', zoom: ' (줌)' }[c.with] ?? ''}`)}
+          dates={conflictLines(conflicts)}
         />
       ) : null}
       {sent && conflicts.length === 0 ? (

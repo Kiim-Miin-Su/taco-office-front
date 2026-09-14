@@ -42,11 +42,11 @@ import { Legend } from '@/components/cal/Legend';
 import { PeriodSummaryBar } from '@/components/cal/PeriodSummaryBar';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
-import { useDrawer, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
-import { apiMessage } from '@/api/client';
+import { fetchConflicts, useDrawer, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
+import { apiMessage, isConflict } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  boundingRange, boundsOf, clampSplitRatio, INITIAL_PANE, label, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
+  boundingRange, boundsOf, clampSplitRatio, conflictLines, INITIAL_PANE, label, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
@@ -65,6 +65,17 @@ const PERSON_ENTRIES: Array<{ label: string; why: string }> = [
   { label: '정산', why: '이 강사의 월 정산으로 가는 자리입니다 — 금액이라 회계 탭 권한을 함께 정해야 합니다 (D-R9 · D-R39)' },
   { label: '메모', why: '이 강사에 대한 메모 자리입니다 — 저장할 표가 아직 없습니다' },
 ];
+
+/** 저장이 막힌 자리 — 겹침을 **그 자리 그대로** 다시 물어보기 위한 좌표다. */
+interface ConflictProbe {
+  date: string;
+  startMin: number;
+  endMin: number;
+  teacherId?: number | null;
+  roomId?: number | null;
+  zaccId?: number | null;
+  exceptSerId?: number | null;
+}
 
 /** 개인 도구줄의 기간 칸 — 원본 §10·§11 은 「주간 · 일간 · 월간」 순서로 놓는다. */
 const PERSON_PERIODS: Array<{ value: PersonPeriod; label: string }> = [
@@ -282,10 +293,43 @@ function AdminSchedulePage() {
     if (requestedStudentId) go({ t: 'deepLinkStudent', id: requestedStudentId });
   }, [requestedStudentId]);
 
+  /**
+   * 저장이 겹침으로 막혔을 때 **누구와** 부딪혔는지까지 말한다 (§19 · D-R43).
+   *
+   * 지금까지의 신호는 409 하나였고 그 문구는 「같은 시간에 강사·강의실·줌이 이미 잡혀
+   * 있습니다」라 **상대를 말하지 않는다.** 계산은 서버에 이미 있었다.
+   *
+   * 물어보는 것은 **막힌 뒤**다. 끌 때마다 물으면 왕복이 늘고, 무엇보다 **미리 물어서
+   * 비었다고 저장을 건너뛰면 안 된다** — 그 사이에 남이 그 자리를 잡을 수 있다.
+   * 막는 것은 DB 이고 이것은 설명이다.
+   */
+  const failWrite = (e: unknown, probe: ConflictProbe | null) => {
+    const base = apiMessage(e);
+    setErr(base);
+    if (!probe || !isConflict(e)) return;
+    void fetchConflicts(probe)
+      .then((rows) => {
+        if (!rows.length) return;
+        setErr(`${base} — ${conflictLines(rows).slice(0, 3).join(' · ')}`);
+      })
+      // 설명을 못 가져와도 원래 문구는 이미 서 있다 — 실패가 실패를 덮지 않게 한다
+      .catch(() => undefined);
+  };
+
   const submit = (occ: Occurrence, body: PendingPatch, scope: Scope) => {
     write.mutate(
       { kind: 'patch', serId: occ.serId, body: { ...body, scope, onDate: occ.onDate } },
-      { onError: (e) => setErr(apiMessage(e)), onSuccess: () => setErr(null) },
+      {
+        onError: (e) => failWrite(e, {
+          date: body.date ?? occ.date,
+          startMin: body.startMin ?? occ.startMin,
+          endMin: body.endMin ?? occ.endMin,
+          teacherId: body.teacherId === undefined ? occ.teacherId : body.teacherId,
+          roomId: body.roomId === undefined ? occ.roomId : body.roomId,
+          exceptSerId: occ.serId,
+        }),
+        onSuccess: () => setErr(null),
+      },
     );
   };
 
@@ -307,7 +351,13 @@ function AdminSchedulePage() {
         },
       },
       {
-        onError: (e) => setErr(apiMessage(e)),
+        onError: (e) => failWrite(e, {
+          date: pending.target.targetDate,
+          startMin: pending.target.targetStartMin,
+          endMin: pending.target.targetStartMin + (pending.items[0].endMin - pending.items[0].startMin),
+          teacherId: pending.target.teacherId ?? pending.items[0].teacherId,
+          roomId: pending.target.roomId ?? pending.items[0].roomId,
+        }),
         onSuccess: () => {
           setErr(null);
           setPasteAsk(null);
@@ -331,7 +381,14 @@ function AdminSchedulePage() {
     write.mutate(
       { kind: 'moveMany', body: { items: pending.items, scope } },
       {
-        onError: (e) => setErr(apiMessage(e)),
+        onError: (e) => failWrite(e, {
+          date: pending.items[0].date,
+          startMin: pending.items[0].startMin,
+          endMin: pending.items[0].endMin,
+          teacherId: pending.items[0].teacherId ?? pending.occurrences[0].teacherId,
+          roomId: pending.items[0].roomId ?? pending.occurrences[0].roomId,
+          exceptSerId: pending.occurrences[0].serId,
+        }),
         onSuccess: () => { setErr(null); setMoveAsk(null); },
       },
     );
