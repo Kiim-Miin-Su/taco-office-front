@@ -15,11 +15,40 @@ import type { Occurrence } from '@/api/types';
 
 export type View = 'day' | 'week' | 'month' | 'student' | 'teacher';
 
+/**
+ * 일간 표의 **세로 축**. 원본 §07 은 강의실로 나누지만 §11 은 선생님으로 나눈다 —
+ * 계약(`ScheduleWrite.teacherId|roomId`)과 격자(`DropData`)는 처음부터 둘 다 받는다.
+ */
+export type CalendarColAxis = 'room' | 'teacher';
+
+/** 개인 표(학생별·선생님별)의 **기간 축** — 원본 §10·§11 개인 도구줄의 「주간 · 일간 · 월간」. */
+export type PersonPeriod = 'day' | 'week' | 'month';
+
 /** 기본/분할이 함께 쓰는 표 상태. 표마다 독립이고 페이지 reducer만 소유한다 (§4.1). */
 export interface CalendarPaneState {
   view: View;
   date: string;
   personId: number | null;
+  /** 일간 보기의 세로 축. 원본은 강의실이 기본이고 선생님으로 바꿀 수 있다 (§07 · §11). */
+  dayAxis: CalendarColAxis;
+  /** 개인 표의 기간. 원본 §10·§11 은 사람 옆에서 주간/일간/월간을 고른다. 기본은 주간이다. */
+  personPeriod: PersonPeriod;
+}
+
+/** 새 표의 기본값 한 곳. 분할·초기화가 같은 값을 두 번 적지 않는다. */
+export const INITIAL_PANE: Omit<CalendarPaneState, 'date'> = {
+  view: 'day',
+  personId: null,
+  dayAxis: 'room',
+  personPeriod: 'week',
+};
+
+/**
+ * 표가 **실제로 그리는 기간**. 개인 표(학생별·선생님별)는 사람이 축이고 기간은 따로 고른다 —
+ * 원본 §10·§11 의 개인 도구줄이 그 자리다. 범위·이동·집계·격자가 전부 이 하나를 본다.
+ */
+export function paneView(pane: Pick<CalendarPaneState, 'view' | 'personPeriod'>): View {
+  return pane.view === 'student' || pane.view === 'teacher' ? pane.personPeriod : pane.view;
 }
 
 export type CalendarPaneIndex = 0 | 1;
@@ -59,7 +88,7 @@ export function updatePane(
 
 /** pane별로 읽지 않고 필요한 최소~최대 범위를 한 요청으로 묶는다 (§4 · §6.1-2). */
 export function boundingRange(panes: readonly CalendarPaneState[]): { from: string; to: string } {
-  const ranges = panes.map((pane) => boundsOf(pane.view, pane.date));
+  const ranges = panes.map((pane) => boundsOf(paneView(pane), pane.date));
   return {
     from: ranges.reduce((min, range) => range.from < min ? range.from : min, ranges[0].from),
     to: ranges.reduce((max, range) => range.to > max ? range.to : max, ranges[0].to),
@@ -234,7 +263,6 @@ export const HOUR_PX = 56;
 export const snap15 = (m: number): number => Math.round(m / SNAP_MIN) * SNAP_MIN;
 
 /** 드래그 델타(px) → 분. 15분 스냅까지 여기서 한다 — 화면이 다시 계산하지 않는다 */
-export const minutesFromPx = (px: number): number => snap15((px / HOUR_PX) * 60);
 
 /** 대상 표의 실제 30분 슬롯 좌표를 쓴다. 당일 경계는 이동 검증층에서 거절하며 여기서 자르지 않는다. */
 export function slotStartMin(slotMin: number, slotTop: number, slotHeight: number, blockTop: number): number | null {

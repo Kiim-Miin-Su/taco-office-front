@@ -24,7 +24,7 @@ import { EventBlock } from './EventBlock';
 import { cn } from '../ui/cn';
 import {
   HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, nowMinKst, occurrenceKey, overlapClusters, timeRange,
-  todayKst, weekDays, type SelectMode,
+  todayKst, weekDays, type CalendarColAxis, type SelectMode,
 } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 import type { CalendarColorOf } from '@/lib/tokens';
@@ -32,7 +32,8 @@ import type { CalendarColorOf } from '@/lib/tokens';
 /** 빈 칸이 매번 새 배열을 만들면 CalCell 이 매번 다시 그려진다 */
 const EMPTY: Occurrence[] = [];
 
-export type ColAxis = 'room' | 'teacher';
+/** 세로 축 낱말은 `lib/calendar` 한 곳이 갖는다 — 격자와 표 상태가 각자 정의하면 갈린다. */
+export type ColAxis = CalendarColAxis;
 
 /** 드롭 타깃 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
 export type DropData =

@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, mondayOf, monthBounds, monthGrid, parseHm,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, INITIAL_PANE, mondayOf, monthBounds, monthGrid, paneView, parseHm,
   periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
@@ -152,7 +152,7 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
 });
 
 describe('분할 표 상태 (§4)', () => {
-  const base = { view: 'week' as const, date: '2026-08-20', personId: null };
+  const base = { ...INITIAL_PANE, view: 'week' as const, date: '2026-08-20', personId: null };
 
   it('현재 표를 그대로 복제하고 한쪽 수정은 다른 쪽에 번지지 않는다', () => {
     const split = splitPanes(base);
@@ -166,7 +166,21 @@ describe('분할 표 상태 (§4)', () => {
   it('분할 해제는 focus 표를 남기고 두 표의 범위는 한 bounding range로 합친다', () => {
     const panes = updatePane(splitPanes(base), 1, { view: 'month', date: '2026-09-15' });
     expect(boundingRange(panes)).toEqual({ from: '2026-08-17', to: '2026-10-04' });
-    expect(unsplitPanes(panes, 1)).toEqual([{ view: 'month', date: '2026-09-15', personId: null }]);
+    expect(unsplitPanes(panes, 1)).toEqual([{ ...INITIAL_PANE, view: 'month', date: '2026-09-15', personId: null }]);
+  });
+
+  it('개인 표는 사람이 축이고 기간은 따로 고른다 — 범위도 그 기간을 따라간다 (§10·§11)', () => {
+    const teacher = { ...INITIAL_PANE, view: 'teacher' as const, date: '2026-08-20', personId: 7 };
+    // 보기 낱말은 「선생님별」이지만 실제로 그리는 기간은 개인 도구줄이 정한다
+    expect(paneView(teacher)).toBe('week');
+    expect(paneView({ ...teacher, personPeriod: 'day' })).toBe('day');
+    expect(paneView({ ...teacher, personPeriod: 'month' })).toBe('month');
+    // 전체 보기는 기간 칸을 들고 있어도 자기 보기를 그대로 쓴다
+    expect(paneView({ ...INITIAL_PANE, view: 'day', personPeriod: 'month' })).toBe('day');
+
+    // 한 번 읽는 bounding range 도 개인 표의 기간을 따라간다 — 주간이면 그 주, 일간이면 그 하루
+    expect(boundingRange([teacher])).toEqual({ from: '2026-08-17', to: '2026-08-23' });
+    expect(boundingRange([{ ...teacher, personPeriod: 'day' }])).toEqual({ from: '2026-08-20', to: '2026-08-20' });
   });
 
   it('divider는 화면 비율이 아니라 실제 152px 최소 폭으로 제한한다', () => {
@@ -179,7 +193,7 @@ describe('분할 표 상태 (§4)', () => {
 
 /* ── TBO-41 상호작용 산수 ─────────────────────────────────────────── */
 import {
-  clampEnd, lessonTimeIssue, minutesFromPx, movePatch, movePlacements, occurrenceKey, overlapClusters, relativePlacements,
+  clampEnd, lessonTimeIssue, movePatch, movePlacements, occurrenceKey, overlapClusters, relativePlacements,
   resizePatch, selectOccurrenceKeys, selectedOccurrences, slotStartMin, snap15,
 } from './calendar';
 
@@ -188,8 +202,6 @@ describe('드래그 산수 (§5)', () => {
     expect(snap15(7)).toBe(0);
     expect(snap15(8)).toBe(15);
     expect(snap15(52)).toBe(45);
-    expect(minutesFromPx(56)).toBe(60); // 시간당 56px
-    expect(minutesFromPx(14)).toBe(15);
   });
 
   it('드롭한 30분 슬롯과 블록 상단 좌표로 시작 시각을 계산하고 15분 스냅한다', () => {

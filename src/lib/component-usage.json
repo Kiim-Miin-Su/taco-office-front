@@ -1,7 +1,7 @@
 {
   "version": 1,
   "counts": {
-    "button": 216,
+    "button": 217,
     "badge": 180,
     "mark": 2,
     "input": 129,
@@ -12,6 +12,6 @@
     "panel": 123,
     "board": 6,
     "overlay": 16,
-    "tabs": 21
+    "tabs": 22
   }
 }

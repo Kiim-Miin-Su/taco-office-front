@@ -290,6 +290,134 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
   });
 });
 
+/**
+ * 키 리스너·`copySelection`·`pasteAtCursor`·`ClipboardBar` 가 컴포넌트 수준에서 한 번도
+ * 시험되지 않은 자리였다 (CODEX §7.3 ①). 순수 함수만 시험돼 있으면 **배선이 끊겨도 초록**이다.
+ */
+describe('키보드 길 — 복사·잘라내기·붙여넣기·취소 (§5.2)', () => {
+  /** 빈 칸에 접근 가능한 이름이 있는 표는 주간이다 — 붙일 자리를 그 이름으로 고른다 */
+  const pickEmpty = (view: ReturnType<typeof render>, name: string) => {
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    fireEvent.click(view.getByRole('button', { name }));
+  };
+
+  it('클립보드가 비어 있으면 Ctrl/⌘+V 는 먼저 복사하라고 말하고 쓰기를 보내지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+    expect(view.getByText(/먼저 일정을 선택하고/)).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('복사만 하고 붙일 칸을 고르지 않으면 빈 칸부터 고르라고 말한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    expect(view.getByText('1건 복사됨')).toBeTruthy();
+
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+    expect(view.getByText('붙여넣을 빈 칸을 먼저 선택하세요.')).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('복사 → 빈 칸 → Ctrl/⌘+V 는 그 칸의 날짜·시각을 paste 계약에 싣는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    pickEmpty(view, '2026-09-03 13:30 빈 시간 선택');
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({
+      kind: 'paste',
+      body: {
+        sources: [{ serId: 1, date: '2026-09-01', onDate: '2026-09-01' }],
+        targetDate: '2026-09-03', targetStartMin: 810, cut: false, scope: 'this',
+      },
+    });
+  });
+
+  it('잘라내기는 낱말과 계약의 cut 만 바꾼다 — 누르는 순간 원본을 지우지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'x', ctrlKey: true });
+    expect(view.getByText('1건 잘라내기됨')).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+
+    pickEmpty(view, '2026-09-03 13:30 빈 시간 선택');
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste', body: { cut: true } });
+  });
+
+  it('Esc 는 한 단계씩 되돌린다 — 선택을 먼저 놓고, 그 다음에 클립보드를 비운다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    expect(view.getByText('1건 복사됨')).toBeTruthy();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(view.getByText('1건 복사됨')).toBeTruthy();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(view.queryByText('1건 복사됨')).toBeNull();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('띠의 「Esc 취소」 단추도 같은 자리를 지운다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.click(view.getByRole('button', { name: 'Esc 취소' }));
+    expect(view.queryByText('1건 복사됨')).toBeNull();
+  });
+});
+
+describe('개인 표의 기간 축 (§10·§11)', () => {
+  it('사람을 고르면 개인 도구줄이 서고, 기본은 주간이며 일간·월간으로 바꾸면 조회 범위가 따라간다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+
+    const tools = view.getByRole('group', { name: /개인 표 기간/ });
+    expect(within(tools).getByRole('button', { name: '주간' }).getAttribute('aria-pressed')).toBe('true');
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-09-06' });
+
+    fireEvent.click(within(tools).getByRole('button', { name: '일간' }));
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-01', to: '2026-09-01' });
+
+    fireEvent.click(within(tools).getByRole('button', { name: '월간' }));
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-10-04' });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('원본에 있으나 여는 화면이 없는 진입 넷은 빈칸이 아니라 이유를 단 비활성 단추다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+
+    for (const label of ['가능 시간', '안내', '정산', '메모']) {
+      const button = view.getByRole('button', { name: label });
+      expect(button.hasAttribute('disabled')).toBe(true);
+      expect(button.getAttribute('title')).toBeTruthy();
+    }
+    // 학생별에는 원본에도 넷이 없다 — 모양을 맞추려고 같은 단추를 세우지 않는다
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
+    expect(view.queryByRole('button', { name: '정산' })).toBeNull();
+  });
+
+  it('개인 표의 기간을 바꿔도 고른 사람은 그대로다 — 축이 둘이라 서로를 지우지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
+    const tools = view.getByRole('group', { name: /개인 표 기간/ });
+
+    fireEvent.click(within(tools).getByRole('button', { name: '월간' }));
+    expect(view.queryByText('사람을 고르세요')).toBeNull();
+    expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
+    expect(view.queryByRole('button', { name: /다른 수업/ })).toBeNull();
+  });
+});
+
 describe('드롭 대상 시각과 자정 쓰기 경계', () => {
   const rect = (top: number, height = 28) => ({ top, height, left: 0, right: 120, width: 120, bottom: top + height });
   const drop = (occ: Occurrence, extra: Partial<DragEndEvent> = {}): DragEndEvent => ({
