@@ -13,11 +13,12 @@ export interface SegmentedProps<T extends string> {
   onChange: (v: T) => void;
   className?: string;
   disabled?: boolean;
+  ariaLabel?: string;
 }
 
-export function Segmented<T extends string>({ options, value, onChange, className, disabled = false }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, className, disabled = false, ariaLabel }: SegmentedProps<T>) {
   return (
-    <div role="group" className={cn('inline-flex rounded-lg bg-inset p-0.5', className)}>
+    <div role="group" aria-label={ariaLabel} className={cn('inline-flex rounded-lg bg-inset p-0.5', className)}>
       {options.map((o) => (
         <button
           key={o.value} type="button" aria-pressed={o.value === value} disabled={disabled} onClick={() => onChange(o.value)}
@@ -33,9 +34,9 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
   );
 }
 
-export function Tabs<T extends string>({ options, value, onChange, className, disabled = false }: SegmentedProps<T>) {
+export function Tabs<T extends string>({ options, value, onChange, className, disabled = false, ariaLabel }: SegmentedProps<T>) {
   return (
-    <div className={cn('flex gap-1 border-b border-line', className)}>
+    <div role="group" aria-label={ariaLabel} className={cn('flex gap-1 border-b border-line', className)}>
       {options.map((o) => (
         <button
           key={o.value} type="button" aria-pressed={o.value === value} disabled={disabled} onClick={() => onChange(o.value)}

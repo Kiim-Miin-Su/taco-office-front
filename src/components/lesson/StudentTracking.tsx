@@ -7,14 +7,12 @@
 /**
  * §79 수강 학생 — 오른쪽 「학생 트래킹」 칸.
  *
- * 학생마다 카드 석 장(교재 · 30일 출석 · 미수)과 **최신 리포트 3건**을 보입니다.
- * (컷은 넉 장이지만 「진도 평균」은 저장할 자리가 없어 만들지 않았다 — N-31.)
+ * 학생마다 카드 넉 장(진도 평균 · 교재 · 30일 출석 · 미수)과 **최신 리포트 3건**을 보입니다.
  * 값과 낱말은 전부 서버가 만든 것을 그립니다 — 「정시 / 지연」은 `lib/rules.tierFor` 한 곳이
  * 정하고(D-R32), 「N명 더 넣을 수 있습니다」도 서버가 셉니다(D-R37).
  *
- * **원문 카드의 「진도 평균」은 없습니다.** 교재 진도를 적는 칸이 어디에도 없고, 원문 컷의
- * 값이 두 학생 다 0% 라 무엇을 나눈 값인지도 말해 주지 않습니다. 숫자를 지어내면 그 자리부터
- * 거짓이 됩니다 — N-31 로 올렸습니다.
+ * 진도 평균은 서버가 `ISSUE.progress_page / LIB.pages`의 기존 교재 산식으로 계산합니다.
+ * 화면은 알려진 교재가 0권인 `null`과 실제 0%를 구분해 그대로 표시합니다.
  */
 'use client';
 import Link from 'next/link';
@@ -65,7 +63,8 @@ function StudentCard({ s, canSeeAmounts }: { s: TrackedStudent; canSeeAmounts: b
         </span>
       )}
     >
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="진도 평균" value={s.progressAverage === null ? '—' : `${s.progressAverage}%`} />
         <Stat label="교재" value={String(s.bookCount)} />
         <Stat label="30일 출석" value={s.attendTotal > 0 ? `${s.attendDone}/${s.attendTotal}` : '—'} />
         <Stat

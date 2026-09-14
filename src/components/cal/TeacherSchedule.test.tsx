@@ -58,7 +58,10 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(view.getByRole('region', { name: '오늘 전체 스케줄' })).toBeTruthy();
     expect(mocks.horizon).not.toHaveBeenCalled();
     expect(mocks.scheduleWrite).not.toHaveBeenCalled();
+    expect(mocks.drawer).not.toHaveBeenCalled();
     expect(view.container.querySelectorAll('input,select,textarea').length).toBe(0);
+    expect(view.queryByText('관리자 승인 대기')).toBeNull();
+    expect(view.queryByText('스케줄 변경 요청 중')).toBeNull();
   });
 
   it('오늘과 앞으로 7일을 한 범위로 읽고 시간순 목록·학생·장소·상태를 표시한다', () => {

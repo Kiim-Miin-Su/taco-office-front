@@ -10,7 +10,7 @@ import type { LessonTracking, Occurrence, RosterResult } from '@/api/types';
 
 const { mutate, permissions, tracking } = vi.hoisted(() => ({
   mutate: vi.fn(),
-  permissions: { canEdit: true },
+  permissions: { canEdit: true, canAdminPage: true },
   /** §79 는 명단 줄의 「교재 N · 안내 없음」과 오른쪽 트래킹 칸이 **같은 질의**를 읽는다 (C55) */
   tracking: { data: undefined as LessonTracking | undefined, isLoading: false, isError: false },
 }));
@@ -21,7 +21,9 @@ vi.mock('@/api/queries', () => ({
   // §79 학생 트래킹은 창을 열 때만 도는 별도 질의다 — 이 파일은 명단 계약만 본다 (C55)
   useLessonTracking: () => tracking,
 }));
-vi.mock('@/store/useSession', () => ({ useCan: () => permissions.canEdit }));
+vi.mock('@/store/useSession', () => ({
+  useCan: (name: string) => name === 'canAdminPage' ? permissions.canAdminPage : permissions.canEdit,
+}));
 
 import { LessonDetail } from './LessonDetail';
 
@@ -67,7 +69,11 @@ const result: RosterResult = {
 };
 
 describe('LessonDetail 명단 결과', () => {
-  beforeEach(() => { mutate.mockReset(); permissions.canEdit = true; });
+  beforeEach(() => {
+    mutate.mockReset();
+    permissions.canEdit = true;
+    permissions.canAdminPage = true;
+  });
 
   it('없는 회차 오류에 시간/자원 충돌 해결 안내를 덧붙이지 않는다', () => {
     mutate.mockImplementationOnce((_write, options) => options.onError({ response: { data: { message: '해당 회차가 없습니다' } } }));
@@ -79,10 +85,12 @@ describe('LessonDetail 명단 결과', () => {
 
   it('강사는 상세를 읽지만 휴강·취소 및 명단 변경 버튼은 보이지 않는다', () => {
     permissions.canEdit = false;
+    permissions.canAdminPage = false;
     const view = render(<LessonDetail occ={{ ...occurrence, attendanceMode: 'readonly' }} onClose={() => undefined} />);
     expect(view.getByText('기존학생')).toBeTruthy();
     expect(view.queryByRole('button', { name: '휴강 · 취소' })).toBeNull();
     expect(view.queryByRole('button', { name: '이 회차만 빼기' })).toBeNull();
+    expect(view.queryByRole('region', { name: '학생 트래킹' })).toBeNull();
     expect(mutate).not.toHaveBeenCalled();
   });
 
@@ -150,7 +158,8 @@ describe('§79 명단 줄의 교재 · 안내 칩', () => {
       priced: false, unitPrice: null, total: null, canSeeAmounts: false,
       students: occurrence.students.map((s, i) => ({
         id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce,
-        bookCount: i === 0 ? 2 : 0, guided: i === 0, attendDone: 0, attendTotal: 0,
+        bookCount: i === 0 ? 2 : 0, progressAverage: null, progressKnownBooks: 0,
+        guided: i === 0, attendDone: 0, attendTotal: 0,
         unpaid: null, reports: [],
       })),
     };

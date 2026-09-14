@@ -13,6 +13,8 @@ import { KO_DOW, dowOf, monthGrid } from '@/lib/calendar';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(),
+  download: vi.fn(),
+  permissions: { canAdminPage: true, canCrudAll: true } as Record<string, boolean>,
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
 }));
@@ -29,13 +31,13 @@ function DndProbe() {
   mocks.context = useDndContext();
   return null;
 }
-vi.mock('@/store/useSession', () => ({ useCan: () => true }));
+vi.mock('@/store/useSession', () => ({ useCan: (key: string) => mocks.permissions[key] ?? false }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry }: {
   children: ReactNode; drawerEntry?: { pane: string; identity: string } | null;
 }) => <div data-drawer-entry={drawerEntry ? `${drawerEntry.pane}:${drawerEntry.identity}` : undefined}>{children}</div> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/cal/SessionEditor', () => ({ SessionEditor: () => null }));
-vi.mock('@/components/cal/TeacherSchedule', () => ({ TeacherSchedule: () => null }));
+vi.mock('@/components/cal/TeacherSchedule', () => ({ TeacherSchedule: () => <div>오늘 수업</div> }));
 vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: ({ occ }: { occ: Occurrence | null }) => {
   mocks.detail(occ); return null;
 } }));
@@ -46,6 +48,7 @@ vi.mock('@/api/queries', () => ({
   useMeta: mocks.meta,
   useDrawer: () => ({ data: { approvals: { count: 0 }, notis: [] } }),
 }));
+vi.mock('@/lib/png-export', () => ({ downloadElementPng: mocks.download }));
 
 import SchedulePage from './page';
 
@@ -73,6 +76,9 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-09-01T00:00:00Z'));
   mocks.occurrences.mockReturnValue({ data: { items }, isLoading: false, isError: false });
   mocks.meta.mockReturnValue({ data: meta });
+  mocks.download.mockResolvedValue(undefined);
+  mocks.permissions.canAdminPage = true;
+  mocks.permissions.canCrudAll = true;
 });
 
 it('변경 요청 deep link는 기존 chreqs 서랍 진입을 식별한다', () => {
@@ -107,6 +113,80 @@ it('같은 schedule route에서 다른 리포트 deep link로 이동해도 실�
 
   expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-02', to: '2026-09-02' });
   expect(mocks.detail).toHaveBeenLastCalledWith(next);
+});
+
+it('유효한 상세 뒤 존재하지 않는 identity로 이동하면 이전 상세를 즉시 닫는다', () => {
+  nav.search = 'serId=1&onDate=2026-09-01&date=2026-09-01';
+  const view = render(<SchedulePage />);
+  expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
+
+  nav.search = 'serId=999&onDate=2026-09-02&date=2026-09-02';
+  mocks.occurrences.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false });
+  view.rerender(<SchedulePage />);
+  expect(mocks.detail).toHaveBeenLastCalledWith(null);
+});
+
+it('학생 카드 시간표 deep link는 추가 API 없이 해당 학생의 개인 주간표를 연다', () => {
+  nav.search = 'studentId=1';
+  const view = render(<SchedulePage />);
+
+  expect(view.getAllByText('선택 학생').length).toBeGreaterThan(0);
+  expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
+  expect(view.queryByRole('button', { name: /다른 수업/ })).toBeNull();
+  expect(mocks.occurrences.mock.calls.every(([params]) => (
+    params.from === '2026-08-31' && params.to === '2026-09-06'
+  ))).toBe(true);
+});
+
+describe('§07~§11 공용 도구줄', () => {
+  it('표시 필터는 추가 GET 없이 현재 occurrence 응답만 좁히고 초기화하면 같은 행을 복원한다', () => {
+    const online = { ...items[1], mode: 'online' as const };
+    mocks.occurrences.mockReturnValue({ data: { items: [items[0], online] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+
+    fireEvent.click(view.getByRole('button', { name: '온라인' }));
+    expect(view.queryByRole('button', { name: /선택된 수업/ })).toBeNull();
+    expect(view.getByRole('button', { name: /다른 수업/ })).toBeTruthy();
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-01', to: '2026-09-01' });
+
+    fireEvent.click(view.getByRole('button', { name: '전체' }));
+    expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
+    expect(view.getByRole('button', { name: /다른 수업/ })).toBeTruthy();
+    expect(mocks.occurrences.mock.calls.every(([params]) => (
+      params.from === '2026-09-01' && params.to === '2026-09-01'
+    ))).toBe(true);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('select에서 누른 Ctrl/⌘ 단축키는 앱 클립보드로 가로채지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    const select = view.getByRole('combobox', { name: '과목 필터' });
+    select.focus();
+    fireEvent.keyDown(select, { key: 'c', ctrlKey: true });
+
+    expect(view.queryByText('1건 복사됨')).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    expect(view.getByText('1건 복사됨')).toBeTruthy();
+  });
+
+  it('관리 화면 권한이 없으면 관리자 도구줄·전체 occurrence 조회 없이 강사 오늘 목록만 렌더한다', () => {
+    mocks.permissions.canAdminPage = false;
+    const view = render(<SchedulePage />);
+
+    expect(view.getByText('오늘 수업')).toBeTruthy();
+    expect(view.queryByRole('region', { name: '스케줄 도구' })).toBeNull();
+    expect(mocks.occurrences).not.toHaveBeenCalled();
+  });
+
+  it('PNG 버튼은 현재 표 DOM과 안정된 파일명을 공용 내보내기 함수에 전달한다', async () => {
+    const view = render(<SchedulePage />);
+    await act(async () => fireEvent.click(view.getByRole('button', { name: '현재 스케줄을 PNG로 저장' })));
+
+    expect(mocks.download).toHaveBeenCalledOnce();
+    expect(mocks.download.mock.calls[0][0]).toBeInstanceOf(HTMLElement);
+    expect(mocks.download.mock.calls[0][1]).toBe('2026-09-01-day-schedule.png');
+  });
 });
 
 describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
@@ -174,7 +254,7 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
   it('분할된 오른쪽 월간의 날짜 선택이 왼쪽 날짜·보기를 변경하지 않는다', () => {
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: '월간' }));
-    fireEvent.click(view.getByRole('button', { name: '표 분할' }));
+    fireEvent.click(view.getByRole('button', { name: '세로로 나누기' }));
     const left = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
     const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
     fireEvent.pointerDown(right);
@@ -230,6 +310,17 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     finish(drop(items[0]));
     expect(mocks.write.mock.calls[0][0]).toEqual({ kind: 'patch', serId: 1,
       body: { date: '2026-09-02', startMin: 915, endMin: 975, roomId: 3, onDate: '2026-09-01', scope: 'this' } });
+  });
+
+  it('주간 슬롯 drop은 세로 시각을 저장하고 보이지 않는 강의실·강사 축은 바꾸지 않는다', () => {
+    render(<SchedulePage />);
+    const event = drop(items[0]);
+    event.over!.data.current = { type: 'weekSlot', date: '2026-09-02', slotMin: 960 };
+    finish(event);
+    expect(mocks.write.mock.calls[0][0]).toEqual({ kind: 'patch', serId: 1,
+      body: { date: '2026-09-02', startMin: 975, endMin: 1035, onDate: '2026-09-01', scope: 'this' } });
+    expect(mocks.write.mock.calls[0][0].body).not.toHaveProperty('roomId');
+    expect(mocks.write.mock.calls[0][0].body).not.toHaveProperty('teacherId');
   });
 
   it.each([false, true])('자정 초과는 길이 단축이나 원시각 fallback 없이 거절한다 (copy=%s)', (copy) => {
@@ -328,7 +419,7 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: viewName }));
     const before = { drag: mocks.context!.draggableNodes.size, drop: mocks.context!.droppableContainers.size };
-    fireEvent.click(view.getByRole('button', { name: '표 분할' }));
+    fireEvent.click(view.getByRole('button', { name: '세로로 나누기' }));
     expect(mocks.context!.draggableNodes.size).toBe(before.drag * 2);
     expect(mocks.context!.droppableContainers.size).toBe(before.drop * 2);
     expect(view.getAllByRole('button', { name: /선택된 수업/ })).toHaveLength(2);

@@ -8,7 +8,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useDrawer, useMeta, useOccurrences, useUnwritten } from '@/api/queries';
+import { useMeta, useOccurrences, useUnwritten } from '@/api/queries';
 import type { Meta, Occurrence } from '@/api/types';
 import { addDays, dowOf, hhmm, KO_DOW, label, occurrenceKey, teacherSchedule, todayKst } from '@/lib/calendar';
 import { AppShell } from '@/components/shell/AppShell';
@@ -120,7 +120,6 @@ export function TeacherSchedule() {
     return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', resume); };
   }, [today, refetch, refetchUnwritten]);
   const meta = useMeta();
-  const drawer = useDrawer();
   const items = q.data?.items ?? EMPTY;
   const model = useMemo(() => teacherSchedule(items, today), [items, today]);
   const lookup = useMemo(() => lookups(meta.data), [meta.data]);
@@ -134,8 +133,6 @@ export function TeacherSchedule() {
       : { kind: 'lesson', key: occurrenceKey(occ) },
   );
   const clock = new Date(now + 9 * 3600 * 1000).toISOString().slice(11, 16);
-  const pending = drawer.data?.approvals.mine.filter((row) => row.state === 'waiting').length;
-  const changes = drawer.data?.changeReqs.filter((row) => row.state === 'pending').length;
   const ready = q.data !== undefined && !q.isError;
 
   return (
@@ -180,12 +177,10 @@ export function TeacherSchedule() {
             </>
           )}
         </div>
-        <aside className="flex min-w-0 flex-col gap-4" aria-label="오늘 할 일">
-          <Panel title="오늘 할 일">
+        <aside className="flex min-w-0 flex-col gap-4" aria-label="내 수업 할 일">
+          <Panel title="내 수업 할 일">
             <dl className="flex flex-col gap-4 text-[13px]">
               <div className="flex items-center justify-between gap-2"><dt><Link href="/reports" className="font-bold text-fg hover:text-blue">리포트 미작성 ›</Link></dt><dd className="font-bold text-red">{unwritten.isError ? '확인 필요' : unwritten.data?.total ?? '—'}</dd></div>
-              <div className="flex items-center justify-between gap-2"><dt>관리자 승인 대기</dt><dd className="font-bold text-amber">{drawer.isError ? '확인 필요' : pending ?? '—'}</dd></div>
-              <div className="flex items-center justify-between gap-2"><dt>스케줄 변경 요청 중</dt><dd className="font-bold text-blue">{drawer.isError ? '확인 필요' : changes ?? '—'}</dd></div>
             </dl>
           </Panel>
         </aside>

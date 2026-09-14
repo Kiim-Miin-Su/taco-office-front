@@ -135,7 +135,7 @@ export interface paths {
         };
         /**
          * §79 수강 학생 — 정원 · 교재 · 안내 · 30일 출결 · 미수 · 최신 리포트 3건
-         * @description 금액(단가·총액·미수)은 canMoney 인 사람에게만 값이 간다 (D-R39). 「진도 평균」은 저장할 자리가 없어 싣지 않는다 (N-31).
+         * @description 금액(단가·총액·미수)은 canMoney 인 사람에게만 값이 간다 (D-R39). 진도 평균은 ISSUE.progress_page/LIB.pages의 기존 교재 산식을 재사용하며 미확인은 null이다.
          */
         get: operations["ScheduleController_tracking"];
         put?: never;
@@ -2349,6 +2349,10 @@ export interface components {
             droppedOnce: boolean;
             /** @description 반납하지 않은 배부 교재 수 — 원문 「교재 N」 */
             bookCount: number;
+            /** @description 배부 완료 교재 중 진도 쪽수와 전체 쪽수가 모두 있는 책의 동일가중 평균. 알 수 있는 책이 없으면 null */
+            progressAverage: number | null;
+            /** @description 진도 평균에 포함된 교재 수. 0이면 0%가 아니라 미확인이다 */
+            progressKnownBooks: number;
             /** @description 이 수업의 안내가 나갔는가 — 원문 「안내 됨 / 안내 없음」 */
             guided: boolean;
             /** @description 최근 30일 중 진행된 회차 수 */

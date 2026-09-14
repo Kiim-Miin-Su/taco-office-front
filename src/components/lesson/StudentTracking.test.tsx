@@ -20,7 +20,8 @@ const base: LessonTracking = {
   priced: true, unitPrice: 80000, total: 240000, canSeeAmounts: true,
   students: [{
     id: 18, name: '문채원', grade: '고3', droppedOnce: false,
-    bookCount: 1, guided: false, attendDone: 12, attendTotal: 13, unpaid: 1170000,
+    bookCount: 1, progressAverage: 25, progressKnownBooks: 1,
+    guided: false, attendDone: 12, attendTotal: 13, unpaid: 1170000,
     reports: [
       { repId: 70, onDate: '2026-09-10', subjectName: 'SAT Math', teacherName: '박도윤',
         onTime: true, onTimeLabel: '정시', excerpt: '도함수 응용 6제', homework: 'p.162' },
@@ -67,6 +68,14 @@ it('미수 0원과 「가려짐」을 구분한다 — 0 을 감춤으로 읽지
 it('출결이 하나도 확정 안 됐으면 0/0 이 아니라 — 로 둔다', () => {
   const v = setup({ ...base, students: [{ ...base.students[0], attendDone: 0, attendTotal: 0 }] });
   expect(v.queryByText('0/0')).toBeNull();
+});
+
+it('진도 평균의 미확인 null과 실제 0%를 구분한다', () => {
+  const unknown = setup({ ...base, students: [{ ...base.students[0], progressAverage: null, progressKnownBooks: 0 }] });
+  expect(unknown.queryByText('0%')).toBeNull();
+  cleanup();
+  const zero = setup({ ...base, students: [{ ...base.students[0], progressAverage: 0, progressKnownBooks: 1 }] });
+  expect(zero.getByText('0%')).toBeTruthy();
 });
 
 it('단가표가 없으면 가격 대신 그 사실을 적는다', () => {

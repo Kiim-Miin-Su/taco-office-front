@@ -79,12 +79,13 @@ export interface LessonDetailProps {
 export function LessonDetail({ occ, kindName, subName, recurring = true, allStudents, onClose }: LessonDetailProps) {
   const write = useScheduleWrite();
   const canEdit = useCan('canCrudAll');
+  const canAdminPage = useCan('canAdminPage');
   const [ask, setAsk] = useState<null | { mode: 'edit' | 'delete'; run: (s: Scope) => void }>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pick, setPick] = useState('');
   const [rosterResult, setRosterResult] = useState<RosterResult | null>(null);
   // 아래 「학생 트래킹」 칸과 **같은 질의**다 — 키가 같아 요청이 한 번만 나간다 (C55)
-  const tracking = useLessonTracking(occ?.serId ?? null, occ?.onDate ?? null, !!occ);
+  const tracking = useLessonTracking(occ?.serId ?? null, occ?.onDate ?? null, !!occ && canAdminPage);
 
   useEffect(() => {
     setRosterResult(null);
@@ -247,8 +248,8 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
             ) : null}
           </section>
 
-          {/* §79 오른쪽 칸 — 창을 열 때만 부른다 (C55) */}
-          <StudentTracking serId={occ.serId} onDate={occ.onDate} />
+          {/* §79 오른쪽 칸 — 관리자 화면에서 창을 열 때만 부른다 (C55 · D-R39) */}
+          {canAdminPage ? <StudentTracking serId={occ.serId} onDate={occ.onDate} /> : null}
 
           {occ.kindKey === 'gpa' ? (
             <p className="text-[12px]">

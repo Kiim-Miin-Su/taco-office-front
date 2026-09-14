@@ -10,10 +10,11 @@
  * §7 일간   시간 비례 격자 — 리프 컬럼 × **30분 슬롯을 실제 노드로** 반복한다 (`CALENDAR §2.5`).
  *           드롭 타깃이 셀이고, 셀 상태(불가·마감)를 칠할 자리가 셀이고, Figma 재현도 셀이다.
  *           눈속임(그라디언트 세로선)을 쓰지 않는다.
- * §8 주간   요일 7칸 · 요일별 건수 — 칸이 곧 날짜 드롭 타깃
+ * §8 주간   공통 시간축 × 요일 7열 — 칸이 곧 날짜 드롭 타깃, 겹침은 평행 lane
  * §9 월간   달력 · 최대 3건 + 「+N건 더」 — 〃
  *
- * 겹침은 폭을 N등분하지 않는다 — 첫 건만 그리고 「+N」으로 접는다 (`CALENDAR §4.5`).
+ * 일간의 강의실/강사 열은 첫 건 + 「+N」으로 접고, 주간의 날짜 열은 원문처럼
+ * 평행 lane으로 미리 보여 준다. 두 보기는 같은 `overlapClusters` 결과를 소비한다.
  */
 'use client';
 import { useId, useMemo, useState } from 'react';
@@ -36,6 +37,7 @@ export type ColAxis = 'room' | 'teacher';
 /** 드롭 타깃 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
 export type DropData =
   | { type: 'slot'; date: string; colAxis: ColAxis; colId: number | null; slotMin: number }
+  | { type: 'weekSlot'; date: string; slotMin: number }
   | { type: 'day'; date: string };
 
 export interface GridProps {
@@ -52,6 +54,13 @@ export interface GridProps {
   onPickDate?: (date: string) => void;
   /** 잡아서 옮길 수 있는가 — 권한(canCrudAll)을 페이지가 여기로 내린다 */
   interactive?: boolean;
+}
+
+export interface WeekGridProps extends GridProps {
+  /** 주간 빈 칸은 날짜만이 아니라 실제 30분 슬롯 시각까지 전달한다. */
+  onAddAt?: (date: string, startMin: number) => void;
+  /** 붙여넣기 커서도 날짜와 시각이 모두 같은 슬롯만 표시한다. */
+  cursor?: { date: string; startMin: number } | null;
 }
 
 const byDate = (items: Occurrence[]) => {
@@ -99,6 +108,35 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, onAddAt }: {
         onAddAt && 'cursor-cell hover:bg-blue/[0.04]',
         active && 'bg-blue/10 ring-2 ring-inset ring-blue',
         d.isOver && 'bg-blue/10',
+      )}
+      style={{ height: HOUR_PX / 2 }}
+    />
+  );
+}
+
+/** 주간 30분 슬롯 — 월간의 날짜 drop과 분리해 세로 좌표를 잃지 않는다. */
+function WeekSlot({ date, slotMin, hourLine, active, onAddAt, interactive }: {
+  date: string; slotMin: number; hourLine: boolean; active?: boolean;
+  onAddAt?: (date: string, startMin: number) => void; interactive?: boolean;
+}) {
+  const instanceId = useId();
+  const drop = useDroppable({
+    id: `week-slot|${instanceId}|${date}|${slotMin}`,
+    data: { type: 'weekSlot', date, slotMin } satisfies DropData,
+    disabled: !interactive,
+  });
+  return (
+    <button
+      ref={drop.setNodeRef}
+      type="button"
+      aria-label={`${date} ${hhmm(slotMin)} 빈 시간 선택`}
+      onClick={() => onAddAt?.(date, slotMin)}
+      className={cn(
+        'block w-full border-r border-line text-left',
+        hourLine ? 'border-b border-b-line' : 'border-b border-b-line/40',
+        onAddAt && 'cursor-cell hover:bg-blue/[0.04]',
+        active && 'bg-blue/10 ring-2 ring-inset ring-blue',
+        drop.isOver && 'bg-blue/10',
       )}
       style={{ height: HOUR_PX / 2 }}
     />
@@ -226,39 +264,111 @@ export function DayGrid({
   );
 }
 
-/* ── §8 주간 — 요일 7칸 ──────────────────────────────────────────────── */
+/* ── §8·10·11 주간 — 공통 시간축 × 요일 7열 ─────────────────────────── */
 
 export function WeekGrid({
-  date, items, subName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
-}: GridProps) {
+  date, items, subName, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, cursor,
+}: WeekGridProps) {
   const days = weekDays(date);
-  const map = byDate(items);
+  const map = useMemo(() => byDate(items), [items]);
+  // §08·10·11은 보기마다 별도 목록을 만들지 않는다. 같은 회차 배열에서 한 번 구한
+  // 공통 범위를 7개 날짜 열이 공유해야 세로 좌표가 서로 어긋나지 않는다.
+  const { from, to } = useMemo(() => timeRange(items), [items]);
+  const slots = useMemo(() => {
+    const out: number[] = [];
+    for (let m = from; m < to; m += SLOT_MIN) out.push(m);
+    return out;
+  }, [from, to]);
+  const height = ((to - from) / 60) * HOUR_PX;
+  const px = (m: number) => ((m - from) / 60) * HOUR_PX;
+  const now = nowMinKst();
+  const showNow = days.includes(todayKst()) && now >= from && now <= to;
+
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-card">
-      <div className="grid grid-cols-7 border-b border-line bg-inset">
-        {days.map((d) => {
-          const n = map.get(d)?.length ?? 0;
-          return (
-            <button key={d} type="button" onClick={() => onPickDate?.(d)}
-              aria-label={`${d} (${KO_DOW[dowOf(d)]}) 날짜 선택`}
-              className="border-r border-line p-2 text-left transition-colors last:border-r-0 hover:bg-blue/5">
-              <div className={cn('text-[11px] font-bold', dowOf(d) === 0 ? 'text-red' : dowOf(d) === 6 ? 'text-blue' : 'text-fg-subtle')}>
-                {KO_DOW[dowOf(d)]}
+    <div data-png-expand className="overflow-x-auto rounded-xl border border-line bg-card" role="region" aria-label="주간 시간표">
+      <div className="min-w-[900px]">
+        <div className="grid border-b border-line bg-fg text-white"
+             style={{ gridTemplateColumns: '56px repeat(7, minmax(112px, 1fr))' }}>
+          <div className="border-r border-white/10 p-2 text-[11px] font-bold text-white/65">시간</div>
+          {days.map((d) => {
+            const n = map.get(d)?.length ?? 0;
+            const dow = dowOf(d);
+            const isToday = d === todayKst();
+            return (
+              <button key={d} type="button" onClick={() => onPickDate?.(d)}
+                aria-label={`${d} (${KO_DOW[dow]}) 날짜 선택`}
+                className={cn(
+                  'border-r border-white/10 px-2 py-1.5 text-center transition-colors last:border-r-0 hover:bg-white/10 focus-visible:outline-blue',
+                  isToday && 'bg-blue',
+                )}>
+                <div className={cn('text-[11px] font-bold', !isToday && dow === 0 ? 'text-red-300' : !isToday && dow === 6 ? 'text-blue-300' : 'text-white/75')}>
+                  {KO_DOW[dow]}
+                </div>
+                <div className="text-[14px] font-bold">{+d.slice(8, 10)}</div>
+                <div className={cn('text-[10px]', n ? 'font-bold text-amber-300' : 'text-white/70')}>{n ? `${n}건` : '—'}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative grid" style={{ gridTemplateColumns: '56px repeat(7, minmax(112px, 1fr))' }}>
+          <div className="relative border-r border-line bg-card" style={{ height }}>
+            {slots.filter((m) => m % 60 === 0).map((m) => (
+              <div key={m} className="absolute inset-x-0 px-1.5 pt-1 text-[11px] font-bold text-fg-subtle"
+                   style={{ top: px(m) }}>
+                {hhmm(m)}
               </div>
-              <div className="text-[13px] font-bold text-fg">{+d.slice(8, 10)}</div>
-              <div className="text-[10px] text-fg-subtle">{n ? `${n}건` : '—'}</div>
-            </button>
-          );
-        })}
-      </div>
-      <div className="grid grid-cols-7">
-        {days.map((d) => (
-          <CalCell key={d} date={d} items={map.get(d) ?? EMPTY} subName={subName} colorOf={colorOf}
-                   onSelect={onSelect} selected={selected}
-                   active={cursorDate === d}
-                   onOpen={onOpen} onAdd={onAdd} className="min-h-[220px]" compact
-                   droppable={interactive} draggable={interactive} />
-        ))}
+            ))}
+          </div>
+
+          {days.map((d) => {
+            const mine = map.get(d) ?? EMPTY;
+            const clusters = overlapClusters(mine);
+            return (
+              <div key={d} data-week-date={d} className="relative" style={{ height }}>
+                <div className="absolute inset-0">
+                  {slots.map((m) => (
+                    <WeekSlot key={m} date={d} slotMin={m} hourLine={(m + SLOT_MIN) % 60 === 0}
+                      active={cursor?.date === d && cursor.startMin === m}
+                      onAddAt={interactive ? onAddAt : undefined} interactive={interactive} />
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute inset-0">
+                  {clusters.flatMap((cluster) => cluster.map((o, lane) => {
+                    // 명세의 겹친 수업은 감추지 않고 같은 시간대 안에서 평행 미리보기한다.
+                    // 군집 폭을 한 번만 나눠 학생별·선생님별도 완전히 같은 배치를 소비한다.
+                    const laneCount = cluster.length;
+                    const gap = 2;
+                    const left = `calc(${(lane / laneCount) * 100}% + ${lane === 0 ? gap : gap / 2}px)`;
+                    const width = `calc(${100 / laneCount}% - ${gap + gap / laneCount}px)`;
+                    return (
+                      <div key={`${occurrenceKey(o)}|${lane}`} data-week-event={occurrenceKey(o)}
+                           className="pointer-events-auto absolute z-[1] transition-[top,height,left,width]"
+                           style={{
+                             top: px(o.startMin) + 1,
+                             height: Math.max(20, px(o.endMin) - px(o.startMin) - 2),
+                             left,
+                             width,
+                           }}>
+                        <EventBlock occ={o} subName={subName?.(o)} color={colorOf?.(o)}
+                                    compact={o.endMin - o.startMin < 45}
+                                    onClick={() => onOpen?.(o)} onSelect={onSelect}
+                                    selected={selected?.has(occurrenceKey(o))} draggable={interactive} />
+                      </div>
+                    );
+                  }))}
+                </div>
+              </div>
+            );
+          })}
+
+          {showNow ? (
+            <div className="pointer-events-none absolute left-[56px] right-0 z-10 border-t-2 border-red"
+                 style={{ top: px(now) }}>
+              <span className="absolute -top-2 left-1 rounded bg-red px-1 text-[10px] font-bold text-white">{hhmm(now)}</span>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

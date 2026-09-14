@@ -28,9 +28,13 @@ import { WorkspaceRail } from '@/components/shell/WorkspaceRail';
 import { useWorkspace } from '@/store/useWorkspace';
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
+import { Banner, Button, Chip, PageHeader, Panel, RecurrenceScope } from '@/components/ui';
 import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
 import { ClipboardBar } from '@/components/cal/ClipboardBar';
+import {
+  filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar, SCHEDULE_VIEWS,
+  type ScheduleFilters,
+} from '@/components/cal/ScheduleToolbar';
 import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
 import { eventColorStyle, type DragData } from '@/components/cal/EventBlock';
 import eventStyles from '@/components/cal/EventBlock.module.css';
@@ -48,6 +52,7 @@ import {
 } from '@/lib/calendar';
 import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
+import { downloadElementPng } from '@/lib/png-export';
 import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
 
 /* ── 상태 — 명시적 action + 순수 reducer (§6.1-3) ────────────────────── */
@@ -58,6 +63,8 @@ interface S {
   focused: CalendarPaneIndex;
   /** 좌측 비율. divider의 최소 폭 판정 뒤 reducer에만 저장한다. */
   ratio: number;
+  /** §07~§11 도구줄 필터·밀도의 단일 상태. 서버 응답은 바꾸지 않고 표시 projection만 바꾼다. */
+  filters: ScheduleFilters;
   open: Occurrence | null;
   /** 같은 회차가 분할 표에 여러 번 보여도 `serId|onDate` 하나로 선택한다. */
   selected: string[];
@@ -78,6 +85,7 @@ type A =
   | { t: 'view'; v: View }
   | { t: 'date'; d: string }
   | { t: 'deepLinkDate'; d: string }
+  | { t: 'deepLinkStudent'; id: number }
   | { t: 'step'; dir: -1 | 1 }
   | { t: 'today' }
   | { t: 'person'; id: number | null }
@@ -87,7 +95,8 @@ type A =
   | { t: 'cursor'; value: PasteCursor | null }
   | { t: 'focus'; index: CalendarPaneIndex }
   | { t: 'split' }
-  | { t: 'ratio'; value: number };
+  | { t: 'ratio'; value: number }
+  | { t: 'filters'; value: ScheduleFilters };
 
 function reducer(s: S, a: A): S {
   const pane = s.panes[s.focused] ?? s.panes[0];
@@ -96,12 +105,21 @@ function reducer(s: S, a: A): S {
     panes: updatePane(s.panes, s.focused, patch),
   });
   switch (a.t) {
-    case 'view':
+    case 'view': {
       // 사람을 고르는 보기가 아니면 선택을 놓는다 — 안 그러면 안 보이는 필터가 남는다
-      return patchPane({
+      const next = patchPane({
         view: a.v,
         personId: a.v === 'student' || a.v === 'teacher' ? pane.personId : null,
       });
+      return {
+        ...next,
+        filters: {
+          ...next.filters,
+          ...(a.v === 'student' ? { studentId: null } : {}),
+          ...(a.v === 'teacher' ? { teacherId: null } : {}),
+        },
+      };
+    }
     case 'date':
       // 전체 주·월간 날짜는 일간으로 이동한다. 개인표는 선택된 사람을 유지한다 (§8~§11).
       return patchPane({ date: a.d, view: pane.view === 'week' || pane.view === 'month' ? 'day' : pane.view });
@@ -111,9 +129,26 @@ function reducer(s: S, a: A): S {
         open: null,
         selected: [],
       };
+    case 'deepLinkStudent':
+      return {
+        ...patchPane({ view: 'student', personId: a.id }),
+        filters: { ...s.filters, studentId: null },
+        open: null,
+        selected: [],
+      };
     case 'step': return patchPane({ date: step(pane.view, pane.date, a.dir) });
     case 'today': return patchPane({ date: todayKst() });
-    case 'person': return patchPane({ personId: a.id });
+    case 'person': {
+      const next = patchPane({ personId: a.id });
+      return {
+        ...next,
+        filters: {
+          ...next.filters,
+          ...(pane.view === 'student' ? { studentId: null } : {}),
+          ...(pane.view === 'teacher' ? { teacherId: null } : {}),
+        },
+      };
+    }
     case 'open': return { ...s, open: a.o };
     case 'selected': return { ...s, selected: a.keys };
     case 'clipboard': return { ...s, clipboard: a.value, cursor: a.value ? s.cursor : null };
@@ -124,16 +159,9 @@ function reducer(s: S, a: A): S {
         ? { ...s, panes: splitPanes(pane), focused: 0, ratio: 0.5 }
         : { ...s, panes: unsplitPanes(s.panes, s.focused), focused: 0, ratio: 0.5 };
     case 'ratio': return { ...s, ratio: Math.max(0, Math.min(1, a.value)) };
+    case 'filters': return { ...s, filters: a.value };
   }
 }
-
-const VIEWS: Array<{ value: View; label: string }> = [
-  { value: 'day', label: '일간' },
-  { value: 'week', label: '주간' },
-  { value: 'month', label: '월간' },
-  { value: 'student', label: '학생별' },
-  { value: 'teacher', label: '선생님별' },
-];
 
 /** PATCH 본문에서 scope·onDate 를 뺀 것 — 드롭이 계산하고, 범위는 사람이 고른다 */
 type PendingPatch = Omit<OccurrencePatch, 'scope' | 'onDate'>;
@@ -179,12 +207,17 @@ function AdminSchedulePage() {
   const searchParams = useSearchParams();
   const changeRequestId = positiveQueryId(searchParams.get('changeRequest'));
   const requestedSerId = positiveQueryId(searchParams.get('serId'));
+  const requestedStudentId = positiveQueryId(searchParams.get('studentId'));
   const requestedOnDate = queryIsoDate(searchParams.get('onDate'));
   const requestedDate = queryIsoDate(searchParams.get('date')) ?? requestedOnDate;
   const openedDeepLink = useRef<string | null>(null);
   const [s, go] = useReducer(reducer, {
-    panes: [{ view: 'day', date: requestedDate ?? todayKst(), personId: null }], focused: 0, ratio: 0.5, open: null,
-    selected: [], clipboard: null, cursor: null,
+    panes: [{
+      view: requestedStudentId ? 'student' : 'day',
+      date: requestedDate ?? todayKst(),
+      personId: requestedStudentId,
+    }], focused: 0, ratio: 0.5, open: null,
+    selected: [], clipboard: null, cursor: null, filters: INITIAL_SCHEDULE_FILTERS,
   });
   const meta = useMeta();
   const hz = useHorizon();
@@ -210,6 +243,8 @@ function AdminSchedulePage() {
   const [err, setErr] = useState<string | null>(null);
   /** 빈 칸에서 시작하는 새 일정 (C-5) — 새 일정은 범위를 묻지 않는다 */
   const [draft, setDraft] = useState<SessionDraft | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   // 클릭과 드래그를 가른다 — 4px 을 움직여야 드래그다. 이게 없으면 열기 클릭이 전부 드래그가 된다
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -218,6 +253,12 @@ function AdminSchedulePage() {
   useEffect(() => {
     if (requestedDate) go({ t: 'deepLinkDate', d: requestedDate });
   }, [requestedDate]);
+
+  // §79 학생 카드의 「시간표」 링크는 같은 route 안에서도 고른 학생 개인표로 즉시 전환한다.
+  // 숫자 문법은 공용 URL 방어함수에서 먼저 거르고, 화면은 현재 조회 응답만 투영한다.
+  useEffect(() => {
+    if (requestedStudentId) go({ t: 'deepLinkStudent', id: requestedStudentId });
+  }, [requestedStudentId]);
 
   const submit = (occ: Occurrence, body: PendingPatch, scope: Scope) => {
     write.mutate(
@@ -281,7 +322,7 @@ function AdminSchedulePage() {
     targetStartMin: number,
     resource: { teacherId?: number | null; roomId?: number | null } = {},
   ): boolean => {
-    const occurrences = selectedOccurrences(all, s.selected);
+    const occurrences = selectedOccurrences(filteredAll, s.selected);
     if (occurrences.length < 2) return false;
     const placed = movePlacements(occurrences, anchor, targetDate, targetStartMin);
     if (!placed) {
@@ -350,7 +391,10 @@ function AdminSchedulePage() {
       setErr(issue);
       return;
     }
-    const resource = over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId };
+    // 주간 슬롯은 시각만 바꾼다. 강의실/강사 축이 있는 일간 슬롯만 자원 변경을 계약에 싣는다.
+    const resource = over.type === 'slot'
+      ? (over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId })
+      : {};
     const t = {
       date: over.date,
       startMin,
@@ -382,26 +426,37 @@ function AdminSchedulePage() {
   const q = useOccurrences({ from: range.from, to: range.to });
 
   const all = useMemo(() => q.data?.items ?? [], [q.data]);
+  const filteredAll = useMemo(() => filterScheduleOccurrences(all, s.filters), [all, s.filters]);
 
   // §47 「일정」 deep link. 문자열은 공용 방어함수로 거르고, 실제 존재/권한은 조회 응답에서 다시 확인한다.
   useEffect(() => {
-    if (!requestedSerId || !requestedOnDate) return;
+    if (!requestedSerId || !requestedOnDate) {
+      if (openedDeepLink.current !== null) go({ t: 'open', o: null });
+      openedDeepLink.current = null;
+      return;
+    }
     const identity = `${requestedSerId}:${requestedOnDate}`;
     if (openedDeepLink.current === identity) return;
+    if (q.isLoading) return;
     const target = all.find((item) => item.serId === requestedSerId && item.onDate === requestedOnDate);
-    if (!target) return;
+    if (!target) {
+      // 다른 identity가 조회 범위에 없으면 이전 수업 상세를 남기지 않는다.
+      openedDeepLink.current = identity;
+      go({ t: 'open', o: null });
+      return;
+    }
     openedDeepLink.current = identity;
     go({ t: 'open', o: target });
-  }, [all, requestedOnDate, requestedSerId]);
+  }, [all, q.isLoading, requestedOnDate, requestedSerId]);
 
   const selectedSet = useMemo(() => new Set(s.selected), [s.selected]);
   const select = (occ: Occurrence, mode: SelectMode) => {
-    go({ t: 'selected', keys: selectOccurrenceKeys(all, s.selected, occ, mode) });
+    go({ t: 'selected', keys: selectOccurrenceKeys(filteredAll, s.selected, occ, mode) });
   };
 
   /** 복사 시점에는 DB를 바꾸지 않는다. X도 붙여넣기 성공 전까지 원본을 보존한다. */
   const copySelection = (cut: boolean) => {
-    const picked = selectedOccurrences(all, s.selected);
+    const picked = selectedOccurrences(filteredAll, s.selected);
     if (!picked.length) return;
     go({ t: 'clipboard', value: { items: picked, cut } });
     go({ t: 'cursor', value: null });
@@ -486,9 +541,11 @@ function AdminSchedulePage() {
   /** ③ 각 표는 같은 응답을 자기 범위·사람으로만 투영한다. 서버 요청·도메인 판정은 늘 한 벌이다. */
   const paneModels = useMemo(() => s.panes.map((pane) => {
     const paneRange = boundsOf(pane.view, pane.date);
-    const paneAll = all.filter((o) => o.date >= paneRange.from && o.date <= paneRange.to);
+    const paneAll = filteredAll.filter((o) => o.date >= paneRange.from && o.date <= paneRange.to);
     const items = pane.view === 'student'
-      ? (pane.personId === null ? [] : paneAll.filter((o) => o.students.some((x) => x.id === pane.personId)))
+      ? (pane.personId === null ? [] : paneAll.filter((o) => o.students.some(
+        (x) => x.id === pane.personId && !x.droppedOnce,
+      )))
       : pane.view === 'teacher'
         ? (pane.personId === null ? [] : paneAll.filter((o) => o.teacherId === pane.personId))
         : paneAll;
@@ -497,7 +554,7 @@ function AdminSchedulePage() {
       { id: null, name: '온라인 · 미지정' },
     ];
     const mine = (id: number) => pane.view === 'student'
-      ? paneAll.filter((o) => o.students.some((x) => x.id === id))
+      ? paneAll.filter((o) => o.students.some((x) => x.id === id && !x.droppedOnce))
       : paneAll.filter((o) => o.teacherId === id);
     const peopleSource = pane.view === 'student'
       ? (meta.data?.students ?? []).map((x) => ({ id: x.id, name: x.name, sub: x.grade ?? '' }))
@@ -519,9 +576,25 @@ function AdminSchedulePage() {
       : pane.view === 'day' ? label(pane.date) : `${label(paneRange.from)} – ${label(paneRange.to)}`;
     const outOfHorizon = !!hz.data && (paneRange.from < hz.data.from || paneRange.to > hz.data.to);
     return { pane, range: paneRange, items, columns, people, grid, head, summary, outOfHorizon };
-  }), [all, hz.data, meta.data, s.panes]);
+  }), [filteredAll, hz.data, meta.data, s.panes]);
 
   const activeModel = paneModels[s.focused] ?? paneModels[0];
+
+  const exportSchedule = async () => {
+    if (!exportRef.current || exporting) return;
+    setExporting(true);
+    try {
+      await downloadElementPng(
+        exportRef.current,
+        `${activeModel.pane.date}-${activeModel.pane.view}-schedule.png`,
+      );
+      setErr(null);
+    } catch {
+      setErr('스케줄 PNG를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   /**
    * 열린 상세는 **캐시의 최신 행**을 본다 (SSOT §6.1-1). 열 때의 스냅숏을 계속 보여 주면
@@ -572,7 +645,10 @@ function AdminSchedulePage() {
           go({ t: 'focus', index: next });
           panesRef.current?.querySelector<HTMLElement>(`[data-calendar-pane="${next}"]`)?.focus();
         }}
-        className={`min-w-[152px] rounded-xl border bg-card p-2 outline-none transition-shadow ${
+        data-density={s.filters.density}
+        className={`min-w-[152px] rounded-xl border bg-card outline-none transition-shadow ${
+          s.filters.density === 'compact' ? 'p-1' : s.filters.density === 'wide' ? 'p-3' : 'p-2'
+        } ${
           focused ? 'border-blue ring-2 ring-blue' : 'border-line'
         }`}
         style={{ flexGrow: basis, flexBasis: 0 }}
@@ -580,7 +656,7 @@ function AdminSchedulePage() {
         <div className={`mb-2 flex min-h-9 flex-wrap items-center gap-2 rounded-lg px-2 py-1 ${focused ? 'bg-blue/5' : 'bg-inset/50'}`}>
           <span className={`size-2 rounded-full ${focused ? 'bg-blue' : 'bg-line-2'}`} />
           <span className={`text-[11px] font-bold ${focused ? 'text-blue' : 'text-fg-subtle'}`}>{side} 표</span>
-          <Chip>{VIEWS.find((view) => view.value === pane.view)?.label}</Chip>
+          <Chip>{SCHEDULE_VIEWS.find((view) => view.value === pane.view)?.label}</Chip>
           <span className="min-w-0 truncate text-[12px] font-bold text-fg">{head}</span>
           <div className="ml-auto flex items-center gap-1">
             <Button size="sm" aria-label={`${side} 표 이전 기간`} onClick={() => go({ t: 'step', dir: -1 })}>‹</Button>
@@ -631,8 +707,8 @@ function AdminSchedulePage() {
                   </div>
                 ) : null}
                 <WeekGrid date={pane.date} items={items} subName={subName} colorOf={colorOf} interactive={canEdit}
-                  onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
-                  onAdd={canEdit && s.clipboard ? (date) => chooseSlot(date, 10 * 60) : undefined}
+                  onSelect={select} selected={selectedSet} cursor={s.cursor}
+                  onAddAt={canEdit ? chooseSlot : undefined}
                   onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
                   onPickDate={(date) => go({ t: 'date', d: date })} />
               </div>
@@ -653,10 +729,10 @@ function AdminSchedulePage() {
             onAddAt={(date, startMin, roomId) => chooseSlot(date, startMin, 'room', roomId)} />
         ) : pane.view === 'week' ? (
           <WeekGrid date={pane.date} items={items} subName={subName} colorOf={colorOf} interactive={canEdit}
-            onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
+            onSelect={select} selected={selectedSet} cursor={s.cursor}
             onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
             onPickDate={(date) => go({ t: 'date', d: date })}
-            onAdd={canEdit ? (date) => chooseSlot(date, 10 * 60) : undefined} />
+            onAddAt={canEdit ? chooseSlot : undefined} />
         ) : (
           <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} colorOf={colorOf} interactive={canEdit}
             onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
@@ -683,6 +759,7 @@ function AdminSchedulePage() {
   return (
     <RequireAuth>
       <AppShell
+        flush
         drawerEntry={changeRequestId ? { pane: 'chreqs', identity: `change-request-${changeRequestId}` } : null}
         leftTool={(
           <button type="button" onClick={toggleSidebar} aria-label={sidebarOpen ? '사이드바 접기' : '사이드바 펼치기'}
@@ -699,7 +776,7 @@ function AdminSchedulePage() {
         sidePanel={sidebarOpen ? ({ openDrawer }) => (
           <ScheduleSidebar
             meta={meta.data}
-            items={all}
+            items={filteredAll}
             canEdit={canEdit}
             splitOn={s.panes.length === 2}
             onCreate={() => setDraft({ date: activeModel.pane.date, startMin: 540, roomId: null })}
@@ -719,14 +796,18 @@ function AdminSchedulePage() {
         <PageHeader
           title="스케줄"
           sub="§4·§7~§12 — 기본/분할은 같은 표를 반복 렌더하고, bounding range를 한 번만 읽습니다."
-          right={(
-            <div className="flex items-center gap-2">
-              <Segmented options={VIEWS} value={activeModel.pane.view} onChange={(v) => go({ t: 'view', v })} />
-              <Button size="sm" variant={s.panes.length === 2 ? 'dark' : 'secondary'} onClick={() => go({ t: 'split' })}>
-                {s.panes.length === 2 ? '분할 해제' : '표 분할'}
-              </Button>
-            </div>
-          )}
+        />
+
+        <ScheduleToolbar
+          view={activeModel.pane.view}
+          filters={s.filters}
+          meta={meta.data}
+          splitOn={s.panes.length === 2}
+          exporting={exporting}
+          onViewChange={(view) => go({ t: 'view', v: view })}
+          onFiltersChange={(value) => go({ t: 'filters', value })}
+          onSplit={() => go({ t: 'split' })}
+          onExport={exportSchedule}
         />
 
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -747,6 +828,7 @@ function AdminSchedulePage() {
           </div>
         ) : null}
 
+        <div ref={exportRef} className="bg-bg">
         <div ref={panesRef} className="mb-3 flex items-stretch overflow-x-auto py-0.5">
           {renderPane(paneModels[0], 0)}
           {s.panes.length === 2 ? (
@@ -777,6 +859,7 @@ function AdminSchedulePage() {
         </div>
 
         <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} />
+        </div>
 
         <ClipboardBar
           count={s.clipboard?.items.length ?? 0}
