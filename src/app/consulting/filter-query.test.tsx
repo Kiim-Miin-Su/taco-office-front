@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Consulting } from '@/api/types';
 import ConsultingPage from './page';
+import { CONSULTING_STAGE_FIXTURE, consultingItem } from '@/components/consulting/consulting.fixture';
 
 vi.mock('@/store/useSession', () => ({
   useSession: (select: (state: { me: { id: number; canMoney: boolean } }) => unknown) => select({ me: { id: 17, canMoney: false } }),
@@ -21,11 +22,11 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 
 describe('실제 useConsulting 연결', () => {
   it('네 필터 왕복이 기존 사용자별 캐시 하나를 소비하고 GET을 추가하지 않는다', async () => {
-    const row: Consulting = { id: 1, stage: 'contract', consType: 'future_type', studentNames: ['필터 학생'], createdAt: '2026-09-11', share: 'all', canOpen: true, sessionsLog: [], items: [] };
+    const row: Consulting = consultingItem({ id: 1, stage: 'contract', consType: 'future_type', studentNames: ['필터 학생'], createdAt: '2026-09-11', share: 'all', canOpen: true, sessionsLog: [], items: [], typeLabel: 'future_type' });
     const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) => (
       url === '/consulting/accounting'
         ? { data: { items: [], totalAmount: 0, totalPaid: 0, totalDue: 0, canSeeAmounts: false } }
-        : { data: { items: [row], canSeeAmounts: false } }
+        : { data: { items: [row], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE } }
     ) as never);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(<QueryClientProvider client={client}><ConsultingPage /></QueryClientProvider>);

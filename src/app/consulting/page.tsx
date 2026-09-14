@@ -150,6 +150,7 @@ export default function ConsultingPage() {
             <ConsultingStageFilters value={stage} counts={stageView.counts} onChange={(next) => { setStage(next); setOpenId(null); }} />
             <ConsultingStageBoard
               items={stageView.items}
+              stages={d?.stages ?? []}
               loading={q.isLoading}
               onOpen={(item) => setOpenId(item.id)}
             />

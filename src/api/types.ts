@@ -173,6 +173,8 @@ export type RosterOp = RosterPatch['op'];
 /** 컨설팅 — 금액은 대표만 (D-R39) */
 export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];
+/** §26 보드 칸 — 이름·순서·한 줄이 서버에 있다 (C86-e) */
+export type ConsultingStage = S['ConsultingStageDto'];
 export type ConsItem = S['ConsItemDto'];
 /** §29·§30 컨설팅 시작·계약 워크플로 — 요청/응답은 생성 OpenAPI만 별칭으로 소비한다. */
 export type ConsultingCreate = S['ConsultingCreateDto'];

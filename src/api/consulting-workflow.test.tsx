@@ -12,6 +12,7 @@ import { api } from '@/api/client';
 import type { Consulting, ConsultingDetail, ConsultingList, Me } from '@/api/types';
 import { qk, sessionQueryKey, useUpdateConsultingShare } from './queries';
 import { useSession } from '@/store/useSession';
+import { CONSULTING_STAGE_FIXTURE, consultingItem } from '@/components/consulting/consulting.fixture';
 
 const me = {
   id: 2, name: '김민수', role: 'admin', roleLabel: '관리자', title: '관리자',
@@ -19,11 +20,11 @@ const me = {
   canMoney: false, canWage: true, canApprove: true, canHide: false, canGpaPack: true,
 } satisfies Me;
 
-const summary = {
+const summary: Consulting = consultingItem({
   id: 7, consType: 'admissions', stage: 'contract', contractStep: 1, studentNames: ['고은성'],
   ownerName: '김범준', sessions: 6, endOn: '2026-10-20', createdAt: '2026-09-21', amount: null,
-  share: 'all', canOpen: true, sessionsLog: [], items: [],
-} satisfies Consulting;
+  share: 'all', canOpen: true, sessionsLog: [], items: [], contractStepLabel: '계약서 준비',
+});
 
 const detail = {
   id: 7, consType: 'admissions', consTypeLabel: '국제학교 지원', stage: 'contract', contractStep: 1,
@@ -50,7 +51,7 @@ function setup() {
   const detailKey = sessionQueryKey(qk.consultingDetail(7), me.id);
   const listKey = sessionQueryKey(qk.consulting, me.id);
   client.setQueryData(detailKey, detail);
-  client.setQueryData<ConsultingList>(listKey, { items: [summary, { ...summary, id: 8 }], canSeeAmounts: false });
+  client.setQueryData<ConsultingList>(listKey, { items: [summary, { ...summary, id: 8 }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { client, detailKey, listKey, wrapper };
 }

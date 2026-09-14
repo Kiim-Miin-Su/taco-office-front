@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
 import type { Consulting } from '@/api/types';
 import ConsultingPage from './page';
+import { CONSULTING_STAGE_FIXTURE, consultingItem } from '@/components/consulting/consulting.fixture';
 
 const query = vi.hoisted(() => ({ data: undefined as unknown, isError: false, isLoading: false, error: null as unknown }));
 const create = vi.hoisted(() => ({ data: undefined as { id: number } | undefined, mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null as unknown }));
@@ -38,16 +39,17 @@ vi.mock('@/components/consulting/ConsultingContractWorkflow', () => ({
   </div>,
 }));
 
-const item: Consulting = {
-  id: 1, consType: 'future_type', stage: 'contract', contractStep: null, studentNames: ['테스트 학생'],
+const item: Consulting = consultingItem({
+  id: 1, consType: 'future_type', stage: 'contract', contractStep: null, contractStepLabel: null,
+  studentNames: ['테스트 학생'], typeLabel: 'future_type',
   createdAt: '2026-09-07', share: 'all', canOpen: true, sessions: null,
   sessionsLog: [{ id: 1, seq: 1, onDate: null }],
   items: [],
-};
+});
 
 describe('§26 조회 계약 통합', () => {
   beforeEach(() => {
-    Object.assign(query, { data: { items: [item], canSeeAmounts: false }, isError: false, isLoading: false, error: null });
+    Object.assign(query, { data: { items: [item], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE }, isError: false, isLoading: false, error: null });
     Object.assign(create, { data: undefined, mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null });
   });
 
@@ -83,13 +85,13 @@ describe('§26 조회 계약 통합', () => {
   it('재조회 후 열람 권한이 사라지면 이미 연 상세도 닫는다', () => {
     const view = render(<ConsultingPage />);
     fireEvent.click(view.getByRole('button', { name: '테스트 학생 컨설팅 상세' }));
-    query.data = { items: [{ ...item, canOpen: false, sessionsLog: [], items: [] }], canSeeAmounts: false };
+    query.data = { items: [{ ...item, canOpen: false, sessionsLog: [], items: [] }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
     view.rerender(<ConsultingPage />);
     expect(view.queryByText('회차 기록 — 테스트 학생')).toBeNull();
   });
 
   it('단계 선택은 표시만 바꾸고 전체 건수·잠긴 카드의 권한은 유지한다', () => {
-    query.data = { items: [item, { ...item, id: 2, stage: 'running', studentNames: ['진행 학생'], canOpen: false }], canSeeAmounts: false };
+    query.data = { items: [item, { ...item, id: 2, stage: 'running', studentNames: ['진행 학생'], canOpen: false }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
     const view = render(<ConsultingPage />);
     expect(view.getByRole('button', { name: '전체 2', pressed: true })).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '진행 1' }));
@@ -106,7 +108,7 @@ describe('§26 조회 계약 통합', () => {
   it('새 응답과 오류는 선택 상태를 유지하되 과거 결과·건수를 재사용하지 않는다', () => {
     const view = render(<ConsultingPage />);
     fireEvent.click(view.getByRole('button', { name: '진행 0' }));
-    query.data = { items: [{ ...item, stage: 'running' }], canSeeAmounts: false };
+    query.data = { items: [{ ...item, stage: 'running' }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
     view.rerender(<ConsultingPage />);
     expect(view.getByRole('button', { name: '진행 1', pressed: true })).toBeTruthy();
     expect(view.getByRole('button', { name: '테스트 학생 컨설팅 상세' })).toBeTruthy();
@@ -116,7 +118,7 @@ describe('§26 조회 계약 통합', () => {
     expect(view.queryByRole('group', { name: '컨설팅 단계 필터' })).toBeNull();
     expect(view.queryByRole('button', { name: /컨설팅 상세/ })).toBeNull();
     query.isError = false;
-    query.data = { items: [], canSeeAmounts: false };
+    query.data = { items: [], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
     view.rerender(<ConsultingPage />);
     expect(view.getByRole('button', { name: '진행 0', pressed: true })).toBeTruthy();
   });

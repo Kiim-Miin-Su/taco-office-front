@@ -3861,13 +3861,36 @@ export interface components {
             share: "all" | "money_only" | "picked" | "private";
             /** @description 내용(회차 기록)을 열 수 있는가 — csCanFull() */
             canOpen: boolean;
+            /** @description 단계 이름 — 「계약 · 진행 · 종료」 */
+            stageLabel: string;
+            /** @description 종류 이름 — 「에세이 지도」 */
+            typeLabel: string;
+            /** @description 공개 범위 이름 — 「수납만 공개」 */
+            shareLabel: string;
+            /** @description 계약 단계 이름 — 「피드백」. 미정이면 null */
+            contractStepLabel?: string | null;
+            /** @description 요청자 — 「어머니」. 안 적혔으면 null */
+            requesterLabel?: string | null;
+            /** @description 시작한 지 며칠 — 원본 「60일 지남」 (D-R37) */
+            ageDays: number;
+            /** @description 받은 돈 합 — 원본 카드의 「₩400,000 / ₩800,000」 왼쪽 반. `amount` 와 **같은 권한**을 탄다 (D-R39) */
+            paidAmount?: number | null;
             sessionsLog: components["schemas"]["ConsultingSessionDto"][];
             items: components["schemas"]["ConsItemDto"][];
+        };
+        ConsultingStageDto: {
+            /** @enum {string} */
+            key: "contract" | "running" | "done";
+            label: string;
+            /** @description 칸 이름 아래 한 줄 — **다음에 무엇을 하는지** (원본 §26) */
+            sub: string;
         };
         ConsultingListDto: {
             items: components["schemas"]["ConsultingDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
+            /** @description §26 칸 셋 — 빈 칸도 이름과 한 줄을 갖는다 */
+            stages: components["schemas"]["ConsultingStageDto"][];
         };
         ConsItemToggleDto: {
             /** @description true = 완료 처리(처리자·시각 서버 기록) · false = 해제 */
