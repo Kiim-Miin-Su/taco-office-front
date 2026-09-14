@@ -110,4 +110,21 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(reportExport.renderReportPng).not.toHaveBeenCalled();
   });
+
+  it('학생 카드에서 전문을 열면 선택 학생 ID를 함께 넘긴다', () => {
+    const shared = {
+      ...first,
+      students: [first.students[0], second.students[0]],
+      exportFiles: [first.exportFiles[0], second.exportFiles[0]],
+    };
+    vi.mocked(queries.useReportDelivery).mockReturnValue({
+      data: { ...queue, students: [{ ...queue.students[1], reports: [shared] }] },
+      isLoading: false,
+      isError: false,
+    } as never);
+    const onOpenReport = vi.fn();
+    const view = render(<ReportDeliveryQueue onOpenReport={onOpenReport} />);
+    fireEvent.click(view.getByRole('button', { name: /전문 보기/ }));
+    expect(onOpenReport).toHaveBeenCalledWith(shared, 22);
+  });
 });

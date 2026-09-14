@@ -82,6 +82,33 @@ it('변경 요청 deep link는 기존 chreqs 서랍 진입을 식별한다', () 
     .toBe('chreqs:change-request-52');
 });
 
+it('리포트 일정 deep link는 검증된 SER·원래 날짜가 실제 조회 행과 일치할 때만 상세를 연다', () => {
+  nav.search = 'serId=1&onDate=2026-09-01&date=2026-09-01';
+  render(<SchedulePage />);
+  expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-01', to: '2026-09-01' });
+  expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
+});
+
+it('잘못된 리포트 일정 identity는 상세을 열지 않는다', () => {
+  nav.search = 'serId=01&onDate=2026-99-99&date=2026-09-01';
+  render(<SchedulePage />);
+  expect(mocks.detail).toHaveBeenLastCalledWith(null);
+});
+
+it('같은 schedule route에서 다른 리포트 deep link로 이동해도 실제 날짜 조회와 상세를 교체한다', () => {
+  nav.search = 'serId=1&onDate=2026-09-01&date=2026-09-01';
+  const view = render(<SchedulePage />);
+  expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
+
+  const next = { ...items[1], date: '2026-09-02', onDate: '2026-09-02' };
+  nav.search = 'serId=2&onDate=2026-09-02&date=2026-09-02';
+  mocks.occurrences.mockReturnValue({ data: { items: [next] }, isLoading: false, isError: false });
+  view.rerender(<SchedulePage />);
+
+  expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-02', to: '2026-09-02' });
+  expect(mocks.detail).toHaveBeenLastCalledWith(next);
+});
+
 describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
   it('열린 상세는 최신 출결 판정을 따르고 목록에서 사라진 회차 snapshot을 복원하지 않는다', () => {
     const view = render(<SchedulePage />);

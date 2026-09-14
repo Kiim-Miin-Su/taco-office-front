@@ -48,7 +48,7 @@ import {
 } from '@/lib/calendar';
 import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
-import { positiveQueryId } from '@/lib/url-state';
+import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
 
 /* ── 상태 — 명시적 action + 순수 reducer (§6.1-3) ────────────────────── */
 
@@ -77,6 +77,7 @@ interface PasteCursor {
 type A =
   | { t: 'view'; v: View }
   | { t: 'date'; d: string }
+  | { t: 'deepLinkDate'; d: string }
   | { t: 'step'; dir: -1 | 1 }
   | { t: 'today' }
   | { t: 'person'; id: number | null }
@@ -104,6 +105,12 @@ function reducer(s: S, a: A): S {
     case 'date':
       // 전체 주·월간 날짜는 일간으로 이동한다. 개인표는 선택된 사람을 유지한다 (§8~§11).
       return patchPane({ date: a.d, view: pane.view === 'week' || pane.view === 'month' ? 'day' : pane.view });
+    case 'deepLinkDate':
+      return {
+        ...patchPane({ date: a.d, view: 'day' }),
+        open: null,
+        selected: [],
+      };
     case 'step': return patchPane({ date: step(pane.view, pane.date, a.dir) });
     case 'today': return patchPane({ date: todayKst() });
     case 'person': return patchPane({ personId: a.id });
@@ -171,8 +178,12 @@ export default function SchedulePage() {
 function AdminSchedulePage() {
   const searchParams = useSearchParams();
   const changeRequestId = positiveQueryId(searchParams.get('changeRequest'));
+  const requestedSerId = positiveQueryId(searchParams.get('serId'));
+  const requestedOnDate = queryIsoDate(searchParams.get('onDate'));
+  const requestedDate = queryIsoDate(searchParams.get('date')) ?? requestedOnDate;
+  const openedDeepLink = useRef<string | null>(null);
   const [s, go] = useReducer(reducer, {
-    panes: [{ view: 'day', date: todayKst(), personId: null }], focused: 0, ratio: 0.5, open: null,
+    panes: [{ view: 'day', date: requestedDate ?? todayKst(), personId: null }], focused: 0, ratio: 0.5, open: null,
     selected: [], clipboard: null, cursor: null,
   });
   const meta = useMeta();
@@ -202,6 +213,11 @@ function AdminSchedulePage() {
 
   // 클릭과 드래그를 가른다 — 4px 을 움직여야 드래그다. 이게 없으면 열기 클릭이 전부 드래그가 된다
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // App Router에서 같은 /schedule 페이지의 query만 바뀌어도 새 실제 수업일 범위를 즉시 조회한다.
+  useEffect(() => {
+    if (requestedDate) go({ t: 'deepLinkDate', d: requestedDate });
+  }, [requestedDate]);
 
   const submit = (occ: Occurrence, body: PendingPatch, scope: Scope) => {
     write.mutate(
@@ -366,6 +382,17 @@ function AdminSchedulePage() {
   const q = useOccurrences({ from: range.from, to: range.to });
 
   const all = useMemo(() => q.data?.items ?? [], [q.data]);
+
+  // §47 「일정」 deep link. 문자열은 공용 방어함수로 거르고, 실제 존재/권한은 조회 응답에서 다시 확인한다.
+  useEffect(() => {
+    if (!requestedSerId || !requestedOnDate) return;
+    const identity = `${requestedSerId}:${requestedOnDate}`;
+    if (openedDeepLink.current === identity) return;
+    const target = all.find((item) => item.serId === requestedSerId && item.onDate === requestedOnDate);
+    if (!target) return;
+    openedDeepLink.current = identity;
+    go({ t: 'open', o: target });
+  }, [all, requestedOnDate, requestedSerId]);
 
   const selectedSet = useMemo(() => new Set(s.selected), [s.selected]);
   const select = (occ: Occurrence, mode: SelectMode) => {

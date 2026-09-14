@@ -1,179 +1,239 @@
 /** @file-guide
- * 목적: page.tsx — ReportsPage (route)
- * 책임/재사용: 기존 셸/도메인 컴포넌트를 조립하고 화면 선택·초안만 소유한다. API DTO는 생성 타입, 서버 데이터는 Query 캐시를 사용한다.
+ * 목적: 개발명세서 §47~§50 리포트 route를 역할별로 조립한다.
+ * 책임/재사용: 관리자 화면은 공용 TabCards/UnwrittenReportBoard와 서버 projection을, 강사 화면은 개인 작성 목록을 재사용한다. 권한·상태·집계를 재정의하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-/**
- * §47 안 쓴 리포트 — 강사별로 몇 건 밀렸는지, 가장 오래된 것이 언제인지.
- *
- * 차감 금액을 화면에서 계산하지 않는다. 서버가 rules.ts 의 구간표로 계산해서 내려준다 —
- * 화면이 따로 세면 두 벌이 되고, 강사에게 보이는 금액과 정산이 갈린다 (D-R32).
- */
 'use client';
-import { useMemo, useState } from 'react';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import {
-  Banner, Chip, Column, PageHeader, Panel, StatCard, StatusBadge, Table, Tabs,
-} from '@/components/ui';
-import { ReportDetailDrawer } from '@/components/report/ReportDetailDrawer';
+import { Banner, Button, PageHeader, TabCards, Tabs } from '@/components/ui';
+import { ReportDetailDrawer, type ReportSelection } from '@/components/report/ReportDetailDrawer';
 import { ReportDeliveryHistory } from '@/components/report/ReportDeliveryHistory';
 import { ReportDeliveryQueue } from '@/components/report/ReportDeliveryQueue';
-import { useMeta, useReports, useUnwritten } from '@/api/queries';
-import type { ReportRow, UnwrittenByTeacher } from '@/api/types';
-import { hhmm } from '@/lib/calendar';
-import { won } from '@/lib/money';
+import { ReportWeeklyTrackingBoundary } from '@/components/report/ReportWeeklyTrackingBoundary';
+import { TeacherReportList } from '@/components/report/TeacherReportList';
+import { UnwrittenReportBoard } from '@/components/report/UnwrittenReportBoard';
+import {
+  useMeta, useReportDelivery, useReportDeliveryHistory, useReportReminder, useReports, useUnwritten,
+} from '@/api/queries';
+import { ApiError } from '@/api/client';
+import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
 
-const sinceText = (min: number) => {
-  if (min < 60) return `${min}분`;
-  if (min < 60 * 24) return `${Math.floor(min / 60)}시간`;
-  return `${Math.floor(min / (60 * 24))}일`;
-};
+type ManagementSection = 'unwritten' | 'delivery' | 'weekly' | 'history';
+type TeacherSection = 'list' | 'returned' | 'approval';
+type ReminderMessage = { tone: 'success' | 'danger'; text: string } | null;
 
-/** 차감 구간 — 서버 상수와 같은 값을 **설명용으로만** 적는다. 계산은 서버가 한다. */
-const TIERS = [
-  { label: '0 ~ 59분', amount: '0원', tone: 'success' as const },
-  { label: '60분 이상', amount: '5,000원', tone: 'warning' as const },
-  { label: '240분 이상', amount: '10,000원', tone: 'danger' as const },
-];
+function managementSection(value: string | null, allowed: boolean): ManagementSection {
+  return allowed
+    ? queryEnum(value, ['unwritten', 'delivery', 'weekly', 'history'] as const) ?? 'unwritten'
+    : 'unwritten';
+}
 
 export default function ReportsPage() {
-  const [section, setSection] = useState<'unwritten' | 'delivery' | 'history'>('unwritten');
-  const [tab, setTab] = useState<'teacher' | 'list' | 'returned' | 'approval'>('teacher');
-  const [selected, setSelected] = useState<ReportRow | null>(null);
-  const canDeliver = useCan('canCrudAll');
-  const canApprove = useCan('canApprove');
-  // 권한이 바뀌면 같은 렌더에서 허용된 화면으로 투영한다. effect를 기다리며 옛 화면을 남기지 않는다.
-  const activeSection = canDeliver ? section : 'unwritten';
-  const activeTab = tab === 'approval' && !canApprove ? 'teacher' : tab;
-  const visibleSelected = activeSection === section && activeTab === tab ? selected : null;
-  const meta = useMeta();
-  const q = useUnwritten(undefined, activeSection === 'unwritten');
-  const returned = useReports({ state: 'rej' }, activeSection === 'unwritten' && activeTab === 'returned');
-  const approval = useReports({ state: 'wait' }, activeSection === 'unwritten' && canApprove && activeTab === 'approval');
-
-  const subName = useMemo(() => {
-    const m = new Map((meta.data?.subs ?? []).map((s) => [s.key, s.name]));
-    return (k?: string | null) => (k ? m.get(k) ?? k : '—');
-  }, [meta.data]);
-
-  const byTeacher = q.data?.byTeacher ?? [];
-  const items = q.data?.items ?? [];
-
-  const teacherCols: Array<Column<UnwrittenByTeacher>> = [
-    { key: 'name', head: '강사', width: 110, cell: (r) => <span className="font-bold">{r.teacherName}</span> },
-    { key: 'n', head: '안 쓴 건수', width: 100, align: 'right',
-      cell: (r) => <Chip tone={r.count >= 3 ? 'danger' : 'warning'}>{r.count}건</Chip> },
-    { key: 'old', head: '가장 오래된 것', width: 130, cell: (r) => r.oldestDate ?? '—' },
-    { key: 'o1', head: '1시간 초과', width: 100, align: 'right', cell: (r) => `${r.over1h}건` },
-    { key: 'o4', head: '4시간 초과', width: 100, align: 'right',
-      cell: (r) => <span className={r.over4h ? 'font-bold text-red' : ''}>{r.over4h}건</span> },
-    { key: 'p', head: '예상 차감', width: 120, align: 'right',
-      cell: (r) => <span className="font-bold text-red">{won(r.penalty)}</span> },
-  ];
-
-  const listCols: Array<Column<ReportRow>> = [
-    { key: 'd', head: '수업일', width: 110, cell: (r) => <span className="font-bold">{r.date}</span> },
-    { key: 't', head: '시각', width: 70, cell: (r) => r.startMin === null ? '시간 미정' : hhmm(r.startMin) },
-    { key: 's', head: '과목', width: 140, cell: (r) => subName(r.subKey) },
-    { key: 'tc', head: '강사', width: 90, cell: (r) => r.teacherName ?? '—' },
-    { key: 'st', head: '학생', cell: (r) => r.students.map((s) => s.name).join(' · ') || '—' },
-    { key: 'ago', head: '지난 시간', width: 100, align: 'right',
-      cell: (r) => <span className="font-bold text-amber">{sinceText(r.minutesSinceEnd)}</span> },
-    { key: 'p', head: '차감', width: 90, align: 'right',
-      cell: (r) => <span className={r.penalty ? 'font-bold text-red' : 'text-fg-subtle'}>{won(r.penalty)}</span> },
-    { key: 'state', head: '상태', width: 90, cell: (r) => <StatusBadge state={r.state} /> },
-  ];
-
+  const canManage = useCan('canCrudAll');
+  const searchParams = useSearchParams();
+  const requestedSerId = positiveQueryId(searchParams.get('serId'));
+  const requestedOnDate = queryIsoDate(searchParams.get('onDate'));
   return (
     <RequireAuth><AppShell>
-      <PageHeader
-        title="리포트"
-        sub={canDeliver ? '안 쓴 것 확인 · 어제 것 학생별 보내기 · 전문 PNG와 발송 이력' : '안 쓴 것 확인 · 리포트 작성 · 전문 PNG'}
-      />
+      {canManage
+        ? <ManagementReports />
+        : <TeacherReports requestedSerId={requestedSerId} requestedOnDate={requestedOnDate} />}
+    </AppShell></RequireAuth>
+  );
+}
 
-      <Tabs
-        className="mb-4"
-        value={activeSection}
-        onChange={(value) => { setSection(value); setSelected(null); }}
-        options={[
-          { value: 'unwritten', label: `안 쓴 리포트 ${q.data?.total ?? 0}` },
-          ...(canDeliver ? [
-            { value: 'delivery' as const, label: '어제 보내기' },
-            { value: 'history' as const, label: '보낸 내역' },
-          ] : []),
-        ]}
-      />
+/** §47~§50 — 대표/관리자/매니저의 같은 capability 화면. 역할 문자열은 보지 않는다. */
+function ManagementReports() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const canApprove = useCan('canApprove');
+  const reviewMode = canApprove && searchParams.get('review') === 'approval';
+  const requestedSerId = positiveQueryId(searchParams.get('serId'));
+  const requestedOnDate = queryIsoDate(searchParams.get('onDate'));
+  const querySection = managementSection(searchParams.get('section'), true);
+  const [section, setSection] = useState<ManagementSection>(querySection);
+  const [selected, setSelected] = useState<ReportSelection | null>(null);
+  const [approvalSelected, setApprovalSelected] = useState<ReportSelection | null>(null);
+  const [reminderMessage, setReminderMessage] = useState<ReminderMessage>(null);
+  // 응답 유무를 알 수 없는 transport 실패는 같은 요청키로 재시도해 NOTI 중복을 막는다.
+  const reminderRequestKeys = useRef(new Map<string, string>());
+  const meta = useMeta();
+  const unwritten = useUnwritten(undefined, !reviewMode);
+  // 머리 배지와 본문이 같은 Query key를 구독한다. 하위 컴포넌트가 다시 불러도 네트워크 요청은 한 벌이다.
+  const delivery = useReportDelivery(undefined, !reviewMode);
+  const history = useReportDeliveryHistory({}, !reviewMode);
+  const approval = useReports({ state: 'wait' }, reviewMode);
+  const reminder = useReportReminder();
 
-      {activeSection === 'delivery' ? (
-        <ReportDeliveryQueue onOpenReport={setSelected} />
-      ) : activeSection === 'history' ? (
+  useEffect(() => {
+    setSection(querySection);
+    setSelected(!reviewMode && requestedSerId && requestedOnDate ? { serId: requestedSerId, onDate: requestedOnDate } : null);
+    setApprovalSelected(null);
+  }, [querySection, requestedOnDate, requestedSerId, reviewMode]);
+
+  // §14 서랍의 원본 행 이동. 응답에 실제로 있는 회차만 열어 stale URL을 무시한다.
+  useEffect(() => {
+    if (!reviewMode || !requestedSerId || !requestedOnDate) return;
+    const target = approval.data?.items.find((item) => item.serId === requestedSerId && item.onDate === requestedOnDate);
+    if (target) setApprovalSelected(target);
+  }, [approval.data?.items, requestedOnDate, requestedSerId, reviewMode]);
+
+  const subjectName = useMemo(() => {
+    const names = new Map((meta.data?.subs ?? []).map((subject) => [subject.key, subject.name]));
+    return (key?: string | null) => (key ? names.get(key) ?? key : '—');
+  }, [meta.data]);
+
+  const selectSection = (next: ManagementSection) => {
+    setSection(next);
+    setSelected(null);
+    setReminderMessage(null);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'unwritten') params.delete('section'); else params.set('section', next);
+    const query = params.toString();
+    router.replace(query ? `/reports?${query}` : '/reports', { scroll: false });
+  };
+
+  const leaveApproval = () => {
+    setApprovalSelected(null);
+    router.replace('/reports', { scroll: false });
+  };
+
+  const remind = async (teacherId?: number) => {
+    setReminderMessage(null);
+    const scope = teacherId ? `teacher:${teacherId}` : 'all';
+    const requestKey = reminderRequestKeys.current.get(scope) ?? crypto.randomUUID();
+    reminderRequestKeys.current.set(scope, requestKey);
+    try {
+      const result = await reminder.mutateAsync({
+        requestKey,
+        ...(teacherId ? { teacherId } : {}),
+      });
+      reminderRequestKeys.current.delete(scope);
+      setReminderMessage({
+        tone: 'success',
+        text: result.items.length
+          ? `${result.items.length}명에게 앱 안 작성 독촉을 남겼습니다.`
+          : '현재 독촉할 리포트가 없습니다.',
+      });
+    } catch (error) {
+      // 4xx/5xx는 서버가 답했으므로 다음 사용자 행위는 새 논리 요청이다.
+      if (error instanceof ApiError && error.status > 0) reminderRequestKeys.current.delete(scope);
+      setReminderMessage({ tone: 'danger', text: '최신 리포트 상태를 확인한 뒤 다시 시도해 주세요.' });
+    }
+  };
+
+  return (
+    <>
+      {reviewMode ? (
+        <PageHeader
+          title="리포트 승인 대기"
+          sub="§14 승인 서랍에서 선택한 원본을 검토합니다."
+          right={<Button variant="secondary" onClick={leaveApproval}>안 쓴 리포트로 돌아가기</Button>}
+        />
+      ) : (
+        <PageHeader
+          title="리포트"
+          sub="안 쓴 것 받기 · 어제 것 보내기 · 주간 묶음 만들기"
+          right={(
+          <TabCards<ManagementSection>
+            label="리포트 업무"
+            value={section}
+            onChange={selectSection}
+            options={[
+              { value: 'unwritten', label: '안 쓴 리포트', sub: `${unwritten.data?.total ?? 0}건`, badge: unwritten.data?.total },
+              { value: 'delivery', label: '어제 보내기', sub: `${delivery.data?.remaining ?? 0}명 남음`, badge: delivery.data?.remaining },
+              { value: 'weekly', label: '주간 트래킹', sub: '상세 기준 미확정' },
+              { value: 'history', label: '보낸 내역', sub: `${history.data?.total ?? 0}건`, badge: history.data?.total },
+            ]}
+          />
+          )}
+        />
+      )}
+
+      {reviewMode ? (
+        approval.isLoading ? <Banner tone="neutral">승인 대기 리포트를 불러오는 중…</Banner>
+          : approval.isError ? <Banner tone="danger">승인 대기 리포트를 불러오지 못했습니다.</Banner>
+            : <TeacherReportList rows={approval.data?.items ?? []} subjectName={subjectName} onOpen={(row) => setApprovalSelected(row)} />
+      ) : section === 'unwritten' ? (
+        <UnwrittenReportBoard
+          data={unwritten.data}
+          isLoading={unwritten.isLoading}
+          isError={unwritten.isError}
+          canRemind
+          reminderPending={reminder.isPending}
+          reminderMessage={reminderMessage}
+          subjectName={subjectName}
+          onRemind={(teacherId) => void remind(teacherId)}
+        />
+      ) : section === 'delivery' ? (
+        <ReportDeliveryQueue onOpenReport={(report, studentId) => setSelected({ ...report, studentId })} />
+      ) : section === 'weekly' ? (
+        <ReportWeeklyTrackingBoundary />
+      ) : (
         <ReportDeliveryHistory />
-      ) : <>
-      <div className="mb-4 grid grid-cols-4 gap-3">
-        <StatCard label="안 쓴 리포트" value={q.data?.total ?? '—'} note={`강사 ${byTeacher.length}명`} tone={q.data?.total ? 'danger' : 'neutral'} />
-        <StatCard label="4시간 초과" value={byTeacher.reduce((a, t) => a + t.over4h, 0)} note="건당 10,000원" tone="danger" />
-        <StatCard label="1시간 초과" value={byTeacher.reduce((a, t) => a + t.over1h, 0)} note="건당 5,000원" tone="warning" />
-        <StatCard label="예상 차감 합계" value={won(q.data?.penaltyTotal ?? 0)} note="대표 승인 없이 자동 반영" tone="danger" />
-      </div>
+      )}
 
-      <Tabs
+      <ReportDetailDrawer
+        selection={reviewMode ? approvalSelected : selected}
+        onClose={() => { setSelected(null); setApprovalSelected(null); }}
+      />
+    </>
+  );
+}
+
+/** 강사는 전체 강사 추적·독촉·발송을 보지 않고 자기 리포트 작성/반려 목록만 본다. */
+function TeacherReports({ requestedSerId, requestedOnDate }: {
+  requestedSerId: number | null;
+  requestedOnDate: string | null;
+}) {
+  const [tab, setTab] = useState<TeacherSection>('list');
+  const [selected, setSelected] = useState<ReportSelection | null>(null);
+  const canApprove = useCan('canApprove');
+  const activeTab = tab === 'approval' && !canApprove ? 'list' : tab;
+  const unwritten = useUnwritten();
+  const returned = useReports({ state: 'rej' }, activeTab === 'returned');
+  const approval = useReports({ state: 'wait' }, canApprove && activeTab === 'approval');
+  const meta = useMeta();
+  const subjectName = useMemo(() => {
+    const names = new Map((meta.data?.subs ?? []).map((subject) => [subject.key, subject.name]));
+    return (key?: string | null) => (key ? names.get(key) ?? key : '—');
+  }, [meta.data]);
+
+  useEffect(() => {
+    setSelected(requestedSerId && requestedOnDate ? { serId: requestedSerId, onDate: requestedOnDate } : null);
+  }, [requestedOnDate, requestedSerId]);
+
+  const rows = activeTab === 'returned'
+    ? returned.data?.items ?? []
+    : activeTab === 'approval' ? approval.data?.items ?? [] : unwritten.data?.items ?? [];
+  const loading = activeTab === 'returned' ? returned.isLoading : activeTab === 'approval' ? approval.isLoading : unwritten.isLoading;
+  const error = activeTab === 'returned' ? returned.isError : activeTab === 'approval' ? approval.isError : unwritten.isError;
+  // 권한이 회수되면 effect를 기다리지 않고 열린 타인 리포트를 즉시 감춘다.
+  const visibleSelected = activeTab === tab ? selected : null;
+
+  return (
+    <>
+      <PageHeader title="리포트" sub="내 수업 리포트를 확인하고 작성합니다." />
+      <Tabs<TeacherSection>
         className="mb-3"
         value={activeTab}
         onChange={(value) => { setTab(value); setSelected(null); }}
         options={[
-          { value: 'teacher', label: `강사별 ${byTeacher.length}` },
-          { value: 'list', label: `건별 ${items.length}` },
+          { value: 'list', label: `작성할 것 ${unwritten.data?.total ?? 0}` },
           { value: 'returned', label: '반려됨' },
           ...(canApprove ? [{ value: 'approval' as const, label: '승인 대기' }] : []),
         ]}
       />
-
-      {q.isLoading ? (
-        <Banner tone="neutral">불러오는 중…</Banner>
-      ) : q.isError ? (
-        <Banner tone="danger">서버에 닿지 못했습니다. 백엔드가 떠 있는지 확인해 주세요.</Banner>
-      ) : activeTab === 'teacher' ? (
-        <Table columns={teacherCols} rows={byTeacher} rowKey={(r) => r.teacherId} empty="밀린 리포트가 없습니다" />
-      ) : activeTab === 'list' ? (
-        <Table
-          columns={listCols}
-          rows={items}
-          rowKey={(r) => r.id}
-          onRowClick={setSelected}
-          empty="밀린 리포트가 없습니다"
-        />
-      ) : activeTab === 'returned' ? (
-        returned.isLoading ? <Banner tone="neutral">반려 리포트를 불러오는 중…</Banner>
-          : returned.isError ? <Banner tone="danger">반려 리포트를 불러오지 못했습니다.</Banner>
-            : <Table columns={listCols} rows={returned.data?.items ?? []} rowKey={(r) => r.id} onRowClick={setSelected} empty="반려된 리포트가 없습니다" />
-      ) : (
-        approval.isLoading ? <Banner tone="neutral">승인 대기 리포트를 불러오는 중…</Banner>
-          : approval.isError ? <Banner tone="danger">승인 대기 리포트를 불러오지 못했습니다.</Banner>
-            : <Table columns={listCols} rows={approval.data?.items ?? []} rowKey={(r) => r.id} onRowClick={setSelected} empty="승인 대기 리포트가 없습니다" />
-      )}
-
-      <Panel className="mt-4" title="지연 차감 계산 방식" sub="수업이 끝난 시각을 0분으로 두고 분 단위로 잽니다. 날짜가 아니라 분입니다.">
-        <div className="grid grid-cols-3 gap-3">
-          {TIERS.map((t) => (
-            <div key={t.label} className="rounded-lg border border-line bg-inset p-3">
-              <div className="text-[11px] font-bold text-fg">{t.label}</div>
-              <div className="mt-1 text-[15px] font-bold">
-                <Chip tone={t.tone}>{t.amount}</Chip>
-              </div>
-            </div>
-          ))}
-        </div>
-        <Banner tone="info" className="mt-3">
-          건당 상한 10,000원. 정산은 <b>「썼는가」 하나</b>만 봅니다 — 승인 여부는 보지 않습니다 (D-R7).
-          이 금액은 서버가 계산해서 내려준 값이고, 화면은 다시 세지 않습니다.
-        </Banner>
-      </Panel>
-      </>}
-
+      {loading ? <Banner tone="neutral">리포트를 불러오는 중…</Banner>
+        : error ? <Banner tone="danger">리포트를 불러오지 못했습니다.</Banner>
+          : <TeacherReportList rows={rows} subjectName={subjectName} onOpen={(row) => setSelected(row)} />}
       <ReportDetailDrawer selection={visibleSelected} onClose={() => setSelected(null)} />
-    </AppShell></RequireAuth>
+    </>
   );
 }

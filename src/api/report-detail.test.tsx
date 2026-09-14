@@ -8,7 +8,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useReportDetail, useReportReview, useReportWrite, useReports, useReportDelivery, useReportDeliveryHistory, useReportDeliverySend } from './queries';
+import { useReportDetail, useReportReview, useReportWrite, useReports, useReportDelivery, useReportDeliveryHistory, useReportDeliverySend, useReportReminder } from './queries';
 import type { ReportQuery } from './types';
 import { ApiError } from './client';
 
@@ -31,6 +31,25 @@ afterEach(() => { cleanup(); client.clear(); focusManager.setFocused(undefined);
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+it.each([false, true])('독촉 요청 실패=%s에도 리포트와 알림 서랍을 서버 상태로 맞춘다', async (failed) => {
+  const key = '00000000-0000-4000-8000-000000000047';
+  const error = new ApiError('REPORT_REMINDER_STALE', '대상이 바뀌었습니다', 409);
+  if (failed) post.mockRejectedValueOnce(error);
+  else post.mockResolvedValueOnce({ data: { requestKey: key, items: [] } });
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => useReportReminder(), { wrapper });
+
+  await act(async () => {
+    await view.result.current.mutateAsync({ requestKey: key, teacherId: 6 }).catch((cause) => {
+      expect(cause).toBe(error);
+    });
+    await vi.advanceTimersByTimeAsync(1);
+  });
+
+  expect(post).toHaveBeenCalledWith('/reports/reminders', { requestKey: key, teacherId: 6 });
+  expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([['drawer']]);
+});
 
 it.each([false, true])('발송 실패=%s에도 기존 onSettled로 큐/이력을 재조회하고 서버 revision을 그대로 전송한다', async (failed) => {
   const date = '2026-09-10';

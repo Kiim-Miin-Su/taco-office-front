@@ -14,8 +14,10 @@ import { Banner, Drawer } from '../ui';
 import { ReportEditor } from './ReportForm';
 import { ReportExportPanel } from './ReportExportPanel';
 
+export type ReportSelection = Pick<ReportDetail, 'serId' | 'onDate'> & { studentId?: number };
+
 export function ReportDetailDrawer({ selection, onClose }: {
-  selection: Pick<ReportDetail, 'serId' | 'onDate'> | null;
+  selection: ReportSelection | null;
   onClose: () => void;
 }) {
   const detail = useReportDetail(selection?.serId, selection?.onDate);
@@ -31,12 +33,12 @@ export function ReportDetailDrawer({ selection, onClose }: {
       ) : detail.isError && !data ? (
         <Banner tone="danger">리포트 상세를 불러오지 못했습니다.</Banner>
       ) : data ? (
-        <div key={`${data.id}:${data.state}:${data.submittedAt ?? ''}`}>
+        <div key={`${data.id}:${data.state}:${data.submittedAt ?? ''}:${selection?.studentId ?? ''}`}>
           {detail.isError ? (
             <Banner tone="warning">최신 상태를 다시 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.</Banner>
           ) : null}
           <ReportEditor detail={data} subject={data.subjectName} />
-          <ReportExportPanel detail={data} />
+          <ReportExportPanel detail={data} initialStudentId={selection?.studentId} />
         </div>
       ) : null}
     </Drawer>

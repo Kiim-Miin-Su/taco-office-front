@@ -31,7 +31,15 @@ it('표시 날짜가 아니라 원래 회차 키로 조회하고 기존 편집�
   expect(query).toHaveBeenLastCalledWith(2, '2026-09-07');
   expect(view.getByText('2026-09-08 · 수학 · 담당')).toBeTruthy();
   expect(editor.mock.calls[0][0]).toEqual({ detail: data, subject: '수학' });
-  expect(exporter.mock.calls[0][0]).toEqual({ detail: data });
+  expect(exporter.mock.calls[0][0]).toEqual({ detail: data, initialStudentId: undefined });
+});
+
+it('학생 카드에서 연 상세는 같은 학생을 전문 기본값으로 전달한다', () => {
+  const data = { id: 1, date: '2026-09-08', onDate: '2026-09-07', state: 'ok',
+    subjectName: '수학', teacherName: '담당', canEdit: false, canReview: false };
+  query.mockReturnValue({ data });
+  render(<ReportDetailDrawer selection={{ serId: 2, onDate: data.onDate, studentId: 22 }} onClose={() => undefined} />);
+  expect(exporter.mock.calls[0][0]).toEqual({ detail: data, initialStudentId: 22 });
 });
 
 it('실패를 빈 리포트나 편집 폼으로 대체하지 않는다', () => {

@@ -93,6 +93,8 @@ import type {
   ReqReviewResult,
   ReportDeliveryResult,
   ReportReview,
+  ReportReminderCreate,
+  ReportReminderResult,
   ReportSendHistory,
   ReportSendHistoryList,
   ReportQuery,
@@ -1018,6 +1020,18 @@ export function useReportReview(): UseMutationResult<ReportDetail, unknown, Repo
     mutationFn: async (w) => (await api.post<ReportDetail>(`/reports/${w.serId}/${w.onDate}/review`, w.body)).data,
     onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
     onError: (error) => reconcileReportError(qc, viewerId, error),
+  });
+}
+
+/** §47 독촉은 서버가 최신 조치 대상을 다시 잠가 판정한다. UI는 낙관 알림을 만들지 않는다. */
+export function useReportReminder(): UseMutationResult<ReportReminderResult, unknown, ReportReminderCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<ReportReminderResult>('/reports/reminders', body)).data,
+    onSettled: () => {
+      // 독촉은 REP 상태를 바꾸지 않고 NOTI만 추가한다. 크고 서로 다른 리포트 조회를 재실행하지 않는다.
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
   });
 }
 

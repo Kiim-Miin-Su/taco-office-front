@@ -73,4 +73,10 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     const view = render(<ReportExportPanel detail={{ ...detail, canExport: false, exportFiles: [] }} />);
     expect(view.container.childElementCount).toBe(0);
   });
+
+  it('학생 카드에서 전달한 학생으로 전문 선택을 시작한다', () => {
+    const view = render(<ReportExportPanel detail={detail} initialStudentId={5} />);
+    expect((view.getByLabelText('출력할 학생') as HTMLSelectElement).value).toBe('5');
+    expect(view.getAllByText('학생B').length).toBeGreaterThan(0);
+  });
 });

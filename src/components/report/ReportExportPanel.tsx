@@ -16,8 +16,11 @@ import { ReportPreview } from './ReportForm';
 
 type ExportMessage = { tone: 'success' | 'danger'; text: string };
 
-export function ReportExportPanel({ detail }: { detail: ReportDetail }) {
-  const [studentId, setStudentId] = useState(detail.exportFiles[0]?.studentId ?? 0);
+export function ReportExportPanel({ detail, initialStudentId }: { detail: ReportDetail; initialStudentId?: number }) {
+  const initial = detail.exportFiles.some((file) => file.studentId === initialStudentId)
+    ? initialStudentId!
+    : detail.exportFiles[0]?.studentId ?? 0;
+  const [studentId, setStudentId] = useState(initial);
   const [busy, setBusy] = useState<'png' | 'copy' | null>(null);
   const [message, setMessage] = useState<ExportMessage | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);

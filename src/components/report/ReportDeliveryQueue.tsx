@@ -17,7 +17,9 @@ type QueueMessage = { tone: 'success' | 'danger'; text: string };
 
 const previewKey = (studentId: number, reportId: number) => `${studentId}:${reportId}`;
 
-export function ReportDeliveryQueue({ onOpenReport }: { onOpenReport: (report: ReportDetail) => void }) {
+export function ReportDeliveryQueue({ onOpenReport }: {
+  onOpenReport: (report: ReportDetail, studentId: number) => void;
+}) {
   const query = useReportDelivery();
   const send = useReportDeliverySend();
   const previews = useRef(new Map<string, HTMLDivElement>());
@@ -130,7 +132,7 @@ export function ReportDeliveryQueue({ onOpenReport }: { onOpenReport: (report: R
                     type="button"
                     key={report.id}
                     className="flex items-center justify-between rounded-lg border border-line bg-inset px-3 py-2 text-left text-[12px] hover:border-blue"
-                    onClick={() => onOpenReport(report)}
+                    onClick={() => onOpenReport(report, group.student.id)}
                   >
                     <span><b>{report.subjectName}</b> · {reportTimeLabel(report)}</span>
                     <span className="text-fg-subtle">전문 보기 ›</span>

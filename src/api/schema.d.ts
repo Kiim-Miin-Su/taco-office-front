@@ -313,6 +313,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §47 선택 강사 또는 현재 조치 대상 강사 전체에 내부 독촉 알림 생성
+         * @description 외부 메시지 발송이 아니라 NOTI(category=report_due) 원장 생성이다. 서버가 종료·취소·담당·REP 상태를 트랜잭션에서 다시 읽는다. 같은 actor·teacherId 범위의 requestKey 재시도는 기존 결과를 반환한다. 전체 대상 0명은 items=[]이며 원장이 없어 재시도 때 최신 대상을 다시 계산한다.
+         */
+        post: operations["ReportsController_reminders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/deliveries": {
         parameters: {
             query?: never;
@@ -2580,6 +2600,32 @@ export interface components {
             penaltyTotal: number;
             items: components["schemas"]["ReportRowDto"][];
         };
+        ReportReminderCreateDto: {
+            /**
+             * Format: uuid
+             * @description 재시도·더블클릭 중복 방지 키. 같은 키는 같은 actor·teacherId 범위로만 재사용한다
+             */
+            requestKey: string;
+            /** @description 선택 강사. 생략하면 실행 시점의 조치 대상 강사 전체 */
+            teacherId?: number;
+        };
+        ReportReminderRecipientDto: {
+            teacherId: number;
+            teacherName: string;
+            /** @description 독촉 생성 시점의 미제출·초안·반려 건수 */
+            count: number;
+            /**
+             * Format: date-time
+             * @description 내부 NOTI 생성 시각
+             */
+            createdAt: string;
+        };
+        ReportReminderResultDto: {
+            /** Format: uuid */
+            requestKey: string;
+            /** @description 전체 요청의 현재 대상이 0명이면 빈 배열. 원장이 없으므로 같은 키 재시도도 최신 대상을 다시 계산한다 */
+            items: components["schemas"]["ReportReminderRecipientDto"][];
+        };
         ReportBodyDto: {
             content: string;
             progress: string;
@@ -2685,6 +2731,8 @@ export interface components {
             sentByName: string;
         };
         ReportSendHistoryListDto: {
+            /** @description 필터에 맞는 전체 이력 수. items 100건 상한과 분리한다. */
+            total: number;
             items: components["schemas"]["ReportSendHistoryDto"][];
         };
         ReportDeliveryFileInputDto: {
@@ -6854,6 +6902,83 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ReportsController_reminders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportReminderCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReminderResultDto"];
+                };
+            };
+            /** @description 날짜/안전한 정수 ID/상태/추가 키 검증 오류. from > to이면 BAD_RANGE. DB 조회·저장 전에 거절한다 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description REPORT_REMINDER_FORBIDDEN: canCrudAll 권한이 필요함. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description REPORT_REMINDER_STALE/REPORT_REMINDER_REQUEST_KEY_REUSED: 선택 강사의 대상이 사라졌거나 요청 키를 다른 대상에 재사용함. */
             409: {
                 headers: {
                     [name: string]: unknown;
