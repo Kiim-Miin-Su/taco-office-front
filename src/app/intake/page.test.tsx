@@ -14,6 +14,8 @@ import type { Lead, Ops } from '@/api/types';
 import { FAILURE_SEARCH_LABEL } from '@/lib/intake-search';
 import IntakePage from './page';
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -27,6 +29,7 @@ const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', r
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
+  intakeHead: { funnel: [], enrollRate: 0, owners: [], alerts: [] },
 };
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -113,5 +116,70 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     });
     expect((view.getByRole('searchbox') as HTMLInputElement).value).toBe('장서우');
     expect(view.getByRole('status').textContent).toBe('검색 결과 1건 / 전체 3건');
+  });
+});
+
+/**
+ * 원본 §23 의 머리 — **화면은 아무것도 세지 않는다** (D-R37 · N-19).
+ * 퍼널의 낱말·순서·수, 등록률, 담당 칩, 경고 문장이 전부 서버에서 온다.
+ */
+describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => {
+  async function head(intakeHead: Ops['intakeHead']) {
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, intakeHead } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const view = render(<QueryClientProvider client={client}><IntakePage /></QueryClientProvider>);
+    // 「등록률」은 데이터 없이도 서므로 기다림의 표지로 못 쓴다 — 서버가 준 칸을 기다린다
+    await waitFor(() => expect(view.getByRole('button', { name: '김범준 12' })).toBeTruthy());
+    return view;
+  }
+
+  const full: Ops['intakeHead'] = {
+    funnel: [
+      { key: 'first', label: '1차 상담', count: 4, funnel: true },
+      { key: 'wait2nd', label: '2차 대기', count: 2, funnel: true },
+      { key: 'second', label: '2차 상담', count: 1, funnel: true },
+      { key: 'hold', label: '보류', count: 2, funnel: true },
+      { key: 'enrolled', label: '등록', count: 3, funnel: false },
+      { key: 'failed', label: '등록 실패', count: 6, funnel: false },
+    ],
+    enrollRate: 33,
+    owners: [{ id: 3, name: '김범준', count: 12 }, { id: null, name: '담당 없음', count: 6 }],
+    alerts: [
+      { key: 'unpaid', label: '미수 6명 ₩4,006,600', count: 6, amount: 4006600, go: '/accounting' },
+      { key: 'noSchedule', label: '스케줄 미생성 9', count: 9, amount: null, go: '/schedule' },
+      { key: 'noInvoice', label: '등록했는데 청구서 없음 0', count: 0, amount: null, go: '/accounting' },
+    ],
+  };
+
+  it('여섯 칸을 서버가 준 순서대로 늘어놓고 등록 전/후 경계만 다른 화살표로 가른다', async () => {
+    const view = await head(full);
+    const text = view.container.textContent ?? '';
+    // 여섯째 칸의 이름은 「실패」가 아니라 「등록 실패」다 — 낱말은 서버가 쥔다 (D-R18)
+    for (const w of ['41차 상담', '22차 대기', '12차 상담', '2보류', '3등록', '6등록 실패', '33%', '등록률']) {
+      expect(text).toContain(w);
+    }
+    // 깔때기 안은 › 셋, 등록 전→후 경계는 ⇒ 하나, 결과끼리는 | 하나
+    const marks = [...view.container.querySelectorAll('[aria-hidden]')].map((n) => n.textContent);
+    expect(marks).toEqual(['›', '›', '›', '⇒', '|']);
+  });
+
+  it('담당 칩은 서버가 센 사람만 세우고 화면은 「전체」만 붙인다', async () => {
+    const view = await head(full);
+    expect(view.getByRole('button', { name: '전체 4' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '김범준 12' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '담당 없음 6' })).toBeTruthy();
+  });
+
+  it('0 인 경고는 서지 않고, 남은 경고는 서버 문장 그대로 선다', async () => {
+    const view = await head(full);
+    expect(view.getByRole('button', { name: '미수 6명 ₩4,006,600' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '스케줄 미생성 9' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: /청구서 없음/ })).toBeNull();
+  });
+
+  it('경고가 모두 0 이면 줄 자체가 사라진다 — 늘 서 있는 경고는 아무도 읽지 않는다', async () => {
+    const view = await head({ ...full, alerts: full.alerts.map((a) => ({ ...a, count: 0 })) });
+    expect(view.queryByRole('button', { name: /미수/ })).toBeNull();
+    expect(view.getByText('등록률')).toBeTruthy();
   });
 });

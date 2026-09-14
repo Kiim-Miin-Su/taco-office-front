@@ -13,6 +13,8 @@ import { api } from '@/api/client';
 import type { Lead, Ops } from '@/api/types';
 import IntakePage from './page';
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -30,6 +32,7 @@ const leads: Lead[] = [
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
+  intakeHead: { funnel: [], enrollRate: 0, owners: [], alerts: [] },
 };
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });

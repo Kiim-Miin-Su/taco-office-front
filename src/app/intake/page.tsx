@@ -12,9 +12,10 @@
  */
 'use client';
 import { useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Button, Chip, Column, Label, PageHeader, Panel, Select, StatCard, Table, Tabs, Textarea } from '@/components/ui';
+import { Banner, Board, BoardColumn, Button, Chip, Column, Label, PageHeader, Panel, Select, Table, Tabs, Textarea } from '@/components/ui';
 import { useFailLead, useOps, useResumeLead } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import type { Lead, LeadFail, LeadResume } from '@/api/types';
@@ -59,7 +60,15 @@ export default function IntakePage() {
   const [failureQuery, setFailureQuery] = useState('');
   const searchRef = useRef<SearchFieldHandle>(null);
   const q = useOps();
-  const leads = useMemo(() => q.data?.leads ?? [], [q.data]);
+  const router = useRouter();
+  const head = q.data?.intakeHead;
+  const all = useMemo(() => q.data?.leads ?? [], [q.data]);
+  /** 담당 칩 — 0 은 「담당 없음」, null 은 「전체」. 좁히는 일이라 서버에 다시 묻지 않는다 */
+  const [owner, setOwner] = useState<number | null>(null);
+  const leads = useMemo(
+    () => (owner === null ? all : all.filter((l) => (l.ownerId ?? 0) === owner)),
+    [all, owner],
+  );
 
   // §24 실패 지정/되살리기 초안 — 서버 판정(코드) 결과만 소비하고, 성공하면 재조회로 갈아탄다.
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -85,8 +94,6 @@ export default function IntakePage() {
   const failed = useMemo(() => leads.filter((l) => l.stage === 'failed'), [leads]);
   const matchingFailed = useMemo(() => filterLeadsByQuery(failed, failureQuery), [failed, failureQuery]);
   const showSearch = tab === 'stop' && !q.isLoading && !q.isError;
-  const enrolled = leads.filter((l) => l.stage === 'enrolled');
-  const rate = leads.length ? Math.round((enrolled.length / leads.length) * 100) : 0;
 
   const stopRows = useMemo(() => {
     const g = new Map<string, Lead[]>();
@@ -109,14 +116,57 @@ export default function IntakePage() {
 
   return (
     <RequireAuth><AppShell>
-      <PageHeader title="상담" sub="1차 → 2차 대기 → 2차 → 보류 → 등록 / 실패. 어느 단계에서 멈췄는지가 그대로 남습니다." />
+      <PageHeader title="상담" sub="유입 즉시 1차 카드 생성 → 2차(진단고사) → 보류 · 등록 · 등록 실패" />
 
-      <div className="mb-4 grid grid-cols-4 gap-3">
-        <StatCard label="전체 상담" value={leads.length} />
-        <StatCard label="등록" value={enrolled.length} note={`전환 ${rate}%`} tone="success" />
-        <StatCard label="실패" value={failed.length} note="중단 지점 분류됨" tone="danger" />
-        <StatCard label="진행 중" value={leads.filter((l) => !['enrolled', 'failed'].includes(l.stage)).length} tone="info" />
+      {/*
+        원본 §23 의 퍼널 띠 — 「1차 상담 › 2차 대기 › 2차 상담 › 보류 ⇒ 등록 | 등록 실패」.
+        화살표가 `⇒` 로 바뀌는 자리에 뜻이 있다: 앞 넷은 아직 깔때기 안이고 뒤 둘은 끝난 결과다.
+        칸 이름·순서·수는 전부 **서버가 준 것**이다 — 화면은 세지 않는다 (D-R18 · D-R37).
+      */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        {(head?.funnel ?? []).map((step, i, all) => (
+          <span key={step.key} className="flex items-center gap-1.5">
+            {i > 0 ? (
+              <span aria-hidden className="px-0.5 text-[13px] text-line-2">
+                {all[i - 1].funnel && !step.funnel ? '⇒' : step.funnel ? '›' : '|'}
+              </span>
+            ) : null}
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5">
+              <b className="text-[15px] text-fg">{step.count}</b>
+              <span className="text-[12px] text-fg-subtle">{step.label}</span>
+            </span>
+          </span>
+        ))}
+        <span className="ml-2 inline-flex items-center gap-1.5 rounded-lg border border-line bg-inset px-3 py-1.5">
+          <b className="text-[15px] text-fg">{head?.enrollRate ?? 0}%</b>
+          <span className="text-[12px] text-fg-subtle">등록률</span>
+        </span>
       </div>
+
+      {/* 담당 칩 — 「전체」만 화면이 붙인다. 사람과 수는 서버가 센다 */}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[12px] text-fg-subtle">담당</span>
+        <Chip tone={owner === null ? 'info' : 'neutral'}>
+          <button type="button" onClick={() => setOwner(null)}>전체 {leads.length}</button>
+        </Chip>
+        {(head?.owners ?? []).map((o) => (
+          <Chip key={String(o.id ?? 'none')} tone={owner === (o.id ?? 0) ? 'info' : 'neutral'}>
+            <button type="button" onClick={() => setOwner(o.id ?? 0)}>{o.name} {o.count}</button>
+          </Chip>
+        ))}
+      </div>
+
+      {/* 경고 줄 — 누르면 그 화면으로 간다 (D-R27). 문장도 서버가 만든다 (D-R18 · D-R39) */}
+      {(head?.alerts ?? []).some((a) => a.count > 0) ? (
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5">
+          {(head?.alerts ?? []).filter((a) => a.count > 0).map((a) => (
+            <button key={a.key} type="button" onClick={() => router.push(a.go)}
+              className="rounded-lg border border-red/35 bg-red/5 px-2.5 py-1 text-[12px] font-bold text-red transition-colors hover:border-red/60">
+              {a.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <Tabs className="mb-3" value={tab} onChange={setTab}
         options={[{ value: 'board', label: '단계 보드' }, { value: 'stop', label: `중단 지점 ${failed.length}` }]} />

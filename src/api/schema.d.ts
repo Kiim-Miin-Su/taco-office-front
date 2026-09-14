@@ -3473,6 +3473,40 @@ export interface components {
             reply?: string | null;
             createdAt: string;
         };
+        IntakeFunnelStepDto: {
+            /** @description first | wait2nd | second | hold | enrolled | failed */
+            key: string;
+            label: string;
+            /** @description 그 단계의 건수 — 서버가 센다 (D-R37) */
+            count: number;
+            /** @description 등록 전 깔때기인가 — false 면 결과 칸(등록 · 등록 실패)이다 */
+            funnel: boolean;
+        };
+        IntakeOwnerDto: {
+            /** @description 없으면 담당 미지정 */
+            id?: number | null;
+            name: string;
+            count: number;
+        };
+        IntakeAlertDto: {
+            /** @description unpaid | noSchedule | noInvoice */
+            key: string;
+            /** @description 사람이 읽는 한 줄 — 화면이 문장을 만들지 않는다 */
+            label: string;
+            count: number;
+            /** @description 금액 칩만. 볼 수 없으면 null (D-R39) */
+            amount?: number | null;
+            /** @description 누르면 가는 곳 — 결과는 그 화면에서 본다 (D-R27) */
+            go: string;
+        };
+        IntakeHeadDto: {
+            funnel: components["schemas"]["IntakeFunnelStepDto"][];
+            /** @description 등록률 % — 등록 / 전체, 정수 반올림. 전체 0 이면 0 */
+            enrollRate: number;
+            /** @description 담당 칩 — 「전체」는 화면이 붙인다 */
+            owners: components["schemas"]["IntakeOwnerDto"][];
+            alerts: components["schemas"]["IntakeAlertDto"][];
+        };
         OpsDto: {
             leads: components["schemas"]["LeadDto"][];
             complaints: components["schemas"]["ComplaintDto"][];
@@ -3495,6 +3529,8 @@ export interface components {
             suggestions: components["schemas"]["SuggestionDto"][];
             /** @description 집행 비용을 볼 수 있는가 */
             canSeeAmounts: boolean;
+            /** @description §23 상담 머리 — 퍼널 · 담당 · 경고. 화면은 세지 않는다 (D-R37) */
+            intakeHead: components["schemas"]["IntakeHeadDto"];
         };
         LeadFailDto: {
             /**

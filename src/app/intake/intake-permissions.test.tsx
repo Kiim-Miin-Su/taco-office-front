@@ -17,7 +17,7 @@ import { useSession } from '@/store/useSession';
 import IntakePage from './page';
 
 const nav = vi.hoisted(() => ({ path: '/intake', replace: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace }) }));
+vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace, push: vi.fn() }) }));
 // 셸의 서랍/메타 요청만 제외한다. 메뉴·RouteAccess·RequireAuth·IntakePage·useOps는 실제 구현이다.
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 
@@ -35,6 +35,7 @@ const response: Ops = {
   leads: [{ id: 71, name: '접근 검수 학생', stage: 'first', createdAt: '2026-09-10', ageDays: 0 }],
   complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
+  intakeHead: { funnel: [], enrollRate: 0, owners: [], alerts: [] },
 };
 const clients: QueryClient[] = [];
 
