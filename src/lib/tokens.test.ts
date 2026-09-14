@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { Button, type ButtonVariant } from '@/components/ui/Button';
 import { Chip, type ChipStyle, type Tone } from '@/components/ui/Chip';
 import { Tabs } from '@/components/ui/Segmented';
-import { KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, subVar, type CalendarCodeLookup } from './tokens';
+import { KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, subjectColor, subVar, type CalendarCodeLookup } from './tokens';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const tokens = read('src/styles/tokens.css');
@@ -251,6 +251,13 @@ describe('원본 공통 헤더 — §07·§34', () => {
     });
   });
 
+  it('승인 대기 글자는 어두운 원본 헤더 배경에서 흰색 대비를 쓴다', () => {
+    const shell = read('src/components/shell/AppShell.tsx');
+    expect(shell).toContain('border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white');
+    expect(shell).toContain('rounded bg-white/15 px-1.5');
+    expect(shell).not.toContain('bg-header-approval px-2.5 text-[12px] font-bold text-amber');
+  });
+
   it('헤더 높이는 같은 토큰을 읽고 셸/본문은 별도 스크롤 경계를 갖는다', () => {
     const layout = read('src/components/shell/AppShell.module.css');
     expect(declarations(root)['top-h']).toBe('50px');
@@ -288,6 +295,13 @@ describe('관리자 일정색 — Meta 우선과 안전한 기존 토큰 fallbac
     expect(calendarEventColor({ subKey: 'writing', kindKey: 'class' }, codes)).toBe('#123456');
     expect(calendarEventColor({ subKey: 'new-sub', kindKey: 'class' }, codes)).toBe('#aB12Cd');
     expect(calendarEventColor({ kindKey: 'new-kind' }, codes)).toBe('#13579B');
+  });
+
+  it('공용 과목 선택기는 Meta·기존 토큰만 쓰고 알 수 없는 과목을 임의 분류하지 않는다', () => {
+    expect(subjectColor('writing', codes.subs)).toBe('#123456');
+    expect(subjectColor('ap-chem', codes.subs)).toBe('var(--sub-ap-chem)');
+    expect(subjectColor('unknown', codes.subs)).toBeNull();
+    expect(subjectColor(null, codes.subs)).toBeNull();
   });
 
   it.each(['', '#fff', 'red', 'url(x)', '#123456;', 'var(--red)'])('잘못된 과목색 %s는 기존 SUB 토큰으로 복구한다', (color) => {

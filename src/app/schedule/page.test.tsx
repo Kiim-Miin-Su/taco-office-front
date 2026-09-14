@@ -49,7 +49,10 @@ const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true }],
   subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [], invTypes: [],
   students: [{ id: 1, name: '선택 학생', grade: 'G10' }, { id: 2, name: '다른 학생' }],
-  staff: [{ id: 11, name: '선택 강사', role: 'teacher' }, { id: 22, name: '다른 강사', role: 'teacher' }],
+  staff: [
+    { id: 11, name: '선택 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },
+    { id: 22, name: '다른 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },
+  ],
 };
 
 const items: Occurrence[] = [1, 2].map((id) => ({

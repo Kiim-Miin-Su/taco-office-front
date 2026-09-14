@@ -110,8 +110,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           <span className="hidden xl:inline">{fullScreen ? '전체 화면 종료' : '전체 화면'}</span>
         </button> : null}
         {isAdmin ? <button type="button" onClick={() => { setDrawerPane('approvals'); setDrawer(true); }}
-          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-amber">
-          <Inbox size={14} aria-hidden />승인 대기 <span className="rounded bg-amber/20 px-1.5">{approvalCount}</span>
+          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white">
+          <Inbox size={14} aria-hidden />승인 대기 <span className="rounded bg-white/15 px-1.5">{approvalCount}</span>
         </button> : null}
         <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">

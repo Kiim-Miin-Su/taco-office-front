@@ -462,7 +462,7 @@ export interface paths {
         put?: never;
         /**
          * 파일 올리기 — base64 본문을 Neon 에 넣고 가리킬 주소를 돌려준다
-         * @description 8MB 까지. 더 크면 조용히 자르지 않고 FILE_TOO_LARGE 로 거절한다.
+         * @description 원본 파일 3MB까지. base64 JSON·Vercel 요청 한도 안에서 실제로 통과하는 값이며, 더 크면 FILE_TOO_LARGE로 거절한다.
          */
         post: operations["FilesController_upload"];
         delete?: never;
@@ -478,7 +478,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 파일 내려받기 — 본문을 그대로 흘려보낸다 */
+        /** 권한이 확인된 파일 내려받기 — 종류와 연결 원장을 서버가 판정한다 */
         get: operations["FilesController_download"];
         put?: never;
         post?: never;
@@ -1043,10 +1043,113 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 교재 — 코드 · 과목 · 쪽수 · SE/TE (§36) */
+        /** 교재 서가 — 코드 · 과목 · 쪽수 · SE/TE (§39) */
         get: operations["BooksController_all"];
         put?: never;
+        /** 교재 등록 (§39) */
+        post: operations["BooksController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 교재 기본 정보 수정 (§39) */
+        patch: operations["BooksController_patch"];
+        trace?: never;
+    };
+    "/books/tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 학생별 교재 트래킹 보드 (§38) */
+        get: operations["BooksController_tracking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 학생에게 교재 배부/배부 요청 (§38) */
+        post: operations["BooksController_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/issues/{id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 교재 배부 상태 전이 — 승인 대기→전달 대기→배부 완료 (§38) */
+        patch: operations["BooksController_issueState"];
+        trace?: never;
+    };
+    "/books/issues/{id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 숙제 페이지 기준 교재 진도 갱신 (§38) */
+        patch: operations["BooksController_progress"];
+        trace?: never;
+    };
+    "/books/issues/{id}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 교재 회수 (§38·§40) */
+        post: operations["BooksController_returnIssue"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1073,6 +1176,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/books/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 자료 전달 목록 (§41) */
+        get: operations["BooksController_deliveries"];
+        put?: never;
+        /** 자료 전달 만들기 (§41) */
+        post: operations["BooksController_createDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/deliveries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 자료 요청 수정 (§41)
+         * @description 전달 완료 건을 수정하면 재전달을 위해 pending으로 되돌린다. 수령 완료 건은 변경하지 않는다.
+         */
+        patch: operations["BooksController_patchDelivery"];
+        trace?: never;
+    };
+    "/books/deliveries/{id}/deliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 코디네이터에게 자료 전달 (§41) */
+        post: operations["BooksController_deliver"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/books/deliveries/{id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 지정 코디네이터 수령 확인 (§41) */
+        post: operations["BooksController_receive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/books/{id}/versions": {
         parameters: {
             query?: never;
@@ -1084,7 +1259,7 @@ export interface paths {
         put?: never;
         /**
          * 새 판 올리기 (§39)
-         * @description 파일은 POST /files 로 먼저 올리고 그 주소를 준다. 이력(교재 업로드)이 같은 트랜잭션에서 함께 남는다.
+         * @description SE/TE 파일 본문, 판, 이력(교재 업로드)이 한 트랜잭션에서 함께 저장된다. SE+TE 원본 합계는 3MB까지다.
          */
         post: operations["BooksController_addVersion"];
         delete?: never;
@@ -1828,6 +2003,10 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "teacher" | "manager" | "admin" | "ceo";
+            /** @description 코디네이터·관리자 후보 판정. role을 화면에서 다시 비교하지 않는다 */
+            canAdminPage: boolean;
+            /** @description 자료 요청 코디네이터 후보 판정. 개인별 권한 예외까지 반영한다 */
+            canGpaPack: boolean;
             /** @description 표시용 직함 — 권한과 무관하다 (D-R39) */
             title?: string | null;
         };
@@ -2367,8 +2546,6 @@ export interface components {
             name: string;
             /** @description base64 본문 (data URL 접두사는 붙여도 되고 안 붙여도 된다) */
             base64: string;
-            /** @description MIME. 없으면 파일 이름의 확장자로 정한다 */
-            mime?: string;
         };
         FileRefDto: {
             id: number;
@@ -3357,6 +3534,15 @@ export interface components {
             latestVersId?: number | null;
             /** @description 지금 쓰는 판에 파일이 붙어 있는가 */
             hasFile: boolean;
+            seFileId?: number | null;
+            teFileId?: number | null;
+            /** @description 회수 완료를 포함한 누적 배부 횟수 */
+            issueCount: number;
+        };
+        NamedCountDto: {
+            key: string;
+            label: string;
+            count: number;
         };
         BooksDto: {
             items: components["schemas"]["BookDto"][];
@@ -3366,8 +3552,125 @@ export interface components {
             };
             /** @description 더 나중 판이 있는 교재 수 */
             newerCount: number;
-            /** @description 파일 없는 교재 수 */
+            /** @description 현재 판에 교사용 TE 파일이 없는 교재 수 */
             noFileCount: number;
+            levels: string[];
+            grades: string[];
+            /** @description 레벨별 교재 수 — 필터 칩 SSOT */
+            levelCounts: components["schemas"]["NamedCountDto"][];
+            /** @description 학년별 교재 수 — 필터 칩 SSOT */
+            gradeCounts: components["schemas"]["NamedCountDto"][];
+            /** @description 새 판 SE+TE 원본 파일 합계 상한. 화면은 이 서버 값을 그대로 쓴다 */
+            versionUploadMaxBytes: number;
+        };
+        BookWriteDto: {
+            code: string;
+            title: string;
+            subKey?: string;
+            level?: string;
+            grade?: string;
+            pages?: number;
+        };
+        BookWriteResultDto: {
+            id: number;
+            code: string;
+            title: string;
+        };
+        BookPatchDto: {
+            code?: string;
+            title?: string;
+            subKey?: string;
+            level?: string;
+            grade?: string;
+            pages?: number;
+        };
+        BookIssueDto: {
+            id: number;
+            libId: number;
+            studentId: number;
+            versId?: number | null;
+            edition?: string | null;
+            fileUrl?: string | null;
+            seFileId?: number | null;
+            teFileId?: number | null;
+            /** @enum {string} */
+            state: "wait" | "auto" | "ok" | "returned";
+            stateLabel: string;
+            /** Format: date */
+            issuedOn?: string | null;
+            /** Format: date */
+            returnedOn?: string | null;
+            progressPage?: number | null;
+            progressPercent?: number | null;
+        };
+        BookTrackingStudentDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            teacherName?: string | null;
+            nextLesson?: string | null;
+            issues: components["schemas"]["BookIssueDto"][];
+            /** @description 행에 보일 할 일 칩 — 분류·건수는 서버가 계산 */
+            todos: components["schemas"]["NamedCountDto"][];
+            todoLabel: string;
+        };
+        BookProgressStudentDto: {
+            studentId: number;
+            name: string;
+            percent?: number | null;
+            elapsedDays?: number | null;
+        };
+        BookProgressDto: {
+            libId: number;
+            title: string;
+            studentCount: number;
+            minPercent?: number | null;
+            maxPercent?: number | null;
+            averagePercent?: number | null;
+            pages?: number | null;
+            students: components["schemas"]["BookProgressStudentDto"][];
+        };
+        BookChangeRequestDto: {
+            id: number;
+            requesterName: string;
+            studentId?: number | null;
+            studentName?: string | null;
+            message: string;
+        };
+        BookTrackingDto: {
+            students: components["schemas"]["BookTrackingStudentDto"][];
+            books: components["schemas"]["BookProgressDto"][];
+            states: components["schemas"]["NamedCountDto"][];
+            teacherRequests: components["schemas"]["BookChangeRequestDto"][];
+        };
+        BookIssueCreateDto: {
+            libId: number;
+            studentId: number;
+            /**
+             * @default ok
+             * @enum {string}
+             */
+            state: "wait" | "auto" | "ok";
+            /**
+             * Format: date
+             * @example 2026-09-14
+             */
+            issuedOn?: string;
+            progressPage?: number;
+        };
+        BookIssueTransitionDto: {
+            /** @enum {string} */
+            state: "auto" | "ok";
+        };
+        BookIssueProgressDto: {
+            progressPage: number;
+        };
+        BookIssueReturnDto: {
+            /**
+             * Format: date
+             * @example 2026-09-14
+             */
+            returnedOn?: string;
         };
         BookHistoryRowDto: {
             id: number;
@@ -3380,9 +3683,94 @@ export interface components {
             refId: number;
             /** @description 무엇에 대한 일인가 — 읽을 때 원본 표에서 이어 붙인다 */
             subject?: string | null;
+            code?: string | null;
+            memo?: string | null;
+            teacherName?: string | null;
+            studentId?: number | null;
             byName?: string | null;
             /** @description KST ISO */
             at: string;
+        };
+        BookHistoryDto: {
+            items: components["schemas"]["BookHistoryRowDto"][];
+            actions: components["schemas"]["NamedCountDto"][];
+            byStudent: components["schemas"]["NamedCountDto"][];
+            byDay: components["schemas"]["NamedCountDto"][];
+            total: number;
+            bookCount: number;
+            guideCount: number;
+        };
+        BookPackStudentDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+        };
+        BookPackLibDto: {
+            id: number;
+            code: string;
+            title: string;
+            versId?: number | null;
+            seFileId?: number | null;
+            teFileId?: number | null;
+        };
+        BookPackDto: {
+            id: number;
+            /** @enum {string} */
+            packType: "exam" | "self";
+            packTypeLabel: string;
+            title: string;
+            memo?: string | null;
+            /** @enum {string} */
+            state: "pending" | "delivered" | "received";
+            stateLabel: string;
+            /** Format: date */
+            effectiveOn?: string | null;
+            coordinatorId?: number | null;
+            coordinatorName?: string | null;
+            createdByName?: string | null;
+            deliveredAt?: string | null;
+            receivedAt?: string | null;
+            students: components["schemas"]["BookPackStudentDto"][];
+            books: components["schemas"]["BookPackLibDto"][];
+            /** @description pending 자료를 전달해도 되는가 — 필수 링크 판정은 서버가 한다 */
+            canDeliver: boolean;
+            /** @description 현재 사용자가 delivered 자료의 지정 코디네이터라 수령 확인할 수 있는가 */
+            canReceive: boolean;
+            /** @description 전달 전에 채워야 할 항목 */
+            deliveryBlockers: string[];
+        };
+        BookPacksDto: {
+            items: components["schemas"]["BookPackDto"][];
+            types: components["schemas"]["NamedCountDto"][];
+            coordinators: components["schemas"]["NamedCountDto"][];
+        };
+        BookPackWriteDto: {
+            /** @enum {string} */
+            packType: "exam" | "self";
+            title: string;
+            memo?: string;
+            /**
+             * Format: date
+             * @example 2026-09-14
+             */
+            effectiveOn: string;
+            coordinatorId: number;
+            studentIds: number[];
+            libIds: number[];
+        };
+        BookPackPatchDto: {
+            /** @enum {string} */
+            packType?: "exam" | "self";
+            title?: string;
+            memo?: string;
+            /**
+             * Format: date
+             * @example 2026-09-14
+             */
+            effectiveOn?: string;
+            coordinatorId?: number;
+            studentIds?: number[];
+            libIds?: number[];
         };
         BookVersionCreateDto: {
             /**
@@ -3390,9 +3778,14 @@ export interface components {
              * @example v2026.08
              */
             edition: string;
-            /** @description 파일 주소 — POST /files 가 돌려준 것. 없으면 파일 없는 판이다 */
-            fileUrl?: string;
-            /** @description 이 판을 언제부터 쓰는가 — 비우면 오늘부터 */
+            /** @description 이 판과 같은 트랜잭션에 저장할 SE 파일 */
+            seFile?: components["schemas"]["FileUploadDto"];
+            /** @description 이 판과 같은 트랜잭션에 저장할 TE 파일 */
+            teFile?: components["schemas"]["FileUploadDto"];
+            /**
+             * Format: date
+             * @description 이 판을 언제부터 쓰는가 — 비우면 오늘부터
+             */
             fromDate?: string;
         };
         BookVersionDto: {
@@ -3400,6 +3793,9 @@ export interface components {
             libId: number;
             edition: string;
             fileUrl?: string | null;
+            seFileId?: number | null;
+            teFileId?: number | null;
+            /** Format: date */
             fromDate?: string | null;
             /** @description 지금 쓰는 판인가 — 판단은 서버가 한다 */
             inUse: boolean;
@@ -4242,6 +4638,19 @@ export interface components {
             /** @description 같은 시간에 두 수업에 배정된 건수 — 0이어야 한다 */
             overlaps: number;
         };
+        WorkSummaryItemDto: {
+            /** @enum {string} */
+            key: "schedule" | "consulting" | "accounting" | "books" | "guides" | "zoom";
+            label: string;
+            count: number;
+            go: string;
+        };
+        WorkSummaryDto: {
+            total: number;
+            /** @description 즉시 확인 대상 — 승인 대기 + 기한 초과, total 이하 */
+            now: number;
+            items: components["schemas"]["WorkSummaryItemDto"][];
+        };
         DrawerDto: {
             /** @description §14 승인 대기함 */
             approvals: components["schemas"]["ApFlowDto"];
@@ -4267,6 +4676,8 @@ export interface components {
             changeReqs: components["schemas"]["ChangeReqDto"][];
             /** @description §21 줌 계정 */
             zoomAccounts: components["schemas"]["ZoomAccountDto"][];
+            /** @description §38~§41 등 관리자 화면 공용 할 일 요약 */
+            workSummary: components["schemas"]["WorkSummaryDto"];
             /** @description 관리자 화면의 모든 시각은 KST 다 (D-R12) */
             tz: string;
         };
@@ -6683,7 +7094,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/octet-stream": string;
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             400: {
@@ -6703,14 +7116,12 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code FILE_FORBIDDEN — 종류·소유·업무 권한 불일치 */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             404: {
@@ -7273,12 +7684,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { ok: true } */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OkDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             400: {
@@ -7347,7 +7759,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7498,7 +7910,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7573,7 +7985,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7648,7 +8060,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7723,7 +8135,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7946,7 +8358,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8021,7 +8433,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8169,7 +8581,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8246,7 +8658,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8617,7 +9029,7 @@ export interface operations {
         };
         responses: {
             /** @description 바뀐 줄 하나 — 화면이 숫자를 다시 만들지 않게 */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8686,7 +9098,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8897,11 +9309,553 @@ export interface operations {
             };
         };
     };
+    BooksController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookWriteDto"];
+            };
+        };
+        responses: {
+            /** @description 등록된 교재 식별자·코드·이름 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookWriteResultDto"];
+                };
+            };
+            /** @description 필드 형식 또는 과목 참조 오류 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description BOOK_CODE_DUPLICATE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPatchDto"];
+            };
+        };
+        responses: {
+            /** @description 수정된 교재 식별자·코드·이름 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_tracking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookTrackingDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_issue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookIssueCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookIssueDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_issueState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookIssueTransitionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookIssueDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description ISSUE_INVALID_TRANSITION */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookIssueProgressDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookIssueDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_returnIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookIssueReturnDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookIssueDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     BooksController_history: {
         parameters: {
             query?: {
-                /** @description 기본 200 */
-                limit?: string;
+                span?: "day" | "week" | "month" | "all";
+                anchor?: string;
+                action?: "book_issue" | "book_upload" | "book_swap" | "book_drop" | "guide_write" | "guide_send" | "guide_ack" | "teacher_req" | "teacher_swap";
+                studentId?: number;
+                q?: string;
             };
             header?: never;
             path?: never;
@@ -8914,7 +9868,386 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookHistoryRowDto"][];
+                    "application/json": components["schemas"]["BookHistoryDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_deliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPacksDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_createDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPackWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPackDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_patchDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPackPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPackDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_deliver: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPackDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    BooksController_receive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPackDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
@@ -9032,6 +10365,13 @@ export interface operations {
             };
             /** @description code VERS_DUPLICATE — 같은 교재에 같은 판 이름 */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code FILE_TOO_LARGE | BOOK_FILES_TOO_LARGE */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10082,12 +11422,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { ok: true } */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OkDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             400: {
@@ -10374,12 +11715,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { ok: true } */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OkDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             400: {
@@ -11131,7 +12473,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11210,7 +12552,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

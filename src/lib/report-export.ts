@@ -6,6 +6,7 @@
 
 import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
 import { hhmm } from './calendar';
+import { downloadElementPng, renderElementPng, type PngRenderer } from './png-export';
 
 export interface ReportExportContent {
   studentName: string;
@@ -18,8 +19,6 @@ export interface ReportExportContent {
 }
 
 type ClipboardWriter = Pick<Clipboard, 'writeText'>;
-type PngRenderer = (node: HTMLElement, options: { cacheBust: boolean; pixelRatio: number }) => Promise<string>;
-
 /** 편집기·발송 큐·PNG가 같은 파생 시간 계약을 표시한다. null은 가짜 00:00으로 변환하지 않는다. */
 export function reportTimeLabel(report: Pick<ReportDetail, 'startMin' | 'endMin'>): string {
   return report.startMin == null || report.endMin == null
@@ -57,8 +56,7 @@ export async function copyReportText(
 
 /** 다운로드와 발송이 동일한 2배 PNG renderer를 공유한다. */
 export async function renderReportPng(node: HTMLElement, renderer?: PngRenderer): Promise<string> {
-  const toPng = renderer ?? (await import('html-to-image')).toPng;
-  return toPng(node, { cacheBust: true, pixelRatio: 2 });
+  return renderElementPng(node, renderer);
 }
 
 /** html-to-image는 버튼을 누를 때만 불러오고, 출력 배율은 D-R33의 2배로 고정한다. */
@@ -67,9 +65,5 @@ export async function downloadReportPng(
   fileName: string,
   renderer?: PngRenderer,
 ): Promise<void> {
-  const dataUrl = await renderReportPng(node, renderer);
-  const link = document.createElement('a');
-  link.download = fileName;
-  link.href = dataUrl;
-  link.click();
+  await downloadElementPng(node, fileName, renderer);
 }

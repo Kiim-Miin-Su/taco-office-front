@@ -11,33 +11,126 @@
  * 그 행이 API 로 내려오고, 화면은 그것만 본다. 운영 데이터로 바뀌어도
  * 이 파일도 화면도 한 줄 안 바뀐다.
  */
-import {
-  useMutation, useQuery, useQueryClient,
-  type UseMutationResult, type UseQueryResult,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
-  Accounting, AttendanceMutationResult, AttendanceWrite, Board, BookHistoryRow, BookVersion, BookVersionCreate, Books,
-  CarryRow, ConsAccounting, ConsAccountRow, ConsPaymentCreate, ConsStudents, ConsultingList,
-  InvBoard, OtherIncome, Tuition,
-  TeacherDiagCreate, TeacherGuideDiag, Exec, ExecQuery, Guide, GuideBody, GuideTemplate, GuideTemplateWrite, Guides, Horizon, Meta,
-  OccurrenceCreate, OccurrenceDelete, OccurrenceList, OccurrenceMove, OccurrencePaste, OccurrencePatch, OccurrenceQuery,
-  OkResult, Ops, ReportDetail, ReportList, ReportUpsert, RosterPatch, RosterResult, Unwritten, WriteResult,
-  ChangeReqCreate, ChangeReqResult, Drawer, DrawerTodoClearResult, DrawerTodoCreate,
-  DrawerTodoCreateResult, ReportDeliveryCreate, ReportDeliveryQueue, ReqReviewResult,
-  ReportDeliveryResult, ReportReview, ReportSendHistory, ReportSendHistoryList,
-  ReportQuery, ReportTeacherQuery, ReportDeliveryQuery, ReportHistoryQuery, TeacherHome, TeacherHistory,
-  TeacherSuggestion, TeacherSuggestionCreate, TeacherSuggestions, TeacherGuides,
-  TeacherUnav, TeacherUnavBlock, TeacherUnavCreate,
-  TeacherSettingRequest, TeacherSettingReqCreate,
+  Accounting,
+  AttendanceMutationResult,
+  AttendanceWrite,
+  Board,
+  BookHistory,
+  BookHistoryQuery,
+  BookIssue,
+  BookIssueCreate,
+  BookIssueTransition,
+  BookPack,
+  BookPackPatch,
+  BookPacks,
+  BookPackWrite,
+  BookPatch,
+  BookTracking,
+  BookVersion,
+  BookVersionCreate,
+  Books,
+  BookWrite,
+  CarryRow,
+  ConsAccounting,
+  ConsAccountRow,
+  ConsPaymentCreate,
+  ConsStudents,
+  ConsultingList,
+  InvBoard,
+  OtherIncome,
+  Tuition,
+  TeacherDiagCreate,
+  TeacherGuideDiag,
+  Exec,
+  ExecQuery,
+  Guide,
+  GuideBody,
+  GuideTemplate,
+  GuideTemplateWrite,
+  Guides,
+  Horizon,
+  Meta,
+  OccurrenceCreate,
+  OccurrenceDelete,
+  OccurrenceList,
+  OccurrenceMove,
+  OccurrencePaste,
+  OccurrencePatch,
+  OccurrenceQuery,
+  OkResult,
+  Ops,
+  ReportDetail,
+  ReportList,
+  ReportUpsert,
+  RosterPatch,
+  RosterResult,
+  Unwritten,
+  WriteResult,
+  ChangeReqCreate,
+  ChangeReqResult,
+  Drawer,
+  DrawerTodoClearResult,
+  DrawerTodoCreate,
+  DrawerTodoCreateResult,
+  ReportDeliveryCreate,
+  ReportDeliveryQueue,
+  ReqReviewResult,
+  ReportDeliveryResult,
+  ReportReview,
+  ReportSendHistory,
+  ReportSendHistoryList,
+  ReportQuery,
+  ReportTeacherQuery,
+  ReportDeliveryQuery,
+  ReportHistoryQuery,
+  TeacherHome,
+  TeacherHistory,
+  TeacherSuggestion,
+  TeacherSuggestionCreate,
+  TeacherSuggestions,
+  TeacherGuides,
+  TeacherUnav,
+  TeacherUnavBlock,
+  TeacherUnavCreate,
+  TeacherSettingRequest,
+  TeacherSettingReqCreate,
   ConsItem,
-  Invoice, InvoiceIssue, PaymentCreate, Expense, ExpenseReview,
-  GpaBoard, GpaStudent, GpaUse, GpaUseCreate,
-  ZoomBoard, ZoomAcct, ZoomAccountCreate, ZoomAccountPatch, ZoomAssign, ZoomAssignResult,
-  Catalog, CatalogKind, CatalogSub, KindCreate, KindPatch, SubCreate, SubPatch,
-  Lead, LeadFail, LeadResume, MfbThread, LessonTracking, PlanDetail, MeetingDetail,
+  Invoice,
+  InvoiceIssue,
+  PaymentCreate,
+  Expense,
+  ExpenseReview,
+  FileRef,
+  FileUpload,
+  GpaBoard,
+  GpaStudent,
+  GpaUse,
+  GpaUseCreate,
+  ZoomBoard,
+  ZoomAcct,
+  ZoomAccountCreate,
+  ZoomAccountPatch,
+  ZoomAssign,
+  ZoomAssignResult,
+  Catalog,
+  CatalogKind,
+  CatalogSub,
+  KindCreate,
+  KindPatch,
+  SubCreate,
+  SubPatch,
+  Lead,
+  LeadFail,
+  LeadResume,
+  MfbThread,
+  LessonTracking,
+  PlanDetail,
+  MeetingDetail,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -64,6 +157,8 @@ export const qk = {
   consStudents: ['consulting', 'students'] as const,
   books: ['books'] as const,
   bookHistory: ['books', 'history'] as const,
+  bookTracking: ['books', 'tracking'] as const,
+  bookPacks: ['books', 'deliveries'] as const,
   guides: ['guides'] as const,
   guideTemplates: ['guides', 'templates'] as const,
   board: (p: BoardParams) => ['board', p] as const,
@@ -152,6 +247,11 @@ export interface BoardParams extends RangeParams {
 
 export type OccParams = OccurrenceQuery;
 
+/** 기간·검색이 다른 이력 캐시를 갈라 놓되 family.books로 함께 무효화한다. */
+export function bookHistoryQueryKey(p: BookHistoryQuery) {
+  return [...qk.bookHistory, p] as const;
+}
+
 /** 코드표는 거의 안 바뀐다 — 오래 들고 있는다 */
 export function useMeta(enabled = true): UseQueryResult<Meta> {
   const viewerId = useViewerId();
@@ -198,10 +298,7 @@ export function useUnwritten(teacherId?: ReportTeacherQuery['teacherId'], enable
   });
 }
 
-export function useReportDetail(
-  serId?: number,
-  onDate?: string,
-): UseQueryResult<ReportDetail> {
+export function useReportDetail(serId?: number, onDate?: string): UseQueryResult<ReportDetail> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.reportDetail(serId ?? 0, onDate ?? ''), viewerId),
@@ -210,7 +307,7 @@ export function useReportDetail(
     staleTime: 30 * 1000,
     // 예정 수업을 열어 둔 채 종료 시각이 지나도 서버 canEdit을 다시 받는다.
     // 종료 후에는 주기 조회를 멈춰 작성 중 폼의 불필요한 갱신을 피한다.
-    refetchInterval: (query) => (query.state.data?.minutesSinceEnd ?? 0) < 0 ? 60_000 : false,
+    refetchInterval: (query) => ((query.state.data?.minutesSinceEnd ?? 0) < 0 ? 60_000 : false),
     refetchOnWindowFocus: true,
   });
 }
@@ -228,7 +325,8 @@ export function useReportDelivery(onDate?: ReportDeliveryQuery['onDate'], enable
 export type ReportDeliveryHistoryParams = ReportHistoryQuery;
 
 export function useReportDeliveryHistory(
-  p: ReportDeliveryHistoryParams = {}, enabled = true,
+  p: ReportDeliveryHistoryParams = {},
+  enabled = true,
 ): UseQueryResult<ReportSendHistoryList> {
   const viewerId = useViewerId();
   return useQuery({
@@ -300,7 +398,9 @@ export function useCarryTuition() {
      * 사용자 꼬리가 가운데 끼어 **아무것도 안 걸린다** — 오류도 안 나고 화면만 옛 값을 보여 준다.
      * 처음에 그렇게 썼고 `queries-family` 회귀가 그 자리에서 잡았다 (C48 이 만든 검사다).
      */
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+    },
   });
 }
 
@@ -369,7 +469,8 @@ export function useOps(): UseQueryResult<Ops> {
       // JWT는 발급 시점 권한이다. 현재 Me가 비공개면 과거 JWT 응답도 캐시에 넣기 전에 제한한다.
       // 회수 전 요청은 과거 권한 키에만 저장되고 현재 화면에 재사용되지 않는다.
       return {
-        ...data, canSeeAmounts: false,
+        ...data,
+        canSeeAmounts: false,
         marketing: data.marketing.map((row) => ({ ...row, cost: null, costPerEnroll: null })),
       };
     },
@@ -392,19 +493,134 @@ export function useConsulting(): UseQueryResult<ConsultingList> {
    「더 나중 판이 있다」는 **서버가 판정한다**(`hasNewer`). 화면이 두 낱말을 비교하면
    카드 배지와 머리 띠가 갈린다 (D-R39). 이력은 쓰는 화면이 없다 — 다른 쓰기의 부수효과다. */
 
-export function useBookHistory(enabled = true): UseQueryResult<BookHistoryRow[]> {
+export function useBookHistory(p: BookHistoryQuery = {}, enabled = true): UseQueryResult<BookHistory> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey(qk.bookHistory, viewerId),
-    queryFn: async () => (await api.get<BookHistoryRow[]>('/books/history')).data,
+    queryKey: sessionQueryKey(bookHistoryQueryKey(p), viewerId),
+    queryFn: async () => (await api.get<BookHistory>('/books/history', { params: p })).data,
     enabled,
     staleTime: 30 * 1000,
   });
 }
 
-function useBooksInvalidate() {
+export function useBookTracking(enabled = true): UseQueryResult<BookTracking> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bookTracking, viewerId),
+    queryFn: async () => (await api.get<BookTracking>('/books/tracking')).data,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useBookPacks(enabled = true): UseQueryResult<BookPacks> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bookPacks, viewerId),
+    queryFn: async () => (await api.get<BookPacks>('/books/deliveries')).data,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** 모든 도메인 파일은 같은 base64 계약과 서버 크기/종류 방어를 통과한다. */
+export function useUploadFile(): UseMutationResult<FileRef, unknown, FileUpload> {
+  return useMutation({ mutationFn: async (body) => (await api.post<FileRef>('/files', body)).data });
+}
+
+function useBooksInvalidate({ board = false, drawer = false }: { board?: boolean; drawer?: boolean } = {}) {
   const qc = useQueryClient();
-  return () => { void qc.invalidateQueries({ queryKey: family.books }); };
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.books });
+    if (board) void qc.invalidateQueries({ queryKey: family.board });
+    if (drawer) void qc.invalidateQueries({ queryKey: family.drawer });
+  };
+}
+
+export function useCreateBook(): UseMutationResult<{ id: number; code: string; title: string }, unknown, BookWrite> {
+  const invalidate = useBooksInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<{ id: number; code: string; title: string }>('/books', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePatchBook(): UseMutationResult<
+  { id: number; code: string; title: string },
+  unknown,
+  { id: number } & BookPatch
+> {
+  const invalidate = useBooksInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) =>
+      (await api.patch<{ id: number; code: string; title: string }>(`/books/${id}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCreateBookIssue(): UseMutationResult<BookIssue, unknown, BookIssueCreate> {
+  const invalidate = useBooksInvalidate({ board: true });
+  return useMutation({
+    mutationFn: async (body) => (await api.post<BookIssue>('/books/issues', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useTransitionBookIssue(): UseMutationResult<BookIssue, unknown, { id: number } & BookIssueTransition> {
+  const invalidate = useBooksInvalidate({ board: true });
+  return useMutation({
+    mutationFn: async ({ id, state }) => (await api.patch<BookIssue>(`/books/issues/${id}/state`, { state })).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useUpdateBookProgress(): UseMutationResult<BookIssue, unknown, { id: number; progressPage: number }> {
+  const invalidate = useBooksInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, progressPage }) =>
+      (await api.patch<BookIssue>(`/books/issues/${id}/progress`, { progressPage })).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useReturnBookIssue(): UseMutationResult<BookIssue, unknown, { id: number; returnedOn?: string }> {
+  const invalidate = useBooksInvalidate({ board: true });
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<BookIssue>(`/books/issues/${id}/return`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCreateBookPack(): UseMutationResult<BookPack, unknown, BookPackWrite> {
+  const invalidate = useBooksInvalidate({ drawer: true });
+  return useMutation({
+    mutationFn: async (body) => (await api.post<BookPack>('/books/deliveries', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePatchBookPack(): UseMutationResult<BookPack, unknown, { id: number } & BookPackPatch> {
+  const invalidate = useBooksInvalidate({ drawer: true });
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<BookPack>(`/books/deliveries/${id}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useDeliverBookPack(): UseMutationResult<BookPack, unknown, number> {
+  const invalidate = useBooksInvalidate({ drawer: true });
+  return useMutation({
+    mutationFn: async (id) => (await api.post<BookPack>(`/books/deliveries/${id}/deliver`, {})).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useReceiveBookPack(): UseMutationResult<BookPack, unknown, number> {
+  const invalidate = useBooksInvalidate({ drawer: true });
+  return useMutation({
+    mutationFn: async (id) => (await api.post<BookPack>(`/books/deliveries/${id}/receive`, {})).data,
+    onSettled: invalidate,
+  });
 }
 
 export function useAddBookVersion(): UseMutationResult<BookVersion, unknown, { libId: number } & BookVersionCreate> {
@@ -448,9 +664,12 @@ export function useGuideTemplates(enabled = true): UseQueryResult<GuideTemplate[
   });
 }
 
-function useGuidesInvalidate() {
+function useGuidesInvalidate({ books = false }: { books?: boolean } = {}) {
   const qc = useQueryClient();
-  return () => { void qc.invalidateQueries({ queryKey: family.guides }); };
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.guides });
+    if (books) void qc.invalidateQueries({ queryKey: family.books });
+  };
 }
 
 export function useCreateGuideTemplate(): UseMutationResult<GuideTemplate, unknown, GuideTemplateWrite> {
@@ -471,7 +690,7 @@ export function usePatchGuideTemplate(): UseMutationResult<GuideTemplate, unknow
 
 /** 안내 작성 — 「썼다」만 보낸다. 어느 상태가 되는지는 서버가 정한다 (D-R18) */
 export function useWriteGuideBody(): UseMutationResult<Guide, unknown, { id: number } & GuideBody> {
-  const invalidate = useGuidesInvalidate();
+  const invalidate = useGuidesInvalidate({ books: true });
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.put<Guide>(`/guides/${id}/body`, body)).data,
     onSettled: invalidate,
@@ -558,7 +777,9 @@ export function useCreateDiagnostic(): UseMutationResult<TeacherGuideDiag, unkno
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body) => (await api.post<TeacherGuideDiag>('/teacher/diagnostics', body)).data,
-    onSettled: () => { void qc.invalidateQueries({ queryKey: family.teacherGuides }); },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.teacherGuides });
+    },
   });
 }
 
@@ -619,11 +840,7 @@ type ReportReviewWrite = {
 };
 
 /** 리포트 상태가 바뀌면 이 소비자들만 같은 경로로 갱신한다 (D-R7 · C-4). */
-function refreshReportConsumers(
-  qc: ReturnType<typeof useQueryClient>,
-  viewerId: ViewerId,
-  detail?: ReportDetail,
-): void {
+function refreshReportConsumers(qc: ReturnType<typeof useQueryClient>, viewerId: ViewerId, detail?: ReportDetail): void {
   if (detail) qc.setQueryData(sessionQueryKey(qk.reportDetail(detail.serId, detail.onDate), viewerId), detail);
   void qc.invalidateQueries({ queryKey: family.reports });
   void qc.invalidateQueries({ queryKey: family.occurrences });
@@ -636,10 +853,11 @@ function refreshReportConsumers(
 /** 상태/담당자가 바뀐 거절만 재조회한다. 입력 오류·통신 실패는 작성 중인 초안을 보존한다. */
 function reconcileReportError(qc: ReturnType<typeof useQueryClient>, viewerId: ViewerId, error: unknown): void {
   if (!(error instanceof ApiError)) return;
-  const stale = error.status === 400 && ['REPORT_NOT_ALLOWED', 'REPORT_CANCELED', 'REPORT_NOT_ENDED'].includes(error.code)
-    || error.status === 403 && ['REPORT_FORBIDDEN', 'REPORT_REVIEW_FORBIDDEN'].includes(error.code)
-    || error.status === 404 && error.code === 'REPORT_NOT_FOUND'
-    || error.status === 409 && ['REPORT_LOCKED', 'REPORT_NOT_WAITING'].includes(error.code);
+  const stale =
+    (error.status === 400 && ['REPORT_NOT_ALLOWED', 'REPORT_CANCELED', 'REPORT_NOT_ENDED'].includes(error.code)) ||
+    (error.status === 403 && ['REPORT_FORBIDDEN', 'REPORT_REVIEW_FORBIDDEN'].includes(error.code)) ||
+    (error.status === 404 && error.code === 'REPORT_NOT_FOUND') ||
+    (error.status === 409 && ['REPORT_LOCKED', 'REPORT_NOT_WAITING'].includes(error.code));
   if (stale) refreshReportConsumers(qc, viewerId);
 }
 
@@ -664,9 +882,7 @@ export function useReportReview(): UseMutationResult<ReportDetail, unknown, Repo
   const qc = useQueryClient();
   const viewerId = useViewerId();
   return useMutation({
-    mutationFn: async (w) => (
-      await api.post<ReportDetail>(`/reports/${w.serId}/${w.onDate}/review`, w.body)
-    ).data,
+    mutationFn: async (w) => (await api.post<ReportDetail>(`/reports/${w.serId}/${w.onDate}/review`, w.body)).data,
     onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
     onError: (error) => reconcileReportError(qc, viewerId, error),
   });
@@ -676,9 +892,7 @@ export function useReportReview(): UseMutationResult<ReportDetail, unknown, Repo
 export function useReportDeliverySend(): UseMutationResult<ReportSendHistory, unknown, ReportDeliveryCreate> {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (delivery) => (
-      await api.post<ReportDeliveryResult>('/reports/deliveries', delivery)
-    ).data.item,
+    mutationFn: async (delivery) => (await api.post<ReportDeliveryResult>('/reports/deliveries', delivery)).data.item,
     onSettled: () => {
       // 여러 학생 중 일부만 성공해도 큐와 이력은 반드시 서버 상태로 다시 맞춘다.
       void qc.invalidateQueries({ queryKey: family.reportDeliveries });
@@ -686,14 +900,18 @@ export function useReportDeliverySend(): UseMutationResult<ReportSendHistory, un
   });
 }
 
-export function useReportDeliveryResend(): UseMutationResult<ReportSendHistory, unknown, {
-  sendId: number; requestKey: string;
-}> {
+export function useReportDeliveryResend(): UseMutationResult<
+  ReportSendHistory,
+  unknown,
+  {
+    sendId: number;
+    requestKey: string;
+  }
+> {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ sendId, requestKey }) => (
-      await api.post<ReportDeliveryResult>(`/reports/deliveries/${sendId}/resend`, { requestKey })
-    ).data.item,
+    mutationFn: async ({ sendId, requestKey }) =>
+      (await api.post<ReportDeliveryResult>(`/reports/deliveries/${sendId}/resend`, { requestKey })).data.item,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.reportDeliveries });
     },
@@ -713,7 +931,10 @@ export type ScheduleWrite =
   | { kind: 'roster'; serId: number; body: RosterPatch };
 
 export function useScheduleWrite(): UseMutationResult<
-  WriteResult | RosterResult, unknown, ScheduleWrite, ScheduleOptimisticContext
+  WriteResult | RosterResult,
+  unknown,
+  ScheduleWrite,
+  ScheduleOptimisticContext
 > {
   const qc = useQueryClient();
   // 성공과 오래된 회차 거절이 같은 서버 정본을 다시 읽는다. 전체 캐시 무효화는 하지 않는다.
@@ -741,8 +962,8 @@ export function useScheduleWrite(): UseMutationResult<
      */
     onMutate: (w) => beginScheduleOptimistic(qc, w),
     onError: (e, _w, ctx) => {
-      const stale = e instanceof ApiError && e.status === 404
-        && ['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(e.code);
+      const stale =
+        e instanceof ApiError && e.status === 404 && ['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(e.code);
       // 다른 요청의 성공/낙관 값을 보존하고 마지막 정착 후에만 서버 정본을 읽는다.
       if (ctx ? settleScheduleOptimistic(qc, ctx, true, stale) : stale) reconcile();
     },
@@ -754,13 +975,10 @@ export function useScheduleWrite(): UseMutationResult<
 }
 
 export type AttendanceWriteCommand =
-  | { action: 'save'; serId: number; onDate: string; body: AttendanceWrite }
-  | { action: 'clear'; serId: number; onDate: string };
+  { action: 'save'; serId: number; onDate: string; body: AttendanceWrite } | { action: 'clear'; serId: number; onDate: string };
 
 /** 출결 현재값을 바꾸면 같은 사실을 소비하는 조회를 한 경로에서 갱신한다. */
-export function useAttendanceWrite(): UseMutationResult<
-  AttendanceMutationResult, unknown, AttendanceWriteCommand
-> {
+export function useAttendanceWrite(): UseMutationResult<AttendanceMutationResult, unknown, AttendanceWriteCommand> {
   const qc = useQueryClient();
   const reconcile = () => {
     void qc.invalidateQueries({ queryKey: family.occurrences });
@@ -779,10 +997,12 @@ export function useAttendanceWrite(): UseMutationResult<
     onError: (error) => {
       // 일정/다른 출결 쓰기가 먼저 끝났다면 서버가 내려주는 새 attendanceMode를 읽는다.
       // 가역 출결도 성공 사실을 미리 만들지 않는다. 일반 입력/권한 오류는 그대로 둔다.
-      if (error instanceof ApiError && (
-        error.status === 409 && error.code === 'ATTENDANCE_NOT_AVAILABLE'
-        || error.status === 404 && ['OCCURRENCE_NOT_FOUND', 'ATTENDANCE_NOT_FOUND'].includes(error.code)
-      )) reconcile();
+      if (
+        error instanceof ApiError &&
+        ((error.status === 409 && error.code === 'ATTENDANCE_NOT_AVAILABLE') ||
+          (error.status === 404 && ['OCCURRENCE_NOT_FOUND', 'ATTENDANCE_NOT_FOUND'].includes(error.code)))
+      )
+        reconcile();
     },
   });
 }
@@ -847,14 +1067,13 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         return (await api.patch<OkResult>('/drawer/notis/read-all')).data;
       }
       if (w.kind === 'reqReview') {
-        return (await api.post<ReqReviewResult>(
-          `/drawer/requests/${w.id}/review`, { decision: w.decision, reason: w.reason },
-        )).data;
+        return (await api.post<ReqReviewResult>(`/drawer/requests/${w.id}/review`, { decision: w.decision, reason: w.reason }))
+          .data;
       }
       if (w.kind === 'chreqReview') {
-        return (await api.post<ReqReviewResult>(
-          `/drawer/change-requests/${w.id}/review`, { decision: w.decision, reason: w.reason },
-        )).data;
+        return (
+          await api.post<ReqReviewResult>(`/drawer/change-requests/${w.id}/review`, { decision: w.decision, reason: w.reason })
+        ).data;
       }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
@@ -869,7 +1088,7 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         if (!current) continue;
         let next = current;
         if (w.kind === 'todo') {
-          next = { ...current, todos: current.todos.map((t) => t.id === w.id ? { ...t, done: w.done } : t) };
+          next = { ...current, todos: current.todos.map((t) => (t.id === w.id ? { ...t, done: w.done } : t)) };
         } else if (w.kind === 'todoClear') {
           next = { ...current, todos: current.todos.filter((t) => !t.done) };
         } else if (w.kind === 'todoCreate') {
@@ -877,16 +1096,28 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
           const toName = current.members.find((member) => member.id === toId)?.name ?? null;
           next = {
             ...current,
-            todos: [{
-              id: -Date.now(), title: w.body.title, fromId: me?.id ?? null, fromName: me?.name ?? null,
-              toId, toName, dueOn: w.body.dueOn ?? null, done: false, src: 'manual', srcLabel: '직접 등록',
-              overdueDays: 0, go: null,
-            }, ...current.todos],
+            todos: [
+              {
+                id: -Date.now(),
+                title: w.body.title,
+                fromId: me?.id ?? null,
+                fromName: me?.name ?? null,
+                toId,
+                toName,
+                dueOn: w.body.dueOn ?? null,
+                done: false,
+                src: 'manual',
+                srcLabel: '직접 등록',
+                overdueDays: 0,
+                go: null,
+              },
+              ...current.todos,
+            ],
           };
         } else if (w.kind === 'notiRead') {
-          next = { ...current, notis: current.notis.map((n) => n.id === w.id ? { ...n, read: true } : n) };
+          next = { ...current, notis: current.notis.map((n) => (n.id === w.id ? { ...n, read: true } : n)) };
         } else if (w.kind === 'notiReadAll') {
-          next = { ...current, notis: current.notis.map((n) => n.toId === me?.id ? { ...n, read: true } : n) };
+          next = { ...current, notis: current.notis.map((n) => (n.toId === me?.id ? { ...n, read: true } : n)) };
         }
         qc.setQueryData(key, next);
       }
@@ -944,7 +1175,11 @@ export function useDeleteTeacherUnav(): UseMutationResult<{ ok: true }, unknown,
 }
 
 /** §31 진행 항목 체크/해제 — 판정(공개 범위·종료 잠금)은 서버. 성공/실패 모두 목록 재조회. */
-export function useToggleConsultingItem(): UseMutationResult<ConsItem, unknown, { consId: number; itemId: number; done: boolean }> {
+export function useToggleConsultingItem(): UseMutationResult<
+  ConsItem,
+  unknown,
+  { consId: number; itemId: number; done: boolean }
+> {
   const qc = useQueryClient();
   const viewerId = useViewerId();
   return useMutation({
@@ -953,7 +1188,6 @@ export function useToggleConsultingItem(): UseMutationResult<ConsItem, unknown, 
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.consulting, viewerId) }),
   });
 }
-
 
 /* ══ §28 컨설팅 회계 (C58) ═════════════════════════════════════════════
  * 「남음」도 머리 세 칸도 서버가 뺀 숫자를 그대로 그린다. 화면이 계약 − 받음을 다시 하면
@@ -985,15 +1219,16 @@ export function useConsStudents(enabled = true): UseQueryResult<ConsStudents> {
 /** 컨설팅 탭 전체를 버린다 — 납부 한 줄이 단계 보드의 계약 단계까지 흔들 수 있다 */
 function useConsultingFamilyInvalidate(): () => void {
   const qc = useQueryClient();
-  return () => { void qc.invalidateQueries({ queryKey: family.consulting }); };
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.consulting });
+  };
 }
 
 /** 납부 넣기 — §28 동작 ①. 돌려받은 줄 하나로 화면을 고쳐 그린다. */
 export function useAddConsPayment(): UseMutationResult<ConsAccountRow, unknown, { consId: number } & ConsPaymentCreate> {
   const invalidate = useConsultingFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ consId, ...body }) =>
-      (await api.post<ConsAccountRow>(`/consulting/${consId}/payments`, body)).data,
+    mutationFn: async ({ consId, ...body }) => (await api.post<ConsAccountRow>(`/consulting/${consId}/payments`, body)).data,
     onSettled: invalidate,
   });
 }
@@ -1004,7 +1239,10 @@ export function useConsToInvoice(): UseMutationResult<ConsAccountRow, unknown, {
   const invalidate = useConsultingFamilyInvalidate();
   return useMutation({
     mutationFn: async ({ consId }) => (await api.post<ConsAccountRow>(`/consulting/${consId}/invoice`, {})).data,
-    onSettled: () => { invalidate(); void qc.invalidateQueries({ queryKey: family.accounting }); },
+    onSettled: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: family.accounting });
+    },
   });
 }
 
@@ -1033,13 +1271,14 @@ export function useFailLead(): UseMutationResult<Lead, unknown, { id: number } &
  * 동안에만 돌린다.
  */
 export function useLessonTracking(
-  serId: number | null, onDate: string | null, enabled: boolean,
+  serId: number | null,
+  onDate: string | null,
+  enabled: boolean,
 ): UseQueryResult<LessonTracking> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.tracking(serId ?? 0, onDate ?? ''), viewerId),
-    queryFn: async () =>
-      (await api.get<LessonTracking>('/schedule/tracking', { params: { serId, onDate } })).data,
+    queryFn: async () => (await api.get<LessonTracking>('/schedule/tracking', { params: { serId, onDate } })).data,
     enabled: enabled && serId !== null && onDate !== null,
   });
 }
@@ -1086,20 +1325,20 @@ export function usePlanDetail(id: number | null): UseQueryResult<PlanDetail> {
 export function useDecidePlanDue(): UseMutationResult<PlanDetail, unknown, { id: number; approve: boolean }> {
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ id, approve }) =>
-      (await api.post<PlanDetail>(`/ops/plans/${id}/due`, { approve })).data,
+    mutationFn: async ({ id, approve }) => (await api.post<PlanDetail>(`/ops/plans/${id}/due`, { approve })).data,
     onSettled: invalidate,
   });
 }
 
 /** 최종 승인 · 보완 요청 — 기한이 먼저 승인돼야 열린다 (409: DUE_NOT_APPROVED …) */
 export function useReviewPlan(): UseMutationResult<
-  PlanDetail, unknown, { id: number; decision: 'approve' | 'rework'; reason?: string }
+  PlanDetail,
+  unknown,
+  { id: number; decision: 'approve' | 'rework'; reason?: string }
 > {
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ id, ...body }) =>
-      (await api.post<PlanDetail>(`/ops/plans/${id}/review`, body)).data,
+    mutationFn: async ({ id, ...body }) => (await api.post<PlanDetail>(`/ops/plans/${id}/review`, body)).data,
     onSettled: invalidate,
   });
 }
@@ -1121,20 +1360,20 @@ export function useMeetingDetail(id: number | null): UseQueryResult<MeetingDetai
 export function useWriteMinutes(): UseMutationResult<MeetingDetail, unknown, { id: number; minutes: string }> {
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ id, minutes }) =>
-      (await api.post<MeetingDetail>(`/ops/meetings/${id}/minutes`, { minutes })).data,
+    mutationFn: async ({ id, minutes }) => (await api.post<MeetingDetail>(`/ops/meetings/${id}/minutes`, { minutes })).data,
     onSettled: invalidate,
   });
 }
 
 /** 할 일 배정 — TODO 와 담당자 알림이 한 트랜잭션이다 (원문 §66 연동) */
 export function useAssignMeetingTask(): UseMutationResult<
-  MeetingDetail, unknown, { id: number; title: string; toId: number; dueOn?: string }
+  MeetingDetail,
+  unknown,
+  { id: number; title: string; toId: number; dueOn?: string }
 > {
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ id, ...body }) =>
-      (await api.post<MeetingDetail>(`/ops/meetings/${id}/todos`, body)).data,
+    mutationFn: async ({ id, ...body }) => (await api.post<MeetingDetail>(`/ops/meetings/${id}/todos`, body)).data,
     onSettled: invalidate,
   });
 }
@@ -1147,8 +1386,7 @@ export function useAssignMeetingTask(): UseMutationResult<
 export function useMfbComment(): UseMutationResult<MfbThread[], unknown, { mktId: number; body: string }> {
   const invalidate = useOpsInvalidate();
   return useMutation({
-    mutationFn: async ({ mktId, body }) =>
-      (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/comments`, { body })).data,
+    mutationFn: async ({ mktId, body }) => (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/comments`, { body })).data,
     onSettled: invalidate,
   });
 }
@@ -1157,8 +1395,7 @@ export function useMfbComment(): UseMutationResult<MfbThread[], unknown, { mktId
 export function useMfbReply(): UseMutationResult<MfbThread[], unknown, { mktId: number; parentId: number; body: string }> {
   const invalidate = useOpsInvalidate();
   return useMutation({
-    mutationFn: async ({ mktId, ...body }) =>
-      (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/replies`, body)).data,
+    mutationFn: async ({ mktId, ...body }) => (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/replies`, body)).data,
     onSettled: invalidate,
   });
 }
@@ -1167,8 +1404,7 @@ export function useMfbReply(): UseMutationResult<MfbThread[], unknown, { mktId: 
 export function useMfbEdit(): UseMutationResult<MfbThread[], unknown, { id: number; body: string }> {
   const invalidate = useOpsInvalidate();
   return useMutation({
-    mutationFn: async ({ id, body }) =>
-      (await api.patch<MfbThread[]>(`/ops/marketing/feedback/${id}`, { body })).data,
+    mutationFn: async ({ id, body }) => (await api.patch<MfbThread[]>(`/ops/marketing/feedback/${id}`, { body })).data,
     onSettled: invalidate,
   });
 }
@@ -1214,7 +1450,11 @@ export function useDeleteGpaUse(): UseMutationResult<{ ok: true }, unknown, numb
   });
 }
 
-export function usePutGpaAlloc(): UseMutationResult<GpaStudent, unknown, { cycleId: number; studentId: number; points: number }> {
+export function usePutGpaAlloc(): UseMutationResult<
+  GpaStudent,
+  unknown,
+  { cycleId: number; studentId: number; points: number }
+> {
   const invalidate = useGpaInvalidate();
   return useMutation({
     mutationFn: async (w) => (await api.put<GpaStudent>('/gpa/allocs', w)).data,

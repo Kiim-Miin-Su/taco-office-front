@@ -202,7 +202,21 @@ export type Books = S['BooksDto'];
 export type BookVersion = S['BookVersionDto'];
 export type BookVersionCreate = S['BookVersionCreateDto'];
 export type BookHistoryRow = S['BookHistoryRowDto'];
+export type BookHistory = S['BookHistoryDto'];
+export type BookHistoryQuery = NonNullable<paths['/books/history']['get']['parameters']['query']>;
 export type Book = S['BookDto'];
+export type BookWrite = S['BookWriteDto'];
+export type BookPatch = S['BookPatchDto'];
+export type BookTracking = S['BookTrackingDto'];
+export type BookTrackingStudent = S['BookTrackingStudentDto'];
+export type BookIssue = S['BookIssueDto'];
+export type BookIssueCreate = S['BookIssueCreateDto'];
+export type BookIssueTransition = S['BookIssueTransitionDto'];
+export type BookIssueProgress = S['BookIssueProgressDto'];
+export type BookPack = S['BookPackDto'];
+export type BookPacks = S['BookPacksDto'];
+export type BookPackWrite = S['BookPackWriteDto'];
+export type BookPackPatch = S['BookPackPatchDto'];
 
 /** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */
 export type Guides = S['GuidesDto'];

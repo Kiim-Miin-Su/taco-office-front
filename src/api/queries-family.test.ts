@@ -5,8 +5,13 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { family, qk, sessionQueryKey } from './queries';
+import { createElement, type PropsWithChildren } from 'react';
+import { act, renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { AxiosAdapter } from 'axios';
+import { describe, expect, it, vi } from 'vitest';
+import { api } from './client';
+import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useWriteGuideBody } from './queries';
 
 /**
  * TanStack Query 는 **앞자락**으로만 거른다. `sessionQueryKey` 가 사용자 id 를 꼬리에
@@ -45,21 +50,36 @@ const SAMPLE: Record<string, readonly unknown[]> = {
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
 const CONST_SAMPLE: readonly (readonly unknown[])[] = [
-  qk.horizon, qk.accounting, qk.ops, qk.teacherHome, qk.guides, qk.guideTemplates,
-  qk.books, qk.bookHistory,
+  qk.horizon,
+  qk.accounting,
+  qk.ops,
+  qk.teacherHome,
+  qk.guides,
+  qk.guideTemplates,
+  qk.books,
+  qk.bookHistory,
+  qk.bookTracking,
+  qk.bookPacks,
   // §28 회계 — `consulting` 갈래 안에 산다. 납부 한 줄이 단계 보드까지 흔든다 (C58)
-  qk.consulting, qk.consAccounting, qk.consStudents,
+  qk.consulting,
+  qk.consAccounting,
+  qk.consStudents,
   // §52 트래킹 보드 — 회계 갈래 안에 산다 (C69)
   qk.invBoard,
 ];
 
 describe('갈래 앞자락', () => {
   it('인자를 받는 키는 하나도 빠짐없이 어떤 갈래에 속한다', () => {
-    const withArgs = Object.entries(qk).filter(([, v]) => typeof v === 'function').map(([k]) => k);
+    const withArgs = Object.entries(qk)
+      .filter(([, v]) => typeof v === 'function')
+      .map(([k]) => k);
     expect(Object.keys(SAMPLE).sort()).toEqual(withArgs.sort());
     const heads = Object.values(family);
     for (const [name, key] of Object.entries(SAMPLE)) {
-      expect(heads.some((h) => startsWith(key, h)), `${name} 이 어느 갈래에도 안 걸린다`).toBe(true);
+      expect(
+        heads.some((h) => startsWith(key, h)),
+        `${name} 이 어느 갈래에도 안 걸린다`,
+      ).toBe(true);
     }
   });
 
@@ -67,7 +87,10 @@ describe('갈래 앞자락', () => {
     const heads = Object.values(family);
     for (const [name, key] of Object.entries(SAMPLE)) {
       const full = sessionQueryKey(key, 7);
-      expect(heads.some((h) => startsWith(full, h)), `${name}: ${JSON.stringify(full)}`).toBe(true);
+      expect(
+        heads.some((h) => startsWith(full, h)),
+        `${name}: ${JSON.stringify(full)}`,
+      ).toBe(true);
     }
   });
 
@@ -82,7 +105,10 @@ describe('갈래 앞자락', () => {
   it('갈래마다 실제로 걸리는 키가 하나는 있다 — 아무 데도 안 쓰는 앞자락은 두지 않는다', () => {
     const keys = [...Object.values(SAMPLE), ...CONST_SAMPLE];
     for (const [name, head] of Object.entries(family)) {
-      expect(keys.some((k) => startsWith(k, head)), `${name} 갈래에 걸리는 키가 없다`).toBe(true);
+      expect(
+        keys.some((k) => startsWith(k, head)),
+        `${name} 갈래에 걸리는 키가 없다`,
+      ).toBe(true);
     }
   });
 });
@@ -106,7 +132,11 @@ describe('무효화 표기', () => {
 
   it('무효화는 family 앞자락이거나 정확한 한 키다 — 그 사이는 없다', () => {
     expect(args.length).toBeGreaterThan(20);
-    const constKeys = new Set(Object.entries(qk).filter(([, v]) => Array.isArray(v)).map(([k]) => k));
+    const constKeys = new Set(
+      Object.entries(qk)
+        .filter(([, v]) => Array.isArray(v))
+        .map(([k]) => k),
+    );
     for (const a of args) {
       const asFamily = /^family\.(\w+)$/.exec(a);
       const asExact = /^sessionQueryKey\(qk\.(\w+),\s*\w+\)$/.exec(a);
@@ -128,17 +158,18 @@ describe('무효화 표기', () => {
      * 다음 `export` 앞까지 자르는 편이 단순하고 안 틀린다. 뒤따르는 주석이 딸려 오므로 지운다.
      */
     const starts = [...src.matchAll(/^export (?:function|const) (\w+)/gm)];
-    const hooks = starts.map((m, i) => ({
-      name: m[1],
-      body: src.slice(m.index ?? 0, starts[i + 1]?.index ?? src.length)
-        .replace(/\/\*[\s\S]*?\*\//g, ''),
-    })).filter((h) => /UseMutationResult/.test(h.body) && /^use[A-Z]/.test(h.name));
+    const hooks = starts
+      .map((m, i) => ({
+        name: m[1],
+        body: src.slice(m.index ?? 0, starts[i + 1]?.index ?? src.length).replace(/\/\*[\s\S]*?\*\//g, ''),
+      }))
+      .filter((h) => /UseMutationResult/.test(h.body) && /^use[A-Z]/.test(h.name));
     expect(hooks.length).toBeGreaterThan(20);
     const helpers = /function (refreshReportConsumers|reconcileReportError|use\w*Invalidate)/g;
     const helperNames = new Set([...src.matchAll(helpers)].map((m) => m[1]));
     for (const h of hooks) {
-      const buries = /invalidateQueries|Invalidate\(\)|invalidate\b/.test(h.body)
-        || [...helperNames].some((n) => h.body.includes(n));
+      const buries =
+        /invalidateQueries|Invalidate\(\)|invalidate\b/.test(h.body) || [...helperNames].some((n) => h.body.includes(n));
       expect(buries, `${h.name} 이 쓰기 뒤에 아무것도 안 버린다`).toBe(true);
     }
   });
@@ -174,5 +205,83 @@ describe('C56 — 기획 보고서 키가 무효화에 실제로 걸리는가', 
       const h = src.slice(src.indexOf(`export function ${hook}`));
       expect(h.slice(0, 400)).toContain('useOpsFamilyInvalidate()');
     }
+  });
+});
+
+describe('C77 — 교재 쓰기의 교차 갈래 무효화', () => {
+  const src = readFileSync(join(__dirname, 'queries.ts'), 'utf8');
+  const hookBody = (name: string) => {
+    const start = src.indexOf(`export function ${name}`);
+    const end = src.indexOf('\nexport function ', start + 1);
+    return src.slice(start, end < 0 ? src.length : end);
+  };
+
+  it('학생 교재 상태 변경은 현황판도 다시 읽는다', () => {
+    for (const hook of ['useCreateBookIssue', 'useTransitionBookIssue', 'useReturnBookIssue']) {
+      expect(hookBody(hook), hook).toContain('useBooksInvalidate({ board: true })');
+    }
+  });
+
+  it('자료 전달 변경은 서랍 할 일도 다시 읽는다', () => {
+    for (const hook of ['useCreateBookPack', 'usePatchBookPack', 'useDeliverBookPack', 'useReceiveBookPack']) {
+      expect(hookBody(hook), hook).toContain('useBooksInvalidate({ drawer: true })');
+    }
+  });
+
+  it('안내 작성 결과가 남긴 교재 이력도 다시 읽는다', () => {
+    const body = src.slice(src.indexOf('function useGuidesInvalidate'), src.indexOf('export function useCreateGuideTemplate'));
+    expect(body).toContain('queryKey: family.guides');
+    expect(body).toContain('queryKey: family.books');
+    expect(hookBody('useWriteGuideBody')).toContain('useGuidesInvalidate({ books: true })');
+  });
+});
+
+describe('C77 — 실제 mutation의 query cache 무효화', () => {
+  const run = async <TVariables,>(
+    hook: () => { mutateAsync: (body: TVariables) => Promise<unknown> },
+    body: TVariables,
+  ) => {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const original = api.defaults.adapter;
+    const adapter: AxiosAdapter = async (config) => ({
+      config,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      data: {},
+    });
+    api.defaults.adapter = adapter;
+    const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+    try {
+      const { result } = renderHook(hook, { wrapper });
+      await act(() => result.current.mutateAsync(body));
+      return invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    } finally {
+      api.defaults.adapter = original;
+      client.clear();
+    }
+  };
+
+  it('배부 쓰기는 books와 board를 함께 버린다', async () => {
+    const keys = await run(useCreateBookIssue, { studentId: 3, libId: 4, state: 'ok' });
+    expect(keys).toEqual(expect.arrayContaining([family.books, family.board]));
+  });
+
+  it('자료 전달 쓰기는 books와 drawer를 함께 버린다', async () => {
+    const keys = await run(useCreateBookPack, {
+      packType: 'exam',
+      title: '자료',
+      effectiveOn: '2026-09-14',
+      coordinatorId: 3,
+      studentIds: [4],
+      libIds: [5],
+    });
+    expect(keys).toEqual(expect.arrayContaining([family.books, family.drawer]));
+  });
+
+  it('안내 작성은 guides와 books를 함께 버린다', async () => {
+    const keys = await run(useWriteGuideBody, { id: 8, body: '안내' });
+    expect(keys).toEqual(expect.arrayContaining([family.guides, family.books]));
   });
 });

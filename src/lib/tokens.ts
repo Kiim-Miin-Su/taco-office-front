@@ -32,12 +32,23 @@ export type CalendarColorOf = (occ: Pick<Occurrence, 'subKey' | 'kindKey'>) => s
 
 const validColor = (color: unknown): color is string => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color);
 
+/**
+ * 과목 하나의 표시색. 캘린더·교재처럼 과목색을 그리는 화면은 이 선택기만 쓴다.
+ * 서버 Meta를 먼저 믿고, 알려진 키만 CSS 토큰으로 복구한다. 알 수 없는 키를 다른
+ * 과목이나 수업 종류에 임의로 붙이지 않는다.
+ */
+export function subjectColor(subKey: string | null | undefined, subs: CalendarCodeLookup['subs']): string | null {
+  if (!subKey) return null;
+  const apiColor = subs.get(subKey)?.color;
+  if (validColor(apiColor)) return apiColor;
+  const known = SUB_KEYS.find((key) => key === subKey);
+  return known ? subVar(known) : null;
+}
+
 /** SUB API → 알려진 SUB 기본값 → KIND API → 알려진 KIND 기본값 → 중립. */
 export function calendarEventColor(occ: Pick<Occurrence, 'subKey' | 'kindKey'>, codes: CalendarCodeLookup): string {
-  const subColor = occ.subKey ? codes.subs.get(occ.subKey)?.color : undefined;
-  if (validColor(subColor)) return subColor;
-  const sub = SUB_KEYS.find((key) => key === occ.subKey);
-  if (sub) return subVar(sub);
+  const color = subjectColor(occ.subKey, codes.subs);
+  if (color) return color;
 
   const kindColor = codes.kinds.get(occ.kindKey)?.color;
   if (validColor(kindColor)) return kindColor;
