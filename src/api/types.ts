@@ -152,6 +152,8 @@ export type OccurrencePatch = S['OccurrencePatchDto'];
 export type OccurrenceDelete = S['OccurrenceDeleteDto'];
 export type RosterPatch = S['RosterPatchDto'];
 export type WriteResult = S['WriteResultDto'];
+/** 저장은 됐지만 강사가 불가로 적어 둔 시간에 걸쳤다 — 막지 않고 알린다 (§15·§16) */
+export type UnavWarn = S['UnavWarnDto'];
 export type RosterResult = S['RosterResultDto'];
 export type Horizon = S['HorizonDto'];
 /** 'this' | 'future' | 'all' — 화면이 문자열을 다시 적지 않게 DTO 에서 가져온다 */

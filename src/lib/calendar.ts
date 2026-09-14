@@ -11,7 +11,7 @@
  * 여기서 나눈다 (`AGENT.md §6.1-2`). 보기마다 fetch 하면 전환할 때마다 왕복이 생기고,
  * 같은 날짜가 보기마다 다른 응답에서 오면 색이 갈린다.
  */
-import type { ConflictRow, Occurrence } from '@/api/types';
+import type { ConflictRow, Occurrence, UnavWarn } from '@/api/types';
 
 export type View = 'day' | 'week' | 'month' | 'student' | 'teacher';
 
@@ -501,5 +501,17 @@ const CONFLICT_WITH: Record<string, string> = { teacher: ' (강사)', room: ' (�
 export function conflictLines(rows: readonly ConflictRow[]): string[] {
   return rows.map((row) => (
     `${row.onDate} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.whoName ?? ''}${CONFLICT_WITH[row.with] ?? ''}`
+  ));
+}
+
+/**
+ * 강사 불가 시간 경고 한 줄 — **막힌 것이 아니라 알리는 것**이다 (원본 §15·§16).
+ *
+ * 지금까지 관리자 화면 어디에도 UNAV 가 없어 **적어 낸 강사만 알고 잡는 사람은 몰랐다.**
+ * 판정과 사유는 서버가 주고 여기는 늘어놓기만 한다.
+ */
+export function unavailableLines(rows: readonly UnavWarn[]): string[] {
+  return rows.map((row) => (
+    `${row.date} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.teacherName} — ${row.reason}`
   ));
 }

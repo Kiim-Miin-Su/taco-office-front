@@ -459,6 +459,21 @@ describe('겹침 설명 (§19 · D-R43)', () => {
     expect(view.getByText(/현장 3호 \(강의실\)/)).toBeTruthy();
   });
 
+  it('저장은 됐지만 강사가 불가로 적어 둔 시간이면 그 사실을 알린다 (§15·§16)', () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onSuccess?: (r: unknown) => void }) => opts.onSuccess?.({
+      effScope: 'this', log: [], projected: 1, serIds: [1],
+      unavailable: [{ serId: 1, date: '2026-09-02', teacherId: 11, teacherName: '선택 강사', startMin: 540, endMin: 660, reason: '병원 예약' }],
+    }));
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+
+    // 막힌 것이 아니다 — 오류 자리가 아니라 알림 자리에 선다
+    expect(view.queryByRole('alert')).toBeNull();
+    const warn = view.getAllByRole('status').find((n) => n.textContent?.includes('못 한다고 적어 둔 시간'));
+    expect(warn).toBeTruthy();
+    expect(warn!.textContent).toContain('선택 강사 — 병원 예약');
+  });
+
   it('겹침이 아니면 묻지 않는다 — 실패마다 한 번씩 더 도는 왕복을 만들지 않는다', () => {
     mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.({
       response: { status: 400, data: { code: 'BAD_RANGE', message: '값이 허용 범위를 벗어났습니다' } },

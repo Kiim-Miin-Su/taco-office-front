@@ -53,7 +53,7 @@ const occurrence: Occurrence = {
 };
 
 const result: RosterResult = {
-  effScope: 'this',
+  effScope: 'this', unavailable: [],
   log: ['학생 추가'],
   projected: 10,
   serIds: [3],

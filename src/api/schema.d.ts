@@ -2481,6 +2481,17 @@ export interface components {
             /** @description 정식 명단. 생략/빈 배열 허용, null과 중복 ID는 거절 */
             studentIds?: number[];
         };
+        UnavWarnDto: {
+            serId: number;
+            /** @description 회차가 실제로 놓인 달력 날짜 */
+            date: string;
+            teacherId: number;
+            teacherName: string;
+            startMin: number;
+            endMin: number;
+            /** @description 강사가 적은 사유 — 화면이 그대로 보여 준다 */
+            reason: string;
+        };
         WriteResultDto: {
             /** @description 실제로 적용된 범위 — 「향후」가 「모두」로 강등되면 여기서 드러난다 (D-R17) */
             effScope: string;
@@ -2490,6 +2501,8 @@ export interface components {
             projected: number;
             /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
             serIds: number[];
+            /** @description 강사 불가 시간과 겹친 회차 — **막지 않고 알린다.** 오늘 이후·취소 아닌 것만, 최대 10줄 */
+            unavailable: components["schemas"]["UnavWarnDto"][];
         };
         OccurrenceRefDto: {
             serId: number;
@@ -2580,6 +2593,8 @@ export interface components {
             projected: number;
             /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
             serIds: number[];
+            /** @description 강사 불가 시간과 겹친 회차 — **막지 않고 알린다.** 오늘 이후·취소 아닌 것만, 최대 10줄 */
+            unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 그 회차의 변경 후 실제 인원 */
             count: number;
             /** @description KIND.cap — 정원 */

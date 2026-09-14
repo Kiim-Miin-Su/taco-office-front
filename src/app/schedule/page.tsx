@@ -46,11 +46,11 @@ import { fetchConflicts, useDrawer, useHorizon, useMeta, useOccurrences, useSche
 import { apiMessage, isConflict } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  boundingRange, boundsOf, clampSplitRatio, conflictLines, INITIAL_PANE, label, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
+  boundingRange, boundsOf, clampSplitRatio, conflictLines, INITIAL_PANE, label, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
-import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
+import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, UnavWarn } from '@/api/types';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
 import { downloadElementPng } from '@/lib/png-export';
 import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
@@ -274,6 +274,11 @@ function AdminSchedulePage() {
   const [pasteAsk, setPasteAsk] = useState<PendingPaste | null>(null);
   const [moveAsk, setMoveAsk] = useState<PendingMoveMany | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /**
+   * 저장은 됐는데 **강사가 불가로 적어 둔 시간**에 걸쳤다 (원본 §15·§16).
+   * 오류가 아니라 알림이라 자리도 색도 따로 쓴다 — 막을 일이었으면 서버가 막았다.
+   */
+  const [unavail, setUnavail] = useState<string[]>([]);
   /** 빈 칸에서 시작하는 새 일정 (C-5) — 새 일정은 범위를 묻지 않는다 */
   const [draft, setDraft] = useState<SessionDraft | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -293,6 +298,13 @@ function AdminSchedulePage() {
     if (requestedStudentId) go({ t: 'deepLinkStudent', id: requestedStudentId });
   }, [requestedStudentId]);
 
+  /** 저장이 됐을 때 — 오류를 지우고, 서버가 준 불가 시간 알림만 남긴다. */
+  const doneWrite = (result: unknown) => {
+    setErr(null);
+    const rows = (result as { unavailable?: UnavWarn[] } | undefined)?.unavailable ?? [];
+    setUnavail(unavailableLines(rows));
+  };
+
   /**
    * 저장이 겹침으로 막혔을 때 **누구와** 부딪혔는지까지 말한다 (§19 · D-R43).
    *
@@ -306,6 +318,7 @@ function AdminSchedulePage() {
   const failWrite = (e: unknown, probe: ConflictProbe | null) => {
     const base = apiMessage(e);
     setErr(base);
+    setUnavail([]);
     if (!probe || !isConflict(e)) return;
     void fetchConflicts(probe)
       .then((rows) => {
@@ -328,7 +341,7 @@ function AdminSchedulePage() {
           roomId: body.roomId === undefined ? occ.roomId : body.roomId,
           exceptSerId: occ.serId,
         }),
-        onSuccess: () => setErr(null),
+        onSuccess: (result) => doneWrite(result),
       },
     );
   };
@@ -358,8 +371,8 @@ function AdminSchedulePage() {
           teacherId: pending.target.teacherId ?? pending.items[0].teacherId,
           roomId: pending.target.roomId ?? pending.items[0].roomId,
         }),
-        onSuccess: () => {
-          setErr(null);
+        onSuccess: (result) => {
+          doneWrite(result);
           setPasteAsk(null);
           go({ t: 'cursor', value: null });
           if (pending.fromClipboard) {
@@ -389,7 +402,7 @@ function AdminSchedulePage() {
           roomId: pending.items[0].roomId ?? pending.occurrences[0].roomId,
           exceptSerId: pending.occurrences[0].serId,
         }),
-        onSuccess: () => { setErr(null); setMoveAsk(null); },
+        onSuccess: (result) => { doneWrite(result); setMoveAsk(null); },
       },
     );
   };
@@ -934,6 +947,16 @@ function AdminSchedulePage() {
           <div className="mb-3" role="alert">
             {/* 서버 오류는 충돌만이 아니다. rollback 후 원래 오류 메시지를 그대로 알린다. */}
             <Banner tone="danger">{err}</Banner>
+          </div>
+        ) : null}
+
+        {unavail.length ? (
+          <div className="mb-3" role="status">
+            {/* 저장은 됐다. 막을 일이었으면 서버가 막았다 — 이건 **몰랐던 사실을 알리는 줄**이다 */}
+            <Banner tone="warning">
+              저장했습니다 — 다만 강사가 <b>못 한다고 적어 둔 시간</b>에 걸칩니다: {unavail.slice(0, 3).join(' · ')}
+              {unavail.length > 3 ? ` 외 ${unavail.length - 3}건` : ''}
+            </Banner>
           </div>
         ) : null}
 

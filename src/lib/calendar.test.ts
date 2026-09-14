@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, paneView, parseHm,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, paneView, parseHm, unavailableLines,
   periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
@@ -194,6 +194,13 @@ describe('분할 표 상태 (§4)', () => {
       '2026-09-02 15:00–16:00 ·  (줌)',
     ]);
     expect(conflictLines([])).toEqual([]);
+  });
+
+  it('불가 시간 알림은 막힌 것이 아니라 알리는 것이다 — 사유까지 그대로 옮긴다 (§15·§16)', () => {
+    expect(unavailableLines([
+      { serId: 4, date: '2026-09-28', teacherId: 7, teacherName: '김재훈', startMin: 540, endMin: 660, reason: '병원 예약' },
+    ])).toEqual(['2026-09-28 09:00–11:00 · 김재훈 — 병원 예약']);
+    expect(unavailableLines([])).toEqual([]);
   });
 
   it('divider는 화면 비율이 아니라 실제 152px 최소 폭으로 제한한다', () => {
