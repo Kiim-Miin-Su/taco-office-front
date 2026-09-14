@@ -2364,6 +2364,16 @@ export interface components {
             /** @description 최신 리포트 3건 — 쓴 것만 */
             reports: components["schemas"]["TrackedReportDto"][];
         };
+        LessonPrepRowDto: {
+            /** @description 줄을 가리키는 열쇠 — 화면이 비교하지 않고 그리기만 한다 */
+            key: string;
+            /** @description 줄 이름 — 원문 §12·§79 의 낱말 그대로 */
+            label: string;
+            /** @description 됐는가 */
+            done: boolean;
+            /** @description 줄 밑의 값 — 「1명 / 정원 4명 · 이담흔」 같은 것 */
+            detail: string | null;
+        };
         LessonTrackingDto: {
             serId: number;
             /** @example 2026-08-21 */
@@ -2383,6 +2393,13 @@ export interface components {
             /** @description 금액을 볼 수 있는가 — 단가·총액·미수가 이 값에 따라 null 이 된다 */
             canSeeAmounts: boolean;
             students: components["schemas"]["TrackedStudentDto"][];
+            prep: components["schemas"]["LessonPrepRowDto"][];
+            /** @description 된 줄 수 — 화면이 prep 를 다시 세지 않는다 */
+            prepDone: number;
+            /** @description 전체 줄 수 */
+            prepTotal: number;
+            /** @description 머리 문장 — 원문 「3가지 남았습니다」 · 다 됐으면 「다 됐습니다」 */
+            prepRemainLabel: string;
         };
         HorizonDto: {
             /** @description 펼쳐 둔 기간의 시작 */

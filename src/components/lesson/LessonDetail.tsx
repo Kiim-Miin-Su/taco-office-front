@@ -28,41 +28,15 @@ import { AttendanceControl } from './AttendanceControl';
 import { StudentTracking } from './StudentTracking';
 
 /**
- * 준비 단계 — 명세서 §12. 순서가 곧 화면의 순서다.
+ * 준비 줄은 **서버가 만든다** — 줄 이름도, 됐는지도, 「준비 6 / 9」도 (C82-b).
  *
- * 이름은 컷의 낱말로 맞췄다 — 「강사 배정」·「교재 배정」·「수업 안내」·「강사 피드백」.
- * **「줌 안내」는 온라인 수업에만 선다** (`online` 이 참일 때만). 컷도 온라인 §12 가 아홉 줄,
- * 현장 §79 가 「준비 4 / 7」로 일곱 줄이라 **줌 갈래가 조건부**다. 전에는 `o.mode === 'online' ? null : null`
- * 이라 **양쪽이 같은 죽은 삼항**이어서 현장 수업에도 줌 안내가 서 있었다.
+ * 전에는 이 파일이 `STEPS` 표를 들고 `doneOf()` 로 스스로 판정했다. 그러면 같은 회차를 두고
+ * 현황판은 「됐다」, 상세는 「아직」이라 말할 수 있고, 실제로 세 줄은 판정을 못 해
+ * 「현황판에서 판정」이라고 적고 있었다 — 화면이 모른다고 고백하는 자리였다.
  *
- * 아직 컷과 다른 것: 컷의 「대표 지시 할 일」과 「수강 학생」이 단계에 없고(수강 학생은 아래 별도 칸이다),
- * 우리에게만 「리포트」가 있으며, 컷의 「줌 계정」을 우리는 현장·온라인 공용으로 「강의실 · 줌」이라 부른다.
- * 줄마다의 부제값(「1명 / 정원 4명 · 이담흔」 같은 것)과 「준비 N / M」 머리도 아직 없다.
+ * 지금은 `LessonTrackingDto.prep` 이 원문 §12(온라인 9줄)·§79(현장 7줄) 그대로 내려온다.
+ * 「대표 지시 할 일」은 **그 회차에 걸린 지시가 있을 때만** 서고, 「줌 안내」는 온라인에만 선다.
  */
-const STEPS = [
-  { key: 'fixed', label: '일정 확정', online: false },
-  { key: 'teacher', label: '강사 배정', online: false },
-  { key: 'place', label: '강의실 · 줌', online: false },
-  { key: 'book', label: '교재 배정', online: false },
-  { key: 'guide', label: '수업 안내', online: false },
-  { key: 'zoom', label: '줌 안내', online: true },
-  { key: 'report', label: '리포트', online: false },
-  { key: 'feedback', label: '강사 피드백', online: false },
-] as const;
-
-/** 무엇이 됐는지는 회차가 이미 들고 있다 — 화면이 다시 판정하지 않는다 (D-R4) */
-function doneOf(o: Occurrence): Record<string, boolean | null> {
-  return {
-    fixed: true,
-    teacher: o.teacherId !== null,
-    place: o.mode === 'online' ? o.zaccId !== null : o.roomId !== null,
-    book: null,      // 현황판이 clChk() 로 판정한다 — 여기서는 모른다고 적는다
-    guide: null,
-    zoom: null,      // 온라인에서만 서고, 됐는지는 현황판이 판정한다
-    report: o.written,
-    feedback: null,
-  };
-}
 
 export interface LessonDetailProps {
   occ: Occurrence | null;
@@ -92,9 +66,7 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
   }, [occ?.serId, occ?.onDate]);
 
   if (!occ) return null;
-  const done = doneOf(occ);
-  // 줌 갈래는 온라인에만 선다 — 컷의 온라인 아홉 줄 / 현장 일곱 줄 (위 STEPS 주석)
-  const steps = STEPS.filter((s) => !s.online || occ.mode === 'online');
+  const prep = tracking.data?.prep ?? [];
 
   /**
    * 수강 학생은 3범위가 아니라 **2범위**다 — 다이얼로그 없이 줄 버튼으로 바로 간다
@@ -155,20 +127,44 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
           </div>
 
           <section>
-            <h3 className="mb-2 text-[12px] font-bold text-fg">준비 {steps.length}단계</h3>
+            {/* 머리와 막대는 서버가 센 값이다 — 화면이 prep 를 다시 세지 않는다 (D-R37) */}
+            <div className="mb-2 flex items-baseline gap-2">
+              <h3 className="text-[13px] font-bold text-fg">
+                준비 {tracking.data ? `${tracking.data.prepDone} / ${tracking.data.prepTotal}` : '—'}
+              </h3>
+              <span className="text-[12px] text-fg-subtle">{tracking.data?.prepRemainLabel ?? ''}</span>
+            </div>
+            {tracking.data && tracking.data.prepTotal > 0 ? (
+              <div className="mb-2 h-1.5 overflow-hidden rounded bg-line">
+                <div
+                  className="h-full rounded bg-green"
+                  style={{ width: `${Math.round((tracking.data.prepDone / tracking.data.prepTotal) * 100)}%` }}
+                />
+              </div>
+            ) : null}
             <ol className="flex flex-col gap-1">
-              {steps.map((s, i) => {
-                const v = done[s.key];
-                return (
-                  <li key={s.key} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2">
-                    <span className="w-4 text-[11px] text-fg-subtle">{i + 1}</span>
-                    <span className="flex-1 text-[12px] text-fg">{s.label}</span>
-                    {v === null
-                      ? <span className="text-[11px] text-fg-subtle">현황판에서 판정</span>
-                      : <Chip tone={v ? 'success' : 'danger'}>{v ? '됨' : '안 됨'}</Chip>}
-                  </li>
-                );
-              })}
+              {prep.map((row) => (
+                <li
+                  key={row.key}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                    row.done ? 'border-green/30 bg-green/5' : 'border-red/30 bg-red/5'
+                  }`}
+                >
+                  <span className={`text-[12px] ${row.done ? 'text-green' : 'text-fg-subtle'}`}>
+                    {row.done ? '✓' : '○'}
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-[12px] font-bold text-fg">{row.label}</span>
+                    {/* 부제도 서버의 낱말이다 — 「1명 / 정원 4명 · 이담흔」 (D-R18) */}
+                    {row.detail ? <span className="text-[11px] text-fg-subtle">{row.detail}</span> : null}
+                  </span>
+                </li>
+              ))}
+              {prep.length === 0 ? (
+                <li className="rounded-lg border border-line px-3 py-2 text-[12px] text-fg-subtle">
+                  {tracking.isLoading ? '준비를 읽는 중입니다…' : '준비 줄을 읽지 못했습니다.'}
+                </li>
+              ) : null}
             </ol>
           </section>
 

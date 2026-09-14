@@ -155,6 +155,13 @@ describe('§79 명단 줄의 교재 · 안내 칩', () => {
     tracking.data = {
       serId: occurrence.serId, onDate: occurrence.onDate, cap: 4, count: 1, canAdd: 3,
       capLabel: '정원 4명 · 3명 더 넣을 수 있습니다',
+  prep: [
+    { key: 'fixed', label: '일정 확정', done: true, detail: '26년 8월 21일 금요일 08:00-09:00' },
+    { key: 'teacher', label: '강사 배정', done: true, detail: 'Sophia' },
+  ],
+  prepDone: 2,
+  prepTotal: 2,
+  prepRemainLabel: '다 됐습니다',
       priced: false, unitPrice: null, total: null, canSeeAmounts: false,
       students: occurrence.students.map((s, i) => ({
         id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce,
@@ -166,5 +173,50 @@ describe('§79 명단 줄의 교재 · 안내 칩', () => {
     const v = render(<LessonDetail occ={occurrence} onClose={() => {}} />);
     expect(v.getByText('교재 2')).toBeTruthy();
     expect(v.getByText('안내 됨')).toBeTruthy();
+  });
+});
+
+/**
+ * §12 준비 줄은 **서버가 만든 것을 그대로 그린다** (C82-b).
+ *
+ * 전에는 이 화면이 `STEPS` 표를 들고 `doneOf()` 로 스스로 판정했고, 판정을 못 하는 세 줄은
+ * 「현황판에서 판정」이라 적고 있었다. 화면이 다시 판정하면 현황판과 갈린다 (D-R39).
+ */
+describe('§12 준비 줄 (C82-b)', () => {
+  beforeEach(() => { permissions.canEdit = true; tracking.data = undefined; tracking.isLoading = false; });
+
+  it('준비 줄·머리 숫자·부제를 서버가 준 대로 그린다 — 화면이 다시 세지 않는다', () => {
+    tracking.data = {
+      serId: occurrence.serId, onDate: occurrence.onDate, cap: 4, count: 1, canAdd: 3,
+      capLabel: '정원 4명 · 3명 더 넣을 수 있습니다',
+      prep: [
+        { key: 'directive', label: '대표 지시 할 일', done: true, detail: '1/1 끝남' },
+        { key: 'fixed', label: '일정 확정', done: true, detail: '26년 8월 21일 금요일 08:00-09:00' },
+        { key: 'book', label: '교재 배정', done: false, detail: '이담흔 없음' },
+        { key: 'zoomNoti', label: '줌 안내', done: false, detail: '학부모 없음 · 강사 대기' },
+      ],
+      // 일부러 줄 수(4)와 다른 값을 준다 — 화면이 몰래 세고 있으면 여기서 드러난다
+      prepDone: 6, prepTotal: 9, prepRemainLabel: '3가지 남았습니다',
+      priced: false, unitPrice: null, total: null, canSeeAmounts: false,
+      students: [],
+    };
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('준비 6 / 9');
+    expect(text).toContain('3가지 남았습니다');
+    expect(text).toContain('대표 지시 할 일');
+    expect(text).toContain('1/1 끝남');
+    expect(text).toContain('학부모 없음 · 강사 대기');
+    // 화면이 스스로 판정하던 자리의 흔적이 남아 있지 않다
+    expect(text).not.toContain('현황판에서 판정');
+  });
+
+  it('준비를 아직 못 받았으면 줄을 지어내지 않는다', () => {
+    tracking.data = undefined;
+    tracking.isLoading = true;
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('준비를 읽는 중입니다');
+    expect(text).not.toContain('일정 확정');
   });
 });

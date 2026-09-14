@@ -17,6 +17,13 @@ const { StudentTracking } = await import('./StudentTracking');
 const base: LessonTracking = {
   serId: 3, onDate: '2026-09-11', cap: 4, count: 3, canAdd: 1,
   capLabel: '정원 4명 · 1명 더 넣을 수 있습니다',
+  prep: [
+    { key: 'fixed', label: '일정 확정', done: true, detail: '26년 8월 21일 금요일 08:00-09:00' },
+    { key: 'teacher', label: '강사 배정', done: true, detail: 'Sophia' },
+  ],
+  prepDone: 2,
+  prepTotal: 2,
+  prepRemainLabel: '다 됐습니다',
   priced: true, unitPrice: 80000, total: 240000, canSeeAmounts: true,
   students: [{
     id: 18, name: '문채원', grade: '고3', droppedOnce: false,
