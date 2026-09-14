@@ -10,7 +10,7 @@
  */
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Home, Maximize, Minimize, Palette, ShieldCheck, Inbox } from 'lucide-react';
+import { ArrowLeft, Home, Maximize, Minimize, Palette, ShieldCheck, Workflow } from 'lucide-react';
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
@@ -19,16 +19,18 @@ import { api } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
 import { useDrawer, useUnwritten } from '@/api/queries';
 import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
+import { ApprovalFlowDialog } from '@/components/approval/ApprovalFlowDialog';
 
 /** 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다. */
 export type WorkspacePanelApi = { openDrawer: (pane: DrawerPane) => void };
+export type DrawerEntry = { pane: DrawerPane; identity: string };
 type PanelSlot = ReactNode | ((api: WorkspacePanelApi) => ReactNode);
 import { Banner, Button, Dialog, Logo, cn } from '@/components/ui';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
 import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
 import styles from './AppShell.module.css';
 
-export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool, onToday, flush = false }: {
+export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool, onToday, drawerEntry, flush = false }: {
   children: ReactNode;
   sidePanel?: PanelSlot;
   rightPanel?: PanelSlot;
@@ -36,6 +38,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   leftTool?: ReactNode;
   rightTool?: ReactNode;
   onToday?: () => void;
+  /** deep link가 기존 전역 서랍의 특정 칸으로 착지할 때만 사용한다. 조회 snapshot은 추가하지 않는다. */
+  drawerEntry?: DrawerEntry | null;
   flush?: boolean;
 }) {
   const path = usePathname();
@@ -50,6 +54,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   // 서랍은 **전역**이다 — 탭마다 따로 두면 탭을 옮길 때 닫힌다
   const [drawer, setDrawer] = useState(false);
   const [drawerPane, setDrawerPane] = useState<DrawerPane>('approvals');
+  const [approvalFlow, setApprovalFlow] = useState(false);
   const [permissions, setPermissions] = useState(false);
   /** §85·§86 — 원문에서 이것은 라우트가 아니라 머리의 「디자인」이 여는 창이다 (C60) */
   const [design, setDesign] = useState(false);
@@ -66,6 +71,12 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
     return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
 
+  useEffect(() => {
+    if (!isAdmin || !drawerEntry) return;
+    setDrawerPane(drawerEntry.pane);
+    setDrawer(true);
+  }, [drawerEntry?.identity, drawerEntry?.pane, isAdmin]);
+
   async function toggleFullScreen() {
     setScreenError(null);
     try {
@@ -76,7 +87,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
     }
   }
 
-  const approvalCount = drawerData?.approvals.inboxCount ?? 0;
+  const approvalCount = drawerData?.approvalFlow?.total ?? 0;
+  const canViewApprovalFlow = isAdmin && Boolean(drawerData?.approvalFlow?.canView);
   const badges: AdminNavBadges = {
     reports: unwritten?.total ?? 0,
     approvals: approvalCount,
@@ -109,9 +121,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           {fullScreen ? <Minimize size={14} aria-hidden /> : <Maximize size={14} aria-hidden />}
           <span className="hidden xl:inline">{fullScreen ? '전체 화면 종료' : '전체 화면'}</span>
         </button> : null}
-        {isAdmin ? <button type="button" onClick={() => { setDrawerPane('approvals'); setDrawer(true); }}
+        {canViewApprovalFlow ? <button type="button" onClick={() => setApprovalFlow(true)} aria-haspopup="dialog"
           className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white">
-          <Inbox size={14} aria-hidden />승인 대기 <span className="rounded bg-white/15 px-1.5">{approvalCount}</span>
+          <Workflow size={14} aria-hidden />결재 흐름 <span className="rounded bg-white/15 px-1.5">{approvalCount}</span>
         </button> : null}
         <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">
@@ -143,6 +155,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         {isAdmin && right ? <div className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
       </div>
       {isAdmin ? <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} /> : null}
+      {canViewApprovalFlow && drawerData?.approvalFlow ? (
+        <ApprovalFlowDialog open={approvalFlow} flow={drawerData.approvalFlow} onClose={() => setApprovalFlow(false)} />
+      ) : null}
       <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
       <Dialog open={isAdmin && permissions} onClose={() => setPermissions(false)} title="권한" width={800}
         footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>

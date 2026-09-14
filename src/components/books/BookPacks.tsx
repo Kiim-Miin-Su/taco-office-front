@@ -5,7 +5,7 @@
  */
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { apiMessage } from '@/api/client';
 import {
   useBooks,
@@ -21,7 +21,7 @@ import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { Banner, Button, Checkbox, Chip, Input, Label, Panel, QueryState, Select, Textarea } from '@/components/ui';
 import { downloadElementPng } from '@/lib/png-export';
 
-export function BookPacks() {
+export function BookPacks({ focusPackId = null }: { focusPackId?: number | null }) {
   const q = useBookPacks();
   const meta = useMeta();
   const books = useBooks();
@@ -78,13 +78,14 @@ export function BookPacks() {
                     </h3>
                     <div className="grid gap-3 lg:grid-cols-2">
                       {rows.map((pack) => (
-                        <BookPackCard
-                          key={pack.id}
-                          pack={pack}
-                          onDeliver={() => deliver.mutate(pack.id)}
-                          onReceive={() => receive.mutate(pack.id)}
-                          busy={deliver.isPending || receive.isPending}
-                        />
+                        <BookPackAnchor key={pack.id} packId={pack.id} focused={pack.id === focusPackId}>
+                          <BookPackCard
+                            pack={pack}
+                            onDeliver={() => deliver.mutate(pack.id)}
+                            onReceive={() => receive.mutate(pack.id)}
+                            busy={deliver.isPending || receive.isPending}
+                          />
+                        </BookPackAnchor>
                       ))}
                     </div>
                   </section>
@@ -124,6 +125,26 @@ export function BookPacks() {
           ))}
         </Panel>
       </aside>
+    </div>
+  );
+}
+
+function BookPackAnchor({ packId, focused, children }: { packId: number; focused: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focused || !ref.current) return;
+    ref.current.scrollIntoView?.({ block: 'center' });
+    ref.current.focus({ preventScroll: true });
+  }, [focused]);
+  return (
+    <div
+      ref={ref}
+      id={`book-pack-${packId}`}
+      tabIndex={-1}
+      data-focused={focused || undefined}
+      className={focused ? 'rounded-xl outline outline-2 outline-offset-2 outline-blue' : undefined}
+    >
+      {children}
     </div>
   );
 }

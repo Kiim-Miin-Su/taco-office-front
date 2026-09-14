@@ -12,8 +12,11 @@ import type { Exec, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import ExecPage from './page';
 
-const push = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push }) }));
+const nav = vi.hoisted(() => ({ push: vi.fn(), search: '' }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: nav.push }),
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 
 const me: Me = {
@@ -48,7 +51,7 @@ const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 afterEach(() => {
   cleanup(); clients.splice(0).forEach((c) => c.clear());
-  api.defaults.adapter = originalAdapter; useSession.getState().signOut(); push.mockClear();
+  api.defaults.adapter = originalAdapter; useSession.getState().signOut(); nav.push.mockClear(); nav.search = '';
 });
 
 function setup() {
@@ -56,7 +59,7 @@ function setup() {
   api.defaults.adapter = vi.fn(async (config) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
-  return render(<QueryClientProvider client={client}><ExecPage /></QueryClientProvider>);
+  return { ...render(<QueryClientProvider client={client}><ExecPage /></QueryClientProvider>), client };
 }
 
 it('머리의 살펴볼 것은 6영역 배지의 합이고, 정보성 영역은 ✓ 로 보인다 (§69 — 23 = 2+0+1+1+2+17)', async () => {
@@ -73,7 +76,7 @@ it('영역을 누르면 그 화면으로 간다 — 대표 보고 안에서 처�
   const view = setup();
   await waitFor(() => expect(view.getByRole('button', { name: /회계/ })).toBeTruthy());
   fireEvent.click(view.getByRole('button', { name: /회계/ }));
-  expect(push).toHaveBeenCalledWith('/accounting');
+  expect(nav.push).toHaveBeenCalledWith('/accounting');
 });
 
 it('결재함은 되돌아온 것을 먼저 보이고 사유를 그대로 적는다 (§75 순서)', async () => {
@@ -96,5 +99,17 @@ it('결재함 줄을 누르면 그 기간의 보고로 이동만 한다 (N-12)',
   await waitFor(() => expect(view.container.textContent).toContain('08-17 ~ 08-23'));
   // 주간 뷰로 옮겨 왔다 — 기간 내비가 보인다
   expect(view.getByRole('button', { name: '오늘' })).toBeTruthy();
-  expect(push).not.toHaveBeenCalled();
+  expect(nav.push).not.toHaveBeenCalled();
+});
+
+it('§75 report deep link의 view/date를 초기화하고 브라우저 URL 변경에도 동기화한다', async () => {
+  nav.search = 'view=week&date=2026-08-17&rpt=2';
+  const view = setup();
+  await waitFor(() => expect(view.container.textContent).toContain('08-17 ~ 08-23'));
+  expect(view.getByRole('button', { name: /주간/ }).getAttribute('aria-pressed')).toBe('true');
+
+  nav.search = 'view=month&date=2026-09-01&rpt=3';
+  view.rerender(<QueryClientProvider client={view.client}><ExecPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.container.textContent).toContain('2026년 9월'));
+  expect(view.getByRole('button', { name: /월간/ }).getAttribute('aria-pressed')).toBe('true');
 });

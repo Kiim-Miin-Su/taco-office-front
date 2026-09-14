@@ -4977,6 +4977,61 @@ export interface components {
             /** @description 아직 표가 없어 못 세는 갈래 (N-13 대기) */
             missingKinds: string[];
         };
+        ApprovalFlowTileDto: {
+            /** @enum {string} */
+            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            kindLabel: string;
+            /** @enum {string} */
+            to: "ceo" | "head";
+            /** @enum {string} */
+            toLabel: "대표에게" | "실장에게";
+            /** @description 현재 사용자에게 보이는 waiting 행 수 */
+            count: number;
+        };
+        ApprovalFlowItemDto: {
+            /** @enum {string} */
+            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            /** @description 원문 타일·행의 공통 종류 이름 */
+            kindLabel: string;
+            id: number;
+            title: string;
+            sub: string | null;
+            byId: number | null;
+            /** @description 올린 사람. RPT 제출자 FK가 없으면 `알 수 없음` */
+            byName: string;
+            /** @enum {string} */
+            to: "ceo" | "head";
+            /**
+             * @description 행의 '발신자 → 수신자'에 쓰는 조사 없는 이름
+             * @enum {string}
+             */
+            toName: "대표" | "실장";
+            /** @enum {string} */
+            toLabel: "대표에게" | "실장에게";
+            at: string;
+            /** @enum {string} */
+            state: "back" | "waiting" | "mine";
+            /** @description 반려 사유. PLAN은 append-only LOG.after.reason에서 복원 */
+            why: string | null;
+            /** @description 승인·반려 없이 원본 레코드로 이동할 deep link */
+            go: string;
+        };
+        ApprovalFlowDto: {
+            /** @description §75 트리거·데이터 표시 가능여부의 서버 판정 */
+            canView: boolean;
+            /** @description 원문 순서 exact 5종. 강사는 빈 배열 */
+            tiles: components["schemas"]["ApprovalFlowTileDto"][];
+            /** @description 돌아온 건 — 맨 위 */
+            back: components["schemas"]["ApprovalFlowItemDto"][];
+            /** @description 기다리는 건 */
+            waiting: components["schemas"]["ApprovalFlowItemDto"][];
+            /** @description 내가 올린 건 */
+            mine: components["schemas"]["ApprovalFlowItemDto"][];
+            /** @description 지금 대기 건수. waiting.length와 같음 */
+            total: number;
+            /** @description 돌아온 건수. back.length와 같음 */
+            backCount: number;
+        };
         DrawerTodoDto: {
             id: number;
             title: string;
@@ -5105,6 +5160,8 @@ export interface components {
         DrawerDto: {
             /** @description §14 승인 대기함 */
             approvals: components["schemas"]["ApFlowDto"];
+            /** @description §75 exact 5종 읽기·이동 전용 중앙 결재 흐름 */
+            approvalFlow: components["schemas"]["ApprovalFlowDto"];
             /** @description §15 할 일 */
             todos: components["schemas"]["DrawerTodoDto"][];
             /** @description §16 알림 — 기본은 최근 30일 (D-16: 조회 범위 제한이지 삭제가 아니다) */

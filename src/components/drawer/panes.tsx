@@ -19,6 +19,7 @@ import {
   type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
+import { approvalKindLabel, ApprovalRowContent } from '@/components/approval/ApprovalRowContent';
 import type {
   ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo, DrawerTodoCreate,
   KindRow, MemberGroup, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
@@ -31,9 +32,6 @@ import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-re
 
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
 
-const KIND_LABEL: Record<string, string> = {
-  rep: '리포트', rpt: '대표 보고', plan: '기획', req: '요청', chreq: '변경 요청', gpapack: '자료 요청',
-};
 const NOTI_TONE: Record<string, Tone> = { alarm: 'info', ok: 'success', warn: 'warning' };
 
 /**
@@ -71,27 +69,6 @@ const Section = ({ title, count, children }: { title: string; count?: number; ch
    그리는 것보다 「아직 저기서 합니다」가 정직하다.                        */
 
 export interface ApReview { id: number; kind: string; decision: 'approve' | 'reject'; reason?: string }
-
-function ApBody({ r }: { r: ApRow }) {
-  return (
-    <>
-      <div className="flex items-center gap-1.5">
-        <Chip tone={r.state === 'back' ? 'danger' : 'info'} styleKind="outline">
-          {r.categoryLabel ?? KIND_LABEL[r.kind] ?? r.kind}
-        </Chip>
-        <span className="truncate text-[12px] font-bold text-fg">{r.title}</span>
-        <span className="ml-auto shrink-0 text-[11px] text-fg-subtle">{r.at.slice(5, 10)}</span>
-      </div>
-      <p className="mt-1 text-[11px] text-fg-subtle">
-        {[r.byName, r.sub].filter(Boolean).join(' · ') || '—'}
-      </p>
-      {/* 반려는 사유가 반드시 있다 (D-R13) — 없으면 왜 되돌아왔는지 아무도 모른다 */}
-      {r.state === 'back' && r.why ? (
-        <p className="mt-1.5 rounded bg-red/5 px-2 py-1 text-[11px] text-red">{r.why}</p>
-      ) : null}
-    </>
-  );
-}
 
 /** 한 줄 처리 — 두 번 눌러야 나간다. 반려는 사유를 적어야 단추가 열린다 (D-R13). */
 function ApActions({ r, onReview, busy }: {
@@ -145,7 +122,7 @@ function ApList({ rows, onGo, onReview, busy }: {
         <li key={`${r.kind}-${r.id}`}>
           {r.canAct && onReview ? (
             <div className="rounded-lg border border-line bg-card p-2.5">
-              <ApBody r={r} />
+              <ApprovalRowContent row={r} />
               <ApActions r={r} onReview={onReview} busy={!!busy} />
             </div>
           ) : (
@@ -153,7 +130,7 @@ function ApList({ rows, onGo, onReview, busy }: {
               href={r.go} onClick={onGo}
               className="block rounded-lg border border-line bg-card p-2.5 transition-colors hover:border-blue hover:bg-blue/5"
             >
-              <ApBody r={r} />
+              <ApprovalRowContent row={r} />
             </Link>
           )}
         </li>
@@ -184,7 +161,7 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
       {flow.missingKinds.length > 0 ? (
         <Banner tone="warning" className="mb-4">
           아직 표가 없어 이 목록에 오지 않는 갈래가 있습니다 —{' '}
-          <b>{flow.missingKinds.map((k) => KIND_LABEL[k] ?? k).join(' · ')}</b>.
+          <b>{flow.missingKinds.map(approvalKindLabel).join(' · ')}</b>.
           없는 것이 아니라 못 세는 것입니다.
         </Banner>
       ) : null}

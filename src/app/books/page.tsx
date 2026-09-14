@@ -23,6 +23,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { WorkSummaryBar } from '@/components/shell/WorkSummaryBar';
 import { Button, TabCards } from '@/components/ui';
 import { useSession } from '@/store/useSession';
+import { positiveQueryId } from '@/lib/url-state';
 
 type BookTab = 'tracking' | 'shelf' | 'requests' | 'history';
 
@@ -39,6 +40,7 @@ export default function BooksPage() {
   const [issueCreateRequest, setIssueCreateRequest] = useState(0);
   const canGpaPack = useSession((state) => state.me?.canGpaPack === true);
   const queryTab = tabFromQuery(searchParams.get('tab'), canGpaPack);
+  const focusPackId = queryTab === 'requests' ? positiveQueryId(searchParams.get('pack')) : null;
   const [tab, setTab] = useState<BookTab>(queryTab);
   useEffect(() => setTab(queryTab), [queryTab]);
   const selectTab = (next: BookTab) => {
@@ -114,7 +116,7 @@ export default function BooksPage() {
         {tab === 'tracking' ? <BookTracking createRequest={issueCreateRequest} showCreateAction={false} /> : null}
         {tab === 'shelf' ? <BookShelf createRequest={bookCreateRequest} showCreateAction={false} /> : null}
         {tab === 'history' ? <BookHistory /> : null}
-        {tab === 'requests' && canGpaPack ? <BookPacks /> : null}
+        {tab === 'requests' && canGpaPack ? <BookPacks focusPackId={focusPackId} /> : null}
       </AppShell>
     </RequireAuth>
   );

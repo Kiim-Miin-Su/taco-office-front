@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
 }));
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock('@dnd-kit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@dnd-kit/core')>();
   return { ...actual, DndContext: (props: DndContextProps) => {
@@ -28,7 +30,9 @@ function DndProbe() {
   return null;
 }
 vi.mock('@/store/useSession', () => ({ useCan: () => true }));
-vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
+vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry }: {
+  children: ReactNode; drawerEntry?: { pane: string; identity: string } | null;
+}) => <div data-drawer-entry={drawerEntry ? `${drawerEntry.pane}:${drawerEntry.identity}` : undefined}>{children}</div> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/cal/SessionEditor', () => ({ SessionEditor: () => null }));
 vi.mock('@/components/cal/TeacherSchedule', () => ({ TeacherSchedule: () => null }));
@@ -64,10 +68,18 @@ const items: Occurrence[] = [1, 2].map((id) => ({
 }));
 
 beforeEach(() => {
+  nav.search = '';
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-01T00:00:00Z'));
   mocks.occurrences.mockReturnValue({ data: { items }, isLoading: false, isError: false });
   mocks.meta.mockReturnValue({ data: meta });
+});
+
+it('변경 요청 deep link는 기존 chreqs 서랍 진입을 식별한다', () => {
+  nav.search = 'changeRequest=52';
+  const view = render(<SchedulePage />);
+  expect(view.container.querySelector('[data-drawer-entry]')?.getAttribute('data-drawer-entry'))
+    .toBe('chreqs:change-request-52');
 });
 
 describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {

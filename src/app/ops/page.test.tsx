@@ -13,8 +13,16 @@ import type { Me, Ops } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
 
-vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
+vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry }: {
+  children: ReactNode; drawerEntry?: { pane: string; identity: string } | null;
+}) => <div data-drawer-entry={drawerEntry ? `${drawerEntry.pane}:${drawerEntry.identity}` : undefined}>{children}</div> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
+vi.mock('@/components/ops/PlanReport', () => ({
+  PlanReport: ({ planId }: { planId: number | null }) => planId ? <p>기획 보고서 {planId}</p> : null,
+}));
 
 const me: Me = {
   id: 4, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
@@ -29,7 +37,7 @@ const response: Ops = {
     impressions: 3000, inquiries: 12, enrolled: 2, cost: 246800, costPerEnroll: 123400 }],
 };
 const clients: QueryClient[] = [];
-function setup(viewer = me) {
+function setup(viewer = me, selectMarketing = true) {
   useSession.setState({ me: viewer, ready: true });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -37,7 +45,7 @@ function setup(viewer = me) {
   const view = render(<QueryClientProvider client={client}>
     <Profiler id="ops" onRender={commits}><OpsPage /></Profiler>
   </QueryClientProvider>);
-  fireEvent.click(view.getByRole('button', { name: /마케팅/ }));
+  if (selectMarketing) fireEvent.click(view.getByRole('button', { name: /마케팅/ }));
   return { ...view, client, commits };
 }
 function expectHidden(view: ReturnType<typeof setup>) {
@@ -51,6 +59,21 @@ afterEach(() => {
   clients.splice(0).forEach((client) => client.clear());
   useSession.setState({ me: null, ready: false });
   vi.restoreAllMocks();
+  nav.search = '';
+});
+
+it('§75 운영 deep link는 기획 상세 또는 §14 원 요청 서랍으로 복원한다', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+  nav.search = 'tab=plan&plan=31';
+  const plan = setup(me, false);
+  await waitFor(() => expect(plan.getByText('기획 보고서 31')).toBeTruthy());
+  expect(plan.getByRole('button', { name: /기획/ }).getAttribute('aria-pressed')).toBe('true');
+  cleanup();
+
+  nav.search = 'tab=todo&request=44';
+  const request = setup();
+  expect(request.container.querySelector('[data-drawer-entry]')?.getAttribute('data-drawer-entry'))
+    .toBe('approvals:request-44');
 });
 
 describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () => {

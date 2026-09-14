@@ -13,7 +13,8 @@
  * 여기서는 트래킹과 대표 피드백 둘을 그 자리에 두었습니다 — 회의 속기록은 「회의」 갈래입니다.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
@@ -24,6 +25,7 @@ import { PlanReport } from '@/components/ops/PlanReport';
 import { MeetingDetail } from '@/components/ops/MeetingDetail';
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue, Todo } from '@/api/types';
 import { won } from '@/lib/money';
+import { positiveQueryId, queryEnum } from '@/lib/url-state';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
@@ -49,18 +51,27 @@ const CPL_STAGE: Array<{ key: string; label: string; tone: 'danger' | 'warning' 
 ];
 
 export default function OpsPage() {
-  const [tab, setTab] = useState<Tab>('todo');
+  const searchParams = useSearchParams();
+  const queryTab = queryEnum(searchParams.get('tab'), ['todo', 'complaint', 'plan', 'meeting', 'mkt'] as const) ?? 'todo';
+  const queryPlanId = queryTab === 'plan' ? positiveQueryId(searchParams.get('plan')) : null;
+  const queryRequestId = queryTab === 'todo' ? positiveQueryId(searchParams.get('request')) : null;
+  const [tab, setTab] = useState<Tab>(queryTab);
   // 원문 §59·§60 의 속 갈래 — 「트래킹 / 대표 피드백」
   const [mktTab, setMktTab] = useState<'track' | 'fb'>('track');
   // 원문 §61·§62 의 속 갈래 — 「단계 보드 / 기한」
   const [planTab, setPlanTab] = useState<'board' | 'due'>('board');
-  const [planId, setPlanId] = useState<number | null>(null);
+  const [planId, setPlanId] = useState<number | null>(queryPlanId);
   const [meetingId, setMeetingId] = useState<number | null>(null);
   const viewerId = useSession((s) => s.me?.id ?? null);
   const q = useOps();
   const d = q.data;
   // 할 일 배정의 담당자 목록 — 창을 열 때만 필요하다
   const meta = useMeta(meetingId !== null);
+
+  useEffect(() => {
+    setTab(queryTab);
+    setPlanId(queryPlanId);
+  }, [queryPlanId, queryTab]);
 
   const todoCols: Array<Column<Todo>> = [
     { key: 'done', head: '', width: 40, align: 'center',
@@ -142,7 +153,7 @@ export default function OpsPage() {
 
   const openTodos = (d?.todos ?? []).filter((t) => !t.done);
   return (
-    <RequireAuth><AppShell>
+    <RequireAuth><AppShell drawerEntry={queryRequestId ? { pane: 'approvals', identity: `request-${queryRequestId}` } : null}>
       <PageHeader title="운영" sub="마케팅 · 기획 · 회의 · 할 일 · 컴플레인. 회의에서 배정된 할 일도 여기로 모입니다." />
 
       <div className="mb-4 grid grid-cols-4 gap-3">

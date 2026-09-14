@@ -7,7 +7,9 @@ import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ canGpaPack: true, search: '', replace: vi.fn(), packsEnabled: vi.fn() }));
+const state = vi.hoisted(() => ({
+  canGpaPack: true, search: '', replace: vi.fn(), packsEnabled: vi.fn(), packFocus: vi.fn(),
+}));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
@@ -30,7 +32,12 @@ vi.mock('@/store/useSession', () => ({
 }));
 vi.mock('@/components/books/BookTracking', () => ({ BookTracking: () => <p>트래킹 본문</p> }));
 vi.mock('@/components/books/BookShelf', () => ({ BookShelf: () => <p>서가 본문</p> }));
-vi.mock('@/components/books/BookPacks', () => ({ BookPacks: () => <p>자료 요청 본문</p> }));
+vi.mock('@/components/books/BookPacks', () => ({
+  BookPacks: ({ focusPackId }: { focusPackId?: number | null }) => {
+    state.packFocus(focusPackId);
+    return <p>자료 요청 본문</p>;
+  },
+}));
 vi.mock('@/components/books/BookVersions', () => ({ BookHistory: () => <p>이력 본문</p> }));
 
 import BooksPage from './page';
@@ -41,6 +48,7 @@ afterEach(() => {
   state.search = '';
   state.replace.mockReset();
   state.packsEnabled.mockReset();
+  state.packFocus.mockReset();
 });
 
 it('원본 순서의 네 탭과 서버 건수를 표시하고 화면을 전환한다', () => {
@@ -87,4 +95,10 @@ it('잘못된 URL tab은 안전하게 트래킹으로 되돌린다', () => {
   state.search = 'tab=unknown';
   const view = render(<BooksPage />);
   expect(view.getByText('트래킹 본문')).toBeTruthy();
+});
+
+it('자료 요청 deep link의 pack identity를 도메인 컴포넌트에 전달한다', () => {
+  state.search = 'tab=requests&pack=7';
+  render(<BooksPage />);
+  expect(state.packFocus).toHaveBeenLastCalledWith(7);
 });

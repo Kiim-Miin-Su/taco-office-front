@@ -17,6 +17,7 @@
  */
 'use client';
 import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useSensor, useSensors,
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
@@ -47,6 +48,7 @@ import {
 } from '@/lib/calendar';
 import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope } from '@/api/types';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
+import { positiveQueryId } from '@/lib/url-state';
 
 /* ── 상태 — 명시적 action + 순수 reducer (§6.1-3) ────────────────────── */
 
@@ -167,6 +169,8 @@ export default function SchedulePage() {
 }
 
 function AdminSchedulePage() {
+  const searchParams = useSearchParams();
+  const changeRequestId = positiveQueryId(searchParams.get('changeRequest'));
   const [s, go] = useReducer(reducer, {
     panes: [{ view: 'day', date: todayKst(), personId: null }], focused: 0, ratio: 0.5, open: null,
     selected: [], clipboard: null, cursor: null,
@@ -652,6 +656,7 @@ function AdminSchedulePage() {
   return (
     <RequireAuth>
       <AppShell
+        drawerEntry={changeRequestId ? { pane: 'chreqs', identity: `change-request-${changeRequestId}` } : null}
         leftTool={(
           <button type="button" onClick={toggleSidebar} aria-label={sidebarOpen ? '사이드바 접기' : '사이드바 펼치기'}
             className="flex h-[30px] items-center rounded-md border border-header-tool-line bg-header-tool px-2 text-line-2">

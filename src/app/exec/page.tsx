@@ -17,8 +17,8 @@
  * 금액 칸은 대표가 아니면 서버가 아예 빈 값으로 내려줍니다 (D-R39).
  */
 'use client';
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table } from '@/components/ui';
@@ -26,6 +26,7 @@ import { useExec } from '@/api/queries';
 import type { ExecInbox, ExecReport } from '@/api/types';
 import { won } from '@/lib/money';
 import { addDays, mondayOf, monthBounds, todayKst } from '@/lib/calendar';
+import { queryEnum, queryIsoDate } from '@/lib/url-state';
 
 /** 원문 §69~§73 의 네 뷰. 결재함은 기간이 없다 — 목록이다 */
 type View = 'day' | 'week' | 'month' | 'inbox';
@@ -56,8 +57,17 @@ const dayLabel = (iso: string): string => {
 
 export default function ExecPage() {
   const router = useRouter();
-  const [view, setView] = useState<View>('day');
-  const [anchor, setAnchor] = useState<string>(() => todayKst());
+  const searchParams = useSearchParams();
+  const queryView = queryEnum(searchParams.get('view'), ['day', 'week', 'month'] as const) ?? 'day';
+  const queryDate = queryIsoDate(searchParams.get('date')) ?? todayKst();
+  const [view, setView] = useState<View>(queryView);
+  const [anchor, setAnchor] = useState<string>(queryDate);
+
+  // §75 deep link와 브라우저 앞/뒤 이동은 같은 화면 상태를 복원한다. rpt는 서버 identity라 여기서 다시 찾지 않는다.
+  useEffect(() => {
+    setView(queryView);
+    setAnchor(queryDate);
+  }, [queryDate, queryView]);
 
   /** 뷰가 기간을 정한다 — 결재함은 목록이라 기간이 필요 없고, 서버 계산을 아끼려 그날로 둔다 */
   const range = useMemo(() => {

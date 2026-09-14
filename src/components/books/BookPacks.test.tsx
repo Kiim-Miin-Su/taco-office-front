@@ -41,7 +41,9 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function setup({ delivered = false, canReceive = false }: { delivered?: boolean; canReceive?: boolean } = {}) {
+function setup({ delivered = false, canReceive = false, focusPackId = null }: {
+  delivered?: boolean; canReceive?: boolean; focusPackId?: number | null;
+} = {}) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method !== 'get') {
@@ -110,10 +112,25 @@ function setup({ delivered = false, canReceive = false }: { delivered?: boolean;
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
     >
-      <BookPacks />
+      <BookPacks focusPackId={focusPackId} />
     </QueryClientProvider>,
   );
 }
+
+it('pack identity가 있으면 데이터 도착 뒤 해당 카드 anchor를 식별·포커스한다', async () => {
+  const scroll = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+  const view = setup({ focusPackId: 7 });
+  const anchor = await waitFor(() => {
+    const found = view.container.querySelector<HTMLElement>('#book-pack-7');
+    expect(found).toBeTruthy();
+    expect(document.activeElement).toBe(found);
+    return found!;
+  });
+  expect(anchor.dataset.focused).toBe('true');
+  expect(scroll).toHaveBeenCalledWith({ block: 'center' });
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+});
 
 it('다학생·다교재와 관리 권한 코디네이터만 BookPackWrite로 보낸다', async () => {
   const view = setup();

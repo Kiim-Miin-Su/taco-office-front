@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import type { Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
-import { AppShell } from './AppShell';
+import { AppShell, type DrawerEntry } from './AppShell';
 
 const mocks = vi.hoisted(() => ({ back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/board', useRouter: () => mocks }));
@@ -34,7 +34,7 @@ const me: Me = {
   canCrudAttendance: true, canGpaPack: true,
 };
 
-function shell(extra: { sidePanel?: ReactNode; rightPanel?: ReactNode; onToday?: () => void } = {}) {
+function shell(extra: { sidePanel?: ReactNode; rightPanel?: ReactNode; onToday?: () => void; drawerEntry?: DrawerEntry } = {}) {
   return render(<QueryClientProvider client={new QueryClient()}>
     <AppShell {...extra}><h1>수업 현황판</h1></AppShell>
   </QueryClientProvider>);
@@ -42,7 +42,20 @@ function shell(extra: { sidePanel?: ReactNode; rightPanel?: ReactNode; onToday?:
 
 beforeEach(() => {
   useSession.setState({ me, ready: true });
-  mocks.drawer.mockReturnValue({ data: { approvals: { count: 3, inboxCount: 3 }, notis: [{ read: false }] } });
+  mocks.drawer.mockReturnValue({ data: {
+    approvalFlow: {
+      canView: true,
+      tiles: [
+        { kind: 'rpt', kindLabel: '대표 보고', to: 'ceo', toLabel: '대표에게', count: 0 },
+        { kind: 'plan', kindLabel: '기획 결재', to: 'ceo', toLabel: '대표에게', count: 1 },
+        { kind: 'req', kindLabel: '강사 요청', to: 'head', toLabel: '실장에게', count: 2 },
+        { kind: 'chreq', kindLabel: '변경 요청', to: 'head', toLabel: '실장에게', count: 0 },
+        { kind: 'gpapack', kindLabel: '자료 요청', to: 'head', toLabel: '실장에게', count: 1 },
+      ],
+      back: [], waiting: [], mine: [], total: 4, backCount: 0,
+    },
+    approvals: { count: 3, inboxCount: 3 }, notis: [{ read: false }],
+  } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 } });
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
 });
@@ -76,7 +89,7 @@ describe('원본 관리자 공용 셸', () => {
     expect(view.queryByRole('link', { name: '오늘 전체' })).toBeNull();
     expect(view.queryByRole('button', { name: '전체 화면' })).toBeNull();
     expect(view.queryByRole('button', { name: '권한' })).toBeNull();
-    expect(view.queryByRole('button', { name: /승인 대기/ })).toBeNull();
+    expect(view.queryByRole('button', { name: /결재 흐름/ })).toBeNull();
     expect(view.queryByRole('dialog', { name: '서랍' })).toBeNull();
     expect(mocks.drawer).toHaveBeenLastCalledWith(false);
     expect(mocks.unwritten).toHaveBeenLastCalledWith(undefined, false);
@@ -98,23 +111,26 @@ describe('원본 관리자 공용 셸', () => {
     expect(mocks.back).toHaveBeenCalledOnce();
   });
 
-  it('승인 대기와 권한은 기존 상세 내용을 연다', () => {
+  it('상단 결재 흐름은 §75 읽기 모달을 열고 권한은 기존 상세 내용을 연다', () => {
     const view = shell();
-    fireEvent.click(view.getByRole('button', { name: '승인 대기 3' }));
-    expect(view.getByRole('dialog', { name: '서랍' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '결재 흐름 4' }));
+    expect(view.getByRole('dialog', { name: '결재 흐름' })).toBeTruthy();
+    expect(view.queryByRole('dialog', { name: '서랍' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '닫기' }));
     fireEvent.click(view.getByRole('button', { name: '권한' }));
     expect(view.getByRole('dialog', { name: '권한' })).toBeTruthy();
   });
 
-  it('알림을 보다가 닫아도 승인 대기 버튼은 반드시 승인 pane을 연다', () => {
+  it('§75 배지는 approvalFlow.total을 쓰고 §14 inboxCount와 섞지 않는다', () => {
     const view = shell();
-    fireEvent.click(view.getByRole('button', { name: '승인 대기 3' }));
-    fireEvent.click(view.getByRole('button', { name: '알림' }));
-    expect(view.getByText('notis')).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '닫기' }));
-    fireEvent.click(view.getByRole('button', { name: '승인 대기 3' }));
-    expect(view.getByText('approvals')).toBeTruthy();
-    expect(view.queryByText('notis')).toBeNull();
+    expect(view.getByRole('button', { name: '결재 흐름 4' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: /결재 흐름 3/ })).toBeNull();
+  });
+
+  it('deep link entry는 새 조회 없이 기존 §14 서랍의 지정 pane을 연다', () => {
+    const view = shell({ drawerEntry: { pane: 'chreqs', identity: 'change-request-52' } });
+    expect(within(view.getByRole('dialog', { name: '서랍' })).getByText('chreqs')).toBeTruthy();
+    expect(mocks.drawer.mock.calls.every(([enabled]) => enabled === true)).toBe(true);
   });
 
   it('전체 화면 진입과 외부 Esc 종료를 실제 fullscreen 상태에 맞춘다', async () => {
