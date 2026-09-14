@@ -191,3 +191,44 @@ it('결재 단추는 **올라온 보고**에만, 대표에게만 선다 (§73)',
   expect(mgr.queryByText('올라온 보고입니다 — 결재해 주세요')).toBeNull();
   expect(mgr.queryByRole('button', { name: '승인' })).toBeNull();
 });
+
+/**
+ * §71 월간 「어디서 놓쳤나」 — C86-b.
+ *
+ * 이 판은 **월간에만** 선다. 세울지 말지를 화면이 기간으로 다시 판정하지 않는다 —
+ * 서버가 `monthly` 를 null 로 주면 그것으로 끝이다 (D-R37 · D-R39 와 같은 이유로, 판정이
+ * 두 곳에 있으면 두 답이 생긴다).
+ */
+it('월간 판은 서버가 준 줄만 세우고 머리의 수와 줄들의 합이 같다 (§71 · N-19)', async () => {
+  const view = setupWrite({
+    monthly: {
+      leads: 15,
+      lost: 6,
+      lostRows: [
+        { key: 'before_book', label: '상담 예약 전 이탈', count: 1 },
+        { key: 'after_first', label: '1차 후 미진행', count: 2 },
+        { key: 'after_second', label: '2차 후 미등록', count: 2 },
+        { key: 'none', label: '분류 안 됨', count: 1 },
+      ],
+    },
+  });
+  await waitFor(() => expect(view.container.textContent).toContain('어디서 놓쳤나'));
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('이번 달 들어온 문의 15건 중 등록 실패 6건');
+  // 분류 안 된 실패도 제 줄로 선다 — 이 줄을 빼면 머리의 6 과 줄들의 합이 갈린다 (N-25)
+  for (const w of ['상담 예약 전 이탈', '1차 후 미진행', '2차 후 미등록', '분류 안 됨']) {
+    expect(text).toContain(w);
+  }
+});
+
+it('서버가 월간 판을 안 주면 화면은 기간으로 다시 판정하지 않는다 — 판이 아예 없다', async () => {
+  const view = setupWrite({ monthly: null });
+  await waitFor(() => expect(view.container.textContent).toContain('살펴볼 것'));
+  expect(view.queryByText('어디서 놓쳤나')).toBeNull();
+});
+
+it('놓친 건이 없으면 판은 서되 줄 대신 한 줄로 말한다 — 빈 표는 「빠뜨렸나」로 읽힌다', async () => {
+  const view = setupWrite({ monthly: { leads: 4, lost: 0, lostRows: [] } });
+  await waitFor(() => expect(view.container.textContent).toContain('어디서 놓쳤나'));
+  expect(view.container.textContent).toContain('이번 달 들어온 문의 중 놓친 건이 없습니다');
+});

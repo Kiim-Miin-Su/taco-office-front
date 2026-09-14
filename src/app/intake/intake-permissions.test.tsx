@@ -15,6 +15,7 @@ import { AdminTopNavigation } from '@/components/shell/AdminNavigation';
 import { RouteAccess } from '@/components/shell/RequireAuth';
 import { useSession } from '@/store/useSession';
 import IntakePage from './page';
+import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 
 const nav = vi.hoisted(() => ({ path: '/intake', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace, push: vi.fn() }) }));
@@ -35,7 +36,7 @@ const response: Ops = {
   leads: [{ id: 71, name: '접근 검수 학생', stage: 'first', createdAt: '2026-09-10', ageDays: 0 }],
   complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
-  intakeHead: { funnel: [], enrollRate: 0, owners: [], alerts: [] },
+  intakeHead: INTAKE_HEAD_FIXTURE,
 };
 const clients: QueryClient[] = [];
 

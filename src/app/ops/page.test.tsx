@@ -12,6 +12,7 @@ import { api } from '@/api/client';
 import type { Me, Ops } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
+import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 
 const nav = vi.hoisted(() => ({ search: '' }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
@@ -32,7 +33,7 @@ const me: Me = {
 const response: Ops = {
   leads: [], complaints: [], todos: [], plans: [], meetings: [], suggestions: [], canSeeAmounts: true,
   feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [],
-  intakeHead: { funnel: [], enrollRate: 0, owners: [], alerts: [] },
+  intakeHead: INTAKE_HEAD_FIXTURE,
   marketing: [{ id: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
     title: null, name: '검수 채널 · 광고', byId: null, byName: null,
     impressions: 3000, inquiries: 12, enrolled: 2, cost: 246800, costPerEnroll: 123400 }],

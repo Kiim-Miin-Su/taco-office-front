@@ -23,32 +23,22 @@ import { SearchField, type SearchFieldHandle } from '@/components/ui/SearchField
 import { SearchEmpty } from '@/components/ui/SearchEmpty';
 import { FAILURE_SEARCH_LABEL, filterLeadsByQuery } from '@/lib/intake-search';
 
-const STAGES: Array<{ key: string; label: string; tone: 'neutral' | 'info' | 'warning' | 'success' | 'danger' }> = [
-  { key: 'first', label: '1차 상담', tone: 'info' },
-  { key: 'wait2nd', label: '2차 대기', tone: 'warning' },
-  { key: 'second', label: '2차 상담', tone: 'info' },
-  { key: 'hold', label: '보류', tone: 'neutral' },
-  { key: 'enrolled', label: '등록', tone: 'success' },
-  // 컷 §23 의 여섯째 칸 이름이다 — 「실패」가 아니라 「등록 실패」
-  { key: 'failed', label: '등록 실패', tone: 'danger' },
-];
+/**
+ * 칸의 **색만** 화면이 정한다 — 이름도 순서도 서버의 `intakeHead.funnel` 이 쥔다 (D-R18 · D-R25).
+ * 여기 이름을 한 벌 더 두면 퍼널 띠와 보드가 **같은 화면에서 다른 낱말**을 쓰게 된다 (C86-b).
+ */
+const STAGE_TONE: Record<string, 'neutral' | 'info' | 'warning' | 'success' | 'danger'> = {
+  first: 'info', wait2nd: 'warning', second: 'info', hold: 'neutral', enrolled: 'success', failed: 'danger',
+};
 
 /**
- * 기존 저장 코드 4어휘. 원본 fail.from/at{} 대응은 N-25 채택(§4-17 · C35)으로 종결 —
- * from 은 lead.fail_from(전이 순간 서버 기록), at 은 stop_at. 레거시 건은 추정 이관 없이 미분류로 둔다.
+ * 중단 지점 4어휘의 **낱말과 순서는 서버가 준다**(`intakeHead.stops` · C86-b).
+ * 원본 fail.from/at{} 대응은 N-25 채택(§4-17 · C35)으로 종결 — from 은 lead.fail_from(전이 순간
+ * 서버 기록), at 은 stop_at 이고 레거시 건은 추정 이관 없이 미분류로 둔다.
  */
-const STOP: Record<string, string> = {
-  before_first: '1차 상담 전 이탈',
-  after_first: '1차 후 미진행',
-  before_book: '상담 예약 전 이탈',
-  after_second: '2차 후 미등록',
-};
-/** 실패 지정 select 순서 — 깔때기 순. 라벨은 STOP 한 곳만 쓴다. 키는 생성 계약의 4어휘 그대로다. */
 type StopKey = LeadFail['stopAt'];
 type ResumeKey = NonNullable<LeadResume['to']>;
-const STOP_ORDER: readonly StopKey[] = ['before_book', 'before_first', 'after_first', 'after_second'];
-const ACTIVE_STAGES = STAGES.filter((s) => s.key !== 'enrolled' && s.key !== 'failed');
-const stageLabel = (key: string | null | undefined) => STAGES.find((s) => s.key === key)?.label ?? key ?? '—';
+const UNCLASSIFIED = '분류 안 됨';
 /** 되살릴 단계 판정 근거 라벨 — 판정 자체는 서버 응답(revivalStage/Source)만 그린다 */
 const REVIVAL_SOURCE: Record<string, string> = {
   explicit: '실패 때 서버가 기록한 명시값',
@@ -86,10 +76,18 @@ export default function IntakePage() {
     fail.reset(); resume.reset();
   };
 
-  const columns: Array<BoardColumn<Lead>> = STAGES.map((s) => ({
-    key: s.key, label: s.label, tone: s.tone,
+  // 칸의 이름·순서는 서버의 퍼널 그대로다 — 화면은 색과 담을 것만 정한다 (D-R18 · D-R25)
+  const stages = head?.funnel ?? [];
+  const columns: Array<BoardColumn<Lead>> = stages.map((s) => ({
+    key: s.key, label: s.label, tone: STAGE_TONE[s.key] ?? 'neutral',
     items: leads.filter((l) => l.stage === s.key),
   }));
+  /** 되살릴 수 있는 단계 — 깔때기 안(결과 칸이 아닌 것)만이다. 그 판정도 서버가 준 값이다 */
+  const activeStages = stages.filter((s) => s.funnel);
+  const stageLabel = (key: string | null | undefined) =>
+    stages.find((s) => s.key === key)?.label ?? key ?? '—';
+  const stopLabel = (key: string | null | undefined) =>
+    (head?.stops ?? []).find((t) => t.key === key)?.label ?? UNCLASSIFIED;
 
   const failed = useMemo(() => leads.filter((l) => l.stage === 'failed'), [leads]);
   const matchingFailed = useMemo(() => filterLeadsByQuery(failed, failureQuery), [failed, failureQuery]);
@@ -102,7 +100,7 @@ export default function IntakePage() {
       g.set(k, [...(g.get(k) ?? []), l]);
     }
     return [...g.entries()]
-      .map(([k, v]) => ({ key: k, label: STOP[k] ?? '분류 안 됨', count: v.length, items: v }))
+      .map(([k, v]) => ({ key: k, label: stopLabel(k), count: v.length, items: v }))
       .sort((a, b) => b.count - a.count);
   }, [matchingFailed]);
 
@@ -202,7 +200,7 @@ export default function IntakePage() {
                 <div className="mt-0.5 text-[10.5px] text-fg-subtle">{l.school ?? '—'}</div>
                 <div className="mt-1.5 flex items-center justify-between">
                   <span className="text-[10px] text-fg-subtle">{l.ownerName ?? '미배정'}</span>
-                  {l.stopAt ? <Chip tone="danger">{STOP[l.stopAt] ?? l.stopAt}</Chip> : null}
+                  {l.stopAt ? <Chip tone="danger">{stopLabel(l.stopAt)}</Chip> : null}
                 </div>
               </button>
             )}
@@ -237,7 +235,7 @@ export default function IntakePage() {
           ) : selected.stage === 'failed' ? (
             <div className="flex flex-col gap-3">
               <p className="text-[12.5px] text-fg-2">
-                중단 지점 <b>{STOP[selected.stopAt ?? ''] ?? '분류 안 됨'}</b>
+                중단 지점 <b>{stopLabel(selected.stopAt)}</b>
                 {selected.reason ? <> · 사유 「{selected.reason}」</> : null}
               </p>
               {selected.revivalStage ? (
@@ -256,7 +254,7 @@ export default function IntakePage() {
                   <Select id="lead-resume-to" value={resumeTo}
                     onChange={(e) => { setResumeTo(e.target.value as ResumeKey | ''); setArmed(null); }}>
                     <option value="">{selected.revivalStage ? `판정값 — ${stageLabel(selected.revivalStage)}` : '단계 선택'}</option>
-                    {ACTIVE_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    {activeStages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </Select>
                 </div>
                 <Button
@@ -283,7 +281,7 @@ export default function IntakePage() {
                   <Select id="lead-stop-at" value={stopAt}
                     onChange={(e) => { setStopAt(e.target.value as StopKey | ''); setArmed(null); }}>
                     <option value="">지점 선택</option>
-                    {STOP_ORDER.map((k) => <option key={k} value={k}>{STOP[k]}</option>)}
+                    {(head?.stops ?? []).map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                   </Select>
                 </div>
                 <div className="min-w-60 grow">

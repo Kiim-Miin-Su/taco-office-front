@@ -3499,6 +3499,11 @@ export interface components {
             /** @description 누르면 가는 곳 — 결과는 그 화면에서 본다 (D-R27) */
             go: string;
         };
+        IntakeStopDto: {
+            /** @description before_book | before_first | after_first | after_second */
+            key: string;
+            label: string;
+        };
         IntakeHeadDto: {
             funnel: components["schemas"]["IntakeFunnelStepDto"][];
             /** @description 등록률 % — 등록 / 전체, 정수 반올림. 전체 0 이면 0 */
@@ -3506,6 +3511,8 @@ export interface components {
             /** @description 담당 칩 — 「전체」는 화면이 붙인다 */
             owners: components["schemas"]["IntakeOwnerDto"][];
             alerts: components["schemas"]["IntakeAlertDto"][];
+            /** @description §24 중단 지점 넷 — 낱말과 순서 (D-R18 · D-R25) */
+            stops: components["schemas"]["IntakeStopDto"][];
         };
         OpsDto: {
             leads: components["schemas"]["LeadDto"][];
@@ -5059,6 +5066,20 @@ export interface components {
             /** @description 이 줄이 가리키는 뷰 — day | week | month */
             go: string;
         };
+        ExecLostRowDto: {
+            /** @description before_book | before_first | after_first | after_second | none */
+            key: string;
+            label: string;
+            count: number;
+        };
+        ExecMonthlyDto: {
+            /** @description 이 달에 들어온 문의 수 — 「등록 실패 N건」의 모집단 */
+            leads: number;
+            /** @description 그중 지금 등록 실패인 건 수 — 아래 줄들의 합과 같다 (N-19) */
+            lost: number;
+            /** @description 중단 지점별 — 0 인 갈래는 서지 않는다 */
+            lostRows: components["schemas"]["ExecLostRowDto"][];
+        };
         ExecDto: {
             from: string;
             to: string;
@@ -5074,6 +5095,8 @@ export interface components {
             inbox: components["schemas"]["ExecInboxDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
+            /** @description §71 월간 전용 — 기간이 달력 한 달 전체가 아니면 null */
+            monthly?: components["schemas"]["ExecMonthlyDto"] | null;
             /** @description 저장하지 않는다 — 이 시각에 센 값이다 (D-R4) */
             computedAt: string;
         };

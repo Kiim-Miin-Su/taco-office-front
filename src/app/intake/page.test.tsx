@@ -13,6 +13,7 @@ import { opsQueryKey } from '@/api/queries';
 import type { Lead, Ops } from '@/api/types';
 import { FAILURE_SEARCH_LABEL } from '@/lib/intake-search';
 import IntakePage from './page';
+import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
@@ -29,7 +30,7 @@ const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', r
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
-  intakeHead: { funnel: [], enrollRate: 0, owners: [], alerts: [] },
+  intakeHead: INTAKE_HEAD_FIXTURE,
 };
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -134,6 +135,7 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
   }
 
   const full: Ops['intakeHead'] = {
+    ...INTAKE_HEAD_FIXTURE,
     funnel: [
       { key: 'first', label: '1차 상담', count: 4, funnel: true },
       { key: 'wait2nd', label: '2차 대기', count: 2, funnel: true },
@@ -175,6 +177,28 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
     expect(view.getByRole('button', { name: '미수 6명 ₩4,006,600' })).toBeTruthy();
     expect(view.getByRole('button', { name: '스케줄 미생성 9' })).toBeTruthy();
     expect(view.queryByRole('button', { name: /청구서 없음/ })).toBeNull();
+  });
+
+  /**
+   * C86-b — **낱말이 한 벌이어야 한다.**
+   *
+   * 퍼널 띠는 서버 낱말을 쓰는데 보드 칸이 제 표를 들고 있으면, 한쪽을 고쳤을 때 다른 쪽이
+   * 조용히 낡아 **같은 화면에서 두 낱말**이 된다 (N-19 의 교훈). 서버가 이름을 바꿔 보내면
+   * 두 자리가 함께 따라와야 한다.
+   */
+  it('보드 칸과 중단 지점 낱말도 서버가 준 것을 쓴다 — 화면에 제 표가 없다', async () => {
+    const renamed: Ops['intakeHead'] = {
+      ...full,
+      funnel: full.funnel.map((f) => ({ ...f, label: `${f.label}(서버)` })),
+      stops: [{ key: 'after_first', label: '1차 후 미진행(서버)' }],
+    };
+    const view = await head(renamed);
+    const text = view.container.textContent ?? '';
+    // 보드 칸 여섯이 서버 이름 그대로 선다
+    for (const f of renamed.funnel) expect(text).toContain(f.label);
+    // 실패 지정 select 의 갈래도 같은 자리에서 온다
+    fireEvent.click(view.getByRole('button', { name: /중단 지점/ }));
+    expect(view.container.textContent).toContain('1차 후 미진행(서버)');
   });
 
   it('경고가 모두 0 이면 줄 자체가 사라진다 — 늘 서 있는 경고는 아무도 읽지 않는다', async () => {

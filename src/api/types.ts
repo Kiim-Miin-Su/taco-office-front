@@ -117,6 +117,10 @@ export type MoneySummary = S['MoneySummaryDto'];
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];
 export type Lead = S['LeadDto'];
+/** §23 상담 머리 — 낱말·순서·수가 전부 서버에서 온다 (C86-a · C86-b) */
+export type IntakeHead = S['IntakeHeadDto'];
+export type IntakeFunnelStep = S['IntakeFunnelStepDto'];
+export type IntakeStop = S['IntakeStopDto'];
 /** §24 실패 전이/되살리기 입력 — 판정 코드(ALREADY_FAILED 등)는 서버가 낸다 (N-25 · C35) */
 export type LeadFail = S['LeadFailDto'];
 export type LeadResume = S['LeadResumeDto'];
@@ -274,6 +278,9 @@ export type ExecReport = S['ExecReportDto'];
 /** §69 6영역 · §73 결재함 — 이동만 (N-12 · C37) */
 export type ExecArea = S['ExecAreaDto'];
 export type ExecInbox = S['ExecInboxDto'];
+/** §71 월간 전용 — 기간이 달력 한 달 전체일 때만 내려온다 (C86-b) */
+export type ExecMonthly = S['ExecMonthlyDto'];
+export type ExecLostRow = S['ExecLostRowDto'];
 
 /** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
 export type RepState = Occurrence['repState'];

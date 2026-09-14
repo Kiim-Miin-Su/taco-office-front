@@ -299,6 +299,40 @@ export default function ExecPage() {
             </Panel>
 
             {/*
+              §71 월간 「어디서 놓쳤나」 — **월간에만** 선다(일간·주간 컷에는 없다).
+              세울지 말지도 서버가 정한다 — 기간이 달력 한 달 전체가 아니면 `monthly` 가 null 이다.
+
+              컷의 **「상담 퍼널」 판은 만들지 않았다.** 「2차까지 왔는가」를 셀 근거가 제품에 없다 —
+              흐름이 직선이라고 가정해 세면 컷의 수를 맞춘 **척**하게 된다 (D-R44 · N-45).
+            */}
+            {d?.monthly ? (
+              <Panel
+                className="mt-4"
+                title="어디서 놓쳤나"
+                sub={`이번 달 들어온 문의 ${d.monthly.leads}건 중 등록 실패 ${d.monthly.lost}건 — 실패한 날이 아니라 들어온 달로 묶습니다`}
+              >
+                {d.monthly.lostRows.length === 0 ? (
+                  <p className="px-1 py-2 text-[13px] text-fg-subtle">이번 달 들어온 문의 중 놓친 건이 없습니다</p>
+                ) : (
+                  <ul className="flex flex-col gap-1.5 p-1">
+                    {d.monthly.lostRows.map((r) => (
+                      <li key={r.key}
+                        className="flex items-center gap-3 rounded-lg border border-line bg-card px-3 py-2">
+                        <span className="text-[13px] font-bold text-fg">{r.label}</span>
+                        {/* 막대의 길이는 **이 달 실패 전체 대비**다 — 줄들의 합이 머리의 수와 같다 (N-19) */}
+                        <span aria-hidden className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-inset sm:w-40">
+                          <span className="block h-full rounded-full bg-red/60"
+                            style={{ width: `${Math.round((r.count / Math.max(d.monthly!.lost, 1)) * 100)}%` }} />
+                        </span>
+                        <b className="w-10 shrink-0 text-right text-[15px] text-red">{r.count}</b>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            ) : null}
+
+            {/*
               §69 「숫자만으로는 모를 것」 — 여섯 칸과 서명줄.
               칸 목록·순서·낱말은 **서버가 준 것**을 그대로 쓴다 (D-R18 · D-R25) — 화면이 표를 들면
               「담당 x/6 기재」의 x 와 실제 칸이 갈린다.
