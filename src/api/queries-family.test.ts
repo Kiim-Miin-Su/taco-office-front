@@ -47,6 +47,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   tuition: qk.tuition('2026-09'),
   // §57 의 날짜 눈금이 키에 든다 — 눈금을 바꾸면 다른 답이 온다 (C70 · N-40)
   otherIncome: qk.otherIncome('month'),
+  consultingDetail: qk.consultingDetail(7),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */

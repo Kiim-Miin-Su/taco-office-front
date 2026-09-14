@@ -12,6 +12,7 @@ import type { Consulting } from '@/api/types';
 import ConsultingPage from './page';
 
 const query = vi.hoisted(() => ({ data: undefined as unknown, isError: false, isLoading: false, error: null as unknown }));
+const create = vi.hoisted(() => ({ data: undefined as { id: number } | undefined, mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null as unknown }));
 const empty = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null };
 vi.mock('@/api/queries', () => ({
   useConsulting: () => query,
@@ -19,11 +20,23 @@ vi.mock('@/api/queries', () => ({
   useConsAccounting: () => ({ data: undefined, isError: false, isLoading: false, error: null }),
   useConsStudents: () => ({ data: undefined, isError: false, isLoading: false, error: null }),
   useToggleConsultingItem: () => empty,
+  useMeta: () => ({ data: { staff: [], students: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useCreateConsulting: () => create,
   useAddConsPayment: () => empty,
   useConsToInvoice: () => empty,
 }));
+vi.mock('@/store/useSession', () => ({ useCan: () => false }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
+vi.mock('@/components/consulting/ConsultingStartForm', () => ({
+  ConsultingStartForm: ({ onSubmit }: { onSubmit: (body: never) => void }) => <button type="button" onClick={() => onSubmit({} as never)}>테스트 시작 제출</button>,
+}));
+vi.mock('@/components/consulting/ConsultingContractWorkflow', () => ({
+  ConsultingContractWorkflow: ({ consId, summary }: { consId: number; summary?: Consulting }) => <div>
+    <span>워크플로 #{consId}</span>
+    {summary ? <><span>회차 기록 — {summary.studentNames.join(' · ')}</span><span>{summary.sessionsLog[0]?.onDate ?? '날짜 미정'}</span></> : null}
+  </div>,
+}));
 
 const item: Consulting = {
   id: 1, consType: 'future_type', stage: 'contract', contractStep: null, studentNames: ['테스트 학생'],
@@ -33,7 +46,21 @@ const item: Consulting = {
 };
 
 describe('§26 조회 계약 통합', () => {
-  beforeEach(() => { Object.assign(query, { data: { items: [item], canSeeAmounts: false }, isError: false, isLoading: false, error: null }); });
+  beforeEach(() => {
+    Object.assign(query, { data: { items: [item], canSeeAmounts: false }, isError: false, isLoading: false, error: null });
+    Object.assign(create, { data: undefined, mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null });
+  });
+
+  it('§29 생성 성공 응답 id로 즉시 §30 상세을 연다', () => {
+    create.mutate.mockImplementation((_body, options) => {
+      create.data = { id: 99 };
+      options.onSuccess({ id: 99 });
+    });
+    const view = render(<ConsultingPage />);
+    fireEvent.click(view.getByRole('button', { name: '+ 컨설팅 시작' }));
+    fireEvent.click(view.getByRole('button', { name: '테스트 시작 제출' }));
+    expect(view.getByText('워크플로 #99')).toBeTruthy();
+  });
 
   it('알 수 없는 종류와 날짜 미정을 손실 없이 표시한다', () => {
     const view = render(<ConsultingPage />);

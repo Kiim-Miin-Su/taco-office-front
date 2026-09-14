@@ -9,7 +9,7 @@
  * 겹침 경고(Overlay/Conflict Guard)와 반복 범위(Overlay/Recurrence Scope)가 이 위에 올라간다.
  */
 'use client';
-import { useEffect, useId, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 import { cn } from './cn';
 import { Button } from './Button';
 import type { Tone } from './Chip';
@@ -21,6 +21,69 @@ function useEscape(onClose?: () => void) {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
+}
+
+const DIALOG_FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function isTopDialog(panel: HTMLElement): boolean {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'));
+  return dialogs.at(-1) === panel;
+}
+
+/** 중첩 다이얼로그까지 한 번의 Escape·Tab·focus return 규칙으로 처리한다. */
+export function useDialogA11y(open: boolean, panelRef: RefObject<HTMLElement | null>, onClose: () => void) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const returnTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusables = () => Array.from(panel.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE));
+    (panel.querySelector<HTMLElement>('[data-dialog-autofocus]') ?? focusables()[0] ?? panel).focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isTopDialog(panel)) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const targets = focusables();
+      if (targets.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = targets[0];
+      const last = targets[targets.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (returnTarget?.isConnected) returnTarget.focus();
+    };
+  }, [open, panelRef]);
 }
 
 /** 오른쪽 서랍 — 탭 02 전체와 수업 상세(§12)가 쓴다 */
@@ -57,13 +120,14 @@ export function Drawer({ open, onClose, title, sub, width = 520, children, foote
 export function Dialog({ open, onClose, title, children, footer, width = 460 }: {
   open: boolean; onClose: () => void; title?: ReactNode; children?: ReactNode; footer?: ReactNode; width?: number;
 }) {
-  useEscape(open ? onClose : undefined);
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(open, panelRef, onClose);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-6">
       <div className="absolute inset-0 bg-fg/30" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined}
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} tabIndex={-1}
         style={{ width: '100%', maxWidth: width }}
         className="relative rounded-2xl border border-line bg-card p-5 shadow-xl">
         {title ? <h2 id={titleId} className="text-[15px] font-bold text-fg">{title}</h2> : null}

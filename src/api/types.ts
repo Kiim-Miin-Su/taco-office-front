@@ -159,6 +159,14 @@ export type RosterOp = RosterPatch['op'];
 export type ConsultingList = S['ConsultingListDto'];
 export type Consulting = S['ConsultingDto'];
 export type ConsItem = S['ConsItemDto'];
+/** §29·§30 컨설팅 시작·계약 워크플로 — 요청/응답은 생성 OpenAPI만 별칭으로 소비한다. */
+export type ConsultingCreate = S['ConsultingCreateDto'];
+export type ConsultingDetail = S['ConsultingDetailDto'];
+export type ConsultingShareUpdate = S['ConsultingShareUpdateDto'];
+export type ConsultingFileCreate = S['ConsultingFileCreateDto'];
+export type ConsultingFile = S['ConsultingFileDto'];
+export type ConsultingFeedbackCreate = S['ConsultingFeedbackCreateDto'];
+export type ConsultingFeedback = S['ConsultingFeedbackDto'];
 
 /* §28 컨설팅 회계 (C58) — 「남음」과 머리 세 칸은 서버가 만든 숫자다. 화면은 그리기만 한다 (D-R37) */
 export type ConsAccounting = S['ConsAccountingDto'];

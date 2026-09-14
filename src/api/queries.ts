@@ -41,6 +41,13 @@ import type {
   ConsPaymentCreate,
   ConsStudents,
   ConsultingList,
+  ConsultingCreate,
+  ConsultingDetail,
+  ConsultingShareUpdate,
+  ConsultingFileCreate,
+  ConsultingFile,
+  ConsultingFeedbackCreate,
+  ConsultingFeedback,
   InvBoard,
   OtherIncome,
   Tuition,
@@ -155,6 +162,8 @@ export const qk = {
   invBoard: ['accounting', 'board'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
+  /** §30 계약 5단계 상세 — 건별 서버 projection. */
+  consultingDetail: (id: number) => ['consulting', 'detail', id] as const,
   /** §28 회계 — 같은 탭의 다른 질의다. 갈래 앞자락은 `family.consulting` (C58) */
   consAccounting: ['consulting', 'accounting'] as const,
   /** §27 학생별 — CONS 를 학생 기준으로 재구성한 같은 갈래의 다른 질의 (C59) */
@@ -492,6 +501,65 @@ export function useConsulting(): UseQueryResult<ConsultingList> {
     queryKey: sessionQueryKey(qk.consulting, viewerId),
     queryFn: async () => (await api.get<ConsultingList>('/consulting')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/** §30 계약 상세 — 열린 건만 요청하고 단계·capability를 서버 응답 그대로 쓴다. */
+export function useConsultingDetail(id: number | null): UseQueryResult<ConsultingDetail> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.consultingDetail(id ?? 0), viewerId),
+    queryFn: async () => (await api.get<ConsultingDetail>(`/consulting/${id}`)).data,
+    enabled: id !== null,
+  });
+}
+
+export function useCreateConsulting(): UseMutationResult<ConsultingDetail, unknown, ConsultingCreate> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<ConsultingDetail>('/consulting', body)).data,
+    onSuccess: (detail) => qc.setQueryData(sessionQueryKey(qk.consultingDetail(detail.id), viewerId), detail),
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
+  });
+}
+
+/** §30 공개범위만 가역 낙관 갱신한다. 실패 rollback, 성공 응답 교체, 마지막 재조회가 한 묶음이다. */
+export function useUpdateConsultingShare(): UseMutationResult<
+  ConsultingDetail,
+  unknown,
+  { consId: number } & ConsultingShareUpdate
+> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async ({ consId, ...body }) =>
+      (await api.patch<ConsultingDetail>(`/consulting/${consId}/share`, body)).data,
+    onMutate: async ({ consId, ...body }) => {
+      const detailKey = sessionQueryKey(qk.consultingDetail(consId), viewerId);
+      const listKey = sessionQueryKey(qk.consulting, viewerId);
+      await Promise.all([
+        qc.cancelQueries({ queryKey: detailKey }),
+        qc.cancelQueries({ queryKey: listKey }),
+      ]);
+      const detail = qc.getQueryData<ConsultingDetail>(detailKey);
+      const list = qc.getQueryData<ConsultingList>(listKey);
+      if (detail) qc.setQueryData<ConsultingDetail>(detailKey, { ...detail, share: body.share, pickedStaffIds: body.pickedStaffIds ?? [] });
+      if (list) qc.setQueryData<ConsultingList>(listKey, {
+        ...list,
+        items: list.items.map((item) => item.id === consId ? { ...item, share: body.share } : item),
+      });
+      return { detailKey, listKey, detail, list };
+    },
+    onError: (_error, _body, context) => {
+      if (context?.detail) qc.setQueryData(context.detailKey, context.detail);
+      if (context?.list) qc.setQueryData(context.listKey, context.list);
+    },
+    onSuccess: (detail, _body, context) => {
+      const key = context?.detailKey ?? sessionQueryKey(qk.consultingDetail(detail.id), viewerId);
+      qc.setQueryData(key, detail);
+    },
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
   });
 }
 
@@ -1287,6 +1355,65 @@ function useConsultingFamilyInvalidate(): () => void {
   return () => {
     void qc.invalidateQueries({ queryKey: family.consulting });
   };
+}
+
+export function useAddConsultingContractFile(): UseMutationResult<ConsultingFile, unknown, { consId: number } & ConsultingFileCreate> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, ...body }) => (await api.post<ConsultingFile>(`/consulting/${consId}/contract-files`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useRemoveConsultingContractFile(): UseMutationResult<void, unknown, { consId: number; fileId: number }> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, fileId }) => { await api.delete(`/consulting/${consId}/contract-files/${fileId}`); },
+    onSettled: invalidate,
+  });
+}
+
+export function useAddConsultingFeedback(): UseMutationResult<ConsultingFeedback, unknown, { consId: number } & ConsultingFeedbackCreate> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, ...body }) => (await api.post<ConsultingFeedback>(`/consulting/${consId}/feedback`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useResolveConsultingFeedback(): UseMutationResult<ConsultingFeedback, unknown, { consId: number; feedbackId: number }> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, feedbackId }) =>
+      (await api.post<ConsultingFeedback>(`/consulting/${consId}/feedback/${feedbackId}/resolve`, {})).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useDeliverConsultingContract(): UseMutationResult<ConsultingDetail, unknown, number> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (consId) => (await api.post<ConsultingDetail>(`/consulting/${consId}/deliver`, {})).data,
+    onSuccess: (detail) => qc.setQueryData(sessionQueryKey(qk.consultingDetail(detail.id), viewerId), detail),
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
+  });
+}
+
+export function useAddConsultingSignedFile(): UseMutationResult<ConsultingFile, unknown, { consId: number } & ConsultingFileCreate> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, ...body }) => (await api.post<ConsultingFile>(`/consulting/${consId}/signed-files`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useArchiveConsulting(): UseMutationResult<void, unknown, number> {
+  const invalidate = useConsultingFamilyInvalidate();
+  return useMutation({
+    mutationFn: async (consId) => { await api.delete(`/consulting/${consId}`); },
+    onSettled: invalidate,
+  });
 }
 
 /** 납부 넣기 — §28 동작 ①. 돌려받은 줄 하나로 화면을 고쳐 그린다. */

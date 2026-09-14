@@ -107,6 +107,15 @@ it('종료된 건은 납부 단추가 잠긴다', () => {
   expect(v.getAllByRole('button', { name: '납부 넣기' })[0].hasAttribute('disabled')).toBe(true);
 });
 
+it('서버가 남은 금액을 0원으로 내려주면 진행 중이어도 추가 납부를 잠근다', () => {
+  const d = clone();
+  d.items[0] = { ...d.items[0], paid: 900000, due: 0, stage: 'running', stageLabel: '진행' };
+  const v = render(<ConsultingAccounting data={d} />);
+  const button = v.getAllByRole('button', { name: '납부 넣기' })[0];
+  expect(button.hasAttribute('disabled')).toBe(true);
+  expect(button.getAttribute('title')).toBe('남은 금액이 없어 납부가 잠겨 있습니다');
+});
+
 it('「청구서로 전환」은 서버의 canInvoice 를 따른다 — 화면이 단계를 다시 읽지 않는다 (D-R39)', () => {
   const v = render(<ConsultingAccounting data={clone()} />);
   fireEvent.click(v.getAllByRole('button', { name: '열기' })[0]);

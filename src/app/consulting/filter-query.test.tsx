@@ -12,7 +12,10 @@ import { api } from '@/api/client';
 import type { Consulting } from '@/api/types';
 import ConsultingPage from './page';
 
-vi.mock('@/store/useSession', () => ({ useSession: (select: (state: { me: { id: number } }) => unknown) => select({ me: { id: 17 } }) }));
+vi.mock('@/store/useSession', () => ({
+  useSession: (select: (state: { me: { id: number; canMoney: boolean } }) => unknown) => select({ me: { id: 17, canMoney: false } }),
+  useCan: () => false,
+}));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -32,13 +35,14 @@ describe('실제 useConsulting 연결', () => {
         await act(async () => { fireEvent.click(view.getByRole('button', { name })); });
         expect(view.getByRole('button', { name, pressed: true })).toBeTruthy();
       }
-      // 화면이 부르는 GET 은 화면 수만큼이다 — §26 목록 하나, §28 회계 하나 (C58).
+      // 회계 capability가 없으므로 §26 목록만 부른다. 비활성 탭은 요청을 만들지 않는다.
       // 지켜야 할 것은 **필터를 눌러도 그 수가 안 는다**는 것이다.
       const urls = get.mock.calls.map(([u]) => u).sort();
-      expect(urls).toEqual(['/consulting', '/consulting/accounting']);
+      expect(urls).toEqual(['/consulting']);
       // §27 학생별은 그 탭을 열기 전에는 **부르지 않는다** — 캐시에 자리만 있고 GET 은 0 이다
       expect(urls).not.toContain('/consulting/students');
-      expect(client.getQueryCache().getAll()).toHaveLength(3);
+      // 목록 + 비활성 회계/학생/meta observer 네 개이며 실제 GET은 위 목록 하나뿐이다.
+      expect(client.getQueryCache().getAll()).toHaveLength(4);
       expect(view.getByRole('button', { name: '필터 학생 컨설팅 상세' })).toBeTruthy();
     } finally { view.unmount(); client.clear(); get.mockRestore(); }
   });

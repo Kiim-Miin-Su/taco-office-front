@@ -98,8 +98,10 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
         <div className="flex justify-end gap-1.5">
           <Button
             size="sm" variant="primary"
-            disabled={r.amount === null || r.amount === undefined || r.stage === 'done'}
-            title={r.stage === 'done' ? '종료된 컨설팅 — 납부가 잠겨 있습니다' : undefined}
+            disabled={r.amount == null || r.due == null || r.due <= 0 || r.stage === 'done'}
+            title={r.stage === 'done'
+              ? '종료된 컨설팅 — 납부가 잠겨 있습니다'
+              : r.due != null && r.due <= 0 ? '남은 금액이 없어 납부가 잠겨 있습니다' : undefined}
             onClick={(e) => { e.stopPropagation(); setPayFor(r); }}
           >
             납부 넣기

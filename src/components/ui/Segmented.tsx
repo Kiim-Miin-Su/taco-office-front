@@ -12,16 +12,17 @@ export interface SegmentedProps<T extends string> {
   value: T;
   onChange: (v: T) => void;
   className?: string;
+  disabled?: boolean;
 }
 
-export function Segmented<T extends string>({ options, value, onChange, className }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, className, disabled = false }: SegmentedProps<T>) {
   return (
-    <div className={cn('inline-flex rounded-lg bg-inset p-0.5', className)}>
+    <div role="group" className={cn('inline-flex rounded-lg bg-inset p-0.5', className)}>
       {options.map((o) => (
         <button
-          key={o.value} type="button" onClick={() => onChange(o.value)}
+          key={o.value} type="button" aria-pressed={o.value === value} disabled={disabled} onClick={() => onChange(o.value)}
           className={cn(
-            'rounded-md px-3 py-1.5 text-[12px] font-bold transition-colors',
+            'rounded-md px-3 py-1.5 text-[12px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
             o.value === value ? 'bg-card text-fg shadow-sm' : 'text-fg-subtle hover:text-fg-2',
           )}
         >
@@ -32,14 +33,14 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
   );
 }
 
-export function Tabs<T extends string>({ options, value, onChange, className }: SegmentedProps<T>) {
+export function Tabs<T extends string>({ options, value, onChange, className, disabled = false }: SegmentedProps<T>) {
   return (
     <div className={cn('flex gap-1 border-b border-line', className)}>
       {options.map((o) => (
         <button
-          key={o.value} type="button" onClick={() => onChange(o.value)}
+          key={o.value} type="button" aria-pressed={o.value === value} disabled={disabled} onClick={() => onChange(o.value)}
           className={cn(
-            '-mb-px border-b-2 px-3 py-2 text-[12px] font-bold transition-colors',
+            '-mb-px border-b-2 px-3 py-2 text-[12px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
             o.value === value ? 'border-primary text-primary' : 'border-transparent text-fg-subtle hover:text-fg-2',
           )}
         >
