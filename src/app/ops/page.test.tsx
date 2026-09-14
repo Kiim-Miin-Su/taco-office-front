@@ -217,3 +217,27 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
     expect(text).toContain('1일 지남');
   });
 });
+
+/**
+ * §63 회의 목록의 참석 — C86-f.
+ * 같은 줄의 종류·속기록이 이미 칩인데 참석만 맨 글씨였다. 원본은 칩이다.
+ */
+it('참석은 칩으로 서고 모자라면 경고색이다 (§63)', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({
+    data: {
+      ...response,
+      meetings: [
+        { id: 1, mtType: 'mt-pl', mtTypeLabel: '기획 회의', title: '주간 기획', onDate: '2026-08-20',
+          attendees: 4, confirmed: 2, minutes: false, byName: null },
+        { id: 2, mtType: 'mt-cs', mtTypeLabel: '컨설팅 회의', title: '컨설팅 점검', onDate: '2026-08-21',
+          attendees: 3, confirmed: 3, minutes: true, byName: '김범준' },
+      ],
+    },
+  });
+  const view = setup(me, false);
+  fireEvent.click(view.getByRole('button', { name: /회의/ }));
+  await waitFor(() => expect(view.container.textContent).toContain('주간 기획'));
+  // 수는 서버가 준 값 그대로다 — 화면이 참석을 다시 세지 않는다
+  expect(view.container.textContent).toContain('2/4');
+  expect(view.container.textContent).toContain('3/3');
+});

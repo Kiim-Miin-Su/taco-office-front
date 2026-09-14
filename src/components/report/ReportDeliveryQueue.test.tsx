@@ -127,4 +127,16 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     fireEvent.click(view.getByRole('button', { name: /전문 보기/ }));
     expect(onOpenReport).toHaveBeenCalledWith(shared, 22);
   });
+
+  /**
+   * 원본 §49 는 줄마다 **누가 쓴 리포트인지**를 적는다 — C86-f.
+   * 한 학생에게 여러 강사의 리포트가 함께 나가는 자리라, 이름이 없으면
+   * 「누가 쓴 것을 보내는지」를 모른다. 서버는 **처음부터 싣고 있었고 화면만 안 그렸다.**
+   */
+  it('보낼 리포트 줄에 강사 이름이 선다 (§49)', () => {
+    const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} />);
+    expect(view.container.textContent).toContain('AP Chemistry');
+    expect(view.container.textContent).toContain('강사 강사');
+  });
+
 });

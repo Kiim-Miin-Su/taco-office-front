@@ -93,7 +93,12 @@ export default function OpsPage() {
     { key: 't', head: '제목', cell: (r) => <span className="font-bold">{r.title ?? '—'}</span> },
     { key: 'd', head: '일시', width: 110, cell: (r) => r.onDate ?? '—' },
     { key: 'a', head: '참석', width: 100,
-      cell: (r) => <span className={r.confirmed < r.attendees ? 'text-amber' : 'text-green'}>{r.confirmed}/{r.attendees}</span> },
+      // 원본 §63 은 참석을 **칩**으로 적는다 — 같은 줄의 종류·속기록이 이미 칩이라 여기만 맨 글씨였다
+      cell: (r) => (
+        <Chip size="compact" tone={r.confirmed < r.attendees ? 'warning' : 'success'}>
+          {r.confirmed}/{r.attendees}
+        </Chip>
+      ) },
     { key: 'm', head: '속기록', width: 100,
       cell: (r) => r.hasMinutes ? <Chip tone="success">작성 완료</Chip> : <Chip tone="danger">미작성</Chip> },
     { key: 'x', head: '', width: 70,

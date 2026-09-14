@@ -134,7 +134,15 @@ export function ReportDeliveryQueue({ onOpenReport }: {
                     className="flex items-center justify-between rounded-lg border border-line bg-inset px-3 py-2 text-left text-[12px] hover:border-blue"
                     onClick={() => onOpenReport(report, group.student.id)}
                   >
-                    <span><b>{report.subjectName}</b> · {reportTimeLabel(report)}</span>
+                    {/*
+                      원본 §49 는 줄마다 **누가 쓴 리포트인지**를 적는다 — 한 학생에게 여러 강사의
+                      리포트가 함께 나가는 자리라, 이름이 없으면 「누가 쓴 것을 보내는지」를 모른다.
+                      서버는 처음부터 `teacherName` 을 싣고 있었고 화면만 안 그렸다 (C86-f).
+                    */}
+                    <span>
+                      <b>{report.subjectName}</b> · {reportTimeLabel(report)}
+                      {report.teacherName ? <span className="text-fg-subtle"> · {report.teacherName} 강사</span> : null}
+                    </span>
                     <span className="text-fg-subtle">전문 보기 ›</span>
                   </button>
                 ))}
