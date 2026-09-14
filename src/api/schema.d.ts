@@ -3318,6 +3318,10 @@ export interface components {
             result?: string | null;
             createdAt: string;
             ageDays: number;
+            /** @description 갈래 이름 — 화면이 제 표를 들면 §67 칩과 §69 줄이 갈린다 (D-R18) */
+            areaLabel: string;
+            /** @description 담당 — 원본 §67 카드 바닥. 없으면 null («담당 없음») */
+            ownerName?: string | null;
         };
         TodoDto: {
             id: number;
@@ -3356,6 +3360,15 @@ export interface components {
             key: string;
             /** @description 사람이 읽는 이름 */
             label: string;
+            /** @description 칸 이름 아래 한 줄 — **다음에 무엇을 하는지** (원본 §61) */
+            sub: string;
+        };
+        CplStageDto: {
+            /** @description received | acting | closed — **저장되는 말이다** */
+            key: string;
+            label: string;
+            /** @description 칸 이름 아래 한 줄 (원본 §67) */
+            sub: string;
         };
         PlanDueRowDto: {
             /** @description 한 표 안에서 겹치지 않는 키 — `plan:3` · `task:11` */
@@ -3479,6 +3492,8 @@ export interface components {
             label: string;
             /** @description 그 단계의 건수 — 서버가 센다 (D-R37) */
             count: number;
+            /** @description 보드 칸 아래 한 줄 — **다음에 무엇을 하는지** (원본 §23) */
+            sub: string;
             /** @description 등록 전 깔때기인가 — false 면 결과 칸(등록 · 등록 실패)이다 */
             funnel: boolean;
         };
@@ -3521,6 +3536,8 @@ export interface components {
             plans: components["schemas"]["PlanDto"][];
             /** @description §61 칸 다섯의 이름 — 빈 칸도 이름을 갖는다 (D-R18) */
             planStages: components["schemas"]["PlanStageDto"][];
+            /** @description §67 칸 셋의 이름과 한 줄 (D-R18 · D-R25) */
+            cplStages: components["schemas"]["CplStageDto"][];
             /** @description §62 기획 기한 — 기획 마감과 과제 기한을 날짜 순으로 섞은 표 */
             planDues: components["schemas"]["PlanDueRowDto"][];
             /** @description 기한 지난 것 — 서버가 센다 (D-R37) */

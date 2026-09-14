@@ -29,7 +29,7 @@ const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', r
   { ...lead, id: 4, name: '진행중학생', stage: 'first' }];
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
-  feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [],
+  feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [], cplStages: [],
   intakeHead: INTAKE_HEAD_FIXTURE,
 };
 
@@ -137,12 +137,12 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
   const full: Ops['intakeHead'] = {
     ...INTAKE_HEAD_FIXTURE,
     funnel: [
-      { key: 'first', label: '1차 상담', count: 4, funnel: true },
-      { key: 'wait2nd', label: '2차 대기', count: 2, funnel: true },
-      { key: 'second', label: '2차 상담', count: 1, funnel: true },
-      { key: 'hold', label: '보류', count: 2, funnel: true },
-      { key: 'enrolled', label: '등록', count: 3, funnel: false },
-      { key: 'failed', label: '등록 실패', count: 6, funnel: false },
+      { key: 'first', sub: '2차 일정 + 진단고사 잡기', label: '1차 상담', count: 4, funnel: true },
+      { key: 'wait2nd', sub: '예정일에 2차 상담 진행', label: '2차 대기', count: 2, funnel: true },
+      { key: 'second', sub: '보류 · 등록 · 등록 실패 중 선택', label: '2차 상담', count: 1, funnel: true },
+      { key: 'hold', sub: 'D+2에 수락 여부 확인', label: '보류', count: 2, funnel: true },
+      { key: 'enrolled', sub: '해피콜 → 월간 상담', label: '등록', count: 3, funnel: false },
+      { key: 'failed', sub: '사유 기록', label: '등록 실패', count: 6, funnel: false },
     ],
     enrollRate: 33,
     owners: [{ id: 3, name: '김범준', count: 12 }, { id: null, name: '담당 없음', count: 6 }],
@@ -199,6 +199,15 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
     // 실패 지정 select 의 갈래도 같은 자리에서 온다
     fireEvent.click(view.getByRole('button', { name: /중단 지점/ }));
     expect(view.container.textContent).toContain('1차 후 미진행(서버)');
+  });
+
+  /**
+   * 원본 §23 의 칸에는 **번호가 없다** — §26·§61·§67 과 다르다. 설명 줄만 있다 (C86-d).
+   */
+  it('보드 칸마다 **다음에 무엇을 하는지** 한 줄이 서고, 번호는 서지 않는다 (§23)', async () => {
+    const view = await head(full);
+    const text = view.container.textContent ?? '';
+    for (const f of full.funnel) expect(text).toContain(f.sub);
   });
 
   it('경고가 모두 0 이면 줄 자체가 사라진다 — 늘 서 있는 경고는 아무도 읽지 않는다', async () => {

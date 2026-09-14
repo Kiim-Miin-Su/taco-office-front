@@ -29,7 +29,6 @@ import { positiveQueryId, queryEnum } from '@/lib/url-state';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
-const AREA: Record<string, string> = { lesson: '수업', intake: '상담', book: '교재', schedule: '스케줄', teacher: '선생님' };
 const SRC: Record<string, string> = { meeting: '회의', complaint: '컴플레인', consulting: '컨설팅', plan: '기획', manual: '직접' };
 /**
  * 단계의 **색**만 여기서 고른다 — 이름은 서버가 준 `stageLabel` 이다 (D-R18 · C56).
@@ -44,11 +43,14 @@ const PLAN_STAGE: Array<{ key: string; tone: 'neutral' | 'info' | 'danger' | 'su
   { key: 'done', tone: 'purple' },
 ];
 const planTone = (stage: string) => PLAN_STAGE.find((s) => s.key === stage)?.tone ?? 'neutral';
-const CPL_STAGE: Array<{ key: string; label: string; tone: 'danger' | 'warning' | 'success' }> = [
-  { key: 'received', label: '접수', tone: 'danger' },
-  { key: 'acting', label: '대응', tone: 'warning' },
-  { key: 'closed', label: '결과', tone: 'success' },
-];
+/**
+ * 컴플레인 단계의 **색**만 여기서 고른다 — 이름과 한 줄은 서버가 준 `cplStages` 다 (C86-d).
+ * 한동안 이 배열이 이름까지 들고 있었고, 저장되는 말이 `received|acting|closed` 인데
+ * DBML·entity 주석은 「open|acting|done」이라 적어 두어 **대표 보고 배지가 전부를 세고 있었다.**
+ */
+const CPL_TONE: Record<string, 'danger' | 'warning' | 'success'> = {
+  received: 'danger', acting: 'warning', closed: 'success',
+};
 
 export default function OpsPage() {
   const searchParams = useSearchParams();
@@ -127,10 +129,13 @@ export default function OpsPage() {
    * 서버가 `planStages` 로 따로 준다 (D-R18).
    */
   const stageLabel = (key: string) => d?.planStages.find((v) => v.key === key)?.label ?? key;
+  const planSub = (key: string) => d?.planStages.find((v) => v.key === key)?.sub;
   const planCols: Array<BoardColumn<Plan>> = PLAN_STAGE.map((s) => ({
     key: s.key,
     label: stageLabel(s.key),
     tone: s.tone,
+    // 칸 아래 한 줄 — 원본 §61 의 「아직 대표께 안 올렸습니다」 (D-R18)
+    sub: planSub(s.key),
     items: (d?.plans ?? []).filter((p) => p.stage === s.key),
   }));
   /** §62 기획 기한 — 「남은 날」도 「구분」도 서버가 만든 낱말이다 (D-R18 · D-R37) */
@@ -147,8 +152,10 @@ export default function OpsPage() {
       cell: (r) => <Button size="sm" variant="secondary" onClick={() => setPlanId(r.planId)}>열기</Button> },
   ];
 
-  const cplCols: Array<BoardColumn<Complaint>> = CPL_STAGE.map((s) => ({
-    key: s.key, label: s.label, tone: s.tone, items: (d?.complaints ?? []).filter((c) => c.stage === s.key),
+  // 칸 이름·순서·한 줄은 서버가 준 것이다 — 화면은 색만 고른다 (D-R18 · D-R25)
+  const cplCols: Array<BoardColumn<Complaint>> = (d?.cplStages ?? []).map((s) => ({
+    key: s.key, label: s.label, sub: s.sub, tone: CPL_TONE[s.key] ?? 'neutral',
+    items: (d?.complaints ?? []).filter((c) => c.stage === s.key),
   }));
 
   const openTodos = (d?.todos ?? []).filter((t) => !t.done);
@@ -231,7 +238,7 @@ export default function OpsPage() {
                   empty="기한이 걸린 기획이 없습니다" />
               </>
             ) : (
-              <Board columns={planCols} itemKey={(p) => p.id} renderCard={(p) => (
+              <Board numbered columns={planCols} itemKey={(p) => p.id} renderCard={(p) => (
                 <button type="button" className="block w-full text-left" onClick={() => setPlanId(p.id)}>
                   <div className="text-[12px] font-bold text-fg">{p.title}</div>
                   <div className="mt-1 flex items-center justify-between gap-1">
@@ -247,12 +254,24 @@ export default function OpsPage() {
             )}
           </>
         ) : (
-          <Board columns={cplCols} itemKey={(c) => c.id} renderCard={(c) => (
+          <Board numbered columns={cplCols} itemKey={(c) => c.id} renderCard={(c) => (
             <>
-              <Chip tone="purple">{AREA[c.area] ?? c.area}</Chip>
+              <Chip tone="purple">{c.areaLabel}</Chip>
               <div className="mt-1.5 text-[12px] font-bold text-fg">{c.body}</div>
-              <div className="mt-1 text-[10.5px] text-fg-subtle">{c.studentName ?? '문의자'} · {c.ageDays}일</div>
+              <div className="mt-1 text-[10.5px] text-fg-subtle">{c.studentName ?? '문의자'}</div>
               {c.action ? <div className="mt-1 text-[10px] text-fg-2">{c.result ?? c.action}</div> : null}
+              {/*
+                원본 §67 카드의 바닥 줄 — 왼쪽에 담당, 오른쪽에 지난 날.
+                **담당이 없는 것은 빈칸이 아니라 할 일이다** — 접수 칸의 한 줄이 그렇게 말한다.
+              */}
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5 text-[10.5px]">
+                {c.ownerName
+                  ? <Chip size="compact" tone="neutral">{c.ownerName}</Chip>
+                  : <span className="font-bold text-red">담당 없음</span>}
+                <span className={c.stage === 'closed' ? 'text-fg-subtle' : 'font-bold text-fg-2'}>
+                  {c.ageDays}일 지남
+                </span>
+              </div>
             </>
           )} />
         )}

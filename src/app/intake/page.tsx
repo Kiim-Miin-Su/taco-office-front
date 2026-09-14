@@ -80,6 +80,8 @@ export default function IntakePage() {
   const stages = head?.funnel ?? [];
   const columns: Array<BoardColumn<Lead>> = stages.map((s) => ({
     key: s.key, label: s.label, tone: STAGE_TONE[s.key] ?? 'neutral',
+    // 칸 아래 한 줄은 **다음에 무엇을 하는지**다 (원본 §23) — 문장도 서버가 쥔다
+    sub: s.sub,
     items: leads.filter((l) => l.stage === s.key),
   }));
   /** 되살릴 수 있는 단계 — 깔때기 안(결과 칸이 아닌 것)만이다. 그 판정도 서버가 준 값이다 */

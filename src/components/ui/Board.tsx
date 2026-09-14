@@ -25,23 +25,34 @@ export interface BoardColumn<T> {
 
 export interface BoardProps<T> {
   columns: Array<BoardColumn<T>>;
+  /**
+   * 칸 이름 앞에 ①②③ 번호를 세운다 — 컷 §26·§61·§67 이 그렇다.
+   * **§23 상담에는 없다**(설명 줄만 있다) — 그래서 언제나 붙이지 않고 부르는 쪽이 정한다.
+   */
+  numbered?: boolean;
   renderCard: (item: T) => ReactNode;
   itemKey: (item: T) => string | number;
   empty?: string;
   className?: string;
 }
 
-export function Board<T>({ columns, renderCard, itemKey, empty = '없습니다', className }: BoardProps<T>) {
+export function Board<T>({ columns, renderCard, itemKey, numbered = false, empty = '없습니다', className }: BoardProps<T>) {
   return (
     <div
       className={cn('grid gap-3', className)}
       style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
     >
-      {columns.map((c) => (
+      {columns.map((c, i) => (
         <section key={c.key} className="rounded-xl border border-line bg-inset p-2.5">
           <header className="mb-2 px-0.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-bold text-fg">{c.label}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                {/* 번호는 **자리**를 말한다 — 컷의 ①②③ 은 왼쪽에서 오른쪽으로 올리는 순서다 */}
+                {numbered ? (
+                  <Chip size="compact" tone={c.tone ?? 'neutral'}>{i + 1}</Chip>
+                ) : null}
+                <span className="truncate text-[12px] font-bold text-fg">{c.label}</span>
+              </span>
               {/* 건수는 **서버가 센 값이 있으면 그것**을 쓴다 — 없을 때만 배열을 센다 (D-R37) */}
               <Chip tone={c.tone ?? 'neutral'}>{c.items.length}</Chip>
             </div>

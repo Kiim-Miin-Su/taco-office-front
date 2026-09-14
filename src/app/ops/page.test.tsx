@@ -32,7 +32,7 @@ const me: Me = {
 };
 const response: Ops = {
   leads: [], complaints: [], todos: [], plans: [], meetings: [], suggestions: [], canSeeAmounts: true,
-  feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [],
+  feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [], cplStages: [],
   intakeHead: INTAKE_HEAD_FIXTURE,
   marketing: [{ id: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
     title: null, name: '검수 채널 · 광고', byId: null, byName: null,
@@ -156,5 +156,64 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     act(() => useSession.setState({ me }));
     await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
     expect(get).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * §67 컴플레인 보드 — C86-d.
+ *
+ * 칸 이름·순서·한 줄과 갈래 이름이 전부 서버에서 온다. 화면에는 **색만** 남는다 —
+ * 이름을 화면이 들고 있으면 저장되는 말이 바뀌어도 **화면만 멀쩡해 보인다**.
+ */
+describe('§67 컴플레인 보드 (C86-d)', () => {
+  const cplStages = [
+    { key: 'received', label: '접수', sub: '받았습니다 · 담당을 정해야 합니다' },
+    { key: 'acting', label: '대응', sub: '연락하고 조치하는 중입니다' },
+    { key: 'closed', label: '결과', sub: '마무리했습니다' },
+  ];
+  const complaints = [
+    { id: 1, area: 'schedule', areaLabel: '스케줄', studentName: '고은설', stage: 'received',
+      body: '수업 시간 변경 안내가 늦었다는 말씀', action: null, result: null,
+      createdAt: '2026-08-19', ageDays: 2, ownerName: null },
+    { id: 2, area: 'lesson', areaLabel: '수업', studentName: '양찬욱', stage: 'acting',
+      body: '수업 진도가 느리다는 말씀', action: '분반 검토 중', result: null,
+      createdAt: '2026-08-20', ageDays: 1, ownerName: '김범준' },
+  ];
+  const open = () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplStages, complaints } });
+    const view = setup(me, false);
+    fireEvent.click(view.getByRole('button', { name: /컴플레인/ }));
+    return view;
+  };
+
+  it('칸마다 번호와 **다음에 무엇을 하는지** 한 줄이 선다', async () => {
+    const view = open();
+    await waitFor(() => expect(view.container.textContent).toContain('받았습니다 · 담당을 정해야 합니다'));
+    const text = view.container.textContent ?? '';
+    for (const w of ['연락하고 조치하는 중입니다', '마무리했습니다']) expect(text).toContain(w);
+  });
+
+  it('칸 이름과 갈래 이름은 서버가 준 것을 쓴다 — 화면에 제 표가 없다', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: {
+        ...response,
+        cplStages: cplStages.map((s) => ({ ...s, label: `${s.label}(서버)` })),
+        complaints: complaints.map((c) => ({ ...c, areaLabel: `${c.areaLabel}(서버)` })),
+      },
+    });
+    const view = setup(me, false);
+    fireEvent.click(view.getByRole('button', { name: /컴플레인/ }));
+    await waitFor(() => expect(view.container.textContent).toContain('접수(서버)'));
+    const text = view.container.textContent ?? '';
+    for (const w of ['대응(서버)', '결과(서버)', '스케줄(서버)', '수업(서버)']) expect(text).toContain(w);
+  });
+
+  it('담당 없는 건은 빈칸이 아니라 **할 일**로 선다 — 지난 날은 서버가 센 값이다', async () => {
+    const view = open();
+    await waitFor(() => expect(view.container.textContent).toContain('담당 없음'));
+    const text = view.container.textContent ?? '';
+    expect(text).toContain('2일 지남');
+    expect(text).toContain('김범준');
+    expect(text).toContain('1일 지남');
   });
 });

@@ -17,12 +17,12 @@ import type { IntakeHead } from '@/api/types';
  */
 export const INTAKE_HEAD_FIXTURE: IntakeHead = {
   funnel: [
-    { key: 'first', label: '1차 상담', count: 0, funnel: true },
-    { key: 'wait2nd', label: '2차 대기', count: 0, funnel: true },
-    { key: 'second', label: '2차 상담', count: 0, funnel: true },
-    { key: 'hold', label: '보류', count: 0, funnel: true },
-    { key: 'enrolled', label: '등록', count: 0, funnel: false },
-    { key: 'failed', label: '등록 실패', count: 0, funnel: false },
+    { key: 'first', sub: '2차 일정 + 진단고사 잡기', label: '1차 상담', count: 0, funnel: true },
+    { key: 'wait2nd', sub: '예정일에 2차 상담 진행', label: '2차 대기', count: 0, funnel: true },
+    { key: 'second', sub: '보류 · 등록 · 등록 실패 중 선택', label: '2차 상담', count: 0, funnel: true },
+    { key: 'hold', sub: 'D+2에 수락 여부 확인', label: '보류', count: 0, funnel: true },
+    { key: 'enrolled', sub: '해피콜 → 월간 상담', label: '등록', count: 0, funnel: false },
+    { key: 'failed', sub: '사유 기록', label: '등록 실패', count: 0, funnel: false },
   ],
   enrollRate: 0,
   owners: [],
