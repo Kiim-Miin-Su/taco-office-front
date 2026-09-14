@@ -18,9 +18,9 @@ const me: Me = {
 };
 
 const guide: Guide = {
-  id: 5, reason: 'new', state: 'draft', pending: true, studentName: '고은설',
-  teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20',
-  createdAt: '2026-09-10', overdueDays: 0,
+  id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', state: 'draft', pending: true, studentName: '고은설',
+  teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20', eventOn: '2026-09-20',
+  sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0,
 };
 
 const templates: GuideTemplate[] = [

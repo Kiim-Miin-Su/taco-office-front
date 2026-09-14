@@ -6,7 +6,7 @@
 
 export { cn } from './cn';
 export { Logo, type LogoProps } from './Logo';
-export { Button, type ButtonVariant, type ButtonSize } from './Button';
+export { Button, LinkButton, type ButtonVariant, type ButtonSize, type LinkButtonProps } from './Button';
 export { Chip, type Tone, type ChipStyle, type ChipSize } from './Chip';
 export { StatusBadge } from './StatusBadge';
 export { StatCard } from './StatCard';

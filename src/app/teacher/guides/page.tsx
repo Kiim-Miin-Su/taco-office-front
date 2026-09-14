@@ -19,6 +19,7 @@ import { useTeacherGuides } from '@/api/queries';
 import type { TeacherGuideStudent } from '@/api/types';
 import { hm, md } from '@/components/teacher/format';
 import { DiagnosticForm } from '@/components/teacher/DiagnosticForm';
+import { GuideDiagnosticSummary } from '@/components/guides/GuideDiagnosticSummary';
 
 const addDays = (iso: string, n: number): string => {
   const d = new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000);
@@ -44,7 +45,11 @@ function StudentRow({ s, active, onPick }: { s: TeacherGuideStudent; active: boo
         <span className="min-w-0 grow">
           <span className="flex items-center gap-1.5">
             <b className="text-[13.5px] text-fg">{s.name}</b>
-            {s.grade ? <Chip size="compact" tone="info">{s.grade}</Chip> : null}
+            {s.grade ? (
+              <Chip size="compact" tone="info">
+                {s.grade}
+              </Chip>
+            ) : null}
           </span>
           <span className="mt-0.5 block truncate text-[11.5px] text-fg-subtle">{subjects || '과목 미정'}</span>
         </span>
@@ -54,8 +59,18 @@ function StudentRow({ s, active, onPick }: { s: TeacherGuideStudent; active: boo
   );
 }
 
-function BookCard({ code, title, seTe, issuedOn, returnedOn }: {
-  code: string; title: string; seTe: string; issuedOn: string; returnedOn: string | null | undefined;
+function BookCard({
+  code,
+  title,
+  seTe,
+  issuedOn,
+  returnedOn,
+}: {
+  code: string;
+  title: string;
+  seTe: string;
+  issuedOn: string;
+  returnedOn: string | null | undefined;
 }) {
   const done = Boolean(returnedOn);
   return (
@@ -70,11 +85,17 @@ function BookCard({ code, title, seTe, issuedOn, returnedOn }: {
         </div>
       </div>
       {done ? (
-        <Chip size="compact" tone="neutral">교재 완료</Chip>
+        <Chip size="compact" tone="neutral">
+          교재 완료
+        </Chip>
       ) : (
         <div className="flex shrink-0 items-center gap-1.5">
-          <Chip size="compact" tone="success">사용 중</Chip>
-          <Button size="sm" disabled title="정책 확정 전 — 표시만">변경 요청</Button>
+          <Chip size="compact" tone="success">
+            사용 중
+          </Chip>
+          <Button size="sm" disabled title="정책 확정 전 — 표시만">
+            변경 요청
+          </Button>
         </div>
       )}
     </div>
@@ -97,19 +118,28 @@ export default function TeacherGuidesPage() {
             const picked = d.students.find((s) => s.studentId === pickedId) ?? d.students[0];
             return (
               <>
-                <PageHeader
-                  title="수업 안내"
-                  sub={`${md(d.weekFrom)} – ${md(d.weekTo)} · 담당 학생 ${d.students.length}명`}
-                />
+                <PageHeader title="수업 안내" sub={`${md(d.weekFrom)} – ${md(d.weekTo)} · 담당 학생 ${d.students.length}명`} />
                 <div className="mt-3 flex flex-col gap-4 lg:flex-row">
                   <aside className="w-full shrink-0 lg:w-[300px]">
                     <div className="rounded-t-xl bg-fg px-4 py-3 text-card">
                       <div className="text-[13px] font-bold">이번 주 담당 학생</div>
                       <div className="mt-1.5 flex items-center gap-1.5">
-                        <Button size="sm" onClick={() => setWeek(addDays(d.weekFrom, -7))}>‹</Button>
-                        <Button size="sm" variant={week === undefined ? 'primary' : 'secondary'} onClick={() => setWeek(undefined)}>이번 주</Button>
-                        <Button size="sm" onClick={() => setWeek(addDays(d.weekFrom, 7))}>›</Button>
-                        <span className="ml-auto text-[11px] opacity-80">{d.weekFrom.slice(5).replace('-', '/')}–{d.weekTo.slice(5).replace('-', '/')}</span>
+                        <Button size="sm" onClick={() => setWeek(addDays(d.weekFrom, -7))}>
+                          ‹
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={week === undefined ? 'primary' : 'secondary'}
+                          onClick={() => setWeek(undefined)}
+                        >
+                          이번 주
+                        </Button>
+                        <Button size="sm" onClick={() => setWeek(addDays(d.weekFrom, 7))}>
+                          ›
+                        </Button>
+                        <span className="ml-auto text-[11px] opacity-80">
+                          {d.weekFrom.slice(5).replace('-', '/')}–{d.weekTo.slice(5).replace('-', '/')}
+                        </span>
                       </div>
                     </div>
                     <ul className="rounded-b-xl border border-t-0 border-line bg-card">
@@ -117,7 +147,12 @@ export default function TeacherGuidesPage() {
                         <li className="px-3 py-6 text-center text-[12.5px] text-fg-subtle">이 주에는 담당 수업이 없습니다.</li>
                       ) : (
                         d.students.map((s) => (
-                          <StudentRow key={s.studentId} s={s} active={picked?.studentId === s.studentId} onPick={() => setPickedId(s.studentId)} />
+                          <StudentRow
+                            key={s.studentId}
+                            s={s}
+                            active={picked?.studentId === s.studentId}
+                            onPick={() => setPickedId(s.studentId)}
+                          />
                         ))
                       )}
                     </ul>
@@ -131,7 +166,9 @@ export default function TeacherGuidesPage() {
                         {picked.school ? <span className="text-[12px] text-fg-subtle">{picked.school}</span> : null}
                         <span className="ml-auto flex items-center gap-1.5">
                           <span className="text-[11px] text-fg-subtle">지도 강도</span>
-                          <Chip size="compact" tone={picked.guidance ? 'info' : 'neutral'}>{picked.guidance ?? '미설정'}</Chip>
+                          <Chip size="compact" tone={picked.guidance ? 'info' : 'neutral'}>
+                            {picked.guidance ?? '미설정'}
+                          </Chip>
                           <span className="ml-2 text-[11px] text-fg-subtle">수업 언어</span>
                           <Chip size="compact" tone={picked.lang ? 'info' : 'neutral'}>
                             {picked.lang ? (LANG_LABEL[picked.lang] ?? picked.lang) : '미설정'}
@@ -147,30 +184,39 @@ export default function TeacherGuidesPage() {
                       </div>
 
                       <Panel className="mt-4" title="학생 교재" sub="교체·종료 이력이 계속 쌓입니다">
-                        {picked.books.length === 0
-                          ? <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">배부된 교재가 없습니다.</p>
-                          : (
-                            <div className="flex flex-col gap-2.5">
-                              {picked.books.map((b) => (
-                                <BookCard key={b.issueId} code={b.code} title={b.title} seTe={b.seTe} issuedOn={b.issuedOn} returnedOn={b.returnedOn} />
-                              ))}
-                            </div>
-                          )}
+                        {picked.books.length === 0 ? (
+                          <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">배부된 교재가 없습니다.</p>
+                        ) : (
+                          <div className="flex flex-col gap-2.5">
+                            {picked.books.map((b) => (
+                              <BookCard
+                                key={b.issueId}
+                                code={b.code}
+                                title={b.title}
+                                seTe={b.seTe}
+                                issuedOn={b.issuedOn}
+                                returnedOn={b.returnedOn}
+                              />
+                            ))}
+                          </div>
+                        )}
                         <p className="mt-3 text-[11px] text-fg-subtle">교재 변경 요청·받기는 정책 확정 전이라 표시만 합니다.</p>
                       </Panel>
 
                       <Panel
                         className="mt-4"
                         title="진단 요약"
-                        sub={picked.diag?.onDate ? `${picked.diag.onDate} 기록${picked.diag.byName ? ` · ${picked.diag.byName}` : ''}` : '최근 진단 기록'}
+                        sub={
+                          picked.diag?.onDate
+                            ? `${picked.diag.onDate} 기록${picked.diag.byName ? ` · ${picked.diag.byName}` : ''}`
+                            : '최근 진단 기록'
+                        }
                         right={
-                          writing === picked.studentId
-                            ? null
-                            : (
-                              <Button size="sm" variant="primary" onClick={() => setWriting(picked.studentId)}>
-                                {picked.diag ? '다시 진단' : '진단 쓰기'}
-                              </Button>
-                            )
+                          writing === picked.studentId ? null : (
+                            <Button size="sm" variant="primary" onClick={() => setWriting(picked.studentId)}>
+                              {picked.diag ? '다시 진단' : '진단 쓰기'}
+                            </Button>
+                          )
                         }
                       >
                         {writing === picked.studentId ? (
@@ -181,15 +227,8 @@ export default function TeacherGuidesPage() {
                             onDone={() => setWriting(null)}
                             onCancel={() => setWriting(null)}
                           />
-                        ) : picked.diag ? (
-                          <dl className="flex flex-col gap-2 text-[13px]">
-                            <div><dt className="font-bold text-fg">수준</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.levelSummary}</dd></div>
-                            {picked.diag.strengths ? <div><dt className="font-bold text-green">잘하는 것</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.strengths}</dd></div> : null}
-                            {picked.diag.weaknesses ? <div><dt className="font-bold text-red">보완할 것</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.weaknesses}</dd></div> : null}
-                            {picked.diag.curriculum ? <div><dt className="font-bold text-fg">권장 커리큘럼</dt><dd className="mt-0.5 leading-relaxed text-fg">{picked.diag.curriculum}</dd></div> : null}
-                          </dl>
                         ) : (
-                          <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">아직 진단 기록이 없습니다.</p>
+                          <GuideDiagnosticSummary diagnostic={picked.diag} />
                         )}
                         {writing === picked.studentId ? null : (
                           <p className="mt-3 border-t border-line pt-2 text-[11px] text-fg-subtle">

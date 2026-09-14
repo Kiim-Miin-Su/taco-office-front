@@ -1,133 +1,81 @@
 /** @file-guide
- * 목적: page.tsx — GuidesPage (route)
- * 책임/재사용: 기존 셸/도메인 컴포넌트를 조립하고 화면 선택·초안만 소유한다. API DTO는 생성 타입, 서버 데이터는 Query 캐시를 사용한다.
+ * 목적: page.tsx — 개발명세서 v2 §43~§45 수업 안내 라우트의 탭과 공용 작업 버튼을 조립한다.
+ * 책임/재사용: 화면 선택만 소유하고 데이터·업무 판정·세부 상호작용은 GuidesTodo/GuideHistory/GuideStudents에 위임한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-/**
- * 탭 07 수업 안내 — §43 안내 할 일 · §44 안내 학생별 · §45 안내 이력.
- * (한동안 「§41 · §42」라 적혀 있었다. §41 은 교재의 자료 요청이고 §42 는 원문에 없는 번호다.)
- *
- * 「한 번만」 나가는 안내와 「매번」 나가는 회차 안내를 한 표에 섞지 않는 것이 이 화면의 요점입니다.
- * 섞으면 「줌 링크는 지난주에 보냈으니 됐다」가 되어 버립니다 (D-R5).
- */
 'use client';
+
 import { useState } from 'react';
+import { useGuides } from '@/api/queries';
+import { GuideHistory } from '@/components/guides/GuideHistory';
+import { GuideStudents } from '@/components/guides/GuideStudents';
+import { GuidesTodo } from '@/components/guides/GuidesTodo';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import Link from 'next/link';
-import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table, Tabs } from '@/components/ui';
-import { useGuides } from '@/api/queries';
-import type { Guide, PerLessonNotice } from '@/api/types';
-import { GuideWriter } from '@/components/guides/GuideWriter';
+import { Button, LinkButton } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { QueryState } from '@/components/ui/QueryState';
+import { TabCards } from '@/components/ui/TabCards';
 
-type Tab = 'once' | 'each';
-
-const REASON: Record<string, string> = { new: '첫 수업', teacher_change: '강사 교체' };
-/** guide_state_t 그대로 이름표만 단다. 「보내야 함」 판정은 서버 `pending`이 정본이다 (GUIDE_PENDING_DB). */
-const STATE: Record<string, { label: string; tone: 'danger' | 'warning' | 'success' | 'info' }> = {
-  draft: { label: '작성 중', tone: 'danger' },
-  ready: { label: '보낼 준비', tone: 'warning' },
-  sent: { label: '보냄', tone: 'success' },
-  read: { label: '읽음', tone: 'info' },
-};
-const CHANNEL: Record<string, string> = { sms: '문자', kakao: '카카오', email: '이메일', app: '앱' };
+type GuidePageTab = 'todo' | 'history' | 'students';
 
 export default function GuidesPage() {
-  const [tab, setTab] = useState<Tab>('once');
-  const [writing, setWriting] = useState<Guide | null>(null);
-  const q = useGuides();
-  const d = q.data;
-
-  const onceCols: Array<Column<Guide>> = [
-    { key: 'r', head: '사유', width: 100, cell: (r) => <Chip tone="info">{REASON[r.reason] ?? r.reason}</Chip> },
-    { key: 's', head: '학생', width: 100, cell: (r) => <span className="font-bold">{r.studentName ?? '—'}</span> },
-    { key: 't', head: '선생님', width: 100, cell: (r) => r.teacherName ?? '—' },
-    { key: 'b', head: '내용', cell: (r) => <span className="text-fg-subtle">{r.body ?? '—'}</span> },
-    {
-      key: 'st', head: '상태', width: 110,
-      cell: (r) => {
-        const s = STATE[r.state] ?? { label: r.state, tone: 'info' as const };
-        return <Chip tone={s.tone}>{s.label}</Chip>;
-      },
-    },
-    {
-      key: 'd', head: '기한', width: 110,
-      cell: (r) => (r.overdueDays > 0 ? <Chip tone="danger">{r.overdueDays}일 지남</Chip> : (r.dueOn ?? '—')),
-    },
-    {
-      key: 'x', head: '', width: 100,
-      // 보낸 안내에는 단추를 두지 않는다 — 눌러도 서버가 막을 것을 미리 말해 준다 (pending 은 서버 파생)
-      cell: (r) => (r.pending
-        ? <Button size="sm" variant="secondary" onClick={() => setWriting(r)}>안내 작성</Button>
-        : <span className="text-fg-subtle">—</span>),
-    },
-  ];
-
-  const eachCols: Array<Column<PerLessonNotice>> = [
-    { key: 'd', head: '날짜', width: 110, cell: (r) => r.onDate },
-    { key: 'c', head: '채널', width: 90, cell: (r) => <Chip>{CHANNEL[r.channel] ?? r.channel}</Chip> },
-    { key: 's', head: '학생', width: 100, cell: (r) => <span className="font-bold">{r.studentName ?? '—'}</span> },
-    { key: 'b', head: '내용', cell: (r) => <span className="text-fg-subtle">{r.body}</span> },
-    {
-      key: 'st', head: '발송', width: 110,
-      cell: (r) => (r.sentAt ? <Chip tone="success">보냄</Chip> : <Chip tone="danger">아직</Chip>),
-    },
-  ];
+  const [tab, setTab] = useState<GuidePageTab>('todo');
+  const guides = useGuides();
 
   return (
     <RequireAuth>
       <AppShell>
         <PageHeader
           title="수업 안내"
-          sub="한 번 — 첫 수업 · 강사 교체 · 보강 · 매번 — 온라인 줌 계정"
-          right={(
-            <div className="flex items-center gap-2">
-              {d?.todoCount ? <Chip tone="danger" styleKind="solid">{d.todoCount}건 남음</Chip> : null}
-              {/* 원문 §43 머리의 단추 둘이다 — 「매번」은 회차마다 줌 계정을 붙여 보내고,
-                  안내 본문은 문구 틀에서 꺼내 쓴다 */}
-              <Link href="/phrases"><Button size="sm" variant="secondary">문구 관리</Button></Link>
-              <Link href="/zoom"><Button size="sm" variant="secondary">줌 계정 관리</Button></Link>
+          sub="한 번 신규·강사 교체 · 매번 온라인 줌 계정"
+          right={
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <LinkButton href="/zoom" size="sm">
+                줌 계정 관리
+              </LinkButton>
+              <LinkButton href="/phrases" size="sm">
+                문구 관리
+              </LinkButton>
+              <LinkButton href="/schedule" size="sm">
+                + 수업 추가
+              </LinkButton>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  setTab('todo');
+                  requestAnimationFrame(() => document.getElementById('guide-once')?.scrollIntoView({ behavior: 'smooth' }));
+                }}
+              >
+                + 안내 작성
+              </Button>
             </div>
-          )}
+          }
         />
 
-        <Banner tone="info">
-          <b>안내는 한 번</b>(첫 수업 · 강사 교체), <b>회차 안내는 매번</b>(온라인 줌 링크 등)입니다.
-          같은 표에 두면 「지난번에 보냈으니 됐다」가 되어 버립니다 (D-R5).
-        </Banner>
-
-        {d?.scopedTeacherId ? (
-          <Banner tone="neutral" className="mt-2">본인 수업의 안내만 보입니다.</Banner>
-        ) : null}
-
-        <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="안내 — 보내야 함" value={(d?.guides ?? []).filter((g) => g.pending).length} tone="danger" />
-          <StatCard label="안내 — 보냄" value={(d?.guides ?? []).filter((g) => !g.pending).length} tone="success" />
-          <StatCard label="회차 안내 — 아직" value={(d?.perLesson ?? []).filter((p) => !p.sentAt).length} tone="warning" />
-          <StatCard label="회차 안내 — 보냄" value={(d?.perLesson ?? []).filter((p) => p.sentAt).length} tone="success" />
-        </div>
-
-        <Tabs
-          options={[
-            { value: 'once', label: `안내 (한 번) ${d?.guides.length ?? 0}` },
-            { value: 'each', label: `회차 안내 (매번) ${d?.perLesson.length ?? 0}` },
-          ]}
+        <TabCards<GuidePageTab>
+          className="mb-4"
+          label="수업 안내 화면"
           value={tab}
           onChange={setTab}
+          options={[
+            { value: 'todo', label: '할 일', sub: '한 번 + 매번', badge: guides.data?.todoCount },
+            { value: 'history', label: '이력', sub: '기간별 기록' },
+            { value: 'students', label: '학생별', sub: '최신 안내' },
+          ]}
         />
 
-        {writing ? <GuideWriter guide={writing} onClose={() => setWriting(null)} /> : null}
-
-        <Panel className="mt-3" title={tab === 'once' ? '안내 — 보내면 끝' : '회차 안내 — 회차마다 다시'}>
-          {tab === 'once' ? (
-            <Table columns={onceCols} rows={d?.guides ?? []} rowKey={(r) => r.id}
-              empty={q.isLoading ? '불러오는 중…' : '안내가 없습니다'} />
-          ) : (
-            <Table columns={eachCols} rows={d?.perLesson ?? []} rowKey={(r) => r.id}
-              empty={q.isLoading ? '불러오는 중…' : '회차 안내가 없습니다'} />
-          )}
-        </Panel>
+        {tab === 'todo' ? (
+          <QueryState query={guides} isEmpty={() => false}>
+            {(data) => <GuidesTodo data={data} />}
+          </QueryState>
+        ) : tab === 'history' ? (
+          <GuideHistory />
+        ) : (
+          <GuideStudents />
+        )}
       </AppShell>
     </RequireAuth>
   );

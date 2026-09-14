@@ -39,6 +39,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   gpa: qk.gpa('2026-09-01'),
   zoom: qk.zoom(undefined),
   drawer: qk.drawer(),
+  guideHistory: qk.guideHistory({ span: 'month', anchor: '2026-09-01' }),
   tracking: qk.tracking(3, '2026-09-11'),
   // §65 보고서 키는 `ops` 갈래 안에 산다 — 기획 결재가 운영 목록을 함께 바꾸기 때문이다 (C56)
   plan: qk.plan(3),
@@ -55,6 +56,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.ops,
   qk.teacherHome,
   qk.guides,
+  qk.guideStudents,
+  qk.guideHistoryRoot,
   qk.guideTemplates,
   qk.books,
   qk.bookHistory,

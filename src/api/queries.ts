@@ -50,6 +50,10 @@ import type {
   ExecQuery,
   Guide,
   GuideBody,
+  GuideDraftCreate,
+  GuideHistory,
+  GuideHistoryQuery,
+  GuideStudents,
   GuideTemplate,
   GuideTemplateWrite,
   Guides,
@@ -160,6 +164,9 @@ export const qk = {
   bookTracking: ['books', 'tracking'] as const,
   bookPacks: ['books', 'deliveries'] as const,
   guides: ['guides'] as const,
+  guideStudents: ['guides', 'students'] as const,
+  guideHistoryRoot: ['guides', 'history'] as const,
+  guideHistory: (p: GuideHistoryQuery) => ['guides', 'history', p] as const,
   guideTemplates: ['guides', 'templates'] as const,
   board: (p: BoardParams) => ['board', p] as const,
   exec: (p: ExecQuery) => ['exec', p] as const,
@@ -703,6 +710,64 @@ export function useGuides(): UseQueryResult<Guides> {
     queryKey: sessionQueryKey(qk.guides, viewerId),
     queryFn: async () => (await api.get<Guides>('/guides')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/** §44 학생별 — 최신 안내·교재·진단의 서버 projection. 화면은 합치거나 최신을 다시 고르지 않는다. */
+export function useGuideStudents(enabled = true): UseQueryResult<GuideStudents> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.guideStudents, viewerId),
+    queryFn: async () => (await api.get<GuideStudents>('/guides/students')).data,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** §45 기간별 안내 이력과 누락 — 필요 판정·집계는 서버만 소유한다. */
+export function useGuideHistory(params: GuideHistoryQuery, enabled = true): UseQueryResult<GuideHistory> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.guideHistory(params), viewerId),
+    queryFn: async () => (await api.get<GuideHistory>('/guides/history', { params })).data,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * §45 누락 카드 → 초안 생성.
+ * 카드는 서버가 준 투영 키만 보내며, 목록 제거는 가역 낙관 갱신 후 서버 응답과 다시 맞춘다.
+ */
+export function useCreateGuideDraft(): UseMutationResult<Guide, unknown, GuideDraftCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<Guide>('/guides/drafts', body)).data,
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: qk.guideHistoryRoot });
+      const snapshots = qc.getQueriesData<GuideHistory>({ queryKey: qk.guideHistoryRoot });
+      for (const [key, current] of snapshots) {
+        if (!current) continue;
+        const hasCandidate = current.missing.some(
+          (item) => item.sourceOccurrenceId === body.sourceOccurrenceId && item.studentId === body.studentId,
+        );
+        if (!hasCandidate) continue;
+        qc.setQueryData<GuideHistory>(key, {
+          ...current,
+          missing: current.missing.filter(
+            (item) => !(item.sourceOccurrenceId === body.sourceOccurrenceId && item.studentId === body.studentId),
+          ),
+          counts: { ...current.counts, missing: Math.max(0, current.counts.missing - 1) },
+        });
+      }
+      return { snapshots };
+    },
+    onError: (_error, _body, context) => {
+      context?.snapshots.forEach(([key, value]) => qc.setQueryData(key, value));
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.guides });
+    },
   });
 }
 

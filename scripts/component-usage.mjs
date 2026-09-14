@@ -27,7 +27,7 @@ const OUT = join(SRC, 'lib/component-usage.json');
 
 /** 갤러리가 보여 주는 컴포넌트 → 소스에서 찾을 여는 태그들 */
 export const COUNTED = {
-  button: ['Button'],
+  button: ['Button', 'LinkButton'],
   badge: ['Chip', 'StatusBadge'],
   mark: ['BoardMarks'],
   input: ['Input', 'Select', 'Textarea', 'Checkbox', 'CountedTextarea'],
@@ -72,5 +72,7 @@ export function count() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const counts = count();
   writeFileSync(OUT, `${JSON.stringify({ version: 1, counts }, null, 2)}\n`);
-  console.log(`component-usage.json — ${Object.keys(counts).length}종 · 합계 ${Object.values(counts).reduce((a, b) => a + b, 0)}회`);
+  console.log(
+    `component-usage.json — ${Object.keys(counts).length}종 · 합계 ${Object.values(counts).reduce((a, b) => a + b, 0)}회`,
+  );
 }

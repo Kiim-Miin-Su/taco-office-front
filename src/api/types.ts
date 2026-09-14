@@ -221,6 +221,17 @@ export type BookPackPatch = S['BookPackPatchDto'];
 /** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */
 export type Guides = S['GuidesDto'];
 export type Guide = S['GuideDto'];
+/** §44 학생별 — 학생 준비 정보와 최신 유효 안내는 서버 투영을 그대로 쓴다. */
+export type GuideStudents = S['GuideStudentsDto'];
+export type GuideStudent = S['GuideStudentDto'];
+export type GuideDiagnostic = S['GuideDiagnosticDto'];
+export type GuideBook = S['GuideBookDto'];
+/** §45 이력 — 기간·누락 판정은 DB 사실에서 서버가 계산한다. */
+export type GuideHistory = S['GuideHistoryDto'];
+export type GuideHistorySpan = GuideHistory['span'];
+export type GuideHistoryQuery = NonNullable<paths['/guides/history']['get']['parameters']['query']>;
+export type GuideMissing = S['GuideMissingDto'];
+export type GuideDraftCreate = S['GuideDraftCreateDto'];
 export type GuideTemplate = S['GuideTemplateDto'];
 export type GuideTemplateWrite = S['GuideTemplateWriteDto'];
 export type GuideBody = S['GuideBodyDto'];
