@@ -21,9 +21,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, Column, PageHeader, Panel, StatCard, Table } from '@/components/ui';
-import { useExec } from '@/api/queries';
-import type { ExecInbox, ExecReport } from '@/api/types';
+import { Banner, Button, Chip, Column, Input, PageHeader, Panel, StatCard, Table, Textarea } from '@/components/ui';
+import { useExec, useExecReportWrite } from '@/api/queries';
+import { apiMessage } from '@/api/client';
+import { useCan } from '@/store/useSession';
+import type { ExecInbox, ExecMemoWrite, ExecReport } from '@/api/types';
 import { won } from '@/lib/money';
 import { addDays, mondayOf, monthBounds, todayKst } from '@/lib/calendar';
 import { queryEnum, queryIsoDate } from '@/lib/url-state';
@@ -82,6 +84,58 @@ export default function ExecPage() {
   const q = useExec(range);
   const d = q.data;
   const inbox = d?.inbox ?? [];
+
+  /* ── §69 쓰기 — 여섯 칸과 서명 (C85-a) ─────────────────────────── */
+  const canWrite = useCan('canCrudAll');
+  const canReview = useCan('canApprove') && useCan('canSeeProfit');
+  const write = useExecReportWrite();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState('');
+  const [writeError, setWriteError] = useState<string | null>(null);
+
+  /** 이 기간의 보고 — 서버가 준 것만 본다. 없으면 아직 아무도 안 적었다 */
+  const report = (d?.reports ?? []).find((r) => r.rptType === view) ?? null;
+  /** 초안(화면)이 서버 값을 덮는다. 다른 기간으로 옮기면 초안을 버린다 */
+  const memoOf = (key: string) =>
+    draft[key] ?? report?.memos.find((m) => m.key === key)?.memo ?? '';
+  const dirty = Object.keys(draft).length > 0;
+  const filledNow = (d?.areas ?? []).filter((a) => memoOf(a.key).trim() !== '').length;
+  const stateNote = report === null || report.state === 'draft' ? '아직 올리지 않았습니다'
+    : report.state === 'sent' ? '대표 결재를 기다립니다'
+      : report.state === 'rej' ? '되돌아왔습니다 — 고쳐서 다시 올려주세요' : '결재가 끝났습니다';
+
+  // 기간·뷰가 바뀌면 남의 기간 초안을 들고 가지 않는다
+  useEffect(() => { setDraft({}); setReason(''); setWriteError(null); }, [view, range.from, range.to]);
+
+  const run = (w: Parameters<typeof write.mutate>[0]) => {
+    setWriteError(null);
+    write.mutate(w, {
+      onSuccess: () => { setDraft({}); setReason(''); },
+      onError: (e) => setWriteError(apiMessage(e)),
+    });
+  };
+  /** 영역 키는 서버가 준 것을 그대로 돌려보낸다 — 화면이 목록을 만들지 않는다 (D-R18) */
+  const memoBody = (): ExecMemoWrite => ({
+    rptType: (view === 'inbox' ? 'day' : view) as ExecMemoWrite['rptType'],
+    onDate: range.from,
+    memos: (d?.areas ?? []).map((a) => ({
+      key: a.key as ExecMemoWrite['memos'][number]['key'],
+      memo: memoOf(a.key),
+    })),
+  });
+  const save = () => run({ kind: 'memo', body: memoBody() });
+  /** 올리기는 **적은 것을 먼저 저장하고** 올린다 — 화면의 초안이 서버에 없으면 「빈 보고」로 막힌다 */
+  const submit = () => {
+    setWriteError(null);
+    write.mutate({ kind: 'memo', body: memoBody() }, {
+      onSuccess: () => run({ kind: 'submit', body: { rptType: memoBody().rptType, onDate: range.from } }),
+      onError: (e) => setWriteError(apiMessage(e)),
+    });
+  };
+  const review = (action: 'ok' | 'rej') => {
+    if (!report) return;
+    run({ kind: 'review', id: report.id, body: { action, ...(action === 'rej' ? { reason } : {}) } });
+  };
 
   const periodLabel =
     view === 'week' ? `${range.from.slice(5)} ~ ${range.to.slice(5)}`
@@ -195,9 +249,15 @@ export default function ExecPage() {
               <Button size="sm" onClick={() => setAnchor(todayKst())}>오늘</Button>
               <Button size="sm" onClick={() => setAnchor(addDays(range.to, 1))}>다음 ›</Button>
               <span className="ml-1 text-[13px] font-bold text-fg">{periodLabel}</span>
+              {/* 원본 §69 의 상태 띠 — 「작성 중 · 아직 올리지 않았습니다」 */}
+              <Chip tone={STATE[report?.state ?? 'draft']?.tone ?? 'neutral'}>
+                {STATE[report?.state ?? 'draft']?.label ?? '작성 중'}
+              </Chip>
+              <span className="text-[12px] text-fg-subtle">{stateNote}</span>
               <span className="ml-auto flex items-center gap-2">
                 <Chip tone={(d?.reviewCount ?? 0) > 0 ? 'warning' : 'neutral'}>살펴볼 것 {d?.reviewCount ?? 0}</Chip>
-                <span className="text-[12px] text-fg-subtle">담당 {d?.filled ?? 0}/6 기재</span>
+                <span className="text-[12px] text-fg-subtle">담당 {filledNow}/6 기재</span>
+                <Button size="sm" onClick={() => window.print()}>인쇄</Button>
               </span>
             </div>
 
@@ -236,6 +296,82 @@ export default function ExecPage() {
                   </button>
                 ))}
               </div>
+            </Panel>
+
+            {/*
+              §69 「숫자만으로는 모를 것」 — 여섯 칸과 서명줄.
+              칸 목록·순서·낱말은 **서버가 준 것**을 그대로 쓴다 (D-R18 · D-R25) — 화면이 표를 들면
+              「담당 x/6 기재」의 x 와 실제 칸이 갈린다.
+            */}
+            <Panel
+              className="mt-4"
+              title="숫자만으로는 모를 것"
+              sub="영역마다 한 줄. 하나라도 적어야 올릴 수 있습니다 (D-R14)"
+            >
+              <div className="grid grid-cols-1 gap-3 p-1 sm:grid-cols-2 lg:grid-cols-3">
+                {(d?.areas ?? []).map((a) => (
+                  <div key={a.key} className="rounded-lg border border-line bg-card p-3">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="text-[13px] font-bold text-fg">{a.label}</span>
+                      <Chip size="compact" tone={a.count > 0 ? 'warning' : 'success'}>{a.count > 0 ? a.count : '✓'}</Chip>
+                    </div>
+                    <Textarea
+                      rows={2}
+                      aria-label={`${a.label} 메모`}
+                      placeholder="숫자만으로는 모를 것"
+                      disabled={!canWrite}
+                      value={memoOf(a.key)}
+                      // 값은 **먼저 꺼낸다** — setState 업데이터는 나중에 돌고 그때 currentTarget 은 null 이다
+                      onChange={(e) => { const next = e.currentTarget.value; setDraft((prev) => ({ ...prev, [a.key]: next })); }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-line px-1 pt-3">
+                <span className="text-[12px] text-fg-subtle">
+                  담당 {filledNow}/6 기재
+                  {report?.state === 'rej' && report.rejectReason
+                    ? <span className="ml-2 text-red">반려 — {report.rejectReason}</span>
+                    : null}
+                </span>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <Button size="sm" disabled={!canWrite || write.isPending || !dirty}
+                    onClick={() => save()}>작성 중 저장</Button>
+                  <Button size="sm" variant="primary" disabled={!canWrite || write.isPending || filledNow === 0}
+                    onClick={() => submit()}>대표께 올리기</Button>
+                </div>
+              </div>
+
+              {/* 원본 §69 아래 두 칸 — 시각만 있는 서명은 서명이 아니라 사람 이름을 적는다 */}
+              <div className="mt-3 grid grid-cols-1 border-t border-line sm:grid-cols-2">
+                <p className="px-3 py-3 text-center text-[12px] text-fg-2 sm:border-r sm:border-line">
+                  올린 사람 <b className="ml-1 text-fg">{report?.sentByName ?? '—'}</b>
+                </p>
+                <p className="px-3 py-3 text-center text-[12px] text-fg-2">
+                  대표 승인 <b className="ml-1 text-fg">{report?.reviewedByName ?? '—'}</b>
+                </p>
+              </div>
+
+              {/* §73 결재 — 대표만. 받는 사람 판정은 서버가 하고 화면은 올라온 것에만 단추를 연다 */}
+              {canReview && report?.state === 'sent' ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber/40 bg-amber/5 p-3">
+                  <span className="text-[12px] font-bold text-fg">올라온 보고입니다 — 결재해 주세요</span>
+                  <Input
+                    className="min-w-40 grow"
+                    aria-label="반려 사유"
+                    placeholder="반려하려면 사유를 적어 주세요 (D-R13)"
+                    value={reason}
+                    onChange={(e) => setReason(e.currentTarget.value)}
+                  />
+                  <Button size="sm" disabled={write.isPending || reason.trim() === ''}
+                    onClick={() => review('rej')}>반려</Button>
+                  <Button size="sm" variant="primary" disabled={write.isPending}
+                    onClick={() => review('ok')}>승인</Button>
+                </div>
+              ) : null}
+
+              {writeError ? <Banner tone="danger" className="mt-3">{writeError}</Banner> : null}
             </Panel>
 
             <Panel

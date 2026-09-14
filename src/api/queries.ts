@@ -55,7 +55,11 @@ import type {
   TeacherDiagCreate,
   TeacherGuideDiag,
   Exec,
+  ExecMemoWrite,
   ExecQuery,
+  ExecReportWriteResult,
+  ExecReview,
+  ExecSubmit,
   Guide,
   GuideBody,
   GuideDraftCreate,
@@ -939,6 +943,32 @@ export function useBoard(p: BoardParams): UseQueryResult<Board> {
 }
 
 /** §69 대표 보고 — 여기도 집계는 저장하지 않는다 (D-R4) */
+/**
+ * §69 보고 쓰기 — 메모 저장 · 올리기 · 결재를 **한 mutation** 으로 묶는다.
+ *
+ * 셋 다 같은 것(RPT 한 건)을 바꾸고 성공하면 같은 곳을 다시 읽어야 한다 —
+ * 보고 화면(exec)과 결재함 배지(drawer)다. 훅을 셋으로 나누면 그 세 줄이 세 번 적힌다.
+ */
+export type ExecReportWrite =
+  | { kind: 'memo'; body: ExecMemoWrite }
+  | { kind: 'submit'; body: ExecSubmit }
+  | { kind: 'review'; id: number; body: ExecReview };
+
+export function useExecReportWrite(): UseMutationResult<ExecReportWriteResult, unknown, ExecReportWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w: ExecReportWrite) => {
+      if (w.kind === 'memo') return (await api.patch<ExecReportWriteResult>('/exec/report', w.body)).data;
+      if (w.kind === 'submit') return (await api.post<ExecReportWriteResult>('/exec/report/submit', w.body)).data;
+      return (await api.post<ExecReportWriteResult>(`/exec/report/${w.id}/review`, w.body)).data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.exec });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
+  });
+}
+
 export function useExec(p: ExecQuery): UseQueryResult<Exec> {
   const viewerId = useViewerId();
   return useQuery({

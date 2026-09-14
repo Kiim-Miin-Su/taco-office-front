@@ -152,6 +152,12 @@ export type OccurrencePatch = S['OccurrencePatchDto'];
 export type OccurrenceDelete = S['OccurrenceDeleteDto'];
 export type RosterPatch = S['RosterPatchDto'];
 export type WriteResult = S['WriteResultDto'];
+/** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
+export type ExecMemoWrite = S['ExecMemoWriteDto'];
+export type ExecSubmit = S['ExecSubmitDto'];
+export type ExecReview = S['ExecReviewDto'];
+export type ExecReportWriteResult = S['ExecReportWriteResultDto'];
+export type ExecAreaMemo = S['ExecAreaMemoDto'];
 /** 저장은 됐지만 강사가 불가로 적어 둔 시간에 걸쳤다 — 막지 않고 알린다 (§15·§16) */
 export type UnavWarn = S['UnavWarnDto'];
 export type RosterResult = S['RosterResultDto'];

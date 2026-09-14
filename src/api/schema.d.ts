@@ -1831,6 +1831,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exec/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * §69 영역 메모 저장 — 보낸 칸만 합친다 (작성 중 · 반려된 것만)
+         * @description 주기 키 날짜는 서버가 정규화한다 (D-R23 — 주간=월요일 · 월간=1일). 이미 올렸거나 결재된 보고는 409 RPT_LOCKED 다 — 대표가 본 것과 저장된 것이 달라지면 서명이 거짓이 된다.
+         */
+        patch: operations["ExecController_saveMemo"];
+        trace?: never;
+    };
+    "/exec/report/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §69 「대표께 올리기」 — 한 줄이라도 적어야 올라간다 (D-R14)
+         * @description 숫자는 저장하지 않으므로(D-R4) 사람이 더한 것은 메모뿐이다. 하나도 없으면 409 RPT_EMPTY.
+         */
+        post: operations["ExecController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exec/report/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §73 대표 보고 결재 — 승인 · 반려 (반려는 사유 필수 · D-R13)
+         * @description 받는 사람은 lib/approval 의 APPROVAL_FLOW_RECIPIENT.rpt 가 정한다 — 대표다. 올라온(sent) 보고만 결재할 수 있다.
+         */
+        post: operations["ExecController_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/drawer": {
         parameters: {
             query?: never;
@@ -4897,6 +4957,12 @@ export interface components {
             /** @description 금액이라 권한을 타는 칸인가 */
             money: boolean;
         };
+        ExecAreaMemoDto: {
+            /** @enum {string} */
+            key: "money" | "mkt" | "ops" | "consulting" | "complaint" | "lesson";
+            /** @description 빈 문자열이면 그 칸을 비운다 */
+            memo: string;
+        };
         ExecReportDto: {
             id: number;
             /** @enum {string} */
@@ -4913,6 +4979,14 @@ export interface components {
             reviewedAt?: string | null;
             /** @description D-R13 — 반려(rej)하면 사유가 반드시 있다 */
             rejectReason?: string | null;
+            /** @description 6영역 메모 — **대표 관심순 여섯 칸이 언제나 다 온다**(안 적은 칸은 빈 문자열). 화면이 칸을 만들지 않는다 */
+            memos: components["schemas"]["ExecAreaMemoDto"][];
+            /** @description 6영역 중 적힌 칸 수 — 「담당 x/6 기재」의 x */
+            filled: number;
+            /** @description 원본 §69 서명줄 「올린 사람」. 옛 보고는 누가 올렸는지 기록이 없어 null 이다 */
+            sentByName?: string | null;
+            /** @description 원본 §69 서명줄 「대표 승인」 */
+            reviewedByName?: string | null;
         };
         ExecAreaDto: {
             /** @description money · mkt · ops · consulting · complaint · lesson (대표 관심순 고정 · D-R25) */
@@ -4962,6 +5036,39 @@ export interface components {
             canSeeAmounts: boolean;
             /** @description 저장하지 않는다 — 이 시각에 센 값이다 (D-R4) */
             computedAt: string;
+        };
+        ExecMemoWriteDto: {
+            /** @enum {string} */
+            rptType: "day" | "week" | "month";
+            /**
+             * Format: date
+             * @description 기간 안 아무 날짜. 서버가 주기 key 로 정규화한다 (D-R23)
+             */
+            onDate: string;
+            memos: components["schemas"]["ExecAreaMemoDto"][];
+        };
+        ExecReportWriteResultDto: {
+            id: number;
+            /** @enum {string} */
+            state: "draft" | "sent" | "ok" | "rej";
+            /** @description RPT 키 날짜 — 서버가 정규화한 값 (D-R23) */
+            onDate: string;
+            /** @description 6영역 중 적힌 칸 수 — 「담당 x/6 기재」의 x */
+            filled: number;
+            sentByName?: string | null;
+            reviewedByName?: string | null;
+        };
+        ExecSubmitDto: {
+            /** @enum {string} */
+            rptType: "day" | "week" | "month";
+            /** Format: date */
+            onDate: string;
+        };
+        ExecReviewDto: {
+            /** @enum {string} */
+            action: "ok" | "rej";
+            /** @description rej 면 반드시 있어야 한다 (D-R13) */
+            reason?: string;
         };
         TimeMoveChangeReqDto: {
             /** @description 변경할 수업 규칙 id */
@@ -13751,6 +13858,239 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ExecController_saveMemo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecMemoWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecReportWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description RPT_LOCKED — 이미 올린 보고 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ExecController_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecSubmitDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecReportWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description RPT_EMPTY · RPT_LOCKED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ExecController_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecReviewDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecReportWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 대표가 아니면 결재하지 않는다 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description RPT_NOT_SENT — 올라오지 않은 보고 */
             409: {
                 headers: {
                     [name: string]: unknown;

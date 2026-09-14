@@ -113,3 +113,81 @@ it('§75 report deep link의 view/date를 초기화하고 브라우저 URL 변�
   await waitFor(() => expect(view.container.textContent).toContain('2026년 9월'));
   expect(view.getByRole('button', { name: /월간/ }).getAttribute('aria-pressed')).toBe('true');
 });
+
+/* ══ §69 쓰기 — 「숫자만으로는 모를 것」과 서명 (C85-a) ══════════════ */
+
+/** GET 은 고정 응답, 쓰기는 **기록만** 하고 같은 모양을 돌려준다 */
+function setupWrite(seed: Partial<Exec> = {}, who: Me = me) {
+  const calls: Array<{ method: string; url: string; body: unknown }> = [];
+  useSession.getState().signIn('fixture', who);
+  api.defaults.adapter = vi.fn(async (config) => {
+    const method = (config.method ?? 'get').toLowerCase();
+    if (method !== 'get') {
+      calls.push({ method, url: config.url ?? '', body: config.data ? JSON.parse(String(config.data)) : null });
+      return { config, status: 200, statusText: 'OK', headers: {},
+        data: { id: 1, state: 'sent', onDate: '2026-08-21', filled: 1, sentByName: '대표', reviewedByName: null } };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: { ...data, ...seed } };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  clients.push(client);
+  return { ...render(<QueryClientProvider client={client}><ExecPage /></QueryClientProvider>), calls };
+}
+
+it('여섯 칸은 서버가 준 순서·낱말 그대로 서고, 적으면 「담당 x/6」이 따라 센다', async () => {
+  const view = setupWrite();
+  await waitFor(() => expect(view.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  // 순서는 대표 관심순 고정 (D-R25) — 화면이 목록을 만들지 않는다
+  const labels = view.getAllByPlaceholderText('숫자만으로는 모를 것');
+  expect(labels.length).toBe(6);
+  expect(view.container.textContent).toContain('담당 0/6 기재');
+
+  fireEvent.change(view.getByRole('textbox', { name: '회계 메모' }), { target: { value: '기한 지난 청구서 2건' } });
+  expect(view.container.textContent).toContain('담당 1/6 기재');
+});
+
+it('하나도 안 적으면 올릴 수 없다 (D-R14) — 숫자는 이 화면이 이미 보여 준다', async () => {
+  const view = setupWrite();
+  await waitFor(() => expect(view.getByRole('textbox', { name: '운영 메모' })).toBeTruthy());
+  expect(view.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(true);
+  fireEvent.change(view.getByRole('textbox', { name: '운영 메모' }), { target: { value: '한 줄' } });
+  expect(view.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(false);
+});
+
+it('올리기는 적은 것을 **먼저 저장하고** 올린다 — 화면의 초안이 서버에 없으면 빈 보고로 막힌다', async () => {
+  const view = setupWrite();
+  await waitFor(() => expect(view.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  fireEvent.change(view.getByRole('textbox', { name: '회계 메모' }), { target: { value: '한 줄' } });
+  fireEvent.click(view.getByRole('button', { name: '대표께 올리기' }));
+
+  await waitFor(() => expect(view.calls.length).toBe(2));
+  expect(view.calls[0]).toMatchObject({ method: 'patch', url: '/exec/report' });
+  // 여섯 칸을 다 보낸다 — 서버가 보낸 칸만 합치므로 안 적은 칸도 그대로 간다
+  expect((view.calls[0].body as { memos: unknown[] }).memos.length).toBe(6);
+  expect(view.calls[1]).toMatchObject({ method: 'post', url: '/exec/report/submit' });
+});
+
+it('결재 단추는 **올라온 보고**에만, 대표에게만 선다 (§73)', async () => {
+  const sent: Partial<Exec> = {
+    reports: [{
+      id: 7, rptType: 'day', onDate: '2026-08-21', state: 'sent', memo: '',
+      memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
+      filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
+      sentByName: '김민수', reviewedByName: null,
+    }],
+  };
+  const ceo = setupWrite(sent);
+  await waitFor(() => expect(ceo.container.textContent).toContain('올라온 보고입니다'));
+  expect(ceo.getByRole('button', { name: '승인' })).toBeTruthy();
+  // 반려는 사유가 있어야 눌린다 (D-R13)
+  expect(ceo.getByRole('button', { name: '반려' }).hasAttribute('disabled')).toBe(true);
+  expect(ceo.container.textContent).toContain('올린 사람');
+  expect(ceo.container.textContent).toContain('김민수');
+  cleanup();
+
+  const manager: Me = { ...me, role: 'manager', roleLabel: '매니저', canSeeProfit: false, canMoney: false };
+  const mgr = setupWrite(sent, manager);
+  await waitFor(() => expect(mgr.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  expect(mgr.queryByText('올라온 보고입니다 — 결재해 주세요')).toBeNull();
+  expect(mgr.queryByRole('button', { name: '승인' })).toBeNull();
+});
