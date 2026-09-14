@@ -4910,6 +4910,14 @@ export interface components {
             /** @description 회차마다 배정량에서 깎이는 포인트 (D-R29) */
             point: number;
         };
+        GpaStudentSvcDto: {
+            key: string;
+            name: string;
+            /** @description 회수 */
+            count: number;
+            /** @description 포인트 합 */
+            points: number;
+        };
         GpaStudentDto: {
             studentId: number;
             name: string;
@@ -4926,6 +4934,8 @@ export interface components {
             remain: number;
             /** @description 배정 초과 — 붉게 표시하고 추가 결제/다음 사이클 조정을 안내한다 */
             over: boolean;
+            /** @description §82 카드의 서비스 칩 — 0 인 갈래는 없다 */
+            svcs: components["schemas"]["GpaStudentSvcDto"][];
         };
         GpaUseDto: {
             id: number;
@@ -4963,7 +4973,9 @@ export interface components {
             totalWait: number;
             /** @description 사이클 합계 — 잔여 (배정−사용−대기) */
             totalRemain: number;
-            /** @description 배정 ∪ 소비 학생 — 이름 순 */
+            /** @description §82 머리의 「N회 진행」 — 이 사이클 소비 기록 수. 승인 대기도 센다 (기록이 있다는 것은 회차가 있었다는 뜻이고, 그 포인트는 이미 잔여에서 빠져 있다) */
+            totalUses: number;
+            /** @description 배정 ∪ 소비 학생 — **잔여 적은 순**(원본 §82 「5명 · 잔여 적은 순」), 같으면 이름 순. 초과가 맨 앞에 온다 — 먼저 손봐야 할 것이 먼저 보여야 한다. */
             students: components["schemas"]["GpaStudentDto"][];
             /** @description 사이클 내 소비 — 날짜·시간 순 (gpTimeline 입력) */
             uses: components["schemas"]["GpaUseDto"][];

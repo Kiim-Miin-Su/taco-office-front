@@ -20,6 +20,7 @@ import {
 } from '@/api/queries';
 import type { GpaBoard, GpaStudent } from '@/api/types';
 import { hm } from '@/components/teacher/format';
+import { GpaPointCard } from '@/components/data/GpaPointCard';
 
 const addD = (iso: string, n: number): string =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
@@ -30,7 +31,8 @@ function AllocEditor({ s, cycleId, closed }: { s: GpaStudent; cycleId: number; c
   const [value, setValue] = useState(String(s.alloc));
   const dirty = Number(value) !== s.alloc;
   return (
-    <span className="flex items-center justify-end gap-1">
+    <span className="flex items-center gap-1">
+      <span className="text-[11px] text-fg-subtle">배정</span>
       <input
         type="number"
         min={0}
@@ -68,6 +70,8 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
     );
   }
   const cy = d.cycle;
+  // 서버가 내린 판정을 거를 뿐이다 — 잔여를 다시 셈하지 않는다 (D-R39 의 이유와 같다)
+  const over = d.students.filter((s) => s.over);
   const picked = d.students.find((s) => s.studentId === pickedId) ?? null;
   const uses = picked ? d.uses.filter((u) => u.studentId === picked.studentId) : [];
   let running = picked ? picked.alloc : 0;
@@ -95,56 +99,81 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
         <Button size="sm" disabled={!d.hasPrev} onClick={() => { setAnchor(addD(cy.from, -1)); setPickedId(null); }}>← 이전 사이클</Button>
         <Button size="sm" variant={anchor === undefined ? 'primary' : 'secondary'} onClick={() => { setAnchor(undefined); setPickedId(null); }}>현재 사이클</Button>
         <Button size="sm" disabled={!d.hasNext} onClick={() => { setAnchor(addD(cy.to, 1)); setPickedId(null); }}>다음 사이클 →</Button>
-        <span className="ml-auto flex items-center gap-1.5 text-[12px] text-fg-subtle">
-          규정: {d.services.map((s) => `${s.name} ${s.point}p`).join(' · ')}
-        </span>
+      </div>
+
+      {/*
+        원본 §82 「포인트 규정」 줄 — 갈래마다 칩 하나, 끝에 이월 규칙.
+        「이월 없음」은 닫힌 사이클에만 말해선 안 된다 — **닫히기 전에 알아야 쓸 수 있다.**
+      */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[12px] text-fg-subtle">포인트 규정</span>
+        {d.services.map((sv) => (
+          <Chip key={sv.key} size="compact" tone="info">{sv.point}p {sv.name}</Chip>
+        ))}
+        <Chip size="compact" tone="neutral">이월 없음 · 사이클 종료 시 소멸</Chip>
       </div>
 
       {cy.closed ? (
         <Banner className="mt-3" tone="warning">닫힌 사이클입니다 — 이월 없이 잔여가 소멸했고, 기록·승인·배정을 바꿀 수 없습니다.</Banner>
       ) : null}
 
-      <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* 원본 §82 머리 — 다섯 칸이다. 다섯째 「N회 진행」은 포인트가 아니라 **회수**다 */}
+      <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="배정" value={`${d.totalAlloc}p`} />
-        <StatCard label="사용 (승인)" value={`${d.totalUsed}p`} />
+        <StatCard label="사용" value={`${d.totalUsed}p`} note="승인" />
         <StatCard label="승인 대기" value={`${d.totalWait}p`} tone="warning" />
         <StatCard label="잔여" value={`${d.totalRemain}p`} tone={d.totalRemain < 0 ? 'danger' : 'success'} note="배정 − 사용 − 대기" />
+        <StatCard label="진행" value={`${d.totalUses}회`} note="승인 대기 포함" />
       </div>
 
-      <Panel title={`학생별 잔여 · ${d.students.length}명`} sub="초과는 붉게 — 추가 결제 또는 다음 사이클 조정을 안내해 주세요">
+      {/*
+        원본 §82 의 붉은 경고 — **넘긴 학생을 위에 모아 센다.**
+        칸마다 붉게 칠하는 것만으로는 다섯 칸 중 둘이 넘었다는 것을 한눈에 못 본다.
+        수도 줄도 서버가 준 값 그대로다 (D-R37).
+      */}
+      {over.length > 0 ? (
+        <Banner tone="danger" className="mb-4">
+          <b>배정 포인트를 넘긴 학생 {over.length}명</b>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {over.map((s) => (
+              <li key={s.studentId}>
+                {s.name} — 배정 {s.alloc}p / 사용 {s.used + s.wait}p · <b>{-s.remain}p 초과</b> · 추가 결제 또는 다음 사이클 조정이 필요합니다
+              </li>
+            ))}
+          </ul>
+        </Banner>
+      ) : null}
+
+      {/*
+        원본 §82 「학생별 포인트 · N명 · 잔여 적은 순」 — 표가 아니라 **카드 격자**다.
+        순서도 서버가 정한다(초과가 맨 앞) — 화면이 다시 정렬하면 컷의 순서와 갈린다.
+        배정을 고치는 한 줄만 제품이 더한 것이다: §82 는 우리에겐 화면이고, 고칠 자리가 여기뿐이다.
+      */}
+      <Panel title={`학생별 포인트 · ${d.students.length}명`} sub="잔여 적은 순 — 넘긴 학생이 먼저 옵니다">
         {d.students.length === 0
           ? <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">이 사이클에 배정·소비가 없습니다.</p>
           : (
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="border-b border-line text-left text-[11.5px] text-fg-subtle">
-                  <th className="py-1.5">학생</th><th>담당</th>
-                  <th className="text-right">배정</th><th className="text-right">사용</th>
-                  <th className="text-right">대기</th><th className="text-right">잔여</th><th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {d.students.map((s) => (
-                  <tr key={s.studentId} className={`border-b border-line/60 last:border-b-0 ${picked?.studentId === s.studentId ? 'bg-primary/5' : ''}`}>
-                    <td className="py-1.5 font-bold text-fg">
-                      {s.name} {s.grade ? <span className="text-[11px] font-normal text-fg-subtle">{s.grade}</span> : null}
-                      {s.over ? <Chip className="ml-1.5" size="compact" tone="danger">초과</Chip> : null}
-                    </td>
-                    <td className="text-fg-subtle">{s.coordName ?? '—'}</td>
-                    <td className="text-right"><AllocEditor s={s} cycleId={cy.id} closed={cy.closed} /></td>
-                    <td className="text-right">{s.used}p</td>
-                    <td className="text-right text-amber">{s.wait}p</td>
-                    <td className={`text-right font-bold ${s.remain < 0 ? 'text-red' : 'text-fg'}`}>
-                      {s.remain}p
-                      {s.over ? <div className="text-[10.5px] font-normal text-red">추가 결제 또는 다음 사이클 조정</div> : null}
-                    </td>
-                    <td className="text-right">
-                      <Button size="sm" variant={picked?.studentId === s.studentId ? 'primary' : 'secondary'} onClick={() => setPickedId(s.studentId)}>타임라인</Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid grid-cols-1 gap-3 p-1 sm:grid-cols-2 lg:grid-cols-3">
+              {d.students.map((s) => (
+                <GpaPointCard
+                  key={s.studentId}
+                  s={s}
+                  action={(
+                    <span className="flex flex-wrap items-center gap-2">
+                      <AllocEditor s={s} cycleId={cy.id} closed={cy.closed} />
+                      <Button
+                        className="ml-auto"
+                        size="sm"
+                        variant={picked?.studentId === s.studentId ? 'primary' : 'secondary'}
+                        onClick={() => setPickedId(picked?.studentId === s.studentId ? null : s.studentId)}
+                      >
+                        타임라인
+                      </Button>
+                    </span>
+                  )}
+                />
+              ))}
+            </div>
           )}
       </Panel>
 
