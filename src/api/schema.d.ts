@@ -3971,6 +3971,10 @@ export interface components {
             marks: components["schemas"]["BoardMarkCountDto"][];
             /** @description 네 축의 미완료 마크 합계 */
             missing: number;
+            /** @description 네 축이 **다 된** 수업 수 — 「3/20」의 3. 취소는 빼고 센다 */
+            doneLessons: number;
+            /** @description 휴강·취소한 수업 수 — 「0 휴강」. lessons 에는 안 들어 있다 */
+            canceled: number;
             /** @description N/A를 뺀 완료 마크 비율, 정수 반올림 */
             completionRate: number;
         };

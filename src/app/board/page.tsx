@@ -13,7 +13,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useBoard, useMeta, useOccurrences } from '@/api/queries';
-import type { BoardRow } from '@/api/types';
+import type { Board, BoardRow } from '@/api/types';
 import { DayBoard, MonthBoard, WeekBoard } from '@/components/board/BoardViews';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 import { AppShell } from '@/components/shell/AppShell';
@@ -47,6 +47,29 @@ function periodLabel(span: Span, anchor: string, range: { from: string; to: stri
   if (span === 'month') return `${+anchor.slice(0, 4)}년 ${+anchor.slice(5, 7)}월`;
   return `${label(range.from)} – ${label(range.to)}`;
 }
+
+/**
+ * 원본 §34~§36 머리 여섯 칸. 가운데 넷은 서버의 `summary.marks[].missing` 그대로이고
+ * 양 끝 둘(다 됐음 · 휴강)도 서버가 센다 — 낱말 순서까지 컷을 따른다 (D-R25 의 짝).
+ */
+const MISSING_OF = (data: Board, key: string): number =>
+  data.summary.marks.find((m) => m.key === key)?.missing ?? 0;
+
+const HEAD_CARDS: Array<{
+  label: string;
+  tone: 'danger' | 'warning' | 'neutral';
+  value: (d: Board) => number | string;
+  note?: (d: Board) => string;
+}> = [
+  { label: '다 됐음', tone: 'neutral',
+    value: (d) => `${d.summary.doneLessons}/${d.summary.lessons}`,
+    note: () => '네 축이 전부 선 수업' },
+  { label: '교재 안 됨', tone: 'danger', value: (d) => MISSING_OF(d, 'book') },
+  { label: '안내 안 됨', tone: 'danger', value: (d) => MISSING_OF(d, 'guide') },
+  { label: '줌 없음', tone: 'danger', value: (d) => MISSING_OF(d, 'zoom') },
+  { label: '리포트 안 씀', tone: 'danger', value: (d) => MISSING_OF(d, 'report') },
+  { label: '휴강', tone: 'warning', value: (d) => d.summary.canceled },
+];
 
 export default function BoardPage() {
   const [span, setSpan] = useState<Span>('day');
@@ -190,27 +213,28 @@ export default function BoardPage() {
           <Banner tone="danger">현황판을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.</Banner>
         ) : null}
 
+        {/*
+          원본 §34~§36 의 머리 여섯 칸 — **세 탭 공통**이다. 「완료율 %」 하나로는
+          *무엇이* 덜 됐는지를 말하지 못한다. 숫자는 전부 서버가 센 것이고
+          화면은 `rows` 를 다시 훑지 않는다 (D-R37 · N-19).
+        */}
+        <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {HEAD_CARDS.map((card) => {
+            const value = data ? card.value(data) : null;
+            return (
+              <StatCard
+                key={card.label}
+                label={card.label}
+                value={value ?? '—'}
+                note={data && card.note ? card.note(data) : undefined}
+                tone={typeof value === 'number' && value > 0 ? card.tone : 'neutral'}
+              />
+            );
+          })}
+        </div>
+
         {span === 'day' ? (
-          <>
-            <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard label="수업" value={data?.summary.lessons ?? '—'} />
-              <StatCard
-                label="덜 된 수업"
-                value={data?.missingCount ?? '—'}
-                tone={data?.missingCount ? 'danger' : 'success'}
-              />
-              <StatCard
-                label="취소·휴강"
-                value={(data?.rows ?? []).filter((row) => row.canceled).length}
-              />
-              <StatCard
-                label="완료율"
-                value={data ? `${data.summary.completionRate}%` : '—'}
-                tone="info"
-              />
-            </div>
-            <DayBoard rows={dayRows} loading={query.isLoading} onOpen={setSelected} />
-          </>
+          <DayBoard rows={dayRows} loading={query.isLoading} onOpen={setSelected} />
         ) : span === 'week' ? (
           <div className="mt-4">
             <WeekBoard
