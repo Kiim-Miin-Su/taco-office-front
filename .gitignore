@@ -5,6 +5,9 @@
 
 node_modules/
 .next/
+# NEXT_DIST_DIR 로 돌린 임시 빌드 산출물 — next.config.mjs 가 그 환경변수를 받는다.
+# 릴리스의 git add -A 가 빌드 찌꺼기를 커밋에 쓸어 담는 사고를 막는 자리다.
+.next-*/
 out/
 .env
 .env.local
