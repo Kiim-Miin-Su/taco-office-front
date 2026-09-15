@@ -95,14 +95,14 @@ describe('관리자 달력 날짜 정확성', () => {
     ];
     const view = render(<WeekGrid date="2026-09-01" items={items} />);
 
-    // timeRange가 12~18시 공통 축을 만들고, HOUR_PX(56px)로 두 회차의 실제 위치를 정한다.
-    expect(view.getByText('12:00')).toBeTruthy();
-    expect(view.getByText('17:00')).toBeTruthy();
+    // N-43: 늦은 수업만 있어도 공통 09~22시 축을 접지 않고, HOUR_PX(56px)로 실제 위치를 정한다.
+    expect(view.getByText('09:00')).toBeTruthy();
+    expect(view.getByText('21:00')).toBeTruthy();
     const first = view.container.querySelector<HTMLElement>('[data-week-event="10|2026-09-01"]');
     const second = view.container.querySelector<HTMLElement>('[data-week-event="11|2026-09-02"]');
-    expect(first?.style.top).toBe('113px');
+    expect(first?.style.top).toBe('281px');
     expect(first?.style.height).toBe('54px');
-    expect(second?.style.top).toBe('169px');
+    expect(second?.style.top).toBe('337px');
     expect(second?.style.height).toBe('26px');
   });
 

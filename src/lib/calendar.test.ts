@@ -107,18 +107,16 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
     expect(step('month', '2026-01-15', -1)).toBe('2025-12-01');
   });
 
-  it('시간 범위는 좁히되 6시간은 남긴다 (§10)', () => {
-    const tight = timeRange([{ startMin: 600, endMin: 660 }]);
-    expect(tight.to - tight.from).toBeGreaterThanOrEqual(360);
-    const wide = timeRange([{ startMin: 540, endMin: 600 }, { startMin: 1200, endMin: 1260 }]);
-    expect(wide.from).toBeLessThanOrEqual(540);
-    expect(wide.to).toBeGreaterThanOrEqual(1260);
+  it('현재 시각과 일정 밀도에 관계없이 09~22시를 전부 표시한다 (N-43)', () => {
+    expect(timeRange([])).toEqual({ from: 540, to: 1320 });
+    expect(timeRange([{ startMin: 600, endMin: 660 }])).toEqual({ from: 540, to: 1320 });
+    expect(timeRange([{ startMin: 1200, endMin: 1260 }])).toEqual({ from: 540, to: 1320 });
   });
 
-  it('00시와 24시 인접 수업도 당일 안에서 최소 6시간을 확보한다', () => {
-    expect(timeRange([{ startMin: 0, endMin: 60 }])).toEqual({ from: 0, to: 360 });
-    expect(timeRange([{ startMin: 1380, endMin: 1440 }])).toEqual({ from: 1080, to: 1440 });
-    expect(timeRange([{ startMin: 1430, endMin: 1440 }])).toEqual({ from: 1080, to: 1440 });
+  it('09~22시 밖의 실제 수업은 정시 경계까지 넓혀 숨기지 않는다', () => {
+    expect(timeRange([{ startMin: 0, endMin: 60 }])).toEqual({ from: 0, to: 1320 });
+    expect(timeRange([{ startMin: 1380, endMin: 1440 }])).toEqual({ from: 540, to: 1440 });
+    expect(timeRange([{ startMin: 1430, endMin: 1440 }])).toEqual({ from: 540, to: 1440 });
     for (let startMin = 0; startMin <= 1425; startMin += 15) {
       for (let duration = 15; duration <= 480 && startMin + duration <= 1440; duration += 15) {
         const endMin = startMin + duration;
@@ -127,7 +125,8 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
         expect(from).toBeLessThanOrEqual(startMin);
         expect(to).toBeGreaterThanOrEqual(endMin);
         expect(to).toBeLessThanOrEqual(1440);
-        expect(to - from).toBeGreaterThanOrEqual(360);
+        expect(from).toBeLessThanOrEqual(540);
+        expect(to).toBeGreaterThanOrEqual(1320);
         expect(from % 60).toBe(0);
         expect(to % 60).toBe(0);
       }

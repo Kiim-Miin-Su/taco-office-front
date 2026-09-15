@@ -85,6 +85,20 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(view.queryByText('새 일정')).toBeNull();
   });
 
+  it('현재 시각보다 먼저 끝난 오늘 수업도 예정 수업과 함께 숨기지 않는다', () => {
+    vi.setSystemTime(new Date('2026-09-07T09:00:00Z')); // KST 18:00
+    mocks.occurrences.mockReturnValue({ data: { items: [
+      occurrence(1, '2026-09-07', 600, { endMin: 660, ended: true, repState: 'none' }),
+      occurrence(2, '2026-09-07', 1140),
+    ] }, isLoading: false, isError: false });
+
+    const view = render(<TeacherSchedule />);
+    const today = within(view.getByRole('region', { name: '오늘 전체 스케줄' }));
+    expect(today.getByRole('button', { name: /10:00–11:00/ })).toBeTruthy();
+    expect(today.getByRole('button', { name: /19:00–20:00/ })).toBeTruthy();
+    expect(today.getAllByRole('button')).toHaveLength(2);
+  });
+
   it('리포트 대상 행은 원래 날짜 키로 공용 상세를 열고 취소·비대상은 수업 상세를 연다', () => {
     mocks.occurrences.mockReturnValue({ data: { items: [
       occurrence(1, '2026-09-07', 600, { onDate: '2026-09-01' }),

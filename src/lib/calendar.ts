@@ -230,26 +230,27 @@ export const nowMinKst = (): number => {
   return n.getUTCHours() * 60 + n.getUTCMinutes();
 };
 
+/** 개발명세서 §07~§11의 기본 시간축. 모든 격자가 이 한 범위를 기준으로 삼는다. */
+export const SCHEDULE_BASE_TIME_RANGE = { from: 9 * 60, to: 22 * 60 } as const;
+
 /**
  * 격자에 그릴 시간 범위.
- * 수업이 몰려 있으면 앞뒤 1시간만 남기고 좁힌다 — 다만 **6시간은 유지**한다 (§10).
+ *
+ * 기본 09:00~22:00은 일정 유무나 현재 시각과 관계없이 전부 남긴다. 기준 밖에 실제 수업이
+ * 있으면 그 수업을 포함하는 정시 경계까지 넓힌다 — 자동 압축 때문에 지난 시간이나 이른/늦은
+ * 수업이 사라지지 않게 하는 N-43의 단일 출처다.
  */
 export function timeRange(mins: Array<{ startMin: number; endMin: number }>): { from: number; to: number } {
   // 손상된 응답 한 건이 모든 슬롯 좌표를 NaN으로 만들지 않게 표시 가능한 구간만 쓴다.
   const valid = mins.filter((m) => Number.isFinite(m.startMin) && Number.isFinite(m.endMin)
     && m.startMin >= 0 && m.startMin < m.endMin && m.endMin <= 24 * 60);
-  if (!valid.length) return { from: 9 * 60, to: 22 * 60 };
+  if (!valid.length) return { ...SCHEDULE_BASE_TIME_RANGE };
   const lo = Math.min(...valid.map((m) => m.startMin));
   const hi = Math.max(...valid.map((m) => m.endMin));
-  let from = Math.max(0, Math.floor((lo - 60) / 60) * 60);
-  let to = Math.min(24 * 60, Math.ceil((hi + 60) / 60) * 60);
-  if (to - from < 360) {
-    const mid = (from + to) / 2;
-    // 24시에서 끝을 자르지 말고 시작을 당겨 여섯 시간을 온전히 확보한다.
-    from = Math.max(0, Math.min(24 * 60 - 360, Math.floor((mid - 180) / 60) * 60));
-    to = from + 360;
-  }
-  return { from, to };
+  return {
+    from: Math.min(SCHEDULE_BASE_TIME_RANGE.from, Math.floor(lo / 60) * 60),
+    to: Math.max(SCHEDULE_BASE_TIME_RANGE.to, Math.ceil(hi / 60) * 60),
+  };
 }
 
 /* ── 상호작용 산수 (TBO-41 · CALENDAR §5) — 격자·드래그가 이것만 부른다 ── */
