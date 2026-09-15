@@ -18,9 +18,9 @@
  */
 'use client';
 import { useId, useMemo, useState } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CalCell } from './CalCell';
-import { EventBlock } from './EventBlock';
+import { EventBlock, type DragData } from './EventBlock';
 import { cn } from '../ui/cn';
 import {
   HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, nowMinKst, occurrenceKey, overlapClusters, timeRange,
@@ -98,15 +98,24 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, onAddAt }: {
     id: `slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
     data: { type: 'slot', date, colAxis, colId, slotMin } satisfies DropData,
   });
+  const drag = useDraggable({
+    id: `create-slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
+    data: { type: 'create', date, startMin: slotMin, colAxis, colId } satisfies DragData,
+    disabled: !onAddAt,
+  });
   return (
-    <div
-      ref={d.setNodeRef}
+    <button
+      ref={(node) => { d.setNodeRef(node); drag.setNodeRef(node); }}
+      {...(onAddAt ? drag.listeners : {})}
+      {...(onAddAt ? drag.attributes : {})}
+      type="button"
+      aria-label={`${date} ${hhmm(slotMin)} ${colAxis === 'room' ? '강의실' : '강사'} ${colId ?? '미지정'} 빈 시간 선택`}
       onClick={() => onAddAt?.(date, slotMin, colId)}
       className={cn(
-        'border-r border-line',
+        'block w-full appearance-none border-r border-line p-0 text-left',
         // 정시는 실선, 30분은 옅은 선 — 15분에는 선을 긋지 않는다 (§2.5)
         hourLine ? 'border-b border-b-line' : 'border-b border-b-line/40',
-        onAddAt && 'cursor-cell hover:bg-blue/[0.04]',
+        onAddAt && 'touch-none select-none cursor-cell hover:bg-blue/[0.04]',
         active && 'bg-blue/10 ring-2 ring-inset ring-blue',
         d.isOver && 'bg-blue/10',
       )}
@@ -126,16 +135,23 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, interactive }: {
     data: { type: 'weekSlot', date, slotMin } satisfies DropData,
     disabled: !interactive,
   });
+  const drag = useDraggable({
+    id: `create-week-slot|${instanceId}|${date}|${slotMin}`,
+    data: { type: 'create', date, startMin: slotMin } satisfies DragData,
+    disabled: !interactive,
+  });
   return (
     <button
-      ref={drop.setNodeRef}
+      ref={(node) => { drop.setNodeRef(node); drag.setNodeRef(node); }}
+      {...(interactive ? drag.listeners : {})}
+      {...(interactive ? drag.attributes : {})}
       type="button"
       aria-label={`${date} ${hhmm(slotMin)} 빈 시간 선택`}
       onClick={() => onAddAt?.(date, slotMin)}
       className={cn(
         'block w-full border-r border-line text-left',
         hourLine ? 'border-b border-b-line' : 'border-b border-b-line/40',
-        onAddAt && 'cursor-cell hover:bg-blue/[0.04]',
+        onAddAt && 'touch-none select-none cursor-cell hover:bg-blue/[0.04]',
         active && 'bg-blue/10 ring-2 ring-inset ring-blue',
         drop.isOver && 'bg-blue/10',
       )}

@@ -73,6 +73,7 @@ import type {
   Meta,
   OccurrenceCreate,
   OccurrenceDelete,
+  ScheduleUndo,
   OccurrenceList,
   OccurrenceMove,
   OccurrencePaste,
@@ -1123,6 +1124,7 @@ export type ScheduleWrite =
   | { kind: 'create'; body: OccurrenceCreate }
   | { kind: 'paste'; body: OccurrencePaste }
   | { kind: 'moveMany'; body: OccurrenceMove }
+  | { kind: 'undo'; body: ScheduleUndo }
   | { kind: 'patch'; serId: number; body: OccurrencePatch }
   | { kind: 'delete'; serId: number; body: OccurrenceDelete }
   | { kind: 'roster'; serId: number; body: RosterPatch };
@@ -1147,6 +1149,7 @@ export function useScheduleWrite(): UseMutationResult<
       if (w.kind === 'create') return (await api.post<WriteResult>('/schedule', w.body)).data;
       if (w.kind === 'paste') return (await api.post<WriteResult>('/schedule/paste', w.body)).data;
       if (w.kind === 'moveMany') return (await api.post<WriteResult>('/schedule/move', w.body)).data;
+      if (w.kind === 'undo') return (await api.post<WriteResult>('/schedule/undo', w.body)).data;
       if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
       if (w.kind === 'roster') return (await api.patch<RosterResult>(`/schedule/${w.serId}/roster`, w.body)).data;
       return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;

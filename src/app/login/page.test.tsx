@@ -50,7 +50,7 @@ const result: LoginResult = {
 };
 
 describe('LoginPage — 생성 로그인 계약', () => {
-  it('5개 이메일 바로 채우기는 이름·권한을 생성하지 않고 서버가 반환한 사용자를 그대로 저장한다', async () => {
+  it('5개 이메일 바로 채우기는 공용 역할 이름을 보이고 실제 권한은 서버가 반환한 사용자를 그대로 저장한다', async () => {
     const serverResult: LoginResult = {
       ...result,
       user: { ...result.user, id: 4, name: '강민지', role: 'manager', roleLabel: '매니저', title: '매니저',
@@ -58,11 +58,15 @@ describe('LoginPage — 생성 로그인 계약', () => {
     };
     post.mockResolvedValueOnce({ data: serverResult });
     const view = render(<LoginPage />);
-    for (const email of ['ceo', 'admin', 'head', 'coord', 't02'].map((name) => `${name}@tnacademy.kr`)) {
-      expect(view.getByRole('button', { name: email })).toBeTruthy();
+    for (const [email, role] of [
+      ['ceo@tnacademy.kr', '대표'], ['admin@tnacademy.kr', '관리자'],
+      ['head@tnacademy.kr', '매니저'], ['coord@tnacademy.kr', '매니저'],
+      ['t02@tnacademy.kr', '강사'],
+    ]) {
+      expect(view.getByRole('button', { name: `${email} · ${role}` })).toBeTruthy();
     }
     expect(view.queryByText(/이다현|김민선|김민수|김범준|강민지|김재훈/)).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr' }));
+    fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr · 매니저' }));
     expect(signIn).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
     await waitFor(() => expect(signIn).toHaveBeenCalledWith(serverResult.accessToken, serverResult.user));

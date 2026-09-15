@@ -18,11 +18,13 @@ import { KO_DOW, buildRrule, lessonTimeIssue, parseHm } from '@/lib/calendar';
 import { useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useState } from 'react';
-import type { Meta } from '@/api/types';
+import type { Meta, WriteResult } from '@/api/types';
 
 export interface SessionDraft {
   date: string;
   startMin: number;
+  /** 빈 칸 드래그가 고른 끝. 클릭 진입은 호출자가 기본 1시간을 넣는다. */
+  endMin: number;
   roomId: number | null;
 }
 
@@ -42,10 +44,11 @@ interface FormShape {
 
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-export function SessionEditor({ draft, meta, onClose }: {
+export function SessionEditor({ draft, meta, onClose, onCreated }: {
   draft: SessionDraft | null;
   meta?: Meta;
   onClose: () => void;
+  onCreated?: (result: WriteResult) => void;
 }) {
   const write = useScheduleWrite();
   const [err, setErr] = useState<string | null>(null);
@@ -58,7 +61,7 @@ export function SessionEditor({ draft, meta, onClose }: {
     values: draft
       ? {
           kindKey: 'class', subKey: '', mode: 'offline',
-          start: hm(draft.startMin), end: hm(Math.min(24 * 60, draft.startMin + 60)),
+          start: hm(draft.startMin), end: hm(draft.endMin),
           teacherId: '', roomId: draft.roomId === null ? '' : String(draft.roomId),
           title: '', days: [], studentIds: [],
         }
@@ -93,7 +96,10 @@ export function SessionEditor({ draft, meta, onClose }: {
           studentIds: v.studentIds,
         },
       },
-      { onError: (e) => setErr(apiMessage(e)), onSuccess: onClose },
+      {
+        onError: (e) => setErr(apiMessage(e)),
+        onSuccess: (result) => { onCreated?.(result); onClose(); },
+      },
     );
   });
 

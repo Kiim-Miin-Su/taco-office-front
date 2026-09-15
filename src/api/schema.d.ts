@@ -258,6 +258,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 직전 일정 쓰기 되돌리기 — 같은 행이 다시 바뀌었으면 409
+         * @description 서명된10분 토큰의 직후 스냅숏과 현재 DB가 같을 때만 직전 스냅숏을 복원한다. 토큰의 actor와 현재 사용자가 달라도 거절한다.
+         */
+        post: operations["ScheduleController_undo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/{serId}": {
         parameters: {
             query?: never;
@@ -2561,6 +2581,8 @@ export interface components {
             projected: number;
             /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
             serIds: number[];
+            /** @description 직전 일정 쓰기 실행 취소 토큰. 같은 수업이 다시 바뀌지 않은 때만 10분 안에 한 번 사용한다. */
+            undoToken?: string | null;
             /** @description 강사 불가 시간과 겹친 회차 — **막지 않고 알린다.** 오늘 이후·취소 아닌 것만, 최대 10줄 */
             unavailable: components["schemas"]["UnavWarnDto"][];
         };
@@ -2609,6 +2631,10 @@ export interface components {
             /** @enum {string} */
             scope: "this" | "future" | "all";
         };
+        ScheduleUndoDto: {
+            /** @description 직전 WriteResult.undoToken 그대로 */
+            token: string;
+        };
         OccurrencePatchDto: {
             /**
              * @description 이번만 · 향후 · 모두 (D-R16). 첫 회차의 future 는 all 로 강등된다 (D-R17)
@@ -2653,6 +2679,8 @@ export interface components {
             projected: number;
             /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
             serIds: number[];
+            /** @description 직전 일정 쓰기 실행 취소 토큰. 같은 수업이 다시 바뀌지 않은 때만 10분 안에 한 번 사용한다. */
+            undoToken?: string | null;
             /** @description 강사 불가 시간과 겹친 회차 — **막지 않고 알린다.** 오늘 이후·취소 아닌 것만, 최대 10줄 */
             unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 그 회차의 변경 후 실제 인원 */
@@ -6872,6 +6900,83 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_undo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleUndoDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteResultDto"];
+                };
+            };
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description UNDO_STALE: 토큰 발급 뒤 같은 일정이 다시 변경됨 */
             409: {
                 headers: {
                     [name: string]: unknown;

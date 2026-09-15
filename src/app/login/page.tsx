@@ -13,15 +13,18 @@ import { clearSessionQueries } from '@/api/session-cache';
 import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo } from '@/components/ui';
 import type { LoginBody, LoginResult } from '@/api/types';
+import { ROLES, type RoleKey } from '@/lib/roles';
 
-/** 개발 시드 이메일 바로 채우기. 이름·역할은 DB의 LoginResult만 신뢰한다. */
+/** 개발 시드 이메일 바로 채우기. 표시는 공용 역할 어휘, 실제 권한은 DB의 LoginResult만 신뢰한다. */
 const DEMO = [
-  { email: 'ceo@tnacademy.kr' },
-  { email: 'admin@tnacademy.kr' },
-  { email: 'head@tnacademy.kr' },
-  { email: 'coord@tnacademy.kr' },
-  { email: 't02@tnacademy.kr' },
-];
+  { email: 'ceo@tnacademy.kr', role: 'ceo' },
+  { email: 'admin@tnacademy.kr', role: 'admin' },
+  { email: 'head@tnacademy.kr', role: 'manager' },
+  { email: 'coord@tnacademy.kr', role: 'manager' },
+  { email: 't02@tnacademy.kr', role: 'teacher' },
+] satisfies Array<{ email: string; role: RoleKey }>;
+
+const ROLE_BY_KEY = new Map(ROLES.map((role) => [role.key, role]));
 
 export default function LoginPage() {
   const router = useRouter();
@@ -87,8 +90,12 @@ export default function LoginPage() {
               <Button
                 key={d.email} size="sm" variant="ghost"
                 onClick={() => { setEmail(d.email); setPassword('taco1234!'); }}
+                title={ROLE_BY_KEY.get(d.role)?.desc}
               >
-                {d.email}
+                <span>{d.email}</span>
+                <span className="ml-1 text-[10px] font-bold text-blue">
+                  · {ROLE_BY_KEY.get(d.role)?.label}
+                </span>
               </Button>
             ))}
           </div>

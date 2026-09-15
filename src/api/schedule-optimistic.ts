@@ -23,7 +23,7 @@ export function resetScheduleOptimistic(client: object): void {
 
 /** 기존 낙관 표시만 적용한다. future/all의 다른 회차와 신규 생성은 서버 조회에 맡긴다. */
 function project(list: OccurrenceList, w: ScheduleWrite): OccurrenceList {
-  if (w.kind === 'create' || w.kind === 'paste' || w.kind === 'roster') return list;
+  if (w.kind === 'create' || w.kind === 'paste' || w.kind === 'roster' || w.kind === 'undo') return list;
   const items = list.items.map((o) => {
     if (w.kind === 'moveMany') {
       const item = w.body.items.find((x) => x.source.serId === o.serId && x.source.onDate === o.onDate);

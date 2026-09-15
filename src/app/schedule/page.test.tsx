@@ -13,7 +13,7 @@ import { KO_DOW, dowOf, monthGrid } from '@/lib/calendar';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(),
-  download: vi.fn(), conflicts: vi.fn(),
+  download: vi.fn(), conflicts: vi.fn(), draft: vi.fn(),
   permissions: { canAdminPage: true, canCrudAll: true } as Record<string, boolean>,
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
@@ -36,7 +36,9 @@ vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEnt
   children: ReactNode; drawerEntry?: { pane: string; identity: string } | null;
 }) => <div data-drawer-entry={drawerEntry ? `${drawerEntry.pane}:${drawerEntry.identity}` : undefined}>{children}</div> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
-vi.mock('@/components/cal/SessionEditor', () => ({ SessionEditor: () => null }));
+vi.mock('@/components/cal/SessionEditor', () => ({ SessionEditor: ({ draft }: { draft: unknown }) => {
+  mocks.draft(draft); return null;
+} }));
 vi.mock('@/components/cal/TeacherSchedule', () => ({ TeacherSchedule: () => <div>오늘 수업</div> }));
 vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: ({ occ }: { occ: Occurrence | null }) => {
   mocks.detail(occ); return null;
@@ -509,6 +511,41 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     act(() => mocks.drag!.onDragEnd?.(event));
   };
 
+  it('빈 주간 슬롯을 아래로 드래그하면 시작·끝을 보존한 새 일정 초안을 연다', () => {
+    render(<SchedulePage />);
+    const create = {
+      active: {
+        id: 'create-test', data: { current: { type: 'create', date: '2026-09-01', startMin: 600 } },
+        rect: { current: { initial: rect(200), translated: rect(284) } },
+      },
+      over: { id: 'week-slot-test', disabled: false, rect: rect(284),
+        data: { current: { type: 'weekSlot', date: '2026-09-01', slotMin: 690 } } },
+      activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: 84 },
+    } as unknown as DragEndEvent;
+    act(() => mocks.drag!.onDragStart?.({ active: create.active, activatorEvent: create.activatorEvent }));
+    act(() => mocks.drag!.onDragEnd?.(create));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 600, endMin: 720, roomId: null });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('빈 슬롯 생성은 다른 날짜·열로 넘기면 저장 초안을 만들지 않는다', () => {
+    const view = render(<SchedulePage />);
+    const create = {
+      active: {
+        id: 'create-test', data: { current: {
+          type: 'create', date: '2026-09-01', startMin: 600, colAxis: 'room', colId: 1,
+        } }, rect: { current: { initial: rect(200), translated: rect(284) } },
+      },
+      over: { id: 'slot-test', disabled: false, rect: rect(284), data: { current: {
+        type: 'slot', date: '2026-09-01', slotMin: 690, colAxis: 'room', colId: 2,
+      } } }, activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 100, y: 84 },
+    } as unknown as DragEndEvent;
+    act(() => mocks.drag!.onDragStart?.({ active: create.active, activatorEvent: create.activatorEvent }));
+    act(() => mocks.drag!.onDragEnd?.(create));
+    expect(view.getByText('새 일정은 같은 날짜·같은 열 안에서 시간을 드래그해 주세요.')).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
   it('출발11시+delta0이 아닌 대상15시 슬롯의15분 위치에 길이를 유지해 저장한다', () => {
     render(<SchedulePage />);
     finish(drop(items[0]));
@@ -525,6 +562,37 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
       body: { date: '2026-09-02', startMin: 975, endMin: 1035, onDate: '2026-09-01', scope: 'this' } });
     expect(mocks.write.mock.calls[0][0].body).not.toHaveProperty('roomId');
     expect(mocks.write.mock.calls[0][0].body).not.toHaveProperty('teacherId');
+  });
+
+  it('성공한 마지막 이동은 서버 undo token 하나로 Ctrl/⌘+Z하고 토큰을 즉시 폐기한다', () => {
+    const token = 'signed-schedule-undo-token-for-regression';
+    mocks.write
+      .mockImplementationOnce((_cmd: unknown, opts: { onSuccess?: (r: unknown) => void }) => opts.onSuccess?.({
+        effScope: 'this', log: [], projected: 1, serIds: [1], unavailable: [], undoToken: token,
+      }))
+      .mockImplementationOnce((_cmd: unknown, opts: { onSuccess?: (r: unknown) => void }) => opts.onSuccess?.({
+        effScope: 'this', log: [], projected: 1, serIds: [1], unavailable: [], undoToken: null,
+      }));
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+
+    expect(view.getByRole('button', { name: '되돌리기 · Ctrl/⌘+Z' })).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+
+    expect(mocks.write).toHaveBeenNthCalledWith(2, { kind: 'undo', body: { token } }, expect.any(Object));
+    expect(view.getByText('수업 이동을 되돌렸습니다.')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '되돌리기 · Ctrl/⌘+Z' })).toBeNull();
+  });
+
+  it('아직 저장하지 않은 반복 이동 모달의 Ctrl/⌘+Z는 서버 요청 없이 모달만 닫는다', () => {
+    const view = render(<SchedulePage />);
+    finish(drop({ ...items[0], recurring: true }));
+    expect(view.getByRole('dialog')).toBeTruthy();
+
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(mocks.write).not.toHaveBeenCalled();
   });
 
   it.each([false, true])('자정 초과는 길이 단축이나 원시각 fallback 없이 거절한다 (copy=%s)', (copy) => {

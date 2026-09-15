@@ -86,6 +86,19 @@ it('정상 저장도 같은 네 key만 갱신하고 mutation 결과를 그대로
   ]);
 });
 
+it('되돌리기는 공용 mutation에서 POST /schedule/undo 계약과 서버 token을 그대로 사용한다', async () => {
+  const token = 'signed-schedule-undo-token-for-regression';
+  const data = { effScope: 'this', log: [], projected: 1, serIds: [1], undoToken: null };
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data });
+  const view = renderHook(() => useScheduleWrite(), { wrapper });
+
+  await act(async () => {
+    await expect(view.result.current.mutateAsync({ kind: 'undo', body: { token } })).resolves.toEqual(data);
+  });
+
+  expect(post).toHaveBeenCalledWith('/schedule/undo', { token });
+});
+
 /** 실제 HTTP 응답 순서만 제어한다. QueryClient와 두 훅의 lifecycle은 제품 그대로 실행한다. */
 function deferred() {
   let resolve!: (value: { data: unknown }) => void;

@@ -43,10 +43,16 @@ export const STATUS_LABEL: Array<[keyof typeof STATUS_LOOK, string]> = [
 ];
 
 /** 드래그 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
-export interface DragData {
-  type: 'move' | 'resize';
-  occ: Occurrence;
-}
+export type DragData =
+  | { type: 'move' | 'resize'; occ: Occurrence }
+  | {
+      /** 빈 슬롯 범위 선택 — 저장 초안만 만들고 서버 판정은 SessionEditor가 맡는다. */
+      type: 'create';
+      date: string;
+      startMin: number;
+      colAxis?: 'room' | 'teacher';
+      colId?: number | null;
+    };
 
 export interface EventBlockProps {
   occ: Occurrence;
@@ -93,58 +99,62 @@ export function EventBlock({
   const moveListeners = draggable ? move.listeners : {};
 
   return (
-    <div
-      ref={move.setNodeRef}
-      {...moveListeners}
-      {...moveAttributes}
-      role="button"
-      tabIndex={0}
-      onClick={(e) => {
-        const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single';
-        onSelect?.(occ, mode);
-        // modifier 클릭은 선택만 한다. 일반 클릭은 기존 상세 열기 행동을 보존한다.
-        if (mode === 'single') onClick?.();
-      }}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter') return;
-        onSelect?.(occ, 'single');
-        onClick?.();
-      }}
-      title={`${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subName ?? occ.kindKey}${names ? ` · ${names}` : ''}`}
-      style={color ? eventColorStyle(color) : undefined}
-      className={cn(
-        'relative flex h-full w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
-        // 온라인은 점선, 관리자 과목색 표현에는 같은 색의 사선도 더한다.
-        occ.mode === 'online' ? 'border-dashed' : 'border-solid',
-        color && occ.mode === 'online' && styles.online,
-        occ.canceled && 'opacity-45 line-through',
-        draggable && 'cursor-grab active:cursor-grabbing',
-        // 낙관 반영 중인 원본 자리 — 고스트는 DragOverlay 가 그린다 (§5.1)
-        dragging && 'opacity-40',
-        selected && 'z-[1] ring-2 ring-blue ring-offset-1 ring-offset-card',
-        look,
-      )}
-      aria-pressed={selected}
-    >
-      <div className="flex items-center gap-1 text-[11px] font-bold leading-tight">
-        <span>{hhmm(occ.startMin)}</span>
-        <span className="truncate">{subName ?? occ.title ?? occ.kindKey}</span>
-      </div>
-      {!compact && names ? (
-        <div className="mt-0.5 truncate text-[10px] opacity-80">{names}</div>
-      ) : null}
-      {!compact && occ.hasException ? (
-        <div className="mt-0.5 text-[10px] font-bold opacity-90">예외 있음</div>
-      ) : null}
+    <div className="relative h-full w-full">
+      <button
+        ref={move.setNodeRef}
+        {...moveListeners}
+        {...moveAttributes}
+        type="button"
+        onClick={(e) => {
+          const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single';
+          onSelect?.(occ, mode);
+          // modifier 클릭은 선택만 한다. 일반 클릭은 기존 상세 열기 행동을 보존한다.
+          if (mode === 'single') onClick?.();
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return;
+          // 브라우저가 뒤이어 합성할 click과 중복 실행되지 않도록 이 키 동작은 여기서 완결한다.
+          e.preventDefault();
+          onSelect?.(occ, 'single');
+          onClick?.();
+        }}
+        title={`${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subName ?? occ.kindKey}${names ? ` · ${names}` : ''}`}
+        style={color ? eventColorStyle(color) : undefined}
+        className={cn(
+          'relative flex h-full w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
+          // 온라인은 점선, 관리자 과목색 표현에는 같은 색의 사선도 더한다.
+          occ.mode === 'online' ? 'border-dashed' : 'border-solid',
+          color && occ.mode === 'online' && styles.online,
+          occ.canceled && 'opacity-45 line-through',
+          draggable && 'touch-none select-none cursor-grab active:cursor-grabbing',
+          // 낙관 반영 중인 원본 자리 — 고스트는 DragOverlay 가 그린다 (§5.1)
+          dragging && 'opacity-40',
+          selected && 'z-[1] ring-2 ring-blue ring-offset-1 ring-offset-card',
+          look,
+        )}
+        aria-pressed={selected}
+      >
+        <div className="flex items-center gap-1 text-[11px] font-bold leading-tight">
+          <span>{hhmm(occ.startMin)}</span>
+          <span className="truncate">{subName ?? occ.title ?? occ.kindKey}</span>
+        </div>
+        {!compact && names ? (
+          <div className="mt-0.5 truncate text-[10px] opacity-80">{names}</div>
+        ) : null}
+        {!compact && occ.hasException ? (
+          <div className="mt-0.5 text-[10px] font-bold opacity-90">예외 있음</div>
+        ) : null}
+      </button>
 
       {resizable ? (
-        <div
+        <button
           ref={resize.setNodeRef}
           {...resize.listeners}
           {...resize.attributes}
+          type="button"
           // 블록 클릭(상세 열기)과 겹치지 않게 이벤트를 여기서 끊는다
           onClick={(e) => e.stopPropagation()}
-          className="absolute inset-x-0 bottom-0 h-[6px] cursor-ns-resize rounded-b-md hover:bg-fg/10"
+          className="absolute inset-x-0 bottom-0 z-[2] h-[6px] cursor-ns-resize rounded-b-md hover:bg-fg/10"
           aria-label="길이 조절"
         />
       ) : null}

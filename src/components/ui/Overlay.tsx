@@ -167,7 +167,12 @@ export function RecurrenceScope({ open, mode, warning, onPick, onClose }: {
 }) {
   const verb = { edit: '고칩니다', paste: '붙여넣습니다', delete: '지웁니다' }[mode];
   return (
-    <Dialog open={open} onClose={onClose} title={`반복 수업입니다 — 어디까지 ${verb}?`}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={`반복 수업입니다 — 어디까지 ${verb}?`}
+      footer={<Button type="button" variant="ghost" onClick={onClose}>취소 (Esc)</Button>}
+    >
       {warning ? <div className="mb-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[11px] text-fg-2">{warning}</div> : null}
       <div className="flex flex-col gap-2">
         {(['this', 'future', 'all'] as Scope[]).map((s) => (

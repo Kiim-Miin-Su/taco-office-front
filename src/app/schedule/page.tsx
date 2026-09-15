@@ -50,7 +50,7 @@ import {
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
-import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, UnavWarn } from '@/api/types';
+import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, UnavWarn, WriteResult } from '@/api/types';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
 import { downloadElementPng } from '@/lib/png-export';
 import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
@@ -265,6 +265,7 @@ function AdminSchedulePage() {
 
   /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
   const [dragging, setDragging] = useState<Occurrence | null>(null);
+  const [creating, setCreating] = useState<Extract<DragData, { type: 'create' }> | null>(null);
   const [dragCopy, setDragCopy] = useState(false);
   const dragCopyRef = useRef(false);
   const panesRef = useRef<HTMLDivElement>(null);
@@ -274,6 +275,9 @@ function AdminSchedulePage() {
   const [pasteAsk, setPasteAsk] = useState<PendingPaste | null>(null);
   const [moveAsk, setMoveAsk] = useState<PendingMoveMany | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** 서버가 서명한 직전 쓰기 한 건만 메모리에 둔다. 새 쓰기가 성공하면 이전 토큰을 교체한다. */
+  const [lastUndo, setLastUndo] = useState<{ token: string; label: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   /**
    * 저장은 됐는데 **강사가 불가로 적어 둔 시간**에 걸쳤다 (원본 §15·§16).
    * 오류가 아니라 알림이라 자리도 색도 따로 쓴다 — 막을 일이었으면 서버가 막았다.
@@ -299,10 +303,15 @@ function AdminSchedulePage() {
   }, [requestedStudentId]);
 
   /** 저장이 됐을 때 — 오류를 지우고, 서버가 준 불가 시간 알림만 남긴다. */
-  const doneWrite = (result: unknown) => {
+  const doneWrite = (result: unknown, undoLabel = '일정 변경') => {
     setErr(null);
-    const rows = (result as { unavailable?: UnavWarn[] } | undefined)?.unavailable ?? [];
+    const typed = result as (WriteResult & { unavailable?: UnavWarn[] }) | undefined;
+    const rows = typed?.unavailable ?? [];
     setUnavail(unavailableLines(rows));
+    if (typed?.undoToken) {
+      setLastUndo({ token: typed.undoToken, label: undoLabel });
+      setNotice(`${undoLabel}을 저장했습니다. Ctrl/⌘+Z로 10분 안에 되돌릴 수 있습니다.`);
+    }
   };
 
   /**
@@ -341,7 +350,7 @@ function AdminSchedulePage() {
           roomId: body.roomId === undefined ? occ.roomId : body.roomId,
           exceptSerId: occ.serId,
         }),
-        onSuccess: (result) => doneWrite(result),
+        onSuccess: (result) => doneWrite(result, '수업 이동'),
       },
     );
   };
@@ -372,7 +381,7 @@ function AdminSchedulePage() {
           roomId: pending.target.roomId ?? pending.items[0].roomId,
         }),
         onSuccess: (result) => {
-          doneWrite(result);
+          doneWrite(result, pending.target.cut ? '수업 잘라내기·붙여넣기' : '수업 붙여넣기');
           setPasteAsk(null);
           go({ t: 'cursor', value: null });
           if (pending.fromClipboard) {
@@ -402,7 +411,7 @@ function AdminSchedulePage() {
           roomId: pending.items[0].roomId ?? pending.occurrences[0].roomId,
           exceptSerId: pending.occurrences[0].serId,
         }),
-        onSuccess: (result) => { doneWrite(result); setMoveAsk(null); },
+        onSuccess: (result) => { doneWrite(result, '여러 수업 이동'); setMoveAsk(null); },
       },
     );
   };
@@ -439,6 +448,10 @@ function AdminSchedulePage() {
   const onDragStart = (e: DragStartEvent) => {
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
+    if (d.type === 'create') {
+      setCreating(d);
+      return;
+    }
     if (!s.selected.includes(occurrenceKey(d.occ))) go({ t: 'selected', keys: [occurrenceKey(d.occ)] });
     const activator = e.activatorEvent as MouseEvent;
     dragCopyRef.current = d.type === 'move' && (activator.ctrlKey || activator.metaKey);
@@ -448,11 +461,40 @@ function AdminSchedulePage() {
 
   const onDragEnd = (e: DragEndEvent) => {
     setDragging(null);
+    setCreating(null);
     setDragCopy(false);
     const copy = dragCopyRef.current;
     dragCopyRef.current = false;
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
+    if (d.type === 'create') {
+      const over = e.over?.data.current as DropData | undefined;
+      if (!over || over.type === 'day') return;
+      const sameColumn = over.date === d.date && (
+        over.type === 'weekSlot'
+          ? d.colAxis === undefined
+          : d.colAxis === over.colAxis && d.colId === over.colId
+      );
+      if (!sameColumn) {
+        setErr('새 일정은 같은 날짜·같은 열 안에서 시간을 드래그해 주세요.');
+        return;
+      }
+      const startMin = Math.min(d.startMin, over.slotMin);
+      const endMin = Math.max(d.startMin, over.slotMin) + 30;
+      const issue = lessonTimeIssue(startMin, endMin);
+      if (issue) {
+        setErr(issue);
+        return;
+      }
+      setErr(null);
+      setDraft({
+        date: d.date,
+        startMin,
+        endMin,
+        roomId: d.colAxis === 'room' ? (d.colId ?? null) : null,
+      });
+      return;
+    }
     if (d.type === 'resize') {
       // 길이 조절은 드롭 타깃이 없다 — 델타만 본다 (C-3)
       request(d.occ, resizePatch(d.occ, e.delta.y));
@@ -511,6 +553,13 @@ function AdminSchedulePage() {
     )) {
       request(d.occ, patch);
     }
+  };
+
+  const onDragCancel = () => {
+    setDragging(null);
+    setCreating(null);
+    setDragCopy(false);
+    dragCopyRef.current = false;
   };
 
   // ② 표가 둘이어도 **bounding range 하나**만 읽는다. split/filter 전환은 GET 0회다 (§4 · §6.1-2).
@@ -577,6 +626,32 @@ function AdminSchedulePage() {
     });
   };
 
+  const undoLast = () => {
+    if (!lastUndo) {
+      setErr('되돌릴 최근 스케줄 작업이 없습니다.');
+      return;
+    }
+    write.mutate(
+      { kind: 'undo', body: { token: lastUndo.token } },
+      {
+        onError: (error) => {
+          setLastUndo(null);
+          setNotice(null);
+          failWrite(error, null);
+        },
+        onSuccess: (result) => {
+          setLastUndo(null);
+          setNotice(`${lastUndo.label}을 되돌렸습니다.`);
+          setErr(null);
+          setUnavail(unavailableLines(result.unavailable ?? []));
+          go({ t: 'selected', keys: [] });
+          go({ t: 'clipboard', value: null });
+          go({ t: 'cursor', value: null });
+        },
+      },
+    );
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
@@ -590,6 +665,16 @@ function AdminSchedulePage() {
       if (mod && key === 'v') {
         e.preventDefault();
         pasteAtCursor();
+        return;
+      }
+      if (mod && key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        // 아직 서버에 보내지 않은 다이얼로그/초안은 닫는 것이 정확한 실행 취소다.
+        if (draft) setDraft(null);
+        else if (pasteAsk) setPasteAsk(null);
+        else if (moveAsk) setMoveAsk(null);
+        else if (ask) setAsk(null);
+        else undoLast();
         return;
       }
       if (e.key === 'Escape') {
@@ -613,7 +698,12 @@ function AdminSchedulePage() {
       setErr(null);
       return;
     }
-    setDraft({ date, startMin, roomId: colAxis === 'room' ? (colId ?? null) : null });
+    setDraft({
+      date,
+      startMin,
+      endMin: Math.min(1440, startMin + 60),
+      roomId: colAxis === 'room' ? (colId ?? null) : null,
+    });
   };
 
   /** Meta lookup 한 벌을 모든 표·상세·범례가 공유한다 (§88·§89). */
@@ -901,7 +991,7 @@ function AdminSchedulePage() {
             items={filteredAll}
             canEdit={canEdit}
             splitOn={s.panes.length === 2}
-            onCreate={() => setDraft({ date: activeModel.pane.date, startMin: 540, roomId: null })}
+            onCreate={() => setDraft({ date: activeModel.pane.date, startMin: 540, endMin: 600, roomId: null })}
             onHistory={() => openDrawer('chreqs')}
             onSplit={() => go({ t: 'split' })}
           />
@@ -914,7 +1004,13 @@ function AdminSchedulePage() {
           />
         ) : undefined}
       >
-        <DndContext sensors={sensors} collisionDetection={calendarCollision} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={calendarCollision}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragCancel={onDragCancel}
+        >
         <PageHeader
           title="스케줄"
           sub="§4·§7~§12 — 기본/분할은 같은 표를 반복 렌더하고, bounding range를 한 번만 읽습니다."
@@ -947,6 +1043,13 @@ function AdminSchedulePage() {
           <div className="mb-3" role="alert">
             {/* 서버 오류는 충돌만이 아니다. rollback 후 원래 오류 메시지를 그대로 알린다. */}
             <Banner tone="danger">{err}</Banner>
+          </div>
+        ) : null}
+
+        {notice ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2" role="status">
+            <Banner tone="success">{notice}</Banner>
+            {lastUndo ? <Button size="sm" variant="ghost" onClick={undoLast}>되돌리기 · Ctrl/⌘+Z</Button> : null}
           </div>
         ) : null}
 
@@ -1010,7 +1113,11 @@ function AdminSchedulePage() {
 
         {/* 드래그 고스트 — 원본은 흐려지고 이것이 손을 따라간다 (§5.1) */}
         <DragOverlay dropAnimation={null}>
-          {dragging ? (
+          {creating ? (
+            <div className="rounded-md border border-blue bg-blue/10 px-2 py-1 text-[11px] font-bold text-blue shadow-lg">
+              새 일정 · {Math.floor(creating.startMin / 60)}:{String(creating.startMin % 60).padStart(2, '0')}부터
+            </div>
+          ) : dragging ? (
             <div style={eventColorStyle(colorOf(dragging))}
               className={`w-40 overflow-hidden rounded-md border px-2 py-1 text-[11px] font-bold shadow-lg ${eventStyles.subject} ${
                 dragging.mode === 'online' ? `border-dashed ${eventStyles.online}` : 'border-solid'
@@ -1021,7 +1128,12 @@ function AdminSchedulePage() {
           ) : null}
         </DragOverlay>
 
-        <SessionEditor draft={draft} meta={meta.data} onClose={() => setDraft(null)} />
+        <SessionEditor
+          draft={draft}
+          meta={meta.data}
+          onClose={() => setDraft(null)}
+          onCreated={(result) => doneWrite(result, '새 일정')}
+        />
 
         {/* 반복이면 저장 직전 1회만 묻는다 — 단발에서 이 창이 뜨면 버그다 (§5A.0) */}
         <RecurrenceScope
