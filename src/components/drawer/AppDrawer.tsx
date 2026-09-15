@@ -15,10 +15,11 @@
  * 수업 상세(§12)와 같은 폭·같은 닫기·같은 Esc 여야 한다.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Drawer, Chip, Banner } from '@/components/ui';
 import { useDrawer, useDrawerWrite, useMeta, useZoom } from '@/api/queries';
-import { apiMessage } from '@/api/client';
+import { ApiError, apiMessage } from '@/api/client';
+import { browserLog } from '@/lib/browser-log';
 import { useSession } from '@/store/useSession';
 import type { ChangeReqResult } from '@/api/types';
 import {
@@ -65,10 +66,12 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const [notiWindow, setNotiWindow] = useState<'month' | 'all'>('month');
   /** 서버가 거절한 말을 **그대로** 띄운다 — 화면이 이유를 다시 지어내지 않는다 */
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const paneRetryInFlight = useRef(false);
+  const previousPane = useRef<DrawerPane>(pane);
 
   const meId = useSession((s) => s.me?.id ?? null);
   // 닫혀 있으면 부르지 않는다 — 모든 화면이 서랍을 들고 있으므로 열 때만 읽는다
-  const { data, isLoading, isError } = useDrawer(open, notiWindow);
+  const { data, isLoading, isError, refetch } = useDrawer(open, notiWindow);
   const { data: meta } = useMeta(open && pane === 'chreqNew');
   /*
    * §21 격자는 서랍 payload 에 없다 — **칸을 열 때만** 부른다.
@@ -77,6 +80,36 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
    */
   const zoom = useZoom(undefined, open && pane === 'zoom');
   const write = useDrawerWrite();
+
+  /**
+   * 같은 drawer snapshot 안에서 pane만 옮겨도 query key는 바뀌지 않는다. 그래서 오류가 보이는
+   * 동안의 pane 전환을 명시적 재시도로 해석한다. 이 전환은 내부 탭뿐 아니라 AppShell의 우측
+   * rail에서도 들어오므로, 클릭 핸들러가 아닌 제어형 `pane` 변경 한 곳에서 감시한다.
+   */
+  useEffect(() => {
+    const fromPane = previousPane.current;
+    previousPane.current = pane;
+    if (!open || fromPane === pane || !isError || paneRetryInFlight.current) return;
+
+    const details = { fromPane, toPane: pane, notiWindow } as const;
+    paneRetryInFlight.current = true;
+    browserLog('drawer.fetch.retry.requested', details);
+    void refetch().then((result) => {
+      if (!result.isError) {
+        browserLog('drawer.fetch.retry.succeeded', details);
+        return;
+      }
+
+      const error = result.error;
+      browserLog('drawer.fetch.retry.failed', {
+        ...details,
+        errorCode: error instanceof ApiError ? error.code : 'UNKNOWN',
+        status: error instanceof ApiError ? error.status : 0,
+      }, 'warn');
+    }).finally(() => {
+      paneRetryInFlight.current = false;
+    });
+  }, [isError, notiWindow, open, pane, refetch]);
 
   async function submitChangeReq() {
     setSent(false);

@@ -4,8 +4,9 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '@/api/client';
 import { AppDrawer } from './AppDrawer';
 
 const mocks = vi.hoisted(() => ({ drawer: vi.fn(), meta: vi.fn(), write: vi.fn(), zoom: vi.fn() }));
@@ -36,7 +37,10 @@ beforeEach(() => {
   mocks.meta.mockReturnValue({ data: { staff: [], rooms: [], zaccs: [] } });
   mocks.zoom.mockReturnValue({ data: undefined, isLoading: false });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('공용 서랍의 제어형 선택', () => {
   it('외부 선택을 본문과 접근성 활성 표시가 함께 따른다', () => {
@@ -61,6 +65,56 @@ describe('공용 서랍의 제어형 선택', () => {
     view.rerender(<AppDrawer open pane="kinds" onPaneChange={change} onClose={() => undefined} />);
     expect(view.getByText('종류 내용')).toBeTruthy();
     expect(view.queryByText('승인 내용')).toBeNull();
+  });
+
+  it('서랍 읽기 실패 뒤 다른 탭을 누르면 같은 snapshot을 다시 읽고 브라우저에 복구 과정을 남긴다', async () => {
+    const change = vi.fn();
+    const refetch = vi.fn().mockResolvedValue({ isError: false, error: null });
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    mocks.drawer.mockReturnValue({
+      data: undefined, isLoading: false, isError: true, isFetching: true, refetch,
+    });
+
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={change} onClose={() => undefined} />);
+    expect(view.getByText('서랍을 읽지 못했습니다. 잠시 뒤 다시 열어 주세요.')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '프로그램' }));
+    view.rerender(<AppDrawer open pane="kinds" onPaneChange={change} onClose={() => undefined} />);
+
+    expect(change).toHaveBeenCalledWith('kinds');
+    await waitFor(() => expect(refetch).toHaveBeenCalledOnce());
+    await waitFor(() => expect(info).toHaveBeenCalledWith(
+      '[TACO] drawer.fetch.retry.succeeded',
+      { fromPane: 'approvals', toPane: 'kinds', notiWindow: 'month' },
+    ));
+    expect(info).toHaveBeenCalledWith(
+      '[TACO] drawer.fetch.retry.requested',
+      { fromPane: 'approvals', toPane: 'kinds', notiWindow: 'month' },
+    );
+  });
+
+  it('탭 전환 재시도도 실패하면 토큰·헤더 없이 오류 코드와 상태만 경고로 남긴다', async () => {
+    const refetch = vi.fn().mockResolvedValue({
+      isError: true,
+      error: new ApiError('DRAWER_UNAVAILABLE', '내부 원인은 로그에 남기지 않는다', 503),
+    });
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mocks.drawer.mockReturnValue({
+      data: undefined, isLoading: false, isError: true, isFetching: false, refetch,
+    });
+
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '알림' }));
+    view.rerender(<AppDrawer open pane="notis" onPaneChange={() => undefined} onClose={() => undefined} />);
+
+    await waitFor(() => expect(warn).toHaveBeenCalledWith(
+      '[TACO] drawer.fetch.retry.failed',
+      {
+        fromPane: 'approvals', toPane: 'notis', notiWindow: 'month',
+        errorCode: 'DRAWER_UNAVAILABLE', status: 503,
+      },
+    ));
   });
 
   it('닫고 승인으로 다시 열어도 기존 변경 요청 초안을 보존하고 닫힌 조회를 끈다', () => {
