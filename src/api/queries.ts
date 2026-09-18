@@ -78,6 +78,7 @@ import type {
   GpaUseCreate,
   Guide,
   GuideBody,
+  GuideCopyResult,
   GuideDraftCreate,
   GuideHistory,
   GuideHistoryQuery,
@@ -85,6 +86,8 @@ import type {
   GuideStudents,
   GuideTemplate,
   GuideTemplateWrite,
+  ZoomNoticeResult,
+  ZoomNoticeWrite,
   Horizon,
   InvBoard,
   Invoice,
@@ -969,6 +972,34 @@ export function useWriteGuideBody(): UseMutationResult<Guide, unknown, { id: num
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.put<Guide>(`/guides/${id}/body`, body)).data,
     onSettled: invalidate,
+  });
+}
+
+/**
+ * §43 「나머지 학생에게 복사」 — F-61.
+ * 머리말을 받는 학생 것으로 갈아 끼우는 일도, 어떤 형제를 건너뛸지도 서버가 정한다.
+ */
+export function useCopyGuide(): UseMutationResult<GuideCopyResult, unknown, { id: number }> {
+  const invalidate = useGuidesInvalidate();
+  return useMutation({
+    mutationFn: async ({ id }) => (await api.post<GuideCopyResult>(`/guides/${id}/copy`)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * §43 회차 안내의 「강사 안내」 — F-63.
+ * §12 수업 상세의 준비 아홉째 줄이 같은 PNOTI 를 읽으므로 일정 갈래도 함께 버린다.
+ */
+export function useSendZoomNotice(): UseMutationResult<ZoomNoticeResult, unknown, ZoomNoticeWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<ZoomNoticeResult>('/guides/zoom-notice', w)).data,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.guides });
+      // §12 수업 상세의 준비 아홉째 줄이 같은 PNOTI 를 읽는다 (C82-b)
+      void qc.invalidateQueries({ queryKey: family.tracking });
+    },
   });
 }
 

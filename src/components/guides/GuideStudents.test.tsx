@@ -48,7 +48,7 @@ function student(studentId: number, name: string): GuideStudent {
     createdAt: '2026-09-14T10:00:00+09:00',
     sentAt: null,
     acknowledgedAt: null,
-    overdueDays: 0,
+    overdueDays: 0, siblingCount: 0,
   };
   return {
     studentId,

@@ -8,6 +8,8 @@
 
 import { useState } from 'react';
 import type { Guide, Guides, PerLessonNotice } from '@/api/types';
+import { useSendZoomNotice } from '@/api/queries';
+import { apiMessage } from '@/api/client';
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -27,7 +29,12 @@ const CHANNEL: Record<PerLessonNotice['channel'], string> = {
 
 function PerLessonRow({ lesson, data }: { lesson: PerLessonNotice; data: Guides }) {
   const parentDisabled = !data.deliveryCapabilities.parentExternal;
-  const teacherDisabled = !data.deliveryCapabilities.teacherExternal;
+  /*
+   * 강사는 **내부 사용자**라 실제로 보낼 수 있다 (C98 · F-63) — 외부 발송 계약(N-42)과 다른 길이다.
+   * 설 수 있는지는 서버 `canSendTeacher` 하나가 정한다: 화면이 온라인·줌 계정·강사를 다시 보면
+   * 눌리는데 거절당하는 단추가 생긴다 (D-R39).
+   */
+  const send = useSendZoomNotice();
   return (
     <article className="rounded-xl border border-line bg-card px-4 py-3">
       <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[78px_minmax(180px,1fr)_180px_290px]">
@@ -62,16 +69,18 @@ function PerLessonRow({ lesson, data }: { lesson: PerLessonNotice; data: Guides 
           </Button>
           <Button
             size="sm"
-            disabled
-            title={teacherDisabled ? (data.deliveryCapabilities.reason ?? '강사 외부 발송 미연결') : '발송 API 연결 전'}
+            disabled={!lesson.canSendTeacher || send.isPending}
+            title={lesson.sendBlockedReason ?? '강사 수신함에 줌 안내를 남깁니다'}
+            onClick={() => send.mutate({ serId: lesson.serId, onDate: lesson.onDate })}
           >
-            {lesson.teacherDeliveryRecorded ? '강사 기록 완료' : '강사 안내'}
+            {lesson.teacherDeliveryRecorded ? '강사 보냄' : '강사 안내'}
           </Button>
           <Button size="sm" variant="danger" disabled>
             안내문
           </Button>
         </div>
       </div>
+      {send.isError ? <Banner tone="danger" className="mt-2">{apiMessage(send.error)}</Banner> : null}
       {lesson.notices.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-1.5 border-t border-line pt-2">
           {lesson.notices.map((notice) => (

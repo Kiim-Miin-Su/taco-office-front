@@ -326,6 +326,12 @@ export type GuideDraftCreate = S['GuideDraftCreateDto'];
 export type GuideTemplate = S['GuideTemplateDto'];
 export type GuideTemplateWrite = S['GuideTemplateWriteDto'];
 export type GuideBody = S['GuideBodyDto'];
+/** C98 — §43 자동 채움 · 나머지 학생에게 복사 · 줌 안내 (F-60 · F-61 · F-63) */
+export type GuideAutoFill = S['GuideAutoFillDto'];
+export type GuideFact = S['GuideFactDto'];
+export type GuideCopyResult = S['GuideCopyResultDto'];
+export type ZoomNoticeWrite = S['ZoomNoticeWriteDto'];
+export type ZoomNoticeResult = S['ZoomNoticeResultDto'];
 export type PerLessonNotice = S['PerLessonNoticeDto'];
 
 /** 수업 현황판 — 저장하지 않는다. 매번 계산된 값이 내려온다 (D-R4) */

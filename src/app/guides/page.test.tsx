@@ -51,7 +51,7 @@ const guide = (id: number, state: Guide['state'], pending: boolean): Guide => ({
   createdAt: '2026-09-01T10:00:00+09:00',
   sentAt: null,
   acknowledgedAt: null,
-  overdueDays: 0,
+  overdueDays: 0, siblingCount: 0,
 });
 
 const response: Guides = {
@@ -74,7 +74,7 @@ const response: Guides = {
         { id: null, studentId: 1, studentName: '학생1', channel: null, body: null, sentAt: null },
       ],
       parentDeliveryRecorded: false,
-      teacherDeliveryRecorded: false,
+      teacherDeliveryRecorded: false, canSendTeacher: false, sendBlockedReason: null,
       channel: 'app',
       studentName: '학생1',
       serTitle: 'MAP Reading',

@@ -1848,6 +1848,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guides/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 나머지 학생에게 복사 — 그룹 수업 안내 (§43 · F-61)
+         * @description 같은 규칙·같은 날·같은 사유의 다른 학생 **초안**에만 옮긴다. 이미 쓴 형제는 덮지 않고 이유를 돌려준다. 머리말은 받는 학생 것으로 다시 만든다 — 그대로 옮기면 남의 이름이 학부모에게 간다.
+         */
+        post: operations["GuidesController_copyBody"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guides/zoom-notice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 줌 안내 — 온라인 회차의 강사에게 보낸다 (§43 · §12 준비 · F-63)
+         * @description 강사 수신함에 줄이 남는다(NOTI · PNOTI sent_at) — 강사 화면의 알림 칸은 N-26 이 닫혀야 붙는다. 학부모 줄은 「보낼 것」으로 남는다 — 수신처가 없다(N-42). 회차 키는 (serId, onDate) 다. 비밀번호는 본문에 싣지 않는다.
+         */
+        post: operations["GuidesController_sendZoomNotice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consulting": {
         parameters: {
             query?: never;
@@ -5539,6 +5579,21 @@ export interface components {
             /** @description 지금 쓰는 판인가 — 판단은 서버가 한다 */
             inUse: boolean;
         };
+        GuideFactDto: {
+            /** @enum {string} */
+            key: "student" | "grade" | "teacher" | "subject" | "mode" | "startOn" | "books";
+            /** @description 칸 이름 — 본문 머리말과 같은 낱말 */
+            label: string;
+            /** @description 못 채웠으면 null */
+            value?: string | null;
+            filled: boolean;
+        };
+        GuideAutoFillDto: {
+            /** @description 머리말 — 작성 창이 이 문자열로 열린다. 언제나 빈 줄로 끝난다 */
+            body: string;
+            /** @description 일곱 칸 — 순서는 서버가 정한다 */
+            facts: components["schemas"]["GuideFactDto"][];
+        };
         GuideDto: {
             id: number;
             serId?: number | null;
@@ -5578,6 +5633,10 @@ export interface components {
             acknowledgedAt?: string | null;
             /** @description 기한이 지난 날 수. 0이면 안 지남 */
             overdueDays: number;
+            /** @description 같은 규칙·같은 날·같은 사유의 다른 학생 안내 수 — 0이면 그룹이 아니다 (F-61) */
+            siblingCount: number;
+            /** @description 아직 안 쓴 초안의 자동 채움 일곱 칸 (F-60). 이미 쓴/보낸 안내는 null — 저장하지 않는다 */
+            autoFill?: components["schemas"]["GuideAutoFillDto"] | null;
         };
         PerLessonNoticeRecordDto: {
             id?: number | null;
@@ -5605,8 +5664,12 @@ export interface components {
             notices: components["schemas"]["PerLessonNoticeRecordDto"][];
             /** @description 명단 학생 모두에게 PNOTI.sent_at이 있을 때만 true */
             parentDeliveryRecorded: boolean;
-            /** @description 강사 독립 발송 원장이 없어 현재 false */
+            /** @description PNOTI audience=teacher 가 있고 sent_at 이 찍혔을 때만 true (F-63) */
             teacherDeliveryRecorded: boolean;
+            /** @description 줌 안내를 보낼 수 있는가 — 취소 아님 · 줌 계정 있음 · 강사 있음 · 아직 안 보냄 (F-63) */
+            canSendTeacher: boolean;
+            /** @description 못 보내는 이유 — 보낼 수 있으면 null */
+            sendBlockedReason?: string | null;
             /** @enum {string} */
             channel: "sms" | "kakao" | "email" | "app";
             studentName?: string | null;
@@ -5730,6 +5793,36 @@ export interface components {
         GuideBodyDto: {
             /** @description 안내 본문 */
             body: string;
+        };
+        GuideCopySkippedDto: {
+            id: number;
+            studentName: string;
+            /** @description 왜 건너뛰었는지 — 이미 쓴 안내는 덮지 않는다 */
+            reason: string;
+        };
+        GuideCopyResultDto: {
+            /** @description 본문이 채워진 형제 초안 */
+            copied: components["schemas"]["GuideDto"][];
+            /** @description 건너뛴 형제와 이유 */
+            skipped: components["schemas"]["GuideCopySkippedDto"][];
+            /** @description 받는 학생의 머리말로 갈아 끼웠는가 — false 면 원본 본문을 그대로 옮겼다 */
+            headReplaced: boolean;
+        };
+        ZoomNoticeWriteDto: {
+            serId: number;
+            /**
+             * Format: date
+             * @description 회차가 그려지는 KST 날짜
+             */
+            onDate: string;
+        };
+        ZoomNoticeResultDto: {
+            /** @description 보낸 뒤의 그 회차 — 화면이 다시 세지 않는다 */
+            lesson: components["schemas"]["PerLessonNoticeDto"];
+            /** @description 강사에게 남긴 줄 수 — 회차마다 하나(pnoti_teacher_once) */
+            teacherNotices: number;
+            /** @description 학부모에게 「보낼 것」으로 남긴 줄 수 — 실제 발송은 아직 없다(N-42) */
+            parentNotices: number;
         };
         ConsultingCreateDto: {
             /**
@@ -15392,6 +15485,150 @@ export interface operations {
                 content?: never;
             };
             /** @description code GUIDE_ALREADY_SENT — 이미 보낸 안내는 고치지 않는다 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuidesController_copyBody: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideCopyResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 안내 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code GUIDE_COPY_EMPTY · GUIDE_COPY_NO_SIBLING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuidesController_sendZoomNotice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZoomNoticeWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZoomNoticeResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code OCCURRENCE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code ZOOM_NOTICE_NOT_ONLINE · ZOOM_NOTICE_CANCELED · ZOOM_NOTICE_NO_TEACHER · ZOOM_NOTICE_NO_ACCOUNT · ZOOM_NOTICE_ALREADY */
             409: {
                 headers: {
                     [name: string]: unknown;
