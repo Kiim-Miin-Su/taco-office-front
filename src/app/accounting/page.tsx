@@ -23,6 +23,7 @@ import { apiMessage } from '@/api/client';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
+import { InvoiceActions } from '@/components/accounting/InvoiceActions';
 import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { OtherIncome } from '@/components/accounting/OtherIncome';
 import { InvoiceBoard } from '@/components/accounting/InvoiceBoard';
@@ -120,6 +121,8 @@ export default function AccountingPage() {
         ),
     },
     { key: 'due', head: '예정일', width: 100, cell: (r) => r.dueOn ?? '—' },
+    // 전달 · 취소 — 단추가 서는지는 서버의 canDeliver/canVoid 다 (C94-a · D-R39)
+    { key: 'act', head: '', width: 130, align: 'right', cell: (r) => <InvoiceActions invoice={r} /> },
   ];
 
   const payCols: Array<Column<Payment>> = [

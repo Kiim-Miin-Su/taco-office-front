@@ -87,7 +87,10 @@ import type {
   Horizon,
   InvBoard,
   Invoice,
+  InvoiceBatch,
+  InvoiceBatchResult,
   InvoiceIssue,
+  InvoiceVoid,
   KindCreate,
   KindPatch,
   Lead,
@@ -524,6 +527,28 @@ export function useIssueInvoice(): UseMutationResult<Invoice, unknown, InvoiceIs
   const invalidate = useAccountingInvalidate();
   return useMutation({
     mutationFn: async (w) => (await api.post<Invoice>('/accounting/invoices', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 「청구서 일괄 발행」 — 그 달 수업이 있는 학생 전부 (C94-a · H-75). 건너뛴 학생은 결과에 이유와 함께 온다 */
+export function useIssueInvoiceBatch(): UseMutationResult<InvoiceBatchResult, unknown, InvoiceBatch> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<InvoiceBatchResult>('/accounting/invoices/batch', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 「전달」·「취소」 — 줄의 단추가 서는지는 서버의 `canDeliver/canVoid` 다 (C94-a · H-76 · N-139) */
+export function useInvoiceAction(): UseMutationResult<Invoice, unknown, { kind: 'deliver'; id: number } | { kind: 'void'; id: number; body: InvoiceVoid }> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (
+      w.kind === 'deliver'
+        ? (await api.post<Invoice>(`/accounting/invoices/${w.id}/deliver`)).data
+        : (await api.post<Invoice>(`/accounting/invoices/${w.id}/void`, w.body)).data
+    ),
     onSettled: invalidate,
   });
 }

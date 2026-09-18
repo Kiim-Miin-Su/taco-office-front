@@ -168,6 +168,10 @@ export type StudentPauseResult = S['StudentPauseResultDto'];
 export type MonthClose = S['MonthCloseDto'];
 export type MonthCloseWrite = S['MonthCloseWriteDto'];
 export type MonthReopenWrite = S['MonthReopenWriteDto'];
+/** §53 청구서 일괄 발행 · 전달 · 취소 (C94-a · H-75/H-76/N-139) */
+export type InvoiceBatch = S['InvoiceBatchDto'];
+export type InvoiceBatchResult = S['InvoiceBatchResultDto'];
+export type InvoiceVoid = S['InvoiceVoidDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

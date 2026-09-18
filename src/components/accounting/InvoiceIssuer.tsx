@@ -21,8 +21,8 @@
 import { useState } from 'react';
 import { Banner, Button, Chip, Input, Label, Panel, Select } from '@/components/ui';
 import { apiMessage } from '@/api/client';
-import { useIssueInvoice, useMeta } from '@/api/queries';
-import type { Invoice, InvoiceIssue } from '@/api/types';
+import { useIssueInvoice, useIssueInvoiceBatch, useMeta } from '@/api/queries';
+import type { Invoice, InvoiceBatchResult, InvoiceIssue } from '@/api/types';
 import { won } from '@/lib/money';
 
 /* 낱말은 생성 타입에서 온다 — 화면에 코드표를 다시 적으면 서버와 갈린다 (D-R18) */
@@ -43,16 +43,68 @@ export function InvoiceIssuer() {
   const [yearMonth, setYearMonth] = useState(thisMonth);
   const [invType, setInvType] = useState<InvType>('tuition');
   const [made, setMade] = useState<Invoice | null>(null);
+  // 일괄 발행 (C94-a · H-75) — 달 하나만 보낸다. 누구에게 낼지·이월·단가는 서버가 정한다
+  const batch = useIssueInvoiceBatch();
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchMonth, setBatchMonth] = useState(thisMonth);
+  const [batchResult, setBatchResult] = useState<InvoiceBatchResult | null>(null);
 
   const ready = studentId !== '' && /^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth);
+  const batchReady = /^\d{4}-(0[1-9]|1[0-2])$/.test(batchMonth) && !batch.isPending;
 
   return (
     <>
       <div className="mb-3 flex items-center justify-end gap-2">
+        <Button variant="secondary" onClick={() => { setBatchOpen((v) => !v); setBatchResult(null); }}>
+          {batchOpen ? '일괄 발행 닫기' : '청구서 일괄 발행'}
+        </Button>
         <Button onClick={() => { setOpen((v) => !v); setMade(null); }}>
           {open ? '닫기' : '+ 새 청구서 발행'}
         </Button>
       </div>
+
+      {batchOpen ? (
+        <Panel
+          className="mb-4"
+          title="청구서 일괄 발행"
+          sub="그 달 수업이 있는 학생 전부에게 수업료 청구서를 냅니다 — 이월·단가 구간·휴강·휴원은 낱장 발행과 같은 계산입니다. 막힌 학생은 건너뛰고 이유를 보여 줍니다"
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label htmlFor="ivb-ym">달</Label>
+              <Input id="ivb-ym" type="month" value={batchMonth} onChange={(e) => setBatchMonth(e.target.value)} />
+            </div>
+            <Button
+              disabled={!batchReady}
+              onClick={() => batch.mutate({ yearMonth: batchMonth }, { onSuccess: (r) => setBatchResult(r) })}
+            >
+              {batch.isPending ? '발행 중…' : `${Number(batchMonth.slice(5)) || ''}월 청구서 일괄 발행`}
+            </Button>
+          </div>
+          {batch.isError ? <Banner tone="danger" className="mt-3">{apiMessage(batch.error)}</Banner> : null}
+          {batchResult ? (
+            <div className="mt-3 flex flex-col gap-2" aria-label="일괄 발행 결과">
+              {/* 건수·합은 서버가 준 것이다 — 화면이 배열을 다시 세지 않는다 (D-R37) */}
+              <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                <span className="font-bold text-fg">{batchResult.yearMonth} — 발행 {batchResult.issued.length}건</span>
+                <span className="text-fg-subtle">· 대상 {batchResult.candidates}명 · 건너뜀 {batchResult.skipped.length}명</span>
+                {batchResult.issuedAmount != null ? <span className="ml-auto font-bold">{won(batchResult.issuedAmount)}</span> : null}
+              </div>
+              {batchResult.skipped.length ? (
+                <ul className="flex flex-col gap-1 rounded-lg border border-amber/30 bg-amber/5 p-2.5">
+                  {batchResult.skipped.map((s) => (
+                    <li key={s.studentId} className="flex flex-wrap items-center gap-2 text-[12px]">
+                      <span className="font-bold text-fg">{s.studentName}</span>
+                      <Chip tone="warning" size="compact">{s.code}</Chip>
+                      <span className="text-fg-2">{s.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </Panel>
+      ) : null}
 
       {open ? (
         <Panel

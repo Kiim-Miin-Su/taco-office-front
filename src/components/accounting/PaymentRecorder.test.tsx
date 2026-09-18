@@ -20,7 +20,7 @@ const me: Me = {
 const inv = (over: Partial<Invoice> = {}): Invoice => ({
   id: 9, studentId: 11, studentName: '고은설', grade: 'G8', yearMonth: '2026-08', title: '8월 수업료',
   amount: 520000, paidAmount: 200000, remaining: 320000, state: 'partial', stateLabel: '일부 납부',
-  issuedOn: '2026-08-01', dueOn: '2026-08-21', paidAt: null, overdueDays: 0, lines: [], ...over,
+  issuedOn: '2026-08-01', dueOn: '2026-08-21', paidAt: null, overdueDays: 0, lines: [], sentAt: null, canDeliver: false, canVoid: false, voidReason: null, ...over,
 });
 const line: Payment = {
   id: 3, invId: 9, studentId: 11, studentName: '고은설', amount: 200000, paidOn: '2026-08-23',

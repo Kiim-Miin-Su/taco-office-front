@@ -768,6 +768,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/invoices/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 청구서 일괄 발행 — 그 달 수업이 있는 학생 전부 (§54 「청구서 발행」 · 테스트 시나리오 H-75 · O-147)
+         * @description 낱장 발행과 같은 계산이다 — 이월 음수 줄·단가 구간·그날만 빠짐·휴원이 그대로 든다. 막힌 학생(이미 있음 · 단가 없음 · 이월 초과)은 건너뛰고 이유를 돌려준다. 마감 달은 통째로 409 MONTH_CLOSED.
+         */
+        post: operations["AccountingController_issueBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/invoices/{id}/deliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 청구서 전달 — 학부모께 보냈다 (§53 ③ · H-76). 초안·미전달만 */
+        post: operations["AccountingController_deliverInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/invoices/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 청구서 취소 — 대표 전용 · 사유 필수 (N-139)
+         * @description 지우지 않고 void 로 접는다 — 줄·발행일·사유가 남고 미수 집계에서 빠진다. 입금이 붙어 있으면 입금을 먼저 지운다. 마감 달은 409.
+         */
+        post: operations["AccountingController_voidInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/payments": {
         parameters: {
             query?: never;
@@ -3276,6 +3333,14 @@ export interface components {
             /** @description 예정일이 지났는데 안 들어온 날 수. 0이면 연체 아님 */
             overdueDays: number;
             lines: components["schemas"]["InvoiceLineDto"][];
+            /** @description 학부모께 전달한 시각 (ISO) — 전달 전이면 null */
+            sentAt?: string | null;
+            /** @description 「전달」을 누를 수 있는가 — 초안·미전달만 */
+            canDeliver: boolean;
+            /** @description 「취소」를 누를 수 있는가 — 대표 · 취소 전 · 입금 0 */
+            canVoid: boolean;
+            /** @description 취소 사유 — 취소된 청구서에만 (N-139 「이력에 남는다」) */
+            voidReason?: string | null;
         };
         PaymentDto: {
             id: number;
@@ -3599,6 +3664,35 @@ export interface components {
             title?: string;
             /** @description 납기일 — YYYY-MM-DD */
             dueOn?: string;
+        };
+        InvoiceBatchDto: {
+            /**
+             * @description 어느 달 — YYYY-MM
+             * @example 2026-09
+             */
+            yearMonth: string;
+        };
+        InvoiceBatchSkipDto: {
+            studentId: number;
+            studentName: string;
+            /** @description INV_DUPLICATE | INV_NO_LESSONS | INV_NO_RATE | INV_CARRY_EXCEEDS — 낱장 발행과 같은 코드 */
+            code: string;
+            message: string;
+        };
+        InvoiceBatchResultDto: {
+            yearMonth: string;
+            /** @description 수업이 있는 학생 수 — 발행 + 건너뜀 */
+            candidates: number;
+            /** @description 이번에 발행한 청구서 — 줄까지 */
+            issued: components["schemas"]["InvoiceDto"][];
+            /** @description 건너뛴 학생과 이유 — 이미 있음 · 단가 없음 · 이월 초과 */
+            skipped: components["schemas"]["InvoiceBatchSkipDto"][];
+            /** @description 발행한 금액 합 — 금액 권한 없으면 null */
+            issuedAmount?: number | null;
+        };
+        InvoiceVoidDto: {
+            /** @description 취소 사유 — 잘못 낸 이유 */
+            reason: string;
         };
         PaymentCreateDto: {
             /** @description 어느 청구서에 붙는 입금인가 */
@@ -9394,6 +9488,237 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_issueBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceBatchDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceBatchResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MONTH_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_deliverInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description INV_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description INV_NOT_DELIVERABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_voidInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceVoidDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 대표 아님 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description INV_ALREADY_VOID | INV_HAS_PAYMENTS | MONTH_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

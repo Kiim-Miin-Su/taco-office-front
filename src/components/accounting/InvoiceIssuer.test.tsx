@@ -32,7 +32,7 @@ const meta = {
 const made: Invoice = {
   id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', yearMonth: '2026-08',
   title: '2026년 8월 수업료 청구', amount: 250000, paidAmount: 0, state: 'draft', stateLabel: '작성 중',
-  issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
+  issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0, sentAt: null, canDeliver: true, canVoid: false, voidReason: null,
   lines: [
     { subKey: 'sat-math', label: 'SAT Math', count: 3, unitPrice: 50000, amount: 150000 },
     { subKey: 'writing', label: 'Writing', count: 2, unitPrice: 50000, amount: 100000 },
@@ -124,4 +124,34 @@ it('종류 목록을 서버에서 받아 그린다 — 화면에 코드표를 �
   const select = view.getByLabelText('종류') as HTMLSelectElement;
   expect([...select.options].map((o) => o.value)).toEqual(meta.invTypes.map((t) => t.key));
   expect([...select.options].map((o) => o.textContent)).toEqual(meta.invTypes.map((t) => t.label));
+});
+
+/* ── 일괄 발행 (C94-a · H-75) ─────────────────────────────────────────── */
+
+it('일괄 발행은 달 하나만 보내고, 발행 건수·건너뛴 학생과 이유를 서버가 준 대로 그린다 (D-R37)', async () => {
+  const result = {
+    yearMonth: '2026-09', candidates: 3, issuedAmount: 70000,
+    issued: [made, { ...made, id: 43, studentId: 8, studentName: '김하윤', amount: 20000 }],
+    skipped: [{ studentId: 9, studentName: '발행C', code: 'INV_NO_RATE', message: '단가표에 없는 과목이 있습니다: 단가 없는 과목 — 단가를 먼저 등록하세요' }],
+  };
+  const view = setup(() => ({ status: 201, data: result }));
+  fireEvent.click(view.getByRole('button', { name: '청구서 일괄 발행' }));
+  fireEvent.change(view.getByLabelText('달'), { target: { value: '2026-09' } });
+  fireEvent.click(view.getByRole('button', { name: '9월 청구서 일괄 발행' }));
+  await waitFor(() => expect(posted).not.toBeNull());
+  expect(posted).toEqual({ yearMonth: '2026-09' });
+  await waitFor(() => expect(view.getByText('2026-09 — 발행 2건')).toBeTruthy());
+  expect(view.getByText('· 대상 3명 · 건너뜀 1명')).toBeTruthy();
+  expect(view.getByText('70,000원')).toBeTruthy();
+  expect(view.getByText('발행C')).toBeTruthy();
+  expect(view.getByText('INV_NO_RATE')).toBeTruthy();
+  expect(view.getByText(/단가를 먼저 등록하세요/)).toBeTruthy();
+});
+
+it('일괄 발행이 막히면(마감 달) 서버 문장을 그대로 보여 준다', async () => {
+  const view = setup(() => ({ status: 409, data: { code: 'MONTH_CLOSED', message: '2026년 8월은 마감됐습니다 — 대표가 마감을 해제한 뒤 고칠 수 있습니다' } }));
+  fireEvent.click(view.getByRole('button', { name: '청구서 일괄 발행' }));
+  fireEvent.change(view.getByLabelText('달'), { target: { value: '2026-08' } });
+  fireEvent.click(view.getByRole('button', { name: '8월 청구서 일괄 발행' }));
+  await waitFor(() => expect(view.getByText(/2026년 8월은 마감됐습니다/)).toBeTruthy());
 });
