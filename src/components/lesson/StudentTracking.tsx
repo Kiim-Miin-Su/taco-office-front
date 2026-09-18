@@ -16,6 +16,8 @@
  *
  * 카드의 「휴원」·「복귀」(C92-c · C-36/C-37)는 `StudentPauseDialog` 하나를 쓰고, 「휴원 9/1 ~ 9/30」 칩의
  * 기간·복귀 여부는 서버가 준 `pause` 그대로입니다 — 단추가 서는지도 그 값이 정합니다 (D-R39).
+ * 「수강 종료」(C94-c · H-80/N-136)는 `StudentWithdrawDialog` — 잔여 회차·환불액은 서버 미리보기이고, 종료 뒤 회차의 카드는
+ * 「종료 M/D」 칩으로 남되 인원·단가에서는 빠집니다(서버 `ended`).
  */
 'use client';
 import Link from 'next/link';
@@ -26,6 +28,7 @@ import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import { won } from '@/lib/money';
 import { StudentPauseDialog, StudentResumeDialog, pauseLabel } from './StudentPauseDialog';
+import { StudentWithdrawDialog, endedLabel } from './StudentWithdrawDialog';
 import type { TrackedReport, TrackedStudent } from '@/api/types';
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
@@ -53,14 +56,20 @@ function ReportRow({ r }: { r: TrackedReport }) {
   );
 }
 
-function StudentCard({ s, canSeeAmounts, onDate, canEdit }: { s: TrackedStudent; canSeeAmounts: boolean; onDate: string; canEdit: boolean }) {
-  const [dialog, setDialog] = useState<'pause' | 'resume' | null>(null);
+function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
+  s: TrackedStudent; canSeeAmounts: boolean; onDate: string; serId: number; canEdit: boolean; canMoney: boolean;
+}) {
+  const [dialog, setDialog] = useState<'pause' | 'resume' | 'withdraw' | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const write = useStudentPause();
   const pause = s.pause ?? null;
+  // 종료한 학생(또는 종료 예정)에게는 휴원·복귀·종료 단추가 서지 않는다 — 명단 기간이 끝났다 (C94-c)
+  const ending = !!s.endedOn;
   // 「복귀」는 아직 복귀 처리하지 않은 기간에만 선다 — 판정은 서버의 resumed 다
-  const canResume = canEdit && !!pause && !pause.resumed;
-  const canPause = canEdit && (!pause || pause.resumed);
+  const canResume = canEdit && !ending && !!pause && !pause.resumed;
+  const canPause = canEdit && !ending && (!pause || pause.resumed);
+  // 「수강 종료」는 돈이 오가는 일이라 회계 권한(대표)이다 — 환불액은 서버가 센다 (H-80)
+  const canWithdraw = canMoney && !ending;
   const close = () => { setDialog(null); setErr(null); };
   return (
     <Panel
@@ -70,6 +79,7 @@ function StudentCard({ s, canSeeAmounts, onDate, canEdit }: { s: TrackedStudent;
           {s.grade ? <Chip>{s.grade}</Chip> : null}
           {s.droppedOnce ? <Chip tone="neutral">그날 빠짐</Chip> : null}
           {s.paused ? <Chip tone="warning">휴원</Chip> : null}
+          {s.endedOn ? <Chip tone={s.ended ? 'neutral' : 'warning'}>{endedLabel(s.endedOn, s.ended)}</Chip> : null}
           {pause ? (
             <Chip tone={pause.resumed ? 'neutral' : 'info'} title={pause.reason ?? undefined}>
               {pauseLabel(pause)}{pause.resumed ? ' · 복귀 처리됨' : ''}
@@ -85,6 +95,9 @@ function StudentCard({ s, canSeeAmounts, onDate, canEdit }: { s: TrackedStudent;
           {canResume ? (
             <Button size="sm" variant="ghost" disabled={write.isPending} onClick={() => setDialog('resume')}>복귀</Button>
           ) : null}
+          {canWithdraw ? (
+            <Button size="sm" variant="ghost" onClick={() => setDialog('withdraw')}>수강 종료</Button>
+          ) : null}
           <Link href={`/schedule?studentId=${s.id}`}><Button size="sm" variant="ghost">시간표</Button></Link>
           <Link href={`/board?studentId=${s.id}`}><Button size="sm" variant="ghost">학생 보드</Button></Link>
         </span>
@@ -98,6 +111,14 @@ function StudentCard({ s, canSeeAmounts, onDate, canEdit }: { s: TrackedStudent;
         error={err}
         onClose={close}
         onSubmit={(body) => write.mutate({ kind: 'pause', studentId: s.id, body }, { onSuccess: close, onError: (e) => setErr(apiMessage(e)) })}
+      />
+      <StudentWithdrawDialog
+        open={dialog === 'withdraw'}
+        title={`수강 종료 — ${s.name}`}
+        student={{ id: s.id, name: s.name }}
+        serId={serId}
+        defaultEndedOn={onDate}
+        onClose={close}
       />
       <StudentResumeDialog
         open={dialog === 'resume'}
@@ -136,6 +157,7 @@ export function StudentTracking({ serId, onDate }: { serId: number; onDate: stri
   const q = useLessonTracking(serId, onDate, true);
   const d = q.data;
   const canEdit = useCan('canCrudAll');
+  const canMoney = useCan('canMoney');
 
   return (
     <section aria-label="학생 트래킹">
@@ -165,7 +187,7 @@ export function StudentTracking({ serId, onDate }: { serId: number; onDate: stri
 
           <div className="flex flex-col gap-2">
             {d.students.map((s) => (
-              <StudentCard key={s.id} s={s} canSeeAmounts={d.canSeeAmounts} onDate={onDate} canEdit={canEdit} />
+              <StudentCard key={s.id} s={s} canSeeAmounts={d.canSeeAmounts} onDate={onDate} serId={serId} canEdit={canEdit} canMoney={canMoney} />
             ))}
             {d.students.length === 0 ? (
               <p className="text-[12px] text-fg-subtle">명단이 없습니다</p>

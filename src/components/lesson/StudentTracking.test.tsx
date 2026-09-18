@@ -11,9 +11,14 @@ const state: { data: LessonTracking | undefined; isLoading: boolean; isError: bo
   data: undefined, isLoading: false, isError: false,
 };
 const mutate = vi.fn();
-const permissions = { canEdit: true };
-vi.mock('@/api/queries', () => ({ useLessonTracking: () => state, useStudentPause: () => ({ mutate, isPending: false }) }));
-vi.mock('@/store/useSession', () => ({ useCan: () => permissions.canEdit }));
+const withdrawMutate = vi.fn();
+const permissions: { canEdit: boolean; canMoney: boolean } = { canEdit: true, canMoney: false };
+vi.mock('@/api/queries', () => ({
+  useLessonTracking: () => state,
+  useStudentPause: () => ({ mutate, isPending: false }),
+  useWithdrawStudent: () => ({ mutate: withdrawMutate, isPending: false }),
+}));
+vi.mock('@/store/useSession', () => ({ useCan: (name: string) => (name === 'canMoney' ? permissions.canMoney : permissions.canEdit) }));
 
 const { StudentTracking } = await import('./StudentTracking');
 
@@ -29,7 +34,7 @@ const base: LessonTracking = {
   prepRemainLabel: '다 됐습니다',
   priced: true, unitPrice: 80000, total: 240000, canSeeAmounts: true,
   students: [{
-    id: 18, name: '문채원', grade: '고3', droppedOnce: false, paused: false,
+    id: 18, name: '문채원', grade: '고3', droppedOnce: false, paused: false, ended: false,
     bookCount: 1, progressAverage: 25, progressKnownBooks: 1,
     guided: false, attendDone: 12, attendTotal: 13, unpaid: 1170000,
     reports: [
@@ -45,7 +50,7 @@ const setup = (d: LessonTracking | undefined, o?: { isLoading?: boolean; isError
   state.data = d; state.isLoading = o?.isLoading ?? false; state.isError = o?.isError ?? false;
   return render(<StudentTracking serId={3} onDate="2026-09-11" />);
 };
-afterEach(() => { cleanup(); mutate.mockReset(); permissions.canEdit = true; });
+afterEach(() => { cleanup(); mutate.mockReset(); withdrawMutate.mockReset(); permissions.canEdit = true; permissions.canMoney = false; });
 
 it('머리줄 문장은 서버가 만든 것을 그대로 쓴다 — 화면이 정원 − 인원을 다시 하지 않는다', () => {
   const v = setup(base);
@@ -170,4 +175,37 @@ it('canCrudAll 이 없으면 「휴원」·「복귀」 단추가 서지 않는�
   expect(v.queryByRole('button', { name: '휴원' })).toBeNull();
   expect(v.queryByRole('button', { name: '복귀' })).toBeNull();
   expect(v.getByText('휴원 9/1 ~')).toBeTruthy();
+});
+
+/* ── 수강 종료 (C94-c · H-80 · N-136) ─────────────────────────────────── */
+
+it('「수강 종료」는 회계 권한(canMoney)에만 선다 — 창은 회차 날짜를 마지막 수업일로 채우고 서버에 미리 본다', () => {
+  permissions.canMoney = true;
+  const v = setup(base);
+  fireEvent.click(v.getByRole('button', { name: '수강 종료' }));
+  const dialog = v.getByRole('dialog', { name: /^수강 종료 — / });
+  expect((within(dialog).getByLabelText('마지막 수업일') as HTMLInputElement).value).toBe('2026-09-11');
+  // 미리보기를 서버에 묻는다 — 「이 수업만」이 기본이라 serIds 가 든다
+  expect(withdrawMutate).toHaveBeenCalledWith(
+    { kind: 'preview', body: { studentId: 18, endedOn: '2026-09-11', serIds: [3] } }, expect.anything(),
+  );
+  // 미리보기가 오기 전에는 보낼 수 없다 — 값은 서버 것이다
+  expect((within(dialog).getByRole('button', { name: '수강 종료' }) as HTMLButtonElement).disabled).toBe(true);
+  cleanup();
+  permissions.canMoney = false;
+  const noMoney = setup(base);
+  expect(noMoney.queryByRole('button', { name: '수강 종료' })).toBeNull();
+});
+
+it('종료 뒤 회차의 카드는 「종료 M/D」 칩으로 남고 휴원·복귀·종료 단추가 서지 않는다 — 판정은 서버의 ended·endedOn 이다', () => {
+  permissions.canMoney = true;
+  const v = setup({ ...base, students: [{ ...base.students[0]!, ended: true, endedOn: '2026-09-05' }] });
+  expect(v.getByText('종료 9/5')).toBeTruthy();
+  expect(v.queryByRole('button', { name: '수강 종료' })).toBeNull();
+  expect(v.queryByRole('button', { name: '휴원' })).toBeNull();
+  cleanup();
+  // 아직 오지 않은 종료일은 「종료 예정」
+  const soon = setup({ ...base, students: [{ ...base.students[0]!, ended: false, endedOn: '2026-09-30' }] });
+  expect(soon.getByText('종료 예정 9/30')).toBeTruthy();
+  expect(soon.queryByRole('button', { name: '수강 종료' })).toBeNull();
 });

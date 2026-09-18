@@ -688,6 +688,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/withdrawals/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 수강 종료·환불 미리보기 — 쓰기 0 (C94-c · H-80 · N-136)
+         * @description 같은 트랜잭션을 끝까지 돌리고 되돌린다 — 잔여 회차·청구서 변화·환불액이 실제 처리와 한 원도 다르지 않다. 종료할 수강이 없으면 409 WITHDRAW_NOTHING · 마감 달 409 MONTH_CLOSED · 단가 없는 과목 409 WITHDRAW_NO_RATE.
+         */
+        post: operations["AccountingController_withdrawPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/withdrawals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 수강 종료 · 중도 환불 — 한 트랜잭션 (C94-c · H-80 · N-135 · N-136)
+         * @description 명단에 종료일(SER_STU.to_date · 행은 남는다) → 종료일 뒤 회차 값을 청구서에서 음수 줄로 빼고 받은 돈이 넘치면 PAY 음수 줄(환불) · 금액 0 이면 void → ENR.ended_on → LOG. 그룹 수업의 남은 학생 단가는 그 날짜의 인원으로 다시 잡힌다. 되돌리는 길은 없다.
+         */
+        post: operations["AccountingController_withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/tuition/close": {
         parameters: {
             query?: never;
@@ -2707,6 +2747,10 @@ export interface components {
             droppedOnce: boolean;
             /** @description 그날 휴원 중인가 (C92-c) */
             paused: boolean;
+            /** @description 그날은 수강 종료 뒤인가 — 명단 행은 남고 to_date 가 끝났다 (C94-c · H-80). 인원·단가에서 빠진다 */
+            ended: boolean;
+            /** @description 수강 종료일(YYYY-MM-DD) — 이 규칙의 명단에서 마지막으로 있는 날. 없으면 null */
+            endedOn?: string | null;
             /** @description 진행 중이거나 앞으로 잡힌 휴원 — 「휴원 9/1~9/30」 · 「복귀」 단추의 근거 */
             pause?: components["schemas"]["StudentPauseDto"] | null;
             /** @description 반납하지 않은 배부 교재 수 — 원문 「교재 N」 */
@@ -3613,6 +3657,66 @@ export interface components {
         PayoutConfirmDto: {
             /** @description 어느 강사 */
             staffId: number;
+        };
+        StudentWithdrawDto: {
+            /** @description 누구 */
+            studentId: number;
+            /**
+             * Format: date
+             * @description 마지막으로 수업이 있는 날(포함) — 이 날 뒤의 회차가 정리된다
+             */
+            endedOn: string;
+            /** @description 이 규칙(들)만 종료 — 비우면 그 학생이 든 모든 규칙(학생이 그만둠 · N-136) */
+            serIds?: number[];
+            /** @description 사유 — 장부(환불 줄)와 이력에 남는다 */
+            reason?: string;
+        };
+        WithdrawSeriesDto: {
+            serId: number;
+            kindKey: string;
+            subKey?: string | null;
+            title?: string | null;
+            /** @description 이미 있던 명단 종료일 — 이번에 적히는 값 */
+            endedOn: string;
+            /** @description 종료일 뒤에 남아 있던 회차(투영 지평선 안 · 휴강 제외) — 서버가 센다 */
+            remainingCount: number;
+        };
+        WithdrawInvoiceDto: {
+            id: number;
+            yearMonth: string;
+            title: string;
+            /** @description 청구서 상태 — 처리 뒤 */
+            state: string;
+            /** @description 처리 전 금액 — 금액 권한 없으면 null */
+            amountBefore?: number | null;
+            /** @description 처리 뒤 금액 — 잔여 회차 줄을 뺀 값 */
+            amountAfter?: number | null;
+            /** @description 받은 돈 */
+            paidAmount?: number | null;
+            /** @description 돌려줄 돈 — 받은 돈이 새 금액보다 많은 만큼 (PAY 음수 줄) */
+            refund?: number | null;
+            /** @description 잔여 회차 수 — 이 청구서에서 빠진 회차 */
+            removedCount: number;
+            /** @description 금액이 0 이 되어 취소(void)로 접혔는가 */
+            voided: boolean;
+        };
+        WithdrawResultDto: {
+            studentId: number;
+            studentName: string;
+            endedOn: string;
+            reason?: string | null;
+            /** @description 미리보기인가 — true 면 아무것도 쓰지 않았다 */
+            preview: boolean;
+            series: components["schemas"]["WithdrawSeriesDto"][];
+            /** @description 종료일 뒤 회차가 들어 있던 청구서 — 줄이 빠지고 넘친 돈은 환불 줄로 */
+            invoices: components["schemas"]["WithdrawInvoiceDto"][];
+            /** @description 정리된 회차 수(규칙 합) */
+            remainingCount: number;
+            /** @description 환불 합계 — 금액 권한 없으면 null */
+            refundTotal?: number | null;
+            /** @description 수강(ENR) 행에 종료일이 적힌 수 — 등록 행이 없으면 0 */
+            enrollmentsEnded: number;
+            canSeeAmounts: boolean;
         };
         MonthCloseWriteDto: {
             /**
@@ -9283,6 +9387,160 @@ export interface operations {
                 };
             };
             /** @description PAYOUT_ALREADY_CONFIRMED | PAYOUT_NO_RATE | PAYOUT_NOTHING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_withdrawPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentWithdrawDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WithdrawResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | MONTH_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentWithdrawDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WithdrawResultDto"];
+                };
+            };
+            /** @description WITHDRAW_BAD_SERIES · 입력 검증 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | MONTH_CLOSED */
             409: {
                 headers: {
                     [name: string]: unknown;

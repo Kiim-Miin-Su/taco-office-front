@@ -21,6 +21,7 @@ vi.mock('@/api/queries', () => ({
   // §79 학생 트래킹은 창을 열 때만 도는 별도 질의다 — 이 파일은 명단 계약만 본다 (C55)
   useLessonTracking: () => tracking,
   useStudentPause: () => ({ mutate: vi.fn(), isPending: false }),
+  useWithdrawStudent: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/store/useSession', () => ({
   useCan: (name: string) => name === 'canAdminPage' ? permissions.canAdminPage : permissions.canEdit,
@@ -304,7 +305,7 @@ describe('§79 명단 줄의 교재 · 안내 칩', () => {
   prepRemainLabel: '다 됐습니다',
       priced: false, unitPrice: null, total: null, canSeeAmounts: false,
       students: occurrence.students.map((s, i) => ({
-        id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce, paused: false,
+        id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce, paused: false, ended: false,
         bookCount: i === 0 ? 2 : 0, progressAverage: null, progressKnownBooks: 0,
         guided: i === 0, attendDone: 0, attendTotal: 0,
         unpaid: null, reports: [],

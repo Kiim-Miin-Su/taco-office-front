@@ -94,6 +94,8 @@ import type {
   PayoutConfirm,
   PayoutSheet,
   PayoutSheetRow,
+  StudentWithdraw,
+  WithdrawResult,
   KindCreate,
   KindPatch,
   Lead,
@@ -584,6 +586,29 @@ export function useConfirmPayout(): UseMutationResult<PayoutSheetRow, unknown, {
     mutationFn: async (w) => (await api.post<PayoutSheetRow>(`/accounting/payouts/${w.month}/confirm`, w.body)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.accounting });
+    },
+  });
+}
+
+/**
+ * 수강 종료 · 중도 환불 (C94-c · H-80 · N-135 · N-136) — §79 학생 카드에서 부른다.
+ *
+ * 미리보기(`preview`)는 서버가 **같은 트랜잭션을 돌리고 되돌린** 값이라 화면이 잔여 회차·환불액을 따로 세지 않는다(D-R37).
+ * 실제 처리는 명단(종료일)·청구서·환불 줄·ENR 을 한 번에 바꾸므로 회계·회차·트래킹 갈래를 맨앞자락 그대로 버린다 (`queries-family` 회귀 · C48).
+ */
+export function useWithdrawStudent(): UseMutationResult<WithdrawResult, unknown, { kind: 'preview' | 'withdraw'; body: StudentWithdraw }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => (
+      w.kind === 'preview'
+        ? (await api.post<WithdrawResult>('/accounting/withdrawals/preview', w.body)).data
+        : (await api.post<WithdrawResult>('/accounting/withdrawals', w.body)).data
+    ),
+    onSuccess: (_r, w) => {
+      if (w.kind !== 'withdraw') return;
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.tracking });
     },
   });
 }

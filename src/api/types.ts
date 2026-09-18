@@ -176,6 +176,11 @@ export type InvoiceVoid = S['InvoiceVoidDto'];
 export type PayoutSheet = S['PayoutSheetDto'];
 export type PayoutSheetRow = S['PayoutSheetRowDto'];
 export type PayoutConfirm = S['PayoutConfirmDto'];
+/** 수강 종료 · 중도 환불 (C94-c · H-80/N-135/N-136) — 잔여 회차·환불액은 서버가 세고 미리보기는 같은 계산이다 */
+export type StudentWithdraw = S['StudentWithdrawDto'];
+export type WithdrawResult = S['WithdrawResultDto'];
+export type WithdrawInvoice = S['WithdrawInvoiceDto'];
+export type WithdrawSeries = S['WithdrawSeriesDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];
