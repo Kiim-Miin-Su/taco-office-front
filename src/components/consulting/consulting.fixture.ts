@@ -33,6 +33,7 @@ export const consultingItem = (overrides: Partial<Consulting> = {}): Consulting 
   share: 'all',
   canOpen: true,
   sessionsLog: [],
+  sessionsDone: 0,
   items: [],
   stageLabel: '계약',
   typeLabel: '국제학교 지원',

@@ -14,11 +14,11 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { apiMessage } from '@/api/client';
-import { Banner, Button, Chip, PageHeader, Panel, QueryState, StatCard } from '@/components/ui';
+import { Banner, Button, Chip, Dialog, PageHeader, Panel, QueryState, StatCard } from '@/components/ui';
 import {
-  useCreateGpaUse, useDeleteGpaUse, useGpaBoard, usePutGpaAlloc, useSetGpaUseState,
+  useCloseGpaCycle, useCreateGpaUse, useDeleteGpaUse, useGpaBoard, usePutGpaAlloc, useSetGpaUseState,
 } from '@/api/queries';
-import type { GpaBoard, GpaStudent } from '@/api/types';
+import type { GpaBoard, GpaCycle, GpaCycleCloseResult, GpaStudent } from '@/api/types';
 import { hm } from '@/components/teacher/format';
 import { GpaPointCard } from '@/components/data/GpaPointCard';
 
@@ -53,8 +53,35 @@ function AllocEditor({ s, cycleId, closed }: { s: GpaStudent; cycleId: number; c
   );
 }
 
+/**
+ * O-150 「4주마다 — GPA 사이클 마감」 (C95). 마감할 수 있는가(열려 있고 · 끝날이 지났고 · 승인 대기 0)는 서버의 `canClose` 다 —
+ * 막힌 이유는 단추의 title 이 그대로 말한다. 소멸 포인트·다음 사이클은 응답으로만 안다(D-R37).
+ */
+function CycleClose({ cy, onDone }: { cy: GpaCycle; onDone: (r: GpaCycleCloseResult) => void }) {
+  const close = useCloseGpaCycle();
+  const [open, setOpen] = useState(false);
+  if (cy.closed) {
+    return cy.closedAt
+      ? <Chip size="compact" tone="neutral">마감 · {cy.closedByName ?? '—'} · {cy.closedAt.slice(0, 10)}</Chip>
+      : <Chip size="compact" tone="neutral">마감</Chip>;
+  }
+  return (
+    <>
+      <Button size="sm" variant="secondary" disabled={!cy.canClose} title={cy.closeBlockedReason ?? undefined} onClick={() => setOpen(true)}>사이클 마감</Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title={`${cy.no}차 사이클을 마감할까요?`} footer={<>
+        <Button onClick={() => setOpen(false)} disabled={close.isPending}>취소</Button>
+        <Button variant="danger" disabled={close.isPending} onClick={() => close.mutate({ cycleId: cy.id }, { onSuccess: (r) => { setOpen(false); onDone(r); } })}>{close.isPending ? '마감 중…' : '마감'}</Button>
+      </>}>
+        <p className="text-[12px] text-fg-2">이월 없음 — 마감하면 남은 포인트는 소멸하고(D-R29) 이 사이클의 기록·승인·배정이 잠깁니다. 뒤에 사이클이 없으면 끝날 다음 날부터 4주를 엽니다. 되돌릴 수 없습니다.</p>
+        {close.isError ? <Banner tone="danger" className="mt-2">{apiMessage(close.error)}</Banner> : null}
+      </Dialog>
+    </>
+  );
+}
+
 function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefined; setAnchor: (a: string | undefined) => void }) {
   const [pickedId, setPickedId] = useState<number | null>(null);
+  const [closed, setClosed] = useState<GpaCycleCloseResult | null>(null);
   const create = useCreateGpaUse();
   const setState = useSetGpaUseState();
   const remove = useDeleteGpaUse();
@@ -99,7 +126,13 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
         <Button size="sm" disabled={!d.hasPrev} onClick={() => { setAnchor(addD(cy.from, -1)); setPickedId(null); }}>← 이전 사이클</Button>
         <Button size="sm" variant={anchor === undefined ? 'primary' : 'secondary'} onClick={() => { setAnchor(undefined); setPickedId(null); }}>현재 사이클</Button>
         <Button size="sm" disabled={!d.hasNext} onClick={() => { setAnchor(addD(cy.to, 1)); setPickedId(null); }}>다음 사이클 →</Button>
+        <span className="ml-auto"><CycleClose cy={cy} onDone={setClosed} /></span>
       </div>
+      {closed && closed.cycle.id === cy.id ? (
+        <Banner className="mt-3" tone="success">
+          {closed.cycle.no}차 사이클 마감 — 소멸 {closed.expiredPoints}p{closed.opened ? ` · ${closed.opened.no}차 사이클을 열었습니다 (${md(closed.opened.from)} – ${md(closed.opened.to)})` : ''}
+        </Banner>
+      ) : null}
 
       {/*
         원본 §82 「포인트 규정」 줄 — 갈래마다 칩 하나, 끝에 이월 규칙.

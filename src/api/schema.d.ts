@@ -1985,6 +1985,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consulting/{id}/sessions/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 회차 잡기 미리보기 — 같은 트랜잭션을 돌리고 되돌린다 (쓰기 0)
+         * @description 날짜마다 「시간표의 기존 회차에 연결」인지 「하루짜리 회차를 새로 만듦」인지, 순번, 시각, 불가 시간 알림을 돌려준다. 화면은 세지 않는다 (D-R37).
+         */
+        post: operations["ConsultingController_previewSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consulting/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 회차 잡기 — 날짜 여러 개 (I-91 「날짜 3개 고르기」 · 원본 §2 「CONS.sess → SER → TODO」)
+         * @description 진행(running) 중인 건만. 날짜마다 cons_sess(순번은 서버 · 「누가」는 담당 · 학생) · 담당의 할 일 · 시간표 회차(있으면 연결, 없으면 ScheduleWriteService.create — 겹침은 EXCLUDE 409 로 전부 되돌아간다) · cons_event. 담당이 남이면 알림.
+         */
+        post: operations["ConsultingController_addSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consulting/{id}/sessions/{sessId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 회차 육하원칙 — 보낸 칸만 (§31 누가 · 무엇을 · 왜 · 어떻게)
+         * @description 무엇을·왜·어떻게가 다 적히면 그 회차의 할 일을 끝낸 것으로 접는다. 종료된 건은 409 CONS_LOCKED.
+         */
+        patch: operations["ConsultingController_writeSession"];
+        trace?: never;
+    };
+    "/consulting/{id}/close/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 종료 미리보기 — 안내문 본문과 회차 수를 돌려주고 되돌린다 (쓰기 0) */
+        post: operations["ConsultingController_previewClose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consulting/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 컨설팅 종료 — I-95 · 원본 §26 「종료 · 마무리하고 안내」
+         * @description N-18 채택 「필수 항목 + 약정 회차 후 명시 종료」를 서버가 판정한다. stage=done · 종료일 · 학생마다 학부모 안내 행(PNOTI parent · 문구 틀 선택 · 발송처는 N-42) · cons_event closed · 담당 알림. 예외 종료(사유·승인)는 N-18-a.
+         */
+        post: operations["ConsultingController_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consulting/{id}/payments": {
         parameters: {
             query?: never;
@@ -2252,6 +2349,26 @@ export interface paths {
         /** 배정 upsert — (사이클, 학생) 하나. 0 은 배정 회수. 담당 코디는 마지막 저장자 */
         put: operations["GpaController_putAlloc"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gpa/cycles/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 사이클 마감 — O-150 「4주마다 — GPA 사이클 마감」 (C95)
+         * @description 열려 있고 끝날이 지났고 승인 대기가 0 일 때만. closed_at/by 도장 · 잔여는 소멸(D-R29 · 이월 없음) · 다음 사이클이 없으면 끝날 다음 날부터 4주를 연다 · LOG.
+         */
+        post: operations["GpaController_closeCycle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5437,6 +5554,12 @@ export interface components {
             /** @description 학부모 연락처/채널 정책 미제공으로 현재 false. deliver는 외부 발송이 아니라 완료 기록이다. */
             externalParentSendSupported: boolean;
             externalParentSendReason: string | null;
+            /** @description 회차를 더 잡을 수 있는가 — 진행(running) 중인 건만 (I-91) */
+            canAddSession: boolean;
+            /** @description 종료할 수 있는가 — N-18 채택 「필수 항목 + 약정 회차 후 명시 종료」를 서버가 판정한다 (I-95) */
+            canClose: boolean;
+            /** @description 종료가 막힌 이유 문장 — 화면이 그대로 띄운다. 열려 있으면 null */
+            closeBlockedReason: string | null;
         };
         ConsultingFileDto: {
             id: number;
@@ -5498,6 +5621,16 @@ export interface components {
             feedback: components["schemas"]["ConsultingFeedbackDto"][];
             delivery: components["schemas"]["ConsultingDeliveryDto"] | null;
             payment: components["schemas"]["ConsultingPaymentStateDto"];
+            /** @description 오늘까지 한 회차 수 (날짜 오늘 이하 또는 미정) */
+            sessionsDone: number;
+            /** @description 앞으로 잡아 둔 회차 수 (날짜가 오늘 뒤) */
+            sessionsPlanned: number;
+            /** @description 아직 안 끝낸 필수 항목 수 */
+            requiredLeft: number;
+            /** @description 종료 시각 — cons_event closed 행 (없으면 null) */
+            closedAt: string | null;
+            /** @description 종료한 사람 */
+            closedByName: string | null;
         };
         ConsultingSessionDto: {
             id: number;
@@ -5514,6 +5647,8 @@ export interface components {
             how?: string | null;
             /** @description 연결된 수업이 있으면 그 SER */
             serId?: number | null;
+            /** @description C95 · 오늘까지 한 회차인가 — 날짜가 오늘 이하(또는 미정). 앞으로 잡아 둔 날짜는 false (기록 ≠ 완료 · N-18) */
+            done?: boolean;
         };
         ConsItemDto: {
             id: number;
@@ -5573,6 +5708,8 @@ export interface components {
             /** @description 받은 돈 합 — 원본 카드의 「₩400,000 / ₩800,000」 왼쪽 반. `amount` 와 **같은 권한**을 탄다 (D-R39) */
             paidAmount?: number | null;
             sessionsLog: components["schemas"]["ConsultingSessionDto"][];
+            /** @description C95 · 오늘까지 한 회차 수 — `sessionsLog` 중 날짜가 오늘 이하(또는 미정)인 것. 내용이 잠기면 0 (D-R37) */
+            sessionsDone: number;
             items: components["schemas"]["ConsItemDto"][];
         };
         ConsultingStageDto: {
@@ -5693,6 +5830,93 @@ export interface components {
         };
         ConsultingFeedbackCreateDto: {
             body: string;
+        };
+        ConsSessionCreateDto: {
+            /** @description 회차 날짜들 YYYY-MM-DD — 연속일 필요 없다. 오름차순으로 순번을 붙인다 */
+            dates: string[];
+            /** @description 시작 KST 분 — 그날 시간표에 이미 있는 회차에 연결될 때는 그 회차의 시각이 이긴다. 새로 만들 때는 필수 */
+            startMin?: number;
+            endMin?: number;
+            /** @description 담당 — 없으면 건의 담당(owner). 활동 중인 직원 */
+            staffId?: number;
+            /** @description 새로 만드는 회차의 강의실 */
+            roomId?: number | null;
+            /**
+             * @description 새로 만드는 회차의 방식 — 기본 offline
+             * @enum {string}
+             */
+            mode?: "offline" | "online";
+            /** @description 「무엇을」 — 잡는 회차 전부에 같은 글이 들어간다. 회차마다 다르면 뒤에 따로 적는다 */
+            what?: string;
+        };
+        ConsSessionPlanRowDto: {
+            /** Format: date */
+            date: string;
+            /** @description 서버가 붙인 순번 */
+            seq: number;
+            sessId: number | null;
+            serId: number | null;
+            /** @description 시간표에 이미 있던 회차에 연결했는가 (false = 하루짜리 회차를 새로 만들었다) */
+            linked: boolean;
+            startMin: number;
+            endMin: number;
+            /** @description 오늘까지 한 회차인가 */
+            done: boolean;
+            todoId: number | null;
+        };
+        ConsSessionsResultDto: {
+            /** @description true 면 아무것도 쓰지 않았다 */
+            preview: boolean;
+            consId: number;
+            staffId: number;
+            staffName: string;
+            studentNames: string[];
+            rows: components["schemas"]["ConsSessionPlanRowDto"][];
+            /** @description 이번에 만든 하루짜리 회차 수 */
+            created: number;
+            /** @description 이미 있던 회차에 연결한 수 */
+            linked: number;
+            /** @description 잡은 뒤 오늘까지 한 회차 수 */
+            sessionsDone: number;
+            /** @description 잡은 뒤 앞으로 남은 회차 수 */
+            sessionsPlanned: number;
+            sessions: number | null;
+            /** @description 약정 회차를 넘겼는가 — 막지 않고 말한다 (seq ≤ sessions 규칙은 미확정 · N-18) */
+            overContract: boolean;
+            /** @description 새 회차가 담당의 불가 시간 위에 놓였으면 (C84-c 와 같은 알림) */
+            unavailable: components["schemas"]["UnavWarnDto"][];
+            /** @description 담당에게 알림을 보냈는가 (돌린 사람 본인이면 false) */
+            notified: boolean;
+        };
+        ConsSessionWriteDto: {
+            /** @description 누가 — 비우면 서버가 잡을 때 적은 「담당 · 학생」이 남는다 */
+            who?: string | null;
+            what?: string | null;
+            why?: string | null;
+            how?: string | null;
+        };
+        ConsCloseDto: {
+            /** @description 안내 문구 틀(gtpl) — 고르면 그 본문이 안내문이 된다. 없으면 서버 기본 문장 */
+            templateId?: number;
+            /** @description 안내문 뒤에 붙는 한 줄 */
+            memo?: string;
+        };
+        ConsCloseResultDto: {
+            /** @description true 면 아무것도 쓰지 않았다 */
+            preview: boolean;
+            consId: number;
+            /** @enum {string} */
+            stage: "contract" | "running" | "done";
+            studentNames: string[];
+            /** @description 학부모 안내문 본문 — PNOTI parent 행에 그대로 남는다 (발송처는 N-42) */
+            noticeBody: string;
+            /** @description 남긴 학부모 안내 행 수 (학생마다 하나) */
+            parentNotices: number;
+            sessionsDone: number;
+            sessions: number | null;
+            endOn: string | null;
+            /** @description 담당에게 알림을 보냈는가 */
+            notified: boolean;
         };
         ConsPaymentCreateDto: {
             /** @description 받은 금액 — 0 원은 기록이 아니며, 누계가 계약 금액을 넘으면 OVERPAY */
@@ -6159,6 +6383,14 @@ export interface components {
             to: string;
             /** @description 닫힘 — 닫힌 사이클은 모든 쓰기가 잠긴다 */
             closed: boolean;
+            /** @description 마감 시각 (KST ISO) — 시드가 켠 옛 닫힘은 null (N-25) */
+            closedAt: string | null;
+            /** @description 마감한 사람 */
+            closedByName: string | null;
+            /** @description 지금 마감할 수 있는가 — 열려 있고 · 끝날이 지났고 · 승인 대기가 0 이어야 한다 */
+            canClose: boolean;
+            /** @description 마감이 막힌 이유 문장 — 화면이 그대로 띄운다. 열려 있으면 null */
+            closeBlockedReason: string | null;
         };
         GpaServiceDto: {
             /** @description hw · prj · quiz · test · self (원문 5종) */
@@ -6263,6 +6495,22 @@ export interface components {
             studentId: number;
             /** @description 이 사이클 배정량 — 0 이상 (0 은 배정 회수) */
             points: number;
+        };
+        GpaExpiredRowDto: {
+            studentId: number;
+            name: string;
+            /** @description 소멸한 잔여 (배정 − 승인 사용) — 음수면 초과였다 */
+            remain: number;
+        };
+        GpaCycleCloseResultDto: {
+            /** @description 닫힌 사이클 (도장 찍힘) */
+            cycle: components["schemas"]["GpaCycleDto"];
+            /** @description 이번에 새로 연 다음 사이클 — 이미 있었으면 null */
+            opened?: components["schemas"]["GpaCycleDto"] | null;
+            /** @description 소멸한 포인트 합 (잔여가 양수인 학생만) */
+            expiredPoints: number;
+            /** @description 학생별 잔여 — 잔여 적은 순 */
+            students: components["schemas"]["GpaExpiredRowDto"][];
         };
         ExecStatDto: {
             key: string;
@@ -15575,6 +15823,386 @@ export interface operations {
             };
         };
     };
+    ConsultingController_previewSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsSessionCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsSessionsResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code CONS_NOT_RUNNING · CONS_LOCKED · RESOURCE_CONFLICT(겹침 — 어느 날짜인지 문장에) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_addSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsSessionCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsSessionsResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 보이지 않는 건 · STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CONS_NOT_RUNNING(수납 전) · CONS_LOCKED(종료) · RESOURCE_CONFLICT · 400 CONS_SESSION_TIME_REQUIRED · CONS_STAFF_REQUIRED · STAFF_INACTIVE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_writeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                sessId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsSessionWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultingSessionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 보이지 않는 건 · CONS_SESSION_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CONS_LOCKED · EMPTY_PATCH */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_previewClose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsCloseDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsCloseResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code CONS_ALREADY_DONE · CONS_NOT_RUNNING · CONS_ITEMS_LEFT · CONS_SESSIONS_LEFT · CONS_SESSIONS_PLANNED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsCloseDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsCloseResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 보이지 않는 건 · GTPL_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CONS_ALREADY_DONE · CONS_NOT_RUNNING · CONS_ITEMS_LEFT · CONS_SESSIONS_LEFT · CONS_SESSIONS_PLANNED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     ConsultingController_addPayment: {
         parameters: {
             query?: never;
@@ -16878,6 +17506,77 @@ export interface operations {
                 };
             };
             /** @description code CYCLE_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GpaController_closeCycle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpaCycleCloseResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 사이클 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CYCLE_CLOSED(이미 마감) · CYCLE_NOT_ENDED(끝날 전) · CYCLE_HAS_WAIT(승인 대기 남음) */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -47,6 +47,7 @@ import type {
   ConsItem,
   ConsPaymentCreate,
   ConsStudents,
+  ConsClose, ConsCloseResult, ConsSession, ConsSessionCreate, ConsSessionsResult, ConsSessionWrite, GpaCycleCloseResult,
   ConsultingCreate,
   ConsultingDetail,
   ConsultingFeedback,
@@ -1608,6 +1609,63 @@ export function useConsStudents(enabled = true): UseQueryResult<ConsStudents> {
   });
 }
 
+/* ══ §31 회차 잡기 · 육하원칙 · 종료 (C95 · I-91 · I-95 · N-18 채택) ══════════════════════════════════════
+ * 회차를 잡으면 시간표(SER)와 할 일(TODO)이 같이 선다 — 컨설팅 갈래만 버리면 캘린더·서랍이 옛것을 보여 준다.
+ * 미리보기는 같은 트랜잭션을 되돌린 결과라 캐시하지 않는다 (C91·C93 과 같은 모양).
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+function useConsultingSessionInvalidate(): () => void {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.consulting });
+    void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.horizon });
+    void qc.invalidateQueries({ queryKey: family.board });
+    void qc.invalidateQueries({ queryKey: family.drawer });
+    void qc.invalidateQueries({ queryKey: family.teacherHome });
+  };
+}
+
+/** 회차 잡기 — `kind: 'preview'` 는 쓰기 0. 확정 뒤에만 시간표·서랍까지 버린다 */
+export function useAddConsultingSessions(): UseMutationResult<
+  ConsSessionsResult,
+  unknown,
+  { consId: number; kind: 'preview' | 'apply'; body: ConsSessionCreate }
+> {
+  const invalidate = useConsultingSessionInvalidate();
+  return useMutation({
+    mutationFn: async ({ consId, kind, body }) =>
+      (await api.post<ConsSessionsResult>(`/consulting/${consId}/sessions${kind === 'preview' ? '/preview' : ''}`, body)).data,
+    onSettled: (_r, _e, { kind }) => { if (kind === 'apply') invalidate(); },
+  });
+}
+
+/** 육하원칙 — 보낸 칸만. 다 적히면 서버가 그 회차의 할 일을 접으므로 서랍도 버린다 */
+export function useWriteConsultingSession(): UseMutationResult<ConsSession, unknown, { consId: number; sessId: number; body: ConsSessionWrite }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ consId, sessId, body }) => (await api.patch<ConsSession>(`/consulting/${consId}/sessions/${sessId}`, body)).data,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.consulting });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
+  });
+}
+
+/** 종료 — 미리보기는 안내문·회차 수를 돌려주고 되돌린다. 확정 뒤 컨설팅 갈래를 버린다 */
+export function useCloseConsulting(): UseMutationResult<ConsCloseResult, unknown, { consId: number; kind: 'preview' | 'apply'; body: ConsClose }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ consId, kind, body }) =>
+      (await api.post<ConsCloseResult>(`/consulting/${consId}/close${kind === 'preview' ? '/preview' : ''}`, body)).data,
+    onSettled: (_r, _e, { kind }) => {
+      if (kind !== 'apply') return;
+      void qc.invalidateQueries({ queryKey: family.consulting });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
+  });
+}
+
 /** 컨설팅 탭 전체를 버린다 — 납부 한 줄이 단계 보드의 계약 단계까지 흔들 수 있다 */
 function useConsultingFamilyInvalidate(): () => void {
   const qc = useQueryClient();
@@ -1986,6 +2044,15 @@ export function usePutGpaAlloc(): UseMutationResult<
   const invalidate = useGpaInvalidate();
   return useMutation({
     mutationFn: async (w) => (await api.put<GpaStudent>('/gpa/allocs', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** O-150 사이클 마감 (C95) — 도장·소멸·다음 사이클은 서버. 성공/실패 모두 보드를 다시 읽는다 */
+export function useCloseGpaCycle(): UseMutationResult<GpaCycleCloseResult, unknown, { cycleId: number }> {
+  const invalidate = useGpaInvalidate();
+  return useMutation({
+    mutationFn: async ({ cycleId }) => (await api.post<GpaCycleCloseResult>(`/gpa/cycles/${cycleId}/close`, {})).data,
     onSettled: invalidate,
   });
 }

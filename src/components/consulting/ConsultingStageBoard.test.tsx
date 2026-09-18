@@ -16,8 +16,9 @@ describe('ConsultingStageBoard', () => {
   it('Figma §26의 세 단계와 계약 5칸을 한 보드에 표시한다', () => {
     const view = render(<ConsultingStageBoard stages={CONSULTING_STAGE_FIXTURE} items={[
       item({ id: 1, stage: 'contract', contractStep: 3 }),
-      item({ id: 2, stage: 'running', contractStep: 5, sessions: 4, sessionsLog: [
-        { id: 1, seq: 1, onDate: '2026-09-01', who: null, what: null, why: null, how: null, serId: null },
+      item({ id: 2, stage: 'running', contractStep: 5, sessions: 4, sessionsDone: 1, sessionsLog: [
+        { id: 1, seq: 1, onDate: '2026-09-01', who: null, what: null, why: null, how: null, serId: null, done: true },
+        { id: 2, seq: 2, onDate: '2026-12-01', who: null, what: null, why: null, how: null, serId: null, done: false },
       ] }),
       item({ id: 3, stage: 'done', contractStep: 5, endOn: '2026-08-15' }),
     ]} onOpen={() => undefined} />);
@@ -26,7 +27,9 @@ describe('ConsultingStageBoard', () => {
     expect(view.getByText('진행')).toBeTruthy();
     expect(view.getByText('종료')).toBeTruthy();
     expect(view.getByRole('img', { name: '계약 3/5' }).children).toHaveLength(5);
-    expect(view.getByRole('img', { name: '기록 1건 / 약정 4회' }).firstElementChild?.classList.contains('bg-violet')).toBe(true);
+    // 회차 바는 서버의 「한 회차」(sessionsDone)를 그린다 — 앞으로 잡아 둔 날짜(12/01)는 세지 않고 따로 말한다 (C95 · N-18)
+    expect(view.getByRole('img', { name: '회차 1 / 약정 4회' }).firstElementChild?.classList.contains('bg-violet')).toBe(true);
+    expect(view.getByText('회차 1 / 약정 4회 · 잡힌 날짜 1')).toBeTruthy();
     expect(view.getByRole('img', { name: '계약 3/5' }).firstElementChild?.classList.contains('bg-blue')).toBe(true);
     expect(view.getByRole('img', { name: '컨설팅 종료' }).firstElementChild?.classList.contains('bg-green')).toBe(true);
     expect(view.getByRole('img', { name: '컨설팅 종료' }).firstElementChild?.getAttribute('style')).toContain('width: 100%');

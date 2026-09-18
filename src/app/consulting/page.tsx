@@ -96,7 +96,7 @@ export default function ConsultingPage() {
     {
       key: 'n', head: '회차 기록', width: 110, align: 'right',
       // 기록 행 수 ≠ 완료 회차 (N-18 §4-17 — 기록과 완료를 구분). 잠긴 건은 기록이 아예 안 내려온다.
-      cell: (r) => (r.canOpen ? `기록 ${r.sessionsLog.length}건${r.sessions ? ` / 약정 ${r.sessions}회` : ''}` : '잠김'),
+      cell: (r) => (r.canOpen ? `회차 ${r.sessionsDone}${r.sessions ? ` / 약정 ${r.sessions}회` : ''} · 기록 ${r.sessionsLog.length}건` : '잠김'),
     },
     { key: 'o', head: '담당', width: 90, cell: (r) => r.ownerName ?? '—' },
     {

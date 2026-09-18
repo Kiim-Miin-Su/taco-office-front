@@ -49,7 +49,9 @@ function StudentTitle({ item }: { item: Consulting }) {
 
 function ConsultingCard({ item }: { item: Consulting }) {
   const step = consultingContractStep(item.contractStep);
-  const completedSessions = item.canOpen ? item.sessionsLog.length : 0;
+  // 원본 §31 회차 바 — 「한 회차」는 서버가 센다(날짜가 오늘 이하 · C95). 앞으로 잡아 둔 날짜는 기록이지 완료가 아니다 (N-18)
+  const completedSessions = item.canOpen ? item.sessionsDone : 0;
+  const plannedSessions = item.canOpen ? item.sessionsLog.length - item.sessionsDone : 0;
   const totalSessions = item.sessions ?? 0;
 
   return (
@@ -90,14 +92,14 @@ function ConsultingCard({ item }: { item: Consulting }) {
             label={item.stage === 'done'
               ? '컨설팅 종료'
               : item.canOpen
-                ? `기록 ${completedSessions}건 / 약정 ${totalSessions || '미정'}회`
+                ? `회차 ${completedSessions} / 약정 ${totalSessions || '미정'}회`
                 : '회차 기록 잠김'}
           />
           <p className="mt-1.5 text-[10px] text-fg-subtle">
             {item.stage === 'done'
               ? `${item.endOn ?? '종료일 미정'} · 종료`
               : item.canOpen
-                ? `기록 ${completedSessions}건 / 약정 ${totalSessions || '미정'}회`
+                ? `회차 ${completedSessions} / 약정 ${totalSessions || '미정'}회${plannedSessions > 0 ? ` · 잡힌 날짜 ${plannedSessions}` : ''}`
                 : '회차 기록 잠김'}
           </p>
         </div>

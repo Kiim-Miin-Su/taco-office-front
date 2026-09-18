@@ -27,6 +27,11 @@ vi.mock('@/api/queries', () => ({
   useAddConsultingSignedFile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
   useArchiveConsulting: () => ({ mutate: state.archive, mutateAsync: state.archive, isPending: false, isError: false, error: null }),
   useToggleConsultingItem: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
+  // C95 — 회차 잡기·육하원칙·종료·문구 틀. 이 시험은 창을 열지 않으므로 대역만 둔다
+  useAddConsultingSessions: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
+  useWriteConsultingSession: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
+  useCloseConsulting: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
+  useGuideTemplates: () => ({ data: [] }),
 }));
 
 const capabilities: ConsultingDetail['capabilities'] = {
@@ -34,6 +39,7 @@ const capabilities: ConsultingDetail['capabilities'] = {
   canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
   canAddPayment: false, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: '외부 수신처 정책 미정',
+  canAddSession: false, canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
 };
 
 const detail = {
@@ -49,6 +55,7 @@ const detail = {
   },
   capabilities, contractFiles: [], signedFiles: [], feedback: [], delivery: null,
   payment: { paid: 0, due: 800000, invoiceId: null },
+  sessionsDone: 0, sessionsPlanned: 0, requiredLeft: 0, closedAt: null, closedByName: null,
 } satisfies ConsultingDetail;
 
 describe('ConsultingContractWorkflow', () => {

@@ -37,9 +37,11 @@ const detail = {
     canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
     canAddPayment: false, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: '수신처 정책 미정',
+    canAddSession: false, canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
   },
   contractFiles: [], signedFiles: [], feedback: [], delivery: null,
   payment: { paid: null, due: null, invoiceId: null },
+  sessionsDone: 0, sessionsPlanned: 0, requiredLeft: 0, closedAt: null, closedByName: null,
 } satisfies ConsultingDetail;
 
 const originalAdapter = api.defaults.adapter;

@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -20,7 +20,7 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 
 /** 원본 §82 의 수를 그대로 옮긴 한 벌 — 56p 배정 · 32p 사용 · 3p 대기 · 21p 잔여 · 18회 진행 */
 const board: GpaBoard = {
-  cycle: { id: 3, no: 3, from: '2026-07-27', to: '2026-08-23', closed: false },
+  cycle: { id: 3, no: 3, from: '2026-07-27', to: '2026-08-23', closed: false, closedAt: null, closedByName: null, canClose: false, closeBlockedReason: '사이클 끝(8/23)이 지나야 마감할 수 있습니다' },
   hasPrev: true, hasNext: false,
   services: [
     { key: 'hw', name: '숙제 지원', point: 1 },
@@ -102,4 +102,38 @@ it('카드의 서비스 칩은 서버가 준 회수·합계를 그대로 쓰고,
   // 초과는 칩이 아니라 남은 값으로 말한다 — 「2p 초과」·「9p 남음」
   expect(text).toContain('2p 초과');
   expect(text).toContain('9p 남음');
+});
+
+/* ══ C95 · O-150 사이클 마감 — 서는지·막힌 이유는 서버, 소멸·다음 사이클은 응답 ══ */
+it('마감 단추는 서버 canClose 로만 서고 막힌 이유를 title 에 그대로 적는다', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getByRole('button', { name: '사이클 마감' })).toBeTruthy());
+  const btn = view.getByRole('button', { name: '사이클 마감' }) as HTMLButtonElement;
+  expect(btn.disabled).toBe(true);
+  expect(btn.title).toBe('사이클 끝(8/23)이 지나야 마감할 수 있습니다');
+});
+
+it('마감이 열리면 확인 창 → POST /gpa/cycles/{id}/close → 응답의 소멸 포인트와 새 사이클을 띠로 말한다 (O-150)', async () => {
+  const posts: string[] = [];
+  const cycle = { ...board.cycle!, canClose: true, closeBlockedReason: null };
+  api.defaults.adapter = vi.fn(async (config: { url?: string; method?: string }) => {
+    if (config.method === 'post') {
+      posts.push(config.url ?? '');
+      return { config, status: 201, statusText: 'Created', headers: {}, data: {
+        cycle: { ...cycle, closed: true, closedAt: '2026-09-18T10:00:00+09:00', closedByName: '김민선', canClose: false, closeBlockedReason: '이미 마감된 사이클입니다' },
+        opened: { id: 4, no: 4, from: '2026-08-24', to: '2026-09-20', closed: false, closedAt: null, closedByName: null, canClose: false, closeBlockedReason: '끝 전' },
+        expiredPoints: 27, students: [],
+      } };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: { ...board, cycle } };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const view = render(<QueryClientProvider client={client}><GpaPage /></QueryClientProvider>);
+  await waitFor(() => expect((view.getByRole('button', { name: '사이클 마감' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(view.getByRole('button', { name: '사이클 마감' }));
+  const dialog = await view.findByRole('dialog', { name: '3차 사이클을 마감할까요?' });
+  expect(dialog.textContent).toContain('이월 없음');
+  fireEvent.click(within(dialog).getByRole('button', { name: '마감' }));
+  await waitFor(() => expect(posts).toEqual(['/gpa/cycles/3/close']));
+  await waitFor(() => expect(view.container.textContent).toContain('3차 사이클 마감 — 소멸 27p · 4차 사이클을 열었습니다 (8월 24일 – 9월 20일)'));
 });

@@ -28,7 +28,9 @@ import { won } from '@/lib/money';
 import { ConsultingProgress } from './ConsultingProgress';
 import { ConsultingWorkflowDialog } from './ConsultingWorkflowDialog';
 import { ConsultingActivity } from './ConsultingActivity';
+import { ConsultingCloseDialog } from './ConsultingCloseDialog';
 import { ConsultingFileDropzone } from './ConsultingFileDropzone';
+import { ConsultingSessionDialog } from './ConsultingSessionDialog';
 
 const MAX_FILES = 10;
 const STAGES = [
@@ -224,10 +226,14 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
   const meta = useMeta(detail.capabilities.canChangeShare);
   const archive = useArchiveConsulting();
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const step = Math.max(0, Math.min(CONSULTING_CONTRACT_STEPS.length, detail.contractStep ?? 0));
   return <>
     <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-      {[['계약 금액', won(detail.amount)], ['받은 돈', won(detail.payment.paid)], ['회차', `${summary?.sessionsLog.length ?? 0} / ${detail.sessions ?? '—'}회`], ['종료', detail.endOn ?? '—']].map(([label, value]) => (
+      {/* 「회차」는 서버의 「한 회차」(오늘 이하)다 — 앞으로 잡아 둔 날짜는 세지 않는다 (C95 · N-18) */}
+      {[['계약 금액', won(detail.amount)], ['받은 돈', won(detail.payment.paid)], ['회차', `${detail.sessionsDone} / ${detail.sessions ?? '—'}회${detail.sessionsPlanned ? ` · 잡힌 ${detail.sessionsPlanned}` : ''}`], ['종료', detail.stage === 'done' && detail.closedByName ? `${detail.endOn ?? '—'} · ${detail.closedByName}` : detail.endOn ?? '—']].map(([label, value]) => (
         <div key={label} className="rounded-lg bg-inset p-3"><p className="text-[10px] font-bold text-fg-subtle">{label}</p><p className="mt-1 text-[15px] font-bold">{value}</p></div>
       ))}
     </div>
@@ -247,17 +253,28 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
     </div>
     {!detail.typeCapability.defaultItemsSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.reason ?? '이 유형의 기본 진행 항목은 아직 확정되지 않았습니다.'}</Banner> : null}
     {!detail.typeCapability.scheduleCreationSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.scheduleCreationReason ?? '스케줄 자동 생성 정책이 아직 확정되지 않았습니다.'}</Banner> : null}
+    {notice ? <Banner tone="success" className="mb-4">{notice}</Banner> : null}
     <div className="space-y-3">
       <ShareEditor detail={detail} meta={meta.data} />
       <ContractFileSection detail={detail} />
       <FeedbackSection detail={detail} />
       <ContractActions detail={detail} onOpenAccounting={onOpenAccounting} />
-      {summary ? <ConsultingActivity item={summary} /> : null}
+      {summary ? <ConsultingActivity item={summary} detail={detail} onAddSession={() => setSessionOpen(true)} /> : null}
     </div>
-    <div className="mt-5 flex justify-between border-t border-line pt-4">
+    <div className="mt-5 flex flex-wrap justify-between gap-2 border-t border-line pt-4">
       <Button variant="danger" disabled={!detail.capabilities.canArchive || archive.isPending} onClick={() => setConfirmArchive(true)}>보관 삭제</Button>
-      <Button onClick={onClose}>닫기</Button>
+      <div className="flex gap-2">
+        {/* 종료 — 원본 §26 「종료 · 마무리하고 안내」. 서는지도 서버가 정한다(N-18 채택 · I-95) — 막힌 이유는 title 에 */}
+        {detail.stage !== 'done' ? (
+          <Button variant="secondary" disabled={!detail.capabilities.canClose} title={detail.capabilities.closeBlockedReason ?? undefined} onClick={() => setCloseOpen(true)}>컨설팅 종료</Button>
+        ) : null}
+        <Button onClick={onClose}>닫기</Button>
+      </div>
     </div>
+    <ConsultingSessionDialog open={sessionOpen} detail={detail} onClose={() => setSessionOpen(false)}
+      onDone={(r) => setNotice(`회차 ${r.rows.length}건 잡음 — 새 회차 ${r.created} · 연결 ${r.linked} · 회차 ${r.sessionsDone} / 약정 ${r.sessions ?? '—'}`)} />
+    <ConsultingCloseDialog open={closeOpen} detail={detail} onClose={() => setCloseOpen(false)}
+      onDone={(r) => setNotice(`종료 — 학부모 안내 ${r.parentNotices}명 · 종료일 ${r.endOn ?? '—'}`)} />
     <Dialog open={confirmArchive} onClose={() => setConfirmArchive(false)} title="이 컨설팅을 보관할까요?" footer={<>
       <Button onClick={() => setConfirmArchive(false)}>취소</Button>
       <Button variant="danger" disabled={archive.isPending} onClick={() => archive.mutate(detail.id, { onSuccess: onClose })}>보관 삭제</Button>

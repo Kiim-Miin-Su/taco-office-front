@@ -242,7 +242,19 @@ export type ConsPaymentCreate = S['ConsPaymentCreateDto'];
 export type ConsStudents = S['ConsStudentsDto'];
 export type ConsStudent = S['ConsStudentDto'];
 export type ConsStudentCase = S['ConsStudentCaseDto'];
+
+/* §31 회차 잡기 · 육하원칙 · 종료 (C95 · I-91 · I-95) — 순번·연결·「한 회차」·종료 가능 여부는 전부 서버가 정한다 */
+export type ConsSession = S['ConsultingSessionDto'];
+export type ConsSessionCreate = S['ConsSessionCreateDto'];
+export type ConsSessionWrite = S['ConsSessionWriteDto'];
+export type ConsSessionsResult = S['ConsSessionsResultDto'];
+export type ConsSessionPlanRow = S['ConsSessionPlanRowDto'];
+export type ConsClose = S['ConsCloseDto'];
+export type ConsCloseResult = S['ConsCloseResultDto'];
 export type GpaBoard = S['GpaBoardDto'];
+export type GpaCycle = S['GpaCycleDto'];
+/* O-150 사이클 마감 (C95) — 소멸 포인트·다음 사이클은 서버가 만든다 */
+export type GpaCycleCloseResult = S['GpaCycleCloseResultDto'];
 
 /* ══ 줌 계정 관리 — §21 서랍의 「줌 계정 관리」가 가는 자리 (대표 결정 2026-09-12 신설) ══ */
 export type ZoomBoard = S['ZoomBoardDto'];
