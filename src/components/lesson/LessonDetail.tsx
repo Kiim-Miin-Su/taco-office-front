@@ -51,11 +51,17 @@ export interface LessonDetailProps {
   /** 휴강 창의 사유·처리 목록 — 코드표(meta)에서 온다 (C92 · D-R18). 없으면 창이 「읽는 중」이라 말한다 */
   cancelReasons?: Meta['cancelReasons'];
   cancelTreats?: Meta['cancelTreats'];
+  /**
+   * 삭제·휴강이 **성공했다**는 사실을 부르는 쪽에 돌려준다 (N-138 · C99).
+   * 지금까지 이 창은 성공하면 `onClose()` 만 불러 **서버가 준 되돌리기 토큰을 버리고 있었다** —
+   * 실수로 지운 사람에게 아무것도 남지 않았다.
+   */
+  onWritten?: (result: unknown, label: string) => void;
   onClose: () => void;
 }
 
 export function LessonDetail({
-  occ, kindName, subName, recurring = true, allStudents, cancelReasons, cancelTreats, onClose,
+  occ, kindName, subName, recurring = true, allStudents, cancelReasons, cancelTreats, onWritten, onClose,
 }: LessonDetailProps) {
   const write = useScheduleWrite();
   const canEdit = useCan('canCrudAll');
@@ -126,14 +132,21 @@ export function LessonDetail({
       if (scope === 'this') { openCancel(); return; }
       write.mutate(
         { kind: 'delete', serId: occ.serId, body: { scope, onDate: occ.onDate } },
-        { onError: (e) => setErr(apiMessage(e)), onSuccess: onClose },
+        {
+          onError: (e) => setErr(apiMessage(e)),
+          onSuccess: (result) => { onWritten?.(result, scope === 'all' ? '수업 삭제' : '이후 수업 끝내기'); onClose(); },
+        },
       );
       setAsk(null);
     });
   const submitCancel = (input: CancelLessonInput) => {
     if (!canEdit) return;
     setCancelErr(null);
-    const done = { onError: (e: unknown) => setCancelErr(apiMessage(e)), onSuccess: () => { setAskCancel(false); onClose(); } };
+    const label = input.wholeDay ? '그날 전체 휴강' : '휴강';
+    const done = {
+      onError: (e: unknown) => setCancelErr(apiMessage(e)),
+      onSuccess: (result: unknown) => { onWritten?.(result, label); setAskCancel(false); onClose(); },
+    };
     if (input.wholeDay) {
       // 그날 전체 — 서버가 그 날짜의 회차를 전부 한 트랜잭션에서 접는다. 화면은 날짜 하나만 보낸다 (C-33)
       write.mutate(

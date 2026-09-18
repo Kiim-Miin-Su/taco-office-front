@@ -26,6 +26,7 @@ import { AppShell } from '@/components/shell/AppShell';
 import { ScheduleSidebar } from '@/components/shell/ScheduleSidebar';
 import { WorkspaceRail } from '@/components/shell/WorkspaceRail';
 import { useWorkspace } from '@/store/useWorkspace';
+import { useUndoLast } from '@/components/shell/useUndoLast';
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
@@ -46,7 +47,7 @@ import { fetchConflicts, useDrawer, useHorizon, useMeta, useOccurrences, useSche
 import { apiMessage, isConflict } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  boundingRange, boundsOf, clampSplitRatio, conflictLines, INITIAL_PANE, label, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
+  boundingRange, boundsOf, clampSplitRatio, conflictLines, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
@@ -276,7 +277,12 @@ function AdminSchedulePage() {
   const [moveAsk, setMoveAsk] = useState<PendingMoveMany | null>(null);
   const [err, setErr] = useState<string | null>(null);
   /** 서버가 서명한 직전 쓰기 한 건만 메모리에 둔다. 새 쓰기가 성공하면 이전 토큰을 교체한다. */
-  const [lastUndo, setLastUndo] = useState<{ token: string; label: string } | null>(null);
+  /*
+   * 되돌릴 직전 작업은 **셸이 갖는다** — 원본 §16 상단바에 「되돌리기」가 있어서다 (N-138 · C99).
+   * 여기서 갖고 있으면 상단바와 이 화면의 띠가 서로 다른 말을 한다.
+   */
+  const setUndo = useWorkspace((w) => w.setUndo);
+  const undoLast = useUndoLast();
   const [notice, setNotice] = useState<string | null>(null);
   /**
    * 저장은 됐는데 **강사가 불가로 적어 둔 시간**에 걸쳤다 (원본 §15·§16).
@@ -309,8 +315,10 @@ function AdminSchedulePage() {
     const rows = typed?.unavailable ?? [];
     setUnavail(unavailableLines(rows));
     if (typed?.undoToken) {
-      setLastUndo({ token: typed.undoToken, label: undoLabel });
-      setNotice(`${undoLabel}을 저장했습니다. Ctrl/⌘+Z로 10분 안에 되돌릴 수 있습니다.`);
+      setUndo({ token: typed.undoToken, label: undoLabel });
+      // 라벨은 「새 일정」·「수업 삭제」처럼 **한 일의 이름**이라 「…을 저장했습니다」로 이으면
+      // 삭제까지 「저장」이 된다. 이름을 그대로 앞에 놓고 되돌리는 길만 잇는다.
+      setNotice(`${undoLabel} — 10분 안에 Ctrl/⌘+Z 로 되돌릴 수 있습니다.`);
     }
   };
 
@@ -626,30 +634,24 @@ function AdminSchedulePage() {
     });
   };
 
-  const undoLast = () => {
-    if (!lastUndo) {
+  /** 되돌리기 자체는 `useUndoLast` 한 곳이 한다 — 여기서는 이 화면의 뒤처리만 잇는다 */
+  const runUndo = () => {
+    if (!undoLast.canUndo) {
       setErr('되돌릴 최근 스케줄 작업이 없습니다.');
       return;
     }
-    write.mutate(
-      { kind: 'undo', body: { token: lastUndo.token } },
-      {
-        onError: (error) => {
-          setLastUndo(null);
-          setNotice(null);
-          failWrite(error, null);
-        },
-        onSuccess: (result) => {
-          setLastUndo(null);
-          setNotice(`${lastUndo.label}을 되돌렸습니다.`);
-          setErr(null);
-          setUnavail(unavailableLines(result.unavailable ?? []));
-          go({ t: 'selected', keys: [] });
-          go({ t: 'clipboard', value: null });
-          go({ t: 'cursor', value: null });
-        },
+    const label = undoLast.label;
+    undoLast.undo({
+      onFail: (message) => { setNotice(null); setErr(message); setUnavail([]); },
+      onDone: () => {
+        setNotice(`${label}${objectParticle(label ?? '')} 되돌렸습니다.`);
+        setErr(null);
+        setUnavail([]);
+        go({ t: 'selected', keys: [] });
+        go({ t: 'clipboard', value: null });
+        go({ t: 'cursor', value: null });
       },
-    );
+    });
   };
 
   useEffect(() => {
@@ -674,7 +676,7 @@ function AdminSchedulePage() {
         else if (pasteAsk) setPasteAsk(null);
         else if (moveAsk) setMoveAsk(null);
         else if (ask) setAsk(null);
-        else undoLast();
+        else runUndo();
         return;
       }
       if (e.key === 'Escape') {
@@ -1049,7 +1051,7 @@ function AdminSchedulePage() {
         {notice ? (
           <div className="mb-3 flex flex-wrap items-center gap-2" role="status">
             <Banner tone="success">{notice}</Banner>
-            {lastUndo ? <Button size="sm" variant="ghost" onClick={undoLast}>되돌리기 · Ctrl/⌘+Z</Button> : null}
+            {undoLast.canUndo ? <Button size="sm" variant="ghost" onClick={runUndo}>되돌리기 · Ctrl/⌘+Z</Button> : null}
           </div>
         ) : null}
 
@@ -1110,6 +1112,7 @@ function AdminSchedulePage() {
           allStudents={meta.data?.students}
           cancelReasons={meta.data?.cancelReasons}
           cancelTreats={meta.data?.cancelTreats}
+          onWritten={(result, label) => doneWrite(result, label)}
           onClose={() => go({ t: 'open', o: null })}
         />
 

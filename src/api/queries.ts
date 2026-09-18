@@ -1367,8 +1367,12 @@ export function useScheduleWrite(): UseMutationResult<
     void qc.invalidateQueries({ queryKey: family.horizon });
     // 명단을 고치면 §79 카드의 정원·단가·학생 목록이 함께 달라진다 (C55)
     void qc.invalidateQueries({ queryKey: family.tracking });
+    // 명단에 넣으면 수신함에 세 줄이 남는다 — 서랍의 배지·목록이 같이 달라진다 (M-124 · C99)
+    if (w?.kind === 'roster') void qc.invalidateQueries({ queryKey: family.drawer });
     // 휴강의 처리(이월/차감)는 §54 수업료와 알림(M-125)을 바꾼다 — 다른 쓰기는 회계를 건드리지 않는다 (C92)
-    if (w?.kind === 'delete' || w?.kind === 'dayCancel') {
+    // 되돌리기는 **그 휴강을 되돌리는 것**이라 같은 갈래를 버려야 한다 (N-138 · C99) —
+    // 차감·이월이 돌아오는데 §54 가 옛 수를 들고 있으면 한 화면에 두 답이 생긴다.
+    if (w?.kind === 'delete' || w?.kind === 'dayCancel' || w?.kind === 'undo') {
       void qc.invalidateQueries({ queryKey: family.accounting });
       void qc.invalidateQueries({ queryKey: family.drawer });
     }

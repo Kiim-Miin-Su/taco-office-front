@@ -10,7 +10,7 @@
  */
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Home, Maximize, Minimize, Palette, ShieldCheck, Workflow } from 'lucide-react';
+import { ArrowLeft, Home, Maximize, Minimize, Palette, RotateCcw, ShieldCheck, Workflow } from 'lucide-react';
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
@@ -27,7 +27,9 @@ export type DrawerEntry = { pane: DrawerPane; identity: string };
 type PanelSlot = ReactNode | ((api: WorkspacePanelApi) => ReactNode);
 import { Banner, Button, Dialog, Logo, cn } from '@/components/ui';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
+import { objectParticle } from '@/lib/calendar';
 import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
+import { useUndoLast } from './useUndoLast';
 import styles from './AppShell.module.css';
 
 export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool, onToday, drawerEntry, flush = false }: {
@@ -60,6 +62,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [design, setDesign] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
+  // 되돌리기는 상단바에도 있고(원본 §16) 스케줄 화면의 띠에도 있다 — 둘 다 같은 훅을 쓴다 (N-138)
+  const undoLast = useUndoLast();
   const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
   const side = typeof sidePanel === 'function' ? sidePanel({ openDrawer }) : sidePanel;
   const right = typeof rightPanel === 'function' ? rightPanel({ openDrawer }) : rightPanel;
@@ -113,6 +117,17 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           </a>}
           <button type="button" onClick={() => router.back()} className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
             <ArrowLeft size={14} aria-hidden />뒤로
+          </button>
+          {/*
+            원본 §16 컷의 상단바 세 번째 단추다 — 되돌릴 것이 없으면 **흐리게** 그려져 있다.
+            그래서 조건부로 사라지지 않고 **늘 서 있고** 못 누를 때는 이유를 `title` 이 말한다.
+            컷의 「⌄」는 눌렀을 때가 컷에 없어 만들지 않는다 (D-R44 — 없는 메뉴를 짓지 않는다).
+          */}
+          <button type="button" onClick={() => undoLast.undo({ onFail: setScreenError })}
+            disabled={!undoLast.canUndo || undoLast.pending}
+            title={undoLast.canUndo ? `${undoLast.label}${objectParticle(undoLast.label ?? '')} 되돌립니다 · Ctrl/⌘+Z` : '되돌릴 최근 일정 작업이 없습니다'}
+            className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2 disabled:opacity-40">
+            <RotateCcw size={14} aria-hidden />되돌리기
           </button>
         </div> : null}
         <AdminTopNavigation pathname={path} badges={badges} me={me} />

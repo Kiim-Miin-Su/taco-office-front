@@ -86,6 +86,32 @@ it('정상 저장도 같은 네 key만 갱신하고 mutation 결과를 그대로
   ]);
 });
 
+it('명단 추가는 서랍도 다시 읽는다 — 수신함에 세 줄이 남기 때문이다 (M-124 · C99)', async () => {
+  vi.spyOn(api, 'patch').mockResolvedValue({ data: { effScope: 'this', log: [], projected: 1, serIds: [1] } });
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => useScheduleWrite(), { wrapper });
+  await act(async () => {
+    await view.result.current.mutateAsync({ kind: 'roster', serId: 1,
+      body: { op: 'add', onDate: range.from, studentId: 4 } });
+  });
+  expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'], ['drawer'],
+  ]);
+});
+
+it('되돌리기는 삭제와 같은 갈래를 버린다 — 차감·이월이 되돌아온다 (N-138 · C99)', async () => {
+  vi.spyOn(api, 'post').mockResolvedValue({ data: { effScope: 'undo', log: [], projected: 1, serIds: [1], undoToken: null } });
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const view = renderHook(() => useScheduleWrite(), { wrapper });
+  await act(async () => {
+    await view.result.current.mutateAsync({ kind: 'undo', body: { token: 'tok' } });
+  });
+  // §54 가 옛 수를 들고 있으면 한 화면에 두 답이 생긴다
+  expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'], ['accounting'], ['drawer'],
+  ]);
+});
+
 it('되돌리기는 공용 mutation에서 POST /schedule/undo 계약과 서버 token을 그대로 사용한다', async () => {
   const token = 'signed-schedule-undo-token-for-regression';
   const data = { effScope: 'this', log: [], projected: 1, serIds: [1], undoToken: null };

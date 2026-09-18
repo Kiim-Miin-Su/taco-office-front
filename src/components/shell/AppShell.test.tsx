@@ -10,14 +10,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import type { Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
+import { useWorkspace } from '@/store/useWorkspace';
 import { AppShell, type DrawerEntry } from './AppShell';
 
-const mocks = vi.hoisted(() => ({ back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn(),
+  /** 상단바 되돌리기가 쓰는 쓰기 훅 (N-138 · C99) — 실제 요청은 useUndoLast 회귀가 본다 */
+  scheduleWrite: vi.fn(),
+}));
 vi.mock('next/navigation', () => ({ usePathname: () => '/board', useRouter: () => mocks }));
 vi.mock('@/api/client', () => ({ api: { post: mocks.post }, setAccessToken: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
   useUnwritten: mocks.unwritten,
+  useScheduleWrite: mocks.scheduleWrite,
 }));
 vi.mock('@/components/drawer/AppDrawer', () => ({
   AppDrawer: ({ open, pane, onPaneChange, onClose }: {
@@ -57,6 +63,8 @@ beforeEach(() => {
     approvals: { count: 3, inboxCount: 3 }, notis: [{ read: false }],
   } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 } });
+  mocks.scheduleWrite.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useWorkspace.setState({ undo: null });
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
 });
 afterEach(() => {

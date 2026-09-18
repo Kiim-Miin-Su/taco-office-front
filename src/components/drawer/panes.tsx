@@ -482,7 +482,8 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
                 <p className="mt-1 flex gap-2 text-[11px] text-fg-subtle">
                   <span>{n.fromName ?? '시스템'}</span>
                   <span>{n.at.slice(5, 16).replace('T', ' ')}</span>
-                  {n.link ? <Link href={n.link} className="ml-auto font-bold text-blue hover:underline">원본</Link> : null}
+                  {/* 원문 M-124·M-127 의 낱말은 「열기 ›」다 — 「원본」이라 적고 있었다 (C99 · D-R18) */}
+                  {n.link ? <Link href={n.link} className="ml-auto font-bold text-blue hover:underline">열기 ›</Link> : null}
                 </p>
               </li>
             ))}

@@ -516,3 +516,17 @@ export function unavailableLines(rows: readonly UnavWarn[]): string[] {
     `${row.date} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.teacherName} — ${row.reason}`
   ));
 }
+
+/**
+ * 「…을 되돌립니다」의 **을/를** — 앞 낱말의 받침이 정한다.
+ *
+ * 되돌리기 라벨은 「수업 삭제」·「휴강」·「그날 전체 휴강」·「수업 이동」처럼 받침이 갈린다.
+ * 한 쪽으로 굳히면 절반이 「수업 삭제**을**」이 된다 — 실제로 그렇게 나가고 있었다 (C99 QA 에서 봤다).
+ * 한글 음절은 0xAC00 부터 28개 종성 주기로 늘어서므로 나머지가 0이면 받침이 없다.
+ */
+export function objectParticle(word: string): '을' | '를' {
+  const last = word.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return '을';
+  return (code - 0xac00) % 28 === 0 ? '를' : '을';
+}

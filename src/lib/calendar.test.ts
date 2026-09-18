@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, paneView, parseHm, unavailableLines,
+  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
   periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
@@ -426,5 +426,16 @@ describe('기간 집계 — 상단 줄과 날짜 칸이 같은 것을 센다 (v2
     for (const view of ['day', 'week', 'student', 'teacher'] as const) {
       expect(summaryBoundsOf(view, '2026-08-03')).toEqual(boundsOf(view, '2026-08-03'));
     }
+  });
+});
+
+/** 되돌리기 안내의 을/를 — 라벨마다 받침이 갈린다 (C99) */
+describe('objectParticle — 받침이 조사를 정한다', () => {
+  it('받침이 없으면 를, 있으면 을이다', () => {
+    expect(objectParticle('수업 삭제')).toBe('를');
+    expect(objectParticle('휴강')).toBe('을');
+    expect(objectParticle('그날 전체 휴강')).toBe('을');
+    expect(objectParticle('수업 이동')).toBe('을');
+    expect(objectParticle('이후 수업 끝내기')).toBe('를');
   });
 });
