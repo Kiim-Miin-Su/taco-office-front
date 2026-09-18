@@ -17,9 +17,10 @@
 import { useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useReviewExpense } from '@/api/queries';
-import type { Expense, ExpenseTotal, Me } from '@/api/types';
+import type { Expense, ExpenseCategory, ExpenseTotal, Me } from '@/api/types';
 import { Banner, Button, Chip, Input, Label, Panel } from '@/components/ui';
 import { won } from '@/lib/money';
+import { ExpenseCreateButton } from './ExpenseForm';
 
 const STATE: Record<string, { label: string; tone: 'warning' | 'success' | 'danger' }> = {
   pending: { label: '대기', tone: 'warning' },
@@ -33,7 +34,7 @@ const STATE: Record<string, { label: string; tone: 'warning' | 'success' | 'dang
  * 분류별 합계는 **서버가 준 것을 그대로 보여 준다** (C43-b · 대표 지시 「전부 단일 진실원」).
  * 전에는 여기서 지출 줄을 직접 더했는데, 머리의 「남은 돈」과 같은 돈을 두 곳에서 세는 일이었다.
  */
-export function ExpenseReview({ expenses, totals, me }: { expenses: Expense[]; totals: ExpenseTotal[]; me: Me | null }) {
+export function ExpenseReview({ expenses, totals, categories = [], me }: { expenses: Expense[]; totals: ExpenseTotal[]; categories?: ExpenseCategory[]; me: Me | null }) {
   const pending = expenses.filter((e) => e.state === 'pending');
   const settled = expenses.filter((e) => e.state !== 'pending');
   const [pickedId, setPickedId] = useState<number | null>(null);
@@ -85,6 +86,10 @@ export function ExpenseReview({ expenses, totals, me }: { expenses: Expense[]; t
 
       <div className="flex flex-col gap-4 lg:flex-row">
         <Panel className="lg:w-[360px] lg:shrink-0" title={`법인카드 · 대기 ${pending.length}건`} sub="누르면 오른쪽에서 심사합니다">
+          {/* 「+ 지출 등록」 (C94-d · H-83) — 올리면 언제나 대기다. 분류 낱말은 서버가 준 것 */}
+          {categories.length > 0 ? (
+            <div className="mb-2 flex justify-end"><ExpenseCreateButton categories={categories} /></div>
+          ) : null}
           {pending.length === 0 ? (
             <p className="px-1 py-5 text-center text-[13px] text-fg-subtle">심사할 신청이 없습니다.</p>
           ) : (

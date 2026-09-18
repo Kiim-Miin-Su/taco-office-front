@@ -18,7 +18,7 @@ import { queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting, useCarryTuition, useInvBoard, useMonthClose, useOtherIncome, usePayoutSheet, useTuition } from '@/api/queries';
+import { useAccounting, useCarryTuition, useInvBoard, useMonthClose, useOtherIncome, usePayoutSheet, useRateBook, useTuition } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
@@ -28,6 +28,7 @@ import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { OtherIncome } from '@/components/accounting/OtherIncome';
 import { InvoiceBoard } from '@/components/accounting/InvoiceBoard';
 import { PayoutSheet } from '@/components/accounting/PayoutSheet';
+import { RateBook } from '@/components/accounting/RateBook';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -62,7 +63,7 @@ const STATE_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'd
   draft: 'neutral', sent: 'info', unpaid: 'danger', partial: 'warning', paid: 'success', void: 'neutral',
 };
 
-const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'pay', 'out', 'payout'] as const;
+const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'pay', 'out', 'payout', 'rates'] as const;
 type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
 /** 지난달 'YYYY-MM' — §57 시트가 처음 여는 달. 확정할 수 있는 달은 끝난 달이라 지난달부터 보인다 (C94-b) */
@@ -100,6 +101,8 @@ export default function AccountingPage() {
   const [payoutMonth, setPayoutMonth] = useState(prevMonth);
   const payoutMonthOk = /^\d{4}-(0[1-9]|1[0-2])$/.test(payoutMonth);
   const payoutSheet = usePayoutSheet(payoutMonth, tab === 'payout' && payoutMonthOk);
+  // 단가표도 다른 질의다 — 그 탭을 열 때만 부른다 (C94-d)
+  const rateBook = useRateBook(tab === 'rates');
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
 
@@ -212,6 +215,7 @@ export default function AccountingPage() {
             { value: 'pay', label: `들어온 돈 ${q.data?.payments.length ?? 0}` },
             { value: 'out', label: `나간 돈 ${q.data?.expenses.length ?? 0}` },
             { value: 'payout', label: '강사료 정산' },
+            { value: 'rates', label: '단가표' },
           ]}
         />
 
@@ -272,9 +276,11 @@ export default function AccountingPage() {
             <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
           </>
         ) : tab === 'out' ? (
-          <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} me={me} />
-        ) : (
+          <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} categories={q.data?.expenseCategories ?? []} me={me} />
+        ) : tab === 'payout' ? (
           <PayoutSheet data={payoutSheet.data} loading={payoutSheet.isLoading} month={payoutMonth} onMonthChange={setPayoutMonth} />
+        ) : (
+          <RateBook data={rateBook.data} loading={rateBook.isLoading} />
         )}
 
         {/*

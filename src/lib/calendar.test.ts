@@ -34,7 +34,7 @@ describe('강사 캘린더 기본 오늘 목록 (§8·§9)', () => {
   const occurrence = (serId: number, date: string, startMin = 600, extra: Partial<Occurrence> = {}): Occurrence => ({
     serId, date, onDate: date, startMin, endMin: startMin + 60, kindKey: 'class',
     mode: 'offline', canceled: false, hasException: false, recurring: true,
-    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+    repState: 'plan', ended: false, written: false, extra: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
   });
 
   it('오늘과 다음 7일을 실제 날짜·시작 시각순으로 나누고 원본을 바꾸지 않는다', () => {
@@ -372,7 +372,7 @@ describe('기간 집계 — 상단 줄과 날짜 칸이 같은 것을 센다 (v2
   const occurrence = (serId: number, date: string, extra: Partial<Occurrence> = {}): Occurrence => ({
     serId, date, onDate: date, startMin: 600, endMin: 690, kindKey: 'class',
     mode: 'offline', canceled: false, hasException: false, recurring: false,
-    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+    repState: 'plan', ended: false, written: false, extra: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
   });
 
   it('현장 + 온라인 = 일정 건수다 — 원문 92 + 176 = 268 이 그렇게 닫힌다', () => {

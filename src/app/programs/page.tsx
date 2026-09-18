@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import {
-  Banner, Button, Chip, Input, Label, PageHeader, Panel, Segmented, Select, Table, type Column,
+  Banner, Button, Checkbox, Chip, Input, Label, PageHeader, Panel, Segmented, Select, Table, type Column,
 } from '@/components/ui';
 import { apiMessage } from '@/api/client';
 import { useCatalog, useCreateKind, useCreateSub, usePatchKind, usePatchSub } from '@/api/queries';
@@ -49,7 +49,7 @@ const asForm = (v: string): RepForm | null => (v === 'dev' || v === 'assess' ? v
 // eslint-disable-next-line no-restricted-syntax -- 데이터 초깃값이지 디자인 토큰이 아니다
 const START_COLOR = '#7C6A58';
 
-const NEW_KIND = { key: '', name: '', color: START_COLOR, cap: 4, grp: 'lesson' as Grp, rep: false, repForm: '' as '' | RepForm };
+const NEW_KIND = { key: '', name: '', color: START_COLOR, cap: 4, grp: 'lesson' as Grp, rep: false, repForm: '' as '' | RepForm, extra: false };
 const NEW_SUB = { key: '', name: '', color: START_COLOR };
 
 function Swatch({ color }: { color: string }) {
@@ -79,6 +79,8 @@ export default function ProgramsPage() {
         ? <Chip size="compact" tone="info">{r.repForm === 'assess' ? '평가' : '성장'}</Chip>
         : <span className="text-fg-subtle">—</span>),
     },
+    // 추가 수업(C94-d · C-38) — 시간표 「추가」 배지 · §54 「추가 수업」 칸 · 청구서 제 줄. 낱말은 서버의 extra 다
+    { key: 'e', head: '추가', width: 70, cell: (r) => (r.extra ? <Chip size="compact" tone="info">추가</Chip> : <span className="text-fg-subtle">—</span>) },
     { key: 'u', head: '쓰는 수업', width: 100, align: 'right', cell: (r) => `${r.serCount}개` },
     {
       key: 'x', head: '', width: 80,
@@ -149,6 +151,10 @@ export default function ProgramsPage() {
                   </Select>
                 </div>
               </div>
+              {/* 추가 수업 (C-38) — 정규 밖의 수업이라 청구서에 제 줄로 서고 §54·시간표가 따로 센다. 단가는 회계 「단가표」에서 둔다 */}
+              <div className="mt-2">
+                <Checkbox label="추가 수업 — 정규 밖의 수업이라 청구서에 따로 잡힙니다 (단가는 회계 「단가표」에서)" checked={kindForm.extra} onChange={(e) => setKindForm({ ...kindForm, extra: e.target.checked })} />
+              </div>
               {createKind.isError ? <Banner tone="danger" className="mt-3">{apiMessage(createKind.error)}</Banner> : null}
               <div className="mt-3 flex justify-end">
                 <Button
@@ -157,6 +163,7 @@ export default function ProgramsPage() {
                     key: kindForm.key.trim(), name: kindForm.name.trim(), color: kindForm.color,
                     cap: kindForm.cap, grp: kindForm.grp,
                     rep: kindForm.repForm !== '', repForm: asForm(kindForm.repForm) ?? undefined,
+                    extra: kindForm.extra,
                   }, { onSuccess: () => setKindForm({ ...NEW_KIND }) })}
                 >
                   만들기
@@ -183,6 +190,9 @@ export default function ProgramsPage() {
                     </Select>
                   </div>
                 </div>
+                <div className="mt-2">
+                  <Checkbox label="추가 수업 — 정규 밖의 수업이라 청구서에 따로 잡힙니다" checked={editKind.extra} onChange={(e) => setEditKind({ ...editKind, extra: e.target.checked })} />
+                </div>
                 {patchKind.isError ? <Banner tone="danger" className="mt-3">{apiMessage(patchKind.error)}</Banner> : null}
                 <div className="mt-3 flex justify-end gap-2">
                   <Button variant="secondary" onClick={() => setEditKind(null)}>취소</Button>
@@ -191,6 +201,7 @@ export default function ProgramsPage() {
                     onClick={() => patchKind.mutate({
                       key: editKind.key, name: editKind.name, color: editKind.color, cap: editKind.cap,
                       grp: asGrp(editKind.grp), rep: editKind.rep, repForm: asForm(editKind.repForm ?? ''),
+                      extra: editKind.extra,
                     }, { onSuccess: () => setEditKind(null) })}
                   >
                     저장

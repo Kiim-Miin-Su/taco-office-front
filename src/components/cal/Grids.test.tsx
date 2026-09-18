@@ -16,7 +16,7 @@ function occurrence(serId: number, patch: Partial<Occurrence> = {}): Occurrence 
   return {
     serId, date: '2026-09-01', onDate: '2026-09-01', startMin: 540 + serId * 60,
     endMin: 600 + serId * 60, kindKey: 'class', title: `수업 ${serId}`, mode: 'offline',
-    canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false,
+    canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false, extra: false,
     attendanceMode: 'unavailable', attendance: null, students: [],
     ...patch,
   };

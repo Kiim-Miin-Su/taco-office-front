@@ -181,6 +181,14 @@ export type StudentWithdraw = S['StudentWithdrawDto'];
 export type WithdrawResult = S['WithdrawResultDto'];
 export type WithdrawInvoice = S['WithdrawInvoiceDto'];
 export type WithdrawSeries = S['WithdrawSeriesDto'];
+/** 단가표 · 학생별 예외 · 지출 등록 (C94-d · H-81/H-83/C-38) — 「살아 있는 줄」·pending 판정은 서버다 */
+export type RateBook = S['RateBookDto'];
+export type RateRow = S['RateRowDto'];
+export type StudentRateRow = S['StudentRateRowDto'];
+export type RateWrite = S['RateWriteDto'];
+export type StudentRateWrite = S['StudentRateWriteDto'];
+export type ExpenseCreate = S['ExpenseCreateDto'];
+export type ExpenseCategory = S['ExpenseCategoryDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

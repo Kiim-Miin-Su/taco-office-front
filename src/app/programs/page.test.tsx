@@ -23,8 +23,8 @@ const me: Me = {
 
 const catalog: Catalog = {
   kinds: [
-    { key: 'class', name: '정규 수업', color: '#7C6A58', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 1, serCount: 12 },
-    { key: 'intake', name: '입학 상담', color: '#4A6FA5', cap: 1, grp: 'intake', grpLabel: '상담·진단', rep: false, repForm: null, sort: 2, serCount: 0 },
+    { key: 'class', name: '정규 수업', color: '#7C6A58', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 1, extra: false, serCount: 12 },
+    { key: 'intake', name: '입학 상담', color: '#4A6FA5', cap: 1, grp: 'intake', grpLabel: '상담·진단', rep: false, repForm: null, sort: 2, extra: false, serCount: 0 },
   ],
   subs: [
     { key: 'ap-chem', name: 'AP Chemistry', color: '#8C5A3C', active: true, sort: 1, serCount: 5 },
@@ -96,4 +96,28 @@ it('코드와 이름이 비면 만들기를 누를 수 없다', async () => {
   expect((view.getByRole('button', { name: '만들기' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(view.getByLabelText('이름'), { target: { value: '캠프' } });
   expect((view.getByRole('button', { name: '만들기' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+/** 추가 수업 (C94-d · C-38) — KIND 한 줄의 깃발이다. 원문 KIND 8종은 그대로고, 만들 때 `extra` 를 함께 보낸다 */
+it('「추가 수업」을 켜고 만들면 extra: true 가 함께 간다 — 목록에는 「추가」 칩이 선다', async () => {
+  useSession.getState().signIn('fixture', me);
+  const posted: Array<{ url?: string; body: unknown }> = [];
+  const data: Catalog = { ...catalog, kinds: [...catalog.kinds, { key: 'extra', name: '추가 수업', color: '#B45309', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 3, extra: true, serCount: 0 }] };
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method === 'post') { posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') }); return { config, status: 201, statusText: 'OK', headers: {}, data: {} }; }
+    return { config, status: 200, statusText: 'OK', headers: {}, data };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><ProgramsPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByText('추가 수업')).toBeTruthy());
+  const extraRow = view.getByText('추가 수업').closest('tr')!;
+  expect(extraRow.textContent).toContain('추가');
+  expect(view.getByText('정규 수업').closest('tr')!.textContent).not.toMatch(/추가(?! 수업)/);
+  fireEvent.change(view.getByLabelText('코드'), { target: { value: 'camp' } });
+  fireEvent.change(view.getByLabelText('이름'), { target: { value: '방학 특강' } });
+  fireEvent.click(view.getByLabelText(/^추가 수업 — 정규 밖의 수업이라 청구서에 따로 잡힙니다 \(단가는/));
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(posted).toHaveLength(1));
+  expect(posted[0]).toEqual({ url: '/catalog/kinds', body: expect.objectContaining({ key: 'camp', name: '방학 특강', extra: true }) });
 });

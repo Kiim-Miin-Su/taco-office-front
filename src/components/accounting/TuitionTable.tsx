@@ -122,15 +122,15 @@ function MonthCloseControls({ data, onCloseMonth, onReopenMonth, pending = false
 }
 
 /** 컷의 머리 다섯 상자 — 값이 위, 이름이 아래다 */
-function HeadBox({ label, value, tone }: { label: string; value: string; tone?: 'warning' }) {
+function HeadBox({ label, value, tone }: { label: string; value: string; tone?: 'warning' | 'info' }) {
   return (
     <div
       className={cn(
         'rounded-lg border px-3 py-2 text-center',
-        tone === 'warning' ? 'border-amber/30 bg-amber/10' : 'border-line bg-card',
+        tone === 'warning' ? 'border-amber/30 bg-amber/10' : tone === 'info' ? 'border-blue/30 bg-blue/10' : 'border-line bg-card',
       )}
     >
-      <div className={cn('text-[15px] font-bold', tone === 'warning' ? 'text-amber' : 'text-fg')}>{value}</div>
+      <div className={cn('text-[15px] font-bold', tone === 'warning' ? 'text-amber' : tone === 'info' ? 'text-blue' : 'text-fg')}>{value}</div>
       <div className="mt-0.5 text-[10.5px] text-fg-subtle">{label}</div>
     </div>
   );
@@ -173,9 +173,13 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
     {
       key: 'n', head: '한 수업', width: 90, align: 'right',
       cell: (r) => (
-        <span>
-          <b className="text-[14px]">{r.done}</b>
-          <span className="text-fg-subtle"> / {r.total}</span>
+        <span className="flex flex-col items-end">
+          <span>
+            <b className="text-[14px]">{r.done}</b>
+            <span className="text-fg-subtle"> / {r.total}</span>
+          </span>
+          {/* 추가 수업(KIND.extra)은 전체에 들되 따로 센다 — 청구서에서도 제 줄이다 (C94-d · C-38) */}
+          {r.extra > 0 ? <span className="text-[10.5px] text-blue">추가 {r.extra}</span> : null}
         </span>
       ),
     },
@@ -277,10 +281,11 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
               </div>
             ) : null}
           </div>
-          {/* 다섯 칸은 줄의 합이다 — 화면이 더하지 않는다 (D-R37) */}
-          <div className="grid w-full grid-cols-3 gap-2 sm:w-auto sm:grid-cols-5">
+          {/* 다섯 칸은 줄의 합이다 — 화면이 더하지 않는다 (D-R37). 추가 수업이 있는 달에만 여섯째 칸이 선다 (C-38 「별도로 잡힌다」) */}
+          <div className={`grid w-full grid-cols-3 gap-2 sm:w-auto ${data?.extraCount ? 'sm:grid-cols-6' : 'sm:grid-cols-5'}`}>
             <HeadBox label="한 수업" value={n(data?.doneCount)} />
             <HeadBox label="이번 달 전체" value={n(data?.totalCount)} />
+            {data?.extraCount ? <HeadBox label="추가 수업" value={n(data.extraCount)} tone="info" /> : null}
             <HeadBox
               label={data?.deductedCount ? `결강 · 휴강 (차감 ${data.deductedCount})` : '결강 · 휴강'}
               value={n(data?.canceledCount)} tone="warning"

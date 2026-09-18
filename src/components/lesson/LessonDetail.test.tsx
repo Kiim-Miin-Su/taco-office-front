@@ -49,6 +49,7 @@ const occurrence: Occurrence = {
   recurring: true,
   repState: 'plan', ended: false,
   written: false,
+  extra: false,
   attendanceMode: 'manage',
   attendance: null,
   students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: false }],

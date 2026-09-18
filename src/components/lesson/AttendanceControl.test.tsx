@@ -22,6 +22,7 @@ const occurrence: Occurrence = {
   onDate: '2026-09-03',
   startMin: 600,
   endMin: 660,
+  extra: false,
   kindKey: 'class',
   subKey: 'ap-chem',
   title: 'AP Chemistry',

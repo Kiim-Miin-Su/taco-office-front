@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Occurrence } from '@/api/types';
 import { EventBlock } from './EventBlock';
@@ -17,6 +17,7 @@ const occurrence: Occurrence = {
   startMin: 960,
   endMin: 1020,
   kindKey: 'class',
+  extra: false,
   subKey: 'ap-chem',
   title: 'AP Chemistry',
   teacherId: 6,
@@ -44,6 +45,14 @@ describe('EventBlock', () => {
     expect(button.getAttribute('aria-disabled')).toBeNull();
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('추가 수업(extra)은 「추가」 배지로 갈린다 — 판정은 서버의 extra 다 (C94-d · C-38)', () => {
+    const view = render(<EventBlock occ={{ ...occurrence, extra: true }} draggable={false} />);
+    expect(view.getByText('추가')).toBeTruthy();
+    cleanup();
+    const plain = render(<EventBlock occ={occurrence} draggable={false} />);
+    expect(plain.queryByText('추가')).toBeNull();
   });
 
   it('관리자 과목색은 리포트 상태가 바뀌어도 유지되고 온라인만 점선·사선으로 구분한다', () => {

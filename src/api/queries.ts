@@ -96,6 +96,7 @@ import type {
   PayoutSheetRow,
   StudentWithdraw,
   WithdrawResult,
+  RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
   KindCreate,
   KindPatch,
   Lead,
@@ -186,6 +187,7 @@ export const qk = {
   invBoard: ['accounting', 'board'] as const,
   /** §57 강사료 시트 — 같은 갈래의 또 다른 질의다 (C94-b). 달이 키에 든다 */
   payoutSheet: (month: string) => ['accounting', 'payouts', month] as const,
+  rateBook: ['accounting', 'rates'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   /** §30 계약 5단계 상세 — 건별 서버 projection. */
@@ -429,6 +431,19 @@ export function usePayoutSheet(month: string, enabled = true): UseQueryResult<Pa
   });
 }
 
+/**
+ * 단가표 — 기본 단가(RATE)와 학생별 예외(STURATE) (C94-d · §54 「데이터 RATE, STURATE」). 그 탭을 열 때만 부른다.
+ * 청구서·§54·명단 가격이 읽는 바로 그 두 표이고, 「살아 있는 줄」은 서버가 오늘 기준으로 판정한다 (D-R37).
+ */
+export function useRateBook(enabled = true): UseQueryResult<RateBook> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.rateBook, viewerId),
+    queryFn: async () => (await api.get<RateBook>('/accounting/rates')).data,
+    enabled,
+  });
+}
+
 /** §52 트래킹 보드 — 그 탭을 열 때만 부른다 */
 export function useInvBoard(enabled = true): UseQueryResult<InvBoard> {
   const viewerId = useViewerId();
@@ -610,6 +625,35 @@ export function useWithdrawStudent(): UseMutationResult<WithdrawResult, unknown,
       void qc.invalidateQueries({ queryKey: family.occurrences });
       void qc.invalidateQueries({ queryKey: family.tracking });
     },
+  });
+}
+
+/**
+ * 단가 한 줄 · 학생별 예외 한 줄 (C94-d · H-81 · C-38). 새 줄은 그 날짜부터 청구서·§54·명단 가격에 든다 —
+ * 회계 갈래를 맨앞자락 그대로 버린다(단가표·§54 가 같은 갈래다 · C48).
+ */
+export function useWriteRate(): UseMutationResult<RateRow, unknown, RateWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<RateRow>('/accounting/rates', body)).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
+  });
+}
+
+export function useWriteStudentRate(): UseMutationResult<StudentRateRow, unknown, StudentRateWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<StudentRateRow>('/accounting/sturates', body)).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
+  });
+}
+
+/** 지출 등록 (C94-d · H-83) — 언제나 pending 으로 들어간다. 확정은 `useReviewExpense` 뿐이다 */
+export function useCreateExpense(): UseMutationResult<Expense, unknown, ExpenseCreate> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<Expense>('/accounting/expenses', body)).data,
+    onSettled: invalidate,
   });
 }
 

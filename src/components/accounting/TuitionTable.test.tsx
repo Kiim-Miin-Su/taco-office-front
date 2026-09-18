@@ -10,14 +10,14 @@ import { TuitionTable } from './TuitionTable';
 
 const base: Tuition = {
   month: '2026-08', today: '2026-08-21', daysPast: 21, daysLeft: 10,
-  doneCount: 196, totalCount: 288, canceledCount: 5, deductedCount: 0, carriedInCount: 0, carriedInAmount: 0,
+  doneCount: 196, totalCount: 288, canceledCount: 5, deductedCount: 0, extraCount: 1, carriedInCount: 0, carriedInAmount: 0,
   doneAmount: 29_911_667, carryAmount: 870_000,
   canSeeAmounts: true,
   close: null, canClose: false, canReopen: false,
   items: [
     {
       studentId: 1, name: '이하린', grade: 'G9',
-      done: 8, total: 11, percent: 73, canceled: 2, deducted: 0,
+      done: 8, total: 11, percent: 73, canceled: 2, deducted: 0, extra: 1,
       unitPrice: 140_000, unitPriceOverride: true, priceCount: 1,
       carryable: false, carriedAt: null, carriedIn: 0, carriedInSessions: 0,
       doneAmount: 1_365_000, carryAmount: 420_000,
@@ -27,7 +27,7 @@ const base: Tuition = {
     },
     {
       studentId: 2, name: '김태린', grade: 'G5',
-      done: 13, total: 20, percent: 65, canceled: 0, deducted: 0,
+      done: 13, total: 20, percent: 65, canceled: 0, deducted: 0, extra: 0,
       unitPrice: 120_000, unitPriceOverride: false, priceCount: 1,
       carryable: false, carriedAt: null, carriedIn: 0, carriedInSessions: 0,
       doneAmount: 2_220_000, carryAmount: 0,
@@ -54,6 +54,18 @@ it('머리 다섯 칸은 서버가 준 값 그대로다 — 화면이 줄을 더
   expect(headBox(v, '결강 · 휴강')).toBe('5');
   expect(headBox(v, '지금까지 금액')).toBe('29,911,667원');
   expect(headBox(v, '다음 달로 넘길 돈')).toBe('870,000원');
+});
+
+it('추가 수업(KIND.extra)은 여섯째 칸과 줄의 「추가 N」으로 따로 선다 — 없는 달엔 칸 자체가 없다 (C94-d · C-38)', () => {
+  const v = render(<TuitionTable data={clone()} />);
+  expect(headBox(v, '추가 수업')).toBe('1');
+  const row = v.getAllByRole('row').find((r) => (r.textContent ?? '').includes('이하린'))!;
+  expect((row.textContent ?? '').replace(/\s+/g, ' ')).toContain('추가 1');
+  cleanup();
+  const none = clone(); none.extraCount = 0; none.items.forEach((i) => { i.extra = 0; });
+  const v2 = render(<TuitionTable data={none} />);
+  expect([...v2.container.querySelector('.grid')!.querySelectorAll('div')].some((d) => d.textContent === '추가 수업')).toBe(false);
+  expect((v2.container.textContent ?? '')).not.toContain('추가 1');
 });
 
 it('퍼센트도 서버가 준 값이다 — 화면이 done/total 을 다시 나누지 않는다', () => {

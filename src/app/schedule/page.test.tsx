@@ -56,7 +56,7 @@ vi.mock('@/lib/png-export', () => ({ downloadElementPng: mocks.download }));
 import SchedulePage from './page';
 
 const meta: Meta = {
-  kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true }],
+  kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true, extra: false }],
   subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [],
   students: [{ id: 1, name: '선택 학생', grade: 'G10' }, { id: 2, name: '다른 학생' }],
   staff: [
@@ -69,7 +69,7 @@ const items: Occurrence[] = [1, 2].map((id) => ({
   serId: id, date: '2026-09-01', onDate: '2026-09-01', startMin: 600 + id * 60,
   endMin: 660 + id * 60, kindKey: 'class', title: id === 1 ? '선택된 수업' : '다른 수업',
   teacherId: id * 11, mode: 'offline', canceled: false, hasException: false, recurring: false,
-  repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null,
+  repState: 'plan', ended: false, written: false, extra: false, attendanceMode: 'unavailable', attendance: null,
   students: [{ id, name: id === 1 ? '선택 학생' : '다른 학생', droppedOnce: false, paused: false }],
 }));
 
@@ -702,7 +702,7 @@ describe('월간 상단 집계와 날짜 칸이 같은 것을 센다 (v2 §09 ·
   const occurrence = (serId: number, date: string, extra: Partial<Occurrence> = {}): Occurrence => ({
     serId, date, onDate: date, startMin: 600, endMin: 690, kindKey: 'class', title: `수업 ${serId}`,
     mode: 'offline', canceled: false, hasException: false, recurring: false,
-    repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
+    repState: 'plan', ended: false, written: false, extra: false, attendanceMode: 'unavailable', attendance: null, students: [], ...extra,
   });
 
   // 9월 격자는 8/31 ~ 10/4 다. 앞뒤 달 칸은 **격자에는 있고 집계에는 없다**.

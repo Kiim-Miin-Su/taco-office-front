@@ -29,7 +29,7 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 0, canSeeAmounts },
-    invoices: [], payouts: [], expenses: [], expenseTotals: [], payCategories: [],
+    invoices: [], payouts: [], expenses: [], expenseTotals: [], payCategories: [], expenseCategories: [],
     payments: [
       { id: 1, studentName: '미확인 학생', paidOn: null, amount: null, method: null, category: 'etc', categoryLabel: '기타' },
       { id: 2, studentName: '영원 학생', paidOn: '2026-09-11', amount: canSeeAmounts ? 0 : null, method: 'cash', category: 'etc', categoryLabel: '기타' },
@@ -66,7 +66,7 @@ const HEAD_LABELS = ['보낸 청구서', '받은 돈', '못 받은 돈', '기한
 
 function mount(summary: Accounting['summary']) {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [], payCategories: [] };
+  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [], payCategories: [], expenseCategories: [] };
   api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -128,7 +128,7 @@ const sheetOf = (confirmed: boolean): PayoutSheet => ({
 });
 const EMPTY: Accounting = {
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-  invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [],
+  invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 };
 
 it.each([
@@ -153,6 +153,30 @@ it.each([
   expect(row.getByText(label)).toBeTruthy();
   // 「지급 확정」 단추는 서버의 canConfirm 그대로 — 확정된 줄에는 없다
   expect(row.queryByRole('button', { name: '지급 확정' }) === null).toBe(confirmed);
+});
+
+/** 단가표 (C94-d) — 그 탭을 열 때만 부르고, 「지금」은 서버의 current 다 */
+it('단가표는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다른 탭으로 가는 사람이 값을 치르지 않는다 (C94-d)', async () => {
+  useSession.getState().signIn('fixture', me);
+  const ratesGet = vi.fn();
+  api.defaults.adapter = (async (config: { url?: string }) => {
+    if (config.url === '/accounting/rates') {
+      ratesGet();
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { rates: [{ id: 1, kindKey: 'class', kindName: '수업', kindExtra: false, subKey: null, subName: null, heads: 1, unitPrice: 60000, fromDate: '2026-01-01', current: true }], studentRates: [] } };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: EMPTY };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByRole('button', { name: '단가표' })).toBeTruthy());
+  expect(ratesGet).not.toHaveBeenCalled();
+  fireEvent.click(view.getByRole('button', { name: '단가표' }));
+  await waitFor(() => expect(view.getByText('60,000원')).toBeTruthy());
+  expect(ratesGet).toHaveBeenCalledTimes(1);
+  expect(view.getByText('지금')).toBeTruthy();
+  expect(view.getByRole('button', { name: '+ 단가 등록' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '+ 예외 등록' })).toBeTruthy();
 });
 
 /**
@@ -182,7 +206,7 @@ it('분류 칩 여섯은 건수가 0이어도 서고 낱말은 서버가 준 것
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [],
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], expenseCategories: [],
     payCategories: [
       { key: 'tuition', label: '수업료', count: 2, amount: 100 },
       { key: 'gpa', label: 'GPA 관리비', count: 0, amount: 0 },
@@ -214,7 +238,7 @@ it('?tab=tuition&month= 링크는 수업료 탭을 그 달로 연다 — 틀린 
   nav.search = 'tab=tuition&month=2026-08';
   const accounting: Accounting = {
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], payCategories: [],
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], payCategories: [], expenseCategories: [],
   };
   const calls: string[] = [];
   api.defaults.adapter = (async (config: { url?: string; params?: Record<string, string> }) => {

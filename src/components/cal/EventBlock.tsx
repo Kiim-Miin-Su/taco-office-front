@@ -137,6 +137,8 @@ export function EventBlock({
         <div className="flex items-center gap-1 text-[11px] font-bold leading-tight">
           <span>{hhmm(occ.startMin)}</span>
           <span className="truncate">{subName ?? occ.title ?? occ.kindKey}</span>
+          {/* 추가 수업(KIND.extra)은 시간표에서 「추가」로 갈린다 — 판정은 서버의 `extra` 다 (C94-d · C-38) */}
+          {occ.extra ? <span className="shrink-0 rounded-sm bg-fg/15 px-1 text-[9.5px] leading-[14px]">추가</span> : null}
         </div>
         {!compact && names ? (
           <div className="mt-0.5 truncate text-[10px] opacity-80">{names}</div>

@@ -56,6 +56,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
 const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.horizon,
   qk.accounting,
+  // 단가표 — 회계 갈래 안에 산다. 단가 한 줄이 §54·청구서를 함께 바꾼다 (C94-d)
+  qk.rateBook,
   qk.ops,
   qk.teacherHome,
   qk.guides,

@@ -286,8 +286,8 @@ describe('관리자 일정색 — Meta 우선과 안전한 기존 토큰 fallbac
       ['new-sub', { key: 'new-sub', name: '새 과목', color: '#aB12Cd' }],
     ]),
     kinds: new Map([
-      ['class', { key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true }],
-      ['new-kind', { key: 'new-kind', name: '새 종류', color: '#13579B', cap: 1, grp: 'lesson', rep: false }],
+      ['class', { key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true, extra: false }],
+      ['new-kind', { key: 'new-kind', name: '새 종류', color: '#13579B', cap: 1, grp: 'lesson', rep: false, extra: false }],
     ]),
   };
 

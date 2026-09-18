@@ -15,7 +15,7 @@ import {
 afterEach(cleanup);
 
 const meta: Meta = {
-  kinds: [{ key: 'class', name: '수업', color: '#123456', cap: 4, grp: 'lesson', rep: true }],
+  kinds: [{ key: 'class', name: '수업', color: '#123456', cap: 4, grp: 'lesson', rep: true, extra: false }],
   subs: [{ key: 'writing', name: 'Writing', color: '#654321' }],
   rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [],
   students: [{ id: 3, name: '학생 3' }],
@@ -29,7 +29,7 @@ function occurrence(patch: Partial<Occurrence> = {}): Occurrence {
   return {
     serId: 1, date: '2026-09-14', onDate: '2026-09-14', startMin: 600, endMin: 660,
     kindKey: 'class', subKey: 'writing', teacherId: 11, roomId: 7, mode: 'offline',
-    canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false,
+    canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false, extra: false,
     attendanceMode: 'unavailable', attendance: null,
     students: [{ id: 3, name: '학생 3', droppedOnce: false, paused: false }],
     ...patch,

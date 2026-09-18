@@ -962,6 +962,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 단가표 — 기본 단가(RATE)와 학생별 예외(STURATE) (§54 「데이터 RATE, STURATE」)
+         * @description 청구서·§54·명단 가격이 읽는 바로 그 두 표다. 「살아 있는 줄」은 서버가 오늘 기준으로 판정한다 (D-R37).
+         */
+        get: operations["AccountingController_rateBook"];
+        put?: never;
+        /**
+         * 기본 단가 한 줄 등록 — 그 날짜부터 청구서·§54·명단 가격에 든다 (C-38 · N-17 ①)
+         * @description 지난 줄은 고치지도 지우지도 않는다 — 이미 낸 청구서가 그 값으로 서 있다. 같은 종류·과목·인원·날짜는 409 RATE_DUPLICATE (rate_tier_key). 종류·과목이 코드표에 없으면 404.
+         */
+        post: operations["AccountingController_writeRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/sturates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 학생별 단가 예외 한 줄 — 사유 필수 (H-81)
+         * @description 그 학생의 그 종류(비우면 전부)만 이 값으로 청구된다 — 다른 학생은 한 원도 안 바뀐다. 사유가 비면 400 STURATE_REASON_REQUIRED(DTO) · 표는 CHECK sturate_reason_present. 같은 학생·종류·날짜는 409 STURATE_DUPLICATE.
+         */
+        post: operations["AccountingController_writeStudentRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 지출 등록 — 직원이 올리면 언제나 pending (H-83 「바로 확정되면 실패」)
+         * @description 확정 금액·상태는 받지 않는다. 영수증은 POST /files(kind expense-receipt) 로 먼저 올리고 id 를 준다 — 없이 올릴 수 있지만 승인은 안 된다(A-4). 대표(ceo)에게 「심사 대기」 알림 한 건. 대표가 직원 대신 올릴 때만 requesterId 를 준다.
+         */
+        post: operations["AccountingController_createExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops": {
         parameters: {
             query?: never;
@@ -2536,6 +2600,8 @@ export interface components {
             grp: "lesson" | "intake" | "meeting";
             /** @description 리포트 대상인가 (D-4) */
             rep: boolean;
+            /** @description 추가 수업인가 — 시간표 「추가」 배지 · §54 「추가」 칸 (C94-d · C-38) */
+            extra: boolean;
         };
         SubDto: {
             key: string;
@@ -2654,6 +2720,8 @@ export interface components {
             startMin: number;
             endMin: number;
             kindKey: string;
+            /** @description 추가 수업 종류의 회차인가 — 블록 「추가」 배지 (C94-d · C-38). 판정은 KIND.extra 다 */
+            extra: boolean;
             subKey?: string | null;
             title?: string | null;
             teacherId?: number | null;
@@ -3495,6 +3563,11 @@ export interface components {
             /** @description 확정된 지출의 합 — 권한이 없으면 null (D-R39) */
             sum: number | null;
         };
+        ExpenseCategoryDto: {
+            /** @enum {string} */
+            key: "rent" | "book" | "supply" | "ent" | "fee" | "etc";
+            label: string;
+        };
         PayCategoryDto: {
             key: string;
             /** @description §55 컷의 낱말 */
@@ -3513,6 +3586,8 @@ export interface components {
             expenses: components["schemas"]["ExpenseDto"][];
             /** @description §56 분류별 확정 지출 합계 — 화면이 더하지 않는다 */
             expenseTotals: components["schemas"]["ExpenseTotalDto"][];
+            /** @description 지출 분류 여섯 — 건수가 0이어도 선다 (어휘이지 데이터가 아니다 · C94-d) */
+            expenseCategories: components["schemas"]["ExpenseCategoryDto"][];
             /** @description §55 분류 칩 여섯 — **건수가 0이어도 선다**(분류는 어휘이지 데이터가 아니다). 화면이 세지 않는다 (D-R37) */
             payCategories: components["schemas"]["PayCategoryDto"][];
         };
@@ -3528,6 +3603,8 @@ export interface components {
             percent: number;
             /** @description 결강·휴강 수 — 이월·보강 이관으로 처리된 휴강과 「그날만 빠진」 것을 합쳐 센다 (D-R21). 차감은 여기 안 든다 */
             canceled: number;
+            /** @description 추가 수업(KIND.extra) 회차 수 — 전체에 들되 따로 센다 (C94-d · C-38) */
+            extra: number;
             /** @description 차감(소진)으로 처리된 휴강 수 — 이번 달 회차로 세어 청구한다 (C92 · C-31) */
             deducted: number;
             /** @description 대표 단가 — 가장 많이 쓰인 1회 단가. 못 보면 null */
@@ -3582,6 +3659,8 @@ export interface components {
             canceledCount: number;
             /** @description 차감(소진) 처리한 휴강 — 청구에 들어 있다 (C92) */
             deductedCount: number;
+            /** @description 추가 수업 회차 — 「상단 추가 칸」 (C94-d · C-38). 전체에도 들어 있다 */
+            extraCount: number;
             /** @description 지금까지 금액 */
             doneAmount?: number | null;
             /** @description 다음 달로 넘길 돈 */
@@ -3915,6 +3994,110 @@ export interface components {
             amount?: number;
             /** @description 신청액과 다르거나 반려일 때 필수 (A-3) */
             reason?: string;
+        };
+        RateRowDto: {
+            id: number;
+            kindKey: string;
+            /** @description 종류 이름 — 낱말은 서버가 만든다 (D-R18) */
+            kindName: string;
+            /** @description 추가 수업 종류인가 (C-38) */
+            kindExtra: boolean;
+            /** @description null 이면 그 종류 전체 */
+            subKey?: string | null;
+            subName?: string | null;
+            /** @description 인원 구간 — 인원 이하의 최대 heads 줄이 적용된다 (N-17 ①) */
+            heads: number;
+            /** @description 회당 단가 */
+            unitPrice: number;
+            /** @description 이 날부터 (YYYY-MM-DD) */
+            fromDate: string;
+            /** @description 오늘 기준으로 이 구간에서 살아 있는 줄인가 — 같은 (종류·과목·인원)의 가장 최근 from_date */
+            current: boolean;
+        };
+        StudentRateRowDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            /** @description null 이면 모든 종류 */
+            kindKey?: string | null;
+            kindName?: string | null;
+            unitPrice: number;
+            fromDate: string;
+            /** @description 옛 시드 행만 null — 새 줄은 사유가 필수다 (H-81) */
+            reason?: string | null;
+            byName?: string | null;
+            createdAt?: string | null;
+            /** @description 오늘 기준으로 그 학생·종류에 살아 있는 줄인가 */
+            current: boolean;
+        };
+        RateBookDto: {
+            /** @description 종류 → 과목 → 인원 → 최근순 */
+            rates: components["schemas"]["RateRowDto"][];
+            /** @description 학생 이름 → 최근순 */
+            studentRates: components["schemas"]["StudentRateRowDto"][];
+        };
+        RateWriteDto: {
+            /** @description 종류 코드 — §18 프로그램의 KIND */
+            kindKey: string;
+            /** @description 과목 코드 — 비우면 그 종류 전체의 단가 */
+            subKey?: string;
+            /**
+             * @description 인원 구간 — 1 이면 1인 단가. 그룹은 인원마다 줄을 둔다 (D-R10 · N-17 ①)
+             * @example 1
+             */
+            heads: number;
+            /**
+             * @description 회당 단가 (원). 0 원은 단가가 아니다 — 무료면 줄을 두지 않는다
+             * @example 60000
+             */
+            unitPrice: number;
+            /**
+             * Format: date
+             * @description 이 날부터 — 그 날짜 이후 회차의 청구서·§54·명단 가격이 이 값을 읽는다
+             */
+            fromDate: string;
+        };
+        StudentRateWriteDto: {
+            studentId: number;
+            /** @description 종류 코드 — 비우면 그 학생의 모든 종류 */
+            kindKey?: string;
+            /**
+             * @description 회당 단가 (원)
+             * @example 50000
+             */
+            unitPrice: number;
+            /**
+             * Format: date
+             * @description 이 날부터
+             */
+            fromDate: string;
+            /** @description 사유 — 「형제 할인」·「장학」 … 없으면 400 (H-81 · CHECK sturate_reason_present) */
+            reason: string;
+        };
+        ExpenseCreateDto: {
+            /**
+             * Format: date
+             * @description 사용일
+             */
+            spendOn: string;
+            /**
+             * @description 분류 — 코드표 6개뿐 (CHECK expense_category_code)
+             * @enum {string}
+             */
+            category: "rent" | "book" | "supply" | "ent" | "fee" | "etc";
+            /** @description 가맹점 */
+            merchant?: string;
+            /** @description 용도 */
+            purpose?: string;
+            /**
+             * @description 신청 금액 (원) — 심사 칸의 placeholder 가 된다 (A-1)
+             * @example 35000
+             */
+            requestedAmount: number;
+            /** @description 영수증 — `POST /files`(kind expense-receipt) 로 올린 파일의 id. 없이 올릴 수 있지만 승인은 안 된다 (A-4) */
+            receiptFileId?: number;
+            /** @description 누구의 지출인가 — 비우면 올리는 사람. 대표가 직원 대신 올릴 때만 쓴다 (본인 신청은 본인이 심사할 수 없다 · A-5) */
+            requesterId?: number;
         };
         LeadDto: {
             id: number;
@@ -6323,6 +6506,8 @@ export interface components {
             /** @enum {string|null} */
             repForm?: "dev" | "assess" | null;
             sort?: number | null;
+            /** @description 추가 수업인가 — 시간표 「추가」 배지 · §54 「추가」 칸 · 청구서 별도 줄 (C94-d · C-38) */
+            extra: boolean;
             /** @description 이 프로그램으로 돌고 있는 수업 규칙 수 — 0 이 아니면 코드를 바꿀 수 없다 */
             serCount: number;
         };
@@ -6353,6 +6538,8 @@ export interface components {
             /** @enum {string} */
             repForm?: "dev" | "assess";
             sort?: number;
+            /** @description 추가 수업인가 — 시간표 「추가」 배지 · §54 「추가」 칸 · 청구서 별도 줄 (C-38) */
+            extra?: boolean;
         };
         KindPatchDto: {
             name?: string;
@@ -6364,6 +6551,8 @@ export interface components {
             /** @enum {string|null} */
             repForm?: "dev" | "assess" | null;
             sort?: number;
+            /** @description 추가 수업인가 (C-38) */
+            extra?: boolean;
         };
         SubCreateDto: {
             key: string;
@@ -10454,6 +10643,310 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_rateBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateBookDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_writeRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateRowDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description KIND_NOT_FOUND | SUB_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description RATE_DUPLICATE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_writeStudentRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentRateWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentRateRowDto"];
+                };
+            };
+            /** @description STURATE_REASON_REQUIRED · 입력 검증 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND | KIND_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STURATE_DUPLICATE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_createExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseDto"];
+                };
+            };
+            /** @description EXPENSE_RECEIPT_KIND · 입력 검증 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND | FILE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description EXPENSE_RECEIPT_USED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
