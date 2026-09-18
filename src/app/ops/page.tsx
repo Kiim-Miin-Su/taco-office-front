@@ -23,9 +23,14 @@ import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
 import { MeetingDetail } from '@/components/ops/MeetingDetail';
+import { ComplaintCreateButton } from '@/components/ops/ComplaintForm';
+import { ComplaintDetail } from '@/components/ops/ComplaintDetail';
+import { TeacherChangeWizard, type TeacherChangePreset } from '@/components/ops/TeacherChangeWizard';
+import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog';
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue, Todo } from '@/api/types';
 import { won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
+import { todayKst } from '@/lib/calendar';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
@@ -64,6 +69,12 @@ export default function OpsPage() {
   const [planTab, setPlanTab] = useState<'board' | 'due'>('board');
   const [planId, setPlanId] = useState<number | null>(queryPlanId);
   const [meetingId, setMeetingId] = useState<number | null>(null);
+  // §67 카드 처리 창 · 강사 교체 마법사 (C93) — 컴플레인에서 열면 학생·건을 미리 채운다
+  const [cplId, setCplId] = useState<number | null>(null);
+  const [wizard, setWizard] = useState<TeacherChangePreset | null>(null);
+  // 컴플레인 → 수강 종료·환불 (J-99) — C94-c 창을 그대로 연다. 사유에 컴플레인을 적어 잇는다(cplId 칸은 N-135 ①)
+  const [withdrawOf, setWithdrawOf] = useState<Complaint | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const viewerId = useSession((s) => s.me?.id ?? null);
   const q = useOps();
   const d = q.data;
@@ -259,26 +270,45 @@ export default function OpsPage() {
             )}
           </>
         ) : (
-          <Board numbered columns={cplCols} itemKey={(c) => c.id} renderCard={(c) => (
-            <>
-              <Chip tone="purple">{c.areaLabel}</Chip>
-              <div className="mt-1.5 text-[12px] font-bold text-fg">{c.body}</div>
-              <div className="mt-1 text-[10.5px] text-fg-subtle">{c.studentName ?? '문의자'}</div>
-              {c.action ? <div className="mt-1 text-[10px] text-fg-2">{c.result ?? c.action}</div> : null}
-              {/*
-                원본 §67 카드의 바닥 줄 — 왼쪽에 담당, 오른쪽에 지난 날.
-                **담당이 없는 것은 빈칸이 아니라 할 일이다** — 접수 칸의 한 줄이 그렇게 말한다.
-              */}
-              <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5 text-[10.5px]">
-                {c.ownerName
-                  ? <Chip size="compact" tone="neutral">{c.ownerName}</Chip>
-                  : <span className="font-bold text-red">담당 없음</span>}
-                <span className={c.stage === 'closed' ? 'text-fg-subtle' : 'font-bold text-fg-2'}>
-                  {c.ageDays}일 지남
-                </span>
+          <>
+            {/* 원본 §67 머리 오른쪽의 「+ 접수」 (N-46 ① · C93) · 강사 교체는 컴플레인 없이도 연다 (D-46 퇴사 · N-132 당일 대강) */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-fg-subtle">카드를 누르면 담당 · 단계 · 조치 · 결과를 적습니다</span>
+              <div className="flex items-center gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setWizard({})}>강사 교체</Button>
+                <ComplaintCreateButton areas={d?.cplAreas ?? []} severities={d?.cplSeverities ?? []}
+                  onDone={(row) => setNotice(`접수했습니다 — ${row.areaLabel} · ${row.studentName ?? '문의자'}${row.ownerName ? ` · 담당 ${row.ownerName}` : ''}`)} />
               </div>
-            </>
-          )} />
+            </div>
+            {notice ? <Banner tone="success" className="mb-3">{notice}</Banner> : null}
+            <Board numbered columns={cplCols} itemKey={(c) => c.id} renderCard={(c) => (
+              <button type="button" className="block w-full text-left" onClick={() => setCplId(c.id)} aria-label={`컴플레인 ${c.body}`}>
+                <div className="flex flex-wrap items-center gap-1">
+                  <Chip tone="purple">{c.areaLabel}</Chip>
+                  {/* 심각도 — 원본 §67 카드의 가벼움 · 보통 · 심각. 낱말은 서버, 옛 건(null)은 칩이 서지 않는다 (N-25) */}
+                  {c.severityLabel ? <Chip size="compact" tone={c.severity === 'severe' ? 'danger' : c.severity === 'normal' ? 'warning' : 'neutral'}>{c.severityLabel}</Chip> : null}
+                  {c.teacherChanged ? <Chip size="compact" tone="info">강사 교체됨</Chip> : null}
+                </div>
+                <div className="mt-1.5 text-[12px] font-bold text-fg">{c.body}</div>
+                <div className="mt-1 text-[10.5px] text-fg-subtle">{c.studentName ?? '문의자'}</div>
+                {c.action ? <div className="mt-1 text-[10px] text-fg-2">{c.result ?? c.action}</div> : null}
+                {/*
+                  원본 §67 카드의 바닥 줄 — 왼쪽에 담당, 오른쪽에 지난 날. 기한이 지났으면 그것이 먼저다 (J-98 · 서버가 센다).
+                  **담당이 없는 것은 빈칸이 아니라 할 일이다** — 접수 칸의 한 줄이 그렇게 말한다.
+                */}
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5 text-[10.5px]">
+                  {c.ownerName
+                    ? <Chip size="compact" tone="neutral">{c.ownerName}</Chip>
+                    : <span className="font-bold text-red">담당 없음</span>}
+                  {c.overdueDays > 0
+                    ? <Chip size="compact" tone="danger">기한 {c.overdueDays}일 지남</Chip>
+                    : <span className={c.stage === 'closed' ? 'text-fg-subtle' : 'font-bold text-fg-2'}>
+                      {c.dueOn && c.stage !== 'closed' ? `기한 ${c.dueOn.slice(5)} · ` : ''}{c.ageDays}일 지남
+                    </span>}
+                </div>
+              </button>
+            )} />
+          </>
         )}
 
       <Panel className="mt-4" title="여기 모이는 이유">
@@ -289,6 +319,31 @@ export default function OpsPage() {
       </Panel>
       <PlanReport planId={planId} onClose={() => setPlanId(null)} />
       <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} onClose={() => setMeetingId(null)} />
+      <ComplaintDetail
+        complaint={(d?.complaints ?? []).find((c) => c.id === cplId) ?? null}
+        stages={d?.cplStages ?? []}
+        severities={d?.cplSeverities ?? []}
+        onClose={() => setCplId(null)}
+        onTeacherChange={(c) => { setCplId(null); setWizard({ cplId: c.id, studentId: c.studentId ?? undefined, studentName: c.studentName }); }}
+        onWithdraw={(c) => { setCplId(null); setWithdrawOf(c); }}
+      />
+      {withdrawOf?.studentId ? (
+        <StudentWithdrawDialog
+          open
+          title={`수강 종료 · 환불 — ${withdrawOf.studentName ?? ''}`}
+          student={{ id: withdrawOf.studentId, name: withdrawOf.studentName ?? '' }}
+          defaultEndedOn={todayKst()}
+          defaultReason={`컴플레인 #${withdrawOf.id} · ${withdrawOf.body.slice(0, 60)}`}
+          onClose={() => setWithdrawOf(null)}
+          onDone={(r) => { setWithdrawOf(null); setNotice(`수강 종료 — ${withdrawOf.studentName ?? ''} · 환불 ${r.refundTotal == null ? '금액은 대표만' : `${r.refundTotal.toLocaleString('ko-KR')}원`} · 컴플레인 #${withdrawOf.id} 사유로 남김`); }}
+        />
+      ) : null}
+      <TeacherChangeWizard
+        open={wizard !== null}
+        preset={wizard}
+        onClose={() => setWizard(null)}
+        onDone={(r) => setNotice(`강사 교체 — ${r.fromTeacher.name} → ${r.toTeacher.name} · ${r.mode === 'day' ? `${r.date} 하루 대강` : `${r.date}부터`} · 회차 ${r.occurrences}회 · 안내 초안 ${r.guideDrafts}건 · 학부모 안내 ${r.parentNotices}건 · 알림 ${r.notifiedTeachers + r.notifiedStaff}명`)}
+      />
     </AppShell></RequireAuth>
   );
 }

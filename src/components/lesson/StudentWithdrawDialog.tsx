@@ -32,16 +32,18 @@ export interface StudentWithdrawDialogProps {
   open: boolean;
   title: ReactNode;
   student: { id: number; name: string };
-  /** 열어 둔 수업 — 「이 수업만」의 대상 */
-  serId: number;
+  /** 열어 둔 수업 — 「이 수업만」의 대상. 없으면(컴플레인에서 열 때 · C93 · J-99) 「이 학생의 모든 수업」만 */
+  serId?: number | null;
   /** 기본 종료일 — 보통 열어 둔 회차의 날짜 */
   defaultEndedOn?: string;
+  /** 기본 사유 — 컴플레인에서 열면 「컴플레인 #N · 내용」 (N-135 ① 의 cplId 칸 전까지는 사유 글로만 잇는다) */
+  defaultReason?: string;
   onClose: () => void;
   /** 처리가 끝난 뒤 — 부모가 창을 닫고 갱신한다 */
   onDone?: (result: WithdrawResult) => void;
 }
 
-export function StudentWithdrawDialog({ open, title, student, serId, defaultEndedOn, onClose, onDone }: StudentWithdrawDialogProps) {
+export function StudentWithdrawDialog({ open, title, student, serId, defaultEndedOn, defaultReason, onClose, onDone }: StudentWithdrawDialogProps) {
   const id = useId();
   const write = useWithdrawStudent();
   const [endedOn, setEndedOn] = useState('');
@@ -54,13 +56,13 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
   useEffect(() => {
     if (!open) return;
     setEndedOn(defaultEndedOn ?? '');
-    setScope('this');
-    setReason('');
+    setScope(serId ? 'this' : 'all');
+    setReason(defaultReason ?? '');
     setPreview(null);
     setErr(null);
-  }, [open, defaultEndedOn]);
+  }, [open, defaultEndedOn, defaultReason, serId]);
 
-  const body = () => ({ studentId: student.id, endedOn, serIds: scope === 'this' ? [serId] : undefined, reason: reason.trim() || undefined });
+  const body = () => ({ studentId: student.id, endedOn, serIds: scope === 'this' && serId ? [serId] : undefined, reason: reason.trim() || undefined });
   const dateOk = ISO.test(endedOn);
 
   // 날짜·범위가 정해질 때마다 서버에 미리 보인다 — 값은 서버 것이다
@@ -68,7 +70,7 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
     if (!open || !dateOk) { setPreview(null); return; }
     let alive = true;
     setErr(null);
-    write.mutate({ kind: 'preview', body: { studentId: student.id, endedOn, serIds: scope === 'this' ? [serId] : undefined } }, {
+    write.mutate({ kind: 'preview', body: { studentId: student.id, endedOn, serIds: scope === 'this' && serId ? [serId] : undefined } }, {
       onSuccess: (r) => { if (alive) setPreview(r); },
       onError: (e) => { if (alive) { setPreview(null); setErr(apiMessage(e)); } },
     });
@@ -107,8 +109,8 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
           </div>
           <div>
             <Label htmlFor={`${id}-scope`}>범위</Label>
-            <Select id={`${id}-scope`} value={scope} onChange={(e) => setScope(e.target.value as 'this' | 'all')} disabled={pending}>
-              <option value="this">이 수업만</option>
+            <Select id={`${id}-scope`} value={scope} onChange={(e) => setScope(e.target.value as 'this' | 'all')} disabled={pending || !serId}>
+              {serId ? <option value="this">이 수업만</option> : null}
               <option value="all">이 학생의 모든 수업</option>
             </Select>
           </div>

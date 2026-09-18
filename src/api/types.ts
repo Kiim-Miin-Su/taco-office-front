@@ -194,6 +194,14 @@ export type LeadEnroll = S['LeadEnrollDto'];
 export type EnrollLine = S['EnrollLineDto'];
 export type EnrollResult = S['EnrollResultDto'];
 export type EnrollSeries = S['EnrollSeriesDto'];
+/** §67 컴플레인 접수·처리 · 강사 교체 마법사 (C93 · J-96 · J-97) — 여섯 단계는 서버가 한 트랜잭션에서 하고 미리보기는 되돌린 값이다 */
+export type ComplaintCreate = S['ComplaintCreateDto'];
+export type ComplaintPatch = S['ComplaintPatchDto'];
+export type CplWord = S['CplWordDto'];
+export type TeacherChange = S['TeacherChangeDto'];
+export type TeacherChangeResult = S['TeacherChangeResultDto'];
+export type TcSeries = S['TcSeriesDto'];
+export type TcStep = S['TcStepDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

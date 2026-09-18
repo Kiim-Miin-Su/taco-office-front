@@ -97,7 +97,7 @@ import type {
   StudentWithdraw,
   WithdrawResult,
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
-  LeadEnroll, EnrollResult,
+  LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult,
   KindCreate,
   KindPatch,
   Lead,
@@ -1761,6 +1761,53 @@ export function useEnrollLead(): UseMutationResult<EnrollResult, unknown, { id: 
       void qc.invalidateQueries({ queryKey: family.drawer });
       // 새 학생은 코드표(학생 목록)에도 든다 — 다음 창이 옛 목록을 들지 않게
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
+    },
+  });
+}
+
+/** §67 「+ 접수」 (C93 · J-96) — 접수는 언제나 received · 담당 알림은 서버 */
+export function useCreateComplaint(): UseMutationResult<Complaint, unknown, ComplaintCreate> {
+  const invalidate = useOpsInvalidate();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<Complaint>('/ops/complaints', body)).data,
+    onSettled: () => { void invalidate(); void qc.invalidateQueries({ queryKey: family.drawer }); },
+  });
+}
+
+/** §67 카드 처리 (C93 · J-101) — 보낸 칸만 · 대응은 담당이, 마무리는 결과가 있어야 한다(409 는 서버 문장) */
+export function usePatchComplaint(): UseMutationResult<Complaint, unknown, { id: number } & ComplaintPatch> {
+  const invalidate = useOpsInvalidate();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<Complaint>(`/ops/complaints/${id}`, body)).data,
+    onSettled: () => { void invalidate(); void qc.invalidateQueries({ queryKey: family.drawer }); },
+  });
+}
+
+/**
+ * 강사 교체 마법사 (C93 · J-97 · D-46 · N-132) — 미리보기는 되돌린 값이라 캐시를 건드리지 않는다.
+ * 실제 교체 뒤에는 시간표·안내·운영·서랍·현황판·강사 홈이 전부 옛 강사를 들고 있으므로 갈래째 버린다.
+ */
+export function useTeacherChange(): UseMutationResult<TeacherChangeResult, unknown, { kind: 'preview' | 'apply'; body: TeacherChange }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ kind, body }) => (
+      kind === 'preview'
+        ? (await api.post<TeacherChangeResult>('/ops/teacher-change/preview', body)).data
+        : (await api.post<TeacherChangeResult>('/ops/teacher-change', body)).data
+    ),
+    onSuccess: (_r, w) => {
+      if (w.kind !== 'apply') return;
+      void qc.invalidateQueries({ queryKey: family.ops });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.horizon });
+      void qc.invalidateQueries({ queryKey: family.guides });
+      void qc.invalidateQueries({ queryKey: family.board });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: family.reports });
+      void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.accounting });
     },
   });
 }

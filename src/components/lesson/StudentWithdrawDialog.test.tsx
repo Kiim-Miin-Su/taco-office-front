@@ -76,6 +76,33 @@ it('범위를 「모든 수업」으로 바꾸면 serIds 없이 다시 묻고, �
   expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ preview: false, refundTotal: 135000 }));
 });
 
+it('컴플레인에서 열면(serId 없음 · C93 · J-99) 범위는 「모든 수업」뿐이고 사유에 컴플레인이 미리 적혀 그대로 보낸다', async () => {
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method === 'post') {
+      posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
+      return { config, status: 201, statusText: 'OK', headers: {}, data: config.url?.endsWith('/preview') ? preview : { ...preview, preview: false } };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: {} };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(client);
+  const view = render(
+    <QueryClientProvider client={client}>
+      <StudentWithdrawDialog open title="수강 종료 · 환불 — 문채원" student={{ id: 18, name: '문채원' }} defaultEndedOn="2026-10-02" defaultReason="컴플레인 #9 · 환불을 요구합니다" onClose={vi.fn()} onDone={vi.fn()} />
+    </QueryClientProvider>,
+  );
+  await view.findByLabelText('종료 미리보기');
+  expect(posted[0]).toEqual({ url: '/accounting/withdrawals/preview', body: { studentId: 18, endedOn: '2026-10-02' } });
+  const scope = view.getByLabelText('범위') as HTMLSelectElement;
+  expect(scope.disabled).toBe(true);
+  expect([...scope.options].map((o) => o.value)).toEqual(['all']);
+  expect((view.getByLabelText('사유') as HTMLTextAreaElement).value).toBe('컴플레인 #9 · 환불을 요구합니다');
+  const dialog = view.getByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: '수강 종료' }));
+  await waitFor(() => expect(posted).toHaveLength(2));
+  expect(posted[1]).toEqual({ url: '/accounting/withdrawals', body: { studentId: 18, endedOn: '2026-10-02', reason: '컴플레인 #9 · 환불을 요구합니다' } });
+});
+
 it('서버가 거절하면 그 문장을 그대로 보이고 보낼 수 없다 — 화면이 이유를 짓지 않는다', async () => {
   const { view } = setup(() => ({ status: 409, data: { code: 'WITHDRAW_NOTHING', message: '종료할 수강이 없습니다 — 그 날 뒤에 이 학생이 든 규칙이 없습니다' } }));
   await waitFor(() => expect(view.getByText(/종료할 수강이 없습니다/)).toBeTruthy());

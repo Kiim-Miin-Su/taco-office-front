@@ -5,7 +5,7 @@
  */
 
 import { Profiler, type ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -32,7 +32,7 @@ const me: Me = {
 };
 const response: Ops = {
   leads: [], complaints: [], todos: [], plans: [], meetings: [], suggestions: [], canSeeAmounts: true,
-  feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [], cplStages: [],
+  feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
   intakeHead: INTAKE_HEAD_FIXTURE,
   marketing: [{ id: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
     title: null, name: '검수 채널 · 광고', byId: null, byName: null,
@@ -178,6 +178,10 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
     { id: 2, area: 'lesson', areaLabel: '수업', studentName: '양찬욱', stage: 'acting',
       body: '수업 진도가 느리다는 말씀', action: '분반 검토 중', result: null,
       createdAt: '2026-08-20', ageDays: 1, ownerName: '김범준' },
+    // C93 — 심각도·기한·강사 교체 도장은 서버 낱말이다. 옛 건(위 둘)은 칩이 서지 않는다
+    { id: 3, area: 'teacher', areaLabel: '선생님', studentId: 5, studentName: '고은설', stage: 'received',
+      body: '수업 시작이 10분씩 늦습니다', action: null, result: null,
+      createdAt: '2026-08-21', ageDays: 0, ownerId: 4, ownerName: '강민지', dueOn: '2026-08-19', overdueDays: 2, severity: 'severe', severityLabel: '심각', teacherChanged: true },
   ];
   const open = () => {
     vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplStages, complaints } });
@@ -206,6 +210,20 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
     await waitFor(() => expect(view.container.textContent).toContain('접수(서버)'));
     const text = view.container.textContent ?? '';
     for (const w of ['대응(서버)', '결과(서버)', '스케줄(서버)', '수업(서버)']) expect(text).toContain(w);
+  });
+
+  it('「+ 접수」·「강사 교체」 입구가 서고, 카드의 심각도·기한 지남·강사 교체됨은 서버 낱말이며, 카드를 누르면 처리 창이 열린다 (C93 · J-96 · J-98)', async () => {
+    const view = open();
+    await waitFor(() => expect(view.getByRole('button', { name: '+ 접수' })).toBeTruthy());
+    expect(view.getByRole('button', { name: '강사 교체' })).toBeTruthy();
+    const text = view.container.textContent ?? '';
+    expect(text).toContain('심각');
+    expect(text).toContain('기한 2일 지남');
+    expect(text).toContain('강사 교체됨');
+    expect(text).not.toContain('미정'); // 옛 건의 빈 심각도에 「미정」을 지어 붙이지 않는다
+    fireEvent.click(view.getByRole('button', { name: '컴플레인 수업 시작이 10분씩 늦습니다' }));
+    const dialog = await view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
+    expect(within(dialog).getByRole('button', { name: '강사 교체' })).toBeTruthy();
   });
 
   it('담당 없는 건은 빈칸이 아니라 **할 일**로 선다 — 지난 날은 서버가 센 값이다', async () => {
