@@ -3,8 +3,8 @@
  * 책임/재사용: 실제 TuitionTable 을 쓰고 props 로만 상태를 준다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import type { Tuition } from '@/api/types';
 import { TuitionTable } from './TuitionTable';
 
@@ -13,6 +13,7 @@ const base: Tuition = {
   doneCount: 196, totalCount: 288, canceledCount: 5, deductedCount: 0, carriedInCount: 0, carriedInAmount: 0,
   doneAmount: 29_911_667, carryAmount: 870_000,
   canSeeAmounts: true,
+  close: null, canClose: false, canReopen: false,
   items: [
     {
       studentId: 1, name: '이하린', grade: 'G9',
@@ -217,4 +218,34 @@ it('넘어온 회차가 있는데 금액을 못 보면 회차만 적는다 — �
 it('넘어온 것이 없으면 이월 줄이 서지 않는다', () => {
   const v = render(<TuitionTable data={clone()} />);
   expect(v.queryByText(/청구에서 빠집니다/)).toBeNull();
+});
+
+/* ── 월 마감 (C92-d · C-39 · N-140) ─────────────────────────────────────── */
+
+it('「N월 마감하기」는 서버의 canClose 로만 선다 — 누르면 확인 창을 거쳐 부른다', () => {
+  const onCloseMonth = vi.fn();
+  const v = render(<TuitionTable data={{ ...base, canClose: true }} onCloseMonth={onCloseMonth} />);
+  expect(v.queryByText(/8월 마감 ·/)).toBeNull();
+  fireEvent.click(v.getByRole('button', { name: '8월 마감하기' }));
+  const dialog = v.getByRole('dialog', { name: '8월 마감' });
+  fireEvent.click(within(dialog).getByRole('button', { name: '마감' }));
+  expect(onCloseMonth).toHaveBeenCalledTimes(1);
+  // canClose 가 없으면 단추도 없다 — 판정은 서버다 (D-R39)
+  cleanup();
+  const w = render(<TuitionTable data={base} onCloseMonth={onCloseMonth} />);
+  expect(w.queryByRole('button', { name: '8월 마감하기' })).toBeNull();
+});
+
+it('마감된 달은 배지가 서고 「마감 해제」는 사유가 있어야 보낸다 — 흔적 없이 고치지 않는다', () => {
+  const onReopenMonth = vi.fn();
+  const closed = { ...base, canReopen: true, close: { id: 3, month: '2026-08', closedAt: '2026-09-01T09:30:00.000Z', closedBy: '김민선', reopenedAt: null, reopenedBy: null, reopenReason: null } };
+  const v = render(<TuitionTable data={closed} onReopenMonth={onReopenMonth} />);
+  expect(v.getByText('8월 마감 · 09/01 김민선')).toBeTruthy();
+  fireEvent.click(v.getByRole('button', { name: '마감 해제' }));
+  const dialog = v.getByRole('dialog', { name: '8월 마감 해제' });
+  const submit = within(dialog).getByRole('button', { name: '해제' }) as HTMLButtonElement;
+  expect(submit.disabled).toBe(true);
+  fireEvent.change(within(dialog).getByLabelText('해제 사유'), { target: { value: ' 8월 휴강 하나를 빠뜨렸다 ' } });
+  fireEvent.click(submit);
+  expect(onReopenMonth).toHaveBeenCalledWith('8월 휴강 하나를 빠뜨렸다');
 });

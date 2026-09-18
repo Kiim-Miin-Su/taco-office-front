@@ -164,6 +164,10 @@ export type StudentPause = S['StudentPauseDto'];
 export type StudentPauseWrite = S['StudentPauseWriteDto'];
 export type StudentResumeWrite = S['StudentResumeWriteDto'];
 export type StudentPauseResult = S['StudentPauseResultDto'];
+/** §54 월 마감 (C92-d · C-39/L-123/N-140) — 마감 달의 쓰기는 409 MONTH_CLOSED */
+export type MonthClose = S['MonthCloseDto'];
+export type MonthCloseWrite = S['MonthCloseWriteDto'];
+export type MonthReopenWrite = S['MonthReopenWriteDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

@@ -34,9 +34,9 @@
  * 거절당하는 단추」가 된다 (D-R39). 이미 넘긴 달은 단추 대신 넘긴 시각을 적는다.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Tuition, TuitionRow } from '@/api/types';
-import { Banner, Chip, Drawer, Panel, Table, cn, type Column } from '@/components/ui';
+import { Banner, Button, Chip, Dialog, Drawer, Label, Panel, Table, Textarea, cn, type Column } from '@/components/ui';
 import { MASKED, won } from '@/lib/money';
 
 export interface TuitionTableProps {
@@ -45,6 +45,80 @@ export interface TuitionTableProps {
   /** 이월 처리 — 누를 수 있는 줄인지는 **서버가 정한다** (N-39) */
   onCarry?: (studentId: number) => void;
   carryingId?: number | null;
+  /** 월 마감 · 해제 (C92-d) — 단추가 서는지는 서버의 `canClose/canReopen` 이 정한다. 해제 사유는 창이 받는다 */
+  onCloseMonth?: () => void;
+  onReopenMonth?: (reason: string) => void;
+  closingMonth?: boolean;
+  closeError?: string | null;
+}
+
+/** 「N월 마감」 배지 + 「마감하기」·「마감 해제」 — 낱말·판정 전부 서버(`close`·`canClose`·`canReopen`) */
+function MonthCloseControls({ data, onCloseMonth, onReopenMonth, pending = false, error }: {
+  data: Tuition; onCloseMonth?: () => void; onReopenMonth?: (reason: string) => void; pending?: boolean; error?: string | null;
+}) {
+  const id = useId();
+  const [dialog, setDialog] = useState<'close' | 'reopen' | null>(null);
+  const [reason, setReason] = useState('');
+  useEffect(() => { if (dialog === 'reopen') setReason(''); }, [dialog]);
+  // 저장이 끝나면(마감 여부가 뒤집히면) 창을 닫는다 — 실패하면 오류와 함께 열려 있다
+  useEffect(() => { setDialog(null); }, [data.close?.id ?? null]);
+  const monthLabel = `${Number(data.month.slice(5))}월`;
+  const closedAt = data.close ? `${data.close.closedAt.slice(5, 10).replace('-', '/')} ${data.close.closedBy}` : '';
+  return (
+    <>
+      <span className="flex flex-wrap items-center gap-1.5">
+        {data.close ? (
+          <Chip tone="warning" title={`마감 ${data.close.closedAt.slice(0, 16).replace('T', ' ')} · ${data.close.closedBy}`}>
+            {monthLabel} 마감 · {closedAt}
+          </Chip>
+        ) : null}
+        {data.canClose && onCloseMonth ? (
+          <Button size="sm" variant="secondary" disabled={pending} onClick={() => setDialog('close')}>{monthLabel} 마감하기</Button>
+        ) : null}
+        {data.canReopen && onReopenMonth ? (
+          <Button size="sm" variant="ghost" disabled={pending} onClick={() => setDialog('reopen')}>마감 해제</Button>
+        ) : null}
+      </span>
+      <Dialog
+        open={dialog === 'close'}
+        onClose={() => setDialog(null)}
+        title={`${monthLabel} 마감`}
+        footer={(
+          <>
+            <Button type="button" variant="ghost" onClick={() => setDialog(null)} disabled={pending}>취소 (Esc)</Button>
+            <Button type="button" variant="danger" onClick={() => onCloseMonth?.()} disabled={pending}>{pending ? '처리 중…' : '마감'}</Button>
+          </>
+        )}
+      >
+        <p className="text-[12.5px] text-fg-2">
+          마감하면 {monthLabel}의 회차·휴강·출결·청구서 발행·이월·휴원을 아무도 고칠 수 없습니다. 고쳐야 하면 대표가 사유를 적고 해제합니다 — 해제 기록은 남습니다.
+        </p>
+        {error ? <Banner tone="danger" className="mt-3">{error}</Banner> : null}
+      </Dialog>
+      <Dialog
+        open={dialog === 'reopen'}
+        onClose={() => setDialog(null)}
+        title={`${monthLabel} 마감 해제`}
+        footer={(
+          <>
+            <Button type="button" variant="ghost" onClick={() => setDialog(null)} disabled={pending}>취소 (Esc)</Button>
+            <Button type="button" variant="danger" onClick={() => onReopenMonth?.(reason.trim())} disabled={pending || !reason.trim()}>
+              {pending ? '처리 중…' : '해제'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-[12.5px] text-fg-2">무엇을 고치려고 여는지 적어 주세요 — 흔적 없이 고치지 않습니다.</p>
+          <div>
+            <Label htmlFor={`${id}-reason`} hint={`${reason.length} / 200`}>해제 사유</Label>
+            <Textarea id={`${id}-reason`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} disabled={pending} placeholder="예: 8월 휴강 하나를 빠뜨렸다" />
+          </div>
+          {error ? <Banner tone="danger">{error}</Banner> : null}
+        </div>
+      </Dialog>
+    </>
+  );
 }
 
 /** 컷의 머리 다섯 상자 — 값이 위, 이름이 아래다 */
@@ -79,7 +153,7 @@ function ProgressBar({ row }: { row: TuitionRow }) {
   );
 }
 
-export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTableProps) {
+export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth, onReopenMonth, closingMonth, closeError }: TuitionTableProps) {
   const [openId, setOpenId] = useState<number | null>(null);
   const rows = data?.items ?? [];
   const open = rows.find((r) => r.studentId === openId) ?? null;
@@ -195,6 +269,12 @@ export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTabl
               <p className="mt-0.5 text-[11px] text-fg-subtle">
                 오늘 {data.today.slice(5)} 기준 · {data.daysPast}일 지남 · {data.daysLeft}일 남음
               </p>
+            ) : null}
+            {/* 월 마감 (C92-d) — 마감이면 이 달의 쓰기는 서버가 409 로 막는다 */}
+            {data ? (
+              <div className="mt-1.5">
+                <MonthCloseControls data={data} onCloseMonth={onCloseMonth} onReopenMonth={onReopenMonth} pending={closingMonth} error={closeError} />
+              </div>
             ) : null}
           </div>
           {/* 다섯 칸은 줄의 합이다 — 화면이 더하지 않는다 (D-R37) */}

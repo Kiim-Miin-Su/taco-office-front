@@ -64,7 +64,10 @@ export function CancelLessonDialog({
   const [makeupStart, setMakeupStart] = useState('');
   const [makeupEnd, setMakeupEnd] = useState('');
 
-  // 열 때마다 비운다 — 지난 휴강의 사유가 다음 창에 남아 있으면 그대로 저장된다
+  // 열 때마다 비운다 — 지난 휴강의 사유가 다음 창에 남아 있으면 그대로 저장된다.
+  // 의존성은 원시값이다 — 부르는 쪽이 `original` 을 매 렌더마다 새 객체로 주면(저장 중 → 실패) 적은 사유가 지워진다 (C92-d QA 에서 잡았다)
+  const originalStart = original?.startMin;
+  const originalEnd = original?.endMin;
   useEffect(() => {
     if (!open) return;
     setKind('');
@@ -72,9 +75,9 @@ export function CancelLessonDialog({
     setMemo('');
     setWholeDay(false);
     setMakeupDate('');
-    setMakeupStart(original ? hhmm(original.startMin) : '');
-    setMakeupEnd(original ? hhmm(original.endMin) : '');
-  }, [open, treats, original]);
+    setMakeupStart(originalStart === undefined ? '' : hhmm(originalStart));
+    setMakeupEnd(originalEnd === undefined ? '' : hhmm(originalEnd));
+  }, [open, treats, originalStart, originalEnd]);
 
   const reason = reasons?.find((r) => r.key === kind) ?? null;
   const deductible = reason?.deductible === true;

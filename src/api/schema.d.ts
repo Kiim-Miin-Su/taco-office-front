@@ -648,6 +648,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/tuition/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 월 마감 — 대표 전용 (테스트 시나리오 C-39)
+         * @description 마감된 달은 회차·휴강·출결·청구서 발행·이월·휴원 쓰기가 409 MONTH_CLOSED 로 막힌다 (L-123). 판정은 lib/month-close 한 곳. 해제 전까지는 아무도 못 고친다 — 화면이 단추를 숨기는 것과 별개로 서버가 막는다.
+         */
+        post: operations["AccountingController_closeMonth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/tuition/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 마감 해제 — 대표 전용 · 사유 필수 (테스트 시나리오 N-140)
+         * @description 행을 지우지 않고 누가·언제·왜를 남긴다 — 「흔적 없이 고쳐지면 실패」. 다시 마감하면 새 행이 선다.
+         */
+        post: operations["AccountingController_reopenMonth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/board": {
         parameters: {
             query?: never;
@@ -3362,6 +3402,20 @@ export interface components {
             /** @description 내역 — 청구서가 쓸 바로 그 줄이다 */
             lines: components["schemas"]["InvoiceLineDto"][];
         };
+        MonthCloseDto: {
+            id: number;
+            /** @description YYYY-MM */
+            month: string;
+            /** @description ISO */
+            closedAt: string;
+            /** @description 마감한 사람 이름 */
+            closedBy: string;
+            /** @description 해제 시각 (ISO) — 열려 있는 마감이면 null */
+            reopenedAt?: string | null;
+            reopenedBy?: string | null;
+            /** @description 해제 사유 — 흔적 없이 고치지 않는다 (N-140) */
+            reopenReason?: string | null;
+        };
         TuitionDto: {
             /** @description YYYY-MM */
             month: string;
@@ -3390,6 +3444,28 @@ export interface components {
             items: components["schemas"]["TuitionRowDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
+            /** @description 지금 열려 있는 마감 — null 이면 열린 달 */
+            close?: components["schemas"]["MonthCloseDto"] | null;
+            /** @description 「N월 마감하기」 단추가 서는가 — 대표 · 아직 안 마감 · 오늘이 그 달 시작 이후 (D-R39) */
+            canClose: boolean;
+            /** @description 「마감 해제」 단추가 서는가 — 대표 · 마감 중 */
+            canReopen: boolean;
+        };
+        MonthCloseWriteDto: {
+            /**
+             * @description 마감할 달 — YYYY-MM
+             * @example 2026-08
+             */
+            month: string;
+        };
+        MonthReopenWriteDto: {
+            /**
+             * @description 마감할 달 — YYYY-MM
+             * @example 2026-08
+             */
+            month: string;
+            /** @description 해제 사유 — 마감 뒤 무엇을 고치려는지 */
+            reason: string;
         };
         InvBoardCardDto: {
             invId: number;
@@ -8859,6 +8935,160 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_closeMonth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonthCloseWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthCloseDto"];
+                };
+            };
+            /** @description MONTH_NOT_STARTED — 아직 시작하지 않은 달 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MONTH_ALREADY_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_reopenMonth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonthReopenWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthCloseDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MONTH_NOT_CLOSED */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -97,6 +97,9 @@ import type {
   MeetingDetail,
   Meta,
   MfbThread,
+  MonthClose,
+  MonthCloseWrite,
+  MonthReopenWrite,
   OccurrenceCreate,
   OccurrenceDelete,
   OccurrenceList,
@@ -456,6 +459,26 @@ export function useStudentPause() {
         : (await api.post<StudentPauseResult>(`/schedule/students/${w.studentId}/pause/${w.pauseId}/resume`, w.body)).data
     ),
     onSuccess: settle,
+  });
+}
+
+/**
+ * §54 「N월 마감」·「마감 해제」 (C92-d) — 대표 전용. 마감은 회계뿐 아니라 그 달의 회차·출결·휴원 쓰기를 막으므로
+ * 회계 갈래와 함께 일정 갈래(회차·트래킹)도 버린다 — 잠긴 달의 화면이 옛 판정을 들고 있지 않게.
+ */
+export function useMonthClose() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w: { kind: 'close'; body: MonthCloseWrite } | { kind: 'reopen'; body: MonthReopenWrite }) => (
+      w.kind === 'close'
+        ? (await api.post<MonthClose>('/accounting/tuition/close', w.body)).data
+        : (await api.post<MonthClose>('/accounting/tuition/reopen', w.body)).data
+    ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.tracking });
+    },
   });
 }
 

@@ -18,7 +18,8 @@ import { queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting, useCarryTuition, useInvBoard, useOtherIncome, useTuition } from '@/api/queries';
+import { useAccounting, useCarryTuition, useInvBoard, useMonthClose, useOtherIncome, useTuition } from '@/api/queries';
+import { apiMessage } from '@/api/client';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer } from '@/components/accounting/InvoiceIssuer';
@@ -77,6 +78,8 @@ export default function AccountingPage() {
   const tuition = useTuition(queryMonth ?? undefined, tab === 'tuition');
   // §54 이월 처리 — 누를 수 있는 줄인지는 서버가 정한다 (N-39)
   const carry = useCarryTuition();
+  const monthClose = useMonthClose();
+  const [closeError, setCloseError] = useState<string | null>(null);
   // §57 도 다른 질의다 — 그 탭을 열 때만 부른다 (C66)
   // §57 의 날짜 눈금은 화면이 고르고 서버가 묶는다 (N-40)
   const [incomeSpan, setIncomeSpan] = useState('month');
@@ -253,6 +256,20 @@ export default function AccountingPage() {
             onCarry={(studentId) => {
               const month = tuition.data?.month;
               if (month) carry.mutate({ studentId, month });
+            }}
+            closingMonth={monthClose.isPending}
+            closeError={closeError}
+            onCloseMonth={() => {
+              const month = tuition.data?.month;
+              if (!month) return;
+              setCloseError(null);
+              monthClose.mutate({ kind: 'close', body: { month } }, { onError: (e) => setCloseError(apiMessage(e)) });
+            }}
+            onReopenMonth={(reason) => {
+              const month = tuition.data?.month;
+              if (!month) return;
+              setCloseError(null);
+              monthClose.mutate({ kind: 'reopen', body: { month, reason } }, { onError: (e) => setCloseError(apiMessage(e)) });
             }}
           />
         ) : tab === 'record' ? (
