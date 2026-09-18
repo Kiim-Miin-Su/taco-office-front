@@ -66,7 +66,7 @@ describe('EventBlock', () => {
     const onClick = vi.fn();
     const onSelect = vi.fn();
     const occ = { ...occurrence, canceled: true, hasException: true,
-      students: [{ id: 1, name: '수강 학생', droppedOnce: false }] };
+      students: [{ id: 1, name: '수강 학생', droppedOnce: false, paused: false }] };
     const view = render(<EventBlock occ={occ} color="#5677A5" selected draggable resizable onClick={onClick} onSelect={onSelect} />);
     const block = view.getByRole('button', { name: /AP Chemistry/ });
     expect(view.getByText('수강 학생')).toBeTruthy();

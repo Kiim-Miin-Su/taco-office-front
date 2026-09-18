@@ -3,14 +3,17 @@
  * 책임/재사용: 실제 StudentTracking 을 쓰고 질의 훅만 어댑터로 갈아 끼운다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { LessonTracking } from '@/api/types';
 
 const state: { data: LessonTracking | undefined; isLoading: boolean; isError: boolean } = {
   data: undefined, isLoading: false, isError: false,
 };
-vi.mock('@/api/queries', () => ({ useLessonTracking: () => state }));
+const mutate = vi.fn();
+const permissions = { canEdit: true };
+vi.mock('@/api/queries', () => ({ useLessonTracking: () => state, useStudentPause: () => ({ mutate, isPending: false }) }));
+vi.mock('@/store/useSession', () => ({ useCan: () => permissions.canEdit }));
 
 const { StudentTracking } = await import('./StudentTracking');
 
@@ -26,7 +29,7 @@ const base: LessonTracking = {
   prepRemainLabel: '다 됐습니다',
   priced: true, unitPrice: 80000, total: 240000, canSeeAmounts: true,
   students: [{
-    id: 18, name: '문채원', grade: '고3', droppedOnce: false,
+    id: 18, name: '문채원', grade: '고3', droppedOnce: false, paused: false,
     bookCount: 1, progressAverage: 25, progressKnownBooks: 1,
     guided: false, attendDone: 12, attendTotal: 13, unpaid: 1170000,
     reports: [
@@ -42,7 +45,7 @@ const setup = (d: LessonTracking | undefined, o?: { isLoading?: boolean; isError
   state.data = d; state.isLoading = o?.isLoading ?? false; state.isError = o?.isError ?? false;
   return render(<StudentTracking serId={3} onDate="2026-09-11" />);
 };
-afterEach(() => { cleanup(); });
+afterEach(() => { cleanup(); mutate.mockReset(); permissions.canEdit = true; });
 
 it('머리줄 문장은 서버가 만든 것을 그대로 쓴다 — 화면이 정원 − 인원을 다시 하지 않는다', () => {
   const v = setup(base);
@@ -98,4 +101,73 @@ it('권한이 없으면 트래킹 칸을 비우고 이유를 적는다', () => {
 it('쓴 리포트가 없으면 빈 상태를 보인다', () => {
   const v = setup({ ...base, students: [{ ...base.students[0], reports: [] }] });
   expect(v.getByText('쓴 리포트가 없습니다')).toBeTruthy();
+});
+
+/* ── 휴원 · 복귀 (C92-c · C-36 · C-37) ─────────────────────────────────── */
+
+it('휴원 중인 학생은 「휴원」 칩과 기간 칩이 서고 「복귀」만 눌린다 — 판정은 서버의 paused·resumed 다', () => {
+  const v = setup({ ...base, students: [{
+    ...base.students[0], paused: true,
+    pause: { id: 5, fromDate: '2026-09-01', toDate: '2026-09-30', reason: '가족 여행', resumed: false },
+  }] });
+  expect(v.getByText('휴원')).toBeTruthy();
+  expect(v.getByText('휴원 9/1 ~ 9/30')).toBeTruthy();
+  expect(v.getByRole('button', { name: '복귀' })).toBeTruthy();
+  expect(v.queryByRole('button', { name: '휴원' })).toBeNull();
+});
+
+it('복귀 처리된 기간은 「복귀 처리됨」으로 남고 다시 「휴원」을 잡을 수 있다 — 기간은 이력이다', () => {
+  const v = setup({ ...base, students: [{
+    ...base.students[0], paused: true,
+    pause: { id: 5, fromDate: '2026-09-01', toDate: '2026-09-14', reason: null, resumed: true },
+  }] });
+  expect(v.getByText('휴원 9/1 ~ 9/14 · 복귀 처리됨')).toBeTruthy();
+  expect(v.getByRole('button', { name: '휴원' })).toBeTruthy();
+  expect(v.queryByRole('button', { name: '복귀' })).toBeNull();
+});
+
+it('「휴원」 창은 열어 둔 회차 날짜를 시작일로 채우고 종료일·사유를 붙여 보낸다 — 종료일이 앞서면 못 보낸다', () => {
+  const v = setup(base);
+  fireEvent.click(v.getByRole('button', { name: '휴원' }));
+  const dialog = v.getByRole('dialog', { name: /^휴원 — / });
+  const from = within(dialog).getByLabelText('시작일') as HTMLInputElement;
+  expect(from.value).toBe('2026-09-11');
+  const to = within(dialog).getByLabelText('종료일');
+  fireEvent.change(to, { target: { value: '2026-09-10' } });
+  expect(within(dialog).getByText('종료일이 시작일보다 앞입니다')).toBeTruthy();
+  expect((within(dialog).getByRole('button', { name: '휴원' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(to, { target: { value: '2026-09-30' } });
+  fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: ' 가족 여행 ' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '휴원' }));
+  expect(mutate).toHaveBeenCalledTimes(1);
+  expect(mutate.mock.calls[0][0]).toEqual({
+    kind: 'pause', studentId: 18, body: { fromDate: '2026-09-11', toDate: '2026-09-30', reason: '가족 여행' },
+  });
+});
+
+it('「복귀」 창은 복귀일 하나를 보내고 시작일 이전은 막는다 — 겹침·범위의 최종 판정은 서버다', () => {
+  const v = setup({ ...base, students: [{
+    ...base.students[0], paused: true,
+    pause: { id: 5, fromDate: '2026-09-01', toDate: null, reason: null, resumed: false },
+  }] });
+  fireEvent.click(v.getByRole('button', { name: '복귀' }));
+  const dialog = v.getByRole('dialog', { name: /^복귀 — / });
+  expect(within(dialog).getByText('휴원 9/1 ~')).toBeTruthy();
+  const on = within(dialog).getByLabelText('복귀일');
+  fireEvent.change(on, { target: { value: '2026-09-01' } });
+  expect((within(dialog).getByRole('button', { name: '복귀' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(on, { target: { value: '2026-09-15' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '복귀' }));
+  expect(mutate.mock.calls[0][0]).toEqual({ kind: 'resume', studentId: 18, pauseId: 5, body: { resumeOn: '2026-09-15' } });
+});
+
+it('canCrudAll 이 없으면 「휴원」·「복귀」 단추가 서지 않는다 (D-R39)', () => {
+  permissions.canEdit = false;
+  const v = setup({ ...base, students: [{
+    ...base.students[0], paused: true,
+    pause: { id: 5, fromDate: '2026-09-01', toDate: null, reason: null, resumed: false },
+  }] });
+  expect(v.queryByRole('button', { name: '휴원' })).toBeNull();
+  expect(v.queryByRole('button', { name: '복귀' })).toBeNull();
+  expect(v.getByText('휴원 9/1 ~')).toBeTruthy();
 });

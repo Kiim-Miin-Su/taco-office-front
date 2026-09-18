@@ -225,9 +225,12 @@ export function LessonDetail({
 
           <section>
             <h3 className="mb-2 text-[12px] font-bold text-fg">
-              수강 학생 {occ.students.filter((s) => !s.droppedOnce).length}명
+              수강 학생 {occ.students.filter((s) => !s.droppedOnce && !s.paused).length}명
               {occ.students.some((s) => s.droppedOnce)
                 ? <span className="ml-1 text-fg-subtle">· 그날 빠짐 {occ.students.filter((s) => s.droppedOnce).length}</span>
+                : null}
+              {occ.students.some((s) => s.paused)
+                ? <span className="ml-1 text-fg-subtle">· 휴원 {occ.students.filter((s) => s.paused).length}</span>
                 : null}
             </h3>
             <div className="flex flex-col gap-1">
@@ -249,6 +252,8 @@ export function LessonDetail({
                     </>
                   ) : null}
                   {s.droppedOnce ? <span className="text-[11px] text-fg-subtle">그날 빠짐</span> : null}
+                  {/* 휴원 중 — 명단에 남되 그날 인원·청구에서 빠진다. 기간·복귀는 오른쪽 학생 카드에서 (C92-c) */}
+                  {s.paused ? <Chip tone="warning">휴원</Chip> : null}
                   {canEdit ? (
                     <span className="ml-auto flex gap-1">
                       {s.droppedOnce ? (

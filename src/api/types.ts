@@ -159,6 +159,11 @@ export type OccurrenceDelete = S['OccurrenceDeleteDto'];
 export type DayCancel = S['DayCancelDto'];
 export type DayCancelResult = S['DayCancelResultDto'];
 export type RosterPatch = S['RosterPatchDto'];
+/** 휴원·복귀 — 학생 카드 「휴원」·「복귀」 (C92-c · C-36/C-37). 기간 하나를 적고 회차는 지우지 않는다 */
+export type StudentPause = S['StudentPauseDto'];
+export type StudentPauseWrite = S['StudentPauseWriteDto'];
+export type StudentResumeWrite = S['StudentResumeWriteDto'];
+export type StudentPauseResult = S['StudentPauseResultDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

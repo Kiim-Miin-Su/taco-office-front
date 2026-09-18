@@ -70,7 +70,7 @@ const items: Occurrence[] = [1, 2].map((id) => ({
   endMin: 660 + id * 60, kindKey: 'class', title: id === 1 ? '선택된 수업' : '다른 수업',
   teacherId: id * 11, mode: 'offline', canceled: false, hasException: false, recurring: false,
   repState: 'plan', ended: false, written: false, attendanceMode: 'unavailable', attendance: null,
-  students: [{ id, name: id === 1 ? '선택 학생' : '다른 학생', droppedOnce: false }],
+  students: [{ id, name: id === 1 ? '선택 학생' : '다른 학생', droppedOnce: false, paused: false }],
 }));
 
 beforeEach(() => {

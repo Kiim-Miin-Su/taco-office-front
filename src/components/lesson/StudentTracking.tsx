@@ -13,12 +13,19 @@
  *
  * 진도 평균은 서버가 `ISSUE.progress_page / LIB.pages`의 기존 교재 산식으로 계산합니다.
  * 화면은 알려진 교재가 0권인 `null`과 실제 0%를 구분해 그대로 표시합니다.
+ *
+ * 카드의 「휴원」·「복귀」(C92-c · C-36/C-37)는 `StudentPauseDialog` 하나를 쓰고, 「휴원 9/1 ~ 9/30」 칩의
+ * 기간·복귀 여부는 서버가 준 `pause` 그대로입니다 — 단추가 서는지도 그 값이 정합니다 (D-R39).
  */
 'use client';
 import Link from 'next/link';
+import { useState } from 'react';
 import { Banner, Button, Chip, Panel } from '../ui';
-import { useLessonTracking } from '@/api/queries';
+import { useLessonTracking, useStudentPause } from '@/api/queries';
+import { apiMessage } from '@/api/client';
+import { useCan } from '@/store/useSession';
 import { won } from '@/lib/money';
+import { StudentPauseDialog, StudentResumeDialog, pauseLabel } from './StudentPauseDialog';
 import type { TrackedReport, TrackedStudent } from '@/api/types';
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
@@ -46,7 +53,15 @@ function ReportRow({ r }: { r: TrackedReport }) {
   );
 }
 
-function StudentCard({ s, canSeeAmounts }: { s: TrackedStudent; canSeeAmounts: boolean }) {
+function StudentCard({ s, canSeeAmounts, onDate, canEdit }: { s: TrackedStudent; canSeeAmounts: boolean; onDate: string; canEdit: boolean }) {
+  const [dialog, setDialog] = useState<'pause' | 'resume' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const write = useStudentPause();
+  const pause = s.pause ?? null;
+  // 「복귀」는 아직 복귀 처리하지 않은 기간에만 선다 — 판정은 서버의 resumed 다
+  const canResume = canEdit && !!pause && !pause.resumed;
+  const canPause = canEdit && (!pause || pause.resumed);
+  const close = () => { setDialog(null); setErr(null); };
   return (
     <Panel
       title={(
@@ -54,15 +69,48 @@ function StudentCard({ s, canSeeAmounts }: { s: TrackedStudent; canSeeAmounts: b
           <span className="font-bold">{s.name}</span>
           {s.grade ? <Chip>{s.grade}</Chip> : null}
           {s.droppedOnce ? <Chip tone="neutral">그날 빠짐</Chip> : null}
+          {s.paused ? <Chip tone="warning">휴원</Chip> : null}
+          {pause ? (
+            <Chip tone={pause.resumed ? 'neutral' : 'info'} title={pause.reason ?? undefined}>
+              {pauseLabel(pause)}{pause.resumed ? ' · 복귀 처리됨' : ''}
+            </Chip>
+          ) : null}
         </span>
       )}
       right={(
         <span className="flex gap-1">
+          {canPause ? (
+            <Button size="sm" variant="ghost" disabled={write.isPending} onClick={() => setDialog('pause')}>휴원</Button>
+          ) : null}
+          {canResume ? (
+            <Button size="sm" variant="ghost" disabled={write.isPending} onClick={() => setDialog('resume')}>복귀</Button>
+          ) : null}
           <Link href={`/schedule?studentId=${s.id}`}><Button size="sm" variant="ghost">시간표</Button></Link>
           <Link href={`/board?studentId=${s.id}`}><Button size="sm" variant="ghost">학생 보드</Button></Link>
         </span>
       )}
     >
+      <StudentPauseDialog
+        open={dialog === 'pause'}
+        title={`휴원 — ${s.name}`}
+        defaultFrom={onDate}
+        pending={write.isPending}
+        error={err}
+        onClose={close}
+        onSubmit={(body) => write.mutate({ kind: 'pause', studentId: s.id, body }, { onSuccess: close, onError: (e) => setErr(apiMessage(e)) })}
+      />
+      <StudentResumeDialog
+        open={dialog === 'resume'}
+        title={`복귀 — ${s.name}`}
+        pause={pause}
+        pending={write.isPending}
+        error={err}
+        onClose={close}
+        onSubmit={(body) => {
+          if (!pause) return;
+          write.mutate({ kind: 'resume', studentId: s.id, pauseId: pause.id, body }, { onSuccess: close, onError: (e) => setErr(apiMessage(e)) });
+        }}
+      />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="진도 평균" value={s.progressAverage === null ? '—' : `${s.progressAverage}%`} />
         <Stat label="교재" value={String(s.bookCount)} />
@@ -87,6 +135,7 @@ function StudentCard({ s, canSeeAmounts }: { s: TrackedStudent; canSeeAmounts: b
 export function StudentTracking({ serId, onDate }: { serId: number; onDate: string }) {
   const q = useLessonTracking(serId, onDate, true);
   const d = q.data;
+  const canEdit = useCan('canCrudAll');
 
   return (
     <section aria-label="학생 트래킹">
@@ -115,7 +164,9 @@ export function StudentTracking({ serId, onDate }: { serId: number; onDate: stri
           </div>
 
           <div className="flex flex-col gap-2">
-            {d.students.map((s) => <StudentCard key={s.id} s={s} canSeeAmounts={d.canSeeAmounts} />)}
+            {d.students.map((s) => (
+              <StudentCard key={s.id} s={s} canSeeAmounts={d.canSeeAmounts} onDate={onDate} canEdit={canEdit} />
+            ))}
             {d.students.length === 0 ? (
               <p className="text-[12px] text-fg-subtle">명단이 없습니다</p>
             ) : null}

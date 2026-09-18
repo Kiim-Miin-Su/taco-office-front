@@ -278,6 +278,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/students/{studentId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 학생 휴원 — 기간 안의 회차가 시간표·청구에서 빠진다. 회차는 그대로다 (C-36)
+         * @description 종료일을 비우면 복귀 처리 전까지다. 같은 학생의 기간이 겹치면 409 PAUSE_OVERLAP (DB EXCLUDE). 「빠지는 회차 수」는 서버가 센다. 지난 기간도 잡을 수 있지만 이미 발행한 청구서는 바뀌지 않는다 (청구서는 INSERT 뿐이다).
+         */
+        post: operations["ScheduleController_pauseStudent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/students/{studentId}/pause/{pauseId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 학생 복귀 — 복귀일부터 회차가 돌아온다. 기간은 이력으로 남는다 (C-37)
+         * @description 휴원 종료일을 복귀 전날로 당기고 누가·언제 복귀시켰는지 남긴다. 복귀일은 시작일 다음 날부터이며 원래 종료일 뒤로는 못 잡는다 (BAD_RANGE). 이미 복귀 처리한 기록은 409 PAUSE_ALREADY_RESUMED.
+         */
+        post: operations["ScheduleController_resumeStudent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/undo": {
         parameters: {
             query?: never;
@@ -2417,6 +2457,8 @@ export interface components {
             grade?: string | null;
             /** @description 그날만 빠진 학생인가 (D-R21) */
             droppedOnce: boolean;
+            /** @description 그날 휴원 중인가 — 명단에 남되 시간표·청구에서는 빠진다 (C92-c · C-36) */
+            paused: boolean;
         };
         OccurrenceDto: {
             /** @description 반복 규칙 id */
@@ -2495,6 +2537,16 @@ export interface components {
             to: string;
             items: components["schemas"]["OccurrenceDto"][];
         };
+        StudentPauseDto: {
+            id: number;
+            /** @description YYYY-MM-DD */
+            fromDate: string;
+            /** @description YYYY-MM-DD · null 이면 복귀 전까지 */
+            toDate?: string | null;
+            reason?: string | null;
+            /** @description 복귀 처리가 끝났는가 — 끝났으면 「복귀」 단추가 서지 않는다 (복귀일 전이라도) */
+            resumed: boolean;
+        };
         TrackedReportDto: {
             repId: number;
             /** @example 2026-08-19 */
@@ -2516,6 +2568,10 @@ export interface components {
             grade?: string | null;
             /** @description 그날만 빠진 학생인가 (D-R21) */
             droppedOnce: boolean;
+            /** @description 그날 휴원 중인가 (C92-c) */
+            paused: boolean;
+            /** @description 진행 중이거나 앞으로 잡힌 휴원 — 「휴원 9/1~9/30」 · 「복귀」 단추의 근거 */
+            pause?: components["schemas"]["StudentPauseDto"] | null;
             /** @description 반납하지 않은 배부 교재 수 — 원문 「교재 N」 */
             bookCount: number;
             /** @description 배부 완료 교재 중 진도 쪽수와 전체 쪽수가 모두 있는 책의 동일가중 평균. 알 수 있는 책이 없으면 null */
@@ -2735,6 +2791,42 @@ export interface components {
             count: number;
             /** @description 이미 휴강이라 건너뛴 회차 수 */
             skipped: number;
+        };
+        StudentPauseWriteDto: {
+            /**
+             * Format: date
+             * @description 휴원 시작일
+             */
+            fromDate: string;
+            /**
+             * Format: date
+             * @description 휴원 종료일(포함) — 비우면 복귀 처리 전까지
+             */
+            toDate?: string;
+            reason?: string;
+        };
+        StudentPauseResultDto: {
+            id: number;
+            /** @description YYYY-MM-DD */
+            fromDate: string;
+            /** @description YYYY-MM-DD · null 이면 복귀 전까지 */
+            toDate?: string | null;
+            reason?: string | null;
+            /** @description 복귀 처리가 끝났는가 — 끝났으면 「복귀」 단추가 서지 않는다 (복귀일 전이라도) */
+            resumed: boolean;
+            /** @description 학생 id */
+            studentId: number;
+            /** @description 기간 안에서 빠지는(또는 돌아오는) 회차 수 — 서버가 센다 (D-R37) */
+            affected: number;
+            /** @description 복귀 처리 시각 (ISO) — 복귀 전이면 null */
+            resumedAt?: string | null;
+        };
+        StudentResumeWriteDto: {
+            /**
+             * Format: date
+             * @description 복귀일 — 이 날부터 시간표·청구가 재개된다
+             */
+            resumeOn: string;
         };
         ScheduleUndoDto: {
             /** @description 직전 WriteResult.undoToken 그대로 */
@@ -7123,6 +7215,165 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_pauseStudent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentPauseWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentPauseResultDto"];
+                };
+            };
+            /** @description code BAD_RANGE — 종료일이 시작일보다 앞 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code PAUSE_OVERLAP — 이미 잡힌 휴원 기간과 겹친다 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ScheduleController_resumeStudent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: number;
+                pauseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentResumeWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentPauseResultDto"];
+                };
+            };
+            /** @description code BAD_RANGE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code PAUSE_NOT_FOUND — 그 학생의 휴원 기록이 아니다 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code PAUSE_ALREADY_RESUMED */
             409: {
                 headers: {
                     [name: string]: unknown;

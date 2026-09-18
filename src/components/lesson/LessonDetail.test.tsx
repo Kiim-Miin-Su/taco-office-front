@@ -20,6 +20,7 @@ vi.mock('@/api/queries', () => ({
   useAttendanceWrite: () => ({ mutate: vi.fn(), isPending: false }),
   // §79 학생 트래킹은 창을 열 때만 도는 별도 질의다 — 이 파일은 명단 계약만 본다 (C55)
   useLessonTracking: () => tracking,
+  useStudentPause: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/store/useSession', () => ({
   useCan: (name: string) => name === 'canAdminPage' ? permissions.canAdminPage : permissions.canEdit,
@@ -49,7 +50,7 @@ const occurrence: Occurrence = {
   written: false,
   attendanceMode: 'manage',
   attendance: null,
-  students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false }],
+  students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: false }],
 };
 
 const result: RosterResult = {
@@ -303,7 +304,7 @@ describe('§79 명단 줄의 교재 · 안내 칩', () => {
   prepRemainLabel: '다 됐습니다',
       priced: false, unitPrice: null, total: null, canSeeAmounts: false,
       students: occurrence.students.map((s, i) => ({
-        id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce,
+        id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce, paused: false,
         bookCount: i === 0 ? 2 : 0, progressAverage: null, progressKnownBooks: 0,
         guided: i === 0, attendDone: 0, attendTotal: 0,
         unpaid: null, reports: [],
@@ -357,5 +358,18 @@ describe('§12 준비 줄 (C82-b)', () => {
     const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain('준비를 읽는 중입니다');
     expect(text).not.toContain('일정 확정');
+  });
+});
+
+describe('휴원 (C92-c · C-36)', () => {
+  it('휴원 중인 학생은 명단에 남되 「휴원」 칩이 붙는다 — 그날 인원·청구에서 빠지는 것은 서버가 센다', () => {
+    tracking.data = undefined;
+    const paused = { ...occurrence, students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: true }] };
+    const view = render(<LessonDetail occ={paused} onClose={() => undefined} />);
+    const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('수강 학생 0명');
+    expect(text).toContain('· 휴원 1');
+    expect(view.getByText('기존학생')).toBeTruthy();
+    expect(view.getByText('휴원')).toBeTruthy();
   });
 });
