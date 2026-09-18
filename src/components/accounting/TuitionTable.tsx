@@ -148,8 +148,10 @@ export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTabl
       key: 'x', head: '', width: 150, align: 'right',
       cell: (r) => (
         <span className="flex items-center justify-end gap-1.5">
-          {/* 넘어온 돈이 있으면 먼저 말한다 — 이 달이 받은 것이다 */}
-          {r.carriedIn ? <Chip tone="info">이월 받음 {won(r.carriedIn)}</Chip> : null}
+          {/* 넘어온 것이 있으면 먼저 말한다 — 이 달이 받은 것이고 청구서에서 빠진다 (C-35: 누가 몇 회인지 금액까지) */}
+          {r.carriedInSessions > 0 ? (
+            <Chip tone="info">이월 {r.carriedInSessions}회{r.carriedIn ? ` · ${won(r.carriedIn)}` : ''} 받음</Chip>
+          ) : null}
           {r.carriedAt ? (
             <span className="text-[11px] text-fg-subtle">넘김 {r.carriedAt.slice(5, 10)}</span>
           ) : r.carryable && onCarry ? (
@@ -206,6 +208,12 @@ export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTabl
             <HeadBox label="지금까지 금액" value={won(data?.doneAmount)} />
             <HeadBox label="다음 달로 넘길 돈" value={won(data?.carryAmount)} tone="warning" />
           </div>
+          {/* 상단 「이월 N회 — 이 달 청구에서 빠집니다」 (C-35) — 없으면 줄 자체가 없다 */}
+          {data && data.carriedInCount > 0 ? (
+            <p className="w-full text-[12px] font-bold text-blue">
+              이월 {data.carriedInCount}회 받음{data.carriedInAmount ? ` · ${won(data.carriedInAmount)}` : ''} — {Number(data.month.slice(5))}월 청구에서 빠집니다
+            </p>
+          ) : null}
         </div>
 
         <Table

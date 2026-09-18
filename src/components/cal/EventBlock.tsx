@@ -143,7 +143,11 @@ export function EventBlock({
         ) : null}
         {/* 휴강의 처리(이월/차감/보강 이관)는 회계가 읽는 값이라 블록에도 적는다 — 낱말은 서버 것 (C92) */}
         {!compact && occ.canceled && occ.cancelTreatLabel ? (
-          <div className="mt-0.5 text-[10px] font-bold opacity-90">휴강 · {occ.cancelTreatLabel}</div>
+          <div className="mt-0.5 text-[10px] font-bold opacity-90">
+            휴강 · {occ.cancelTreatLabel}{occ.makeupDate ? ` → ${occ.makeupDate.slice(5)}` : ''}
+          </div>
+        ) : !compact && occ.makeupOfDate ? (
+          <div className="mt-0.5 text-[10px] font-bold opacity-90">보강 · {occ.makeupOfDate.slice(5)} 회차</div>
         ) : !compact && occ.hasException ? (
           <div className="mt-0.5 text-[10px] font-bold opacity-90">예외 있음</div>
         ) : null}

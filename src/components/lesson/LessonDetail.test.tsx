@@ -171,6 +171,56 @@ describe('LessonDetail 명단 결과', () => {
     );
   });
 
+  it('보강 이관은 날짜·시각을 받아 makeup 으로 보낸다 — 시각 기본은 원래 회차와 같은 길이 · 같은 날은 거절 · 그날 전체는 숨는다 (C-34)', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    const dialog = view.getByRole('dialog', { name: /^휴강 — / });
+    fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'academy' } });
+    fireEvent.click(within(dialog).getByRole('radio', { name: /보강 이관/ }));
+    // 보강 칸이 열리고 그날 전체는 사라진다 — 회차마다 보강 날짜가 다르다
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    const submit = within(dialog).getByRole('button', { name: '휴강 · 보강 잡기' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true); // 날짜가 비었다
+    expect((within(dialog).getByLabelText('시작') as HTMLInputElement).value).toBe('10:00');
+    expect((within(dialog).getByLabelText('끝') as HTMLInputElement).value).toBe('11:00');
+    // 같은 날은 안 된다 — 시각만 바꾸는 것은 이동이다
+    fireEvent.change(within(dialog).getByLabelText('날짜'), { target: { value: '2026-09-03' } });
+    expect(within(dialog).getByText(/같은 날이 아닙니다/)).toBeTruthy();
+    expect(submit.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('날짜'), { target: { value: '2026-09-05' } });
+    fireEvent.change(within(dialog).getByLabelText('시작'), { target: { value: '16:00' } });
+    fireEvent.change(within(dialog).getByLabelText('끝'), { target: { value: '17:00' } });
+    expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        kind: 'delete', serId: 3,
+        body: {
+          scope: 'this', onDate: '2026-09-03', cancelKind: 'academy', cancelTreat: 'makeup', memo: undefined,
+          makeup: { date: '2026-09-05', startMin: 960, endMin: 1020 },
+        },
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('보강 이관된 회차와 보강 회차는 서로를 가리키는 칩을 단다', () => {
+    const view = render(
+      <LessonDetail
+        occ={{ ...occurrence, canceled: true, cancelKind: 'academy', cancelKindLabel: '학원 사정', cancelTreat: 'makeup', cancelTreatLabel: '보강 이관',
+          makeupSerId: 9, makeupDate: '2026-09-05', makeupStartMin: 960 }}
+        onClose={() => undefined} {...cancelMeta}
+      />,
+    );
+    expect(view.getByText('휴강 · 학원 사정 · 보강 이관 → 2026-09-05 16:00')).toBeTruthy();
+    view.unmount();
+    const made = render(
+      <LessonDetail occ={{ ...occurrence, serId: 9, date: '2026-09-05', onDate: '2026-09-05', recurring: false, makeupOfDate: '2026-09-03' }}
+        recurring={false} onClose={() => undefined} {...cancelMeta} />,
+    );
+    expect(made.getByText('보강 · 2026-09-03 회차')).toBeTruthy();
+  });
+
   it('강사 화면(관리자 아님)에는 「그날 전체」가 없다', () => {
     permissions.canAdminPage = false;
     const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);

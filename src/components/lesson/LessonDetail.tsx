@@ -145,7 +145,10 @@ export function LessonDetail({
     write.mutate(
       {
         kind: 'delete', serId: occ.serId,
-        body: { scope: 'this', onDate: occ.onDate, cancelKind: input.cancelKind, cancelTreat: input.cancelTreat, memo: input.memo },
+        body: {
+          scope: 'this', onDate: occ.onDate, cancelKind: input.cancelKind, cancelTreat: input.cancelTreat, memo: input.memo,
+          makeup: input.makeup,
+        },
       },
       done,
     );
@@ -168,8 +171,11 @@ export function LessonDetail({
             {occ.canceled ? (
               <Chip tone="danger">
                 휴강{occ.cancelKindLabel ? ` · ${occ.cancelKindLabel}` : ''}{occ.cancelTreatLabel ? ` · ${occ.cancelTreatLabel}` : ''}
+                {occ.makeupDate ? ` → ${occ.makeupDate}${occ.makeupStartMin != null ? ` ${hhmm(occ.makeupStartMin)}` : ''}` : ''}
               </Chip>
             ) : null}
+            {/* 보강 회차 — 어느 회차의 보강인지 (C92-b · C-34) */}
+            {occ.makeupOfDate ? <Chip tone="purple">보강 · {occ.makeupOfDate} 회차</Chip> : null}
             {occ.hasException ? <Chip tone="warning">이 회차만 다름</Chip> : null}
           </div>
 
@@ -346,6 +352,7 @@ export function LessonDetail({
         reasons={cancelReasons}
         treats={cancelTreats}
         allowWholeDay={canAdminPage}
+        original={{ date: occ.date, startMin: occ.startMin, endMin: occ.endMin }}
         pending={write.isPending}
         error={cancelErr}
         onSubmit={submitCancel}

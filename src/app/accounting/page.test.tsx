@@ -207,7 +207,7 @@ it('?tab=tuition&month= 링크는 수업료 탭을 그 달로 연다 — 틀린 
     calls.push(`${config.url}${config.params?.month ? `?month=${config.params.month}` : ''}`);
     const data = config.url?.includes('/tuition')
       ? { month: '2026-08', today: '2026-09-18', daysPast: 31, daysLeft: 0, canSeeAmounts: true,
-          doneCount: 0, totalCount: 0, canceledCount: 0, deductedCount: 0, doneAmount: 0, carryAmount: 0, items: [] }
+          doneCount: 0, totalCount: 0, canceledCount: 0, deductedCount: 0, doneAmount: 0, carryAmount: 0, carriedInCount: 0, carriedInAmount: 0, items: [] }
       : accounting;
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   }) as never;

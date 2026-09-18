@@ -10,7 +10,7 @@ import { TuitionTable } from './TuitionTable';
 
 const base: Tuition = {
   month: '2026-08', today: '2026-08-21', daysPast: 21, daysLeft: 10,
-  doneCount: 196, totalCount: 288, canceledCount: 5, deductedCount: 0,
+  doneCount: 196, totalCount: 288, canceledCount: 5, deductedCount: 0, carriedInCount: 0, carriedInAmount: 0,
   doneAmount: 29_911_667, carryAmount: 870_000,
   canSeeAmounts: true,
   items: [
@@ -18,7 +18,7 @@ const base: Tuition = {
       studentId: 1, name: '이하린', grade: 'G9',
       done: 8, total: 11, percent: 73, canceled: 2, deducted: 0,
       unitPrice: 140_000, unitPriceOverride: true, priceCount: 1,
-      carryable: false, carriedAt: null, carriedIn: 0,
+      carryable: false, carriedAt: null, carriedIn: 0, carriedInSessions: 0,
       doneAmount: 1_365_000, carryAmount: 420_000,
       lines: [
         { subKey: 'sat-read', label: 'SAT Reading', count: 8, unitPrice: 140_000, amount: 1_120_000 },
@@ -28,7 +28,7 @@ const base: Tuition = {
       studentId: 2, name: '김태린', grade: 'G5',
       done: 13, total: 20, percent: 65, canceled: 0, deducted: 0,
       unitPrice: 120_000, unitPriceOverride: false, priceCount: 1,
-      carryable: false, carriedAt: null, carriedIn: 0,
+      carryable: false, carriedAt: null, carriedIn: 0, carriedInSessions: 0,
       doneAmount: 2_220_000, carryAmount: 0,
       lines: [],
     },
@@ -191,9 +191,30 @@ it('이미 넘긴 달은 단추 대신 **넘긴 날**을 적는다 — 한 달�
   expect(v.queryByRole('button', { name: '이월 처리' })).toBeNull();
 });
 
-it('지난달에서 **넘어온 돈**은 그 줄에 적는다 — 이 달이 받은 것이다', () => {
+it('지난달에서 **넘어온 회차와 돈**은 그 줄과 머리에 적는다 — 이 달이 받은 것이고 청구에서 빠진다 (C-35)', () => {
   const d = clone();
   d.items[1].carriedIn = 70_000;
+  d.items[1].carriedInSessions = 2;
+  d.carriedInCount = 2;
+  d.carriedInAmount = 70_000;
   const v = render(<TuitionTable data={d} />);
-  expect(v.getByText('이월 받음 70,000원')).toBeTruthy();
+  expect(v.getByText('이월 2회 · 70,000원 받음')).toBeTruthy();
+  expect(v.getByText('이월 2회 받음 · 70,000원 — 8월 청구에서 빠집니다')).toBeTruthy();
+});
+
+it('넘어온 회차가 있는데 금액을 못 보면 회차만 적는다 — 금액은 서버가 안 준 것이다 (D-R39)', () => {
+  const d = clone();
+  d.canSeeAmounts = false;
+  d.items[1].carriedIn = null;
+  d.items[1].carriedInSessions = 3;
+  d.carriedInCount = 3;
+  d.carriedInAmount = null;
+  const v = render(<TuitionTable data={d} />);
+  expect(v.getByText('이월 3회 받음')).toBeTruthy();
+  expect(v.getByText('이월 3회 받음 — 8월 청구에서 빠집니다')).toBeTruthy();
+});
+
+it('넘어온 것이 없으면 이월 줄이 서지 않는다', () => {
+  const v = render(<TuitionTable data={clone()} />);
+  expect(v.queryByText(/청구에서 빠집니다/)).toBeNull();
 });

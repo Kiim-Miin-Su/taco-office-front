@@ -2459,6 +2459,14 @@ export interface components {
             cancelTreat?: "carry" | "deduct" | "makeup" | null;
             /** @description 처리 이름 — 「이월」 「차감」 「보강 이관」 */
             cancelTreatLabel?: string | null;
+            /** @description 보강 이관이면 보강 회차의 SER id */
+            makeupSerId?: number | null;
+            /** @description 보강 회차의 날짜 YYYY-MM-DD */
+            makeupDate?: string | null;
+            /** @description 보강 회차의 시작 (KST 분) */
+            makeupStartMin?: number | null;
+            /** @description 이 회차가 보강이면 원래 회차의 날짜 YYYY-MM-DD */
+            makeupOfDate?: string | null;
             /** @description 이 회차에 예외가 붙었는가 */
             hasException: boolean;
             /** @description 편집할 때 범위를 물어야 하는가 — rrule≠ONCE 이고 남은 회차≥2 (CALENDAR §5A.0). 판정은 서버 한 곳이다 */
@@ -2754,6 +2762,21 @@ export interface components {
              */
             date?: string | null;
         };
+        MakeupDto: {
+            /**
+             * Format: date
+             * @description 보강 날짜 (실제 달력 날짜)
+             */
+            date: string;
+            /** @description KST 0~1439 분 */
+            startMin: number;
+            /** @description KST 분 · 시작보다 뒤 · 24:00 = 1440 */
+            endMin: number;
+            /** @description 비우면 원래 회차의 강사 · null 이면 미지정 */
+            teacherId?: number | null;
+            /** @description 비우면 원래 회차의 강의실 · null 이면 미지정 */
+            roomId?: number | null;
+        };
         OccurrenceDeleteDto: {
             /** @enum {string} */
             scope: "this" | "future" | "all";
@@ -2771,6 +2794,8 @@ export interface components {
             cancelTreat?: "carry" | "deduct" | "makeup";
             /** @description 메모 — 「아침에 발열로 연락」 (500자) */
             memo?: string;
+            /** @description 처리가 makeup 이면 필수 — 보강 회차의 날짜·시각 (C-34) */
+            makeup?: components["schemas"]["MakeupDto"];
         };
         RosterPatchDto: {
             /** @enum {string} */
@@ -3240,6 +3265,8 @@ export interface components {
             carriedAt?: string | null;
             /** @description 지난달에서 **넘어온** 돈 — 이 달이 받은 것이다 */
             carriedIn?: number | null;
+            /** @description 지난달에서 넘어온 **회차 수** — 「이월 4회 · 9월 청구에서 빠집니다」의 4 (C92-b · C-35). 금액 권한과 무관하게 센다 */
+            carriedInSessions: number;
             /** @description 내역 — 청구서가 쓸 바로 그 줄이다 */
             lines: components["schemas"]["InvoiceLineDto"][];
         };
@@ -3264,6 +3291,10 @@ export interface components {
             doneAmount?: number | null;
             /** @description 다음 달로 넘길 돈 */
             carryAmount?: number | null;
+            /** @description 지난달에서 넘어온 회차 수의 합 */
+            carriedInCount: number;
+            /** @description 넘어온 돈의 합 — 이 달 청구서에서 빠진다 */
+            carriedInAmount?: number | null;
             items: components["schemas"]["TuitionRowDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
