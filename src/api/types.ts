@@ -172,6 +172,10 @@ export type MonthReopenWrite = S['MonthReopenWriteDto'];
 export type InvoiceBatch = S['InvoiceBatchDto'];
 export type InvoiceBatchResult = S['InvoiceBatchResultDto'];
 export type InvoiceVoid = S['InvoiceVoidDto'];
+/** §57 강사료 시트 · 지급 확정 (C94-b · H-82/O-148/D-43) — 세는 곳은 서버 `lib/payout-sheet` 하나 */
+export type PayoutSheet = S['PayoutSheetDto'];
+export type PayoutSheetRow = S['PayoutSheetRowDto'];
+export type PayoutConfirm = S['PayoutConfirmDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

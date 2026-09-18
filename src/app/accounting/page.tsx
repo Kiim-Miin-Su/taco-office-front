@@ -18,7 +18,7 @@ import { queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
-import { useAccounting, useCarryTuition, useInvBoard, useMonthClose, useOtherIncome, useTuition } from '@/api/queries';
+import { useAccounting, useCarryTuition, useInvBoard, useMonthClose, useOtherIncome, usePayoutSheet, useTuition } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
@@ -27,8 +27,10 @@ import { InvoiceActions } from '@/components/accounting/InvoiceActions';
 import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { OtherIncome } from '@/components/accounting/OtherIncome';
 import { InvoiceBoard } from '@/components/accounting/InvoiceBoard';
+import { PayoutSheet } from '@/components/accounting/PayoutSheet';
 import { useSession } from '@/store/useSession';
-import type { Invoice, Payment, Payout } from '@/api/types';
+import type { Invoice, Payment } from '@/api/types';
+import { todayKst } from '@/lib/calendar';
 import { won, wonTone } from '@/lib/money';
 
 /**
@@ -63,6 +65,13 @@ const STATE_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'd
 const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'pay', 'out', 'payout'] as const;
 type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
+/** 지난달 'YYYY-MM' — §57 시트가 처음 여는 달. 확정할 수 있는 달은 끝난 달이라 지난달부터 보인다 (C94-b) */
+function prevMonth(today = todayKst()): string {
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
 export default function AccountingPage() {
   /*
    * 처음 열리는 탭은 **청구서**다. 트래킹 보드가 탭 줄의 첫 자리인 것은 컷의 순서이고,
@@ -87,6 +96,10 @@ export default function AccountingPage() {
   const otherIncome = useOtherIncome(incomeSpan, tab === 'other');
   // §52 도 다른 질의다 — 그 탭을 열 때만 부른다 (C69)
   const invBoard = useInvBoard(tab === 'board');
+  // §57 강사료 시트도 다른 질의다 — 그 탭을 열 때만 부른다. 달은 화면이 고르고 서버가 센다 (C94-b)
+  const [payoutMonth, setPayoutMonth] = useState(prevMonth);
+  const payoutMonthOk = /^\d{4}-(0[1-9]|1[0-2])$/.test(payoutMonth);
+  const payoutSheet = usePayoutSheet(payoutMonth, tab === 'payout' && payoutMonthOk);
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
 
@@ -153,37 +166,6 @@ export default function AccountingPage() {
     { key: 'i', head: '청구서', width: 100, cell: (r) => (r.invId ? `INV-${r.invId}` : '—') },
   ];
 
-  const poCols: Array<Column<Payout>> = [
-    { key: 'n', head: '강사', width: 110, cell: (r) => <span className="font-bold">{r.staffName}</span> },
-    { key: 'ym', head: '월', width: 90, cell: (r) => r.yearMonth },
-    { key: 'h', head: '시수', width: 80, align: 'right', cell: (r) => r.hours },
-    { key: 'g', head: '지급 총액', width: 120, align: 'right', cell: (r) => <Won v={r.gross} /> },
-    {
-      key: 'c',
-      head: '지연 차감',
-      width: 110,
-      align: 'right',
-      cell: (r) =>
-        r.lateRepCut === null ? (
-          <Won v={null} />
-        ) : (
-          <span className={r.lateRepCut ? 'font-bold text-red' : 'text-fg-subtle'}>
-            {won(r.lateRepCut ? -r.lateRepCut : 0, { signed: true })}
-          </span>
-        ),
-    },
-    { key: 'n2', head: '실지급', width: 130, align: 'right', cell: (r) => <Won v={r.net} bold /> },
-    {
-      key: 's',
-      head: '상태',
-      width: 90,
-      cell: (r) => (
-        // 낱말로 다시 판정하지 않는다 — 서버가 confirmed_by 로 낸 결론을 그대로 쓴다 (N-27)
-        <Chip tone={r.confirmed ? 'success' : 'warning'}>{r.confirmed ? '확정' : '대기'}</Chip>
-      ),
-    },
-  ];
-
   return (
     <RequireAuth>
       <AppShell>
@@ -229,7 +211,7 @@ export default function AccountingPage() {
             { value: 'record', label: '입금 기록' },
             { value: 'pay', label: `들어온 돈 ${q.data?.payments.length ?? 0}` },
             { value: 'out', label: `나간 돈 ${q.data?.expenses.length ?? 0}` },
-            { value: 'payout', label: `강사료 정산 ${q.data?.payouts.length ?? 0}` },
+            { value: 'payout', label: '강사료 정산' },
           ]}
         />
 
@@ -292,7 +274,7 @@ export default function AccountingPage() {
         ) : tab === 'out' ? (
           <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} me={me} />
         ) : (
-          <Table columns={poCols} rows={q.data?.payouts ?? []} rowKey={(r) => r.id} />
+          <PayoutSheet data={payoutSheet.data} loading={payoutSheet.isLoading} month={payoutMonth} onMonthChange={setPayoutMonth} />
         )}
 
         {/*
@@ -303,7 +285,7 @@ export default function AccountingPage() {
         {tab === 'payout' ? (
           <Banner tone="info" className="mt-4">
             정산은 <b>「리포트를 썼는가」 하나</b>로 계산합니다 — 승인 여부는 보지 않습니다 (D-R7). 깎이는 것은 지각뿐이고, 기준은
-            수업이 끝난 시각부터 분 단위입니다 (D-R32).
+            수업이 끝난 시각부터 분 단위입니다 (D-R32). 「지급 확정」은 대표가 끝난 달에만 할 수 있고, 그 순간의 계산을 굳힙니다 (O-148).
           </Banner>
         ) : null}
       </AppShell>

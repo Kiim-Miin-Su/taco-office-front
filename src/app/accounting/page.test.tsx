@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Accounting, Me } from '@/api/types';
+import type { Accounting, Me, PayoutSheet, PayoutSheetRow } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -114,29 +114,45 @@ it('금액 권한이 없으면 다섯 칸은 가려지고 「손봐야 할 것�
  *
  * 전에는 `payout.state === 'confirmed'` 일 때만 「확정」이라 했다. 그 낱말에 정본이 없어
  * 시드가 넣은 확정 정산(`confirmed_by` 가 채워진 행)이 「대기」로 보이고 있었다.
+ * C94-b 부터 이 탭은 **달의 시트**(`GET /accounting/payouts?month=`)다 — 그 탭을 열 때만 부르고, 줄의 `confirmed` 하나를 읽는다.
  */
-const payout = (confirmed: boolean): Accounting['payouts'][number] => ({
-  id: 1, staffId: 6, staffName: '이다현', yearMonth: '2026-08', hours: '48.00',
-  gross: 2016000, lateRepCut: 25000, incomeTax: 59730, localTax: 5973, net: 1925297, confirmed,
+const sheetRow = (confirmed: boolean): PayoutSheetRow => ({
+  staffId: 6, staffName: '이다현', yearMonth: '2026-08',
+  writtenCount: 48, writtenMinutes: 2880, unwrittenCount: 0, unwrittenMinutes: 0, canceledCount: 0, naCount: 0, noRateCount: 0,
+  gross: 2016000, lateCut: 25000, incomeTax: 59730, localTax: 5973, net: 1925297, unwrittenAmount: 0,
+  saved: confirmed, savedDiffers: false, savedNet: confirmed ? 1925297 : null,
+  confirmed, confirmedAt: confirmed ? '2026-09-03T02:00:00.000Z' : null, confirmedBy: confirmed ? '김민선' : null, canConfirm: !confirmed,
 });
+const sheetOf = (confirmed: boolean): PayoutSheet => ({
+  month: '2026-08', today: '2026-09-18', monthEnded: true, rows: [sheetRow(confirmed)], unwrittenCount: 0, netTotal: 1925297, canSeeAmounts: true,
+});
+const EMPTY: Accounting = {
+  summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
+  invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [],
+};
 
 it.each([
-  { confirmed: true, label: '확정' },
+  { confirmed: true, label: '확정 · 김민선' },
   { confirmed: false, label: '대기' },
-])('정산 상태 칩은 확정 여부 하나만 읽는다 — %o', async ({ confirmed, label }) => {
+])('정산 상태 칩은 확정 여부 하나만 읽는다 — 시트는 그 탭을 열 때만 부른다 — %o', async ({ confirmed, label }) => {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = {
-    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-    invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [payout(confirmed)],
-  };
-  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  const sheetGet = vi.fn();
+  api.defaults.adapter = (async (config: { url?: string }) => {
+    if (config.url === '/accounting/payouts') { sheetGet(); return { config, status: 200, statusText: 'OK', headers: {}, data: sheetOf(confirmed) }; }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: EMPTY };
+  }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산 1' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '강사료 정산 1' }));
+  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산' })).toBeTruthy());
+  expect(sheetGet).not.toHaveBeenCalled();
+  fireEvent.click(view.getByRole('button', { name: '강사료 정산' }));
+  await waitFor(() => expect(view.getByText('이다현')).toBeTruthy());
+  expect(sheetGet).toHaveBeenCalledTimes(1);
   const row = within(view.getByText('이다현').closest('tr')!);
-  expect(row.getAllByRole('cell').at(-1)!.textContent).toBe(label);
+  expect(row.getByText(label)).toBeTruthy();
+  // 「지급 확정」 단추는 서버의 canConfirm 그대로 — 확정된 줄에는 없다
+  expect(row.queryByRole('button', { name: '지급 확정' }) === null).toBe(confirmed);
 });
 
 /**
@@ -146,17 +162,15 @@ it.each([
  */
 it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙지 않는다', async () => {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = {
-    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
-    invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [payout(true)],
-  };
-  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  api.defaults.adapter = (async (config: { url?: string }) => ({
+    config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/accounting/payouts' ? sheetOf(true) : EMPTY,
+  })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산 1' })).toBeTruthy());
+  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산' })).toBeTruthy());
   expect(view.queryByText(/정산은/)).toBeNull();
-  fireEvent.click(view.getByRole('button', { name: '강사료 정산 1' }));
+  fireEvent.click(view.getByRole('button', { name: '강사료 정산' }));
   expect(view.getByText(/정산은/)).toBeTruthy();
 });
 

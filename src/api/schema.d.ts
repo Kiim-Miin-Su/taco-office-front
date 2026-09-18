@@ -648,6 +648,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 강사료 시트 — 강사별 한 달 (§57 · 테스트 시나리오 H-82 · D-43)
+         * @description 세는 것은 lib/payout-sheet 한 곳(강사 히스토리와 같다). 리포트를 쓴 수업만 시수·금액에 들고, 미작성은 빠지며 얼마가 빠지는지 센다. 휴강은 시수에 잡히지 않는다. 저장된 초안이 계산과 다르면 줄에 함께 보인다.
+         */
+        get: operations["AccountingController_payoutSheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payouts/{month}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 지급 확정 — 대표 전용 (O-148). 그 순간의 시트를 payout 행으로 굳힌다
+         * @description 달이 끝나기 전에는 400 PAYOUT_MONTH_OPEN · 시급 없는 수업이 있으면 409 PAYOUT_NO_RATE · 쓴 수업 0 이면 409 PAYOUT_NOTHING · 이미 확정이면 409 PAYOUT_ALREADY_CONFIRMED. payout_line 은 쓰지 않는다(N-36 결정 전).
+         */
+        post: operations["AccountingController_confirmPayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/tuition/close": {
         parameters: {
             query?: never;
@@ -3515,6 +3555,64 @@ export interface components {
             canClose: boolean;
             /** @description 「마감 해제」 단추가 서는가 — 대표 · 마감 중 */
             canReopen: boolean;
+        };
+        PayoutSheetRowDto: {
+            staffId: number;
+            staffName: string;
+            /** @description YYYY-MM */
+            yearMonth: string;
+            /** @description 리포트 쓴 수업 수 — 이것만 시수·금액에 든다 (D-R7) */
+            writtenCount: number;
+            writtenMinutes: number;
+            /** @description 끝났는데 리포트를 안 쓴 수업 — 강사료에서 빠진다 (D-43) */
+            unwrittenCount: number;
+            unwrittenMinutes: number;
+            /** @description 휴강 — 시수에 잡히지 않는다 (H-82) */
+            canceledCount: number;
+            /** @description 리포트 대상이 아닌 종류(자습·회의 …)의 회차 — 정산에 들지 않는다 */
+            naCount: number;
+            /** @description 시급이 없어 못 센 수업 — 0 이 아니면 확정할 수 없다 */
+            noRateCount: number;
+            /** @description 지급 총액 — 금액 권한 없으면 null */
+            gross?: number | null;
+            /** @description 지각 차감 (D-R32) */
+            lateCut?: number | null;
+            incomeTax?: number | null;
+            localTax?: number | null;
+            /** @description 실지급 */
+            net?: number | null;
+            /** @description 미작성으로 빠진 돈 — 「이만큼 안 나간다」 */
+            unwrittenAmount?: number | null;
+            /** @description 저장된 정산 행이 있는가 (payout) */
+            saved: boolean;
+            /** @description 저장값이 지금 계산과 다른가 — 확정은 지금 계산을 굳힌다 */
+            savedDiffers: boolean;
+            /** @description 저장된 실지급 — 다를 때 나란히 보인다 */
+            savedNet?: number | null;
+            /** @description 확정됐는가 — confirmed_by 로 본다 (N-27) */
+            confirmed: boolean;
+            confirmedAt?: string | null;
+            confirmedBy?: string | null;
+            /** @description 「지급 확정」을 누를 수 있는가 — 대표 · 달이 끝남 · 미확정 · 시급 없는 수업 0 · 쓴 수업 1 이상 (D-R39) */
+            canConfirm: boolean;
+        };
+        PayoutSheetDto: {
+            /** @description YYYY-MM */
+            month: string;
+            today: string;
+            /** @description 달이 끝났는가 — 끝나기 전에는 확정할 수 없다 (O-148 「전월 종료」) */
+            monthEnded: boolean;
+            rows: components["schemas"]["PayoutSheetRowDto"][];
+            /** @description 전체 미작성 수업 수 — 「미작성 N건은 강사료에서 빠집니다」 */
+            unwrittenCount: number;
+            /** @description 실지급 합 — 줄의 합. 화면이 더하지 않는다 */
+            netTotal?: number | null;
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
+        };
+        PayoutConfirmDto: {
+            /** @description 어느 강사 */
+            staffId: number;
         };
         MonthCloseWriteDto: {
             /**
@@ -9029,6 +9127,162 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_payoutSheet: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM — 없으면 이번 달(KST) */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSheetDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_confirmPayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description YYYY-MM */
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutConfirmDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSheetRowDto"];
+                };
+            };
+            /** @description PAYOUT_MONTH_OPEN */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 대표 아님 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PAYOUT_ALREADY_CONFIRMED | PAYOUT_NO_RATE | PAYOUT_NOTHING */
             409: {
                 headers: {
                     [name: string]: unknown;

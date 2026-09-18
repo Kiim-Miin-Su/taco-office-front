@@ -91,6 +91,9 @@ import type {
   InvoiceBatchResult,
   InvoiceIssue,
   InvoiceVoid,
+  PayoutConfirm,
+  PayoutSheet,
+  PayoutSheetRow,
   KindCreate,
   KindPatch,
   Lead,
@@ -179,6 +182,8 @@ export const qk = {
   otherIncome: (span: string) => ['accounting', 'other-income', span] as const,
   /** §52 트래킹 보드 — 같은 갈래의 또 다른 질의다 (C69) */
   invBoard: ['accounting', 'board'] as const,
+  /** §57 강사료 시트 — 같은 갈래의 또 다른 질의다 (C94-b). 달이 키에 든다 */
+  payoutSheet: (month: string) => ['accounting', 'payouts', month] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   /** §30 계약 5단계 상세 — 건별 서버 projection. */
@@ -407,6 +412,21 @@ export function useOtherIncome(span = 'month', enabled = true): UseQueryResult<O
   });
 }
 
+/**
+ * §57 강사료 시트 (C94-b · H-82 · D-43) — 그 탭을 열 때만 부른다. 달이 키에 든다.
+ *
+ * 쓴 수업만 세고 미작성은 빠지며 얼마가 빠졌는지도 서버가 센다 — 강사 화면(§57 `/teacher/history`)과
+ * **같은 함수**(`lib/payout-sheet`)라 두 화면이 다른 수를 말할 수 없다. 화면은 받은 숫자를 그리기만 한다 (D-R37).
+ */
+export function usePayoutSheet(month: string, enabled = true): UseQueryResult<PayoutSheet> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.payoutSheet(month), viewerId),
+    queryFn: async () => (await api.get<PayoutSheet>('/accounting/payouts', { params: { month } })).data,
+    enabled,
+  });
+}
+
 /** §52 트래킹 보드 — 그 탭을 열 때만 부른다 */
 export function useInvBoard(enabled = true): UseQueryResult<InvBoard> {
   const viewerId = useViewerId();
@@ -550,6 +570,21 @@ export function useInvoiceAction(): UseMutationResult<Invoice, unknown, { kind: 
         : (await api.post<Invoice>(`/accounting/invoices/${w.id}/void`, w.body)).data
     ),
     onSettled: invalidate,
+  });
+}
+
+/**
+ * 「지급 확정」 (C94-b · O-148) — 대표 전용. 그 순간의 시트를 payout 행으로 굳힌다.
+ * 단추가 서는지는 서버의 `canConfirm` 이다 (D-R39). 확정되면 시트(달별)와 `/accounting` 의 정산 목록이 함께 바뀌므로
+ * 회계 갈래를 맨앞자락 그대로 버린다 (`queries-family` 회귀 · C48).
+ */
+export function useConfirmPayout(): UseMutationResult<PayoutSheetRow, unknown, { month: string; body: PayoutConfirm }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<PayoutSheetRow>(`/accounting/payouts/${w.month}/confirm`, w.body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+    },
   });
 }
 

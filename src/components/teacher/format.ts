@@ -32,4 +32,6 @@ export const REP: Record<string, { label: string; tone: Tone } | undefined> = {
   ok: { label: '승인 완료', tone: 'success' },
   rej: { label: '반려', tone: 'danger' },
   plan: { label: '수업 예정', tone: 'info' },
+  // 리포트 대상이 아닌 종류(자습·회의) — 못 쓰는 리포트를 「미작성」이라 부르지 않는다 (C94-b)
+  na: { label: '리포트 대상 아님', tone: 'neutral' },
 };
