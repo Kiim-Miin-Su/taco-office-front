@@ -1046,6 +1046,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「+ 신규 문의」 — 유입은 언제나 1차 상담 (C90 · 테스트 시나리오 A-01 · N-45)
+         * @description 이름 · 학교 · 유입 경로(여섯 갈래 · lead_source_words CHECK) · 담당 · 첫 접촉 한 줄. 단계는 받지 않는다. 도달 기록(first)과 첫 접촉(적었으면)과 LOG 가 같은 트랜잭션.
+         */
+        post: operations["OpsController_createLead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 단계 이동 — 전이표의 다음 단계로만 · 같은 트랜잭션에 도달 기록 (C90 · N-45 · A-02)
+         * @description 받아 주는 값은 LeadDto.nextStages 다. 등록·등록 실패는 끝난 결과라 409 LEAD_LOCKED(등록은 enroll · 실패는 fail/resume). 전이표 밖은 409 LEAD_STAGE_INVALID(문장에 갈 수 있는 곳).
+         */
+        patch: operations["OpsController_moveLeadStage"];
+        trace?: never;
+    };
+    "/ops/leads/{id}/touches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 접촉 기록 한 줄 — 누가 · 언제 · 어떻게 · 한 줄 · 다음은 언제 (C90 · N-44 · A-03)
+         * @description append-only. 상담 예약(book)의 nextOn 이 상담 날짜다 — 「상담 오늘·지남」 · 「사후 관리 임박·밀림」 은 마지막 접촉의 nextOn 으로 서버가 센다.
+         */
+        post: operations["OpsController_addLeadTouch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/leads/{id}/fail": {
         parameters: {
             query?: never;
@@ -4336,6 +4396,23 @@ export interface components {
             /** @description 누구의 지출인가 — 비우면 올리는 사람. 대표가 직원 대신 올릴 때만 쓴다 (본인 신청은 본인이 심사할 수 없다 · A-5) */
             requesterId?: number;
         };
+        IntakeWordDto: {
+            key: string;
+            label: string;
+        };
+        LeadTouchDto: {
+            id: number;
+            /** @description call | kakao | sms | visit | book | noshow | memo */
+            kind: string;
+            kindLabel: string;
+            note: string;
+            /** @description 다음 접촉·상담 예정일 YYYY-MM-DD — book 이면 상담 날짜 */
+            nextOn?: string | null;
+            byId?: number | null;
+            byName?: string | null;
+            /** @description KST 시각 */
+            at: string;
+        };
         LeadDto: {
             id: number;
             /** @description FQ 클라이언트 검색 대상. 원문을 보존한다. */
@@ -4361,6 +4438,22 @@ export interface components {
             revivalStage?: string | null;
             /** @description 판정 근거 — 'explicit'(명시값) | 'log'(도달 기록) | null(미분류) */
             revivalSource?: string | null;
+            /** @description kakao | phone | blog | instagram | referral | walkin — 옛 건은 null (N-25 보정 0) */
+            source?: string | null;
+            /** @description 유입 경로 낱말 — null 이면 「경로 없음」 칩이 아니라 카드에 아무것도 안 붙는다 */
+            sourceLabel?: string | null;
+            /** @description 지금 단계에서 옮길 수 있는 다음 단계 — 비면 끝난 결과(등록·등록 실패)라 옮기지 못한다 (N-45 전이표) */
+            nextStages: components["schemas"]["IntakeWordDto"][];
+            /** @description 접촉 원장 — 최근 것이 앞 (append-only · N-44) */
+            touches: components["schemas"]["LeadTouchDto"][];
+            /** @description 마지막 접촉 시각 (KST) — 접촉이 없으면 null */
+            lastTouchAt?: string | null;
+            /** @description 마지막 접촉의 「다음은 언제」 — 없으면 null */
+            nextOn?: string | null;
+            /** @description 카드 칩 한 줄 — 「상담 오늘」 · 「상담 2일 지남」 · 「사후 관리 D-1」 · 「사후 관리 3일 밀림」. 서버가 만든다 (D-R18) */
+            nextLabel?: string | null;
+            /** @description 칩 색 — 'danger'(지남·밀림) | 'warning'(오늘) | 'info'(임박) | null */
+            nextTone?: string | null;
         };
         ComplaintDto: {
             id: number;
@@ -4576,7 +4669,7 @@ export interface components {
             count: number;
         };
         IntakeAlertDto: {
-            /** @description unpaid | noSchedule | noInvoice */
+            /** @description unpaid | noSchedule | noInvoice | consultDue | followUpLate */
             key: string;
             /** @description 사람이 읽는 한 줄 — 화면이 문장을 만들지 않는다 */
             label: string;
@@ -4591,6 +4684,13 @@ export interface components {
             key: string;
             label: string;
         };
+        IntakeSourceDto: {
+            /** @description kakao | phone | blog | instagram | referral | walkin | none */
+            key: string;
+            label: string;
+            /** @description 그 경로로 온 건수 — 서버가 센다 (D-R37) */
+            count: number;
+        };
         IntakeHeadDto: {
             funnel: components["schemas"]["IntakeFunnelStepDto"][];
             /** @description 등록률 % — 등록 / 전체, 정수 반올림. 전체 0 이면 0 */
@@ -4600,6 +4700,14 @@ export interface components {
             alerts: components["schemas"]["IntakeAlertDto"][];
             /** @description §24 중단 지점 넷 — 낱말과 순서 (D-R18 · D-R25) */
             stops: components["schemas"]["IntakeStopDto"][];
+            /** @description 유입 경로 칩 줄 — 여섯 + 「경로 없음」(옛 건이 있을 때만) · 「전체」는 화면이 붙인다 (N-44 · C90) */
+            sources: components["schemas"]["IntakeSourceDto"][];
+            /** @description 접촉 「어떻게」 일곱 — 「+ 기록」 폼의 낱말 (D-R18) */
+            touchKinds: components["schemas"]["IntakeWordDto"][];
+            /** @description 「사후 관리 임박」 타일 — 다음 예정일이 오늘~D+2 인 건 (끝난 결과·지난 것은 빼고 센다) */
+            followUpSoon: number;
+            /** @description 도달 기록이 시작된 날 — §71 퍼널이 「언제부터의 값」인지 화면이 말한다 (N-45 · N-25). 기록이 없으면 null */
+            funnelSince?: string | null;
         };
         OpsDto: {
             leads: components["schemas"]["LeadDto"][];
@@ -4631,6 +4739,38 @@ export interface components {
             canSeeAmounts: boolean;
             /** @description §23 상담 머리 — 퍼널 · 담당 · 경고. 화면은 세지 않는다 (D-R37) */
             intakeHead: components["schemas"]["IntakeHeadDto"];
+        };
+        LeadCreateDto: {
+            /** @description 학생 이름 */
+            name: string;
+            school?: string | null;
+            /**
+             * @description 유입 경로 — 컷 §23 여섯 갈래. 낱말은 GET /ops.intakeHead.sources
+             * @enum {string}
+             */
+            source: "kakao" | "phone" | "blog" | "instagram" | "referral" | "walkin";
+            /** @description 담당 — 비우면 미배정 */
+            ownerId?: number | null;
+            /** @description 첫 접촉 한 줄 — 원하는 것 · 학부모 · 연락처 · 「소개」면 누구 소개인지. 적으면 접촉 원장의 첫 줄이 된다(어떻게 = 유입 경로에서) */
+            note?: string | null;
+        };
+        LeadStageMoveDto: {
+            /**
+             * @description 옮길 단계 — 깔때기 안 넷. 전이표 밖이면 409 LEAD_STAGE_INVALID · 끝난 건이면 409 LEAD_LOCKED
+             * @enum {string}
+             */
+            to: "first" | "wait2nd" | "second" | "hold";
+        };
+        LeadTouchWriteDto: {
+            /**
+             * @description 어떻게 — 낱말은 GET /ops.intakeHead.touchKinds
+             * @enum {string}
+             */
+            kind: "call" | "kakao" | "sms" | "visit" | "book" | "noshow" | "memo";
+            /** @description 한 줄 */
+            note: string;
+            /** @description 다음은 언제 YYYY-MM-DD — 상담 예약이면 상담 날짜 */
+            nextOn?: string | null;
         };
         LeadFailDto: {
             /**
@@ -6589,6 +6729,14 @@ export interface components {
             label: string;
             count: number;
         };
+        ExecFunnelRowDto: {
+            /** @description inflow | first | wait2nd | second | enrolled */
+            key: string;
+            label: string;
+            count: number;
+            /** @description 유입 대비 % — 정수 반올림 · 유입 0 이면 0 */
+            pct: number;
+        };
         ExecMonthlyDto: {
             /** @description 이 달에 들어온 문의 수 — 「등록 실패 N건」의 모집단 */
             leads: number;
@@ -6596,6 +6744,10 @@ export interface components {
             lost: number;
             /** @description 중단 지점별 — 0 인 갈래는 서지 않는다 */
             lostRows: components["schemas"]["ExecLostRowDto"][];
+            /** @description 상담 퍼널 — 유입 · 1차 상담 · 2차 대기 · 2차 상담 · 등록 (도달 기록 기준 · C90) */
+            funnel: components["schemas"]["ExecFunnelRowDto"][];
+            /** @description 도달 기록이 시작된 날 — 그 전 건은 지금 단계로만 센다 (N-45 · N-25 보정 0). 기록이 없으면 null */
+            funnelSince?: string | null;
         };
         ExecDto: {
             from: string;
@@ -11664,6 +11816,229 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_createLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code LEAD_NAME_REQUIRED | LEAD_SOURCE_INVALID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_moveLeadStage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadStageMoveDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code LEAD_LOCKED | LEAD_STAGE_INVALID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_addLeadTouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadTouchWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code LEAD_TOUCH_NOTE_REQUIRED | LEAD_TOUCH_KIND_INVALID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

@@ -23,6 +23,7 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 const lead: Lead = {
   id: 1, name: '장서우', school: '언주중', ownerName: 'Grace', reason: '연락 두절',
   stage: 'failed', stopAt: 'after_first', ageDays: 0, createdAt: '2026-09-10', studentId: null, ownerId: null,
+  nextStages: [], touches: [],
 };
 const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', reason: '타 학원 등록' },
   { ...lead, id: 3, name: '윤도현', school: null, ownerName: null, reason: null, stopAt: null },

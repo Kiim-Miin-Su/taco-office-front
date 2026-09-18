@@ -11,6 +11,7 @@ import { filterLeadsByQuery } from './intake-search';
 const lead: Lead = {
   id: 1, name: '장서우', school: '언주중', ownerName: 'Grace', reason: '연락 두절 (2회)',
   stage: 'failed', stopAt: null, ageDays: 0, createdAt: '2026-09-10', studentId: null, ownerId: null,
+  nextStages: [], touches: [],
 };
 
 describe('§24 FQ — 생성 Lead 계약을 소비하는 순수 selector', () => {

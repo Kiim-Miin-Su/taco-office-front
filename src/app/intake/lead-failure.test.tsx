@@ -23,6 +23,7 @@ const base: Lead = {
   id: 1, name: '명시값학생', school: '언주중', ownerName: 'Grace', reason: '연락 두절',
   stage: 'failed', stopAt: 'after_first', ageDays: 0, createdAt: '2026-09-10', studentId: null, ownerId: null,
   failFrom: 'second', revivalStage: 'second', revivalSource: 'explicit',
+  nextStages: [], touches: [],
 };
 const leads: Lead[] = [
   base,

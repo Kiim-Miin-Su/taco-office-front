@@ -124,6 +124,13 @@ export type IntakeStop = S['IntakeStopDto'];
 /** §24 실패 전이/되살리기 입력 — 판정 코드(ALREADY_FAILED 등)는 서버가 낸다 (N-25 · C35) */
 export type LeadFail = S['LeadFailDto'];
 export type LeadResume = S['LeadResumeDto'];
+/** C90 — 「+ 신규 문의」 · 단계 이동 · 접촉 원장 (N-45 · N-44). 낱말·전이표·칩 판정은 전부 서버 */
+export type LeadCreate = S['LeadCreateDto'];
+export type LeadStageMove = S['LeadStageMoveDto'];
+export type LeadTouchWrite = S['LeadTouchWriteDto'];
+export type LeadTouch = S['LeadTouchDto'];
+export type IntakeWord = S['IntakeWordDto'];
+export type IntakeSource = S['IntakeSourceDto'];
 export type Complaint = S['ComplaintDto'];
 export type Todo = S['TodoDto'];
 export type Plan = S['PlanDto'];
@@ -342,6 +349,7 @@ export type ExecInbox = S['ExecInboxDto'];
 /** §71 월간 전용 — 기간이 달력 한 달 전체일 때만 내려온다 (C86-b) */
 export type ExecMonthly = S['ExecMonthlyDto'];
 export type ExecLostRow = S['ExecLostRowDto'];
+export type ExecFunnelRow = S['ExecFunnelRowDto'];
 
 /** 리포트 상태 — 캘린더 블록 색이 이 값에서 나온다 */
 export type RepState = Occurrence['repState'];

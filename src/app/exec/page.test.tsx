@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -204,6 +204,7 @@ it('월간 판은 서버가 준 줄만 세우고 머리의 수와 줄들의 합�
     monthly: {
       leads: 15,
       lost: 6,
+      funnel: [], funnelSince: null,
       lostRows: [
         { key: 'before_book', label: '상담 예약 전 이탈', count: 1 },
         { key: 'after_first', label: '1차 후 미진행', count: 2 },
@@ -228,7 +229,37 @@ it('서버가 월간 판을 안 주면 화면은 기간으로 다시 판정하�
 });
 
 it('놓친 건이 없으면 판은 서되 줄 대신 한 줄로 말한다 — 빈 표는 「빠뜨렸나」로 읽힌다', async () => {
-  const view = setupWrite({ monthly: { leads: 4, lost: 0, lostRows: [] } });
+  const view = setupWrite({ monthly: { leads: 4, lost: 0, lostRows: [], funnel: [], funnelSince: null } });
   await waitFor(() => expect(view.container.textContent).toContain('어디서 놓쳤나'));
   expect(view.container.textContent).toContain('이번 달 들어온 문의 중 놓친 건이 없습니다');
+});
+
+/**
+ * §71 「상담 퍼널 — 유입에서 등록까지」 (C90 · N-45 · K-108) — 도달 기록으로 센 수와 비율을 서버가 주고 화면은 그대로 그린다.
+ * 옛 건은 기록이 없으므로 「언제부터의 값」인지 부제가 말한다 (N-25 보정 0).
+ */
+it('월간 퍼널은 서버 줄·비율 그대로이고 부제가 도달 기록 시작일을 말한다 (§71 · N-45)', async () => {
+  const view = setupWrite({
+    monthly: {
+      leads: 15, lost: 0, lostRows: [], funnelSince: '2026-09-18',
+      funnel: [
+        { key: 'inflow', label: '유입', count: 15, pct: 100 },
+        { key: 'first', label: '1차 상담', count: 15, pct: 100 },
+        { key: 'wait2nd', label: '2차 대기', count: 9, pct: 60 },
+        { key: 'second', label: '2차 상담', count: 8, pct: 53 },
+        { key: 'enrolled', label: '등록', count: 2, pct: 13 },
+      ],
+    },
+  });
+  await waitFor(() => expect(view.container.textContent).toContain('상담 퍼널 — 유입에서 등록까지'));
+  const list = view.getByRole('list', { name: '상담 퍼널' });
+  expect(within(list).getAllByRole('listitem').map((li) => li.textContent))
+    .toEqual(['유입15100%', '1차 상담15100%', '2차 대기960%', '2차 상담853%', '등록213%']);
+  expect(view.container.textContent).toContain('도달 기록은 2026-09-18 부터 — 그 전 건은 지금 단계로만 셉니다');
+});
+
+it('도달 기록이 아직 없으면 퍼널 부제가 그 사실을 말한다 — 화면이 「언제부터」를 지어내지 않는다', async () => {
+  const view = setupWrite({ monthly: { leads: 4, lost: 0, lostRows: [], funnel: [{ key: 'inflow', label: '유입', count: 4, pct: 100 }], funnelSince: null } });
+  await waitFor(() => expect(view.container.textContent).toContain('상담 퍼널 — 유입에서 등록까지'));
+  expect(view.container.textContent).toContain('도달 기록이 아직 없습니다 — 지금 단계로만 셉니다');
 });

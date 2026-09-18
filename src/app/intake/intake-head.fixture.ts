@@ -33,4 +33,19 @@ export const INTAKE_HEAD_FIXTURE: IntakeHead = {
     { key: 'after_first', label: '1차 후 미진행' },
     { key: 'after_second', label: '2차 후 미등록' },
   ],
+  // C90 · N-44 — 유입 경로 여섯(어휘 · 0 이어도 선다) · 접촉 「어떻게」 일곱 · 임박 0 · 도달 기록 시작일
+  sources: [
+    { key: 'kakao', label: '카카오채널', count: 0 },
+    { key: 'phone', label: '전화', count: 0 },
+    { key: 'blog', label: '블로그', count: 0 },
+    { key: 'instagram', label: '인스타그램', count: 0 },
+    { key: 'referral', label: '소개', count: 0 },
+    { key: 'walkin', label: '워크인', count: 0 },
+  ],
+  touchKinds: [
+    { key: 'call', label: '전화' }, { key: 'kakao', label: '카카오톡' }, { key: 'sms', label: '문자' }, { key: 'visit', label: '방문' },
+    { key: 'book', label: '상담 예약' }, { key: 'noshow', label: '예약 불참' }, { key: 'memo', label: '메모' },
+  ],
+  followUpSoon: 0,
+  funnelSince: null,
 };

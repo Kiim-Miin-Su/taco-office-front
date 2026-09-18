@@ -102,8 +102,11 @@ import type {
   KindCreate,
   KindPatch,
   Lead,
+  LeadCreate,
   LeadFail,
   LeadResume,
+  LeadStageMove,
+  LeadTouchWrite,
   LessonTracking,
   MeetingDetail,
   Meta,
@@ -1762,6 +1765,33 @@ function useOpsInvalidate() {
   const viewerId = useViewerId();
   // opsQueryKey 는 canMoney 세그먼트가 붙는다 — 접두 무효화로 두 권한 캐시를 함께 재조회한다.
   return () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.ops, viewerId) });
+}
+
+/** 「+ 신규 문의」 (C90 · A-01 · N-45) — 유입은 언제나 1차 상담. 단계는 보내지 않는다 */
+export function useCreateLead(): UseMutationResult<Lead, unknown, LeadCreate> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<Lead>('/ops/leads', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 단계 이동 (C90 · N-45) — 받아 주는 값은 카드의 `nextStages` 뿐 (409: LEAD_LOCKED · LEAD_STAGE_INVALID 는 서버 문장) */
+export function useMoveLeadStage(): UseMutationResult<Lead, unknown, { id: number } & LeadStageMove> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<Lead>(`/ops/leads/${id}/stage`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 접촉 기록 한 줄 (C90 · N-44 · A-03) — append-only. 「상담 오늘·지남」·「사후 관리 임박·밀림」은 서버가 다시 센다 */
+export function useAddLeadTouch(): UseMutationResult<Lead, unknown, { id: number } & LeadTouchWrite> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<Lead>(`/ops/leads/${id}/touches`, body)).data,
+    onSettled: invalidate,
+  });
 }
 
 /** 실패 확정 — 서버가 그 순간의 단계를 fail_from 으로 명시 기록 (409: ALREADY_FAILED·ENROLLED_LOCKED) */

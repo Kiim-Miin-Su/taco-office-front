@@ -6,9 +6,11 @@
 
 /**
  * §23 상담 단계 보드 · §24 등록 실패 — 중단 지점 분류 + 실패 지정/되살리기 input (N-25 · C35).
+ * C90 (N-45 · N-44): 「+ 신규 문의」 · 카드의 「다음 단계 →」 · 유입 경로 칩 줄 · 접촉 원장(「+ 기록」) · 「사후 관리 임박」 타일 · 경고 둘.
  *
  * 「그냥 실패」로 묶으면 고칠 곳을 못 찾는다. 어디서 멈췄는지를 세어 둔다.
  * 실패 전이 순간의 이전 단계는 서버가 fail_from 으로 명시 기록한다 — 화면은 추정하지 않는다.
+ * 유입 경로·다음 단계·「상담 오늘」 칩도 전부 서버가 준 것을 그린다 — 화면은 날짜를 빼지도 전이표를 들지도 않는다 (D-R18 · D-R37).
  */
 'use client';
 import { useMemo, useRef, useState } from 'react';
@@ -23,6 +25,9 @@ import { SearchField, type SearchFieldHandle } from '@/components/ui/SearchField
 import { SearchEmpty } from '@/components/ui/SearchEmpty';
 import { FAILURE_SEARCH_LABEL, filterLeadsByQuery } from '@/lib/intake-search';
 import { LeadEnrollDialog } from '@/components/ops/LeadEnrollDialog';
+import { LeadCreateButton } from '@/components/intake/LeadCreateDialog';
+import { LeadStageMove } from '@/components/intake/LeadStageMove';
+import { LeadTouchLog } from '@/components/intake/LeadTouchLog';
 
 /**
  * 칸의 **색만** 화면이 정한다 — 이름도 순서도 서버의 `intakeHead.funnel` 이 쥔다 (D-R18 · D-R25).
@@ -56,10 +61,16 @@ export default function IntakePage() {
   const all = useMemo(() => q.data?.leads ?? [], [q.data]);
   /** 담당 칩 — 0 은 「담당 없음」, null 은 「전체」. 좁히는 일이라 서버에 다시 묻지 않는다 */
   const [owner, setOwner] = useState<number | null>(null);
+  /** 유입 경로 칩 (N-44) — 'none' 은 옛 건(경로 NULL), null 은 「전체」. 담당 칩과 같은 모양이고 둘은 겹친다 */
+  const [source, setSource] = useState<string | null>(null);
   const leads = useMemo(
-    () => (owner === null ? all : all.filter((l) => (l.ownerId ?? 0) === owner)),
-    [all, owner],
+    () => all
+      .filter((l) => owner === null || (l.ownerId ?? 0) === owner)
+      .filter((l) => source === null || (l.source ?? 'none') === source),
+    [all, owner, source],
   );
+  /** 「+ 신규 문의」·단계 이동·접촉 기록 뒤 한 줄 — 카드가 옮겨 간 뒤에도 무엇이 됐는지 남긴다 */
+  const [notice, setNotice] = useState<string | null>(null);
 
   // §24 실패 지정/되살리기 초안 — 서버 판정(코드) 결과만 소비하고, 성공하면 재조회로 갈아탄다.
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -76,7 +87,7 @@ export default function IntakePage() {
 
   const pick = (l: Lead) => {
     setSelectedId((cur) => (cur === l.id ? null : l.id));
-    setStopAt(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null);
+    setStopAt(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null);
     fail.reset(); resume.reset();
   };
 
@@ -120,7 +131,16 @@ export default function IntakePage() {
 
   return (
     <RequireAuth><AppShell>
-      <PageHeader title="상담" sub="유입 즉시 1차 카드 생성 → 2차(진단고사) → 보류 · 등록 · 등록 실패" />
+      <PageHeader
+        title="상담"
+        sub="유입 즉시 1차 카드 생성 → 2차(진단고사) → 보류 · 등록 · 등록 실패"
+        right={head ? (
+          <LeadCreateButton
+            sources={head.sources}
+            onDone={(row) => { setSelectedId(row.id); setNotice(`${row.name} 신규 문의 접수 — ${row.sourceLabel ?? '경로 없음'} · 1차 상담 칸`); }}
+          />
+        ) : null}
+      />
 
       {/*
         원본 §23 의 퍼널 띠 — 「1차 상담 › 2차 대기 › 2차 상담 › 보류 ⇒ 등록 | 등록 실패」.
@@ -145,6 +165,11 @@ export default function IntakePage() {
           <b className="text-[15px] text-fg">{head?.enrollRate ?? 0}%</b>
           <span className="text-[12px] text-fg-subtle">등록률</span>
         </span>
+        {/* 「사후 관리 임박」 타일 (N-44) — 다음 예정일이 오늘~D+2 인 건. 수는 서버가 센다 */}
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-inset px-3 py-1.5" title="다음 접촉·상담 예정일이 오늘부터 이틀 안인 건">
+          <b className="text-[15px] text-fg">{head?.followUpSoon ?? 0}</b>
+          <span className="text-[12px] text-fg-subtle">사후 관리 임박</span>
+        </span>
       </div>
 
       {/* 담당 칩 — 「전체」만 화면이 붙인다. 사람과 수는 서버가 센다 */}
@@ -160,17 +185,33 @@ export default function IntakePage() {
         ))}
       </div>
 
-      {/* 경고 줄 — 누르면 그 화면으로 간다 (D-R27). 문장도 서버가 만든다 (D-R18 · D-R39) */}
+      {/* 유입 경로 칩 (N-44) — 담당 칩과 같은 모양. 여섯은 0 이어도 서고 「경로 없음」은 옛 건이 있을 때만 서버가 붙인다 */}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[12px] text-fg-subtle">유입 경로</span>
+        <Chip tone={source === null ? 'info' : 'neutral'}>
+          <button type="button" onClick={() => setSource(null)}>전체</button>
+        </Chip>
+        {(head?.sources ?? []).map((s) => (
+          <Chip key={s.key} tone={source === s.key ? 'info' : 'neutral'}>
+            <button type="button" onClick={() => setSource(s.key)}>{s.label} {s.count}</button>
+          </Chip>
+        ))}
+      </div>
+
+      {/* 경고 줄 — 누르면 그 화면으로 간다 (D-R27). 문장도 서버가 만든다 (D-R18 · D-R39). 이 화면이 답인 경고는 이동 대신 카드를 본다 */}
       {(head?.alerts ?? []).some((a) => a.count > 0) ? (
         <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5">
           {(head?.alerts ?? []).filter((a) => a.count > 0).map((a) => (
-            <button key={a.key} type="button" onClick={() => router.push(a.go)}
+            <button key={a.key} type="button" onClick={() => { if (a.go !== '/intake') router.push(a.go); }}
               className="rounded-lg border border-red/35 bg-red/5 px-2.5 py-1 text-[12px] font-bold text-red transition-colors hover:border-red/60">
               {a.label}
             </button>
           ))}
         </div>
       ) : null}
+
+      {/* 신규 문의 · 단계 이동 · 접촉 기록 뒤 한 줄 — 카드가 다른 칸으로 옮겨 가도 무엇이 됐는지 남는다 */}
+      {notice ? <Banner tone="success" className="mb-3">{notice}</Banner> : null}
 
       <Tabs className="mb-3" value={tab} onChange={setTab}
         options={[{ value: 'board', label: '단계 보드' }, { value: 'stop', label: `중단 지점 ${failed.length}` }]} />
@@ -203,10 +244,12 @@ export default function IntakePage() {
                   <span className="text-[12px] font-bold text-fg">{l.name}</span>
                   <span className="text-[10px] text-fg-subtle">{l.ageDays}일</span>
                 </div>
-                <div className="mt-0.5 text-[10.5px] text-fg-subtle">{l.school ?? '—'}</div>
-                <div className="mt-1.5 flex items-center justify-between">
+                <div className="mt-0.5 text-[10.5px] text-fg-subtle">{l.school ?? '—'}{l.sourceLabel ? ` · ${l.sourceLabel}` : ''}</div>
+                <div className="mt-1.5 flex items-center justify-between gap-1">
                   <span className="text-[10px] text-fg-subtle">{l.ownerName ?? '미배정'}</span>
-                  {l.stopAt ? <Chip tone="danger">{stopLabel(l.stopAt)}</Chip> : null}
+                  {l.stopAt ? <Chip tone="danger">{stopLabel(l.stopAt)}</Chip>
+                    : l.nextLabel ? <Chip tone={(l.nextTone as 'danger' | 'warning' | 'info' | null) ?? 'neutral'} size="compact">{l.nextLabel}</Chip>
+                    : null}
                 </div>
               </button>
             )}
@@ -230,12 +273,29 @@ export default function IntakePage() {
       {selected ? (
         <Panel
           className="mt-4"
-          title={`실패 이력 — ${selected.name}`}
-          sub="이전 단계는 전이 순간에 서버가 명시값으로 기록합니다 — 화면은 추정하지 않습니다 (§24 · N-25)"
+          title={`${selected.name} — ${stageLabel(selected.stage)}${selected.sourceLabel ? ` · ${selected.sourceLabel}` : ''}`}
+          sub="단계 이동 · 접촉 기록 · 등록 확정 · 실패 분류 — 판정과 낱말은 서버가 쥔다 (§23 · §24 · N-25 · N-44 · N-45)"
           right={<button type="button" className="text-[12px] text-fg-subtle" onClick={() => pick(selected)}>닫기</button>}
         >
           {/* 등록 확정 직후 — 카드가 「등록」 칸으로 옮겨 간 뒤에도 무엇이 만들어졌는지 한 줄 남긴다 (C91) */}
           {enrolled ? <Banner tone="success" className="mb-2">{enrolled}</Banner> : null}
+          {/* 단계 이동 (C90 · N-45) — 갈 수 있는 곳이 없으면(등록 · 등록 실패) 서지 않는다 */}
+          <div className="mb-3">
+            <LeadStageMove
+              key={`${selected.id}-${selected.stage}`}
+              lead={selected}
+              onDone={(row) => setNotice(`${row.name} → ${stageLabel(row.stage)} — 도달 기록에 남겼습니다`)}
+            />
+          </div>
+          {/* 접촉 원장 (C90 · N-44) — 끝난 건에도 적는다 (사후 관리) */}
+          <div className="mb-3">
+            <LeadTouchLog
+              key={selected.id}
+              lead={selected}
+              kinds={head?.touchKinds ?? []}
+              onDone={(row) => setNotice(row.nextLabel ? `기록했습니다 — ${row.nextLabel}` : '기록했습니다')}
+            />
+          </div>
           {selected.stage === 'enrolled' ? (
             <p className="p-1 text-[12.5px] text-fg-2">
               등록 완료된 건입니다 — 실패 전환은 서버가 막습니다 (ENROLLED_LOCKED).

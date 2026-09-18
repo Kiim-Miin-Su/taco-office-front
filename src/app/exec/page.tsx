@@ -299,12 +299,35 @@ export default function ExecPage() {
             </Panel>
 
             {/*
-              §71 월간 「어디서 놓쳤나」 — **월간에만** 선다(일간·주간 컷에는 없다).
+              §71 월간 두 판 — **월간에만** 선다(일간·주간 컷에는 없다).
               세울지 말지도 서버가 정한다 — 기간이 달력 한 달 전체가 아니면 `monthly` 가 null 이다.
 
-              컷의 **「상담 퍼널」 판은 만들지 않았다.** 「2차까지 왔는가」를 셀 근거가 제품에 없다 —
-              흐름이 직선이라고 가정해 세면 컷의 수를 맞춘 **척**하게 된다 (D-R44 · N-45).
+              「상담 퍼널 — 유입에서 등록까지」는 C90 이 세웠다(N-45 · K-108) — **도달 기록**으로 센 수를 그대로 그린다.
+              옛 건은 기록이 없으므로(보정 0 · N-25) 부제가 **언제부터의 값인지** 말한다. 화면은 %를 다시 내지 않는다.
             */}
+            {d?.monthly ? (
+              <Panel
+                className="mt-4"
+                title="상담 퍼널 — 유입에서 등록까지"
+                sub={d.monthly.funnelSince
+                  ? `도달 기록은 ${d.monthly.funnelSince} 부터 — 그 전 건은 지금 단계로만 셉니다 (N-45 · 보정 0)`
+                  : '도달 기록이 아직 없습니다 — 지금 단계로만 셉니다 (N-45 · 보정 0)'}
+              >
+                <ol className="flex flex-col gap-1.5 p-1" aria-label="상담 퍼널">
+                  {d.monthly.funnel.map((r) => (
+                    <li key={r.key} className="flex items-center gap-3 rounded-lg border border-line bg-card px-3 py-2">
+                      <span className="w-20 shrink-0 text-[13px] font-bold text-fg">{r.label}</span>
+                      {/* 막대는 유입 대비 — 첫 줄이 100% 다. 비율도 서버가 낸 값이다 (D-R37) */}
+                      <span aria-hidden className="h-1.5 grow overflow-hidden rounded-full bg-inset">
+                        <span className="block h-full rounded-full bg-primary/60" style={{ width: `${r.pct}%` }} />
+                      </span>
+                      <b className="w-8 shrink-0 text-right text-[15px] text-fg">{r.count}</b>
+                      <span className="w-10 shrink-0 text-right text-[11px] text-fg-subtle">{r.pct}%</span>
+                    </li>
+                  ))}
+                </ol>
+              </Panel>
+            ) : null}
             {d?.monthly ? (
               <Panel
                 className="mt-4"

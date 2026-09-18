@@ -14,6 +14,7 @@ const lead: Lead = {
   id: 18, name: '문채원', school: '언주중', ownerName: 'Grace', reason: null,
   stage: 'hold', stopAt: null, ageDays: 3, createdAt: '2026-09-15', studentId: null, ownerId: 3,
   failFrom: null, revivalStage: null, revivalSource: null,
+  nextStages: [{ key: 'wait2nd', label: '2차 대기' }, { key: 'second', label: '2차 상담' }], touches: [],
 };
 const meta = {
   kinds: [{ key: 'class', name: '수업', extra: false }], subs: [{ key: 'writing', name: 'Writing' }],
