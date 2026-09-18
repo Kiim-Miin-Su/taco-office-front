@@ -258,6 +258,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/day-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 그날 전체 휴강 — 공휴일·학원 전체 휴원 (테스트 시나리오 C-33 · N-133)
+         * @description 그날의 취소 아닌 회차 전부를 같은 사유·처리로 접는다. 한 트랜잭션이라 하나가 막히면 전부 되돌아간다. 학원 사정·공휴일·강사 결강은 차감할 수 없다 (CANCEL_DEDUCT_FORBIDDEN). 알림은 M-125 규칙 그대로 남긴다.
+         */
+        post: operations["ScheduleController_dayCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/undo": {
         parameters: {
             query?: never;
@@ -288,7 +308,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 수업 취소·휴강 — 참조가 있으면 지우지 않고 기간을 마감한다 */
+        /**
+         * 수업 취소·휴강 — 참조가 있으면 지우지 않고 기간을 마감한다
+         * @description scope=this 가 휴강이다 (§12 「휴강 · 수정」). cancelKind·cancelTreat 를 함께 보내면 사유와 처리(이월·차감·보강 이관)를 EXC 에 새기고 M-125 알림을 남긴다. 학원 사정·공휴일·강사 결강은 차감할 수 없다(CANCEL_DEDUCT_FORBIDDEN). 둘 다 비우면 옛 방식(취소만 · 기본 정책 이월)이다. future·all 은 수업 종료라 사유를 받지 않는다(CANCEL_SCOPE).
+         */
         delete: operations["ScheduleController_remove"];
         options?: never;
         head?: never;
@@ -2341,6 +2364,26 @@ export interface components {
             /** @description 수업료가 아닌 돈인가 — §57 이 세는 것 */
             other: boolean;
         };
+        CancelReasonDto: {
+            /**
+             * @description 저장되는 코드값 — ATT.reason 과 같은 다섯
+             * @enum {string}
+             */
+            key: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other";
+            label: string;
+            /** @description 이 사유로 차감(소진) 처리를 고를 수 있는가 — 학생 결석만 true */
+            deductible: boolean;
+        };
+        CancelTreatDto: {
+            /**
+             * @description carry | deduct | makeup
+             * @enum {string}
+             */
+            key: "carry" | "deduct" | "makeup";
+            label: string;
+            /** @description 칸 아래 한 줄 — 무엇이 일어나는지 */
+            sub: string;
+        };
         MetaDto: {
             kinds: components["schemas"]["KindDto"][];
             subs: components["schemas"]["SubDto"][];
@@ -2350,6 +2393,10 @@ export interface components {
             students: components["schemas"]["StudentBriefDto"][];
             /** @description 청구 종류 넷 — 낱말은 서버가 만든다 (D-R18) */
             invTypes: components["schemas"]["InvTypeDto"][];
+            /** @description 휴강 사유 다섯과 차감 가능 여부 (C92) */
+            cancelReasons: components["schemas"]["CancelReasonDto"][];
+            /** @description 휴강 처리 셋 — 이월 · 차감 · 보강 이관 (C92) */
+            cancelTreats: components["schemas"]["CancelTreatDto"][];
         };
         AttendanceDto: {
             id: number;
@@ -2398,6 +2445,20 @@ export interface components {
             /** @enum {string} */
             mode: "offline" | "online";
             canceled: boolean;
+            /**
+             * @description 휴강 사유 코드 — 취소된 회차만
+             * @enum {string|null}
+             */
+            cancelKind?: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other" | null;
+            /** @description 휴강 사유 이름 */
+            cancelKindLabel?: string | null;
+            /**
+             * @description carry 이월 · deduct 차감 · makeup 보강 이관
+             * @enum {string|null}
+             */
+            cancelTreat?: "carry" | "deduct" | "makeup" | null;
+            /** @description 처리 이름 — 「이월」 「차감」 「보강 이관」 */
+            cancelTreatLabel?: string | null;
             /** @description 이 회차에 예외가 붙었는가 */
             hasException: boolean;
             /** @description 편집할 때 범위를 물어야 하는가 — rrule≠ONCE 이고 남은 회차≥2 (CALENDAR §5A.0). 판정은 서버 한 곳이다 */
@@ -2631,6 +2692,42 @@ export interface components {
             /** @enum {string} */
             scope: "this" | "future" | "all";
         };
+        DayCancelDto: {
+            /**
+             * Format: date
+             * @description 휴강할 날짜 (실제 달력 날짜)
+             */
+            date: string;
+            /**
+             * @description 학원 사정 · 공휴일 … (차감은 학생 결석에만)
+             * @enum {string}
+             */
+            cancelKind: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other";
+            /**
+             * @description 비우면 이월 (기본) — 회차 하나의 휴강과 같은 규칙
+             * @enum {string}
+             */
+            cancelTreat?: "carry" | "deduct" | "makeup";
+            memo?: string;
+        };
+        DayCancelResultDto: {
+            /** @description 실제로 적용된 범위 — 「향후」가 「모두」로 강등되면 여기서 드러난다 (D-R17) */
+            effScope: string;
+            /** @description 사람이 읽는 변경 기록. 화면이 그대로 보여 준다 */
+            log: string[];
+            /** @description 다시 펼친 회차 수 */
+            projected: number;
+            /** @description 영향받은 규칙 — 화면은 이 범위만 다시 읽으면 된다 */
+            serIds: number[];
+            /** @description 직전 일정 쓰기 실행 취소 토큰. 같은 수업이 다시 바뀌지 않은 때만 10분 안에 한 번 사용한다. */
+            undoToken?: string | null;
+            /** @description 강사 불가 시간과 겹친 회차 — **막지 않고 알린다.** 오늘 이후·취소 아닌 것만, 최대 10줄 */
+            unavailable: components["schemas"]["UnavWarnDto"][];
+            /** @description 이번에 휴강 처리한 회차 수 */
+            count: number;
+            /** @description 이미 휴강이라 건너뛴 회차 수 */
+            skipped: number;
+        };
         ScheduleUndoDto: {
             /** @description 직전 WriteResult.undoToken 그대로 */
             token: string;
@@ -2662,6 +2759,18 @@ export interface components {
             scope: "this" | "future" | "all";
             /** Format: date */
             onDate: string;
+            /**
+             * @description 휴강 사유 — 처리를 보내면 필수
+             * @enum {string}
+             */
+            cancelKind?: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other";
+            /**
+             * @description carry 이월(기본) · deduct 차감(학생 결석만) · makeup 보강 이관
+             * @enum {string}
+             */
+            cancelTreat?: "carry" | "deduct" | "makeup";
+            /** @description 메모 — 「아침에 발열로 연락」 (500자) */
+            memo?: string;
         };
         RosterPatchDto: {
             /** @enum {string} */
@@ -3111,8 +3220,10 @@ export interface components {
             total: number;
             /** @description 얼마나 갔나 — 0~100. 화면이 나누지 않는다 */
             percent: number;
-            /** @description 결강·휴강 수 — 취소된 회차와 「그날만 빠진」 것을 합쳐 센다 (D-R21) */
+            /** @description 결강·휴강 수 — 이월·보강 이관으로 처리된 휴강과 「그날만 빠진」 것을 합쳐 센다 (D-R21). 차감은 여기 안 든다 */
             canceled: number;
+            /** @description 차감(소진)으로 처리된 휴강 수 — 이번 달 회차로 세어 청구한다 (C92 · C-31) */
+            deducted: number;
             /** @description 대표 단가 — 가장 많이 쓰인 1회 단가. 못 보면 null */
             unitPrice?: number | null;
             /** @description 그 단가가 학생별 예외(STURATE)에서 왔는가 — 「개별 단가」 / 「일반」 */
@@ -3145,8 +3256,10 @@ export interface components {
             doneCount: number;
             /** @description 이번 달 전체 */
             totalCount: number;
-            /** @description 결강 · 휴강 */
+            /** @description 결강 · 휴강 (이월·보강 이관·그날만 빠짐) */
             canceledCount: number;
+            /** @description 차감(소진) 처리한 휴강 — 청구에 들어 있다 (C92) */
+            deductedCount: number;
             /** @description 지금까지 금액 */
             doneAmount?: number | null;
             /** @description 다음 달로 넘길 돈 */
@@ -4627,6 +4740,8 @@ export interface components {
             /** @description 수강 학생 이름 (·, 구분) */
             students?: string | null;
             canceled: boolean;
+            /** @description 휴강 사유 낱말 — 「학생 결석」 「학원 사정」 … (C92 · C-31). 옛 휴강은 null */
+            cancelKindLabel?: string | null;
             /**
              * @description 리포트 상태 — rep 행이 없으면 none
              * @enum {string}
@@ -6919,6 +7034,83 @@ export interface operations {
             };
         };
     };
+    ScheduleController_dayCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DayCancelDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayCancelResultDto"];
+                };
+            };
+            /** @description code CANCEL_DEDUCT_FORBIDDEN | CANCEL_REASON_REQUIRED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code NO_OCCURRENCES — 그날 회차가 없다 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     ScheduleController_undo: {
         parameters: {
             query?: never;
@@ -7019,7 +7211,7 @@ export interface operations {
                     "application/json": components["schemas"]["WriteResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description code CANCEL_DEDUCT_FORBIDDEN | CANCEL_REASON_REQUIRED | CANCEL_SCOPE */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -141,7 +141,10 @@ export function EventBlock({
         {!compact && names ? (
           <div className="mt-0.5 truncate text-[10px] opacity-80">{names}</div>
         ) : null}
-        {!compact && occ.hasException ? (
+        {/* 휴강의 처리(이월/차감/보강 이관)는 회계가 읽는 값이라 블록에도 적는다 — 낱말은 서버 것 (C92) */}
+        {!compact && occ.canceled && occ.cancelTreatLabel ? (
+          <div className="mt-0.5 text-[10px] font-bold opacity-90">휴강 · {occ.cancelTreatLabel}</div>
+        ) : !compact && occ.hasException ? (
           <div className="mt-0.5 text-[10px] font-bold opacity-90">예외 있음</div>
         ) : null}
       </button>

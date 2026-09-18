@@ -17,7 +17,7 @@ afterEach(cleanup);
 const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#123456', cap: 4, grp: 'lesson', rep: true }],
   subs: [{ key: 'writing', name: 'Writing', color: '#654321' }],
-  rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [], invTypes: [],
+  rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [],
   students: [{ id: 3, name: '학생 3' }],
   staff: [
     { id: 11, name: '강사 11', role: 'teacher', canAdminPage: false, canGpaPack: false },

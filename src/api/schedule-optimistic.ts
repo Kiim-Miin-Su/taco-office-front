@@ -31,6 +31,8 @@ function project(list: OccurrenceList, w: ScheduleWrite): OccurrenceList {
         teacherId: item.teacherId === undefined ? o.teacherId : item.teacherId,
         roomId: item.roomId === undefined ? o.roomId : item.roomId } : o;
     }
+    // 그날 전체 휴강 — 그 날짜에 놓인 회차를 전부 미리 접는다. 사유·처리 낱말은 서버 재조회가 채운다 (C92)
+    if (w.kind === 'dayCancel') return o.date === w.body.date && !o.canceled ? { ...o, canceled: true } : o;
     if (o.serId !== w.serId || o.onDate !== w.body.onDate) return o;
     if (w.kind === 'delete') return { ...o, canceled: true };
     const b = w.body;

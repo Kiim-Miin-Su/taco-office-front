@@ -136,7 +136,10 @@ function MySettings({ s }: { s: TeacherSettings }) {
 }
 
 function LessonRow({ l, withDate }: { l: TeacherLesson; withDate?: boolean }) {
-  const rep = l.canceled ? { label: '수업 취소', tone: 'neutral' as Tone } : REP[l.repState];
+  // 휴강 사유는 서버 낱말이다 — 옛 휴강(사유 없음)은 「수업 취소」 그대로 (C92 · C-31 · N-25)
+  const rep = l.canceled
+    ? { label: l.cancelKindLabel ? `휴강 · ${l.cancelKindLabel}` : '수업 취소', tone: 'neutral' as Tone }
+    : REP[l.repState];
   const place = l.mode === 'online' ? `Zoom${l.zaccLabel ? ` · ${l.zaccLabel}` : ''}` : (l.roomName ?? '강의실 미정');
   return (
     <li className="flex items-center gap-4 border-b border-line px-1 py-3 last:border-b-0">

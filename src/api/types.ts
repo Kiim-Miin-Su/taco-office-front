@@ -155,6 +155,9 @@ export type OccurrenceMoveItem = S['OccurrenceMoveItemDto'];
 export type ScheduleUndo = S['ScheduleUndoDto'];
 export type OccurrencePatch = S['OccurrencePatchDto'];
 export type OccurrenceDelete = S['OccurrenceDeleteDto'];
+/** 그날 전체 휴강 — 공휴일·학원 휴원 (C92 · C-33). 결과는 WriteResult + count/skipped */
+export type DayCancel = S['DayCancelDto'];
+export type DayCancelResult = S['DayCancelResultDto'];
 export type RosterPatch = S['RosterPatchDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */

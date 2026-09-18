@@ -10,7 +10,7 @@ import type { ConsultingCreate, Meta } from '@/api/types';
 import { ConsultingStartForm } from './ConsultingStartForm';
 
 const meta = {
-  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [],
+  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [],
   staff: [
     { id: 2, name: '김민수', role: 'admin', canAdminPage: true, canGpaPack: true },
     { id: 3, name: '김범준', role: 'manager', canAdminPage: true, canGpaPack: true },

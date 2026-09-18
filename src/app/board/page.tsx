@@ -261,6 +261,8 @@ export default function BoardPage() {
           kindName={kindName}
           subName={subName}
           allStudents={meta.data?.students}
+          cancelReasons={meta.data?.cancelReasons}
+          cancelTreats={meta.data?.cancelTreats}
           onClose={() => setSelected(null)}
         />
       </AppShell>

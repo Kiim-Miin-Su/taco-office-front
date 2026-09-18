@@ -73,6 +73,8 @@ import type {
   Meta,
   OccurrenceCreate,
   OccurrenceDelete,
+  DayCancel,
+  DayCancelResult,
   ScheduleUndo,
   OccurrenceList,
   OccurrenceMove,
@@ -1127,22 +1129,28 @@ export type ScheduleWrite =
   | { kind: 'undo'; body: ScheduleUndo }
   | { kind: 'patch'; serId: number; body: OccurrencePatch }
   | { kind: 'delete'; serId: number; body: OccurrenceDelete }
+  | { kind: 'dayCancel'; body: DayCancel }
   | { kind: 'roster'; serId: number; body: RosterPatch };
 
 export function useScheduleWrite(): UseMutationResult<
-  WriteResult | RosterResult,
+  WriteResult | RosterResult | DayCancelResult,
   unknown,
   ScheduleWrite,
   ScheduleOptimisticContext
 > {
   const qc = useQueryClient();
   // 성공과 오래된 회차 거절이 같은 서버 정본을 다시 읽는다. 전체 캐시 무효화는 하지 않는다.
-  const reconcile = () => {
+  const reconcile = (w?: ScheduleWrite) => {
     void qc.invalidateQueries({ queryKey: family.occurrences });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.horizon });
     // 명단을 고치면 §79 카드의 정원·단가·학생 목록이 함께 달라진다 (C55)
     void qc.invalidateQueries({ queryKey: family.tracking });
+    // 휴강의 처리(이월/차감)는 §54 수업료와 알림(M-125)을 바꾼다 — 다른 쓰기는 회계를 건드리지 않는다 (C92)
+    if (w?.kind === 'delete' || w?.kind === 'dayCancel') {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    }
   };
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
@@ -1150,6 +1158,7 @@ export function useScheduleWrite(): UseMutationResult<
       if (w.kind === 'paste') return (await api.post<WriteResult>('/schedule/paste', w.body)).data;
       if (w.kind === 'moveMany') return (await api.post<WriteResult>('/schedule/move', w.body)).data;
       if (w.kind === 'undo') return (await api.post<WriteResult>('/schedule/undo', w.body)).data;
+      if (w.kind === 'dayCancel') return (await api.post<DayCancelResult>('/schedule/day-cancel', w.body)).data;
       if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
       if (w.kind === 'roster') return (await api.patch<RosterResult>(`/schedule/${w.serId}/roster`, w.body)).data;
       return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;
@@ -1161,15 +1170,15 @@ export function useScheduleWrite(): UseMutationResult<
      * 다시 계산하면 판정이 두 벌이 된다.
      */
     onMutate: (w) => beginScheduleOptimistic(qc, w),
-    onError: (e, _w, ctx) => {
+    onError: (e, w, ctx) => {
       const stale =
         e instanceof ApiError && e.status === 404 && ['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'].includes(e.code);
       // 다른 요청의 성공/낙관 값을 보존하고 마지막 정착 후에만 서버 정본을 읽는다.
-      if (ctx ? settleScheduleOptimistic(qc, ctx, true, stale) : stale) reconcile();
+      if (ctx ? settleScheduleOptimistic(qc, ctx, true, stale) : stale) reconcile(w);
     },
-    // 회차/현황판/투영 기간만 갱신한다. 코드표·회계·운영은 그대로 유지한다.
-    onSuccess: (_data, _w, ctx) => {
-      if (ctx && settleScheduleOptimistic(qc, ctx, false, true)) reconcile();
+    // 회차/현황판/투영 기간만 갱신한다. 코드표·운영은 그대로 유지한다 (회계는 휴강일 때만 — 위 reconcile).
+    onSuccess: (_data, w, ctx) => {
+      if (ctx && settleScheduleOptimistic(qc, ctx, false, true)) reconcile(w);
     },
   });
 }

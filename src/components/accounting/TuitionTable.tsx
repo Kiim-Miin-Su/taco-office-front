@@ -106,10 +106,16 @@ export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTabl
       ),
     },
     {
-      key: 'c', head: '결강', width: 70, align: 'right',
-      cell: (r) => (r.canceled > 0
-        ? <span className="font-bold text-red">{r.canceled}</span>
-        : <span className="text-fg-subtle">—</span>),
+      // 차감은 결강이 아니라 「한 수업」에 든다 (C92 · C-31) — 결강 칸 옆에 따로 적어 회차 수가 맞는 이유를 보인다
+      key: 'c', head: '결강', width: 90, align: 'right',
+      cell: (r) => (
+        <span className="flex flex-col items-end">
+          {r.canceled > 0
+            ? <span className="font-bold text-red">{r.canceled}</span>
+            : <span className="text-fg-subtle">—</span>}
+          {r.deducted > 0 ? <span className="text-[10.5px] text-amber">차감 {r.deducted}</span> : null}
+        </span>
+      ),
     },
     {
       // 컷의 낱말 그대로다 — 우리가 「단가」라 부르던 칸이다
@@ -193,7 +199,10 @@ export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTabl
           <div className="grid w-full grid-cols-3 gap-2 sm:w-auto sm:grid-cols-5">
             <HeadBox label="한 수업" value={n(data?.doneCount)} />
             <HeadBox label="이번 달 전체" value={n(data?.totalCount)} />
-            <HeadBox label="결강 · 휴강" value={n(data?.canceledCount)} tone="warning" />
+            <HeadBox
+              label={data?.deductedCount ? `결강 · 휴강 (차감 ${data.deductedCount})` : '결강 · 휴강'}
+              value={n(data?.canceledCount)} tone="warning"
+            />
             <HeadBox label="지금까지 금액" value={won(data?.doneAmount)} />
             <HeadBox label="다음 달로 넘길 돈" value={won(data?.carryAmount)} tone="warning" />
           </div>
@@ -212,7 +221,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId }: TuitionTabl
         onClose={() => setOpenId(null)}
         title={open ? `${open.name} — 내역` : ''}
         sub={open
-          ? `${open.done}/${open.total}회 · 지금까지 ${won(open.doneAmount)}${open.canceled ? ` · 결강 ${open.canceled}회` : ''}`
+          ? `${open.done}/${open.total}회 · 지금까지 ${won(open.doneAmount)}${open.canceled ? ` · 결강 ${open.canceled}회` : ''}${open.deducted ? ` · 차감 ${open.deducted}회` : ''}`
           : undefined}
       >
         {open ? (

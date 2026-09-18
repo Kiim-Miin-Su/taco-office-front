@@ -13,6 +13,8 @@
  */
 'use client';
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
@@ -56,16 +58,23 @@ const STATE_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'd
   draft: 'neutral', sent: 'info', unpaid: 'danger', partial: 'warning', paid: 'success', void: 'neutral',
 };
 
+const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'pay', 'out', 'payout'] as const;
+type AccountingTab = (typeof ACCOUNTING_TABS)[number];
+
 export default function AccountingPage() {
   /*
    * 처음 열리는 탭은 **청구서**다. 트래킹 보드가 탭 줄의 첫 자리인 것은 컷의 순서이고,
    * 처음부터 고르지 않는 것은 **질의를 하나 더 부르지 않기 위해서**다 — 회계를 열어 바로
    * 「들어온 돈」으로 가는 사람에게도 보드가 따라 불려 온다(C50 이 고쳐 둔 자리 · 회귀가 요청 1건을 센다).
    */
-  const [tab, setTab] = useState<'board' | 'inv' | 'tuition' | 'other' | 'record' | 'pay' | 'out' | 'payout'>('inv');
+  // 알림의 「이월 발생 → 회계」 링크가 탭과 달을 들고 온다 (C92 · M-125). 형식만 보고 판정은 서버·화면이 한다
+  const searchParams = useSearchParams();
+  const queryTab = queryEnum(searchParams.get('tab'), ACCOUNTING_TABS);
+  const queryMonth = queryTab === 'tuition' ? queryYearMonth(searchParams.get('month')) : null;
+  const [tab, setTab] = useState<AccountingTab>(queryTab ?? 'inv');
   const q = useAccounting();
   // §54 는 다른 질의다 — 그 탭을 열 때만 부른다 (달을 안 주면 서버가 이번 달로 정한다)
-  const tuition = useTuition(undefined, tab === 'tuition');
+  const tuition = useTuition(queryMonth ?? undefined, tab === 'tuition');
   // §54 이월 처리 — 누를 수 있는 줄인지는 서버가 정한다 (N-39)
   const carry = useCarryTuition();
   // §57 도 다른 질의다 — 그 탭을 열 때만 부른다 (C66)

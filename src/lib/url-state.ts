@@ -23,3 +23,8 @@ export function queryIsoDate(value: string | null): string | null {
     : null;
 }
 
+/** YYYY-MM — 회계의 달 링크(알림 「이월 발생 → /accounting?tab=tuition&month=」)가 복원하는 값 (C92) */
+export function queryYearMonth(value: string | null): string | null {
+  if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return null;
+  return value;
+}

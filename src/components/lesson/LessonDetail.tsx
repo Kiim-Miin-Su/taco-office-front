@@ -23,9 +23,10 @@ import { useLessonTracking, useScheduleWrite } from '@/api/queries';
 import Link from 'next/link';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
-import type { Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
+import type { Meta, Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
 import { AttendanceControl } from './AttendanceControl';
 import { StudentTracking } from './StudentTracking';
+import { CancelLessonDialog, type CancelLessonInput } from './CancelLessonDialog';
 
 /**
  * 준비 줄은 **서버가 만든다** — 줄 이름도, 됐는지도, 「준비 6 / 9」도 (C82-b).
@@ -47,14 +48,21 @@ export interface LessonDetailProps {
   recurring?: boolean;
   /** 명단에 넣을 수 있는 전체 학생 — 코드표(meta)에서 온다 */
   allStudents?: Array<{ id: number; name: string; grade?: string | null }>;
+  /** 휴강 창의 사유·처리 목록 — 코드표(meta)에서 온다 (C92 · D-R18). 없으면 창이 「읽는 중」이라 말한다 */
+  cancelReasons?: Meta['cancelReasons'];
+  cancelTreats?: Meta['cancelTreats'];
   onClose: () => void;
 }
 
-export function LessonDetail({ occ, kindName, subName, recurring = true, allStudents, onClose }: LessonDetailProps) {
+export function LessonDetail({
+  occ, kindName, subName, recurring = true, allStudents, cancelReasons, cancelTreats, onClose,
+}: LessonDetailProps) {
   const write = useScheduleWrite();
   const canEdit = useCan('canCrudAll');
   const canAdminPage = useCan('canAdminPage');
   const [ask, setAsk] = useState<null | { mode: 'edit' | 'delete'; run: (s: Scope) => void }>(null);
+  const [askCancel, setAskCancel] = useState(false);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pick, setPick] = useState('');
   const [rosterResult, setRosterResult] = useState<RosterResult | null>(null);
@@ -81,7 +89,8 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
       {
         onError: (e) => setErr(apiMessage(e)),
         onSuccess: (result) => {
-          if ('count' in result) setRosterResult(result);
+          // 그날 전체 휴강 결과도 count 를 들고 있다 — 명단 결과는 준비할 일 칸으로 가른다
+          if ('needGuide' in result) setRosterResult(result);
         },
       },
     );
@@ -100,14 +109,47 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
     setAsk({ mode, run });
   };
 
-  const cancel = () =>
+  /**
+   * 「휴강」 — 이번 회차만이고 사유·처리·메모를 묻는다 (C92 · 테스트 시나리오 C-30~C-33).
+   * 「반복 끝내기…」 — 향후·모두는 수업 종료라 정책이 없다. 그 창에서 「이번만」을 고르면 다시 휴강 창으로 온다 —
+   * 이번 회차의 취소가 두 길로 갈리면 한쪽만 사유가 남는다.
+   */
+  const openCancel = () => {
+    if (!canEdit) return;
+    setErr(null);
+    setCancelErr(null);
+    setAsk(null);
+    setAskCancel(true);
+  };
+  const endSeries = () =>
     withScope('delete', (scope) => {
+      if (scope === 'this') { openCancel(); return; }
       write.mutate(
         { kind: 'delete', serId: occ.serId, body: { scope, onDate: occ.onDate } },
         { onError: (e) => setErr(apiMessage(e)), onSuccess: onClose },
       );
       setAsk(null);
     });
+  const submitCancel = (input: CancelLessonInput) => {
+    if (!canEdit) return;
+    setCancelErr(null);
+    const done = { onError: (e: unknown) => setCancelErr(apiMessage(e)), onSuccess: () => { setAskCancel(false); onClose(); } };
+    if (input.wholeDay) {
+      // 그날 전체 — 서버가 그 날짜의 회차를 전부 한 트랜잭션에서 접는다. 화면은 날짜 하나만 보낸다 (C-33)
+      write.mutate(
+        { kind: 'dayCancel', body: { date: occ.date, cancelKind: input.cancelKind, cancelTreat: input.cancelTreat, memo: input.memo } },
+        done,
+      );
+      return;
+    }
+    write.mutate(
+      {
+        kind: 'delete', serId: occ.serId,
+        body: { scope: 'this', onDate: occ.onDate, cancelKind: input.cancelKind, cancelTreat: input.cancelTreat, memo: input.memo },
+      },
+      done,
+    );
+  };
 
   return (
     <>
@@ -122,7 +164,12 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
             <Chip tone="info">{hhmm(occ.startMin)}–{hhmm(occ.endMin)}</Chip>
             {occ.mode === 'online' ? <Chip tone="purple">온라인</Chip> : <Chip>{occ.roomName ?? '강의실 미정'}</Chip>}
             <Chip>{occ.teacherName ?? '강사 미정'}</Chip>
-            {occ.canceled ? <Chip tone="danger">취소</Chip> : null}
+            {/* 사유·처리 낱말은 서버 것이다 — 옛 휴강(처리 없음)은 「휴강」만 적는다 (C92 · N-25) */}
+            {occ.canceled ? (
+              <Chip tone="danger">
+                휴강{occ.cancelKindLabel ? ` · ${occ.cancelKindLabel}` : ''}{occ.cancelTreatLabel ? ` · ${occ.cancelTreatLabel}` : ''}
+              </Chip>
+            ) : null}
             {occ.hasException ? <Chip tone="warning">이 회차만 다름</Chip> : null}
           </div>
 
@@ -270,9 +317,16 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
 
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>닫기</Button>
-            {canEdit ? (
-              <Button variant="danger" onClick={cancel} disabled={write.isPending}>
-                {write.isPending ? '처리 중…' : '휴강 · 취소'}
+            {canEdit && !occ.canceled ? (
+              <Button variant="danger" onClick={openCancel} disabled={write.isPending}
+                title="이번 회차만 — 사유 · 처리(이월/차감/보강 이관) · 메모를 적습니다">
+                {write.isPending ? '처리 중…' : '휴강'}
+              </Button>
+            ) : null}
+            {canEdit && recurring ? (
+              <Button variant="ghost" onClick={endSeries} disabled={write.isPending}
+                title="향후 전부 또는 모두 — 수업을 끝냅니다 (휴강이 아니라 종료)">
+                반복 끝내기…
               </Button>
             ) : null}
           </div>
@@ -284,6 +338,18 @@ export function LessonDetail({ occ, kindName, subName, recurring = true, allStud
         mode={ask?.mode ?? 'edit'}
         onPick={(s) => { if (canEdit) ask?.run(s); }}
         onClose={() => setAsk(null)}
+      />
+
+      <CancelLessonDialog
+        open={canEdit && askCancel}
+        title={`휴강 — ${occ.title || subName || kindName || occ.kindKey} · ${occ.date}`}
+        reasons={cancelReasons}
+        treats={cancelTreats}
+        allowWholeDay={canAdminPage}
+        pending={write.isPending}
+        error={cancelErr}
+        onSubmit={submitCancel}
+        onClose={() => setAskCancel(false)}
       />
 
       <Dialog

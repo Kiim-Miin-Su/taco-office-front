@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LessonTracking, Occurrence, RosterResult } from '@/api/types';
 
@@ -94,25 +94,114 @@ describe('LessonDetail 명단 결과', () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it('휴강 범위 선택 중 권한을 잃으면 열린 쓰기 대화상자도 사라진다', () => {
-    const props = { occ: occurrence, onClose: () => undefined };
+  /** 휴강 창의 낱말은 서버 코드표다 — 이 파일은 그 표를 그대로 넘겨 계약만 본다 (C92 · D-R18) */
+  const cancelMeta = {
+    cancelReasons: [
+      { key: 'student_absent' as const, label: '학생 결석', deductible: true },
+      { key: 'academy' as const, label: '학원 사정', deductible: false },
+    ],
+    cancelTreats: [
+      { key: 'carry' as const, label: '이월', sub: '다음 달로' },
+      { key: 'deduct' as const, label: '차감', sub: '이번 달 소진' },
+      { key: 'makeup' as const, label: '보강 이관', sub: '보강 회차' },
+    ],
+  };
+
+  it('휴강 창을 연 채 권한을 잃으면 창도 사라진다', () => {
+    const props = { occ: occurrence, onClose: () => undefined, ...cancelMeta };
     const view = render(<LessonDetail {...props} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강 · 취소' }));
-    expect(view.getByRole('button', { name: /이번만/ })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    expect(view.getByRole('dialog', { name: /^휴강 — / })).toBeTruthy();
     permissions.canEdit = false;
     view.rerender(<LessonDetail {...props} />);
-    expect(view.queryByRole('button', { name: /이번만/ })).toBeNull();
+    expect(view.queryByRole('dialog', { name: /^휴강 — / })).toBeNull();
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it('매니저는 기존 휴강 범위 계약으로 저장할 수 있다', () => {
-    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강 · 취소' }));
-    fireEvent.click(view.getByRole('button', { name: /이번만/ }));
+  it('휴강은 사유·처리·메모를 이번 회차 계약으로 보낸다 — 처리 기본은 첫 줄(이월) (C-30)', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    const dialog = view.getByRole('dialog', { name: /^휴강 — / });
+    // 사유를 고르기 전에는 보낼 수 없다
+    const submit = within(dialog).getByRole('button', { name: '휴강' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'student_absent' } });
+    fireEvent.change(within(dialog).getByLabelText('메모'), { target: { value: '  아침에 발열로 연락  ' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '휴강' }));
     expect(mutate).toHaveBeenCalledWith(
-      { kind: 'delete', serId: 3, body: { scope: 'this', onDate: '2026-09-03' } },
+      {
+        kind: 'delete', serId: 3,
+        body: { scope: 'this', onDate: '2026-09-03', cancelKind: 'student_absent', cancelTreat: 'carry', memo: '아침에 발열로 연락' },
+      },
       expect.any(Object),
     );
+  });
+
+  it('차감은 서버가 deductible 이라 한 사유에서만 고를 수 있다 — 학원 사정이면 잠기고 이월로 돌아간다 (C-31 · C-32)', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    const dialog = view.getByRole('dialog', { name: /^휴강 — / });
+    const deduct = within(dialog).getByRole('radio', { name: /차감/ }) as HTMLInputElement;
+    expect(deduct.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'student_absent' } });
+    expect(deduct.disabled).toBe(false);
+    fireEvent.click(deduct);
+    expect(deduct.checked).toBe(true);
+    // 사유를 학원 사정으로 바꾸면 차감이 다시 잠기고 처리는 이월로 돌아간다
+    fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'academy' } });
+    expect(deduct.disabled).toBe(true);
+    expect((within(dialog).getByRole('radio', { name: /이월/ }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(within(dialog).getByRole('button', { name: '휴강' }));
+    expect(mutate).toHaveBeenCalledWith(
+      { kind: 'delete', serId: 3, body: { scope: 'this', onDate: '2026-09-03', cancelKind: 'academy', cancelTreat: 'carry', memo: undefined } },
+      expect.any(Object),
+    );
+  });
+
+  it('「그날 전체」를 켜면 날짜 하나로 day-cancel 을 보낸다 — 회차를 화면이 세지 않는다 (C-33)', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    const dialog = view.getByRole('dialog', { name: /^휴강 — / });
+    fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'academy' } });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.click(within(dialog).getByRole('button', { name: '그날 전체 휴강' }));
+    expect(mutate).toHaveBeenCalledWith(
+      { kind: 'dayCancel', body: { date: '2026-09-03', cancelKind: 'academy', cancelTreat: 'carry', memo: undefined } },
+      expect.any(Object),
+    );
+  });
+
+  it('강사 화면(관리자 아님)에는 「그날 전체」가 없다', () => {
+    permissions.canAdminPage = false;
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
+    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    expect(within(view.getByRole('dialog', { name: /^휴강 — / })).queryByRole('checkbox')).toBeNull();
+  });
+
+  it('「반복 끝내기…」의 향후·모두는 사유 없이 기존 종료 계약이고, 「이번만」은 휴강 창으로 온다', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
+    fireEvent.click(view.getByRole('button', { name: '반복 끝내기…' }));
+    fireEvent.click(view.getByRole('button', { name: /이번만/ }));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(within(view.getByRole('dialog', { name: /^휴강 — / })).getByLabelText('사유')).toBeTruthy();
+    fireEvent.keyDown(view.getByRole('dialog', { name: /^휴강 — / }), { key: 'Escape' });
+    fireEvent.click(view.getByRole('button', { name: '반복 끝내기…' }));
+    fireEvent.click(view.getByRole('button', { name: /향후/ }));
+    expect(mutate).toHaveBeenCalledWith(
+      { kind: 'delete', serId: 3, body: { scope: 'future', onDate: '2026-09-03' } },
+      expect.any(Object),
+    );
+  });
+
+  it('이미 휴강인 회차는 서버 낱말로 사유·처리를 적고 휴강 단추는 없다', () => {
+    const view = render(
+      <LessonDetail
+        occ={{ ...occurrence, canceled: true, cancelKind: 'student_absent', cancelKindLabel: '학생 결석', cancelTreat: 'deduct', cancelTreatLabel: '차감' }}
+        onClose={() => undefined} {...cancelMeta}
+      />,
+    );
+    expect(view.getByText('휴강 · 학생 결석 · 차감')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '휴강' })).toBeNull();
   });
 
   it('명단 저장 응답의 인원·안내·교재 후속 작업을 추가 조회 없이 보여 준다', () => {

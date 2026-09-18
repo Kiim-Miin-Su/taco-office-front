@@ -1108,6 +1108,8 @@ function AdminSchedulePage() {
           kindName={open ? kindName(open) : undefined}
           subName={open ? subName(open) : undefined}
           allStudents={meta.data?.students}
+          cancelReasons={meta.data?.cancelReasons}
+          cancelTreats={meta.data?.cancelTreats}
           onClose={() => go({ t: 'open', o: null })}
         />
 

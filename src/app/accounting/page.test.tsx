@@ -12,14 +12,18 @@ import type { Accounting, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 const me: Me = { id: 1, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
   canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true };
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach(c => c.clear()); api.defaults.adapter = originalAdapter; useSession.getState().signOut(); });
+afterEach(() => { cleanup(); clients.splice(0).forEach(c => c.clear()); api.defaults.adapter = originalAdapter; useSession.getState().signOut(); nav.search = ''; });
 
 it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단을 구별하고 추가 조회하지 않는다', async (canSeeAmounts) => {
   useSession.getState().signIn('fixture', me);
@@ -185,4 +189,40 @@ it('분류 칩 여섯은 건수가 0이어도 서고 낱말은 서버가 준 것
   expect(view.getByText('GPA 관리비 0')).toBeTruthy();
   expect(view.getByText('시험 응시료 0')).toBeTruthy();
   expect(view.getByText('기타 1')).toBeTruthy();
+});
+
+/**
+ * 알림의 「이월 발생 → 회계」 링크는 `/accounting?tab=tuition&month=YYYY-MM` 이다 (C92 · M-125).
+ * 링크가 탭에 닿지 않으면 죽은 링크다 — 탭과 달을 복원하고, 형식이 틀린 달은 버린다.
+ */
+it('?tab=tuition&month= 링크는 수업료 탭을 그 달로 연다 — 틀린 달은 이번 달로 돌아간다 (C92)', async () => {
+  useSession.getState().signIn('fixture', me);
+  nav.search = 'tab=tuition&month=2026-08';
+  const accounting: Accounting = {
+    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], payCategories: [],
+  };
+  const calls: string[] = [];
+  api.defaults.adapter = (async (config: { url?: string; params?: Record<string, string> }) => {
+    calls.push(`${config.url}${config.params?.month ? `?month=${config.params.month}` : ''}`);
+    const data = config.url?.includes('/tuition')
+      ? { month: '2026-08', today: '2026-09-18', daysPast: 31, daysLeft: 0, canSeeAmounts: true,
+          doneCount: 0, totalCount: 0, canceledCount: 0, deductedCount: 0, doneAmount: 0, carryAmount: 0, items: [] }
+      : accounting;
+    return { config, status: 200, statusText: 'OK', headers: {}, data };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(calls.some((c) => c.includes('/accounting/tuition?month=2026-08'))).toBe(true));
+  expect(view.getByText('8월 수업 진행')).toBeTruthy();
+
+  cleanup();
+  nav.search = 'tab=tuition&month=2026-13';
+  calls.length = 0;
+  const client2 = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client2);
+  render(<QueryClientProvider client={client2}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(calls.some((c) => c.endsWith('/accounting/tuition'))).toBe(true));
+  expect(calls.some((c) => c.includes('month=2026-13'))).toBe(false);
 });

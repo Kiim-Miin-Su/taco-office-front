@@ -31,7 +31,8 @@ type Selection =
 
 /** 리포트 상태색은 기존 블록과 한 표를 공유한다. 취소는 상태 축과 별도로 표시한다. */
 function statusLabel(occ: Occurrence): string {
-  if (occ.canceled) return '수업 취소';
+  // 사유는 서버의 낱말이다 — 옛 휴강(사유 없음)은 「수업 취소」 그대로 (C92 · N-25)
+  if (occ.canceled) return occ.cancelKindLabel ? `휴강 · ${occ.cancelKindLabel}` : '수업 취소';
   if (occ.attendance?.countsForPay === false) return '출결 취소';
   if (occ.repState === 'plan') return '수업 예정';
   if (occ.repState === 'none') return '리포트 미작성';

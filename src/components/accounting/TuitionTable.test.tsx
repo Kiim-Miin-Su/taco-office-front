@@ -10,13 +10,13 @@ import { TuitionTable } from './TuitionTable';
 
 const base: Tuition = {
   month: '2026-08', today: '2026-08-21', daysPast: 21, daysLeft: 10,
-  doneCount: 196, totalCount: 288, canceledCount: 5,
+  doneCount: 196, totalCount: 288, canceledCount: 5, deductedCount: 0,
   doneAmount: 29_911_667, carryAmount: 870_000,
   canSeeAmounts: true,
   items: [
     {
       studentId: 1, name: '이하린', grade: 'G9',
-      done: 8, total: 11, percent: 73, canceled: 2,
+      done: 8, total: 11, percent: 73, canceled: 2, deducted: 0,
       unitPrice: 140_000, unitPriceOverride: true, priceCount: 1,
       carryable: false, carriedAt: null, carriedIn: 0,
       doneAmount: 1_365_000, carryAmount: 420_000,
@@ -26,7 +26,7 @@ const base: Tuition = {
     },
     {
       studentId: 2, name: '김태린', grade: 'G5',
-      done: 13, total: 20, percent: 65, canceled: 0,
+      done: 13, total: 20, percent: 65, canceled: 0, deducted: 0,
       unitPrice: 120_000, unitPriceOverride: false, priceCount: 1,
       carryable: false, carriedAt: null, carriedIn: 0,
       doneAmount: 2_220_000, carryAmount: 0,

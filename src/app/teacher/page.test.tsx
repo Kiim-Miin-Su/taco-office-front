@@ -94,3 +94,16 @@ it('시간대 목록에서 지금 쓰는 것은 빠지고, 올린 이력과 반�
   expect(view.container.textContent).toContain('3개월 뒤 재검토');
   expect(view.container.textContent).toContain('45,000원/시간');
 });
+
+/** 휴강 사유는 서버의 낱말이다 — 오늘 목록의 배지가 「휴강 · 학생 결석」이고 옛 휴강은 「수업 취소」 그대로 (C92 · C-31) */
+it('오늘 목록의 휴강 배지는 서버가 준 사유 낱말을 쓰고, 사유가 없으면 「수업 취소」다', async () => {
+  const lesson = {
+    serId: 1, onDate: '2026-09-12', startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline' as const,
+    title: null, roomName: '강의실 1', roomBranch: '강남', zaccLabel: null, students: '학생 A', canceled: true, repState: 'plan' as const,
+  };
+  const data = home();
+  data.today = [{ ...lesson, cancelKindLabel: '학생 결석' }, { ...lesson, serId: 2, startMin: 720, cancelKindLabel: null }];
+  const view = setup(data);
+  await waitFor(() => expect(view.getByText('휴강 · 학생 결석')).toBeTruthy());
+  expect(view.getByText('수업 취소')).toBeTruthy();
+});
