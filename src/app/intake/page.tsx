@@ -22,6 +22,7 @@ import type { Lead, LeadFail, LeadResume } from '@/api/types';
 import { SearchField, type SearchFieldHandle } from '@/components/ui/SearchField';
 import { SearchEmpty } from '@/components/ui/SearchEmpty';
 import { FAILURE_SEARCH_LABEL, filterLeadsByQuery } from '@/lib/intake-search';
+import { LeadEnrollDialog } from '@/components/ops/LeadEnrollDialog';
 
 /**
  * 칸의 **색만** 화면이 정한다 — 이름도 순서도 서버의 `intakeHead.funnel` 이 쥔다 (D-R18 · D-R25).
@@ -66,13 +67,16 @@ export default function IntakePage() {
   const [reason, setReason] = useState('');
   const [resumeTo, setResumeTo] = useState<ResumeKey | ''>('');
   const [armed, setArmed] = useState<'fail' | 'resume' | null>(null);
+  // 등록 확정 창 (C91 · A-05) — 열려 있는 동안만 코드표·교재를 읽는다
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrolled, setEnrolled] = useState<string | null>(null);
   const fail = useFailLead();
   const resume = useResumeLead();
   const selected = leads.find((l) => l.id === selectedId) ?? null;
 
   const pick = (l: Lead) => {
     setSelectedId((cur) => (cur === l.id ? null : l.id));
-    setStopAt(''); setReason(''); setResumeTo(''); setArmed(null);
+    setStopAt(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null);
     fail.reset(); resume.reset();
   };
 
@@ -230,6 +234,8 @@ export default function IntakePage() {
           sub="이전 단계는 전이 순간에 서버가 명시값으로 기록합니다 — 화면은 추정하지 않습니다 (§24 · N-25)"
           right={<button type="button" className="text-[12px] text-fg-subtle" onClick={() => pick(selected)}>닫기</button>}
         >
+          {/* 등록 확정 직후 — 카드가 「등록」 칸으로 옮겨 간 뒤에도 무엇이 만들어졌는지 한 줄 남긴다 (C91) */}
+          {enrolled ? <Banner tone="success" className="mb-2">{enrolled}</Banner> : null}
           {selected.stage === 'enrolled' ? (
             <p className="p-1 text-[12.5px] text-fg-2">
               등록 완료된 건입니다 — 실패 전환은 서버가 막습니다 (ENROLLED_LOCKED).
@@ -277,6 +283,11 @@ export default function IntakePage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
+              {/* 등록 확정 (C91 · A-05) — 깔때기 안의 어느 단계에서든(보류 → 등록도 같은 길 · A-12). 일곱 가지는 서버가 한 번에 한다 */}
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-inset px-3 py-2">
+                <Button size="sm" onClick={() => setEnrolling(true)}>등록 확정</Button>
+                <span className="text-[11px] text-fg-subtle">배치안을 적고 미리 본 뒤 — 학생 · 등록 · 시간표 · 첫 달 청구서 · 교재 · 안내 초안 · 알림이 한 번에 만들어집니다 (A-05)</span>
+              </div>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="w-52">
                   <Label htmlFor="lead-stop-at">중단 지점 (필수)</Label>
@@ -317,6 +328,14 @@ export default function IntakePage() {
             </div>
           )}
         </Panel>
+      ) : null}
+      {selected && selected.stage !== 'enrolled' && selected.stage !== 'failed' ? (
+        <LeadEnrollDialog
+          open={enrolling}
+          lead={selected}
+          onClose={() => setEnrolling(false)}
+          onDone={(r) => setEnrolled(`${r.studentName} 등록 확정 — 수업 ${r.series.length}개${r.series[0]?.firstLessonOn ? ` · 첫 수업 ${r.series[0].firstLessonOn}` : ''}${r.invoice ? ` · 청구서 ${r.invoice.yearMonth}` : ''} · 안내 초안 ${r.guideDrafts}건`)}
+        />
       ) : null}
     </AppShell></RequireAuth>
   );

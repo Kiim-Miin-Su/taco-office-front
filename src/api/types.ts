@@ -189,6 +189,11 @@ export type RateWrite = S['RateWriteDto'];
 export type StudentRateWrite = S['StudentRateWriteDto'];
 export type ExpenseCreate = S['ExpenseCreateDto'];
 export type ExpenseCategory = S['ExpenseCategoryDto'];
+/** 등록 확정 (C91 · A-05) — 일곱 가지를 서버가 한 트랜잭션에서 하고 미리보기는 같은 계산을 되돌린 값이다 */
+export type LeadEnroll = S['LeadEnrollDto'];
+export type EnrollLine = S['EnrollLineDto'];
+export type EnrollResult = S['EnrollResultDto'];
+export type EnrollSeries = S['EnrollSeriesDto'];
 export type WriteResult = S['WriteResultDto'];
 /** §69 보고 쓰기 — 영역 메모 · 올리기 · 결재 */
 export type ExecMemoWrite = S['ExecMemoWriteDto'];

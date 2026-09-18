@@ -6,7 +6,7 @@
 
 /** §24 실패 지정/되살리기 input (N-25 · C35) — 판정은 서버, 화면은 4어휘와 응답만 그린다. */
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -101,5 +101,23 @@ describe('§24 되살리기 — 판정은 서버 응답만 소비', () => {
     fireEvent.click(view.getByRole('button', { name: '되살리기' }));
     fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 되살리기' }));
     await waitFor(() => expect(view.post).toHaveBeenCalledWith('/ops/leads/2/resume', { to: 'hold' }));
+  });
+});
+
+describe('등록 확정 입구 (C91 · A-05)', () => {
+  it('깔때기 안의 건에만 「등록 확정」이 서고 창이 열린다 — 등록·실패 건에는 없다', async () => {
+    const view = await setup();
+    fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
+    const open = view.getByRole('button', { name: '등록 확정' });
+    fireEvent.click(open);
+    const dialog = await view.findByRole('dialog', { name: '등록 확정 — 진행중학생' });
+    expect(within(dialog).getByLabelText('이름')).toHaveProperty('value', '진행중학생');
+    expect(within(dialog).getByLabelText('학교')).toHaveProperty('value', '언주중');
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소 (Esc)' }));
+    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    // 등록 건 — 입구 없음
+    fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
+    fireEvent.click(view.getByRole('button', { name: /등록학생/ }));
+    expect(view.queryByRole('button', { name: '등록 확정' })).toBeNull();
   });
 });

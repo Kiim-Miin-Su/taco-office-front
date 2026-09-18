@@ -97,6 +97,7 @@ import type {
   StudentWithdraw,
   WithdrawResult,
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
+  LeadEnroll, EnrollResult,
   KindCreate,
   KindPatch,
   Lead,
@@ -906,12 +907,13 @@ export function useUseBookVersion(): UseMutationResult<BookVersion, unknown, num
   });
 }
 
-export function useBooks(): UseQueryResult<Books> {
+export function useBooks(enabled = true): UseQueryResult<Books> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.books, viewerId),
     queryFn: async () => (await api.get<Books>('/books')).data,
     staleTime: 10 * 60 * 1000,
+    enabled,
   });
 }
 
@@ -1733,6 +1735,36 @@ export function useLessonTracking(
 }
 
 /** 되살리기 — 지정값 → 명시값 → 도달 기록 역순, 미분류면 409 UNCLASSIFIED (추정 이관 금지) */
+/**
+ * 등록 확정 (C91 · A-05 「한 번에 일곱 가지」) — §23 상담 카드에서 부른다.
+ *
+ * 미리보기(`preview`)는 서버가 **같은 트랜잭션을 돌리고 되돌린** 값이라 화면이 첫 수업일·청구액·겹침·불가 시간을 짓지 않는다(D-R37).
+ * 실제 등록은 학생·등록·시간표·청구서·교재·안내·알림·상담 단계를 한 번에 바꾸므로 운영·회차·회계·교재·안내·서랍 갈래를
+ * 맨앞자락 그대로 버린다 (`queries-family` 회귀 · C48).
+ */
+export function useEnrollLead(): UseMutationResult<EnrollResult, unknown, { id: number; kind: 'preview' | 'enroll'; body: LeadEnroll }> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async ({ id, kind, body }) => (
+      kind === 'preview'
+        ? (await api.post<EnrollResult>(`/ops/leads/${id}/enroll/preview`, body)).data
+        : (await api.post<EnrollResult>(`/ops/leads/${id}/enroll`, body)).data
+    ),
+    onSuccess: (_r, w) => {
+      if (w.kind !== 'enroll') return;
+      void qc.invalidateQueries({ queryKey: family.ops });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.books });
+      void qc.invalidateQueries({ queryKey: family.guides });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      // 새 학생은 코드표(학생 목록)에도 든다 — 다음 창이 옛 목록을 들지 않게
+      void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
+    },
+  });
+}
+
 export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number } & LeadResume> {
   const invalidate = useOpsInvalidate();
   return useMutation({
