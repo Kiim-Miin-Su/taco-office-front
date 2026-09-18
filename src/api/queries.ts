@@ -98,6 +98,7 @@ import type {
   StudentWithdraw,
   WithdrawResult,
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
+  Member, StaffCreate, WageHistory, WageRow, WageWrite,
   LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult,
   KindCreate,
   KindPatch,
@@ -193,6 +194,8 @@ export const qk = {
   /** §57 강사료 시트 — 같은 갈래의 또 다른 질의다 (C94-b). 달이 키에 든다 */
   payoutSheet: (month: string) => ['accounting', 'payouts', month] as const,
   rateBook: ['accounting', 'rates'] as const,
+  /** 강사 시급 이력 — 같은 회계 갈래 (C97 · D-48). 사람이 키에 든다 */
+  wageHistory: (staffId: number) => ['accounting', 'wages', staffId] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   /** §30 계약 5단계 상세 — 건별 서버 projection. */
@@ -1539,6 +1542,50 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
     },
     // 창(month/all)마다 키가 다르므로 성공·실패 모두 서버 값으로 화해한다.
     onSettled: () => qc.invalidateQueries({ queryKey: family.drawer }),
+  });
+}
+
+/**
+ * §17 「+ 구성원」 (C97 · D-41) — 강사·매니저 계정 한 사람. 비밀번호는 보내기만 하고 응답에는 없다(해시만 남는다).
+ * 서랍(구성원 칸)과 `/meta`(담당·강사 고르기)가 새 사람을 알아야 한다 — 둘 다 버린다.
+ */
+export function useCreateMember(): UseMutationResult<Member, unknown, StaffCreate> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<Member>('/drawer/staff', body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
+    },
+  });
+}
+
+/** 시급 이력 (C97 · D-48) — 적용일 내림차순, 「지금」 줄은 서버가 가른다(`current`). 창을 열 때만 읽는다 */
+export function useWageHistory(staffId: number, enabled = true): UseQueryResult<WageHistory> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.wageHistory(staffId), viewerId),
+    queryFn: async () => (await api.get<WageHistory>('/accounting/wages', { params: { staffId } })).data,
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * 시급 직접 수정 (C97 · D-48 · I-8) — 새 줄 한 장이다. 소급 없음(`WAGE_RETROACTIVE`)·같은 날 한 줄(`WAGE_SAME_DAY`)은 409 로 서버가 낸다.
+ * 그 날짜부터의 회차가 새 시급을 읽으니 정산 시트(회계)·강사 홈·히스토리·서랍 구성원 줄이 같이 바뀐다. 지난달 시트는 그대로다.
+ */
+export function useChangeWage(): UseMutationResult<WageRow, unknown, WageWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<WageRow>('/accounting/wages', body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.teacherHistory });
+    },
   });
 }
 

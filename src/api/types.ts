@@ -374,6 +374,11 @@ export type DrawerTodoCreateResult = S['TodoCreateResultDto'];
 export type DrawerTodoClearResult = S['TodoClearDto'];
 export type Noti = S['NotiDto'];
 export type Member = S['MemberDto'];
+/** C97 — §17 「+ 구성원」 · 시급 이력 · 직접 수정 (D-41 · D-48 · I-8). 소급 없음·같은 날 한 줄은 서버 판정 */
+export type StaffCreate = S['StaffCreateDto'];
+export type WageRow = S['WageRowDto'];
+export type WageHistory = S['WageHistoryDto'];
+export type WageWrite = S['WageWriteDto'];
 export type MemberGroup = S['MemberGroupDto'];
 export type TzGroup = S['TzGroupDto'];
 export type KindRow = S['KindRowDto'];

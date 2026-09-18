@@ -28,7 +28,10 @@ import {
   addDays, conflictLines, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, step, todayKst, weekDays,
 } from '@/lib/calendar';
 import { REQ_TYPE_LABEL, ROLE_BAR } from '@/lib/roles';
+import { won } from '@/lib/money';
 import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
+import { MemberCreateButton } from './MemberCreateDialog';
+import { WageChangeButton } from './WageChangeDialog';
 
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
 
@@ -547,8 +550,12 @@ function useMinuteTick(): number {
  * 컷의 둘째 문장 「여기서 바꾼 시간대는 각자의 화면에만 적용됩니다」는 **적지 않는다** —
  * 이 서랍에는 바꾸는 자리가 없고, 그 문장은 없는 단추를 있다고 말한다 (C68 에서 되돌린 것과 같은 자리).
  */
-export function MembersPane({ groups, tzGroups, tz }: {
+export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWage = false }: {
   groups: MemberGroup[]; tzGroups: TzGroup[]; tz: string;
+  /** 「+ 구성원」이 서는가 — 서버 `DrawerDto.canAddMember` (C97 · D-R39: 화면은 role 을 보지 않는다) */
+  canAddMember?: boolean;
+  /** 시급 줄·「시급 수정」이 서는가 — 서버 `DrawerDto.canWage`. 어느 줄에 서는지는 `member.wageable` 이 가른다 */
+  canWage?: boolean;
 }) {
   const now = useMinuteTick();
   /*
@@ -565,6 +572,12 @@ export function MembersPane({ groups, tzGroups, tz }: {
         옆의 시각은 <b>그 사람이 있는 곳의 지금</b>입니다.
         직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다 (D-R39).
       </Banner>
+      {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
+      {canAddMember ? (
+        <div className="mb-3 flex justify-end">
+          <MemberCreateButton tzGroups={tzGroups} tz={tz} />
+        </div>
+      ) : null}
 
       {groups.map((g) => (
         <section key={g.role} className="mb-3">
@@ -584,6 +597,16 @@ export function MembersPane({ groups, tzGroups, tz }: {
                 <span className="text-[11px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
                 {/* 직함은 컷의 묶음 이름이 있던 자리다 — 묶음으로 못 옮기는 대신 줄에 남긴다 */}
                 {m.title ? <Chip size="compact" tone="neutral">{m.title}</Chip> : null}
+                {/* 시급은 볼 수 있는 사람에게만 온다(canWage) — 줄이 서는지는 서버의 wageable 이 가른다 (C97 · D-48) */}
+                {canWage && m.wageable ? (
+                  <>
+                    {/* 줄이 없는 강사는 「시급 없음」이라 적지 않는다 — 단추만 서고 첫 줄은 창에서 적는다 */}
+                    {m.wageRate != null ? (
+                      <span className="text-[11px] tabular-nums text-fg-2">시급 {won(m.wageRate)}{m.wageFrom ? ` · ${m.wageFrom} 부터` : ''}</span>
+                    ) : null}
+                    <WageChangeButton member={m} />
+                  </>
+                ) : null}
                 <span className="ml-auto text-[12px] tabular-nums text-fg-2">{localHhmm(m.tz ?? tz, now)}</span>
               </li>
             ))}

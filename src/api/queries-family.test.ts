@@ -49,6 +49,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   otherIncome: qk.otherIncome('month'),
   // §57 강사료 시트 — 달이 키에 든다. 확정이 회계 갈래를 버리면 시트도 함께 다시 온다 (C94-b)
   payoutSheet: qk.payoutSheet('2026-08'),
+  // 강사 시급 이력 — 회계 갈래 안에 산다. 새 줄이 정산 시트를 함께 바꾼다 (C97 · D-48)
+  wageHistory: qk.wageHistory(7),
   consultingDetail: qk.consultingDetail(7),
 };
 

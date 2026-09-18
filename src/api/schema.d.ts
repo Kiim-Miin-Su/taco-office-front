@@ -986,6 +986,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/wages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 시급 이력 — 한 사람의 WAGE 줄 전부 (C97 · D-48)
+         * @description 적용일 내림차순. 「지금」 줄은 오늘 이하의 마지막 줄 — 회차의 시급(lib/payout-sheet)과 같은 정의다. 미래 날짜 줄은 예약이다.
+         */
+        get: operations["AccountingController_wageHistory"];
+        put?: never;
+        /**
+         * 시급 직접 수정 — 새 줄 한 줄 (C97 · 테스트 시나리오 D-48 · I-8)
+         * @description 지난 줄은 고치지도 지우지도 않는다 — 지난 정산이 회차 날짜의 줄을 읽는다(과거 정산 불변). 적용일은 오늘 이후(409 WAGE_RETROACTIVE) · 같은 날 한 줄(409 WAGE_SAME_DAY) — §14 승인 경로와 같은 lib/wage.insertWage. 강사 NOTI · LOG.
+         */
+        post: operations["AccountingController_writeWage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/sturates": {
         parameters: {
             query?: never;
@@ -2523,6 +2547,26 @@ export interface paths {
         get: operations["DrawerController_all"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drawer/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「+ 구성원」 — 강사·매니저 계정을 만든다 (C97 · D-41)
+         * @description 이름 · 이메일(유일) · 첫 비밀번호(해시로만 저장 · 응답에 없다) · 역할 둘 · 직함 · 시간대(tzg) · 입사일 · 기본 시급(적으면 같은 트랜잭션에 WAGE 한 줄 · 소급 없음). 대표·관리자 계정은 이 길로 만들지 않는다.
+         */
+        post: operations["DrawerController_createStaff"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4353,6 +4397,43 @@ export interface components {
              * @description 이 날부터 — 그 날짜 이후 회차의 청구서·§54·명단 가격이 이 값을 읽는다
              */
             fromDate: string;
+        };
+        WageRowDto: {
+            id: number;
+            staffId: number;
+            staffName: string;
+            /** @description 기본 시급(원/시간) */
+            rate: number;
+            /** @description 이 날짜의 수업부터 (YYYY-MM-DD) — 소급 없음 (D8) */
+            fromDate: string;
+            reason?: string | null;
+            /** @description 적은 사람 — 승인 경로면 승인자, 직접 수정이면 고친 사람 */
+            approvedByName?: string | null;
+            /** @description 오늘 붙는 줄인가 — 같은 사람의 오늘 이하 마지막 줄 */
+            current: boolean;
+            /** @description KST 시각 */
+            createdAt: string;
+        };
+        WageHistoryDto: {
+            staffId: number;
+            staffName: string;
+            /** @description 적용일 내림차순 — 맨 앞이 가장 나중 줄(미래 예약 포함) */
+            rows: components["schemas"]["WageRowDto"][];
+        };
+        WageWriteDto: {
+            /** @description 구성원 id — 활성인 사람만 */
+            staffId: number;
+            /**
+             * @description 기본 시급(원/시간)
+             * @example 45000
+             */
+            rate: number;
+            /**
+             * Format: date
+             * @description 적용 시작일 — 비우면 오늘. 오늘보다 앞이면 409 WAGE_RETROACTIVE
+             */
+            fromDate?: string;
+            reason?: string | null;
         };
         StudentRateWriteDto: {
             studentId: number;
@@ -7048,6 +7129,12 @@ export interface components {
             title?: string | null;
             tz?: string | null;
             active: boolean;
+            /** @description 오늘 붙는 기본 시급(원/시간) — canWage 아니면 null · 시급 줄이 없으면 null */
+            wageRate?: number | null;
+            /** @description 그 시급의 적용 시작일 YYYY-MM-DD */
+            wageFrom?: string | null;
+            /** @description 시급 줄을 둘 수 있는 사람인가 — 활성 강사 · canWage 아니면 false (C97 · D-R39) */
+            wageable?: boolean;
         };
         MemberGroupDto: {
             /** @description 역할 코드값 — 색·차례를 고르는 열쇠일 뿐 판정이 아니다 */
@@ -7149,6 +7236,34 @@ export interface components {
             workSummary: components["schemas"]["WorkSummaryDto"];
             /** @description 관리자 화면의 모든 시각은 KST 다 (D-R12) */
             tz: string;
+            /** @description §17 「+ 구성원」이 서는가 — canCrudAll (C97 · D-R39: 단추가 서는지도 서버) */
+            canAddMember: boolean;
+            /** @description 시급을 보고 고칠 수 있는가 — canWage. false 면 members.wageRate 는 전부 null (C97) */
+            canWage: boolean;
+        };
+        StaffCreateDto: {
+            name: string;
+            /**
+             * Format: email
+             * @description 로그인 아이디 — 유일
+             */
+            email: string;
+            /** @description 첫 비밀번호 — 로그인 규칙과 같은 8자 이상 */
+            password: string;
+            /**
+             * @description 강사 · 매니저 — 대표·관리자는 만들지 않는다
+             * @enum {string}
+             */
+            role: "teacher" | "manager";
+            /** @description 직함 — 권한과 무관 (D-R39) */
+            title?: string | null;
+            /** @description 시간대 — 시간대 그룹(tzg)에 있는 값만. 비우면 Asia/Seoul */
+            tz?: string | null;
+            phone?: string | null;
+            /** @description 입사일 YYYY-MM-DD — 비우면 오늘. 불가 시간 2주 회차의 기산점 */
+            hiredOn?: string | null;
+            /** @description 기본 시급(원/시간) — 적으면 입사일(또는 오늘)부터의 WAGE 한 줄이 같은 트랜잭션에 선다 · 소급 없음 */
+            wageRate?: number | null;
         };
         TodoDoneDto: {
             /** @description 완료로 바꿀지 여부 */
@@ -11582,6 +11697,159 @@ export interface operations {
                 };
             };
             /** @description RATE_DUPLICATE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_wageHistory: {
+        parameters: {
+            query: {
+                /** @description 구성원 id */
+                staffId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WageHistoryDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_writeWage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WageWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WageRowDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description WAGE_RETROACTIVE | WAGE_SAME_DAY | STAFF_INACTIVE */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18344,6 +18612,81 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_createStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code STAFF_EMAIL_TAKEN | TZ_UNKNOWN | WAGE_SAME_DAY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
