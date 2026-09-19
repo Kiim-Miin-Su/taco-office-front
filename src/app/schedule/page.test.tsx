@@ -458,7 +458,7 @@ describe('겹침 설명 (§19 · D-R43)', () => {
     expect(view.getByText(/같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다/)).toBeTruthy();
     // 설명은 한 왕복 뒤에 붙는다 — 가짜 타이머를 쓰는 스위트라 microtask 만 흘려보낸다
     await act(async () => { await Promise.resolve(); });
-    expect(view.getByText(/현장 3호 \(강의실\)/)).toBeTruthy();
+    expect(view.getByText(/\[강의실\] 현장 3호/)).toBeTruthy();
   });
 
   it('저장은 됐지만 강사가 불가로 적어 둔 시간이면 그 사실을 알린다 (§15·§16)', () => {

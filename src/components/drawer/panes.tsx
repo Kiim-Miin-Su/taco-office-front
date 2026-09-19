@@ -384,7 +384,9 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
   /* 목록은 서버가 「안 읽은 것 먼저」로 주지만, §16 은 **날짜로 묶어** 보여 준다.
      그 순서 그대로 묶으면 오늘/어제가 두 번씩 나온다 — 그리는 순서만 날짜순으로 되돌린다. */
   const shown = notis
-    .filter((n) => (filter === 'all' ? true : filter === 'unread' ? !n.read : n.category === filter))
+    .filter((n) => (filter === 'all' ? true
+      : filter === 'mine' ? mine(n)
+        : filter === 'unread' ? !n.read : n.category === filter))
     .slice()
     .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
@@ -410,6 +412,12 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
       <div className="flex flex-wrap gap-1">
         {[
           { key: 'all', label: `전체 ${notis.length}` },
+          /*
+            원문 M-126 의 「내게 온 것」. 관리자·대표는 **남의 알림도 보는** 화면이라,
+            줄마다 「남의 알림」이라 적어 두기만 하고 **골라 볼 길이 없었다** — 스무 줄이 넘으면
+            그 라벨만으로는 내 것을 못 찾는다. 판정은 이미 쓰고 있는 `mine()` 그대로다.
+          */
+          { key: 'mine', label: `내게 온 것 ${notis.filter(mine).length}` },
           { key: 'unread', label: `안 읽음 ${unread}` },
           ...categories.map((category) => ({ key: category.key, label: `${category.label} ${category.count}` })),
         ].map((c) => (
@@ -451,7 +459,21 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
                   <span>{n.fromName ?? '시스템'}</span>
                   <span>{n.at.slice(5, 16).replace('T', ' ')}</span>
                   {/* 원문 M-124·M-127 의 낱말은 「열기 ›」다 — 「원본」이라 적고 있었다 (C99 · D-R18) */}
-                  {n.link ? <Link href={n.link} className="ml-auto font-bold text-blue hover:underline">열기 ›</Link> : null}
+                  {n.link ? (
+                    <Link
+                      href={n.link}
+                      className="ml-auto font-bold text-blue hover:underline"
+                      /*
+                        **열면 읽은 것이다** (원문 M-127 「읽음 처리된다」). 여는 것과 읽음이 따로
+                        놀아서, 눌러서 그 화면까지 가 놓고도 수신함에는 안 읽음으로 남아 있었다.
+                        막지 않는다 — 이동은 그대로 가고 읽음만 함께 보낸다. 남의 알림은 서버가
+                        어차피 거절하므로 **내 것일 때만** 부른다(읽음 단추와 같은 판정).
+                      */
+                      onClick={() => { if (!n.read && mine(n)) onRead(n.id); }}
+                    >
+                      열기 ›
+                    </Link>
+                  ) : null}
                 </p>
               </li>
             ))}

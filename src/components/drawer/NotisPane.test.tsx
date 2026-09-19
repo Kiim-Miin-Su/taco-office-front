@@ -62,6 +62,34 @@ it('예전 알림은 지운 것이 아니라 접어 둔 것이라고 말한다 (
   expect(props.onWiden).toHaveBeenCalledWith(true);
 });
 
+/**
+ * 원문 M-126 「내게 온 것」 — 관리자·대표는 남의 알림도 보는 화면이라, 줄마다 「남의 알림」이라
+ * 적어 두기만 하고 골라 볼 길이 없었다. 판정은 읽음 단추가 이미 쓰는 것과 같은 것이어야 한다.
+ */
+it('내게 온 것만 골라 볼 수 있다 — 남의 알림은 빠진다 (M-126)', () => {
+  const { view } = setup();
+  const chip = view.getByRole('button', { name: '내게 온 것 2' });
+  fireEvent.click(chip);
+  expect(chip.getAttribute('aria-pressed')).toBe('true');
+  expect(view.container.textContent).toContain('4시간 이상 미작성 16건');
+  expect(view.container.textContent).toContain('시험 준비 자료 기록 승인');
+  expect(view.container.textContent).not.toContain('MAP Reading 리포트 독촉');
+});
+
+/**
+ * 원문 M-127 「읽음 처리된다」 — 여는 것과 읽음이 따로 놀아, 눌러서 그 화면까지 가 놓고도
+ * 수신함에는 안 읽음으로 남아 있었다. 남의 알림은 서버가 거절하므로 부르지 않는다.
+ */
+it('열기 ›를 누르면 읽음도 함께 보낸다 — 남의 알림은 부르지 않는다 (M-127)', () => {
+  const { props, view } = setup();
+  const links = view.getAllByRole('link', { name: '열기 ›' });
+  fireEvent.click(links[0]);
+  expect(props.onRead).toHaveBeenCalledWith(1);
+  // 두 번째 줄은 남의 알림이다 — 눌러도 읽음을 보내지 않는다 (호출은 여전히 한 번뿐)
+  fireEvent.click(links[1]);
+  expect(props.onRead).toHaveBeenCalledTimes(1);
+});
+
 it('남의 알림은 읽음 단추가 없다 — 서버가 어차피 거절한다 (관리자는 남의 것도 본다)', () => {
   const { view } = setup();
   expect(view.getAllByRole('button', { name: '읽음' })).toHaveLength(1);

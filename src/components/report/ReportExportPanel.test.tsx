@@ -28,8 +28,8 @@ const detail: ReportDetail = {
   body: { content: '수업', progress: '42p', homework: '43p' }, fields,
   canEdit: false, canReview: false, canExport: true, canDeliver: false,
   exportFiles: [
-    { studentId: 4, fileName: '20260903_학생A_고2_AP Chemistry_16:00.png', plainText: '학생A 본문', revision: 'a'.repeat(64) },
-    { studentId: 5, fileName: '20260903_학생B_학년미정_AP Chemistry_16:00.png', plainText: '학생B 본문', revision: 'b'.repeat(64) },
+    { studentId: 4, fileName: '20260903_학생A_고2_AP Chemistry_16-00.png', plainText: '학생A 본문', revision: 'a'.repeat(64) },
+    { studentId: 5, fileName: '20260903_학생B_학년미정_AP Chemistry_16-00.png', plainText: '학생B 본문', revision: 'b'.repeat(64) },
   ],
   subjectName: 'AP Chemistry', lang: 'ko', writtenAt: '2026-09-03T08:00:00Z',
   submittedAt: '2026-09-03T08:00:00Z', reviewedAt: null, rejectReason: null,
@@ -66,7 +66,7 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     fireEvent.click(view.getByText('PNG로 저장'));
 
     await waitFor(() => expect(download).toHaveBeenCalledOnce());
-    expect(download.mock.calls[0]?.[1]).toBe('20260903_학생B_학년미정_AP Chemistry_16:00.png');
+    expect(download.mock.calls[0]?.[1]).toBe('20260903_학생B_학년미정_AP Chemistry_16-00.png');
   });
 
   it('서버가 출력 권한을 닫으면 전문과 버튼을 노출하지 않는다', () => {

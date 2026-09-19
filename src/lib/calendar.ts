@@ -497,12 +497,23 @@ export function movePlacements<T extends OccurrenceIdentity>(
  * §19 변경 요청과 §07~§11 일정 이동은 같은 겹침을 받는다. 두 화면이 각자 문장을 만들면
  * 같은 사실이 자리마다 다르게 읽힌다 (D-R18 의 짝). 판정은 서버가 하고 여기는 **늘어놓기만** 한다.
  */
-const CONFLICT_WITH: Record<string, string> = { teacher: ' (강사)', room: ' (강의실)', zoom: ' (줌)' };
+const CONFLICT_WITH: Record<string, string> = { teacher: '강사', room: '강의실', zoom: '줌' };
 
+/**
+ * 한 줄의 차례는 **무엇이 · 누구와 · 언제 · 어느 수업**이다 (B-17·B-18 원문).
+ *
+ * 수업 이름을 빼면 「1호와 겹칩니다」까지만 말하게 되는데, 잡는 사람이 다음에 하는 일은
+ * **그 수업을 찾아 보는 것**이라 이름이 없으면 한 걸음이 더 든다. 이름은 서버가 준다
+ * (`COALESCE(ser.title, kind.name)` — 비는 일이 없다). 이름 없는 상대는 자리도 만들지 않는다 —
+ * 「· 」만 남은 줄은 무언가 빠뜨린 것처럼 읽힌다.
+ */
 export function conflictLines(rows: readonly ConflictRow[]): string[] {
-  return rows.map((row) => (
-    `${row.onDate} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.whoName ?? ''}${CONFLICT_WITH[row.with] ?? ''}`
-  ));
+  return rows.map((row) => [
+    `[${CONFLICT_WITH[row.with] ?? row.with}]`,
+    row.whoName ? `${row.whoName} ·` : null,
+    `${row.onDate} ${hhmm(row.startMin)}–${hhmm(row.endMin)}`,
+    row.title ? `· ${row.title}` : null,
+  ].filter(Boolean).join(' '));
 }
 
 /**

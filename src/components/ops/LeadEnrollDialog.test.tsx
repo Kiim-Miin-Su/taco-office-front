@@ -120,7 +120,7 @@ it('겹치면 서버가 거절한 문장을 그대로 보이고 누구와 부딪
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(view.getByText(/이미 잡혀 있습니다/)).toBeTruthy());
   await waitFor(() => expect(got.filter((u) => u === '/schedule/conflicts').length).toBeGreaterThan(0));
-  await waitFor(() => expect(view.getByText(/2026-10-05 16:00–17:00 · 김재훈/)).toBeTruthy());
+  await waitFor(() => expect(view.getByText(/\[강사\] 김재훈 · 2026-10-05 16:00–17:00 · SAT/)).toBeTruthy());
   expect(view.queryByLabelText('등록 미리보기')).toBeNull();
   expect((within(dialog).getByRole('button', { name: '등록 확정' }) as HTMLButtonElement).disabled).toBe(true);
 

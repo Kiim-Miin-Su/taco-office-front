@@ -14,9 +14,9 @@
 'use client';
 import { useForm } from 'react-hook-form';
 import { Button, ConflictGuard, Dialog, Input, Label, Select, Chip } from '../ui';
-import { KO_DOW, buildRrule, lessonTimeIssue, parseHm } from '@/lib/calendar';
-import { useScheduleWrite } from '@/api/queries';
-import { apiMessage } from '@/api/client';
+import { KO_DOW, buildRrule, conflictLines, lessonTimeIssue, parseHm } from '@/lib/calendar';
+import { fetchConflicts, useScheduleWrite } from '@/api/queries';
+import { apiMessage, isConflict } from '@/api/client';
 import { useState } from 'react';
 import type { Meta, WriteResult } from '@/api/types';
 
@@ -97,7 +97,32 @@ export function SessionEditor({ draft, meta, onClose, onCreated }: {
         },
       },
       {
-        onError: (e) => setErr(apiMessage(e)),
+        /**
+         * 막혔으면 **누구와** 부딪혔는지까지 말한다 (원문 B-17·B-18 · D-R43).
+         *
+         * 여기 신호는 409 하나였고 그 문구는 「같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다」라
+         * **상대를 말하지 않는다.** 계산은 C84-b 가 서버에 세워 뒀고 옮기기·붙여넣기는 이미 쓰고
+         * 있었다 — 만들기만 그 길에 안 이어져 있었다.
+         *
+         * 묻는 때는 **막힌 뒤 한 번**이다. 미리 물어서 비었다고 저장을 건너뛰면 그 사이에 남이
+         * 그 자리를 잡는다 — 막는 것은 DB 이고 이것은 설명이다.
+         */
+        onError: (e) => {
+          const base = apiMessage(e);
+          setErr(base);
+          if (!isConflict(e)) return;
+          void fetchConflicts({
+            date: draft.date, startMin, endMin,
+            teacherId: v.teacherId ? Number(v.teacherId) : null,
+            roomId: v.roomId ? Number(v.roomId) : null,
+          })
+            .then((rows) => {
+              if (!rows.length) return;
+              setErr(`${base} — ${conflictLines(rows).slice(0, 3).join(' · ')}`);
+            })
+            // 설명을 못 가져와도 원래 문구는 이미 서 있다 — 실패가 실패를 덮지 않는다
+            .catch(() => undefined);
+        },
         onSuccess: (result) => { onCreated?.(result); onClose(); },
       },
     );

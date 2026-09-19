@@ -184,15 +184,22 @@ describe('분할 표 상태 (§4)', () => {
 
   it('겹침 낱말은 한 벌이다 — §19 요청과 §07~§11 이동이 같은 문장을 쓴다', () => {
     expect(conflictLines([
-      { serId: 1, onDate: '2026-09-02', startMin: 600, endMin: 660, with: 'teacher', whoName: '김재훈' },
-      { serId: 2, onDate: '2026-09-02', startMin: 630, endMin: 690, with: 'room', whoName: '현장 3호' },
-      { serId: 3, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'zoom', whoName: null },
+      { serId: 1, onDate: '2026-09-02', startMin: 600, endMin: 660, with: 'teacher', whoName: '김재훈', title: 'SAT Reading' },
+      { serId: 2, onDate: '2026-09-02', startMin: 630, endMin: 690, with: 'room', whoName: '현장 3호', title: 'MAP Reading' },
+      { serId: 3, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'zoom', whoName: null, title: 'Writing' },
     ])).toEqual([
-      '2026-09-02 10:00–11:00 · 김재훈 (강사)',
-      '2026-09-02 10:30–11:30 · 현장 3호 (강의실)',
-      '2026-09-02 15:00–16:00 ·  (줌)',
+      '[강사] 김재훈 · 2026-09-02 10:00–11:00 · SAT Reading',
+      '[강의실] 현장 3호 · 2026-09-02 10:30–11:30 · MAP Reading',
+      '[줌] 2026-09-02 15:00–16:00 · Writing',
     ]);
     expect(conflictLines([])).toEqual([]);
+  });
+
+  // 「누구와」가 비어도 「· 」만 남은 줄을 만들지 않는다 — 빠뜨린 것처럼 읽힌다
+  it('겹침 한 줄은 이름 없는 상대의 자리를 비워 두지 않는다', () => {
+    expect(conflictLines([
+      { serId: 4, onDate: '2026-09-02', startMin: 600, endMin: 660, with: 'zoom', whoName: null },
+    ])).toEqual(['[줌] 2026-09-02 10:00–11:00']);
   });
 
   it('불가 시간 알림은 막힌 것이 아니라 알리는 것이다 — 사유까지 그대로 옮긴다 (§15·§16)', () => {

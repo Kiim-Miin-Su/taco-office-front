@@ -3699,7 +3699,7 @@ export interface components {
         };
         ReportExportFileDto: {
             studentId: number;
-            /** @example 20260827_김민준_고2_수학_16:30.png */
+            /** @example 20260827_김민준_고2_수학_16-30.png */
             fileName: string;
             /** @description 클립보드와 RSEND.body가 공유하는 서버 생성 5섹션 본문 */
             plainText: string;

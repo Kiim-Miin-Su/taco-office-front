@@ -127,7 +127,7 @@ it('하루만 대강은 날짜 하나로 보내고, 겹치면 서버 문장을 �
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(view.getByText(/이미 잡혀 있습니다 — Writing/)).toBeTruthy());
   await waitFor(() => expect(got.filter((u) => u === '/schedule/conflicts').length).toBe(1));
-  await waitFor(() => expect(view.getByText(/2026-10-05 16:00–17:00 · 김범준/)).toBeTruthy());
+  await waitFor(() => expect(view.getByText(/\[강사\] 김범준 · 2026-10-05 16:00–17:00 · SAT/)).toBeTruthy());
   expect(view.queryByLabelText('교체 미리보기')).toBeNull();
   expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(true);
 });

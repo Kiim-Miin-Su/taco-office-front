@@ -434,7 +434,7 @@ export default function ExecPage() {
             <Panel
               className="mt-4"
               title="돈"
-              sub={d?.canSeeAmounts ? '수입 · 지출 · 이익' : '대표만 볼 수 있습니다 (D-R39)'}
+              sub={d?.canSeeAmounts ? '수입 · 강사료 · 지출 · 이익' : '대표만 볼 수 있습니다 (D-R39)'}
             >
               <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
                 {money.map((s) => (
@@ -444,9 +444,13 @@ export default function ExecPage() {
                     value={
                       s.value === null || s.value === undefined
                         ? <span className="text-[14px] text-fg-subtle">가려짐</span>
-                        : won(s.value)
+                        // 단위는 서버가 준다 — 이익률에 「원」을 붙이면 −268원이 된다 (원본 §71 은 −268%)
+                        : s.unit === '%' ? `${s.value}%` : won(s.value)
                     }
-                    tone={s.key === 'profit' ? ((s.value ?? 0) >= 0 ? 'success' : 'danger') : s.key === 'expense' ? 'warning' : 'info'}
+                    // 적자면 붉게 — 이익률은 이익과 같은 부호라 같은 빛깔을 쓴다 (H-86)
+                    tone={s.key === 'profit' || s.key === 'margin'
+                      ? ((s.value ?? 0) >= 0 ? 'success' : 'danger')
+                      : s.key === 'expense' || s.key === 'payout' ? 'warning' : 'info'}
                   />
                 ))}
               </div>
