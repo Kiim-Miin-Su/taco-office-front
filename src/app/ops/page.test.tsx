@@ -13,6 +13,7 @@ import type { Me, Ops } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
+import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
 
 const nav = vi.hoisted(() => ({ search: '' }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
@@ -33,6 +34,7 @@ const me: Me = {
 const response: Ops = {
   leads: [], complaints: [], todos: [], plans: [], meetings: [], suggestions: [], canSeeAmounts: true,
   feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
+  ...OPS_HEAD_FIXTURE,
   intakeHead: INTAKE_HEAD_FIXTURE,
   marketing: [{ id: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
     title: null, name: '검수 채널 · 광고', byId: null, byName: null,
@@ -104,7 +106,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     expect(view.getByText('123,400원')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '할 일 0' }));
     fireEvent.click(view.getByRole('button', { name: '마케팅 1' }));
-    expect(get.mock.calls).toEqual([['/ops']]);
+    expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
   });
 
   it('허용된 0원과 등록이 없어 계산할 수 없는 null을 구분한다', async () => {

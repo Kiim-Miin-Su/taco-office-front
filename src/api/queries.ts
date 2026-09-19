@@ -112,6 +112,8 @@ import type {
   LeadStageMove,
   LeadTouchWrite,
   LessonTracking,
+  MeetingCreate,
+  MeetingCreateResult,
   MeetingDetail,
   Meta,
   MfbThread,
@@ -129,6 +131,8 @@ import type {
   Ops,
   OtherIncome,
   PaymentCreate,
+  PlanCreate,
+  PlanCreateResult,
   PlanDetail,
   ReportDeliveryCreate,
   ReportDeliveryQuery,
@@ -280,9 +284,35 @@ export const family = {
   tracking: ['schedule', 'tracking'] as const,
 };
 
-/** 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다. */
-export function opsQueryKey(viewerId: ViewerId, canMoney: boolean) {
-  return [...sessionQueryKey(qk.ops, viewerId), { canMoney }] as const;
+/**
+ * 운영 탭이 **무엇을 받을지** — 기간과 갈래 (C96 · N-46 ② · J-102).
+ *
+ * **검색 인자는 없다** — §24 FQ 는 받은 목록에서 거른다. 여기 드는 것은 「무엇을 받을지」뿐이다.
+ */
+export interface OpsQuery {
+  from?: string;
+  to?: string;
+  /** §67 컴플레인 갈래 — 칩 줄이 고른다 */
+  area?: string;
+}
+
+/**
+ * 비용 공개 범위는 서버 응답을 바꾸므로 같은 사용자도 권한별 캐시를 분리한다.
+ *
+ * 기간·갈래도 **응답을 바꾸므로 키에 든다** (C96). 앞자락은 `qk.ops` 그대로라
+ * `useOpsInvalidate` 의 접두 무효화가 기간을 바꿔 가며 쌓인 캐시를 전부 걷는다.
+ */
+export function opsQueryKey(viewerId: ViewerId, canMoney: boolean, query: OpsQuery = {}) {
+  return [...sessionQueryKey(qk.ops, viewerId), { canMoney }, opsQueryPart(query)] as const;
+}
+
+/** 빈 값은 키에서 뺀다 — `{from: undefined}` 와 `{}` 가 다른 캐시가 되면 토글 한 번에 두 번 받는다 */
+function opsQueryPart(query: OpsQuery): OpsQuery {
+  const part: OpsQuery = {};
+  if (query.from) part.from = query.from;
+  if (query.to) part.to = query.to;
+  if (query.area) part.area = query.area;
+  return part;
 }
 
 function useViewerId(): ViewerId {
@@ -676,13 +706,14 @@ export function useReviewExpense(): UseMutationResult<Expense, unknown, { id: nu
   });
 }
 
-export function useOps(): UseQueryResult<Ops> {
+export function useOps(query: OpsQuery = {}): UseQueryResult<Ops> {
   const viewerId = useViewerId();
   const canMoney = useSession((s) => s.me?.canMoney === true);
+  const part = opsQueryPart(query);
   return useQuery({
-    queryKey: opsQueryKey(viewerId, canMoney),
+    queryKey: opsQueryKey(viewerId, canMoney, part),
     queryFn: async () => {
-      const data = (await api.get<Ops>('/ops')).data;
+      const data = (await api.get<Ops>('/ops', { params: part })).data;
       if (canMoney && data.canSeeAmounts === true) return data;
       // JWT는 발급 시점 권한이다. 현재 Me가 비공개면 과거 JWT 응답도 캐시에 넣기 전에 제한한다.
       // 회수 전 요청은 과거 권한 키에만 저장되고 현재 화면에 재사용되지 않는다.
@@ -1941,6 +1972,42 @@ export function useCreateComplaint(): UseMutationResult<Complaint, unknown, Comp
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body) => (await api.post<Complaint>('/ops/complaints', body)).data,
+    onSettled: () => { void invalidate(); void qc.invalidateQueries({ queryKey: family.drawer }); },
+  });
+}
+
+/**
+ * 「+ 회의 잡기」 (C96 · N-46 ③ · 원문 §63).
+ *
+ * 회의는 **시간표에 생긴다** — 그래서 `family.schedule` 도 함께 버린다. 운영 탭만 갱신하면
+ * 방금 잡은 회의가 시간표 화면에는 안 보이고, 사람은 「안 만들어졌나」 하고 한 번 더 누른다.
+ * 겹침 409(`RESOURCE_CONFLICT`)는 **서버 문장 그대로** 창 안에 적는다.
+ */
+export function useCreateMeeting(): UseMutationResult<MeetingCreateResult, unknown, MeetingCreate> {
+  const invalidate = useOpsInvalidate();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<MeetingCreateResult>('/ops/meetings', body)).data,
+    onSettled: () => {
+      void invalidate();
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.horizon });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
+  });
+}
+
+/**
+ * 「+ 기획 올리기」 (C96 · N-46 ③ · 원문 §61).
+ *
+ * **단계를 보내지 않는다** — 올린 기획은 언제나 첫 칸이다. 화면이 단계를 고르면 전이표가 두 벌이 된다
+ * (C90 「+ 신규 문의」와 같은 규약). 기한도 **제안**일 뿐이라 대표 승인 전에는 §62 표에 서지 않는다.
+ */
+export function useCreatePlan(): UseMutationResult<PlanCreateResult, unknown, PlanCreate> {
+  const invalidate = useOpsInvalidate();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<PlanCreateResult>('/ops/plans', body)).data,
     onSettled: () => { void invalidate(); void qc.invalidateQueries({ queryKey: family.drawer }); },
   });
 }

@@ -511,7 +511,15 @@ export function conflictLines(rows: readonly ConflictRow[]): string[] {
  * 지금까지 관리자 화면 어디에도 UNAV 가 없어 **적어 낸 강사만 알고 잡는 사람은 몰랐다.**
  * 판정과 사유는 서버가 주고 여기는 늘어놓기만 한다.
  */
-export function unavailableLines(rows: readonly UnavWarn[]): string[] {
+/**
+ * 「못 한다고 적어 둔 시간에 걸쳤다」 한 줄씩.
+ *
+ * 인자는 **이 함수가 실제로 읽는 다섯 칸**이다 — `UnavWarnDto` 전체를 요구하면
+ * 같은 경고를 더 가볍게 내려보내는 자리(C96 `UnavWarnLiteDto`)가 이 함수를 못 쓴다.
+ */
+export function unavailableLines<
+  T extends Pick<UnavWarn, 'date' | 'teacherName' | 'startMin' | 'endMin' | 'reason'>,
+>(rows: readonly T[]): string[] {
   return rows.map((row) => (
     `${row.date} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.teacherName} — ${row.reason}`
   ));

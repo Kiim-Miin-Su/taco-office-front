@@ -16,6 +16,7 @@ import { RouteAccess } from '@/components/shell/RequireAuth';
 import { useSession } from '@/store/useSession';
 import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
+import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
 const nav = vi.hoisted(() => ({ path: '/intake', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace, push: vi.fn() }) }));
@@ -36,6 +37,7 @@ const response: Ops = {
   leads: [{ id: 71, name: '접근 검수 학생', stage: 'first', createdAt: '2026-09-10', ageDays: 0, nextStages: [], touches: [] }],
   complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
+  ...OPS_HEAD_FIXTURE,
   intakeHead: INTAKE_HEAD_FIXTURE,
 };
 const clients: QueryClient[] = [];
@@ -87,7 +89,7 @@ describe('상담 메뉴 → 직접 URL → 실제 useOps 조회 경계 (D-R39)',
     if (allowed) {
       await waitFor(() => expect(view.getByText('접근 검수 학생')).toBeTruthy());
       expect(view.getByRole('link', { name: '상담' }).getAttribute('aria-current')).toBe('page');
-      expect(get.mock.calls).toEqual([['/ops']]);
+      expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
       expect(view.client.getQueryData(opsQueryKey(me.id, me.canMoney))).toEqual(response);
       expect(nav.replace).not.toHaveBeenCalled();
     } else {
@@ -120,7 +122,7 @@ describe('상담 메뉴 → 직접 URL → 실제 useOps 조회 경계 (D-R39)',
     act(() => useSession.setState({ me: manager }));
     await waitFor(() => expect(view.getByText('접근 검수 학생')).toBeTruthy());
     expect(view.getByRole('link', { name: '상담' })).toBeTruthy();
-    expect(get.mock.calls).toEqual([['/ops']]);
+    expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
 
     act(() => useSession.setState({ me: { ...manager, canCrudAll: false } }));
     expect(view.container.querySelector('a[href="/intake"]')).toBeNull();
@@ -128,7 +130,7 @@ describe('상담 메뉴 → 직접 URL → 실제 useOps 조회 경계 (D-R39)',
     expect(view.queryByText('접근 검수 학생')).toBeNull();
     // 회수 시 캐시 삭제를 가장하지 않는다. 남아 있는 캐시도 비허용 본문에서 소비되면 안 된다.
     expect(view.client.getQueryData(opsQueryKey(manager.id, manager.canMoney))).toEqual(response);
-    expect(get.mock.calls).toEqual([['/ops']]);
+    expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
     expect(nav.replace).toHaveBeenLastCalledWith('/schedule');
   });
 
@@ -137,13 +139,13 @@ describe('상담 메뉴 → 직접 URL → 실제 useOps 조회 경계 (D-R39)',
     const pending = new Promise<{ data: Ops }>((done) => { resolve = done; });
     const get = vi.spyOn(api, 'get').mockReturnValue(pending);
     const view = setup(manager);
-    await waitFor(() => expect(get.mock.calls).toEqual([['/ops']]));
+    await waitFor(() => expect(get.mock.calls).toEqual([['/ops', { params: {} }]]));
     act(() => useSession.setState({ me: { ...manager, canAdminPage: false } }));
     await act(async () => { resolve({ data: response }); await pending; });
     expect(view.container.querySelector('a[href="/intake"]')).toBeNull();
     expect(view.queryByRole('heading', { name: '상담' })).toBeNull();
     expect(view.queryByText('접근 검수 학생')).toBeNull();
-    expect(get.mock.calls).toEqual([['/ops']]);
+    expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
     expect(nav.replace).toHaveBeenLastCalledWith('/schedule');
   });
 });

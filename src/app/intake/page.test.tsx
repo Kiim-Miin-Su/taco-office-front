@@ -14,6 +14,7 @@ import type { Lead, Ops } from '@/api/types';
 import { FAILURE_SEARCH_LABEL } from '@/lib/intake-search';
 import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
+import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
@@ -31,6 +32,7 @@ const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', r
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
+  ...OPS_HEAD_FIXTURE,
   intakeHead: INTAKE_HEAD_FIXTURE,
 };
 
@@ -58,7 +60,7 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     expect(view.getByText('타 학원 등록')).toBeTruthy();
     expect(view.getByRole('button', { name: '중단 지점 3' })).toBeTruthy();
     expect(view.get).toHaveBeenCalledTimes(1);
-    expect(view.get).toHaveBeenCalledWith('/ops');
+    expect(view.get).toHaveBeenCalledWith('/ops', { params: {} });
     expect(view.client.getQueryData(opsQueryKey('anonymous', false))).toEqual(response);
   });
 

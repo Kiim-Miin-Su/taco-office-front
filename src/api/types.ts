@@ -205,6 +205,15 @@ export type EnrollSeries = S['EnrollSeriesDto'];
 export type ComplaintCreate = S['ComplaintCreateDto'];
 export type ComplaintPatch = S['ComplaintPatchDto'];
 export type CplWord = S['CplWordDto'];
+/** 운영에 만드는 길 · 기간과 갈래로 좁히기 (C96 · N-46 ②③ · J-102) */
+export type MeetingCreate = S['MeetingCreateDto'];
+export type MeetingCreateResult = S['MeetingCreateResultDto'];
+export type PlanCreate = S['PlanCreateDto'];
+export type PlanCreateResult = S['PlanCreateResultDto'];
+/** 지금 보고 있는 기간 — 「전체」·「2026년 9월」 같은 낱말도 서버가 만든다 (D-R18) */
+export type OpsRange = S['OpsRangeDto'];
+/** 칩 줄 한 칸 — 건수는 서버가 센다 (D-R37) */
+export type OpsCount = S['OpsCountDto'];
 export type TeacherChange = S['TeacherChangeDto'];
 export type TeacherChangeResult = S['TeacherChangeResultDto'];
 export type TcSeries = S['TcSeriesDto'];

@@ -12,6 +12,7 @@ import { api } from '@/api/client';
 import type { Lead, Ops } from '@/api/types';
 import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
+import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
@@ -40,6 +41,7 @@ const leads: Lead[] = [
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
+  ...OPS_HEAD_FIXTURE,
   intakeHead: {
     ...INTAKE_HEAD_FIXTURE,
     funnel: INTAKE_HEAD_FIXTURE.funnel.map((f) => ({ ...f, count: f.key === 'first' ? 2 : f.key === 'hold' || f.key === 'enrolled' ? 1 : 0 })),

@@ -17,8 +17,8 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Button, Chip, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
-import { useMeta, useOps } from '@/api/queries';
+import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
+import { useDrawerWrite, useMeta, useOps } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
@@ -26,13 +26,24 @@ import { MeetingDetail } from '@/components/ops/MeetingDetail';
 import { ComplaintCreateButton } from '@/components/ops/ComplaintForm';
 import { ComplaintDetail } from '@/components/ops/ComplaintDetail';
 import { TeacherChangeWizard, type TeacherChangePreset } from '@/components/ops/TeacherChangeWizard';
+import { MeetingCreateButton } from '@/components/ops/MeetingCreateDialog';
+import { PlanCreateButton } from '@/components/ops/PlanCreateDialog';
+import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
 import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog';
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue, Todo } from '@/api/types';
 import { won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
-import { todayKst } from '@/lib/calendar';
+import { hhmm, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
+/**
+ * 컷 §63 의 「일간 주간 월간 전체」 (C96).
+ *
+ * 「전체」가 기본이다 — 기간을 안 고르면 지금까지처럼 전부 받는다. 날짜 계산은 달력이 이미 갖고 있는
+ * `summaryBoundsOf`·`step` 을 그대로 쓴다(월간은 격자가 아니라 **그 달**이다 · N-19).
+ * **기간의 낱말은 서버가 만든다**(`range.label` · D-R18) — 화면이 「2026년 9월」을 짓지 않는다.
+ */
+type Period = 'all' | 'day' | 'week' | 'month';
 
 const SRC: Record<string, string> = { meeting: '회의', complaint: '컴플레인', consulting: '컨설팅', plan: '기획', manual: '직접' };
 /**
@@ -75,11 +86,22 @@ export default function OpsPage() {
   // 컴플레인 → 수강 종료·환불 (J-99) — C94-c 창을 그대로 연다. 사유에 컴플레인을 적어 잇는다(cplId 칸은 N-135 ①)
   const [withdrawOf, setWithdrawOf] = useState<Complaint | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /* 컷 §63 의 기간 토글 — 기본은 「전체」다(지금 동작을 안 바꾼다 · C96) */
+  const [period, setPeriod] = useState<Period>('all');
+  const [anchor, setAnchor] = useState(todayKst);
+  /* §67 갈래는 **서버로 간다**(J-102 — 건수도 목록도 서버가 자른다). 나머지 칩 둘은 받은 목록에서 거른다(§24 FQ) */
+  const [area, setArea] = useState('');
+  const [mtType, setMtType] = useState('');
+  const [todoOwner, setTodoOwner] = useState('');
+  const [todoOpen, setTodoOpen] = useState(false);
   const viewerId = useSession((s) => s.me?.id ?? null);
-  const q = useOps();
+  const bounds = period === 'all' ? null : summaryBoundsOf(period, anchor);
+  const q = useOps({ ...(bounds ?? {}), ...(area ? { area } : {}) });
   const d = q.data;
-  // 할 일 배정의 담당자 목록 — 창을 열 때만 필요하다
-  const meta = useMeta(meetingId !== null);
+  // 할 일 배정의 담당자 목록 — 창을 열 때만 필요하다. 「+ 할 일 주기」도 같은 목록을 쓴다 (C96)
+  const meta = useMeta(meetingId !== null || todoOpen);
+  // 「+ 할 일 주기」는 **새 경로가 아니다** — 서랍이 쓰는 `POST /drawer/todos` 를 그대로 부른다 (C76 · C96)
+  const todoWrite = useDrawerWrite();
 
   useEffect(() => {
     setTab(queryTab);
@@ -102,13 +124,32 @@ export default function OpsPage() {
     // 낱말은 서버가 만든다 — 한동안 이 칩이 「general」 「plan」을 그대로 찍고 있었다 (D-R18 · C57)
     { key: 'k', head: '종류', width: 110, cell: (r) => <Chip tone="info">{r.mtTypeLabel}</Chip> },
     { key: 't', head: '제목', cell: (r) => <span className="font-bold">{r.title ?? '—'}</span> },
-    { key: 'd', head: '일시', width: 110, cell: (r) => r.onDate ?? '—' },
-    { key: 'a', head: '참석', width: 100,
-      // 원본 §63 은 참석을 **칩**으로 적는다 — 같은 줄의 종류·속기록이 이미 칩이라 여기만 맨 글씨였다
+    /*
+     * 컷 §63 의 「26년 9월 18일 금요일 11:00–12:00」 — 시각은 **이어진 회차**에서 온다 (C96).
+     * 옛 회의는 이어진 회차가 없어 시각이 없다. 지어내지 않고 **없다고 적는다** (N-25).
+     */
+    { key: 'd', head: '일시', width: 150,
+      cell: (r) => r.onDate === null || r.onDate === undefined ? '—' : (
+        <span className="whitespace-nowrap">
+          {r.onDate}
+          {r.startMin == null || r.endMin == null
+            ? <span className="ml-1 text-[10.5px] text-fg-subtle">시각 없음</span>
+            : <span className="ml-1 font-bold">{hhmm(r.startMin)}–{hhmm(r.endMin)}</span>}
+        </span>
+      ) },
+    /* 컷 §63 의 「1호」·「온라인 TN」 — 낱말은 서버가 만든다 (D-R18) */
+    { key: 'p', head: '자리', width: 120,
+      cell: (r) => r.placeLabel ? <Chip tone="purple">{r.placeLabel}</Chip> : <span className="text-fg-subtle">—</span> },
+    { key: 'a', head: '참석', width: 120,
+      // 원본 §63 은 참석을 **칩**으로 적는다 — 같은 줄의 종류·속기록이 이미 칩이라 여기만 맨 글씨였다.
+      // 「대기 4」도 같은 줄에 선다 — 답을 안 한 사람 수는 서버가 센다 (D-R37)
       cell: (r) => (
-        <Chip size="compact" tone={r.confirmed < r.attendees ? 'warning' : 'success'}>
-          {r.confirmed}/{r.attendees}
-        </Chip>
+        <span className="flex flex-wrap items-center gap-1">
+          <Chip size="compact" tone={r.confirmed < r.attendees ? 'warning' : 'success'}>
+            {r.confirmed}/{r.attendees}
+          </Chip>
+          {r.waiting > 0 ? <Chip size="compact" tone="warning">대기 {r.waiting}</Chip> : null}
+        </span>
       ) },
     { key: 'm', head: '속기록', width: 100,
       cell: (r) => r.hasMinutes ? <Chip tone="success">작성 완료</Chip> : <Chip tone="danger">미작성</Chip> },
@@ -174,6 +215,13 @@ export default function OpsPage() {
     items: (d?.complaints ?? []).filter((c) => c.stage === s.key),
   }));
 
+  /*
+   * 칩이 목록을 좁히는 자리 — **받은 목록에서 거른다** (§24 FQ 규약).
+   * 건수는 거르기 전 서버가 센 것이다(`mtTypeCounts`·`todoOwnerCounts`) — 화면은 다시 세지 않는다(D-R37).
+   * 담당 없는 할 일의 키는 서버가 `__none__` 이라 부른다.
+   */
+  const meetings = (d?.meetings ?? []).filter((m) => !mtType || m.mtType === mtType);
+  const todos = (d?.todos ?? []).filter((t) => !todoOwner || (t.toName ?? '__none__') === todoOwner);
   const openTodos = (d?.todos ?? []).filter((t) => !t.done);
   return (
     <RequireAuth><AppShell drawerEntry={queryRequestId ? { pane: 'approvals', identity: `request-${queryRequestId}` } : null}>
@@ -191,6 +239,33 @@ export default function OpsPage() {
           note="안 쓰면 회의가 끝난 것이 아닙니다" tone="warning" />
       </div>
 
+      {/*
+        컷 §63 의 「일간 주간 월간 전체」 — 이 띠는 **모든 갈래에 같이 걸린다**(상담·컴플레인·할 일·기획·회의).
+        기간 낱말은 서버가 만든 `range.label` 이다 (D-R18) — 화면이 「2026년 9월」을 짓지 않는다.
+      */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Segmented<Period>
+          ariaLabel="기간"
+          value={period}
+          onChange={setPeriod}
+          options={[
+            { value: 'day', label: '일간' },
+            { value: 'week', label: '주간' },
+            { value: 'month', label: '월간' },
+            { value: 'all', label: '전체' },
+          ]}
+        />
+        {period === 'all' ? null : (
+          <div className="flex items-center gap-1">
+            <Button size="sm" aria-label="이전 기간" onClick={() => setAnchor(step(period, anchor, -1))}>‹</Button>
+            <Button size="sm" aria-label="다음 기간" onClick={() => setAnchor(step(period, anchor, 1))}>›</Button>
+            <Button size="sm" onClick={() => setAnchor(todayKst())}>오늘</Button>
+          </div>
+        )}
+        <Chip tone="info">{d?.range.label ?? '전체'}</Chip>
+        {q.isFetching ? <span className="text-[11px] text-fg-subtle">받는 중…</span> : null}
+      </div>
+
       <Tabs className="mb-3" value={tab} onChange={setTab} options={[
         { value: 'todo', label: `할 일 ${d?.todos.length ?? 0}` },
         { value: 'complaint', label: `컴플레인 ${d?.complaints.length ?? 0}` },
@@ -199,10 +274,43 @@ export default function OpsPage() {
         { value: 'mkt', label: `마케팅 ${d?.marketing.length ?? 0}${d?.feedbackNeedsFix ? ` · 피드백 ${d.feedbackNeedsFix}` : ''}` },
       ]} />
 
+      {/* 만든 결과 한 줄 — 「+ 접수」·「+ 회의 잡기」·「+ 기획 올리기」·「+ 할 일 주기」가 같이 쓴다 (C96) */}
+      {notice ? <Banner tone="success" className="mb-3">{notice}</Banner> : null}
+
       {q.isLoading ? <Banner tone="neutral">불러오는 중…</Banner>
         : q.isError ? <Banner tone="danger">운영 탭은 매니저 이상만 볼 수 있습니다.</Banner>
-        : tab === 'todo' ? <Table columns={todoCols} rows={d?.todos ?? []} rowKey={(r) => r.id} />
-        : tab === 'meeting' ? <Table columns={meetingCols} rows={d?.meetings ?? []} rowKey={(r) => r.id} />
+        : tab === 'todo' ? (
+          <>
+            {/* 컷 §64 의 담당 칩 줄과 오른쪽 위 「+ 할 일 주기」 — 건수는 **열린 할 일**만 서버가 센다 */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <ChipRow ariaLabel="담당" value={todoOwner} onChange={setTodoOwner}
+                allCount={openTodos.length}
+                options={(d?.todoOwnerCounts ?? []).map((c) => ({ value: c.key, label: c.label, count: c.count }))} />
+              <Button type="button" size="sm" onClick={() => setTodoOpen(true)}>+ 할 일 주기</Button>
+            </div>
+            <Table columns={todoCols} rows={todos} rowKey={(r) => r.id} empty="이 기간에는 할 일이 없습니다" />
+          </>
+        )
+        : tab === 'meeting' ? (
+          <>
+            {/* 컷 §63 의 갈래 칩 줄과 오른쪽 위 「+ 회의 잡기」 — 0건 갈래도 선다 (C66) */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <ChipRow ariaLabel="회의 종류" value={mtType} onChange={setMtType}
+                allCount={d?.meetings.length ?? 0}
+                options={(d?.mtTypeCounts ?? []).map((c) => ({ value: c.key, label: c.label, count: c.count }))} />
+              <MeetingCreateButton
+                mtTypes={d?.mtTypes ?? []}
+                can={d?.canCreateMeeting === true}
+                onDone={(r) => setNotice(
+                  `회의를 잡았습니다 — ${r.meeting.mtTypeLabel}${r.meeting.title ? ` · ${r.meeting.title}` : ''}`
+                  + `${r.meeting.startMin == null || r.meeting.endMin == null ? '' : ` · ${hhmm(r.meeting.startMin)}–${hhmm(r.meeting.endMin)}`}`
+                  + `${r.meeting.placeLabel ? ` · ${r.meeting.placeLabel}` : ''} · 참석 ${r.attendees}명`
+                  + `${r.unavailable.length ? ` · ${unavailableLines(r.unavailable).join(' · ')}` : ''}`,
+                )} />
+            </div>
+            <Table columns={meetingCols} rows={meetings} rowKey={(r) => r.id} empty="이 기간에는 회의가 없습니다" />
+          </>
+        )
         : tab === 'mkt' ? (
           <>
             <Segmented
@@ -234,15 +342,19 @@ export default function OpsPage() {
         )
         : tab === 'plan' ? (
           <>
-            <Segmented
-              className="mb-3"
-              value={planTab}
-              onChange={setPlanTab}
-              options={[
-                { value: 'board', label: `단계 보드 ${d?.plans.length ?? 0}` },
-                { value: 'due', label: `기한 ${d?.planDues.length ?? 0}` },
-              ]}
-            />
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <Segmented
+                value={planTab}
+                onChange={setPlanTab}
+                options={[
+                  { value: 'board', label: `단계 보드 ${d?.plans.length ?? 0}` },
+                  { value: 'due', label: `기한 ${d?.planDues.length ?? 0}` },
+                ]}
+              />
+              {/* 원본 §61 머리 오른쪽의 「+ 기획 올리기」 (N-46 ③ · C96) — 단계는 고르지 않는다 */}
+              <PlanCreateButton can={d?.canCreatePlan === true}
+                onDone={(r) => setNotice(`기획을 올렸습니다 — ${r.plan.title} · ${r.plan.stageLabel}${r.plan.ownerName ? ` · 담당 ${r.plan.ownerName}` : ''}`)} />
+            </div>
             {planTab === 'due' ? (
               <>
                 {/* 원문 §62 머리 띠 — 숫자는 서버가 센다 (D-R37) */}
@@ -272,6 +384,12 @@ export default function OpsPage() {
         ) : (
           <>
             {/* 원본 §67 머리 오른쪽의 「+ 접수」 (N-46 ① · C93) · 강사 교체는 컴플레인 없이도 연다 (D-46 퇴사 · N-132 당일 대강) */}
+            {/*
+              §67 갈래 칩 줄 — 이 칩만은 **서버로 간다** (J-102 「지난달 컴플레인만」).
+              건수는 갈래를 안 건 채로 세므로 다른 갈래도 계속 고를 수 있다.
+            */}
+            <ChipRow className="mb-3" ariaLabel="컴플레인 갈래" value={area} onChange={setArea}
+              options={(d?.areaCounts ?? []).map((c) => ({ value: c.key, label: c.label, count: c.count }))} />
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[11px] text-fg-subtle">카드를 누르면 담당 · 단계 · 조치 · 결과를 적습니다</span>
               <div className="flex items-center gap-2">
@@ -280,7 +398,6 @@ export default function OpsPage() {
                   onDone={(row) => setNotice(`접수했습니다 — ${row.areaLabel} · ${row.studentName ?? '문의자'}${row.ownerName ? ` · 담당 ${row.ownerName}` : ''}`)} />
               </div>
             </div>
-            {notice ? <Banner tone="success" className="mb-3">{notice}</Banner> : null}
             <Board numbered columns={cplCols} itemKey={(c) => c.id} renderCard={(c) => (
               <button type="button" className="block w-full text-left" onClick={() => setCplId(c.id)} aria-label={`컴플레인 ${c.body}`}>
                 <div className="flex flex-wrap items-center gap-1">
@@ -317,6 +434,14 @@ export default function OpsPage() {
           담당자는 세 곳을 봐야 합니다. 출처를 표시해서 <b>한 목록</b>으로 모읍니다.
         </p>
       </Panel>
+      {/* 서랍 §17 과 **같은 창**이다 (C96) — 경로가 하나니 창도 하나다 */}
+      <TodoCreateDialog
+        open={todoOpen} onClose={() => setTodoOpen(false)} busy={todoWrite.isPending}
+        meId={viewerId} people={meta.data?.staff ?? []}
+        onCreate={(body) => todoWrite.mutate({ kind: 'todoCreate', body }, {
+          onSuccess: () => setNotice(`할 일을 주었습니다 — ${body.title}`),
+        })}
+      />
       <PlanReport planId={planId} onClose={() => setPlanId(null)} />
       <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} onClose={() => setMeetingId(null)} />
       <ComplaintDetail

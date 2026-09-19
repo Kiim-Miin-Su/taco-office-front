@@ -108,9 +108,16 @@ describe('session query cache boundary', () => {
     expect(clear).toHaveBeenCalledOnce();
   });
 
-  it('운영 캐시는 사용자와 비용 권한을 모두 구분하고 기존 무효화 prefix를 유지한다', () => {
+  it('운영 캐시는 사용자와 비용 권한과 **기간·갈래**를 모두 구분하고 기존 무효화 prefix를 유지한다', () => {
     expect(opsQueryKey(1, true)).not.toEqual(opsQueryKey(1, false));
     expect(opsQueryKey(1, false)).not.toEqual(opsQueryKey(2, false));
-    expect(opsQueryKey(1, false)).toEqual([...qk.ops, 'viewer', 1, { canMoney: false }]);
+    expect(opsQueryKey(1, false)).toEqual([...qk.ops, 'viewer', 1, { canMoney: false }, {}]);
+    // C96 — 기간·갈래도 응답을 바꾸므로 키에 든다. 앞자락은 그대로라 접두 무효화가 전부 걷는다
+    expect(opsQueryKey(1, false, { from: '2026-09-01', to: '2026-09-30' }))
+      .not.toEqual(opsQueryKey(1, false));
+    expect(opsQueryKey(1, false, { area: 'teaching' }))
+      .toEqual([...qk.ops, 'viewer', 1, { canMoney: false }, { area: 'teaching' }]);
+    // 빈 값은 키에서 뺀다 — `{from: undefined}` 와 `{}` 가 갈리면 토글 한 번에 두 번 받는다
+    expect(opsQueryKey(1, false, { from: undefined, area: '' })).toEqual(opsQueryKey(1, false));
   });
 });

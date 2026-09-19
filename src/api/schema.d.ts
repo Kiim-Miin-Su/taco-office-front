@@ -1070,6 +1070,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §63 「+ 회의 잡기」 — 시간표에 회차를 만들고 그 회차에 회의를 건다
+         * @description 시각·강의실·온라인을 MTREC 에 적지 않는다. SER(ONCE · kind=meeting · sub=회의 종류)를 한 트랜잭션에서 만들고 mtrec.ser_id 로 잇는다 — 그래야 「11:00–12:00」도 「1호」도 「온라인 TN」도 한 곳에서 나오고 겹침을 ser_occ 의 EXCLUDE 가 막는다(C95 컨설팅 회차와 같은 길). 줌 계정은 기존 assignIn 이 붙이고 다시 투영해 그때 겹침이 판정된다. 참석자는 답하기 전까지 「응답 대기」(confirmed NULL · C57)이고 그것이 §63 의 「대기 4」다. 주관자는 시간표의 「강사」 자리라 그 사람이 겹치면 막힌다.
+         */
+        post: operations["OpsController_createMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §61 「+ 기획 올리기」 — 언제나 첫 단계
+         * @description 단계를 받지 않는다(올린 기획은 언제나 첫 단계 · 옮기는 길은 §61 보드와 결재다 — 화면이 정하면 전이표가 두 벌이 된다). 기한은 제안일 뿐이라 due_approved_at 은 비어 있고 대표가 승인해야 최종 승인이 열린다(C56).
+         */
+        post: operations["OpsController_createPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/leads": {
         parameters: {
             query?: never;
@@ -1882,6 +1922,80 @@ export interface paths {
          * @description 강사 수신함에 줄이 남는다(NOTI · PNOTI sent_at) — 강사 화면의 알림 칸은 N-26 이 닫혀야 붙는다. 학부모 줄은 「보낼 것」으로 남는다 — 수신처가 없다(N-42). 회차 키는 (serId, onDate) 다. 비밀번호는 본문에 싣지 않는다.
          */
         post: operations["GuidesController_sendZoomNotice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/zoom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 줌 계정과 하루 점유 격자 (§21)
+         * @description 점유는 `ser_occ` 에서 센다 — 「지금 가능」·「만석 시간대」도 같은 배열에서 센다.
+         */
+        get: operations["ZoomController_board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/zoom/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 줌 계정 추가 — 비밀은 암호화해 저장하고 응답에 싣지 않는다 */
+        post: operations["ZoomController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/zoom/accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 줌 계정 고치기 — 끄면 새 배정에서 빠지고, 이미 붙은 회차는 건드리지 않는다 */
+        patch: operations["ZoomController_patch"];
+        trace?: never;
+    };
+    "/zoom/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 줌 계정 배정 — 회차 하나 또는 규칙 전체 (§43 「계정 배정 →」 · §19 「강의실 바꾸기」의 줌 모양)
+         * @description 정본은 ZASSIGN 이고 `ser_occ.zacc_id` 는 투영이다. 겹치면 EXCLUDE 가 막고 통째로 되돌아간다.
+         */
+        post: operations["ZoomController_assign"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2752,80 +2866,6 @@ export interface paths {
         put?: never;
         /** §19 변경 요청 넣기 — 겹치면 **누구와** 겹치는지 돌려주고 넣지 않는다 */
         post: operations["DrawerController_createChangeReq"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/zoom": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 줌 계정과 하루 점유 격자 (§21)
-         * @description 점유는 `ser_occ` 에서 센다 — 「지금 가능」·「만석 시간대」도 같은 배열에서 센다.
-         */
-        get: operations["ZoomController_board"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/zoom/accounts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 줌 계정 추가 — 비밀은 암호화해 저장하고 응답에 싣지 않는다 */
-        post: operations["ZoomController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/zoom/accounts/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** 줌 계정 고치기 — 끄면 새 배정에서 빠지고, 이미 붙은 회차는 건드리지 않는다 */
-        patch: operations["ZoomController_patch"];
-        trace?: never;
-    };
-    "/zoom/assign": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 줌 계정 배정 — 회차 하나 또는 규칙 전체 (§43 「계정 배정 →」 · §19 「강의실 바꾸기」의 줌 모양)
-         * @description 정본은 ZASSIGN 이고 `ser_occ.zacc_id` 는 투영이다. 겹치면 EXCLUDE 가 막고 통째로 되돌아간다.
-         */
-        post: operations["ZoomController_assign"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4694,6 +4734,16 @@ export interface components {
             confirmed: number;
             /** @description 속기록을 썼는가 — 안 쓰면 회의가 끝난 것이 아니다 */
             hasMinutes: boolean;
+            /** @description 시간표 회차 — 옛 회의는 null (C96) */
+            serId?: number | null;
+            /** @description 시작 분 — 회차가 있을 때만 */
+            startMin?: number | null;
+            /** @description 끝 분 — 회차가 있을 때만 */
+            endMin?: number | null;
+            /** @description 자리 — 「1호」 또는 「온라인 TN Zoom」. 낱말은 서버가 만든다 (D-R18) */
+            placeLabel?: string | null;
+            /** @description 아직 답 안 한 사람 — 「대기 4」 (원본 §63 · confirmed IS NULL · C57) */
+            waiting: number;
         };
         MarketingDto: {
             id: number;
@@ -4830,6 +4880,23 @@ export interface components {
             /** @description 도달 기록이 시작된 날 — §71 퍼널이 「언제부터의 값」인지 화면이 말한다 (N-45 · N-25). 기록이 없으면 null */
             funnelSince?: string | null;
         };
+        OpsRangeDto: {
+            /** @description 없으면 전체 */
+            from?: string | null;
+            to?: string | null;
+            /** @description 「전체」 · 「2026-09-19」 · 「2026-09-14 ~ 2026-09-20」 · 「2026년 9월」 */
+            label: string;
+        };
+        OpsAreaCountDto: {
+            key: string;
+            label: string;
+            count: number;
+        };
+        OpsCountDto: {
+            key: string;
+            label: string;
+            count: number;
+        };
         OpsDto: {
             leads: components["schemas"]["LeadDto"][];
             complaints: components["schemas"]["ComplaintDto"][];
@@ -4860,6 +4927,79 @@ export interface components {
             canSeeAmounts: boolean;
             /** @description §23 상담 머리 — 퍼널 · 담당 · 경고. 화면은 세지 않는다 (D-R37) */
             intakeHead: components["schemas"]["IntakeHeadDto"];
+            /** @description 지금 보고 있는 기간 — 낱말도 서버가 만든다 (C96 · D-R18) */
+            range: components["schemas"]["OpsRangeDto"];
+            /** @description §67 갈래 칩 줄의 건수 — 서버가 센다. 0건 갈래도 선다(어휘이지 데이터가 아니다 · C66) */
+            areaCounts: components["schemas"]["OpsAreaCountDto"][];
+            /** @description §63 회의 종류 칩 줄의 건수 — 서버가 센다 (D-R37) */
+            mtTypeCounts: components["schemas"]["OpsCountDto"][];
+            /** @description §64 담당 칩 줄의 건수 — 열린 할 일만. 담당 없는 것은 「담당 없음」 (D-R37) */
+            todoOwnerCounts: components["schemas"]["OpsCountDto"][];
+            /** @description 회의 종류 다섯 — 「+ 회의 잡기」 폼의 낱말 (D-R18 · C96) */
+            mtTypes: components["schemas"]["CplWordDto"][];
+            /** @description 「+ 회의 잡기」가 서는가 — 단추도 서버가 정한다 (D-R39) */
+            canCreateMeeting: boolean;
+            /** @description 「+ 기획 올리기」가 서는가 (D-R39) */
+            canCreatePlan: boolean;
+        };
+        MeetingCreateDto: {
+            /**
+             * @description 회의 종류 다섯 — 낱말은 GET /ops.mtTypes
+             * @enum {string}
+             */
+            mtType: "plan" | "consulting" | "marketing" | "dev" | "general";
+            /** @description 제목 — 없으면 종류 이름으로 부른다 */
+            title?: string | null;
+            /**
+             * Format: date
+             * @description 언제
+             */
+            onDate: string;
+            /** @description 시작 분 (0~1440) */
+            startMin: number;
+            /** @description 끝 분 — 시작보다 뒤 */
+            endMin: number;
+            /**
+             * @description 현장이면 강의실, 온라인이면 줌 계정
+             * @enum {string}
+             */
+            mode: "offline" | "online";
+            /** @description 강의실 — 현장일 때 */
+            roomId?: number | null;
+            /** @description 줌 계정 — 온라인일 때. 겹치면 시간표가 막는다 */
+            zaccId?: number | null;
+            /** @description 주관자 — 없으면 나. 시간표의 「강사」 자리라 이 사람이 겹치면 막힌다 */
+            ownerId?: number | null;
+            /** @description 참석자 — 답하기 전에는 「응답 대기」다 (C57) */
+            attendeeIds?: number[];
+        };
+        UnavWarnLiteDto: {
+            date: string;
+            teacherName: string;
+            startMin: number;
+            endMin: number;
+            reason: string;
+        };
+        MeetingCreateResultDto: {
+            meeting: components["schemas"]["MeetingDto"];
+            /** @description 만든 참석자 줄 수 — 전부 「응답 대기」다 */
+            attendees: number;
+            /** @description 막지 않고 알린다 — 주관자가 못 한다고 적어 둔 시간에 걸쳤다 (C84-c) */
+            unavailable: components["schemas"]["UnavWarnLiteDto"][];
+        };
+        PlanCreateDto: {
+            title: string;
+            /** @description 무엇을 이루려는가 */
+            goal?: string | null;
+            /** @description 무엇이 필요한가 */
+            ask?: string | null;
+            /** @description 담당 — 없으면 나 */
+            ownerId?: number | null;
+            /** @description 기한 제안 — 대표가 승인해야 최종 승인이 열린다 (C56) */
+            dueOn?: string | null;
+        };
+        PlanCreateResultDto: {
+            plan: components["schemas"]["PlanDto"];
         };
         LeadCreateDto: {
             /** @description 학생 이름 */
@@ -5823,6 +5963,84 @@ export interface components {
             teacherNotices: number;
             /** @description 학부모에게 「보낼 것」으로 남긴 줄 수 — 실제 발송은 아직 없다(N-42) */
             parentNotices: number;
+        };
+        ZoomAcctDto: {
+            id: number;
+            /** @description 화면에 보이는 짧은 이름 — Boarding · Consulting · TN · Study … */
+            label: string;
+            loginEmail: string;
+            joinUrl: string;
+            meetingId?: string | null;
+            /** @description 지금 쓰는 계정인가 — 끄면 새 배정에서 빠진다 */
+            active: boolean;
+            /** @description 이 계정이 붙어 있는 회차 수 (기준일) */
+            usedCount: number;
+            /** @description 비밀이 저장돼 있는가 — 값 자체는 내려보내지 않는다 */
+            hasSecret: boolean;
+        };
+        ZoomSlotDto: {
+            /** @description 시(0~23) */
+            hour: number;
+            /** @description 이 시간에 이 계정을 쓰는 회차 수 */
+            busy: number;
+        };
+        ZoomRowDto: {
+            zaccId: number;
+            label: string;
+            slots: components["schemas"]["ZoomSlotDto"][];
+        };
+        ZoomBoardDto: {
+            /** @description 기준일 YYYY-MM-DD (KST) */
+            onDate: string;
+            /** @description 격자가 보여 주는 첫 시 */
+            fromHour: number;
+            /** @description 격자가 보여 주는 끝 시 (포함) */
+            toHour: number;
+            accounts: components["schemas"]["ZoomAcctDto"][];
+            rows: components["schemas"]["ZoomRowDto"][];
+            /** @description 이 셈이 선 시각(KST 시). 오늘이 아니면 null */
+            nowHour: number | null;
+            /** @description 지금 이 시각에 비어 있는 계정 수 — §21 머리의 「지금 가능」 */
+            freeNow: number;
+            /** @description 지금 쓸 수 있는 계정 이름 — §21 아래줄 */
+            freeLabels: string[];
+            /** @description 한 칸도 안 남은 시간대 수 — §21 머리의 「만석 시간대」 */
+            fullHours: number;
+        };
+        ZoomAccountCreateDto: {
+            label: string;
+            loginEmail: string;
+            joinUrl: string;
+            meetingId?: string;
+            /** @description 줌 로그인 비밀 — 평문으로 두지 않는다. 넣으면 암호화해 저장한다 */
+            loginSecret?: string;
+            /** @description 회의 비밀번호 — 같은 방식으로 저장한다 */
+            meetingPw?: string;
+        };
+        ZoomAccountPatchDto: {
+            label?: string;
+            loginEmail?: string;
+            joinUrl?: string;
+            meetingId?: string;
+            loginSecret?: string;
+            meetingPw?: string;
+            /** @description 끄면 새 배정에서 빠진다. 이미 붙은 회차는 건드리지 않는다 */
+            active?: boolean;
+        };
+        ZoomAssignDto: {
+            /** @description 어느 수업 규칙인가 */
+            serId: number;
+            /** @description YYYY-MM-DD. 주면 그 회차만, 안 주면 규칙 전체 */
+            onDate?: string;
+            /** @description 붙일 계정. null 이면 뗀다 */
+            zaccId?: number | null;
+        };
+        ZoomAssignResultDto: {
+            serId: number;
+            onDate?: string | null;
+            zaccId: number | null;
+            /** @description 다시 그린 회차 수 */
+            projected: number;
         };
         ConsultingCreateDto: {
             /**
@@ -7415,84 +7633,6 @@ export interface components {
             id?: number | null;
             /** @description 비어 있지 않으면 제출이 막힌 것이다 */
             conflicts: components["schemas"]["ConflictRowDto"][];
-        };
-        ZoomAcctDto: {
-            id: number;
-            /** @description 화면에 보이는 짧은 이름 — Boarding · Consulting · TN · Study … */
-            label: string;
-            loginEmail: string;
-            joinUrl: string;
-            meetingId?: string | null;
-            /** @description 지금 쓰는 계정인가 — 끄면 새 배정에서 빠진다 */
-            active: boolean;
-            /** @description 이 계정이 붙어 있는 회차 수 (기준일) */
-            usedCount: number;
-            /** @description 비밀이 저장돼 있는가 — 값 자체는 내려보내지 않는다 */
-            hasSecret: boolean;
-        };
-        ZoomSlotDto: {
-            /** @description 시(0~23) */
-            hour: number;
-            /** @description 이 시간에 이 계정을 쓰는 회차 수 */
-            busy: number;
-        };
-        ZoomRowDto: {
-            zaccId: number;
-            label: string;
-            slots: components["schemas"]["ZoomSlotDto"][];
-        };
-        ZoomBoardDto: {
-            /** @description 기준일 YYYY-MM-DD (KST) */
-            onDate: string;
-            /** @description 격자가 보여 주는 첫 시 */
-            fromHour: number;
-            /** @description 격자가 보여 주는 끝 시 (포함) */
-            toHour: number;
-            accounts: components["schemas"]["ZoomAcctDto"][];
-            rows: components["schemas"]["ZoomRowDto"][];
-            /** @description 이 셈이 선 시각(KST 시). 오늘이 아니면 null */
-            nowHour: number | null;
-            /** @description 지금 이 시각에 비어 있는 계정 수 — §21 머리의 「지금 가능」 */
-            freeNow: number;
-            /** @description 지금 쓸 수 있는 계정 이름 — §21 아래줄 */
-            freeLabels: string[];
-            /** @description 한 칸도 안 남은 시간대 수 — §21 머리의 「만석 시간대」 */
-            fullHours: number;
-        };
-        ZoomAccountCreateDto: {
-            label: string;
-            loginEmail: string;
-            joinUrl: string;
-            meetingId?: string;
-            /** @description 줌 로그인 비밀 — 평문으로 두지 않는다. 넣으면 암호화해 저장한다 */
-            loginSecret?: string;
-            /** @description 회의 비밀번호 — 같은 방식으로 저장한다 */
-            meetingPw?: string;
-        };
-        ZoomAccountPatchDto: {
-            label?: string;
-            loginEmail?: string;
-            joinUrl?: string;
-            meetingId?: string;
-            loginSecret?: string;
-            meetingPw?: string;
-            /** @description 끄면 새 배정에서 빠진다. 이미 붙은 회차는 건드리지 않는다 */
-            active?: boolean;
-        };
-        ZoomAssignDto: {
-            /** @description 어느 수업 규칙인가 */
-            serId: number;
-            /** @description YYYY-MM-DD. 주면 그 회차만, 안 주면 규칙 전체 */
-            onDate?: string;
-            /** @description 붙일 계정. null 이면 뗀다 */
-            zaccId?: number | null;
-        };
-        ZoomAssignResultDto: {
-            serId: number;
-            onDate?: string | null;
-            zaccId: number | null;
-            /** @description 다시 그린 회차 수 */
-            projected: number;
         };
         KindRowsDto: {
             /** @description 코드 — 한 번 정하면 바꾸지 않는다. 시간표가 이 낱말로 저장돼 있다 */
@@ -12118,7 +12258,14 @@ export interface operations {
     };
     OpsController_all: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 이 날부터 — `to` 와 짝이다 */
+                from?: string;
+                /** @description 이 날까지 */
+                to?: string;
+                /** @description §67 갈래로 좁히기 */
+                area?: "lesson" | "intake" | "book" | "schedule" | "teacher";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -12131,6 +12278,158 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_createMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingCreateResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description RESOURCE_CONFLICT(같은 시간에 주관자·강의실·줌) · BAD_RANGE · MEETING_PLACE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_createPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanCreateResultDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
@@ -15629,6 +15928,309 @@ export interface operations {
                 content?: never;
             };
             /** @description code ZOOM_NOTICE_NOT_ONLINE · ZOOM_NOTICE_CANCELED · ZOOM_NOTICE_NO_TEACHER · ZOOM_NOTICE_NO_ACCOUNT · ZOOM_NOTICE_ALREADY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ZoomController_board: {
+        parameters: {
+            query?: {
+                /** @description 기준일 YYYY-MM-DD (KST). 없으면 오늘 */
+                onDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZoomBoardDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ZoomController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZoomAccountCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZoomAcctDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code ZACC_LABEL_TAKEN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ZoomController_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZoomAccountPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZoomAcctDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code ZACC_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ZoomController_assign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZoomAssignDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZoomAssignResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code ZACC_INACTIVE | 겹침(EXCLUDE) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -19536,309 +20138,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    ZoomController_board: {
-        parameters: {
-            query?: {
-                /** @description 기준일 YYYY-MM-DD (KST). 없으면 오늘 */
-                onDate?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZoomBoardDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    ZoomController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ZoomAccountCreateDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZoomAcctDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description code ZACC_LABEL_TAKEN */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    ZoomController_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ZoomAccountPatchDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZoomAcctDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description code ZACC_NOT_FOUND */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    ZoomController_assign: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ZoomAssignDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZoomAssignResultDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description code ZACC_INACTIVE | 겹침(EXCLUDE) */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

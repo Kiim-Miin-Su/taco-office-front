@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Banner, Button, Checkbox, Chip, ConflictGuard, Dialog, Input, Label, Segmented, Select, StatCard, Table, Textarea,
+  Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, StatCard, Table, Textarea,
   type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
@@ -32,6 +32,7 @@ import { won } from '@/lib/money';
 import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
 import { MemberCreateButton } from './MemberCreateDialog';
 import { WageChangeButton } from './WageChangeDialog';
+import { TodoCreateDialog } from './TodoCreateDialog';
 
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
 
@@ -233,9 +234,6 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
   const [period, setPeriod] = useState<TodoPeriod>('week');
   const [anchor, setAnchor] = useState(todayKst);
   const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState('');
-  const [toId, setToId] = useState(meId ? String(meId) : '');
-  const [dueOn, setDueOn] = useState(todayKst);
 
   const scoped = todos.filter((t) =>
     box === 'all' ? true : box === 'in' ? t.toId === meId : t.fromId === meId);
@@ -252,18 +250,6 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
       ? [anchor]
       : [...new Set(dated.map((t) => t.dueOn!))].sort();
   const undated = rows.filter((t) => !t.dueOn);
-
-  const submit = () => {
-    const clean = title.trim();
-    if (!clean) return;
-    onCreate({
-      title: clean,
-      ...(toId ? { toId: Number(toId) } : {}),
-      ...(dueOn ? { dueOn } : {}),
-    });
-    setTitle('');
-    setCreating(false);
-  };
 
   const renderRows = (items: DrawerTodo[]) => items.length === 0 ? (
     <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[11px] text-fg-subtle">할 일 없음</p>
@@ -358,30 +344,12 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
         {rows.length === 0 ? <Empty>이 기간에는 할 일이 없습니다</Empty> : null}
       </div>
 
-      <Dialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        title="할 일 만들기"
-        footer={(
-          <>
-            <Button onClick={() => setCreating(false)}>취소</Button>
-            <Button variant="primary" disabled={busy || !title.trim()} onClick={submit}>만들기</Button>
-          </>
-        )}
-      >
-        <div className="flex flex-col gap-3">
-          <div><Label htmlFor="todo-title">할 일</Label><Input id="todo-title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} /></div>
-          <div>
-            <Label htmlFor="todo-to">담당자</Label>
-            <Select id="todo-to" value={toId} onChange={(e) => setToId(e.target.value)}>
-              {members.filter((member) => member.active).map((member) => (
-                <option key={member.id} value={member.id}>{member.name}</option>
-              ))}
-            </Select>
-          </div>
-          <div><Label htmlFor="todo-due">기한</Label><Input id="todo-due" type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} /></div>
-        </div>
-      </Dialog>
+      {/* 창은 운영 §64 의 「+ 할 일 주기」와 **같은 것**이다 (C96) — 경로가 하나니 창도 하나다 */}
+      <TodoCreateDialog
+        open={creating} onClose={() => setCreating(false)} busy={busy} meId={meId}
+        people={members.filter((member) => member.active)}
+        onCreate={onCreate}
+      />
     </>
   );
 }
