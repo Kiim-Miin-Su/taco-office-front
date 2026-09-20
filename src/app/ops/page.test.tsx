@@ -261,3 +261,22 @@ it('참석은 칩으로 서고 모자라면 경고색이다 (§63)', async () =>
   expect(view.container.textContent).toContain('2/4');
   expect(view.container.textContent).toContain('3/3');
 });
+
+/**
+ * §61 rework 카드의 **「보완 1」** — 컷에 있는 칩이다 (S6).
+ *
+ * 세는 것은 서버이고(`log` 의 rework 줄), 화면은 **0 이면 안 그린다** — 손으로 박은 옛 건은
+ * 누가 언제 반려했는지 몰라 0 이다. 「보완 1」이라 적으면 없는 사실을 지어내는 것이다 (N-25).
+ */
+it('§61 카드의 「보완 N」은 서버가 센 값이고 0 이면 칩이 서지 않는다', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, plans: [
+    { id: 7, title: '되돌아온 기획', stage: 'rework', stageLabel: '보완 요청', goal: null, ask: null,
+      dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 2 },
+    { id: 8, title: '손으로 박은 건', stage: 'rework', stageLabel: '보완 요청', goal: null, ask: null,
+      dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 0 },
+  ] } });
+  const view = setup(me, false);
+  fireEvent.click(await view.findByRole('button', { name: '기획 2' }));
+  expect(view.getByText('보완 2')).toBeTruthy();
+  expect(view.queryByText('보완 0')).toBeNull();
+});

@@ -371,6 +371,9 @@ export default function OpsPage() {
                   <div className="text-[12px] font-bold text-fg">{p.title}</div>
                   <div className="mt-1 flex items-center justify-between gap-1">
                     <span className="text-[10px] text-fg-subtle">{p.ownerName ?? '—'}</span>
+                    {/* 원본 §61 rework 카드의 「보완 1」 — 서버가 `log` 에서 센다 (S6 · D-R37).
+                        손으로 박은 옛 건은 0 이라 칩이 서지 않는다 (N-25) */}
+                    {p.reworkCount > 0 ? <Chip tone="danger">보완 {p.reworkCount}</Chip> : null}
                     {/* 기한이 대표를 지나왔는지는 서버가 판정한다 (원문 §61·§65) */}
                     {p.dueState === 'proposed' ? <Chip tone="warning">기한 제안</Chip> : null}
                     {p.overdueDays > 0

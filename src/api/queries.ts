@@ -134,6 +134,7 @@ import type {
   PlanCreate,
   PlanCreateResult,
   PlanDetail,
+  PlanPatch,
   ReportDeliveryCreate,
   ReportDeliveryQuery,
   ReportDeliveryQueue,
@@ -2107,6 +2108,31 @@ export function useReviewPlan(): UseMutationResult<
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<PlanDetail>(`/ops/plans/${id}/review`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * §65 본문 고치기 — 목표 · 리서치 · 결정 요청 · 제목 · 기한 (S6 · 409: PLAN_LOCKED · PLAN_DUE_APPROVED).
+ *
+ * **보낸 칸만 간다** — 화면이 안 고친 칸까지 되돌려 보내면 §65 를 나눠 쓰는 자리에서 남의 줄을 덮는다.
+ */
+export function usePatchPlan(): UseMutationResult<PlanDetail, unknown, { id: number } & PlanPatch> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<PlanDetail>(`/ops/plans/${id}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * §61 단계 이동 — 갈 수 있는 곳은 서버가 준 `nextStages` 뿐이다 (S6 · 409: PLAN_STAGE_LOCKED · PLAN_STAGE_INVALID).
+ * 화면이 전이표를 들면 서버와 갈린다 (D-R18 · D-R39 · C90 `useMoveLeadStage` 와 같은 모양).
+ */
+export function useMovePlanStage(): UseMutationResult<PlanDetail, unknown, { id: number; to: string }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, to }) => (await api.patch<PlanDetail>(`/ops/plans/${id}/stage`, { to })).data,
     onSettled: invalidate,
   });
 }

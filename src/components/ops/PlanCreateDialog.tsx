@@ -106,7 +106,8 @@ export function PlanCreateButton({ can, onDone }: PlanCreateButtonProps) {
             </div>
           </div>
           {err ? <Banner tone="danger">{err}</Banner> : null}
-          <p className="text-[11px] text-fg-subtle">올리면 §61 첫 칸에 섭니다 — 검토로 옮기는 것은 보드에서 합니다.</p>
+          {/* S6 전에는 「보드에서 옮깁니다」라 적었는데 **옮기는 길이 아예 없었다** — 없는 단추를 가리키고 있었다 */}
+          <p className="text-[11px] text-fg-subtle">올리면 §61 첫 칸에 섭니다 — 적어서 대표께 올리는 것은 보고서에서 합니다.</p>
         </div>
       </Dialog>
     </>

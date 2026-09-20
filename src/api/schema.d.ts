@@ -1407,7 +1407,31 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * §65 본문 고치기 — 목표 · 리서치 · 결정 요청 · 제목 · 기한 (S6)
+         * @description research 를 쓰는 길은 이것뿐이다 — 그전에는 읽기와 화면 칸만 있고 시드 말고는 아무도 못 채워 §65 「3 · 리서치」가 영원히 「—」였다. 보낸 칸만 고친다(null 은 지우고 없는 키는 그대로 둔다). 고칠 수 있는 단계는 draft·rework 뿐이고 막힌 문장은 읽기의 editBlockedReason 과 같다. 기한은 승인 전에만 바꾼다 — 승인된 날짜를 담당이 옮기면 대표의 승인이 거짓이 된다.
+         */
+        patch: operations["OpsController_patchPlan"];
+        trace?: never;
+    };
+    "/ops/plans/{id}/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * §61 단계 이동 — 왼쪽에서 오른쪽으로 올립니다 (S6)
+         * @description stage='review' 로 가는 길이 여기서 처음 생긴다 — 그전에는 createPlan(draft)과 reviewPlan(approved|rework) 둘뿐이라 API 로 만든 기획은 §69 「결재 대기」에 영영 안 잡혔다. 전이표(PLAN_NEXT_STAGES)는 draft·rework → review · approved → done 이고 **결재는 여기 없다**(:id/review 가 자기 결재 금지·기한 승인 선행·사유 필수를 지나서 옮긴다). 다시 올리면 지난 보완 요청 사유를 지운다.
+         */
+        patch: operations["OpsController_movePlanStage"];
         trace?: never;
     };
     "/ops/plans/{id}/due": {
@@ -4709,6 +4733,8 @@ export interface components {
              * @enum {string}
              */
             dueState: "none" | "proposed" | "approved";
+            /** @description 보완 요청을 받은 횟수 — 0 이면 칩이 서지 않는다 (LOG 에서 센다) */
+            reworkCount: number;
         };
         PlanStageDto: {
             /** @description 저장값 */
@@ -5384,6 +5410,12 @@ export interface components {
             /** @description 지난 날 수 — 끝난 과제는 0 */
             overdueDays: number;
         };
+        PlanNextStageDto: {
+            /** @description 저장값 */
+            key: string;
+            /** @description 사람이 읽는 이름 */
+            label: string;
+        };
         PlanDetailDto: {
             id: number;
             title: string;
@@ -5417,6 +5449,32 @@ export interface components {
             canReview: boolean;
             /** @description 단추가 닫혀 있는 이유 — 열려 있으면 null */
             reviewBlockedReason: string | null;
+            /** @description 보완 요청 사유 — rework 가 아니면 null */
+            reworkReason: string | null;
+            /** @description 본문(목표·리서치·결정 요청·제목·기한)을 고칠 수 있는가 — draft·rework 일 때만 */
+            canEdit: boolean;
+            /** @description 못 고치는 이유 — 고칠 수 있으면 null */
+            editBlockedReason: string | null;
+            /** @description 갈 수 있는 다음 단계 — 비면 옮길 곳이 없다 */
+            nextStages: components["schemas"]["PlanNextStageDto"][];
+        };
+        PlanPatchDto: {
+            title?: string;
+            /** @description 1 · 목표 */
+            goal?: string | null;
+            /** @description 3 · 리서치 — 이 칸을 쓰는 API 가 S6 전에는 없었다 */
+            research?: string | null;
+            /** @description 4 · 결정 요청 */
+            ask?: string | null;
+            /** @description 기한 제안 — 승인 전에만. null 이면 지운다 */
+            dueOn?: string | null;
+        };
+        PlanStageMoveDto: {
+            /**
+             * @description 옮길 단계 — 전이표 밖이면 409 PLAN_STAGE_INVALID · 옮길 곳이 없으면 409 PLAN_STAGE_LOCKED
+             * @enum {string}
+             */
+            to: "draft" | "review" | "rework" | "approved" | "done";
         };
         PlanDueDecisionDto: {
             /** @description true 면 승인, false 면 반려 */
@@ -13661,6 +13719,156 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_patchPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PLAN_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code PLAN_LOCKED | PLAN_DUE_APPROVED | PLAN_TITLE_REQUIRED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_movePlanStage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanStageMoveDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PLAN_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code PLAN_STAGE_LOCKED | PLAN_STAGE_INVALID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

@@ -144,6 +144,9 @@ export type MeetingTask = S['MeetingTaskDto'];
 export type PlanDueRow = S['PlanDueRowDto'];
 export type PlanDetail = S['PlanDetailDto'];
 export type PlanTask = S['PlanTaskDto'];
+/** S6 — 본문 고치기 · 단계 이동 */
+export type PlanPatch = S['PlanPatchDto'];
+export type PlanNextStage = S['PlanNextStageDto'];
 /** §79 수강 학생 — 학생 트래킹 */
 export type LessonTracking = S['LessonTrackingDto'];
 export type TrackedStudent = S['TrackedStudentDto'];
