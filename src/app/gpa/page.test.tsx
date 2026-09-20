@@ -148,7 +148,7 @@ it('마감이 열리면 확인 창 → POST /gpa/cycles/{id}/close → 응답의
 it('승인 단추는 서버가 준 canApprove 를 따른다 — 적은 사람에게는 서지 않는다 (S1)', async () => {
   const use = (id: number, canApprove: boolean) => ({
     id, studentId: 1, svcKey: 'hw', points: 1, onDate: '2026-08-10', startMin: null, serId: null,
-    coordName: '코디', noteUrl: null, state: 'wait', approvedByName: null, approvedOn: null, canApprove,
+    coordName: '코디', noteUrl: null, state: 'wait' as const, approvedByName: null, approvedOn: null, canApprove,
   });
   const view = setup({ uses: [use(11, true), use(12, false)] });
   await waitFor(() => expect(view.container.textContent).toContain('56p'));

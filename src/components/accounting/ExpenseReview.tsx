@@ -129,7 +129,16 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
               <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-line bg-inset px-3 py-2.5 text-[12.5px] sm:grid-cols-4">
                 <span><dt className="text-[11px] text-fg-subtle">사용일</dt><dd className="font-bold text-fg">{picked.spendOn}</dd></span>
                 <span><dt className="text-[11px] text-fg-subtle">분류</dt><dd className="font-bold text-fg">{picked.categoryLabel}</dd></span>
-                <span><dt className="text-[11px] text-fg-subtle">신청자</dt><dd className="font-bold text-fg">{picked.requesterName ?? '—'}</dd></span>
+                <span>
+                  <dt className="text-[11px] text-fg-subtle">신청자</dt>
+                  <dd className="font-bold text-fg">
+                    {picked.requesterName ?? '—'}
+                    {/* 대신 올린 건이면 누가 올렸는지도 적는다 — 그 사람도 심사하지 못한다 (S2) */}
+                    {picked.filedById != null && picked.filedById !== picked.requesterId
+                      ? <span className="ml-1 text-[11px] font-normal text-fg-subtle">· {picked.filedByName ?? '—'} 대신 올림</span>
+                      : null}
+                  </dd>
+                </span>
                 <span><dt className="text-[11px] text-fg-subtle">신청 금액</dt><dd className="font-bold text-fg">{won(picked.requestedAmount)}</dd></span>
               </dl>
               {picked.purpose ? <p className="mb-3 text-[12.5px] text-fg">{picked.purpose}</p> : null}

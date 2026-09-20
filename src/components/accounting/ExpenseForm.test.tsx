@@ -13,7 +13,8 @@ import { ExpenseCreateButton } from './ExpenseForm';
 const categories: ExpenseCategory[] = [{ key: 'supply', label: '소모품비' }, { key: 'book', label: '도서·교재비' }];
 const made: Expense = {
   id: 31, spendOn: '2026-09-18', category: 'supply', categoryLabel: '소모품비', merchant: '문구점', purpose: '마커',
-  requestedAmount: 35000, amount: null, reason: null, hasReceipt: false, requesterName: '강민지', requesterId: 4, state: 'pending', reviewerName: null, reviewedAt: null,
+  requestedAmount: 35000, amount: null, reason: null, hasReceipt: false, requesterName: '강민지', requesterId: 4,
+  filedById: 4, filedByName: '강민지', state: 'pending', reviewerName: null, reviewedAt: null,
 };
 
 const originalAdapter = api.defaults.adapter;

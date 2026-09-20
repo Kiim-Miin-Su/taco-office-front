@@ -15,8 +15,9 @@ const preview: WithdrawResult = {
   series: [
     { serId: 3, kindKey: 'class', subKey: 'sat-math', title: 'SAT Math', endedOn: '2026-10-02', remainingCount: 3 },
   ],
-  invoices: [{ id: 42, yearMonth: '2026-10', title: '2026년 10월 수업료 청구', state: 'paid', amountBefore: 225000, amountAfter: 90000, paidAmount: 90000, refund: 135000, removedCount: 3, voided: false }],
+  invoices: [{ id: 42, yearMonth: '2026-10', title: '2026년 10월 수업료 청구', state: 'paid', amountBefore: 225000, amountAfter: 90000, paidAmount: 90000, refund: 135000, removedCount: 3, voided: false, needsCeoVoid: false }],
   remainingCount: 3, refundTotal: 135000, enrollmentsEnded: 1, canSeeAmounts: true,
+  canConfirm: true, confirmBlockedReason: null,
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -109,4 +110,26 @@ it('서버가 거절하면 그 문장을 그대로 보이고 보낼 수 없다 �
   expect(view.queryByLabelText('종료 미리보기')).toBeNull();
   const dialog = view.getByRole('dialog');
   expect((within(dialog).getByRole('button', { name: '수강 종료' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+/**
+ * **청구서가 통째로 비는 종료는 대표만 한다** (N-139 · S2). 화면은 역할을 다시 조합하지 않고
+ * 서버가 준 `canConfirm` 과 그 이유 한 줄을 읽는다 — 조합하면 조건이 늘 때마다 두 답이 생긴다 (D-R39).
+ */
+it('서버가 확정을 닫으면 단추도 닫히고 이유가 선다 — 「대표만 가능」 (S2)', async () => {
+  const blocked: WithdrawResult = {
+    ...preview,
+    invoices: [{ ...preview.invoices[0], amountAfter: 0, voided: true, needsCeoVoid: true }],
+    canConfirm: false,
+    confirmBlockedReason: '2026-10 청구서가 통째로 비어 취소됩니다 — 청구서 취소는 대표만 할 수 있습니다',
+  };
+  const { view } = setup((url) => ({ status: 201, data: url.endsWith('/preview') ? blocked : blocked }));
+  await view.findByLabelText('종료 미리보기');
+  expect(view.getByText(/청구서 취소는 대표만 할 수 있습니다/)).toBeTruthy();
+  expect(view.getByText('대표만 가능')).toBeTruthy();
+  const dialog = view.getByRole('dialog');
+  expect((within(dialog).getByRole('button', { name: '수강 종료' }) as HTMLButtonElement).disabled).toBe(true);
+  // 눌러도 보내지 않는다 — 미리보기 한 번뿐이다
+  fireEvent.click(within(dialog).getByRole('button', { name: '수강 종료' }));
+  expect(posted).toHaveLength(1);
 });

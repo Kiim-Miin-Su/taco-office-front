@@ -79,7 +79,9 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
   }, [open, dateOk, endedOn, scope, student.id, serId]);
 
   const pending = write.isPending;
-  const ready = dateOk && !!preview && !pending;
+  /* 확정이 열리는지는 **서버가 정한다** — 청구서가 통째로 비어 취소되는 종료는 대표만 할 수 있다(N-139 · S2).
+     화면이 역할을 다시 조합하면 단추 모양과 서버의 답이 갈린다 (D-R39). */
+  const ready = dateOk && !!preview && preview.canConfirm && !pending;
   const submit = () => {
     if (!ready) return;
     setErr(null);
@@ -138,7 +140,11 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
               <ul className="mt-2 flex flex-col gap-1 border-t border-line pt-2">
                 {preview.invoices.map((i) => (
                   <li key={i.id} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-fg-2">{i.yearMonth} 청구서 · {i.removedCount}회 빠짐{i.voided ? ' · 취소로 접힘' : ''}</span>
+                    <span className="text-fg-2">
+                      {i.yearMonth} 청구서 · {i.removedCount}회 빠짐
+                      {i.voided ? ' · 취소로 접힘' : ''}
+                      {i.needsCeoVoid ? <b className="ml-1 text-red">대표만 가능</b> : null}
+                    </span>
                     <span className="font-bold text-fg">
                       {won(i.amountBefore)} → {won(i.amountAfter)}
                       {i.refund ? <span className="ml-2 text-red">환불 {won(i.refund)}</span> : null}
@@ -161,6 +167,7 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
           그 날까지의 회차·청구는 그대로 남고(이력), 그 뒤 회차에서만 빠집니다. 그룹 수업이면 남은 학생의 단가가 그 뒤부터 다시 잡힙니다.
           환불은 받은 돈에서 돌려줄 만큼을 장부에 음수 줄로 남깁니다. <b>되돌릴 수 없습니다</b> — 다시 다니려면 새 수업으로 등록합니다.
         </p>
+        {preview?.confirmBlockedReason ? <Banner tone="warning">{preview.confirmBlockedReason}</Banner> : null}
         {err ? <Banner tone="danger">{err}</Banner> : null}
       </div>
     </Dialog>

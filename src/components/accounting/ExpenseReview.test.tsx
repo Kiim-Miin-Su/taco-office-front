@@ -20,7 +20,8 @@ const me: Me = {
 const card = (over: Partial<Expense> = {}): Expense => ({
   id: 7, spendOn: '2026-09-08', category: 'ent', categoryLabel: '접대비', merchant: '카페 서초',
   purpose: '학부모 간담회 다과', requestedAmount: 145000, amount: null, reason: null, hasReceipt: true,
-  requesterId: 4, requesterName: '정은채', state: 'pending', reviewerName: null, reviewedAt: null, ...over,
+  requesterId: 4, requesterName: '정은채', filedById: 4, filedByName: '정은채',
+  state: 'pending', reviewerName: null, reviewedAt: null, ...over,
 });
 const approved: Expense = card({
   id: 1, category: 'rent', categoryLabel: '임대료', merchant: '강남 임대', requestedAmount: null,

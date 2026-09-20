@@ -935,7 +935,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 입금 줄 삭제 — 부분 납부(partial) 정정일 때만. 완납은 되돌리지 않는다 */
+        /**
+         * 입금 줄 삭제 — 부분 납부(partial) 정정일 때만. 완납은 되돌리지 않는다
+         * @description 지우기 전에 그 줄을 통째로 LOG(PAY delete)에 남긴다 — 장부의 입금 줄이 흔적 없이 사라지면 안 된다 (S2).
+         */
         delete: operations["AccountingController_removePayment"];
         options?: never;
         head?: never;
@@ -3971,6 +3974,10 @@ export interface components {
             requesterName?: string | null;
             /** @description 본인 신청은 본인이 승인할 수 없다 (A-5) */
             requesterId: number | null;
+            /** @description **실제로 올린 사람** — 대표가 대신 올리면 requesterId 와 갈린다. 이 사람도 심사하지 못한다 (S2 · 옛 행은 null) */
+            filedById: number | null;
+            /** @description 대신 올린 사람 이름 — 본인이 올렸으면 requesterName 과 같다 */
+            filedByName?: string | null;
             /** @enum {string} */
             state: "pending" | "approved" | "rejected";
             reviewerName?: string | null;
@@ -4199,6 +4206,8 @@ export interface components {
             removedCount: number;
             /** @description 금액이 0 이 되어 취소(void)로 접혔는가 */
             voided: boolean;
+            /** @description 취소가 걸리는데 **대표가 아니라서** 막히는가 — 미리보기에서만 true 가 될 수 있다 (N-139) */
+            needsCeoVoid: boolean;
         };
         WithdrawResultDto: {
             studentId: number;
@@ -4217,6 +4226,10 @@ export interface components {
             /** @description 수강(ENR) 행에 종료일이 적힌 수 — 등록 행이 없으면 0 */
             enrollmentsEnded: number;
             canSeeAmounts: boolean;
+            /** @description 이 종료를 실제로 확정할 수 있는가 — **청구서가 통째로 비어 취소(void)되는 경우는 대표만**(N-139). 화면이 역할을 다시 조합하지 않는다 (D-R39) */
+            canConfirm: boolean;
+            /** @description 확정이 막힌 이유 — 열려 있으면 null */
+            confirmBlockedReason: string | null;
         };
         MonthCloseWriteDto: {
             /**
@@ -10881,7 +10894,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | MONTH_CLOSED */
+            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | WITHDRAW_NEEDS_CEO_VOID | MONTH_CLOSED */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12226,7 +12239,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description EXPENSE_PROXY_FORBIDDEN — 남의 이름으로 올리는 것은 대표만 */
             403: {
                 headers: {
                     [name: string]: unknown;
