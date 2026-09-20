@@ -63,6 +63,8 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   const [startedOn, setStartedOn] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [issueInvoice, setIssueInvoice] = useState(true);
+  /* 함께 내는 청구서의 납부 기한 — 미리 채우지 않는다(대표 결정 2026-09-20 · S3 · D-R44) */
+  const [dueOn, setDueOn] = useState('');
   const [allowSameName, setAllowSameName] = useState(false);
   const [memo, setMemo] = useState('');
   const [preview, setPreview] = useState<EnrollResult | null>(null);
@@ -89,6 +91,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
     if (existing && !studentId) return { issue: '붙일 학생을 고르세요' };
     if (!existing && !name.trim()) return { issue: '학생 이름이 필요합니다' };
     if (!lines.length) return { issue: '배치안 줄이 하나는 있어야 합니다' };
+    if (issueInvoice && !ISO.test(dueOn)) return { issue: '청구서를 함께 내려면 납부 기한을 고르세요' };
     const out: LeadEnroll['lines'] = [];
     for (const l of lines) {
       if (!l.kindKey) return { issue: '줄마다 종류를 고르세요' };
@@ -103,7 +106,8 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
     return {
       body: {
         ...(existing ? { studentId: Number(studentId) } : { student: { name: name.trim(), ...(grade.trim() ? { grade: grade.trim() } : {}), school: school.trim() } }),
-        startedOn, lines: out, issueInvoice, ...(allowSameName ? { allowSameName: true } : {}), ...(memo.trim() ? { memo: memo.trim() } : {}),
+        startedOn, lines: out, issueInvoice, ...(issueInvoice ? { dueOn } : {}),
+        ...(allowSameName ? { allowSameName: true } : {}), ...(memo.trim() ? { memo: memo.trim() } : {}),
       },
     };
   };
@@ -272,6 +276,12 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
 
         <div className="flex flex-wrap items-center gap-4">
           <Checkbox label="첫 달 수업료 청구서를 함께 냅니다 (§53)" checked={issueInvoice} onChange={(e) => setIssueInvoice(e.target.checked)} disabled={pending} />
+          {issueInvoice ? (
+            <div className="mt-2 max-w-48">
+              <Label htmlFor={`${id}-due`} hint="이 날이 지나면 「기한 지남」에 듭니다">납부 기한</Label>
+              <Input id={`${id}-due`} type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} disabled={pending} />
+            </div>
+          ) : null}
         </div>
 
         {/* 미리보기 — 서버가 같은 트랜잭션을 돌리고 되돌린 값. 화면이 세지 않는다 */}

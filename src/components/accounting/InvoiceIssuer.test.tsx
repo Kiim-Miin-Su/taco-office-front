@@ -70,10 +70,11 @@ it('보내는 것은 누구·어느 달·종류 셋뿐이다 — 줄도 횟수�
   await waitFor(() => expect(view.getByRole('option', { name: /양찬욱/ })).toBeTruthy());
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '7' } });
   fireEvent.change(view.getByLabelText('달'), { target: { value: '2026-08' } });
+  fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-08-25' } });
   fireEvent.click(view.getByRole('button', { name: '발행' }));
   await waitFor(() => expect(posted).not.toBeNull());
-  expect(Object.keys(posted as object).sort()).toEqual(['invType', 'studentId', 'yearMonth']);
-  expect(posted).toMatchObject({ studentId: 7, yearMonth: '2026-08', invType: 'tuition' });
+  expect(Object.keys(posted as object).sort()).toEqual(['dueOn', 'invType', 'studentId', 'yearMonth']);
+  expect(posted).toMatchObject({ studentId: 7, yearMonth: '2026-08', invType: 'tuition', dueOn: '2026-08-25' });
 });
 
 it('줄은 낸 뒤에 보인다 — 미리보기를 그리면 화면이 회차를 세게 된다', async () => {
@@ -84,6 +85,7 @@ it('줄은 낸 뒤에 보인다 — 미리보기를 그리면 화면이 회차�
   // 내기 전에는 줄이 없다
   expect(view.queryByText('SAT Math')).toBeNull();
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '7' } });
+  fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-08-25' } });
   fireEvent.click(view.getByRole('button', { name: '발행' }));
   await waitFor(() => expect(view.getByText('SAT Math')).toBeTruthy());
   const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
@@ -100,7 +102,21 @@ it('학생을 안 고르면 발행을 누를 수 없다', async () => {
   await waitFor(() => expect(view.getByRole('option', { name: /양찬욱/ })).toBeTruthy());
   expect((view.getByRole('button', { name: '발행' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '7' } });
+  // 기한을 고르기 전에는 여전히 못 누른다 — 기본값을 두지 않았다 (대표 결정 2026-09-20 · S3)
+  expect((view.getByRole('button', { name: '발행' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-08-25' } });
   expect((view.getByRole('button', { name: '발행' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+/**
+ * **기한은 미리 채우지 않는다** (대표 결정 2026-09-20 · S3). 원문 §53 은 기한이 있는 모습만 보여 주고
+ * 어떻게 정하는지는 보여 주지 않는다 — 화면이 「발행일 + N일」을 지어내면 없는 업무 규칙이 생긴다(D-R44).
+ */
+it('기한 칸은 비어서 열린다 — 화면이 날짜를 짓지 않는다 (S3)', async () => {
+  const view = setup();
+  fireEvent.click(view.getByRole('button', { name: '+ 새 청구서 발행' }));
+  await waitFor(() => expect(view.getByRole('option', { name: /양찬욱/ })).toBeTruthy());
+  expect((view.getByLabelText('납부 기한') as HTMLInputElement).value).toBe('');
 });
 
 it('거절 이유는 서버 문장을 그대로 보여 준다 — 화면이 이유를 짓지 않는다', async () => {
@@ -112,6 +128,7 @@ it('거절 이유는 서버 문장을 그대로 보여 준다 — 화면이 이�
   // 학생 목록(meta)이 와야 고를 수 있다 — 칸만 있고 항목이 없으면 값이 안 들어간다
   await waitFor(() => expect(view.getByRole('option', { name: /양찬욱/ })).toBeTruthy());
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '7' } });
+  fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-08-25' } });
   fireEvent.click(view.getByRole('button', { name: '발행' }));
   await waitFor(() => expect(view.getByText(/수업이 없습니다/)).toBeTruthy());
   expect(view.queryByText('SAT Math')).toBeNull();
@@ -137,9 +154,11 @@ it('일괄 발행은 달 하나만 보내고, 발행 건수·건너뛴 학생과
   const view = setup(() => ({ status: 201, data: result }));
   fireEvent.click(view.getByRole('button', { name: '청구서 일괄 발행' }));
   fireEvent.change(view.getByLabelText('달'), { target: { value: '2026-09' } });
+  fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-09-25' } });
   fireEvent.click(view.getByRole('button', { name: '9월 청구서 일괄 발행' }));
   await waitFor(() => expect(posted).not.toBeNull());
-  expect(posted).toEqual({ yearMonth: '2026-09' });
+  // 한 번에 내는 청구서들의 기한은 **하나**다 — 낱장과 같은 규약이다 (S3)
+  expect(posted).toEqual({ yearMonth: '2026-09', dueOn: '2026-09-25' });
   await waitFor(() => expect(view.getByText('2026-09 — 발행 2건')).toBeTruthy());
   expect(view.getByText('· 대상 3명 · 건너뜀 1명')).toBeTruthy();
   expect(view.getByText('70,000원')).toBeTruthy();
@@ -152,6 +171,7 @@ it('일괄 발행이 막히면(마감 달) 서버 문장을 그대로 보여 준
   const view = setup(() => ({ status: 409, data: { code: 'MONTH_CLOSED', message: '2026년 8월은 마감됐습니다 — 대표가 마감을 해제한 뒤 고칠 수 있습니다' } }));
   fireEvent.click(view.getByRole('button', { name: '청구서 일괄 발행' }));
   fireEvent.change(view.getByLabelText('달'), { target: { value: '2026-08' } });
+  fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-08-25' } });
   fireEvent.click(view.getByRole('button', { name: '8월 청구서 일괄 발행' }));
   await waitFor(() => expect(view.getByText(/2026년 8월은 마감됐습니다/)).toBeTruthy());
 });

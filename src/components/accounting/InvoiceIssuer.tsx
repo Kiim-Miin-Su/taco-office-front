@@ -42,15 +42,19 @@ export function InvoiceIssuer() {
   const [studentId, setStudentId] = useState('');
   const [yearMonth, setYearMonth] = useState(thisMonth);
   const [invType, setInvType] = useState<InvType>('tuition');
+  /* 납부 기한 — **미리 채우지 않는다**(대표 결정 2026-09-20 · S3). 원문 §53 은 기한이 있는 모습만 보여 주고
+     어떻게 정하는지는 보여 주지 않는다 — 「발행일 + N일」을 화면이 지어내면 없는 업무 규칙이 생긴다(D-R44). */
+  const [dueOn, setDueOn] = useState('');
   const [made, setMade] = useState<Invoice | null>(null);
   // 일괄 발행 (C94-a · H-75) — 달 하나만 보낸다. 누구에게 낼지·이월·단가는 서버가 정한다
   const batch = useIssueInvoiceBatch();
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchMonth, setBatchMonth] = useState(thisMonth);
   const [batchResult, setBatchResult] = useState<InvoiceBatchResult | null>(null);
+  const [batchDue, setBatchDue] = useState('');
 
-  const ready = studentId !== '' && /^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth);
-  const batchReady = /^\d{4}-(0[1-9]|1[0-2])$/.test(batchMonth) && !batch.isPending;
+  const ready = studentId !== '' && /^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth) && dueOn !== '';
+  const batchReady = /^\d{4}-(0[1-9]|1[0-2])$/.test(batchMonth) && batchDue !== '' && !batch.isPending;
 
   return (
     <>
@@ -74,9 +78,13 @@ export function InvoiceIssuer() {
               <Label htmlFor="ivb-ym">달</Label>
               <Input id="ivb-ym" type="month" value={batchMonth} onChange={(e) => setBatchMonth(e.target.value)} />
             </div>
+            <div>
+              <Label htmlFor="ivb-due">납부 기한</Label>
+              <Input id="ivb-due" type="date" value={batchDue} onChange={(e) => setBatchDue(e.target.value)} />
+            </div>
             <Button
               disabled={!batchReady}
-              onClick={() => batch.mutate({ yearMonth: batchMonth }, { onSuccess: (r) => setBatchResult(r) })}
+              onClick={() => batch.mutate({ yearMonth: batchMonth, dueOn: batchDue }, { onSuccess: (r) => setBatchResult(r) })}
             >
               {batch.isPending ? '발행 중…' : `${Number(batchMonth.slice(5)) || ''}월 청구서 일괄 발행`}
             </Button>
@@ -135,7 +143,14 @@ export function InvoiceIssuer() {
                 ))}
               </Select>
             </div>
+            <div>
+              <Label htmlFor="iv-due">납부 기한</Label>
+              <Input id="iv-due" type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} />
+            </div>
           </div>
+          <p className="mt-2 text-[11px] text-fg-subtle">
+            기한을 고르면 그 날이 지난 뒤부터 「기한 지남」과 §69 회계 배지에 듭니다. 미리 채워 두지 않습니다 — 언제까지 받을지는 매번 정하는 일입니다.
+          </p>
 
           {issue.isError ? <Banner tone="danger" className="mt-3">{apiMessage(issue.error)}</Banner> : null}
 
@@ -143,7 +158,7 @@ export function InvoiceIssuer() {
             <Button
               disabled={!ready || issue.isPending}
               onClick={() => issue.mutate(
-                { studentId: Number(studentId), yearMonth, invType },
+                { studentId: Number(studentId), yearMonth, invType, dueOn },
                 { onSuccess: (inv) => { setMade(inv); setOpen(false); } },
               )}
             >

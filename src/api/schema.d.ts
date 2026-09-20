@@ -4377,8 +4377,11 @@ export interface components {
             invType: "tuition" | "consulting" | "diag_intake" | "exam_fee";
             /** @description 제목 — 비우면 서버가 「2026년 8월 수업료」처럼 짓는다 */
             title?: string;
-            /** @description 납기일 — YYYY-MM-DD */
-            dueOn?: string;
+            /**
+             * Format: date
+             * @description 납부 기한 — YYYY-MM-DD. 발행할 때 고른다(기본값 없음 · S3)
+             */
+            dueOn: string;
         };
         InvoiceBatchDto: {
             /**
@@ -4386,6 +4389,11 @@ export interface components {
              * @example 2026-09
              */
             yearMonth: string;
+            /**
+             * Format: date
+             * @description 납부 기한 — YYYY-MM-DD. 이 달 청구서 전부에 같은 기한이 붙는다
+             */
+            dueOn: string;
         };
         InvoiceBatchSkipDto: {
             studentId: number;
@@ -5109,6 +5117,11 @@ export interface components {
              * @default true
              */
             issueInvoice: boolean;
+            /**
+             * Format: date
+             * @description 납부 기한 — YYYY-MM-DD. issueInvoice 가 false 가 아니면 필수
+             */
+            dueOn?: string;
             /** @description 메모 — LEAD.reason 에 남는다 */
             memo?: string;
             /** @description 이미 있는 학생과 이름이 같아도 새 학생으로 만든다 (동명이인 · N-137) — 학년·학교가 같으면 그래도 409 */

@@ -67,6 +67,8 @@ async function fillOneLine(view: ReturnType<typeof render>) {
   const dialog = await view.findByRole('dialog');
   await waitFor(() => expect(within(dialog).getByRole('option', { name: '수업' })).toBeTruthy());
   fireEvent.change(within(dialog).getByLabelText('시작일'), { target: { value: '2026-10-01' } });
+  // 함께 내는 청구서의 기한 — 기본값이 없어 고르지 않으면 「미리 보기」가 서지 않는다 (S3)
+  fireEvent.change(within(dialog).getByLabelText('납부 기한'), { target: { value: '2026-10-25' } });
   fireEvent.change(within(dialog).getByLabelText('수업 1 종류'), { target: { value: 'class' } });
   fireEvent.change(within(dialog).getByLabelText('수업 1 과목'), { target: { value: 'writing' } });
   fireEvent.change(within(dialog).getByLabelText('수업 1 강사'), { target: { value: '6' } });
@@ -76,7 +78,7 @@ async function fillOneLine(view: ReturnType<typeof render>) {
 }
 
 const expectedBody = {
-  student: { name: '문채원', school: '언주중' }, startedOn: '2026-10-01', issueInvoice: true,
+  student: { name: '문채원', school: '언주중' }, startedOn: '2026-10-01', issueInvoice: true, dueOn: '2026-10-25',
   lines: [{ kindKey: 'class', subKey: 'writing', mode: 'offline', rrule: 'WEEKLY:MO,WE', startMin: 960, endMin: 1020, teacherId: 6, roomId: null, title: null, sessions: null, libId: null }],
 };
 
