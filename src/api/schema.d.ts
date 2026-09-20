@@ -2572,7 +2572,7 @@ export interface paths {
         delete: operations["GpaController_deleteUse"];
         options?: never;
         head?: never;
-        /** 기록 승인(ok)·되돌림(wait) — 닫힌 사이클은 잠긴다 */
+        /** 기록 승인(ok)·되돌림(wait) — 기록한 사람은 승인하지 못한다 · 닫힌 사이클은 잠긴다 */
         patch: operations["GpaController_setUseState"];
         trace?: never;
     };
@@ -6976,6 +6976,12 @@ export interface components {
              * @enum {string}
              */
             state: "wait" | "ok";
+            /** @description 승인한 사람 — 기록한 사람과 다르다(gpa_use_no_self_approve). 되돌리면 지워진다 */
+            approvedByName?: string | null;
+            /** @description 승인한 날 YYYY-MM-DD (KST) */
+            approvedOn?: string | null;
+            /** @description 이 기록에 승인 단추가 열리는가 — 대기 상태이고 **기록한 사람이 내가 아닐 때**. 사이클 잠금은 cycle.closed 가 따로 말한다 (D-R39 · 화면이 다시 조합하지 않는다) */
+            canApprove: boolean;
         };
         GpaBoardDto: {
             /** @description anchor 를 품는(없으면 직전) 사이클 — 하나도 없으면 null */
@@ -7083,6 +7089,8 @@ export interface components {
             sentByName?: string | null;
             /** @description 원본 §69 서명줄 「대표 승인」 */
             reviewedByName?: string | null;
+            /** @description §73 결재 단추가 열리는가 — 올라온(sent) 보고이고, 결재 권한이 있고, **내가 올린 보고가 아닐 때**(rpt_no_self_review). 화면이 역할을 다시 조합하지 않는다 (D-R39) */
+            canReview: boolean;
         };
         ExecAreaDto: {
             /** @description money · mkt · ops · consulting · complaint · lesson (대표 관심순 고정 · D-R25) */
@@ -18912,7 +18920,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code CYCLE_CLOSED */
+            /** @description code CYCLE_CLOSED | SELF_APPROVAL_FORBIDDEN */
             409: {
                 headers: {
                     [name: string]: unknown;

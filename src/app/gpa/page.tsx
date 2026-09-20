@@ -236,7 +236,12 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
                       <Chip size="compact" tone={u.state === 'ok' ? 'success' : 'warning'}>{u.state === 'ok' ? '승인' : '대기'}</Chip>
                       {cy.closed ? null : u.state === 'wait' ? (
                         <span className="flex shrink-0 gap-1">
-                          <Button size="sm" disabled={setState.isPending} onClick={() => setState.mutate({ id: u.id, state: 'ok' })}>승인</Button>
+                          {/* 승인 단추가 열리는지는 서버가 정한다 — 기록한 사람은 승인하지 못한다 (D-R39 · S1) */}
+                          {u.canApprove ? (
+                            <Button size="sm" disabled={setState.isPending} onClick={() => setState.mutate({ id: u.id, state: 'ok' })}>승인</Button>
+                          ) : (
+                            <span className="self-center text-[11px] text-fg-subtle">적은 사람은 승인 못 함</span>
+                          )}
                           <Button
                             size="sm"
                             variant={armedId === u.id ? 'primary' : 'secondary'}

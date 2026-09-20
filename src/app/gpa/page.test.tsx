@@ -137,3 +137,30 @@ it('마감이 열리면 확인 창 → POST /gpa/cycles/{id}/close → 응답의
   await waitFor(() => expect(posts).toEqual(['/gpa/cycles/3/close']));
   await waitFor(() => expect(view.container.textContent).toContain('3차 사이클 마감 — 소멸 27p · 4차 사이클을 열었습니다 (8월 24일 – 9월 20일)'));
 });
+
+/**
+ * 승인 단추가 서는 조건은 **서버가 준 `canApprove` 하나**다 (S1 · D-R39).
+ *
+ * 2026-09-20 에 「기록한 사람은 자기 기록을 승인하지 못한다」가 서버와 DB CHECK 에 붙었다.
+ * 화면이 대기 상태만 보고 단추를 열면 적은 사람에게는 열려 보이고 누르면 거절당한다 —
+ * 그래서 단추와 서버가 같은 질문을 하는지를 여기서 못 박는다.
+ */
+it('승인 단추는 서버가 준 canApprove 를 따른다 — 적은 사람에게는 서지 않는다 (S1)', async () => {
+  const use = (id: number, canApprove: boolean) => ({
+    id, studentId: 1, svcKey: 'hw', points: 1, onDate: '2026-08-10', startMin: null, serId: null,
+    coordName: '코디', noteUrl: null, state: 'wait', approvedByName: null, approvedOn: null, canApprove,
+  });
+  const view = setup({ uses: [use(11, true), use(12, false)] });
+  await waitFor(() => expect(view.container.textContent).toContain('56p'));
+  fireEvent.click(view.getAllByRole('button', { name: '타임라인' })[4]);
+
+  // 「초과」 안내도 목록이라 타임라인 줄만 골라낸다 — 줄마다 잔여를 적는 쪽이 타임라인이다
+  await waitFor(() => expect(view.container.textContent).toContain('소비 타임라인'));
+  const rows = view.getAllByRole('listitem').filter((li) => li.textContent?.includes('잔여 '));
+  expect(rows).toHaveLength(2);
+  expect(within(rows[0]).getByRole('button', { name: '승인' })).toBeTruthy();
+  expect(within(rows[1]).queryByRole('button', { name: '승인' })).toBeNull();
+  expect(rows[1].textContent).toContain('적은 사람은 승인 못 함');
+  // 되돌림·삭제는 자기도 할 수 있다 — 승인이 아니라 취소다
+  expect(within(rows[1]).getByRole('button', { name: '삭제' })).toBeTruthy();
+});

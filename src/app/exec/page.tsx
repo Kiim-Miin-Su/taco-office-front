@@ -87,7 +87,6 @@ export default function ExecPage() {
 
   /* ── §69 쓰기 — 여섯 칸과 서명 (C85-a) ─────────────────────────── */
   const canWrite = useCan('canCrudAll');
-  const canReview = useCan('canApprove') && useCan('canSeeProfit');
   const write = useExecReportWrite();
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [reason, setReason] = useState('');
@@ -411,7 +410,9 @@ export default function ExecPage() {
               </div>
 
               {/* §73 결재 — 대표만. 받는 사람 판정은 서버가 하고 화면은 올라온 것에만 단추를 연다 */}
-              {canReview && report?.state === 'sent' ? (
+              {/* 결재 단추가 열리는지는 **서버가 정한다** — 권한·상태에 더해 「내가 올린 보고인가」까지
+                  같은 줄에서 판정한다. 화면이 조합하면 올린 사람에게 열린 채 눌렀을 때만 거절당한다 (D-R39 · S1) */}
+              {report?.canReview ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber/40 bg-amber/5 p-3">
                   <span className="text-[12px] font-bold text-fg">올라온 보고입니다 — 결재해 주세요</span>
                   <Input

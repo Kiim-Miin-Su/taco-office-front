@@ -167,16 +167,21 @@ it('올리기는 적은 것을 **먼저 저장하고** 올린다 — 화면의 �
   expect(view.calls[1]).toMatchObject({ method: 'post', url: '/exec/report/submit' });
 });
 
-it('결재 단추는 **올라온 보고**에만, 대표에게만 선다 (§73)', async () => {
-  const sent: Partial<Exec> = {
+/**
+ * 결재 단추가 서는 조건은 **서버가 한 줄로 준다** (`canReview`). 화면이 역할과 상태를 다시
+ * 조합하면 조건이 늘어날 때마다 두 답이 생긴다 — 실제로 2026-09-20 에 「내가 올린 보고는
+ * 내가 결재하지 못한다」가 서버에 붙었고, 조합하던 화면은 그것을 알 길이 없었다 (D-R39 · S1).
+ */
+it('결재 단추는 서버가 준 canReview 하나로 선다 (§73)', async () => {
+  const report = (canReview: boolean): Partial<Exec> => ({
     reports: [{
       id: 7, rptType: 'day', onDate: '2026-08-21', state: 'sent', memo: '',
       memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
       filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
-      sentByName: '김민수', reviewedByName: null,
+      sentByName: '김민수', reviewedByName: null, canReview,
     }],
-  };
-  const ceo = setupWrite(sent);
+  });
+  const ceo = setupWrite(report(true));
   await waitFor(() => expect(ceo.container.textContent).toContain('올라온 보고입니다'));
   expect(ceo.getByRole('button', { name: '승인' })).toBeTruthy();
   // 반려는 사유가 있어야 눌린다 (D-R13)
@@ -185,11 +190,18 @@ it('결재 단추는 **올라온 보고**에만, 대표에게만 선다 (§73)',
   expect(ceo.container.textContent).toContain('김민수');
   cleanup();
 
+  // 서버가 닫으면 화면도 닫는다 — 권한이 없을 때도, 내가 올린 보고일 때도 같은 false 하나다
   const manager: Me = { ...me, role: 'manager', roleLabel: '매니저', canSeeProfit: false, canMoney: false };
-  const mgr = setupWrite(sent, manager);
+  const mgr = setupWrite(report(false), manager);
   await waitFor(() => expect(mgr.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
   expect(mgr.queryByText('올라온 보고입니다 — 결재해 주세요')).toBeNull();
   expect(mgr.queryByRole('button', { name: '승인' })).toBeNull();
+  cleanup();
+
+  // 대표여도 자기가 올린 보고면 서버가 false 를 준다 — 화면은 역할을 다시 묻지 않는다
+  const mine = setupWrite(report(false));
+  await waitFor(() => expect(mine.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  expect(mine.queryByRole('button', { name: '승인' })).toBeNull();
 });
 
 /**
