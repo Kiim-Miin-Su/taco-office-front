@@ -72,6 +72,27 @@ it('머리의 살펴볼 것은 6영역 배지의 합이고, 정보성 영역은 
   expect(view.getByRole('button', { name: /마케팅/ }).textContent).toContain('✓');
 });
 
+/**
+ * **K-110** — 원문 §69 는 카드마다 오른쪽에 「보기 ›」라 적는다. 제품은 `›` 하나였고 그것이
+ * `aria-hidden` 이라 **보조기기에는 이 줄이 눌린다는 말이 하나도 없었다.** 이동은 되고 있었으므로
+ * 고친 것은 **낱말뿐**이다 — 카드의 줄(N-67)은 정할 것이고 이것은 빠뜨린 것이다.
+ *
+ * 0 건의 `✓` 도 같은 종류다. 글리프는 낱말이 아니라 보조기기가 「마케팅 ✓」라고만 읽는다.
+ */
+it('⭐ 영역 카드마다 「보기」가 글자로 서고, 0 건의 ✓ 는 글자로도 읽힌다 (K-110)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getByRole('button', { name: /회계/ })).toBeTruthy());
+  for (const a of data.areas) {
+    const card = view.getByRole('button', { name: new RegExp(a.label) });
+    expect(card.textContent).toContain('보기');
+    // 접근 이름에도 들어가야 한다 — 글자가 `aria-hidden` 이면 있으나 마나다
+    expect(card.getAttribute('aria-hidden')).toBeNull();
+  }
+  expect(view.getByRole('button', { name: /마케팅/ }).textContent).toContain('살펴볼 것 없음');
+  // 카드 전체가 단추인 것은 그대로다 — 안에 또 단추를 넣지 않았다
+  expect(view.getByRole('button', { name: /회계/ }).querySelectorAll('button')).toHaveLength(0);
+});
+
 it('영역을 누르면 그 화면으로 간다 — 대표 보고 안에서 처리하지 않는다 (D-R27)', async () => {
   const view = setup();
   await waitFor(() => expect(view.getByRole('button', { name: /회계/ })).toBeTruthy());

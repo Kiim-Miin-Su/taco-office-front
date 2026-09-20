@@ -23,6 +23,12 @@ export interface TabCardOption<T extends string> {
   sub?: ReactNode;
   /** 오른쪽 위 동그라미 — 0 이면 달지 않는다(0 을 굳이 보여 줄 이유가 없다). */
   badge?: number;
+  /**
+   * 동그라미를 **보조기기에도 읽히고 싶을 때** 주는 글자(「3건」). 동그라미 자체는 단추 밖에
+   * 겹쳐 놓느라 `aria-hidden` 이라 이름에 안 들어간다. **아래 한 줄이 이미 건수를 말하면
+   * 주지 않는다** — 주면 같은 수가 두 번 읽힌다.
+   */
+  badgeSr?: string;
 }
 
 export interface TabCardsProps<T extends string> {
@@ -51,7 +57,18 @@ export function TabCards<T extends string>({ options, value, onChange, className
                   : 'border-line bg-card text-fg hover:border-fg-subtle',
               )}
             >
-              <div className="text-[13px] font-bold leading-tight">{o.label}</div>
+              <div className="text-[13px] font-bold leading-tight">
+                {o.label}
+                {/*
+                 * 동그라미는 **단추 밖에 있고 `aria-hidden`** 이라(겹쳐 놓으려면 그래야 한다)
+                 * 보조기기는 그 수를 한 번도 못 듣는다. 아래 한 줄이 이미 건수를 말하는 화면
+                 * (§47 「2건」 · §26 「5건」)에서는 그것으로 충분하지만, **아래 한 줄이 설명인
+                 * 화면**(§64 운영 — 「트래킹 · 회의 · 피드백」)에서는 수가 어디에도 안 남는다.
+                 * 그래서 **부르는 쪽이 필요할 때만** 글자를 준다 — 언제나 붙이면 §47 이
+                 * 「안 쓴 리포트 2 2건」이 된다(실제로 회귀가 그 자리에서 빨개졌다).
+                 */}
+                {o.badgeSr ? <span className="sr-only"> {o.badgeSr}</span> : null}
+              </div>
               <div className={cn('mt-0.5 text-[11px] leading-tight', on ? 'text-card/70' : 'text-fg-subtle')}>
                 {o.sub ?? ' '}
               </div>

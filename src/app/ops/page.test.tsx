@@ -49,7 +49,7 @@ function setup(viewer = me, selectMarketing = true) {
   const view = render(<QueryClientProvider client={client}>
     <Profiler id="ops" onRender={commits}><OpsPage /></Profiler>
   </QueryClientProvider>);
-  if (selectMarketing) fireEvent.click(view.getByRole('button', { name: /마케팅/ }));
+  if (selectMarketing) fireEvent.click(view.getByRole('tab', { name: /^마케팅/ }));
   return { ...view, client, commits };
 }
 function expectHidden(view: ReturnType<typeof setup>) {
@@ -71,7 +71,7 @@ it('§75 운영 deep link는 기획 상세 또는 §14 원 요청 서랍으로 �
   nav.search = 'tab=plan&plan=31';
   const plan = setup(me, false);
   await waitFor(() => expect(plan.getByText('기획 보고서 31')).toBeTruthy());
-  expect(plan.getByRole('button', { name: /기획/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(plan.getByRole('tab', { name: /^기획/ }).getAttribute('aria-selected')).toBe('true');
   cleanup();
 
   nav.search = 'tab=todo&request=44';
@@ -104,9 +104,65 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup({ ...me, role: 'manager', canSeeProfit: false });
     await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
     expect(view.getByText('123,400원')).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '할 일 0' }));
-    fireEvent.click(view.getByRole('button', { name: '마케팅 1' }));
+    fireEvent.click(view.getByRole('tab', { name: /^할 일/ }));
+    fireEvent.click(view.getByRole('tab', { name: /^마케팅/ }));
     expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
+  });
+
+  /**
+   * **C96 ⓐ** — 원문 §64 의 탭 머리는 밑줄 탭이 아니라 **카드 다섯**이고 차례가 정해져 있다:
+   * 마케팅 · 기획 · 회의 · 할 일 · 컴플레인. 제품은 `Tabs` 에 **건수를 label 문자열로 박아**
+   * 「할 일 3」처럼 붙이고 있었다 — 그러면 건수와 이름이 한 낱말이 되어 **둘 중 하나만
+   * 바꿀 수가 없다.**
+   *
+   * 아래 한 줄은 **원문 카드에 적힌 그대로**이고(그 탭이 무엇을 담는지), 동그라미의 수는
+   * 보이기만 하는 것이 아니라 **이름에도 들어가야 한다** — 밑줄 탭 시절에는 들어 있던 것이
+   * 카드로 오면서 조용히 사라질 뻔했다.
+   */
+  it('⭐ 탭 머리는 원문 차례의 카드 다섯이고, 아래 한 줄과 동그라미 수를 보조기기도 읽는다 (C96 ⓐ)', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+    const view = setup();
+    // 건수가 실린 뒤에 센다 — 탭 다섯은 데이터 없이도 서므로 개수만 기다리면 0 건 상태를 잰다
+    await waitFor(() => expect(view.getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy());
+    const tabs = view.getAllByRole('tab');
+    expect(tabs).toHaveLength(5);
+    // 차례가 원문이다 — 제목 div 로 센다(`textContent` 는 아래 한 줄까지 붙여 준다)
+    expect(tabs.map((t) => t.querySelector('div')?.firstChild?.textContent))
+      .toEqual(['마케팅', '기획', '회의', '할 일', '컴플레인']);
+    // 아래 한 줄 — 건수가 아니라 그 탭이 무엇을 담는지다
+    for (const sub of ['트래킹 · 회의 · 피드백', '보고 · 결재', '속기록 · 할 일', '배정 · 완료', '접수 · 대응 · 결과']) {
+      expect(view.getByText(sub)).toBeTruthy();
+    }
+    // 건수는 **이름에도** 들어간다 — 눈에만 보이면 보조기기는 한 번도 못 듣는다
+    expect(view.getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy();
+    // 0 건은 동그라미를 달지 않는다 — 없는 것을 굳이 보여 주지 않는다 (시드 todos 0건)
+    expect(view.getByRole('tab', { name: /^할 일/ }).parentElement?.textContent).not.toMatch(/\d/);
+    // 고른 탭만 선택으로 읽힌다
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    expect(view.getByRole('tab', { name: /^회의/ }).getAttribute('aria-selected')).toBe('true');
+    expect(view.getByRole('tab', { name: /^마케팅/ }).getAttribute('aria-selected')).toBe('false');
+  });
+
+  /**
+   * **N-19** — 같은 이름의 수가 한 화면에 둘이면 둘 중 하나는 반드시 틀린 값이다. 원문 §64 는
+   * 동그라미 3 · 담당 칩 「전체 3」 · 「할 일 3건」이 **전부 같은 수**다. 제품의 동그라미는
+   * `todos.length` 라 **끝난 것까지 세고 있었다.**
+   */
+  it('⭐ 할 일 동그라미는 열린 것만 센다 — 담당 칩의 「전체 N」과 같은 수다 (N-19)', async () => {
+    const todo = (id: number, done: boolean) => ({
+      id, title: `할 일 ${id}`, done, srcLabel: '직접', ownerName: '김민수',
+      dueOn: '2026-09-21', overdueDays: 0,
+    });
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response,
+      todos: [todo(1, false), todo(2, false), todo(3, true)],
+      todoOwnerCounts: [{ key: 'staff:2', label: '김민수', count: 2 }],
+    } });
+    const view = setup(me, false);
+    await waitFor(() => expect(view.getByRole('tab', { name: /^할 일 2건/ })).toBeTruthy());
+    // 동그라미 · 담당 칩 줄 · 머리 칸이 전부 2 다 — 표에는 끝난 것까지 세 줄이 선다
+    expect(view.getByRole('button', { name: '전체 2' })).toBeTruthy();
+    expect(view.getByText('열린 할 일').parentElement?.textContent).toContain('2');
+    expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(3);
   });
 
   it('허용된 0원과 등록이 없어 계산할 수 없는 null을 구분한다', async () => {
@@ -188,7 +244,7 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
   const open = () => {
     vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplStages, complaints } });
     const view = setup(me, false);
-    fireEvent.click(view.getByRole('button', { name: /컴플레인/ }));
+    fireEvent.click(view.getByRole('tab', { name: /^컴플레인/ }));
     return view;
   };
 
@@ -208,7 +264,7 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
       },
     });
     const view = setup(me, false);
-    fireEvent.click(view.getByRole('button', { name: /컴플레인/ }));
+    fireEvent.click(view.getByRole('tab', { name: /^컴플레인/ }));
     await waitFor(() => expect(view.container.textContent).toContain('접수(서버)'));
     const text = view.container.textContent ?? '';
     for (const w of ['대응(서버)', '결과(서버)', '스케줄(서버)', '수업(서버)']) expect(text).toContain(w);
@@ -255,7 +311,7 @@ it('참석은 칩으로 서고 모자라면 경고색이다 (§63)', async () =>
     },
   });
   const view = setup(me, false);
-  fireEvent.click(view.getByRole('button', { name: /회의/ }));
+  fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
   await waitFor(() => expect(view.container.textContent).toContain('주간 기획'));
   // 수는 서버가 준 값 그대로다 — 화면이 참석을 다시 세지 않는다
   expect(view.container.textContent).toContain('2/4');
@@ -276,7 +332,7 @@ it('§61 카드의 「보완 N」은 서버가 센 값이고 0 이면 칩이 서
       dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 0 },
   ] } });
   const view = setup(me, false);
-  fireEvent.click(await view.findByRole('button', { name: '기획 2' }));
+  fireEvent.click(await view.findByRole('tab', { name: /^기획/ }));
   expect(view.getByText('보완 2')).toBeTruthy();
   expect(view.queryByText('보완 0')).toBeNull();
 });

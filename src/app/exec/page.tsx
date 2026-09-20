@@ -292,9 +292,21 @@ export default function ExecPage() {
                     }`}
                   >
                     <span className="text-[13px] font-bold text-fg">{a.label}</span>
-                    <Chip size="compact" tone={a.count > 0 ? 'warning' : 'success'}>{a.count > 0 ? a.count : '✓'}</Chip>
+                    {/*
+                     * 0 건은 원문처럼 **체크 하나**로 보인다. 다만 `✓` 는 **글리프이지 낱말이 아니라**
+                     * 보조기기가 「마케팅 ✓」라고만 읽는다 — 글자로도 한 번 적는다(K-110 과 같은 종류).
+                     */}
+                    <Chip size="compact" tone={a.count > 0 ? 'warning' : 'success'}>
+                      {a.count > 0 ? a.count : (<><span aria-hidden>✓</span><span className="sr-only">살펴볼 것 없음</span></>)}
+                    </Chip>
                     <span className="min-w-0 grow truncate text-[11.5px] text-fg-subtle">{a.review}</span>
-                    <span aria-hidden className="shrink-0 text-fg-subtle">›</span>
+                    {/*
+                     * **K-110** — 원문 §69 는 카드 오른쪽 위에 「보기 ›」라 적는다. 제품은 `›` 하나였고
+                     * 그것이 `aria-hidden` 이라 **보조기기에는 이 줄이 눌린다는 말이 하나도 없었다.**
+                     * 카드 전체가 단추인 것은 그대로 두고(이동은 되고 있었다) **낱말만** 세운다 —
+                     * 카드의 줄(N-67)은 정할 것이고 이것은 빠뜨린 것이다.
+                     */}
+                    <span className="shrink-0 text-[11.5px] text-fg-subtle">보기 <span aria-hidden>›</span></span>
                   </button>
                 ))}
               </div>

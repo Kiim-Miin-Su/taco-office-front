@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Panel, Segmented, StatCard, Table, Tabs } from '@/components/ui';
+import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Panel, Segmented, StatCard, TabCards, Table } from '@/components/ui';
 import { useDrawerWrite, useMeta, useOps } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
@@ -36,6 +36,13 @@ import { positiveQueryId, queryEnum } from '@/lib/url-state';
 import { hhmm, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
+
+/**
+ * §64 탭 카드 한 장 — 아래 한 줄이 **건수가 아니라 설명**이라(원문 그대로) 동그라미의 수가
+ * 이름에 안 남는다. `badgeSr` 로 글자를 한 번 더 준다.
+ */
+const opsTab = (value: Tab, label: string, sub: string, n: number) =>
+  ({ value, label, sub, badge: n, badgeSr: n > 0 ? `${n}건` : undefined });
 /**
  * 컷 §63 의 「일간 주간 월간 전체」 (C96).
  *
@@ -266,12 +273,30 @@ export default function OpsPage() {
         {q.isFetching ? <span className="text-[11px] text-fg-subtle">받는 중…</span> : null}
       </div>
 
-      <Tabs className="mb-3" value={tab} onChange={setTab} options={[
-        { value: 'todo', label: `할 일 ${d?.todos.length ?? 0}` },
-        { value: 'complaint', label: `컴플레인 ${d?.complaints.length ?? 0}` },
-        { value: 'plan', label: `기획 ${d?.plans.length ?? 0}` },
-        { value: 'meeting', label: `회의 ${d?.meetings.length ?? 0}` },
-        { value: 'mkt', label: `마케팅 ${d?.marketing.length ?? 0}${d?.feedbackNeedsFix ? ` · 피드백 ${d.feedbackNeedsFix}` : ''}` },
+      {/*
+       * **C96 ⓐ** — 원문 §64 의 탭 머리는 밑줄 탭이 아니라 **카드 다섯**이다: 제목 · 그 아래 한 줄 ·
+       * 오른쪽 위 동그라미. 제품은 `Tabs` 에 **건수를 label 문자열로 박아** 「할 일 3」처럼 붙이고
+       * 있었다 — 건수와 이름이 한 낱말이 되면 **둘 중 하나만 바꿀 수가 없다.**
+       *
+       * **차례도 원문으로 되돌린다** — 원문은 마케팅 · 기획 · 회의 · 할 일 · 컴플레인이고 제품은
+       * 할 일부터였다. 첫 탭이 바뀌므로 `queryTab` 기본값은 **그대로 `todo`** 로 둔다: 차례는
+       * 원문의 것이고 「어느 탭으로 열리는가」는 원문이 말한 적 없다(§64 컷이 할 일을 눌러 둔
+       * 상태다 — 그것이 지금 제품의 기본값과 같다).
+       *
+       * 아래 한 줄은 **원문 카드에 적힌 그대로**다(트래킹 · 회의 · 피드백 …). 건수가 아니라
+       * **그 탭이 무엇을 담는지**라 서버가 만들 값이 아니다 — 화면의 어휘다.
+       */}
+      <TabCards className="mb-3" label="운영 보기" value={tab} onChange={setTab} options={[
+        opsTab('mkt', '마케팅', '트래킹 · 회의 · 피드백', (d?.marketing.length ?? 0) + (d?.feedbackNeedsFix ?? 0)),
+        opsTab('plan', '기획', '보고 · 결재', d?.plans.length ?? 0),
+        opsTab('meeting', '회의', '속기록 · 할 일', d?.meetings.length ?? 0),
+        /*
+         * 할 일만 **열린 것**을 센다 — 바로 아래 담당 칩 줄의 「전체 N」과 머리 칸 「열린 할 일」이
+         * 그 수이고, 동그라미만 끝난 것까지 세면 **한 화면에 같은 이름의 수가 둘**이 된다(N-19).
+         * 원문 §64 도 동그라미 3 · 칩 「전체 3」 · 「할 일 3건」이 전부 같은 수다.
+         */
+        opsTab('todo', '할 일', '배정 · 완료', openTodos.length),
+        opsTab('complaint', '컴플레인', '접수 · 대응 · 결과', d?.complaints.length ?? 0),
       ]} />
 
       {/* 만든 결과 한 줄 — 「+ 접수」·「+ 회의 잡기」·「+ 기획 올리기」·「+ 할 일 주기」가 같이 쓴다 (C96) */}

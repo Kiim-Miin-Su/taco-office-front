@@ -96,8 +96,8 @@ beforeEach(() => { useSession.setState({ me: null, ready: false }); });
 describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
   it('칩의 숫자는 **서버가 준 것**이다 — 화면은 줄 수를 다시 세지 않는다 (D-R37)', async () => {
     const view = setup(ops());
-    await waitFor(() => expect(view.getByRole('button', { name: /회의 2/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /회의 2/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
 
     const chips = await waitFor(() => view.getByRole('group', { name: '회의 종류' }));
     // 줄은 둘인데 칩은 32·0·7 이라고 적는다 — 서버가 센 수가 화면의 수다
@@ -133,8 +133,8 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     const view = setup(ops({
       areaCounts: [{ key: 'teaching', label: '수업', count: 3 }, { key: 'payment', label: '수납', count: 1 }],
     }));
-    await waitFor(() => expect(view.getByRole('button', { name: /컴플레인 0/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /컴플레인 0/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^컴플레인/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^컴플레인/ }));
 
     const chips = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
     fireEvent.click(within(chips).getByRole('button', { name: '수업 3' }));
@@ -144,8 +144,8 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
 
   it('회의 종류 칩은 **받은 목록에서** 거른다 — 요청이 늘지 않는다 (§24 FQ 규약)', async () => {
     const view = setup(ops());
-    await waitFor(() => expect(view.getByRole('button', { name: /회의 2/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /회의 2/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
     await waitFor(() => expect(view.getByText('겨울 특강')).toBeTruthy());
 
     const chips = view.getByRole('group', { name: '회의 종류' });
@@ -157,8 +157,8 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
 
   it('시각과 자리는 **이어진 회차**에서 온다 — 옛 회의는 지어내지 않고 「시각 없음」이다 (N-25)', async () => {
     const view = setup(ops());
-    await waitFor(() => expect(view.getByRole('button', { name: /회의 2/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /회의 2/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
 
     await waitFor(() => expect(view.getByText('11:00–12:00')).toBeTruthy());
     expect(view.getByText('1호')).toBeTruthy();
@@ -171,10 +171,10 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
 describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
   it('단추가 서는지도 **서버가 정한다** — canCreate* 가 false 면 단추가 없다 (D-R39)', async () => {
     const view = setup(ops({ canCreateMeeting: false, canCreatePlan: false }));
-    await waitFor(() => expect(view.getByRole('button', { name: /회의 2/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /회의 2/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
     expect(view.queryByRole('button', { name: '+ 회의 잡기' })).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: /기획 0/ }));
+    fireEvent.click(view.getByRole('tab', { name: /^기획/ }));
     expect(view.queryByRole('button', { name: '+ 기획 올리기' })).toBeNull();
   });
 
@@ -188,8 +188,8 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
         attendees: 2, unavailable: [],
       },
     } as never);
-    await waitFor(() => expect(view.getByRole('button', { name: /회의 2/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /회의 2/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
     fireEvent.click(view.getByRole('button', { name: '+ 회의 잡기' }));
 
     await waitFor(() => expect(view.getByLabelText('제목')).toBeTruthy());
@@ -218,8 +218,8 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
     vi.spyOn(api, 'post').mockRejectedValue({
       response: { status: 409, data: { code: 'RESOURCE_CONFLICT', message: '그 시간에 1호는 이미 찼습니다' } },
     } as never);
-    await waitFor(() => expect(view.getByRole('button', { name: /회의 2/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /회의 2/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
     fireEvent.click(view.getByRole('button', { name: '+ 회의 잡기' }));
 
     await waitFor(() => expect(view.getByLabelText('날짜')).toBeTruthy());
@@ -240,8 +240,8 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({
       data: { plan: { id: 5, title: '겨울 특강 개설', stage: 'draft', stageLabel: '초안', overdueDays: 0, dueState: 'none' } },
     } as never);
-    await waitFor(() => expect(view.getByRole('button', { name: /기획 0/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: /기획 0/ }));
+    await waitFor(() => expect(view.getByRole('tab', { name: /^기획/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('tab', { name: /^기획/ }));
     fireEvent.click(view.getByRole('button', { name: '+ 기획 올리기' }));
 
     await waitFor(() => expect(view.getByLabelText('제목')).toBeTruthy());
