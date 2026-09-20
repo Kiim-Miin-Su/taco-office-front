@@ -13,7 +13,7 @@
  * 종류·과목·학생 낱말은 `GET /meta` 의 코드표다(D-R18). 학생별 예외는 **사유가 없으면 보낼 수 없다**(H-81 — 서버 400 · 표 CHECK).
  */
 'use client';
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Banner, Button, Chip, Dialog, Input, Label, Panel, Select, Table, type Column } from '@/components/ui';
 import { apiMessage } from '@/api/client';
 import { useMeta, useWriteRate, useWriteStudentRate } from '@/api/queries';
@@ -33,6 +33,16 @@ function RateForm({ open, onClose, meta }: { open: boolean; onClose: () => void;
   const [unitPrice, setUnitPrice] = useState('');
   const [fromDate, setFromDate] = useState(todayKst());
   const [err, setErr] = useState<string | null>(null);
+  /**
+   * **열 때마다 빈 칸에서 시작한다** (C100 · P-157). 이 창은 목록 옆에 **늘 마운트돼 있어서**
+   * 닫아도 상태가 살아 있었다 — 성공하면 단가만 지우고 종류·과목·인원·적용일·오류 문구는 남았고,
+   * 「취소」로 닫으면 아무것도 안 지워졌다. 다음에 여는 사람은 **남의 초안 위에** 적게 된다.
+   * 나머지 창 열다섯이 쓰는 것과 같은 초기화다.
+   */
+  useEffect(() => {
+    if (!open) return;
+    setKindKey(''); setSubKey(''); setHeads('1'); setUnitPrice(''); setFromDate(todayKst()); setErr(null);
+  }, [open]);
   const price = Number(unitPrice);
   const n = Number(heads);
   const ready = kindKey !== '' && Number.isInteger(n) && n >= 1 && Number.isInteger(price) && price > 0 && ISO.test(fromDate) && !write.isPending;
@@ -105,6 +115,11 @@ function StudentRateForm({ open, onClose, meta }: { open: boolean; onClose: () =
   const [fromDate, setFromDate] = useState(todayKst());
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  /** 같은 이유로 여기도 — **사유가 남으면 다른 학생에게 남의 사유가 붙는다** (C100 · P-157) */
+  useEffect(() => {
+    if (!open) return;
+    setStudentId(''); setKindKey(''); setUnitPrice(''); setFromDate(todayKst()); setReason(''); setErr(null);
+  }, [open]);
   const price = Number(unitPrice);
   const sid = Number(studentId);
   // 사유가 비면 단추가 서지 않는다 — 서버(400)·표(CHECK)가 어차피 막지만 왜 못 보내는지를 먼저 보인다 (H-81)

@@ -105,8 +105,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
     router.replace('/login');
   }
   return (
-    <div data-ui={me?.canAdminPage ? 'admin' : 'teacher'} className={cn(styles.shell, 'bg-bg text-fg')}>
-      <header className={cn(styles.header, isAdmin ? 'border-b border-header-line bg-header' : 'bg-fg')}>
+    <div data-ui={me?.canAdminPage ? 'admin' : 'teacher'} data-print="surface" className={cn(styles.shell, 'bg-bg text-fg')}>
+      <header data-print="chrome" className={cn(styles.header, isAdmin ? 'border-b border-header-line bg-header' : 'bg-fg')}>
         {isAdmin && leftTool ? <div className="mr-1 flex shrink-0 items-center">{leftTool}</div> : null}
         <Logo size={isAdmin ? 26 : 22} withMark={!isAdmin} onDark className="mr-auto shrink-0 sm:mr-3" />
         {isAdmin ? <div className="flex shrink-0 items-center gap-2 border-header-line sm:border-x sm:px-3">
@@ -161,13 +161,13 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         </button> : null}
         {isAdmin && rightTool ? <div className="ml-1 flex shrink-0 items-center">{rightTool}</div> : null}
       </header>
-      <div className={styles.workspace}>
-        {isAdmin && side ? <div className={cn(styles.panel, 'border-r border-line bg-card')}>{side}</div> : null}
-        <main className={cn(styles.main, !flush && 'p-3 sm:p-6')}>
+      <div data-print="surface" className={styles.workspace}>
+        {isAdmin && side ? <div data-print="chrome" className={cn(styles.panel, 'border-r border-line bg-card')}>{side}</div> : null}
+        <main data-print="surface" className={cn(styles.main, !flush && 'p-3 sm:p-6')}>
           {screenError ? <Banner tone="warning" className="mb-3">{screenError}</Banner> : null}
           {isAdmin ? children : <div className="mx-auto max-w-[1440px]">{children}</div>}
         </main>
-        {isAdmin && right ? <div className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
+        {isAdmin && right ? <div data-print="chrome" className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
       </div>
       {isAdmin ? <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} /> : null}
       {canViewApprovalFlow && drawerData?.approvalFlow ? (

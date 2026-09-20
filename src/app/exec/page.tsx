@@ -245,7 +245,8 @@ export default function ExecPage() {
           </>
         ) : (
           <>
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {/* 도구 줄은 **문서가 아니다** — 인쇄하면 빠진다 (C100 · P-160) */}
+            <div data-print="chrome" className="mt-3 flex flex-wrap items-center gap-1.5">
               <Button size="sm" onClick={() => setAnchor(addDays(range.from, -1))}>‹ 이전</Button>
               <Button size="sm" onClick={() => setAnchor(todayKst())}>오늘</Button>
               <Button size="sm" onClick={() => setAnchor(addDays(range.to, 1))}>다음 ›</Button>

@@ -25,3 +25,38 @@ body {
 *::after {
   box-sizing: border-box;
 }
+
+/*
+ * 인쇄 — 원본 §69 「인쇄」 단추가 부르는 그것 (C100 · P-160).
+ *
+ * 지금까지 `@media print` 가 한 줄도 없어서, 인쇄하면 **헤더·사이드바·도구 줄·단추가 전부 같이
+ * 찍혔다.** 화면은 셸이 높이를 쥐고 안쪽만 굴리는 구조라(`overflow`) 그대로 두면 **첫 장만
+ * 나오고 나머지가 잘린다** — 그래서 크롬을 빼는 것과 **높이 잠금을 푸는 것**을 같이 한다.
+ *
+ * 무엇을 뺄지는 **CSS 모듈 클래스 이름이 아니라 `data-print` 표식**이 정한다. 모듈 이름은
+ * 빌드마다 해시가 붙어 전역 CSS 에서 가리킬 수 없고, 가리키더라도 다음 빌드에 조용히 끊긴다.
+ *
+ * **단추를 싸잡아 숨기지 않는다** — §69 의 영역 카드가 `button` 이라(K-110) 싸잡으면 **문서가
+ * 사라진다.** 빼는 것은 표식이 붙은 자리뿐이다.
+ */
+@media print {
+  [data-print='chrome'] {
+    display: none !important;
+  }
+
+  /* 셸이 화면 높이에 맞춰 잘라 둔 것을 푼다 — 안 풀면 첫 장만 나온다 */
+  html,
+  body,
+  [data-print='surface'] {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* 종이에는 배경을 깔지 않는다 — 잉크를 쓰고 글자 대비만 낮춘다 */
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

@@ -107,3 +107,50 @@ it('「+ 단가 등록」 — 과목을 비우면 subKey 없이 보내고, 서�
   expect(posted[0]).toEqual({ url: '/accounting/rates', body: { kindKey: 'extra', heads: 1, unitPrice: 70000, fromDate: '2026-10-01' } });
   await waitFor(() => expect(within(dialog).getByText(/이미 있습니다/)).toBeTruthy());
 });
+
+/**
+ * C100 · P-157 — **창은 열 때마다 빈 칸에서 시작한다.**
+ *
+ * 이 두 창은 목록 옆에 **늘 마운트돼 있어서** 닫아도 상태가 살아 있었다. 성공하면 단가만
+ * 지우고 종류·과목·인원·적용일·오류 문구는 남았고, 「취소」로 닫으면 아무것도 안 지워졌다 —
+ * 다음에 여는 사람은 **남의 초안 위에** 적게 된다. 창 열다섯이 이미 쓰는 초기화를 같이 쓴다.
+ */
+it('⭐ 단가 등록 창은 닫았다 다시 열면 앞사람의 초안이 남아 있지 않다', async () => {
+  const view = setup();
+  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
+  const first = await view.findByRole('dialog');
+  await waitFor(() => expect(within(first).getByRole('option', { name: '추가 수업 · 추가 수업' })).toBeTruthy());
+  fireEvent.change(within(first).getByLabelText('종류'), { target: { value: 'extra' } });
+  fireEvent.change(within(first).getByLabelText('인원'), { target: { value: '3' } });
+  fireEvent.change(within(first).getByLabelText('회당 단가'), { target: { value: '70000' } });
+  fireEvent.change(within(first).getByLabelText('언제부터'), { target: { value: '2026-10-01' } });
+  // **보내지 않고 취소한다** — 성공 갈래는 전부터 단가만 지웠고, 진짜 새는 자리는 이쪽이다
+  fireEvent.click(within(first).getByRole('button', { name: '취소 (Esc)' }));
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+
+  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
+  const again = await view.findByRole('dialog');
+  expect((within(again).getByLabelText('종류') as HTMLSelectElement).value).toBe('');
+  expect((within(again).getByLabelText('인원') as HTMLInputElement).value).toBe('1');
+  expect((within(again).getByLabelText('회당 단가') as HTMLInputElement).value).toBe('');
+  expect(posted).toHaveLength(0);
+});
+
+it('⭐ 학생별 예외 창도 마찬가지 — 사유가 남으면 다른 학생에게 남의 사유가 붙는다', async () => {
+  const view = setup();
+  fireEvent.click(view.getByRole('button', { name: '+ 예외 등록' }));
+  const first = await view.findByRole('dialog');
+  await waitFor(() => expect(within(first).getByRole('option', { name: /정하람/ })).toBeTruthy());
+  fireEvent.change(within(first).getByLabelText('학생'), { target: { value: '7' } });
+  fireEvent.change(within(first).getByLabelText('회당 단가'), { target: { value: '54000' } });
+  fireEvent.change(within(first).getByLabelText('사유'), { target: { value: '형제 할인' } });
+  fireEvent.click(within(first).getByRole('button', { name: '취소 (Esc)' }));
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+
+  fireEvent.click(view.getByRole('button', { name: '+ 예외 등록' }));
+  const again = await view.findByRole('dialog');
+  expect((within(again).getByLabelText('학생') as HTMLSelectElement).value).toBe('');
+  expect((within(again).getByLabelText('회당 단가') as HTMLInputElement).value).toBe('');
+  expect((within(again).getByLabelText('사유') as HTMLInputElement).value).toBe('');
+  expect(posted).toHaveLength(0);
+});
