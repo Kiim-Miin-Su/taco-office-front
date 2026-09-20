@@ -50,6 +50,24 @@ const result: LoginResult = {
 };
 
 describe('LoginPage — 생성 로그인 계약', () => {
+  /**
+   * S8 — 시드 계정은 **개발 빌드에만** 남는다.
+   *
+   * 여기서 볼 수 있는 것은 **개발·시험 쪽뿐이다**(vitest 는 `NODE_ENV='test'` 로 돈다).
+   * 운영 번들에서 문자열이 실제로 사라졌는지는 **소스로는 알 수 없고 빌드를 봐야** 알기 때문에
+   * 그쪽은 `docs/script/bundle-secret-check.mjs` 가 `npm run build` 뒤에 본다
+   * (release 게이트의 「front 번들 비밀 검사」). 둘 중 하나만 있으면 반쪽이다 —
+   * 이 시험만 있으면 운영에 실려도 초록이고, 검사만 있으면 개발에서 사라져도 초록이다.
+   */
+  it('⭐ 개발 빌드에서는 시드 칩과 미리 채운 두 칸이 그대로다 — 운영은 번들 검사가 본다', () => {
+    const view = render(<LoginPage />);
+    expect((view.getByLabelText('이메일') as HTMLInputElement).value).toBe('ceo@tnacademy.kr');
+    expect((view.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('taco1234!');
+    expect(view.getByText('개발 시드 계정 — 눌러서 채웁니다')).toBeTruthy();
+    // 조건은 빌드 때 접히는 형태여야 한다 — 런타임 변수로 빼면 문자열이 번들에 남는다
+    expect(process.env.NODE_ENV).not.toBe('production');
+  });
+
   it('5개 이메일 바로 채우기는 공용 역할 이름을 보이고 실제 권한은 서버가 반환한 사용자를 그대로 저장한다', async () => {
     const serverResult: LoginResult = {
       ...result,
