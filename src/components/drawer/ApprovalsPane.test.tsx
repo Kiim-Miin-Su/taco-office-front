@@ -129,3 +129,18 @@ it('반영 경로가 없는 줄은 단추를 그리지 않는다 — 줌 계정 
   expect(view.queryByRole('button', { name: '승인' })).toBeNull();
   expect(view.getByRole('link')).toBeTruthy();
 });
+
+/**
+ * **시급 요청의 단추는 시급 권한까지 본다** (S5 · D-R39).
+ *
+ * 쓰기는 `WAGE_REVIEW_FORBIDDEN` 으로 막는데 줄은 「결재할 수 있는 사람인가」만 보고 단추를
+ * 세워, 시급 예외가 걸린 매니저에게 **눌러야만 403** 인 승인 단추가 있었다. 판정은 서버의
+ * `canAct` 하나이고, 못 하는 이유도 서버 문장 그대로 줄에 적는다.
+ */
+it('시급 권한이 없으면 승인 단추 대신 이유가 줄에 적힌다 (S5)', () => {
+  const { view } = panel([row({ canAct: false, actBlockedReason: '시급을 다룰 권한이 필요합니다' })]);
+  const card = view.getAllByRole('listitem')[0]!;
+  expect(within(card).queryByRole('button', { name: '승인' })).toBeNull();
+  expect(card.textContent).toContain('시급을 다룰 권한이 필요합니다');
+  expect(within(card).getByRole('link').getAttribute('title')).toBe('시급을 다룰 권한이 필요합니다');
+});

@@ -98,6 +98,8 @@ export default function ExecPage() {
   const memoOf = (key: string) =>
     draft[key] ?? report?.memos.find((m) => m.key === key)?.memo ?? '';
   const dirty = Object.keys(draft).length > 0;
+  /* 아직 고칠 수 있는 보고인가 — **서버 판정**이다 (S5 · D-R39). 보고가 아직 없으면 새로 적는 중이라 열려 있다 */
+  const writable = report === null || report.canWriteMemo;
   const filledNow = (d?.areas ?? []).filter((a) => memoOf(a.key).trim() !== '').length;
   const stateNote = report === null || report.state === 'draft' ? '아직 올리지 않았습니다'
     : report.state === 'sent' ? '대표 결재를 기다립니다'
@@ -375,7 +377,9 @@ export default function ExecPage() {
                       rows={2}
                       aria-label={`${a.label} 메모`}
                       placeholder="숫자만으로는 모를 것"
-                      disabled={!canWrite}
+                      /* 이미 올린 보고는 칸도 닫는다 (S5) — 단추만 닫으면 여섯 칸을 다 적고 나서야
+                         저장이 안 되는 것을 안다. 막는 이유는 단추 옆에 문장으로 서 있다. */
+                      disabled={!canWrite || !writable}
                       value={memoOf(a.key)}
                       // 값은 **먼저 꺼낸다** — setState 업데이터는 나중에 돌고 그때 currentTarget 은 null 이다
                       onChange={(e) => { const next = e.currentTarget.value; setDraft((prev) => ({ ...prev, [a.key]: next })); }}
@@ -391,10 +395,16 @@ export default function ExecPage() {
                     ? <span className="ml-2 text-red">반려 — {report.rejectReason}</span>
                     : null}
                 </span>
+                {/* 아직 고칠 수 있는 보고인지는 **서버가** 말한다 (S5 · D-R39) — 전에는 역할 권한만 보고
+                    이미 올린 보고에서도 두 단추가 선 채 눌러야만 409 RPT_LOCKED 를 받았다.
+                    보고가 아직 없으면(새로 적는 중) 막을 것이 없다. */}
+                {report && !report.canWriteMemo && report.writeBlockedReason ? (
+                  <span className="text-[12px] text-fg-subtle">{report.writeBlockedReason}</span>
+                ) : null}
                 <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Button size="sm" disabled={!canWrite || write.isPending || !dirty}
+                  <Button size="sm" disabled={!canWrite || !writable || write.isPending || !dirty}
                     onClick={() => save()}>작성 중 저장</Button>
-                  <Button size="sm" variant="primary" disabled={!canWrite || write.isPending || filledNow === 0}
+                  <Button size="sm" variant="primary" disabled={!canWrite || !writable || write.isPending || filledNow === 0}
                     onClick={() => submit()}>대표께 올리기</Button>
                 </div>
               </div>

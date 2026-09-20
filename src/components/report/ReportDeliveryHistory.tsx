@@ -49,8 +49,17 @@ export function ReportDeliveryHistory({
     { key: 'student', head: '학생', width: 100, cell: (row) => <b>{row.studentName}</b> },
     { key: 'action', head: '한 것', cell: historyAction },
     { key: 'by', head: '누가', width: 90, cell: (row) => row.sentByName },
+    /* 서는지도 막힌 이유도 서버가 정한다 (S5 · D-R39) — 전에는 조건이 아예 없어 보존 파일이 없는
+       줄에서도 단추가 섰다(409). `fileCount` 도 이제 재발송이 세는 것과 **같은 것**을 센다. */
     { key: 'again', head: '', width: 100, align: 'right', cell: (row) => (
-      <Button size="sm" disabled={resend.isPending} onClick={() => void resendOne(row)}>다시 보내기</Button>
+      <Button
+        size="sm"
+        disabled={resend.isPending || !row.canResend}
+        title={row.resendBlockedReason ?? undefined}
+        onClick={() => void resendOne(row)}
+      >
+        다시 보내기
+      </Button>
     ) },
   ];
 
@@ -76,7 +85,14 @@ export function ReportDeliveryHistory({
                         <b className="text-[13px] text-fg">{row.studentName}</b>
                         <p className="mt-0.5 text-[11px] text-fg-subtle">{kstDateTime(row.sentAt)} · {row.sentByName}</p>
                       </div>
-                      <Button size="sm" disabled={resend.isPending} onClick={() => void resendOne(row)}>다시 보내기</Button>
+                      <Button
+                        size="sm"
+                        disabled={resend.isPending || !row.canResend}
+                        title={row.resendBlockedReason ?? undefined}
+                        onClick={() => void resendOne(row)}
+                      >
+                        다시 보내기
+                      </Button>
                     </div>
                     <p className="mt-2 text-[12px] text-fg">{historyAction(row)}</p>
                   </article>

@@ -96,12 +96,12 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
       key: 'x', head: '', width: 150, align: 'right',
       cell: (r) => (
         <div className="flex justify-end gap-1.5">
+          {/* 서는지도 막힌 이유도 서버가 정한다 (S5 · D-R39) — 전에는 화면이 금액·종료만 보고
+              계약 단계를 몰라 서명본 전에도 단추가 섰다(409 CONS_PAY_NOT_READY). */}
           <Button
             size="sm" variant="primary"
-            disabled={r.amount == null || r.due == null || r.due <= 0 || r.stage === 'done'}
-            title={r.stage === 'done'
-              ? '종료된 컨설팅 — 납부가 잠겨 있습니다'
-              : r.due != null && r.due <= 0 ? '남은 금액이 없어 납부가 잠겨 있습니다' : undefined}
+            disabled={!r.canAddPayment}
+            title={r.payBlockedReason ?? undefined}
             onClick={(e) => { e.stopPropagation(); setPayFor(r); }}
           >
             납부 넣기

@@ -25,7 +25,10 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { if (dialog === 'void') { setReason(''); setErr(null); } }, [dialog]);
-  if (!invoice.canDeliver && !invoice.canVoid) {
+  /* 취소가 막혀 있어도 **왜 막혔는지**는 말한다 (S5) — 단추를 통째로 숨기면 「이 줄만 왜 다르지」가 된다.
+     서버가 준 문장 그대로다(마감 · 입금 붙음). 권한 자체가 없으면 이유도 없고 자리도 없다. */
+  const voidBlocked = invoice.voidBlockedReason ?? null;
+  if (!invoice.canDeliver && !invoice.canVoid && !voidBlocked) {
     return invoice.voidReason ? <span className="text-[11px] text-fg-subtle" title={invoice.voidReason}>취소 · {invoice.voidReason}</span> : null;
   }
   return (
@@ -39,6 +42,8 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
       ) : null}
       {invoice.canVoid ? (
         <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => setDialog('void')}>취소</Button>
+      ) : voidBlocked ? (
+        <Button size="sm" variant="ghost" disabled title={voidBlocked}>취소</Button>
       ) : null}
       {err && dialog === null ? <span className="text-[11px] text-red">{err}</span> : null}
       <Dialog

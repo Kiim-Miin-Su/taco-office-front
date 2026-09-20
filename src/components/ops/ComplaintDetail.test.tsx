@@ -23,7 +23,7 @@ const severities = [{ key: 'light', label: '가벼움' }, { key: 'normal', label
 const complaint: Complaint = {
   id: 2, area: 'teacher', areaLabel: '선생님', studentId: 5, studentName: '고은설', stage: 'received', body: '수업 시작이 10분씩 늦습니다',
   action: null, result: null, createdAt: '2026-09-17', ageDays: 1, ownerId: null, ownerName: null, dueOn: '2026-09-16', overdueDays: 2,
-  severity: 'severe', severityLabel: '심각', teacherChanged: false,
+  severity: 'severe', severityLabel: '심각', teacherChanged: false, canWithdraw: true,
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -31,7 +31,7 @@ const clients: QueryClient[] = [];
 const patched: Array<{ url?: string; body: unknown }> = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; patched.length = 0; });
 
-function setup(onPatch: (n: number) => { status: number; data: unknown }) {
+function setup(onPatch: (n: number) => { status: number; data: unknown }, over: Partial<Complaint> = {}) {
   let n = 0;
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'patch') {
@@ -47,7 +47,7 @@ function setup(onPatch: (n: number) => { status: number; data: unknown }) {
   const onClose = vi.fn();
   const onTeacherChange = vi.fn();
   const onWithdraw = vi.fn();
-  const view = render(<QueryClientProvider client={client}><ComplaintDetail complaint={complaint} stages={stages} severities={severities} onClose={onClose} onTeacherChange={onTeacherChange} onWithdraw={onWithdraw} /></QueryClientProvider>);
+  const view = render(<QueryClientProvider client={client}><ComplaintDetail complaint={{ ...complaint, ...over }} stages={stages} severities={severities} onClose={onClose} onTeacherChange={onTeacherChange} onWithdraw={onWithdraw} /></QueryClientProvider>);
   return { view, onClose, onTeacherChange, onWithdraw };
 }
 
@@ -83,4 +83,24 @@ it('심각도·기한 지남·단계 한 줄은 서버 낱말이고, 바뀐 칸�
   // J-99 — 학생이 있는 건에는 「수강 종료 · 환불」 입구가 선다 (C94-c 창 · 사유에 컴플레인)
   fireEvent.click(within(dialog).getByRole('button', { name: '수강 종료 · 환불' }));
   expect(onWithdraw).toHaveBeenCalledWith(expect.objectContaining({ id: 2, studentId: 5 }));
+});
+
+/**
+ * 「수강 종료 · 환불」은 **서버가 세운다** (S5 · D-R39).
+ *
+ * 이 단추가 여는 창은 환불 미리보기(`canMoney`)를 부른다. 화면이 권한을 안 보고 세우면
+ * 매니저에게는 **창이 뜨자마자 403** 이었다 — 누를 수 있는 단추가 아무 일도 못 하는 자리다.
+ * 단계(열려 있는가)와 학생 유무도 같은 값 하나에 들어 있다.
+ */
+it('환불 단추는 서버의 canWithdraw 하나로 선다 — 닫히면 자리도 없다 (S5)', async () => {
+  const open = setup(() => ({ status: 200, data: complaint }));
+  await open.view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
+  expect(open.view.getByRole('button', { name: '수강 종료 · 환불' })).toBeTruthy();
+  cleanup();
+
+  // 돈 권한이 없는 사람 · 이미 끝난 건 · 학생이 안 붙은 건 — 서버는 셋 다 false 하나로 말한다
+  const closed = setup(() => ({ status: 200, data: complaint }), { canWithdraw: false });
+  await closed.view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
+  expect(closed.view.queryByRole('button', { name: '수강 종료 · 환불' })).toBeNull();
+  expect(closed.onWithdraw).not.toHaveBeenCalled();
 });

@@ -23,12 +23,14 @@ const base: Dto = {
     {
       id: 1, studentName: '민제인', consType: 'essay', stage: 'contract', stageLabel: '계약',
       amount: 900000, paid: 0, due: 900000, payments: [], invId: null, canInvoice: false,
+      // 계약 단계라 서명본 전 — 서버가 납부를 막는다 (S5)
+      canAddPayment: false, payBlockedReason: '서명본 등록 뒤 수납할 수 있습니다',
     },
     {
       id: 2, studentName: '고은성', consType: 'admissions', stage: 'running', stageLabel: '진행',
       amount: 800000, paid: 400000, due: 400000,
       payments: [{ id: 7, amount: 400000, paidOn: '2026-07-12', memo: '계약금', byName: '김민수' }],
-      invId: null, canInvoice: true,
+      invId: null, canInvoice: true, canAddPayment: true, payBlockedReason: null,
     },
   ],
 };
@@ -93,27 +95,37 @@ it('납부 넣기 — 화면은 서버에 보낼 세 값만 모은다', () => {
 
 it('날짜 없이 또는 0 원으로는 넣을 수 없다 — 0 원은 기록이 아니라 실수다', () => {
   const v = render(<ConsultingAccounting data={clone()} />);
-  fireEvent.click(v.getAllByRole('button', { name: '납부 넣기' })[0]);
+  // 서버가 연 줄(서명본까지 끝난 진행 건)에서 연다 — 계약 단계 줄은 이제 단추가 잠긴다 (S5)
+  fireEvent.click(v.getAllByRole('button', { name: '납부 넣기' })[1]);
   expect(v.getByRole('button', { name: '넣기' }).hasAttribute('disabled')).toBe(true);
   fireEvent.change(v.getByLabelText('받은 금액'), { target: { value: '0' } });
   fireEvent.change(v.getByLabelText('받은 날'), { target: { value: '2026-09-01' } });
   expect(v.getByRole('button', { name: '넣기' }).hasAttribute('disabled')).toBe(true);
 });
 
-it('종료된 건은 납부 단추가 잠긴다', () => {
+it('종료된 건은 납부 단추가 잠긴다 — 이유도 서버가 준 문장 그대로다 (S5)', () => {
   const d = clone();
-  d.items[0] = { ...d.items[0], stage: 'done', stageLabel: '종료' };
-  const v = render(<ConsultingAccounting data={d} />);
-  expect(v.getAllByRole('button', { name: '납부 넣기' })[0].hasAttribute('disabled')).toBe(true);
-});
-
-it('서버가 남은 금액을 0원으로 내려주면 진행 중이어도 추가 납부를 잠근다', () => {
-  const d = clone();
-  d.items[0] = { ...d.items[0], paid: 900000, due: 0, stage: 'running', stageLabel: '진행' };
+  d.items[0] = {
+    ...d.items[0], stage: 'done', stageLabel: '종료',
+    canAddPayment: false, payBlockedReason: '종료된 컨설팅에는 납부를 더할 수 없습니다',
+  };
   const v = render(<ConsultingAccounting data={d} />);
   const button = v.getAllByRole('button', { name: '납부 넣기' })[0];
   expect(button.hasAttribute('disabled')).toBe(true);
-  expect(button.getAttribute('title')).toBe('남은 금액이 없어 납부가 잠겨 있습니다');
+  expect(button.getAttribute('title')).toBe('종료된 컨설팅에는 납부를 더할 수 없습니다');
+});
+
+it('단추는 서버의 canAddPayment 하나로 선다 — 화면이 금액·단계를 다시 읽지 않는다 (S5 · D-R39)', () => {
+  const d = clone();
+  // 금액·단계만 보면 열려 보이는 줄이지만 서버가 닫았다(서명본 전) — 화면은 서버를 따른다
+  d.items[0] = {
+    ...d.items[0], paid: 0, due: 900000, stage: 'running', stageLabel: '진행',
+    canAddPayment: false, payBlockedReason: '서명본 등록 뒤 수납할 수 있습니다',
+  };
+  const v = render(<ConsultingAccounting data={d} />);
+  const button = v.getAllByRole('button', { name: '납부 넣기' })[0];
+  expect(button.hasAttribute('disabled')).toBe(true);
+  expect(button.getAttribute('title')).toBe('서명본 등록 뒤 수납할 수 있습니다');
 });
 
 it('「청구서로 전환」은 서버의 canInvoice 를 따른다 — 화면이 단계를 다시 읽지 않는다 (D-R39)', () => {

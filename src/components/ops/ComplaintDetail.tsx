@@ -87,7 +87,9 @@ export function ComplaintDetail({ complaint, stages, severities, onClose, onTeac
           {onTeacherChange && complaint.stage !== 'closed' ? (
             <Button type="button" variant="secondary" onClick={() => onTeacherChange(complaint)} disabled={pending}>강사 교체</Button>
           ) : null}
-          {onWithdraw && complaint.stage !== 'closed' && complaint.studentId ? (
+          {/* 서는지는 서버가 정한다 (S5 · D-R39) — 이 창이 여는 환불 미리보기가 `canMoney` 라,
+              화면이 권한을 안 보면 창이 뜨자마자 403 이 났다. 단계·학생 조건도 같은 값에 들어 있다. */}
+          {onWithdraw && complaint.canWithdraw ? (
             <Button type="button" variant="secondary" onClick={() => onWithdraw(complaint)} disabled={pending}>수강 종료 · 환불</Button>
           ) : null}
           <Button type="button" onClick={save} disabled={!dirty || pending}>{pending ? '저장 중…' : '저장'}</Button>

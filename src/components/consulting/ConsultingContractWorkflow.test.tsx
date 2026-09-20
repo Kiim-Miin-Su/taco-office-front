@@ -38,7 +38,7 @@ const capabilities: ConsultingDetail['capabilities'] = {
   // 이 표본은 **대표가 보는** 상세다 — 비공개 지정까지 열려 있다 (S4 · 매니저 화면은 아래 회귀가 따로 본다)
   canEdit: true, canChangeShare: true, canSetPrivate: true, canAddContractFile: true, canRemoveContractFile: true,
   canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
-  canAddPayment: false, canCreateInvoice: false, canArchive: true,
+  canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: '외부 수신처 정책 미정',
   canAddSession: false, canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
 };

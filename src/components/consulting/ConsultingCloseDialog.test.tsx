@@ -18,7 +18,7 @@ const base = {
   typeCapability: { defaultItemsSupported: false, reason: '미확정', scheduleCreationSupported: false, scheduleCreationReason: '약정 회차만 저장' },
   capabilities: {
     canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
-    canDeliver: false, canAddSignedFile: false, canAddPayment: false, canCreateInvoice: false, canArchive: true,
+    canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: null,
     canAddSession: true, canClose: false, closeBlockedReason: '약정 8회 중 3회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다 (예외 종료는 N-18-a)',
   },

@@ -35,7 +35,7 @@ const detail = {
   capabilities: {
     canEdit: true, canChangeShare: true, canSetPrivate: false, canAddContractFile: true, canRemoveContractFile: true,
     canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
-    canAddPayment: false, canCreateInvoice: false, canArchive: true,
+    canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: '수신처 정책 미정',
     canAddSession: false, canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
   },

@@ -154,6 +154,40 @@ it('하나도 안 적으면 올릴 수 없다 (D-R14) — 숫자는 이 화면�
   expect(view.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(false);
 });
 
+/**
+ * **이미 올린 보고에서는 두 단추도 칸도 닫힌다** (S5 · D-R39).
+ *
+ * 화면이 `canCrudAll` 이라는 역할 권한만 보고 있어서, 올린 보고(`sent`)·결재된 보고(`ok`)에서도
+ * 단추가 선 채 **눌러야만** 409 `RPT_LOCKED` 를 받았다. 이유 문장도 서버가 준 그대로 말한다 —
+ * 화면이 상태 낱말로 문장을 지으면 쓰기가 내는 말과 갈린다.
+ */
+it('이미 올린 보고는 저장·올리기·메모 칸이 모두 닫히고 서버가 준 이유를 말한다 (S5)', async () => {
+  const locked: Partial<Exec> = {
+    reports: [{
+      id: 9, rptType: 'day', onDate: '2026-08-21', state: 'sent', memo: '',
+      memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
+      filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
+      sentByName: '김민수', reviewedByName: null, canReview: false,
+      canWriteMemo: false, writeBlockedReason: '이미 올린 보고는 고칠 수 없습니다. 반려된 뒤에 다시 적어 주세요',
+    }],
+  };
+  const view = setupWrite(locked);
+  await waitFor(() => expect(view.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  expect(view.getByRole('button', { name: '작성 중 저장' }).hasAttribute('disabled')).toBe(true);
+  expect(view.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(true);
+  expect((view.getByRole('textbox', { name: '회계 메모' }) as HTMLTextAreaElement).disabled).toBe(true);
+  expect(view.container.textContent).toContain('이미 올린 보고는 고칠 수 없습니다');
+  cleanup();
+
+  // 반려된 보고는 다시 열린다 — 그러라고 반려한 것이다. 막기만 하고 못 여는 판정은 기능을 죽인다
+  const reopened = setupWrite({
+    reports: [{ ...locked.reports![0]!, state: 'rej', rejectReason: '수치 근거가 없습니다', canWriteMemo: true, writeBlockedReason: null }],
+  });
+  await waitFor(() => expect(reopened.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  expect((reopened.getByRole('textbox', { name: '회계 메모' }) as HTMLTextAreaElement).disabled).toBe(false);
+  expect(reopened.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(false);
+});
+
 it('올리기는 적은 것을 **먼저 저장하고** 올린다 — 화면의 초안이 서버에 없으면 빈 보고로 막힌다', async () => {
   const view = setupWrite();
   await waitFor(() => expect(view.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
@@ -178,7 +212,7 @@ it('결재 단추는 서버가 준 canReview 하나로 선다 (§73)', async () 
       id: 7, rptType: 'day', onDate: '2026-08-21', state: 'sent', memo: '',
       memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
       filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
-      sentByName: '김민수', reviewedByName: null, canReview,
+      sentByName: '김민수', reviewedByName: null, canReview, canWriteMemo: false, writeBlockedReason: '이미 올린 보고는 고칠 수 없습니다. 반려된 뒤에 다시 적어 주세요',
     }],
   });
   const ceo = setupWrite(report(true));

@@ -132,9 +132,14 @@ function ApList({ rows, onGo, onReview, busy }: {
           ) : (
             <Link
               href={r.go} onClick={onGo}
+              /* 못 처리하는 이유가 있으면 그것을 말한다 (S5) — 시급 요청은 `canWage` 까지 있어야 승인된다 */
+              title={r.actBlockedReason ?? undefined}
               className="block rounded-lg border border-line bg-card p-2.5 transition-colors hover:border-blue hover:bg-blue/5"
             >
               <ApprovalRowContent row={r} />
+              {r.actBlockedReason ? (
+                <p className="mt-1 text-[11px] text-fg-subtle">{r.actBlockedReason}</p>
+              ) : null}
             </Link>
           )}
         </li>

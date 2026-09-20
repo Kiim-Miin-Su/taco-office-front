@@ -14,7 +14,7 @@ const base: Invoice = {
   id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', yearMonth: '2026-08',
   title: '2026년 8월 수업료 청구', amount: 250000, paidAmount: 0, state: 'draft', stateLabel: '작성 중',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
-  sentAt: null, canDeliver: true, canVoid: true, voidReason: null, lines: [],
+  sentAt: null, canDeliver: true, canVoid: true, voidBlockedReason: null, voidReason: null, lines: [],
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -56,10 +56,30 @@ it('「취소」는 사유가 있어야 보내고, 지우지 않고 접는다는
   expect(posted[0]).toEqual({ url: expect.stringContaining('/accounting/invoices/42/void'), body: { reason: '단가를 잘못 넣었다' } });
 });
 
+/**
+ * **막혀 있어도 왜 막혔는지는 말한다** (S5 · D-R39).
+ *
+ * 전에는 `canVoid` 가 false 면 단추가 통째로 사라져, 마감한 달이나 입금이 붙은 줄만 조용히
+ * 달라 보였다. 이제 자리는 남기고 서버가 준 문장을 그대로 `title` 에 단다 — **쓰기가 409 로
+ * 내는 그 문장**이다. 권한 자체가 없으면 이유도 없고 자리도 없다.
+ */
+it('취소가 막히면 단추는 서되 눌리지 않고, 서버가 준 이유를 그대로 단다 (S5)', () => {
+  const blocked = setup({
+    ...base, canDeliver: false, canVoid: false,
+    voidBlockedReason: '2026-08 은 마감됐습니다 — 마감을 풀고 고쳐 주세요',
+  });
+  const button = blocked.getByRole('button', { name: '취소' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  expect(button.getAttribute('title')).toBe('2026-08 은 마감됐습니다 — 마감을 풀고 고쳐 주세요');
+  fireEvent.click(button);
+  expect(blocked.queryByRole('dialog')).toBeNull();
+  expect(posted).toHaveLength(0);
+});
+
 it('단추가 둘 다 없으면(대표 아님 · 이미 보냄) 아무것도 그리지 않고, 취소된 줄은 사유를 적는다 (D-R39)', () => {
-  const none = setup({ ...base, canDeliver: false, canVoid: false });
+  const none = setup({ ...base, canDeliver: false, canVoid: false, voidBlockedReason: null });
   expect(none.queryByRole('button')).toBeNull();
   cleanup();
-  const voided = setup({ ...base, state: 'void', stateLabel: '취소', canDeliver: false, canVoid: false, voidReason: '단가를 잘못 넣었다' });
+  const voided = setup({ ...base, state: 'void', stateLabel: '취소', canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: '단가를 잘못 넣었다' });
   expect(voided.getByText('취소 · 단가를 잘못 넣었다')).toBeTruthy();
 });

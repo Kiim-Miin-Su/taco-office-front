@@ -3789,7 +3789,12 @@ export interface components {
             repIds: number[];
             /** @enum {string} */
             channel: "blob";
+            /** @description 보존된 파일 수 — 재발송이 세는 것과 같은 것이다(pdflog 의 file_url 이 있는 행 · S5) */
             fileCount: number;
+            /** @description 다시 보낼 수 있는가 — 보존 파일이 한 장이라도 있어야 한다 (D-R39) */
+            canResend: boolean;
+            /** @description 재발송이 막힌 이유 — 보낼 수 있으면 null */
+            resendBlockedReason: string | null;
             sentAt: string;
             sentBy: number;
             sentByName: string;
@@ -3916,8 +3921,10 @@ export interface components {
             sentAt?: string | null;
             /** @description 「전달」을 누를 수 있는가 — 초안·미전달만 */
             canDeliver: boolean;
-            /** @description 「취소」를 누를 수 있는가 — 대표 · 취소 전 · 입금 0 */
+            /** @description 「취소」를 누를 수 있는가 — 대표 · 취소 전 · **그 달이 안 마감** · 입금 행 0 (S5 · 쓰기와 같은 조건) */
             canVoid: boolean;
+            /** @description 취소가 막힌 이유 — 열려 있거나 권한 자체가 없으면 null. 쓰기가 내는 문장과 같은 말이다 */
+            voidBlockedReason: string | null;
             /** @description 취소 사유 — 취소된 청구서에만 (N-139 「이력에 남는다」) */
             voidReason?: string | null;
         };
@@ -4048,7 +4055,7 @@ export interface components {
             doneAmount?: number | null;
             /** @description 다음 달로 넘길 돈 — 결강한 회차의 합 */
             carryAmount?: number | null;
-            /** @description 이월 처리를 누를 수 있는가 (N-39) */
+            /** @description 이월 처리를 누를 수 있는가 — 마감한 달은 false 다 (N-39 · S5) */
             carryable: boolean;
             /** @description 이미 넘겼으면 그 시각 — 한 달은 한 번만 넘긴다 */
             carriedAt?: string | null;
@@ -4668,6 +4675,8 @@ export interface components {
             severityLabel?: string | null;
             /** @description 강사 교체 마법사를 거쳤는가 (J-97 · `cpl.teacher_changed`) */
             teacherChanged: boolean;
+            /** @description 「수강 종료 · 환불」이 서는가 — 돈 권한 · 아직 안 끝난 건 · 학생이 붙은 건 (S5 · D-R39). 그 창이 부르는 경로가 canMoney 라 화면이 권한을 안 보면 창이 뜨자마자 403 이 난다 */
+            canWithdraw: boolean;
         };
         TodoDto: {
             id: number;
@@ -5821,6 +5830,7 @@ export interface components {
             id: number;
             sourceOccurrenceId: number;
             serId: number;
+            /** @description **회차 키**의 날짜(`ser_occ.on_date`) — 줌 안내 쓰기가 이 값을 그대로 받는다. 옮긴 회차에서는 그려지는 날과 다르다 (S5 · C82-b) */
             onDate: string;
             startMin: number;
             endMin: number;
@@ -5981,7 +5991,7 @@ export interface components {
             serId: number;
             /**
              * Format: date
-             * @description 회차가 그려지는 KST 날짜
+             * @description **회차 키**의 날짜 — 목록이 준 `PerLessonNoticeDto.onDate` 를 그대로 되돌려 준다. 그려지는 날이 아니다(옮긴 회차에서 갈린다 · S5)
              */
             onDate: string;
         };
@@ -6111,7 +6121,10 @@ export interface components {
             canResolveFeedback: boolean;
             canDeliver: boolean;
             canAddSignedFile: boolean;
+            /** @description 「납부 넣기」가 서는가 — 회계 표의 줄과 같은 판정(payGate) (S5) */
             canAddPayment: boolean;
+            /** @description 납부를 못 넣는 이유 — 넣을 수 있거나 금액 권한이 없으면 null */
+            payBlockedReason: string | null;
             canCreateInvoice: boolean;
             canArchive: boolean;
             /** @description 학부모 연락처/채널 정책 미제공으로 현재 false. deliver는 외부 발송이 아니라 완료 기록이다. */
@@ -6325,6 +6338,10 @@ export interface components {
             invId?: number | null;
             /** @description 청구서로 전환할 수 있는가 — 이미 살아 있는 청구서가 있으면 false */
             canInvoice: boolean;
+            /** @description 「납부 넣기」가 서는가 — 쓰기가 거절하는 순서 그대로다(종료 · 서명본 전 · 남은 금액 0) (S5 · D-R39) */
+            canAddPayment: boolean;
+            /** @description 납부를 못 넣는 이유 — 넣을 수 있거나 금액 권한이 없으면 null */
+            payBlockedReason: string | null;
         };
         ConsAccountingDto: {
             items: components["schemas"]["ConsAccountRowDto"][];
@@ -7124,6 +7141,10 @@ export interface components {
             reviewedByName?: string | null;
             /** @description §73 결재 단추가 열리는가 — 올라온(sent) 보고이고, 결재 권한이 있고, **내가 올린 보고가 아닐 때**(rpt_no_self_review). 화면이 역할을 다시 조합하지 않는다 (D-R39) */
             canReview: boolean;
+            /** @description 「작성 중 저장」·「대표께 올리기」가 열리는가 — 아직 고칠 수 있는 상태(draft·rej)인가 (S5 · D-R39). 역할 권한은 별개다 — 화면은 이 값과 `canCrudAll` 을 함께 본다 */
+            canWriteMemo: boolean;
+            /** @description 못 고치는 이유 — 고칠 수 있으면 null. 쓰기가 내는 문장과 같은 말이다 */
+            writeBlockedReason: string | null;
         };
         ExecAreaDto: {
             /** @description money · mkt · ops · consulting · complaint · lesson (대표 관심순 고정 · D-R25) */
@@ -7339,6 +7360,8 @@ export interface components {
             asked?: string | null;
             /** @description 이 사람이 **지금** 이 줄을 여기서 처리할 수 있는가 (§14). 화면은 이 값만 보고 단추를 그린다 */
             canAct?: boolean;
+            /** @description 처리하지 못하는 이유 — 할 수 있으면 null. 시급 요청은 `canWage` 까지 있어야 승인된다 (S5) */
+            actBlockedReason?: string | null;
             /**
              * @description §14 필터 분류 — 서버 코드표가 정한다
              * @enum {string}
