@@ -51,10 +51,15 @@ function ShareEditor({ detail, meta }: { detail: ConsultingDetail; meta?: Meta }
   const [share, setShare] = useState<ConsultingShareUpdate['share']>(detail.share);
   const [pickedStaffIds, setPickedStaffIds] = useState<number[]>(detail.pickedStaffIds);
   const staff = meta?.staff.filter((item) => item.canAdminPage) ?? [];
-  const options = (Object.entries(CONSULTING_SHARES) as Array<[ConsultingShareUpdate['share'], { label: string }]>).map(([value, item]) => ({
-    value,
-    label: item.label,
-  }));
+  /**
+   * 「비공개」는 대표만 **지정**한다(§76 · S4 · 서버 403 `CONS_PRIVATE_FORBIDDEN`).
+   * 이미 비공개인 건은 그 칸을 그대로 두어야 지금 값이 선택된 채로 보인다 — 빼면 아무것도 안 눌린 것처럼 된다.
+   * 거기서 다른 범위로 옮기는 것은 막지 않는다(막는 것은 **지정** 하나다 · D-R44).
+   */
+  const canPrivate = detail.capabilities.canSetPrivate || detail.share === 'private';
+  const options = (Object.entries(CONSULTING_SHARES) as Array<[ConsultingShareUpdate['share'], { label: string }]>)
+    .filter(([value]) => value !== 'private' || canPrivate)
+    .map(([value, item]) => ({ value, label: item.label }));
   useEffect(() => {
     setShare(detail.share);
     setPickedStaffIds(detail.pickedStaffIds);

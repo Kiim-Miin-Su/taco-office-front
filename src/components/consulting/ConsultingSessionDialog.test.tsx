@@ -24,7 +24,7 @@ const detail = {
   share: 'money_only', pickedStaffIds: [], pickedStaffNames: [], createdAt: '2026-07-08T00:00:00+09:00',
   typeCapability: { defaultItemsSupported: true, reason: null, scheduleCreationSupported: false, scheduleCreationReason: '약정 회차만 저장' },
   capabilities: {
-    canEdit: false, canChangeShare: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
+    canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
     canDeliver: false, canAddSignedFile: false, canAddPayment: false, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: null,
     canAddSession: true, canClose: false, closeBlockedReason: '약정 13회 중 8회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다 (예외 종료는 N-18-a)',

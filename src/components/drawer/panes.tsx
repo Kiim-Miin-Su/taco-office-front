@@ -229,7 +229,8 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
   box: TodoBox; onBox: (b: TodoBox) => void;
   onToggle: (id: number, done: boolean) => void; busy: boolean;
   onCreate: (body: DrawerTodoCreate) => void;
-  onClear: () => void;
+  /** §15 「끝난 것 지우기」 — **지금 세고 있는 그 줄들**을 넘긴다 (S4 · 단추의 숫자와 지워지는 수가 같다) */
+  onClear: (ids: number[]) => void;
 }) {
   const [period, setPeriod] = useState<TodoPeriod>('week');
   const [anchor, setAnchor] = useState(todayKst);
@@ -242,7 +243,9 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
   const rows = scoped.filter((t) => !t.dueOn || (t.dueOn >= range.from && t.dueOn <= range.to));
   const left = rows.filter((t) => !t.done).length;
   const overdue = rows.filter((t) => !t.done && t.overdueDays > 0).length;
-  const done = rows.filter((t) => t.done).length;
+  // 단추의 숫자와 보낼 목록이 **같은 배열**에서 나온다 — 두 벌이면 또 갈린다 (D-R22 · S4)
+  const doneRows = rows.filter((t) => t.done);
+  const done = doneRows.length;
   const dated = rows.filter((t) => t.dueOn);
   const dayKeys = period === 'week'
     ? weekDays(anchor)
@@ -323,7 +326,7 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
       </div>
 
       <div className="mb-3 flex justify-end">
-        <Button size="sm" variant="secondary" disabled={busy || done === 0} onClick={onClear}>끝난 것 지우기</Button>
+        <Button size="sm" variant="secondary" disabled={busy || done === 0} onClick={() => onClear(doneRows.map((t) => t.id))}>끝난 것 지우기</Button>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -566,7 +569,7 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
       {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
       {canAddMember ? (
         <div className="mb-3 flex justify-end">
-          <MemberCreateButton tzGroups={tzGroups} tz={tz} />
+          <MemberCreateButton tzGroups={tzGroups} tz={tz} canWage={canWage} />
         </div>
       ) : null}
 

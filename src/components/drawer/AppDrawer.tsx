@@ -183,7 +183,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
               busy={write.isPending}
               onToggle={(id, done) => write.mutate({ kind: 'todo', id, done })}
               onCreate={(body) => write.mutate({ kind: 'todoCreate', body })}
-              onClear={() => write.mutate({ kind: 'todoClear' })}
+              onClear={(ids) => write.mutate({ kind: 'todoClear', ids })}
             />
           ) : null}
           {pane === 'notis' ? (

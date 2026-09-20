@@ -1501,7 +1501,8 @@ export function useDrawer(enabled = true, notiWindow: 'month' | 'all' = 'month')
 export type DrawerWrite =
   | { kind: 'todo'; id: number; done: boolean }
   | { kind: 'todoCreate'; body: DrawerTodoCreate }
-  | { kind: 'todoClear' }
+  /** §15 「끝난 것 지우기」 — **화면이 보여 준 그 줄들**만 보낸다 (S4 · 대표 결정 2026-09-20) */
+  | { kind: 'todoClear'; ids: number[] }
   | { kind: 'notiRead'; id: number }
   | { kind: 'notiReadAll' }
   | { kind: 'reqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
@@ -1523,7 +1524,8 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         return (await api.post<DrawerTodoCreateResult>('/drawer/todos', w.body)).data;
       }
       if (w.kind === 'todoClear') {
-        return (await api.delete<DrawerTodoClearResult>('/drawer/todos/completed')).data;
+        // DELETE 에 본문을 싣는다 — 지울 줄을 화면이 말하고 서버가 그중 아직 끝난 것만 지운다
+        return (await api.delete<DrawerTodoClearResult>('/drawer/todos/completed', { data: { ids: w.ids } })).data;
       }
       if (w.kind === 'notiRead') {
         return (await api.patch<OkResult>(`/drawer/notis/${w.id}/read`)).data;
@@ -1555,7 +1557,8 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         if (w.kind === 'todo') {
           next = { ...current, todos: current.todos.map((t) => (t.id === w.id ? { ...t, done: w.done } : t)) };
         } else if (w.kind === 'todoClear') {
-          next = { ...current, todos: current.todos.filter((t) => !t.done) };
+          // 보낸 줄만 지운다 — 화면이 안 보여 준 남의 끝난 할 일까지 사라지면 캐시가 서버보다 앞서 거짓말을 한다
+          next = { ...current, todos: current.todos.filter((t) => !(t.done && w.ids.includes(t.id))) };
         } else if (w.kind === 'todoCreate') {
           const toId = w.body.toId ?? me?.id ?? null;
           const toName = current.members.find((member) => member.id === toId)?.name ?? null;

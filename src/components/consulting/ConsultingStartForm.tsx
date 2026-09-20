@@ -19,17 +19,24 @@ const REQUESTERS: Array<{ value: Requester; label: string }> = [
   { value: 'father', label: '아버지' },
 ];
 
-const SHARE_OPTIONS = (Object.entries(CONSULTING_SHARES) as Array<[Share, { label: string }]>).map(([value, item]) => ({
-  value,
-  label: item.label,
-}));
+/**
+ * 공개 범위 고르개 — **「비공개」는 대표만 고를 수 있다**(§76 · S4).
+ * 서버가 `canSetPrivate` 로 말하고 화면은 그 값으로 칸을 뺀다. 화면이 역할을 다시 보지 않는다(D-R39).
+ */
+function shareOptions(canSetPrivate: boolean): Array<{ value: Share; label: string }> {
+  return (Object.entries(CONSULTING_SHARES) as Array<[Share, { label: string }]>)
+    .filter(([value]) => value !== 'private' || canSetPrivate)
+    .map(([value, item]) => ({ value, label: item.label }));
+}
 
 function toggleId(values: number[], id: number): number[] {
   return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
 
-export function ConsultingStartForm({ meta, pending, error, onCancel, onSubmit }: {
+export function ConsultingStartForm({ meta, canSetPrivate, pending, error, onCancel, onSubmit }: {
   meta: Meta;
+  /** 서버 `ConsultingListDto.canSetPrivate` — 「비공개」 칸이 서는가 (§76 대표 전용 · S4) */
+  canSetPrivate: boolean;
   pending: boolean;
   error?: unknown;
   onCancel: () => void;
@@ -146,7 +153,7 @@ export function ConsultingStartForm({ meta, pending, error, onCancel, onSubmit }
 
       <fieldset>
         <legend className="mb-2 text-[12px] font-bold text-fg">누가 볼 수 있나 *</legend>
-        <Segmented className="max-w-full flex-wrap" options={SHARE_OPTIONS} value={share} onChange={setShare} />
+        <Segmented className="max-w-full flex-wrap" options={shareOptions(canSetPrivate)} value={share} onChange={setShare} />
         {share === 'picked' ? (
           <div className="mt-3 flex flex-wrap gap-1.5 rounded-lg border border-line p-2">
             {owners.map((staff) => {

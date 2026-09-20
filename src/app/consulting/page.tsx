@@ -186,6 +186,7 @@ export default function ConsultingPage() {
             <QueryState query={meta}>{(data) => (
               <ConsultingStartForm
                 meta={data}
+                canSetPrivate={d?.canSetPrivate ?? false}
                 pending={create.isPending}
                 error={create.error}
                 onCancel={() => setStartOpen(false)}

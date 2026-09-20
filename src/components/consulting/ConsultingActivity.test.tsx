@@ -24,7 +24,7 @@ const item = consultingItem({
   ],
 });
 const capabilities = {
-  canEdit: false, canChangeShare: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
+  canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
   canDeliver: false, canAddSignedFile: false, canAddPayment: false, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: null, canAddSession: true, canClose: false, closeBlockedReason: '남았다',
 } satisfies ConsultingDetail['capabilities'];

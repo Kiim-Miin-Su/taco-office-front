@@ -25,6 +25,16 @@ const todos: DrawerTodo[] = [
     id: 3, title: '다음 주 작업', fromId: 1, fromName: '김민선', toId: 1, toName: '김민선',
     dueOn: addDays(monday, 8), done: false, src: 'plan', srcLabel: '기획', overdueDays: 0, go: null,
   },
+  // 이번 주 밖에서 이미 끝난 것 — 화면에 안 보이므로 「끝난 것 지우기」가 건드리면 안 된다 (S4)
+  {
+    id: 4, title: '지난 달에 끝낸 것', fromId: 1, fromName: '김민선', toId: 1, toName: '김민선',
+    dueOn: addDays(monday, -40), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null,
+  },
+  // 남의 끝난 것 — 매니저 서랍에는 목록으로 오지만 다른 묶음(수신함)에 있다
+  {
+    id: 5, title: '남의 끝난 것', fromId: 2, fromName: '김민수', toId: 2, toName: '김민수',
+    dueOn: addDays(monday, 1), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null,
+  },
 ];
 
 function setup() {
@@ -54,6 +64,26 @@ it('완료 체크와 끝난 것 지우기는 상위 mutation 한 벌로 위임�
   expect(props.onToggle).toHaveBeenCalledWith(1, true);
   fireEvent.click(view.getByRole('button', { name: '끝난 것 지우기' }));
   expect(props.onClear).toHaveBeenCalledOnce();
+});
+
+it('「끝난 것 지우기」는 **지금 보이는 그 줄들**만 넘긴다 — 기간 밖·다른 묶음은 안 간다 (S4)', () => {
+  const { props, view } = setup();
+  // 전체 묶음 · 이번 주 — 끝난 것은 2(내 것)와 5(남의 것) 둘이고 4(지난 달)는 화면에 없다
+  fireEvent.click(view.getByRole('button', { name: '끝난 것 지우기' }));
+  expect(props.onClear).toHaveBeenCalledWith([2, 5]);
+
+  // 수신함으로 좁히면 남의 것이 빠진다 — 단추의 숫자와 보내는 목록이 같은 배열에서 나온다
+  cleanup();
+  const inbox = render(<TodosPane {...props} box="in" />);
+  fireEvent.click(inbox.getByRole('button', { name: '끝난 것 지우기' }));
+  expect(props.onClear).toHaveBeenLastCalledWith([2]);
+});
+
+it('보이는 끝난 것이 하나도 없으면 단추가 잠긴다 — 눌러서 「전부」가 되는 길이 없다 (S4)', () => {
+  const { props } = setup();
+  cleanup(); // setup 이 이미 한 벌 그렸다 — 같은 단추가 둘이면 찾지 못한다
+  const view = render(<TodosPane {...props} todos={props.todos.filter((t) => !t.done)} />);
+  expect((view.getByRole('button', { name: '끝난 것 지우기' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('공용 Dialog·Field로 만든 할 일을 DTO 형상 그대로 넘긴다', () => {

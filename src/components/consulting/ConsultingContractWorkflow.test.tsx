@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConsultingDetail, ConsultingFile } from '@/api/types';
 import { ConsultingContractWorkflow } from './ConsultingContractWorkflow';
@@ -35,7 +35,8 @@ vi.mock('@/api/queries', () => ({
 }));
 
 const capabilities: ConsultingDetail['capabilities'] = {
-  canEdit: true, canChangeShare: true, canAddContractFile: true, canRemoveContractFile: true,
+  // 이 표본은 **대표가 보는** 상세다 — 비공개 지정까지 열려 있다 (S4 · 매니저 화면은 아래 회귀가 따로 본다)
+  canEdit: true, canChangeShare: true, canSetPrivate: true, canAddContractFile: true, canRemoveContractFile: true,
   canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
   canAddPayment: false, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: '외부 수신처 정책 미정',
@@ -64,6 +65,25 @@ describe('ConsultingContractWorkflow', () => {
     state.updateShare.mockReset().mockResolvedValue(detail);
     state.deliver.mockReset();
     state.archive.mockReset();
+  });
+
+  it('「전체 비공개」는 canSetPrivate 일 때만 고를 수 있다 — 이미 비공개인 건은 그 칸이 남는다 (S4 · §76)', () => {
+    // 대표 표본에는 칸이 선다
+    const ceo = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    expect(ceo.getByRole('button', { name: '전체 비공개' })).toBeTruthy();
+    cleanup();
+
+    state.detail = { ...detail, capabilities: { ...capabilities, canSetPrivate: false } };
+    const mgr = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    expect(mgr.queryByRole('button', { name: '전체 비공개' })).toBeNull();
+    // 범위를 바꾸는 것 자체는 열려 있다 — 다른 층이다
+    expect(mgr.getByRole('button', { name: '수납만 공개' })).toBeTruthy();
+    cleanup();
+
+    // 이미 비공개인 건에서는 칸을 빼지 않는다 — 빼면 아무것도 안 눌린 것처럼 보인다
+    state.detail = { ...detail, share: 'private', capabilities: { ...capabilities, canSetPrivate: false } };
+    const owner = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    expect(owner.getByRole('button', { name: '전체 비공개', pressed: true })).toBeTruthy();
   });
 
   it('서버가 준 3/5 단계·미지원 사유·금액을 표시하고 capability 없는 동작은 막는다', () => {

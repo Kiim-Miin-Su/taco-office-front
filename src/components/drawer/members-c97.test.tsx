@@ -61,7 +61,7 @@ describe('§17 구성원 (C97)', () => {
   });
 
   it('「+ 구성원」은 강사·매니저만 고를 수 있고, 이름·이메일·8자 비밀번호가 있어야 서며, 시간대는 서랍의 그룹 낱말 그대로 보낸다 (D-41)', async () => {
-    const { view, client } = paint({ canAddMember: true });
+    const { view, client } = paint({ canAddMember: true, canWage: true });
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const post = vi.spyOn(api, 'post').mockResolvedValue({ data: who(9, '박수진', 'teacher', { wageRate: 42000, wageFrom: '2026-09-19', wageable: true }) } as never);
     fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
@@ -89,6 +89,22 @@ describe('§17 구성원 (C97)', () => {
     const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     expect(keys.some((k) => k.startsWith('["drawer"'))).toBe(true);
     expect(keys.some((k) => k.startsWith('["meta"'))).toBe(true);
+  });
+
+  it('시급을 다룰 권한이 없으면 「+ 구성원」 창에 시급 칸이 아예 없다 — 만들기는 그대로다 (S4)', async () => {
+    const { view } = paint({ canAddMember: true, canWage: false });
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: who(9, '박수진', 'teacher') } as never);
+    fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
+    const dialog = view.getByRole('dialog');
+    // 예외가 걸린 매니저에게는 이 칸이 서면 안 된다 — 서버도 403 WAGE_SET_FORBIDDEN 으로 같은 질문을 한다
+    expect(within(dialog).queryByLabelText('기본 시급 (선택)')).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: '박수진' } });
+    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'park2@t.kr' } });
+    fireEvent.change(within(dialog).getByLabelText('첫 비밀번호'), { target: { value: 'park-1234!' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '만들기' }));
+    // 보내는 본문에 wageRate 가 없다 — 만드는 것 자체는 막지 않는다
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(Object.keys(post.mock.calls[0]![1] as object)).not.toContain('wageRate');
   });
 
   it('거절은 서버 문장 그대로 창 안에 남고 창은 닫히지 않는다 — 같은 이메일 409', async () => {

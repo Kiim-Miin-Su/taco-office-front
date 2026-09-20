@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConsultingCreate, Meta } from '@/api/types';
 import { ConsultingStartForm } from './ConsultingStartForm';
@@ -23,9 +23,21 @@ const meta = {
 } satisfies Meta;
 
 describe('ConsultingStartForm', () => {
+  it('「전체 비공개」는 대표만 고른다 — canSetPrivate 이 아니면 칸 자체가 없다 (S4 · §76)', () => {
+    const view = render(<ConsultingStartForm meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={vi.fn()} />);
+    expect(view.queryByRole('button', { name: '전체 비공개' })).toBeNull();
+    // 나머지 셋은 그대로 — 막는 것은 비공개 지정 하나다
+    expect(view.getByRole('button', { name: '전체 공개' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '수납만 공개' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '지정 공개' })).toBeTruthy();
+    cleanup();
+    const ceo = render(<ConsultingStartForm meta={meta} canSetPrivate pending={false} onCancel={vi.fn()} onSubmit={vi.fn()} />);
+    expect(ceo.getByRole('button', { name: '전체 비공개' })).toBeTruthy();
+  });
+
   it('원본 10종을 보이고 DTO 외 단계·기본 항목을 보내지 않는다', () => {
     const submit = vi.fn<(body: ConsultingCreate) => void>();
-    const view = render(<ConsultingStartForm meta={meta} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
+    const view = render(<ConsultingStartForm meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
     expect(view.getAllByRole('button', { pressed: false }).filter((button) => button.textContent?.includes('학교') || button.textContent?.includes('지도')).length).toBeGreaterThan(0);
     expect(view.getByRole('button', { name: '국제학교 지원', pressed: true })).toBeTruthy();
     expect(view.getByRole('button', { name: '비자·서류' })).toBeTruthy();
@@ -54,7 +66,7 @@ describe('ConsultingStartForm', () => {
 
   it('학생·날짜 순서·지정 공개 대상을 제출 전에 막는다', () => {
     const submit = vi.fn();
-    const view = render(<ConsultingStartForm meta={meta} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
+    const view = render(<ConsultingStartForm meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
     fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '1' } });
     fireEvent.change(view.getByLabelText('회차 *'), { target: { value: '1' } });
     fireEvent.change(view.getByLabelText('시작 *'), { target: { value: '2026-10-20' } });
@@ -66,7 +78,7 @@ describe('ConsultingStartForm', () => {
 
   it('날짜 순서와 지정 공개 대상을 각각 막는다', () => {
     const submit = vi.fn();
-    const view = render(<ConsultingStartForm meta={meta} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
+    const view = render(<ConsultingStartForm meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
     fireEvent.click(view.getByRole('button', { name: '고은성' }));
     fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '1' } });
     fireEvent.change(view.getByLabelText('회차 *'), { target: { value: '1' } });
@@ -84,7 +96,7 @@ describe('ConsultingStartForm', () => {
 
   it('전체 공개에서는 선택 대상 필드를 보내지 않고 관리자·매니저도 금액을 입력한다', () => {
     const submit = vi.fn<(body: ConsultingCreate) => void>();
-    const view = render(<ConsultingStartForm meta={meta} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
+    const view = render(<ConsultingStartForm meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
     fireEvent.click(view.getByRole('button', { name: '고은성' }));
     fireEvent.change(view.getByLabelText('담당 *'), { target: { value: '3' } });
     fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '900000' } });

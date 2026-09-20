@@ -33,7 +33,7 @@ const detail = {
   share: 'all', pickedStaffIds: [], pickedStaffNames: [], createdAt: '2026-09-21T00:00:00.000Z',
   typeCapability: { defaultItemsSupported: true, reason: null, scheduleCreationSupported: false, scheduleCreationReason: '일정 정책 미정' },
   capabilities: {
-    canEdit: true, canChangeShare: true, canAddContractFile: true, canRemoveContractFile: true,
+    canEdit: true, canChangeShare: true, canSetPrivate: false, canAddContractFile: true, canRemoveContractFile: true,
     canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
     canAddPayment: false, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: '수신처 정책 미정',
@@ -53,7 +53,7 @@ function setup() {
   const detailKey = sessionQueryKey(qk.consultingDetail(7), me.id);
   const listKey = sessionQueryKey(qk.consulting, me.id);
   client.setQueryData(detailKey, detail);
-  client.setQueryData<ConsultingList>(listKey, { items: [summary, { ...summary, id: 8 }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE });
+  client.setQueryData<ConsultingList>(listKey, { items: [summary, { ...summary, id: 8 }], canSeeAmounts: false, canSetPrivate: false, stages: CONSULTING_STAGE_FIXTURE });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { client, detailKey, listKey, wrapper };
 }

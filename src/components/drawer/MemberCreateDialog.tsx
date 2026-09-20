@@ -30,10 +30,15 @@ export interface MemberCreateButtonProps {
   tzGroups: TzGroup[];
   /** 관리자 화면의 시간대 — 시간대 기본값 */
   tz: string;
+  /**
+   * 시급을 세울 수 있는가 — 서버의 `DrawerDto.canWage` 그대로다(S4 · D-R39).
+   * 구성원을 만드는 것과 시급을 정하는 것은 **다른 권한**이라, 없으면 시급 칸만 사라지고 만들기는 그대로다.
+   */
+  canWage: boolean;
   onDone?: (row: Member) => void;
 }
 
-export function MemberCreateButton({ tzGroups, tz, onDone }: MemberCreateButtonProps) {
+export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCreateButtonProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const write = useCreateMember();
@@ -67,7 +72,8 @@ export function MemberCreateButton({ tzGroups, tz, onDone }: MemberCreateButtonP
       ...(title.trim() ? { title: title.trim() } : {}),
       ...(memberTz ? { tz: memberTz } : {}),
       ...(phone.trim() ? { phone: phone.trim() } : {}),
-      ...(rate !== null ? { wageRate: rate } : {}),
+      // 칸이 없으면 값도 없다 — 권한이 꺼진 뒤 남은 초안이 조용히 실려 403 이 되는 일을 막는다
+      ...(canWage && rate !== null ? { wageRate: rate } : {}),
     };
     setErr(null);
     write.mutate(payload, {
@@ -138,10 +144,13 @@ export function MemberCreateButton({ tzGroups, tz, onDone }: MemberCreateButtonP
               <Input id={`${id}-hired`} type="date" value={hiredOn} onChange={(e) => setHiredOn(e.target.value)} disabled={pending} />
             </div>
           </div>
-          <div>
-            <Label htmlFor={`${id}-wage`} hint="원/시간 · 비우면 나중에 「시급 수정」으로 · 입사일이 지났으면 오늘부터 (소급 없음)">기본 시급 (선택)</Label>
-            <Input id={`${id}-wage`} type="number" min={1000} step={1000} inputMode="numeric" value={wageRate} onChange={(e) => setWageRate(e.target.value)} disabled={pending} placeholder="40000" />
-          </div>
+          {/* 시급 칸은 시급을 다룰 수 있는 사람에게만 — 서버도 같은 질문을 한다(403 WAGE_SET_FORBIDDEN · S4) */}
+          {canWage ? (
+            <div>
+              <Label htmlFor={`${id}-wage`} hint="원/시간 · 비우면 나중에 「시급 수정」으로 · 입사일이 지났으면 오늘부터 (소급 없음)">기본 시급 (선택)</Label>
+              <Input id={`${id}-wage`} type="number" min={1000} step={1000} inputMode="numeric" value={wageRate} onChange={(e) => setWageRate(e.target.value)} disabled={pending} placeholder="40000" />
+            </div>
+          ) : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
           <p className="text-[11px] text-fg-subtle">만들면 바로 그 이메일과 비밀번호로 로그인됩니다. 비밀번호는 해시로만 남고 다시 볼 수 없습니다.</p>
         </div>

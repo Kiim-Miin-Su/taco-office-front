@@ -2774,7 +2774,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** §15 끝난 것 지우기 — 내가 볼 수 있는 완료 할 일만 */
+        /**
+         * §15 끝난 것 지우기 — **화면이 보여 준 그것만** (S4)
+         * @description 화면이 지금 「끝난 것」으로 세고 있는 id 들을 받는다. 서버는 그중 아직 끝나 있고 이 사람이 볼 수 있는 행만 지우고 그 줄을 통째로 log 에 남긴다. 단추의 숫자와 지워지는 수가 같다 (D-R39).
+         */
         delete: operations["DrawerController_clearDoneTodos"];
         options?: never;
         head?: never;
@@ -6100,6 +6103,8 @@ export interface components {
         ConsultingCapabilitiesDto: {
             canEdit: boolean;
             canChangeShare: boolean;
+            /** @description 「비공개」로 지정할 수 있는가 — §76 대표 전용(S4). canChangeShare 와 다른 층이다: 범위를 바꿀 수는 있어도 비공개는 못 고를 수 있다 */
+            canSetPrivate: boolean;
             canAddContractFile: boolean;
             canRemoveContractFile: boolean;
             canAddFeedback: boolean;
@@ -6281,6 +6286,8 @@ export interface components {
             items: components["schemas"]["ConsultingDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
+            /** @description 「비공개」로 지정할 수 있는가 — §76 대표 전용. 화면의 공개 범위 고르개가 이 값으로 그 칸을 뺀다 (S4 · D-R39) */
+            canSetPrivate: boolean;
             /** @description §26 칸 셋 — 빈 칸도 이름과 한 줄을 갖는다 */
             stages: components["schemas"]["ConsultingStageDto"][];
         };
@@ -7627,9 +7634,13 @@ export interface components {
         TodoCreateResultDto: {
             id: number;
         };
+        TodoClearRequestDto: {
+            /** @description 화면이 지금 「끝난 것」으로 세고 있는 할 일 id 들 — 이 목록 밖은 지우지 않는다 */
+            ids: number[];
+        };
         TodoClearDto: {
             ok: boolean;
-            /** @description 이번에 삭제된 완료 할 일 수 */
+            /** @description 이번에 삭제된 완료 할 일 수 — 보낸 id 중 아직 끝나 있고 볼 수 있는 것만 */
             deleted: number;
         };
         NotiReadAllDto: {
@@ -19536,14 +19547,12 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code WAGE_SET_FORBIDDEN — 시급을 적었는데 canWage 가 없다 (S4) */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             404: {
@@ -19735,7 +19744,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoClearRequestDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
