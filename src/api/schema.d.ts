@@ -5613,10 +5613,10 @@ export interface components {
         BookPatchDto: {
             code?: string;
             title?: string;
-            subKey?: string;
-            level?: string;
-            grade?: string;
-            pages?: number;
+            subKey?: string | null;
+            level?: string | null;
+            grade?: string | null;
+            pages?: number | null;
         };
         BookTrackingStudentDto: {
             id: number;

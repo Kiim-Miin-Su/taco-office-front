@@ -84,8 +84,16 @@ export function BookShelf({
       setForm(null);
       setEditing(null);
     };
-    if (editing) patch.mutate({ id: editing.id, ...body }, { onSuccess: done });
-    else create.mutate(body, { onSuccess: done });
+    if (editing) {
+      // PATCH에서 생략은 보존이다. 비운 선택 칸은 null로 보내야 저장된 값도 지워진다.
+      patch.mutate({
+        id: editing.id, ...body,
+        subKey: form.subKey || null,
+        level: form.level.trim() || null,
+        grade: form.grade.trim() || null,
+        pages: form.pages ? Number(form.pages) : null,
+      }, { onSuccess: done });
+    } else create.mutate(body, { onSuccess: done });
   };
   const error = create.error ?? patch.error;
   return (

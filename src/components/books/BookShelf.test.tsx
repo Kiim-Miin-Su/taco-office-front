@@ -148,6 +148,30 @@ it('교재 등록은 입력값을 BookWrite DTO로 전송한다', async () => {
   expect(mutation.body).toEqual({ code: 'NEW', title: '신규 교재', subKey: 'sat', level: 'L3', grade: 'G12', pages: 120 });
 });
 
+it('교재 수정에서 비운 선택 정보는 null로 보내 저장된 값을 지운다', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: 'SAT Reading 편집' }));
+  fireEvent.change(view.getByLabelText('과목'), { target: { value: '' } });
+  fireEvent.change(view.getByLabelText('레벨'), { target: { value: '' } });
+  fireEvent.change(view.getByLabelText('학년'), { target: { value: '' } });
+  fireEvent.change(view.getByLabelText('쪽수'), { target: { value: '' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/4'));
+  expect(mutation.body).toEqual({
+    code: 'SAT', title: 'SAT Reading', subKey: null, level: null, grade: null, pages: null,
+  });
+});
+
+it('교재 생성에서 비운 선택 정보는 기존처럼 생략한다', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '+ 교재' }));
+  fireEvent.change(view.getByLabelText('코드'), { target: { value: 'NEW' } });
+  fireEvent.change(view.getByLabelText('교재명'), { target: { value: '신규 교재' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(mutation.url).toBe('/books'));
+  expect(mutation.body).toEqual({ code: 'NEW', title: '신규 교재' });
+});
+
 it('넓은 화면은 원본처럼 한 줄 다섯 권이며 카드 작업 이름에 교재를 붙인다', async () => {
   const view = setup();
   await waitFor(() => expect(view.getByRole('button', { name: 'SAT Reading 편집' })).toBeTruthy());
