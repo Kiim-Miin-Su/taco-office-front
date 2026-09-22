@@ -97,6 +97,38 @@ describe('LessonDetail 명단 결과', () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [true, true, true],
+    [true, false, false],
+    [false, true, false],
+    [false, false, false],
+  ])('GPA 관리 링크는 관리자 화면=%s·전체 수정=%s일 때 표시=%s다', (admin, edit, visible) => {
+    permissions.canAdminPage = admin;
+    permissions.canEdit = edit;
+    const view = render(<LessonDetail occ={{ ...occurrence, kindKey: 'gpa' }} onClose={() => undefined} />);
+    const link = view.queryByRole('link', { name: 'GPA 관리 보드 열기 →' });
+    expect(Boolean(link)).toBe(visible);
+    expect(Boolean(view.queryByText(/배정·잔여·회차 소비/))).toBe(visible);
+    if (visible) expect(link?.getAttribute('href')).toBe('/gpa');
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('일반 수업에는 GPA 관리 링크가 없다', () => {
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    expect(view.queryByRole('link', { name: 'GPA 관리 보드 열기 →' })).toBeNull();
+  });
+
+  it('GPA 상세를 연 채 관리자 권한을 잃으면 링크와 설명이 함께 사라진다', () => {
+    const props = { occ: { ...occurrence, kindKey: 'gpa' as const }, onClose: () => undefined };
+    const view = render(<LessonDetail {...props} />);
+    expect(view.getByRole('link', { name: 'GPA 관리 보드 열기 →' })).toBeTruthy();
+    permissions.canAdminPage = false;
+    view.rerender(<LessonDetail {...props} />);
+    expect(view.queryByRole('link', { name: 'GPA 관리 보드 열기 →' })).toBeNull();
+    expect(view.queryByText(/배정·잔여·회차 소비/)).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   /** 휴강 창의 낱말은 서버 코드표다 — 이 파일은 그 표를 그대로 넘겨 계약만 본다 (C92 · D-R18) */
   const cancelMeta = {
     cancelReasons: [

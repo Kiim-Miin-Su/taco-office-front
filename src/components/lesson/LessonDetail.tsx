@@ -318,7 +318,7 @@ export function LessonDetail({
           {/* §79 오른쪽 칸 — 관리자 화면에서 창을 열 때만 부른다 (C55 · D-R39) */}
           {canAdminPage ? <StudentTracking serId={occ.serId} onDate={occ.onDate} /> : null}
 
-          {occ.kindKey === 'gpa' ? (
+          {occ.kindKey === 'gpa' && canAdminPage && canEdit ? (
             <p className="text-[12px]">
               <Link href="/gpa" className="font-bold text-primary underline">GPA 관리 보드 열기 →</Link>
               <span className="ml-1.5 text-fg-subtle">배정·잔여·회차 소비 (§82 · 학부모 비공개)</span>
