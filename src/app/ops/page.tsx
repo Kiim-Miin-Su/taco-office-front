@@ -19,7 +19,8 @@ import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Panel, Segmented, StatCard, TabCards, Table } from '@/components/ui';
 import { useDrawerWrite, useMeta, useOps } from '@/api/queries';
-import { useSession } from '@/store/useSession';
+import { useCan, useSession } from '@/store/useSession';
+import { apiMessage } from '@/api/client';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
 import { MeetingDetail } from '@/components/ops/MeetingDetail';
@@ -29,11 +30,12 @@ import { TeacherChangeWizard, type TeacherChangePreset } from '@/components/ops/
 import { MeetingCreateButton } from '@/components/ops/MeetingCreateDialog';
 import { PlanCreateButton } from '@/components/ops/PlanCreateDialog';
 import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
+import { TodoRows } from '@/components/drawer/panes';
 import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog';
-import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue, Todo } from '@/api/types';
+import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue } from '@/api/types';
 import { won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
-import { hhmm, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
+import { hhmm, label, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
@@ -52,7 +54,6 @@ const opsTab = (value: Tab, label: string, sub: string, n: number) =>
  */
 type Period = 'all' | 'day' | 'week' | 'month';
 
-const SRC: Record<string, string> = { meeting: '회의', complaint: '컴플레인', consulting: '컨설팅', plan: '기획', manual: '직접' };
 /**
  * 단계의 **색**만 여기서 고른다 — 이름은 서버가 준 `stageLabel` 이다 (D-R18 · C56).
  * 한동안 이 배열이 이름까지 들고 있었고, §62 기한 표와 §65 보고서가 생기면서
@@ -100,7 +101,12 @@ export default function OpsPage() {
   const [area, setArea] = useState('');
   const [mtType, setMtType] = useState('');
   const [todoOwner, setTodoOwner] = useState('');
+  const [todoStatus, setTodoStatus] = useState<'open' | 'done'>('open');
   const [todoOpen, setTodoOpen] = useState(false);
+  const [todoEditId, setTodoEditId] = useState<number | null>(null);
+  const [todoError, setTodoError] = useState<string | null>(null);
+  const canAdminPage = useCan('canAdminPage');
+  const canCrudAll = useCan('canCrudAll');
   const viewerId = useSession((s) => s.me?.id ?? null);
   const bounds = period === 'all' ? null : summaryBoundsOf(period, anchor);
   const q = useOps({ ...(bounds ?? {}), ...(area ? { area } : {}) });
@@ -114,18 +120,6 @@ export default function OpsPage() {
     setTab(queryTab);
     setPlanId(queryPlanId);
   }, [queryPlanId, queryTab]);
-
-  const todoCols: Array<Column<Todo>> = [
-    { key: 'done', head: '', width: 40, align: 'center',
-      cell: (r) => <span className={r.done ? 'text-green' : 'text-line-2'}>{r.done ? '●' : '○'}</span> },
-    { key: 't', head: '할 일', cell: (r) => <span className={r.done ? 'text-fg-subtle line-through' : 'font-bold'}>{r.title}</span> },
-    { key: 'src', head: '출처', width: 90, cell: (r) => <Chip>{SRC[r.src] ?? r.src}</Chip> },
-    { key: 'to', head: '담당', width: 90, cell: (r) => r.toName ?? '—' },
-    { key: 'due', head: '기한', width: 110,
-      cell: (r) => r.overdueDays > 0
-        ? <Chip tone="danger">{r.overdueDays}일 지남</Chip>
-        : <span className={r.done ? 'text-fg-subtle' : ''}>{r.dueOn ?? '—'}</span> },
-  ];
 
   const meetingCols: Array<Column<Meeting>> = [
     // 낱말은 서버가 만든다 — 한동안 이 칩이 「general」 「plan」을 그대로 찍고 있었다 (D-R18 · C57)
@@ -228,14 +222,32 @@ export default function OpsPage() {
    * 담당 없는 할 일의 키는 서버가 `__none__` 이라 부른다.
    */
   const meetings = (d?.meetings ?? []).filter((m) => !mtType || m.mtType === mtType);
-  const todos = (d?.todos ?? []).filter((t) => !todoOwner || (t.toName ?? '__none__') === todoOwner);
   const openTodos = (d?.todos ?? []).filter((t) => !t.done);
+  const openTodoCount = (d?.todoOwnerCounts ?? []).reduce((n, c) => n + c.count, 0);
+  const doneTodoCount = (d?.todoDoneOwnerCounts ?? []).reduce((n, c) => n + c.count, 0);
+  const todoCounts = (todoStatus === 'open' ? d?.todoOwnerCounts : d?.todoDoneOwnerCounts) ?? [];
+  // 표시 이름이 겹칠 때만 실제 ID로 구별한다. 이름으로 담당을 합치거나 ID를 역추정하지 않는다.
+  const todoOwnerOptions = todoCounts.map((c) => ({
+    value: c.key, count: c.count,
+    label: c.key !== '__none__' && todoCounts.some((other) => other.key !== c.key && other.label === c.label)
+      ? `${c.label} · #${c.key}` : c.label,
+  }));
+  const todos = (d?.todos ?? []).filter((t) => t.done === (todoStatus === 'done')
+    && (!todoOwner || (t.toId == null ? '__none__' : String(t.toId)) === todoOwner));
+  const todoDates = [...new Set(todos.map((t) => t.dueOn).filter((date): date is string => !!date))].sort();
+  const todoGroups = [...todoDates.map((date) => ({ date, items: todos.filter((t) => t.dueOn === date) })),
+    { date: null, items: todos.filter((t) => !t.dueOn) }].filter((group) => group.items.length > 0);
+  const editingTodo = (d?.todos ?? []).find((t) => t.id === todoEditId);
+  const toggleTodo = (id: number, done: boolean) => {
+    setTodoError(null);
+    todoWrite.mutate({ kind: 'todo', id, done }, { onError: (error) => setTodoError(apiMessage(error)) });
+  };
   return (
     <RequireAuth><AppShell drawerEntry={queryRequestId ? { pane: 'approvals', identity: `request-${queryRequestId}` } : null}>
       <PageHeader title="운영" sub="마케팅 · 기획 · 회의 · 할 일 · 컴플레인. 회의에서 배정된 할 일도 여기로 모입니다." />
 
       <div className="mb-4 grid grid-cols-4 gap-3">
-        <StatCard label="열린 할 일" value={openTodos.length}
+        <StatCard label="열린 할 일" value={openTodoCount}
           /* 「기한 지난 것」만 적으면 바로 밑 §62 띠의 「기한 지난 것 N건」(기획)과 **같은 말이 두 숫자**가 된다 */
           note={`기한 지난 할 일 ${openTodos.filter((t) => t.overdueDays > 0).length}건`}
           tone={openTodos.some((t) => t.overdueDays > 0) ? 'danger' : 'neutral'} />
@@ -295,7 +307,7 @@ export default function OpsPage() {
          * 그 수이고, 동그라미만 끝난 것까지 세면 **한 화면에 같은 이름의 수가 둘**이 된다(N-19).
          * 원문 §64 도 동그라미 3 · 칩 「전체 3」 · 「할 일 3건」이 전부 같은 수다.
          */
-        opsTab('todo', '할 일', '배정 · 완료', openTodos.length),
+        opsTab('todo', '할 일', '배정 · 완료', openTodoCount),
         opsTab('complaint', '컴플레인', '접수 · 대응 · 결과', d?.complaints.length ?? 0),
       ]} />
 
@@ -306,14 +318,31 @@ export default function OpsPage() {
         : q.isError ? <Banner tone="danger">운영 탭은 매니저 이상만 볼 수 있습니다.</Banner>
         : tab === 'todo' ? (
           <>
-            {/* 컷 §64 의 담당 칩 줄과 오른쪽 위 「+ 할 일 주기」 — 건수는 **열린 할 일**만 서버가 센다 */}
+            <TabCards label="할 일 상태" className="mb-3" value={todoStatus}
+              onChange={(next) => { setTodoStatus(next); setTodoOwner(''); }}
+              options={[
+                { value: 'open', label: '할 일', sub: `${openTodoCount}건` },
+                { value: 'done', label: '끝난 것', sub: `${doneTodoCount}건` },
+              ]} />
+            {/* 담당 ID와 상태별 건수는 서버에서 온다. 이름이 같은 구성원도 서로 다른 칩이다. */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <ChipRow ariaLabel="담당" value={todoOwner} onChange={setTodoOwner}
-                allCount={openTodos.length}
-                options={(d?.todoOwnerCounts ?? []).map((c) => ({ value: c.key, label: c.label, count: c.count }))} />
+                allCount={todoStatus === 'open' ? openTodoCount : doneTodoCount}
+                options={todoOwnerOptions} />
               <Button type="button" size="sm" onClick={() => setTodoOpen(true)}>+ 할 일 주기</Button>
             </div>
-            <Table columns={todoCols} rows={todos} rowKey={(r) => r.id} empty="이 기간에는 할 일이 없습니다" />
+            {todoError ? <Banner tone="danger" className="mb-3">{todoError}</Banner> : null}
+            <div className="flex flex-col gap-4">
+              {todoGroups.length === 0 ? <Banner tone="neutral">이 기간에는 할 일이 없습니다</Banner> : todoGroups.map(({ date, items }) => (
+                <section key={date ?? 'undated'}>
+                  <h3 className="mb-1.5 flex items-center gap-2 text-[12px] font-bold text-fg">
+                    {date ? label(date) : '기한 없음'}<Chip>{items.length}건</Chip>
+                  </h3>
+                  <TodoRows items={items} busy={todoWrite.isPending} onToggle={toggleTodo}
+                    onEdit={canAdminPage && canCrudAll ? setTodoEditId : undefined} />
+                </section>
+              ))}
+            </div>
           </>
         )
         : tab === 'meeting' ? (
@@ -470,6 +499,13 @@ export default function OpsPage() {
           onSuccess: () => setNotice(`할 일을 주었습니다 — ${body.title}`),
         })}
       />
+      {editingTodo && canAdminPage && canCrudAll ? <TodoCreateDialog
+        open editing={editingTodo} busy={todoWrite.isPending} onClose={() => setTodoEditId(null)}
+        onSave={async (body) => {
+          await todoWrite.mutateAsync({ kind: 'todoPatch', id: editingTodo.id, body });
+          setNotice(`기한을 고쳤습니다 — ${editingTodo.title}`);
+        }}
+      /> : null}
       <PlanReport planId={planId} onClose={() => setPlanId(null)} />
       <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} onClose={() => setMeetingId(null)} />
       <ComplaintDetail

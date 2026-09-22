@@ -225,8 +225,48 @@ function todoPeriodLabel(period: TodoPeriod, anchor: string): string {
 }
 
 const TODO_SOURCE_DOT: Record<string, string> = {
-  meeting: 'bg-violet', complaint: 'bg-red', consulting: 'bg-amber', plan: 'bg-green', manual: 'bg-blue',
+  meeting: 'bg-violet', complaint: 'bg-red', consulting: 'bg-amber', plan: 'bg-green', manual: 'bg-blue', lesson: 'bg-blue',
 };
+
+/** 서랍과 운영이 같은 행을 쓴다. 기간·상태·권한·mutation은 부르는 화면이 소유한다. */
+export function TodoRows({ items, busy, onToggle, onEdit }: {
+  items: Array<Pick<DrawerTodo, 'id' | 'title' | 'done' | 'src' | 'srcLabel' | 'fromName' | 'toName' | 'overdueDays'> & Partial<Pick<DrawerTodo, 'go'>>>;
+  busy: boolean;
+  onToggle: (id: number, done: boolean) => void;
+  onEdit?: (id: number) => void;
+}) {
+  return items.length === 0 ? (
+    <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[11px] text-fg-subtle">할 일 없음</p>
+  ) : (
+    <ul className="flex flex-col gap-1.5">
+      {items.map((t) => (
+        <li key={t.id} className="flex items-start gap-2 rounded-lg border border-line bg-card p-2.5">
+          <Checkbox
+            checked={t.done} disabled={busy}
+            onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
+            className="mt-0.5 shrink-0"
+            aria-label={`${t.title} 완료`}
+          />
+          <div className="min-w-0 flex-1">
+            <p className={`text-[12px] font-bold ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>
+              {t.title}
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-fg-subtle">
+              <span className={`h-2 w-2 rounded-full ${TODO_SOURCE_DOT[t.src] ?? 'bg-line'}`} aria-hidden />
+              <span>{t.srcLabel}</span>
+              <span>· {t.fromName ?? '—'} → {t.toName ?? '—'}</span>
+              {t.overdueDays > 0 ? <Chip tone="danger">{t.overdueDays}일 지남</Chip> : null}
+            </p>
+          </div>
+          {onEdit ? <Button size="sm" disabled={busy} onClick={() => onEdit(t.id)} aria-label={`${t.title} 기한 고치기`}>고치기</Button> : null}
+          {t.go ? (
+            <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate, onClear, busy }: {
   todos: DrawerTodo[]; meId: number | null;
@@ -258,38 +298,6 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
       ? [anchor]
       : [...new Set(dated.map((t) => t.dueOn!))].sort();
   const undated = rows.filter((t) => !t.dueOn);
-
-  const renderRows = (items: DrawerTodo[]) => items.length === 0 ? (
-    <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[11px] text-fg-subtle">할 일 없음</p>
-  ) : (
-    <ul className="flex flex-col gap-1.5">
-      {items.map((t) => (
-        <li key={t.id} className="flex items-start gap-2 rounded-lg border border-line bg-card p-2.5">
-          <Checkbox
-            checked={t.done} disabled={busy}
-            onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
-            className="mt-0.5 shrink-0"
-            aria-label={`${t.title} 완료`}
-          />
-          <div className="min-w-0 flex-1">
-            <p className={`text-[12px] font-bold ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>
-              {t.title}
-            </p>
-            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-fg-subtle">
-              <span className={`h-2 w-2 rounded-full ${TODO_SOURCE_DOT[t.src] ?? 'bg-line'}`} aria-hidden />
-              <span>{t.srcLabel}</span>
-              <span>· {t.fromName ?? '—'} → {t.toName ?? '—'}</span>
-              {t.overdueDays > 0 ? <Chip tone="danger">{t.overdueDays}일 지남</Chip> : null}
-            </p>
-          </div>
-          {t.go ? (
-            <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
-          ) : null}
-        </li>
-      ))}
-    </ul>
-  );
-
   return (
     <>
       <div className="mb-3 flex items-center gap-2">
@@ -344,11 +352,11 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
                 <span className="text-fg-subtle">{day.slice(5).replace('-', '/')}</span>
                 <Chip tone={items.some((t) => !t.done) ? 'info' : 'neutral'}>{items.filter((t) => !t.done).length}</Chip>
               </h3>
-              {renderRows(items)}
+              <TodoRows items={items} busy={busy} onToggle={onToggle} />
             </section>
           );
         })}
-        {undated.length > 0 ? <section><h3 className="mb-1.5 text-[12px] font-bold text-fg">기한 없음</h3>{renderRows(undated)}</section> : null}
+        {undated.length > 0 ? <section><h3 className="mb-1.5 text-[12px] font-bold text-fg">기한 없음</h3><TodoRows items={undated} busy={busy} onToggle={onToggle} /></section> : null}
         {rows.length === 0 ? <Empty>이 기간에는 할 일이 없습니다</Empty> : null}
       </div>
 

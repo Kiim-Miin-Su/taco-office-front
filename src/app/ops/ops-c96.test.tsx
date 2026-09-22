@@ -14,10 +14,10 @@
  *   ④ **단추가 서는지도 서버가 정한다** — `canCreateMeeting`·`canCreatePlan` 이 false 면 단추가 없다(D-R39).
  */
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from '@/api/client';
+import { api, ApiError } from '@/api/client';
 import type { Me, Meta, Ops } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
@@ -72,6 +72,155 @@ const ops = (over: Partial<Ops> = {}): Ops => ({
   canCreatePlan: true,
   range: { from: null, to: null, label: '전체' },
   ...over,
+});
+
+describe('S2-b — §64 상태·날짜·기한 입력', () => {
+  const data = () => ops({
+    todos: [
+      { id: 31, title: '다음 자료', toId: 7, toName: '김재훈', fromName: '대표', dueOn: '2026-09-24', done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0 },
+      { id: 32, title: '오늘 자료', toId: 8, toName: '김재훈', fromName: '대표', dueOn: '2026-09-23', done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0 },
+      { id: 33, title: '날짜 없는 자료', toId: null, toName: null, fromName: null, dueOn: null, done: false, src: 'manual', srcLabel: '직접 등록', overdueDays: 0 },
+      { id: 34, title: '끝낸 자료', toId: 7, toName: '김재훈', fromName: '대표', dueOn: '2026-09-22', done: true, src: 'plan', srcLabel: '기획', overdueDays: 0 },
+    ],
+    todoOwnerCounts: [{ key: '7', label: '김재훈', count: 1 }, { key: '8', label: '김재훈', count: 1 }, { key: '__none__', label: '담당 없음', count: 1 }],
+    todoDoneOwnerCounts: [{ key: '7', label: '김재훈', count: 1 }],
+  });
+  const status = (view: ReturnType<typeof setup>) => within(view.getByRole('tablist', { name: '할 일 상태' }));
+  const ready = async (view: ReturnType<typeof setup>) => waitFor(() => expect(view.getByRole('checkbox', { name: '다음 자료 완료' })).toBeTruthy());
+
+  it('열린/끝난 카드·상태별 담당 수·날짜 순서·기한 없음은 같은 조회를 사용한다', async () => {
+    const view = setup(data());
+    await ready(view);
+    expect(status(view).getByRole('tab', { name: '할 일 3건' })).toBeTruthy();
+    expect(status(view).getByRole('tab', { name: '끝난 것 1건' })).toBeTruthy();
+    expect(view.queryByText('끝낸 자료')).toBeNull();
+    const sections = view.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(sections).toEqual(['9/23 (수)1건', '9/24 (목)1건', '기한 없음1건']);
+    expect(view.getByText('수업')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '김재훈 · #7 1' }));
+    expect(view.getByText('다음 자료')).toBeTruthy();
+    expect(view.queryByText('오늘 자료')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '전체 3' }));
+    fireEvent.click(view.getByRole('button', { name: '김재훈 · #8 1' }));
+    expect(view.getByText('오늘 자료')).toBeTruthy();
+    expect(view.queryByText('다음 자료')).toBeNull();
+    fireEvent.click(status(view).getByRole('tab', { name: '끝난 것 1건' }));
+    expect(view.getByText('끝낸 자료')).toBeTruthy();
+    expect(view.getByRole('button', { name: '전체 1' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '김재훈 · #8 1' })).toBeNull();
+    expect(opsCalls(view.get)).toHaveLength(1); // 상태/담당 selector는 추가 요청이 없다.
+  });
+
+  it('카드와 전체 칩은 서버 담당 집계 합계를 소비한다', async () => {
+    const rows = data();
+    rows.todoOwnerCounts = [{ key: '7', label: '김재훈', count: 12 }];
+    const view = setup(rows);
+    await ready(view);
+    expect(status(view).getByRole('tab', { name: '할 일 12건' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '전체 12' })).toBeTruthy();
+    expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일 12건/ })).toBeTruthy();
+  });
+
+  it.each([[false, false], [true, false], [false, true]])('기한 입력도 최종 권한 둘(%s,%s)을 모두 요구한다', async (canAdminPage, canCrudAll) => {
+    const view = setup(data(), { ...me, canAdminPage, canCrudAll });
+    await ready(view); // 이 시험의 RequireAuth 대역과 별개로 입력의 조건부 렌더를 검증한다.
+    expect(view.queryByRole('button', { name: /기한 고치기$/ })).toBeNull();
+  });
+
+  it.each(['canAdminPage', 'canCrudAll'] as const)('편집 중 %s 회수는 모달과 입력을 즉시 숨기고 쓰기/추가 조회를 하지 않는다', async (flag) => {
+    const view = setup(data());
+    const patch = vi.spyOn(api, 'patch');
+    await ready(view);
+    fireEvent.click(view.getByRole('button', { name: '다음 자료 기한 고치기' }));
+    fireEvent.change(view.getByLabelText('기한'), { target: { value: '2026-10-03' } });
+    const before = view.get.mock.calls.length;
+    act(() => useSession.setState({ me: { ...me, [flag]: false } }));
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(view.queryByRole('button', { name: /기한 고치기$/ })).toBeNull();
+    expect(patch).not.toHaveBeenCalled();
+    expect(view.get.mock.calls).toHaveLength(before);
+  });
+
+  it('완료와 해제는 기존 PATCH를 쓰고 재조회된 상태로 목록을 옮긴다', async () => {
+    const rows = data();
+    const view = setup(rows);
+    const patch = vi.spyOn(api, 'patch').mockImplementation(async (_url, body) => {
+      const done = (body as { done: boolean }).done;
+      rows.todos = rows.todos.map((t) => t.id === 31 ? { ...t, done } : t);
+      rows.todoOwnerCounts = done ? rows.todoOwnerCounts.filter((c) => c.key !== '7') : data().todoOwnerCounts;
+      rows.todoDoneOwnerCounts = [{ key: '7', label: '김재훈', count: done ? 2 : 1 }];
+      return { data: { ok: true } };
+    });
+    await ready(view);
+    fireEvent.click(view.getByRole('checkbox', { name: '다음 자료 완료' }));
+    await waitFor(() => expect(view.queryByText('다음 자료')).toBeNull());
+    expect(patch).toHaveBeenLastCalledWith('/drawer/todos/31', { done: true });
+    fireEvent.click(status(view).getByRole('tab', { name: '끝난 것 2건' }));
+    expect((view.getByRole('checkbox', { name: '다음 자료 완료' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(view.getByRole('checkbox', { name: '다음 자료 완료' }));
+    await waitFor(() => expect(view.queryByText('다음 자료')).toBeNull());
+    expect(patch).toHaveBeenLastCalledWith('/drawer/todos/31', { done: false });
+    fireEvent.click(status(view).getByRole('tab', { name: '할 일 3건' }));
+    expect(view.getByText('다음 자료')).toBeTruthy();
+  });
+
+  it('고치기는 기한만 보내고 성공 뒤 닫는다 — 빈 기한은 null이다', async () => {
+    const view = setup(data());
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { ok: true } });
+    await ready(view);
+    fireEvent.click(view.getByRole('button', { name: '다음 자료 기한 고치기' }));
+    const dialog = within(view.getByRole('dialog', { name: '할 일 기한 고치기' }));
+    expect((dialog.getByLabelText('기한') as HTMLInputElement).value).toBe('2026-09-24');
+    expect(dialog.queryByRole('textbox')).toBeNull();
+    expect(dialog.queryByRole('combobox')).toBeNull();
+    fireEvent.change(dialog.getByLabelText('기한'), { target: { value: '2026-09-30' } });
+    fireEvent.click(dialog.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    expect(patch).toHaveBeenLastCalledWith('/drawer/todos/31', { dueOn: '2026-09-30' });
+    fireEvent.click(view.getByRole('button', { name: '다음 자료 기한 고치기' }));
+    fireEvent.change(view.getByLabelText('기한'), { target: { value: '' } });
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(patch).toHaveBeenLastCalledWith('/drawer/todos/31', { dueOn: null }));
+  });
+
+  it('실패하면 날짜 초안과 오류가 남고 취소 후 다른 행/생성에는 섞이지 않는다', async () => {
+    const view = setup(data());
+    vi.spyOn(api, 'patch').mockRejectedValue(new ApiError('FORBIDDEN', '기한을 고칠 권한이 없습니다', 403));
+    await ready(view);
+    fireEvent.click(view.getByRole('button', { name: '다음 자료 기한 고치기' }));
+    fireEvent.change(view.getByLabelText('기한'), { target: { value: '2026-10-03' } });
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(within(view.getByRole('dialog')).getByText('기한을 고칠 권한이 없습니다')).toBeTruthy());
+    expect((view.getByLabelText('기한') as HTMLInputElement).value).toBe('2026-10-03');
+    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '오늘 자료 기한 고치기' }));
+    expect((view.getByLabelText('기한') as HTMLInputElement).value).toBe('2026-09-23');
+    expect(view.queryByText('기한을 고칠 권한이 없습니다')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '+ 할 일 주기' }));
+    expect((view.getByLabelText('할 일') as HTMLInputElement).value).toBe('');
+    expect(view.getByLabelText('담당자')).toBeTruthy();
+  });
+
+  it('저장 중 재제출을 막고 완료 실패를 성공으로 표시하지 않는다', async () => {
+    const view = setup(data());
+    let reject!: (reason: Error) => void;
+    const pending = new Promise((_resolve, no) => { reject = no; });
+    const patch = vi.spyOn(api, 'patch').mockReturnValue(pending as never);
+    await ready(view);
+    fireEvent.click(view.getByRole('button', { name: '다음 자료 기한 고치기' }));
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect((view.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    expect(patch).toHaveBeenCalledOnce();
+    reject(new ApiError('NOT_FOUND', '할 일을 찾을 수 없습니다', 404));
+    await waitFor(() => expect(view.getByText('할 일을 찾을 수 없습니다')).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    patch.mockRejectedValue(new ApiError('FORBIDDEN', '완료할 권한이 없습니다', 403));
+    fireEvent.click(view.getByRole('checkbox', { name: '다음 자료 완료' }));
+    await waitFor(() => expect(view.getByText('완료할 권한이 없습니다')).toBeTruthy());
+    expect((view.getByRole('checkbox', { name: '다음 자료 완료' }) as HTMLInputElement).checked).toBe(false);
+  });
 });
 
 const clients: QueryClient[] = [];
@@ -255,8 +404,8 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
 
   it('「+ 할 일 주기」는 **새 경로가 아니다** — 서랍이 쓰는 그 경로를 부른다 (C76)', async () => {
     const view = setup(ops({
-      todos: [{ id: 1, title: '자료 정리', toName: '김재훈', dueOn: null, done: false, src: 'manual', overdueDays: 0 }],
-      todoOwnerCounts: [{ key: '김재훈', label: '김재훈', count: 1 }, { key: '__none__', label: '담당 없음', count: 2 }],
+      todos: [{ id: 1, title: '자료 정리', toId: 7, toName: '김재훈', fromName: '대표', srcLabel: '직접 등록', dueOn: null, done: false, src: 'manual', overdueDays: 0 }],
+      todoOwnerCounts: [{ key: '7', label: '김재훈', count: 1 }, { key: '__none__', label: '담당 없음', count: 2 }],
     }));
     const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { id: 41 } } as never);
     await waitFor(() => expect(view.getByRole('group', { name: '담당' })).toBeTruthy());

@@ -2767,7 +2767,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** §15 할 일 체크 — 내가 주고받은 것만 */
+        /**
+         * §15·§64 할 일 완료·기한 변경
+         * @description done만 바꾸면 기존 주고받은 범위. dueOn(null 삭제 포함)은 canAdminPage와 canCrudAll이 모두 필요하다. 생략한 필드·제목·담당·출처는 보존한다.
+         */
         patch: operations["DrawerController_todoDone"];
         trace?: never;
     };
@@ -4704,12 +4707,17 @@ export interface components {
         };
         TodoDto: {
             id: number;
+            /** @description 담당 필터의 식별자. 이름으로 합치지 않는다 */
+            toId: number | null;
+            fromName: string | null;
+            /** @description 기존 TODO 출처 코드표의 표시 이름 */
+            srcLabel: string;
             title: string;
             toName?: string | null;
             dueOn?: string | null;
             done: boolean;
             /** @enum {string} */
-            src: "meeting" | "complaint" | "consulting" | "plan" | "manual";
+            src: "meeting" | "complaint" | "consulting" | "plan" | "manual" | "lesson";
             /** @description 기한이 지난 날 수. 0이면 안 지남 */
             overdueDays: number;
         };
@@ -4992,8 +5000,10 @@ export interface components {
             areaCounts: components["schemas"]["OpsAreaCountDto"][];
             /** @description §63 회의 종류 칩 줄의 건수 — 서버가 센다 (D-R37) */
             mtTypeCounts: components["schemas"]["OpsCountDto"][];
-            /** @description §64 담당 칩 줄의 건수 — 열린 할 일만. 담당 없는 것은 「담당 없음」 (D-R37) */
+            /** @description §64 열린 할 일의 담당 칩. key는 담당 ID 문자열 또는 __none__. 같은 이름도 별도 ID로 구분 */
             todoOwnerCounts: components["schemas"]["OpsCountDto"][];
+            /** @description §64 끝난 할 일의 담당 칩. key는 담당 ID 문자열 또는 __none__ */
+            todoDoneOwnerCounts: components["schemas"]["OpsCountDto"][];
             /** @description 회의 종류 다섯 — 「+ 회의 잡기」 폼의 낱말 (D-R18 · C96) */
             mtTypes: components["schemas"]["CplWordDto"][];
             /** @description 「+ 회의 잡기」가 서는가 — 단추도 서버가 정한다 (D-R39) */
@@ -7517,7 +7527,7 @@ export interface components {
             dueOn?: string | null;
             done: boolean;
             /** @enum {string} */
-            src: "meeting" | "complaint" | "consulting" | "plan" | "manual";
+            src: "meeting" | "complaint" | "consulting" | "plan" | "manual" | "lesson";
             /** @description 출처 이름 — 서버 코드표가 정한다 (D-R18) */
             srcLabel: string;
             /** @description 기한이 지난 날 수. 0이면 안 지남 */
@@ -7698,15 +7708,21 @@ export interface components {
             /** @description 기본 시급(원/시간) — 적으면 입사일(또는 오늘)부터의 WAGE 한 줄이 같은 트랜잭션에 선다 · 소급 없음 */
             wageRate?: number | null;
         };
-        TodoDoneDto: {
-            /** @description 완료로 바꿀지 여부 */
-            done: boolean;
+        TodoPatchDto: {
+            /** @description 생략 유지, true 완료, false 해제. null 불가 */
+            done?: boolean;
+            /**
+             * Format: date
+             * @description 생략 유지, null 기한 삭제. 관리자 화면·전체 수정 권한 필요
+             */
+            dueOn?: string | null;
         };
         TodoCreateDto: {
             title: string;
             /** @description 생략하면 나에게 배정. 다른 사람 배정은 canCrudAll만 */
             toId?: number;
             /**
+             * Format: date
              * @description KST 기준 기한
              * @example 2026-09-14
              */
@@ -19823,7 +19839,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TodoDoneDto"];
+                "application/json": components["schemas"]["TodoPatchDto"];
             };
         };
         responses: {
@@ -19835,7 +19851,7 @@ export interface operations {
                     "application/json": components["schemas"]["OkDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description BAD_REQUEST: 안전한 양의 ID, boolean, 실재 날짜 및 허용 필드 검증 실패 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19853,7 +19869,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description TODO_DUE_FORBIDDEN: 기한 변경 권한 부족. 혼합 done도 저장하지 않음 */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -19862,7 +19878,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description NOT_FOUND: 없는 행 또는 기존 완료 범위 밖 */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -19871,7 +19887,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description EMPTY_PATCH: done/dueOn 모두 생략 */
             409: {
                 headers: {
                     [name: string]: unknown;

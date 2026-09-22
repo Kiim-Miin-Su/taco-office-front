@@ -95,3 +95,14 @@ it('공용 Dialog·Field로 만든 할 일을 DTO 형상 그대로 넘긴다', (
   fireEvent.click(view.getByRole('button', { name: '만들기' }));
   expect(props.onCreate).toHaveBeenCalledWith({ title: '계약 확인', toId: 2, dueOn: addDays(monday, 3) });
 });
+
+it('기한 편집이 생겨도 생성의 빈 날짜는 생략하고 서랍에는 기한 고치기를 열지 않는다', () => {
+  const { props, view } = setup();
+  expect(view.queryByRole('button', { name: /기한 고치기$/ })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '+ 할 일' }));
+  fireEvent.change(view.getByLabelText('할 일'), { target: { value: '기한 미정' } });
+  fireEvent.change(view.getByLabelText('기한'), { target: { value: '' } });
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  expect(props.onCreate).toHaveBeenCalledWith({ title: '기한 미정', toId: 1 });
+  expect(view.queryByRole('dialog')).toBeNull();
+});

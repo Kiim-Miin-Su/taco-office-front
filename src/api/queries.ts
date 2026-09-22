@@ -61,6 +61,7 @@ import type {
   Drawer,
   DrawerTodoClearResult,
   DrawerTodoCreate,
+  DrawerTodoPatch,
   DrawerTodoCreateResult,
   Exec,
   ExecMemoWrite,
@@ -1501,6 +1502,7 @@ export function useDrawer(enabled = true, notiWindow: 'month' | 'all' = 'month')
  */
 export type DrawerWrite =
   | { kind: 'todo'; id: number; done: boolean }
+  | { kind: 'todoPatch'; id: number; body: DrawerTodoPatch }
   | { kind: 'todoCreate'; body: DrawerTodoCreate }
   /** §15 「끝난 것 지우기」 — **화면이 보여 준 그 줄들**만 보낸다 (S4 · 대표 결정 2026-09-20) */
   | { kind: 'todoClear'; ids: number[] }
@@ -1520,6 +1522,9 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
     mutationFn: async (w: DrawerWrite) => {
       if (w.kind === 'todo') {
         return (await api.patch<OkResult>(`/drawer/todos/${w.id}`, { done: w.done })).data;
+      }
+      if (w.kind === 'todoPatch') {
+        return (await api.patch<OkResult>(`/drawer/todos/${w.id}`, w.body)).data;
       }
       if (w.kind === 'todoCreate') {
         return (await api.post<DrawerTodoCreateResult>('/drawer/todos', w.body)).data;
@@ -1597,8 +1602,12 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
     },
     onSuccess: (_r, w) => {
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
-      if (w.kind === 'todo' || w.kind === 'todoCreate' || w.kind === 'todoClear') {
+      if (w.kind === 'todo' || w.kind === 'todoCreate' || w.kind === 'todoClear' || w.kind === 'todoPatch') {
         void qc.invalidateQueries({ queryKey: family.ops });
+      }
+      // 연결 수업의 준비 행은 TODO 총수·완료수를 읽는다. 기한만 바꾸면 이 사실은 그대로다.
+      if (w.kind === 'todo' || w.kind === 'todoClear' || (w.kind === 'todoPatch' && w.body.done !== undefined)) {
+        void qc.invalidateQueries({ queryKey: family.tracking });
       }
       // 승인은 **실제로 적용된다** — 강사 홈의 시급·시간대가 바뀌었으므로 함께 다시 읽는다
       if (w.kind === 'reqReview') void qc.invalidateQueries({ queryKey: family.teacherHome });

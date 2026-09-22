@@ -18,12 +18,13 @@ import type { Ops } from '@/api/types';
  */
 export const OPS_HEAD_FIXTURE: Pick<
   Ops,
-  'range' | 'areaCounts' | 'mtTypeCounts' | 'todoOwnerCounts' | 'mtTypes' | 'canCreateMeeting' | 'canCreatePlan'
+  'range' | 'areaCounts' | 'mtTypeCounts' | 'todoOwnerCounts' | 'todoDoneOwnerCounts' | 'mtTypes' | 'canCreateMeeting' | 'canCreatePlan'
 > = {
   range: { from: null, to: null, label: '전체' },
   areaCounts: [],
   mtTypeCounts: [],
   todoOwnerCounts: [],
+  todoDoneOwnerCounts: [],
   mtTypes: [],
   canCreateMeeting: false,
   canCreatePlan: false,

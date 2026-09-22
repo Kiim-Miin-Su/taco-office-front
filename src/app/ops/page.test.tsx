@@ -9,7 +9,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Me, Ops } from '@/api/types';
+import type { Me, Ops, Todo } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
@@ -104,7 +104,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup({ ...me, role: 'manager', canSeeProfit: false });
     await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
     expect(view.getByText('123,400원')).toBeTruthy();
-    fireEvent.click(view.getByRole('tab', { name: /^할 일/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일/ }));
     fireEvent.click(view.getByRole('tab', { name: /^마케팅/ }));
     expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
   });
@@ -124,7 +124,8 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup();
     // 건수가 실린 뒤에 센다 — 탭 다섯은 데이터 없이도 서므로 개수만 기다리면 0 건 상태를 잰다
     await waitFor(() => expect(view.getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy());
-    const tabs = view.getAllByRole('tab');
+    const topTabs = within(view.getByRole('tablist', { name: '운영 보기' }));
+    const tabs = topTabs.getAllByRole('tab');
     expect(tabs).toHaveLength(5);
     // 차례가 원문이다 — 제목 div 로 센다(`textContent` 는 아래 한 줄까지 붙여 준다)
     expect(tabs.map((t) => t.querySelector('div')?.firstChild?.textContent))
@@ -136,7 +137,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     // 건수는 **이름에도** 들어간다 — 눈에만 보이면 보조기기는 한 번도 못 듣는다
     expect(view.getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy();
     // 0 건은 동그라미를 달지 않는다 — 없는 것을 굳이 보여 주지 않는다 (시드 todos 0건)
-    expect(view.getByRole('tab', { name: /^할 일/ }).parentElement?.textContent).not.toMatch(/\d/);
+    expect(topTabs.getByRole('tab', { name: /^할 일/ }).parentElement?.textContent).not.toMatch(/\d/);
     // 고른 탭만 선택으로 읽힌다
     fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
     expect(view.getByRole('tab', { name: /^회의/ }).getAttribute('aria-selected')).toBe('true');
@@ -149,20 +150,24 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
    * `todos.length` 라 **끝난 것까지 세고 있었다.**
    */
   it('⭐ 할 일 동그라미는 열린 것만 센다 — 담당 칩의 「전체 N」과 같은 수다 (N-19)', async () => {
-    const todo = (id: number, done: boolean) => ({
-      id, title: `할 일 ${id}`, done, srcLabel: '직접', ownerName: '김민수',
+    const todo = (id: number, done: boolean): Todo => ({
+      id, title: `할 일 ${id}`, done, src: 'manual', srcLabel: '직접 등록', toId: 2, toName: '김민수', fromName: '대표',
       dueOn: '2026-09-21', overdueDays: 0,
     });
     vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response,
       todos: [todo(1, false), todo(2, false), todo(3, true)],
-      todoOwnerCounts: [{ key: 'staff:2', label: '김민수', count: 2 }],
+      todoOwnerCounts: [{ key: '2', label: '김민수', count: 2 }],
+      todoDoneOwnerCounts: [{ key: '2', label: '김민수', count: 1 }],
     } });
     const view = setup(me, false);
-    await waitFor(() => expect(view.getByRole('tab', { name: /^할 일 2건/ })).toBeTruthy());
-    // 동그라미 · 담당 칩 줄 · 머리 칸이 전부 2 다 — 표에는 끝난 것까지 세 줄이 선다
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일 2건/ })).toBeTruthy());
+    // 동그라미 · 담당 칩 줄 · 머리 칸은 열린 둘이다. 끝난 하나는 별도 상태 카드로 옮긴다.
     expect(view.getByRole('button', { name: '전체 2' })).toBeTruthy();
     expect(view.getByText('열린 할 일').parentElement?.textContent).toContain('2');
-    expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(3);
+    expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(2);
+    fireEvent.click(within(view.getByRole('tablist', { name: '할 일 상태' })).getByRole('tab', { name: '끝난 것 1건' }));
+    expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(1);
+    expect(view.getByRole('button', { name: '전체 1' })).toBeTruthy();
   });
 
   it('허용된 0원과 등록이 없어 계산할 수 없는 null을 구분한다', async () => {

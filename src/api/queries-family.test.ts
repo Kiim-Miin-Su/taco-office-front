@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { api } from './client';
-import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useWriteGuideBody } from './queries';
+import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody } from './queries';
 
 /**
  * TanStack Query 는 **앞자락**으로만 거른다. `sessionQueryKey` 가 사용자 id 를 꼬리에
@@ -120,6 +120,60 @@ describe('갈래 앞자락', () => {
         `${name} 갈래에 걸리는 키가 없다`,
       ).toBe(true);
     }
+  });
+});
+
+describe('S2-b 할 일 쓰기의 종속 조회', () => {
+  it.each([
+    { body: { dueOn: '2026-09-23' }, tracking: false },
+    { body: { dueOn: null }, tracking: false },
+    { body: { dueOn: null, done: true }, tracking: true },
+  ])('기한 PATCH $body 는 ops·drawer와 실제 완료 변경 조회만 갱신한다', async ({ body, tracking }) => {
+    const client = new QueryClient();
+    const keys = [qk.ops, [...qk.ops, { from: '2026-09-01' }], qk.meeting(4), qk.plan(3), qk.drawer(), qk.drawer('all'), qk.tracking(3, '2026-09-23')];
+    keys.forEach((key) => client.setQueryData(sessionQueryKey(key, 7), { marker: '기존 응답' }));
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { ok: true } });
+    const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+    const view = renderHook(useDrawerWrite, { wrapper });
+    try {
+      await act(async () => { await view.result.current.mutateAsync({ kind: 'todoPatch', id: 31, body }); });
+      expect(patch).toHaveBeenCalledWith('/drawer/todos/31', body);
+      for (const key of keys.slice(0, -1)) expect(client.getQueryState(sessionQueryKey(key, 7))?.isInvalidated).toBe(true);
+      expect(client.getQueryState(sessionQueryKey(keys.at(-1)!, 7))?.isInvalidated).toBe(tracking);
+    } finally { view.unmount(); client.clear(); patch.mockRestore(); }
+  });
+
+  it.each(['todo', 'todoClear'] as const)('%s는 연결 수업 준비상태 tracking도 갱신한다', async (kind) => {
+    const client = new QueryClient();
+    const key = sessionQueryKey(qk.tracking(3, '2026-09-23'), 7);
+    client.setQueryData(key, { marker: '기존 응답' });
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { ok: true } });
+    const del = vi.spyOn(api, 'delete').mockResolvedValue({ data: { ok: true, deleted: 1 } });
+    const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+    const view = renderHook(useDrawerWrite, { wrapper });
+    try {
+      await act(async () => { await view.result.current.mutateAsync(kind === 'todo' ? { kind, id: 31, done: true } : { kind, ids: [31] }); });
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    } finally { view.unmount(); client.clear(); patch.mockRestore(); del.mockRestore(); }
+  });
+
+  it('완료 거절은 기존 drawer 낙관값을 복원하고 운영 성공 갱신을 만들지 않는다', async () => {
+    const client = new QueryClient();
+    const key = sessionQueryKey(qk.drawer(), 7);
+    const original = { todos: [{ id: 31, done: false }], members: [] };
+    client.setQueryData(key, original);
+    client.setQueryData(qk.ops, { marker: '운영 응답' });
+    const changed = vi.spyOn(client, 'setQueryData');
+    const patch = vi.spyOn(api, 'patch').mockRejectedValue(new Error('거절'));
+    const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+    const view = renderHook(useDrawerWrite, { wrapper });
+    try {
+      await act(async () => { await expect(view.result.current.mutateAsync({ kind: 'todo', id: 31, done: true })).rejects.toThrow('거절'); });
+      expect(changed.mock.calls.some(([, value]) => (value as typeof original)?.todos?.[0]?.done === true)).toBe(true);
+      expect(client.getQueryData(key)).toEqual(original);
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(qk.ops)?.isInvalidated).toBe(false);
+    } finally { view.unmount(); client.clear(); patch.mockRestore(); changed.mockRestore(); }
   });
 });
 

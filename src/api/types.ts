@@ -388,6 +388,7 @@ export type ApprovalFlowItem = S['ApprovalFlowItemDto'];
 export type ApprovalFlow = S['ApprovalFlowDto'];
 export type DrawerTodo = S['DrawerTodoDto'];
 export type DrawerTodoCreate = S['TodoCreateDto'];
+export type DrawerTodoPatch = S['TodoPatchDto'];
 export type DrawerTodoCreateResult = S['TodoCreateResultDto'];
 export type DrawerTodoClearResult = S['TodoClearDto'];
 export type Noti = S['NotiDto'];
