@@ -2292,17 +2292,20 @@ export function useZoom(onDate?: string, enabled = true): UseQueryResult<ZoomBoa
   });
 }
 
-function useZoomInvalidate() {
+function useZoomInvalidate(accountChanged = false) {
   const qc = useQueryClient();
+  const viewerId = useViewerId();
   return () => {
     void qc.invalidateQueries({ queryKey: family.zoom });
+    // 추가·수정·활성 변경은 일정/안내에서 쓰는 계정 후보도 바꾼다.
+    if (accountChanged) void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
     // 배정은 시간표를 다시 그린다 — 스케줄 캐시도 함께 버린다
     void qc.invalidateQueries({ queryKey: family.occurrences });
   };
 }
 
 export function useCreateZoomAccount(): UseMutationResult<ZoomAcct, unknown, ZoomAccountCreate> {
-  const invalidate = useZoomInvalidate();
+  const invalidate = useZoomInvalidate(true);
   return useMutation({
     mutationFn: async (w) => (await api.post<ZoomAcct>('/zoom/accounts', w)).data,
     onSettled: invalidate,
@@ -2310,7 +2313,7 @@ export function useCreateZoomAccount(): UseMutationResult<ZoomAcct, unknown, Zoo
 }
 
 export function usePatchZoomAccount(): UseMutationResult<ZoomAcct, unknown, { id: number } & ZoomAccountPatch> {
-  const invalidate = useZoomInvalidate();
+  const invalidate = useZoomInvalidate(true);
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.patch<ZoomAcct>(`/zoom/accounts/${id}`, body)).data,
     onSettled: invalidate,

@@ -6,12 +6,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createElement, type PropsWithChildren } from 'react';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { api } from './client';
-import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody } from './queries';
+import { useSession } from '@/store/useSession';
+import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody, useCreateZoomAccount, usePatchZoomAccount, useMeta } from './queries';
 
 /**
  * TanStack Query 는 **앞자락**으로만 거른다. `sessionQueryKey` 가 사용자 id 를 꼬리에
@@ -22,6 +23,39 @@ const startsWith = (key: readonly unknown[], head: readonly unknown[]): boolean 
   head.every((seg, i) => JSON.stringify(key[i]) === JSON.stringify(seg));
 
 const RANGE = { from: '2026-09-01', to: '2026-09-30' };
+
+it.each(['create', 'patch'] as const)('줌 계정 %s 뒤 사용자별 계정 후보 캐시도 다시 조회한다', async (kind) => {
+  const client = new QueryClient();
+  const viewerId = useSession.getState().me?.id ?? 'anonymous';
+  const keys = [qk.meta, qk.zoom(undefined), qk.occurrences(RANGE)];
+  keys.forEach((key) => client.setQueryData(sessionQueryKey(key, viewerId), { marker: '이전 계정 후보' }));
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {} });
+  const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: {} });
+  const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+  const view = renderHook(() => ({ create: useCreateZoomAccount(), patch: usePatchZoomAccount() }), { wrapper });
+  try {
+    await act(async () => {
+      if (kind === 'create') await view.result.current.create.mutateAsync({ label: 'QA', loginEmail: 'qa@example.test', joinUrl: 'https://zoom.us/j/3' });
+      else await view.result.current.patch.mutateAsync({ id: 3, active: false });
+    });
+    for (const key of keys) expect(client.getQueryState(sessionQueryKey(key, viewerId))?.isInvalidated).toBe(true);
+  } finally { view.unmount(); client.clear(); post.mockRestore(); patch.mockRestore(); }
+});
+
+it('활성 상태 저장 뒤 열려 있는 meta 소비자가 새 후보를 받아 표시한다', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ data: { zaccs: [{ id: 3, label: 'QA' }] } })
+    .mockResolvedValue({ data: { zaccs: [] } });
+  const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: {} });
+  const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+  const view = renderHook(() => ({ meta: useMeta(), patch: usePatchZoomAccount() }), { wrapper });
+  try {
+    await waitFor(() => expect(view.result.current.meta.data?.zaccs).toHaveLength(1));
+    await act(async () => { await view.result.current.patch.mutateAsync({ id: 3, active: false }); });
+    await waitFor(() => expect(view.result.current.meta.data?.zaccs).toEqual([]));
+    expect(get).toHaveBeenCalledTimes(2); // 최초 조회 1회 + 저장 후 후보 재조회 1회
+  } finally { view.unmount(); client.clear(); get.mockRestore(); patch.mockRestore(); }
+});
 
 /** 인자를 받는 `qk` 마다 **실제 키 한 벌**. 새 키가 늘면 여기에도 한 줄이 늘어야 한다. */
 const SAMPLE: Record<string, readonly unknown[]> = {

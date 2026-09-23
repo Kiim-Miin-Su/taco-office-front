@@ -15,7 +15,7 @@
  * 화면이 다시 세면 서랍과 이 화면의 숫자가 갈린다.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Input, Label, PageHeader, Panel, StatCard, Table, type Column } from '@/components/ui';
@@ -31,15 +31,54 @@ export default function ZoomAccountsPage() {
   const q = useZoom(onDate);
   const create = useCreateZoomAccount();
   const patch = usePatchZoomAccount();
+  // isPending 반영 전 같은 이벤트 묶음의 연속 클릭도 한 번만 저장한다.
+  const writing = useRef(false);
   const [form, setForm] = useState({ ...EMPTY });
-  const [openForm, setOpenForm] = useState(false);
-  const [editing, setEditing] = useState<number | null>(null);
+  const [editor, setEditor] = useState<'create' | number | null>(null);
+  const editorForm = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    // 긴 계정 목록 아래에서 열어도 새 편집 입력을 바로 보고 키보드로 이어 쓴다.
+    if (editor !== null) editorForm.current?.querySelector('input')?.focus();
+  }, [editor]);
   /** 참가 링크는 **펼쳐야** 보인다 — 표에 늘 떠 있으면 화면 공유 중에 그대로 찍힌다 */
   const [shownUrl, setShownUrl] = useState<number | null>(null);
-  const [draft, setDraft] = useState({ ...EMPTY });
 
   const board = q.data;
+  const pending = create.isPending || patch.isPending;
   const canSave = form.label.trim() !== '' && form.loginEmail.trim() !== '' && form.joinUrl.trim() !== '';
+
+  // 생성과 수정은 같은 입력 계약이다. 모드를 바꾸거나 닫을 때 비밀 초안을 폐기한다.
+  const openEditor = (account?: ZoomAcct) => {
+    if (writing.current) return;
+    create.reset(); patch.reset();
+    setForm(account ? { ...EMPTY, label: account.label, loginEmail: account.loginEmail, joinUrl: account.joinUrl, meetingId: account.meetingId ?? '' } : { ...EMPTY });
+    setEditor(account?.id ?? 'create');
+  };
+  const closeEditor = () => {
+    if (writing.current) return;
+    setEditor(null); setForm({ ...EMPTY }); create.reset(); patch.reset();
+  };
+  const save = () => {
+    if (!canSave || writing.current || pending || editor === null) return;
+    writing.current = true;
+    const body = {
+      label: form.label.trim(), loginEmail: form.loginEmail.trim(), joinUrl: form.joinUrl.trim(),
+      meetingId: form.meetingId.trim(),
+      ...(form.loginSecret ? { loginSecret: form.loginSecret } : {}),
+      ...(form.meetingPw ? { meetingPw: form.meetingPw } : {}),
+    };
+    const callbacks = {
+      onSuccess: () => { writing.current = false; closeEditor(); },
+      onSettled: () => { writing.current = false; },
+    };
+    if (editor === 'create') create.mutate(body, callbacks);
+    else patch.mutate({ id: editor, ...body }, callbacks);
+  };
+  const toggleActive = (account: ZoomAcct) => {
+    if (writing.current) return;
+    writing.current = true;
+    patch.mutate({ id: account.id, active: !account.active }, { onSettled: () => { writing.current = false; } });
+  };
 
   const cols: Array<Column<ZoomAcct>> = [
     { key: 'l', head: '이름', width: 130, cell: (r) => <span className="font-bold">{r.label}</span> },
@@ -69,14 +108,14 @@ export default function ZoomAccountsPage() {
       key: 'x', head: '', width: 150,
       cell: (r) => (
         <div className="flex gap-1.5">
-          <Button size="sm" variant="secondary" onClick={() => { setEditing(r.id); setDraft({ ...EMPTY, label: r.label, loginEmail: r.loginEmail, joinUrl: r.joinUrl, meetingId: r.meetingId ?? '' }); }}>
+          <Button size="sm" variant="secondary" disabled={pending} onClick={() => openEditor(r)}>
             고치기
           </Button>
           <Button
             size="sm"
             variant={r.active ? 'secondary' : 'primary'}
-            disabled={patch.isPending}
-            onClick={() => patch.mutate({ id: r.id, active: !r.active })}
+            disabled={pending}
+            onClick={() => toggleActive(r)}
           >
             {r.active ? '끄기' : '켜기'}
           </Button>
@@ -110,62 +149,28 @@ export default function ZoomAccountsPage() {
           <Input id="zoom-date" type="date" value={onDate ?? board?.onDate ?? ''} onChange={(e) => setOnDate(e.target.value || undefined)} className="w-44" />
           <Button size="sm" variant="secondary" onClick={() => setOnDate(undefined)}>오늘</Button>
           <span className="grow" />
-          <Button onClick={() => setOpenForm((v) => !v)}>{openForm ? '닫기' : '+ 계정 추가'}</Button>
+          <Button disabled={pending} onClick={() => editor === 'create' ? closeEditor() : openEditor()}>{editor === 'create' ? '닫기' : '+ 계정 추가'}</Button>
         </div>
 
-        {openForm ? (
-          <Panel className="mb-4" title="줌 계정 추가" sub="비밀은 암호화해 저장하고 화면으로 다시 내려보내지 않습니다">
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label htmlFor="z-label">이름</Label><Input id="z-label" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Boarding" /></div>
-              <div><Label htmlFor="z-email">로그인 계정</Label><Input id="z-email" value={form.loginEmail} onChange={(e) => setForm({ ...form, loginEmail: e.target.value })} placeholder="zoom@tnacademy.kr" /></div>
-              <div><Label htmlFor="z-url">참가 링크</Label><Input id="z-url" value={form.joinUrl} onChange={(e) => setForm({ ...form, joinUrl: e.target.value })} placeholder="https://zoom.us/j/..." /></div>
-              <div><Label htmlFor="z-mid">회의 ID</Label><Input id="z-mid" value={form.meetingId} onChange={(e) => setForm({ ...form, meetingId: e.target.value })} /></div>
-              <div><Label htmlFor="z-secret">로그인 비밀</Label><Input id="z-secret" type="password" value={form.loginSecret} onChange={(e) => setForm({ ...form, loginSecret: e.target.value })} /></div>
-              <div><Label htmlFor="z-pw">회의 비밀번호</Label><Input id="z-pw" type="password" value={form.meetingPw} onChange={(e) => setForm({ ...form, meetingPw: e.target.value })} /></div>
-            </div>
-            {create.isError ? <Banner tone="danger" className="mt-3">{apiMessage(create.error)}</Banner> : null}
-            <div className="mt-3 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => { setOpenForm(false); setForm({ ...EMPTY }); }}>취소</Button>
-              <Button
-                disabled={!canSave || create.isPending}
-                onClick={() => create.mutate({
-                  label: form.label.trim(), loginEmail: form.loginEmail.trim(), joinUrl: form.joinUrl.trim(),
-                  meetingId: form.meetingId.trim() || undefined,
-                  loginSecret: form.loginSecret || undefined, meetingPw: form.meetingPw || undefined,
-                }, { onSuccess: () => { setOpenForm(false); setForm({ ...EMPTY }); } })}
-              >
-                만들기
-              </Button>
-            </div>
-          </Panel>
-        ) : null}
-
-        {editing !== null ? (
-          <Panel className="mb-4" title="계정 고치기" sub="비밀 칸을 비워 두면 지금 저장된 값을 그대로 둡니다">
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label htmlFor="e-label">이름</Label><Input id="e-label" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></div>
-              <div><Label htmlFor="e-email">로그인 계정</Label><Input id="e-email" value={draft.loginEmail} onChange={(e) => setDraft({ ...draft, loginEmail: e.target.value })} /></div>
-              <div><Label htmlFor="e-url">참가 링크</Label><Input id="e-url" value={draft.joinUrl} onChange={(e) => setDraft({ ...draft, joinUrl: e.target.value })} /></div>
-              <div><Label htmlFor="e-mid">회의 ID</Label><Input id="e-mid" value={draft.meetingId} onChange={(e) => setDraft({ ...draft, meetingId: e.target.value })} /></div>
-              <div><Label htmlFor="e-secret">로그인 비밀</Label><Input id="e-secret" type="password" value={draft.loginSecret} onChange={(e) => setDraft({ ...draft, loginSecret: e.target.value })} /></div>
-              <div><Label htmlFor="e-pw">회의 비밀번호</Label><Input id="e-pw" type="password" value={draft.meetingPw} onChange={(e) => setDraft({ ...draft, meetingPw: e.target.value })} /></div>
-            </div>
-            {patch.isError ? <Banner tone="danger" className="mt-3">{apiMessage(patch.error)}</Banner> : null}
-            <div className="mt-3 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setEditing(null)}>취소</Button>
-              <Button
-                disabled={patch.isPending}
-                onClick={() => patch.mutate({
-                  id: editing,
-                  label: draft.label.trim(), loginEmail: draft.loginEmail.trim(), joinUrl: draft.joinUrl.trim(),
-                  meetingId: draft.meetingId.trim(),
-                  ...(draft.loginSecret ? { loginSecret: draft.loginSecret } : {}),
-                  ...(draft.meetingPw ? { meetingPw: draft.meetingPw } : {}),
-                }, { onSuccess: () => setEditing(null) })}
-              >
-                저장
-              </Button>
-            </div>
+        {q.isError ? <Banner tone="danger" className="mb-3">{apiMessage(q.error)}</Banner> : null}
+        {patch.isError ? <Banner tone="danger" className="mb-3">{apiMessage(patch.error)}</Banner> : null}
+        {editor !== null ? (
+          <Panel className="mb-4" title={editor === 'create' ? '줌 계정 추가' : '계정 고치기'} sub={editor === 'create' ? '비밀은 암호화해 저장하고 화면으로 다시 내려보내지 않습니다' : '비밀 칸을 비워 두면 지금 저장된 값을 그대로 둡니다'}>
+            <form ref={editorForm} onSubmit={(event) => { event.preventDefault(); save(); }}>
+              <fieldset disabled={pending} className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div><Label htmlFor="z-label">이름</Label><Input id="z-label" required maxLength={20} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Boarding" /></div>
+                <div><Label htmlFor="z-email">로그인 계정</Label><Input id="z-email" required maxLength={120} value={form.loginEmail} onChange={(e) => setForm({ ...form, loginEmail: e.target.value })} placeholder="zoom@tnacademy.kr" /></div>
+                <div><Label htmlFor="z-url">참가 링크</Label><Input id="z-url" type="url" required maxLength={500} value={form.joinUrl} onChange={(e) => setForm({ ...form, joinUrl: e.target.value })} placeholder="https://zoom.us/j/..." /></div>
+                <div><Label htmlFor="z-mid">회의 ID</Label><Input id="z-mid" maxLength={30} value={form.meetingId} onChange={(e) => setForm({ ...form, meetingId: e.target.value })} /></div>
+                <div><Label htmlFor="z-secret">로그인 비밀</Label><Input id="z-secret" type="password" autoComplete="new-password" maxLength={200} value={form.loginSecret} onChange={(e) => setForm({ ...form, loginSecret: e.target.value })} /></div>
+                <div><Label htmlFor="z-pw">회의 비밀번호</Label><Input id="z-pw" type="password" autoComplete="new-password" maxLength={50} value={form.meetingPw} onChange={(e) => setForm({ ...form, meetingPw: e.target.value })} /></div>
+              </fieldset>
+              {create.isError ? <Banner tone="danger" className="mt-3">{apiMessage(create.error)}</Banner> : null}
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" variant="secondary" disabled={pending} onClick={closeEditor}>취소</Button>
+                <Button type="submit" disabled={!canSave || pending}>{editor === 'create' ? '만들기' : '저장'}</Button>
+              </div>
+            </form>
           </Panel>
         ) : null}
 

@@ -6082,7 +6082,7 @@ export interface components {
             active: boolean;
             /** @description 이 계정이 붙어 있는 회차 수 (기준일) */
             usedCount: number;
-            /** @description 비밀이 저장돼 있는가 — 값 자체는 내려보내지 않는다 */
+            /** @description 암호문에 비밀 payload가 있는가. 빈 값은 false이며 복호화 가능성은 보증하지 않는다. 값 자체는 내려보내지 않는다 */
             hasSecret: boolean;
         };
         ZoomSlotDto: {
@@ -6117,6 +6117,7 @@ export interface components {
         ZoomAccountCreateDto: {
             label: string;
             loginEmail: string;
+            /** @description 로그인 정보가 없는 절대 HTTP(S) 참가 주소 */
             joinUrl: string;
             meetingId?: string;
             /** @description 줌 로그인 비밀 — 평문으로 두지 않는다. 넣으면 암호화해 저장한다 */
@@ -6127,9 +6128,13 @@ export interface components {
         ZoomAccountPatchDto: {
             label?: string;
             loginEmail?: string;
+            /** @description 로그인 정보가 없는 절대 HTTP(S) 참가 주소 */
             joinUrl?: string;
+            /** @description 생략은 유지, 빈 문자열은 회의 ID 삭제. null은 거절 */
             meetingId?: string;
+            /** @description 생략·빈 문자열은 기존 비밀 유지. 나머지 문자열은 공백까지 보존 */
             loginSecret?: string;
+            /** @description 생략·빈 문자열은 기존 비밀번호 유지. 나머지 문자열은 공백까지 보존 */
             meetingPw?: string;
             /** @description 끄면 새 배정에서 빠진다. 이미 붙은 회차는 건드리지 않는다 */
             active?: boolean;
