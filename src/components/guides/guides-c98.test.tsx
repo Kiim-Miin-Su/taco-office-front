@@ -3,10 +3,12 @@
  * 책임/재사용: 실제 GuideWriter/GuidesTodo 와 생성 타입을 쓰고 네트워크만 어댑터로 갈아 끼운다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { Profiler, type ProfilerOnRenderCallback } from 'react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, expect, it } from 'vitest';
-import { api } from '@/api/client';
+import { afterEach, expect, it, vi } from 'vitest';
+import { api, ApiError } from '@/api/client';
+import * as queries from '@/api/queries';
 import type { Guide, Guides, Me, PerLessonNotice } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { GuideWriter } from './GuideWriter';
@@ -44,6 +46,7 @@ const clients: QueryClient[] = [];
 let calls: Array<{ method?: string; url?: string; body?: unknown }> = [];
 afterEach(() => {
   cleanup(); clients.splice(0).forEach((c) => c.clear());
+  vi.restoreAllMocks();
   api.defaults.adapter = originalAdapter; useSession.getState().signOut(); calls = [];
 });
 
@@ -195,4 +198,183 @@ it('보낸 회차는 「강사 보냄」이 되고 다시 누를 수 없다 (F-6
     </QueryClientProvider>,
   );
   expect((view.getByRole('button', { name: '강사 보냄' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+/* ── S3-b §43 회차별 계정 배정 ──────────────────────────────────────────── */
+const candidates = [{ id: 3, label: 'Study', meetingId: null }, { id: 4, label: 'TN', meetingId: null }];
+const unassigned = () => lesson({ zaccId: null, zaccLabel: null, zoomAssigned: false, canSendTeacher: false });
+
+function assignmentSetup(data = guides({ perLesson: [unassigned()] }), onRender?: ProfilerOnRenderCallback) {
+  useSession.getState().signIn('fixture', me);
+  adapter((call) => call.url === '/meta' ? { zaccs: candidates } : {});
+  const qc = client();
+  const tree = (next: Guides) => (
+    <QueryClientProvider client={qc}>
+      <Profiler id="guides-todo" onRender={onRender ?? (() => {})}><GuidesTodo data={next} /></Profiler>
+    </QueryClientProvider>
+  );
+  const view = render(tree(data));
+  return { ...view, qc, refresh: (next: Guides) => view.rerender(tree(next)) };
+}
+
+it('계정 배정은 선택 하나만 받고 빈값 요청0, 원래 회차 키와 고른 ID만 보낸다 (S3-ASSIGN-01)', async () => {
+  const view = assignmentSetup();
+  const post = vi.spyOn(api, 'post');
+  expect(calls).toHaveLength(0); // 모달을 열기 전 meta를 읽지 않는다.
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'TN' });
+  const box = view.getByRole('dialog', { name: '줌 계정 배정' });
+  expect(within(box).getByText('고은설 · 10:00 ~ 11:00')).toBeTruthy();
+  expect(box.querySelectorAll('input,select,textarea')).toHaveLength(1);
+  expect(view.getByLabelText('줌 계정').tagName).toBe('SELECT');
+  const submit = within(box).getByRole('button', { name: '배정' });
+  expect(submit).toHaveProperty('disabled', true);
+  fireEvent.click(submit);
+  expect(post).not.toHaveBeenCalled();
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '4' } });
+  fireEvent.click(submit);
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+  expect(post).toHaveBeenCalledTimes(1);
+  expect(post).toHaveBeenCalledWith('/zoom/assign', { serId: 8, onDate: '2026-09-19', zaccId: 4 });
+});
+
+it('배정창은 학생이 없으면 수업명과 현재 시각을 보여 주며 원래 날짜를 오늘로 표시하지 않는다', async () => {
+  const view = assignmentSetup(guides({ perLesson: [lesson({ ...unassigned(), notices: [], onDate: '2020-02-29', startMin: 780, endMin: 840 })] }));
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  const box = view.getByRole('dialog');
+  expect(within(box).getByText('Vocabulary · 13:00 ~ 14:00')).toBeTruthy();
+  expect(box.textContent).not.toContain('2020-02-29');
+});
+
+it('배정된 계정 변경도 같은 창을 쓰고 취소·재진입은 미저장 선택을 버린다', async () => {
+  const view = assignmentSetup(guides());
+  const opener = view.getByRole('button', { name: '계정 변경' });
+  opener.focus(); fireEvent.click(opener);
+  await view.findByRole('option', { name: 'TN' });
+  const select = view.getByLabelText('줌 계정');
+  expect(select).toHaveProperty('value', '3');
+  expect(document.activeElement).toBe(select);
+  fireEvent.change(select, { target: { value: '4' } });
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(view.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(opener);
+  fireEvent.click(opener);
+  expect(view.getByLabelText('줌 계정')).toHaveProperty('value', '3');
+});
+
+it('409 문장·선택은 재투영된 행 ID에도 남고 다른 계정으로 재시도한다 (S3-ASSIGN-02)', async () => {
+  const view = assignmentSetup();
+  const post = vi.spyOn(api, 'post').mockRejectedValueOnce(new ApiError('RESOURCE_CONFLICT', '같은 시간에 다른 수업이 있습니다', 409))
+    .mockResolvedValueOnce({ data: { serId: 8, onDate: '2026-09-19', zaccId: 4, projected: 1 } });
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '3' } });
+  fireEvent.click(view.getByRole('button', { name: '배정' }));
+  await view.findByText('같은 시간에 다른 수업이 있습니다');
+  view.refresh(guides({ perLesson: [{ ...unassigned(), id: 999, sourceOccurrenceId: 999 }] }));
+  expect(view.getByLabelText('줌 계정')).toHaveProperty('value', '3');
+  expect(view.getByText('같은 시간에 다른 수업이 있습니다')).toBeTruthy();
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '4' } });
+  fireEvent.click(view.getByRole('button', { name: '배정' }));
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+  expect(post).toHaveBeenCalledTimes(2);
+  expect(post).toHaveBeenLastCalledWith('/zoom/assign', { serId: 8, onDate: '2026-09-19', zaccId: 4 });
+});
+
+it.each(['loading', 'error', 'empty'] as const)('계정 후보 %s 상태에서 배정 요청을 보내지 않는다', async (state) => {
+  const view = assignmentSetup();
+  const get = vi.spyOn(api, 'get');
+  if (state === 'loading') get.mockReturnValue(new Promise(() => {}));
+  else if (state === 'error') get.mockRejectedValue(new ApiError('UNAVAILABLE', '계정 후보를 읽지 못했습니다', 503));
+  else get.mockResolvedValue({ data: { zaccs: [] } });
+  const post = vi.spyOn(api, 'post');
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  if (state === 'error') await view.findByText('계정 후보를 읽지 못했습니다');
+  if (state === 'empty') await view.findByText('배정할 수 있는 활성 계정이 없습니다.');
+  const submit = view.getByRole('button', { name: '배정' });
+  expect(submit).toHaveProperty('disabled', true);
+  fireEvent.click(submit);
+  expect(post).not.toHaveBeenCalled();
+});
+
+it('선택했던 계정이 비활성화되어 후보에서 빠지면 재선택 전 요청0이다', async () => {
+  const view = assignmentSetup();
+  const post = vi.spyOn(api, 'post');
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '3' } });
+  act(() => view.qc.setQueryData(queries.sessionQueryKey(queries.qk.meta, me.id), { zaccs: [candidates[1]] }));
+  await view.findByText('선택한 계정이 현재 후보에 없습니다. 다른 계정을 고르세요.');
+  const submit = view.getByRole('button', { name: '배정' });
+  expect(submit).toHaveProperty('disabled', true);
+  fireEvent.click(submit);
+  expect(post).not.toHaveBeenCalled();
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '4' } });
+  expect(submit).toHaveProperty('disabled', false);
+});
+
+it('후보 재조회 실패도 오래된 선택으로 저장하지 않고 재시도 후 선택을 보존한다', async () => {
+  const view = assignmentSetup();
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '3' } });
+  vi.spyOn(api, 'get').mockRejectedValueOnce(new ApiError('UNAVAILABLE', '후보 새로 읽기 실패', 503))
+    .mockResolvedValue({ data: { zaccs: candidates } });
+  await act(async () => { await view.qc.refetchQueries({ queryKey: queries.qk.meta }); });
+  await view.findByText('후보 새로 읽기 실패');
+  expect(view.getByRole('button', { name: '배정' })).toHaveProperty('disabled', true);
+  fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+  await waitFor(() => expect(view.queryByText('후보 새로 읽기 실패')).toBeNull());
+  expect(view.getByLabelText('줌 계정')).toHaveProperty('value', '3');
+  expect(view.getByRole('button', { name: '배정' })).toHaveProperty('disabled', false);
+});
+
+it('연속 저장과 pending 취소·Escape·배경 닫기를 막고 실패 뒤 다시 배정한다', async () => {
+  const view = assignmentSetup();
+  let rejectFirst!: () => void;
+  const failure = new Promise<never>((_, reject) => { rejectFirst = () => reject(new ApiError('FAILED', '배정 실패 — 다시 시도', 500)); });
+  const post = vi.spyOn(api, 'post').mockReturnValueOnce(failure).mockResolvedValueOnce({ data: {} });
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '3' } });
+  const box = view.getByRole('dialog');
+  const submit = view.getByRole('button', { name: '배정' });
+  const cancel = view.getByRole('button', { name: '취소' });
+  act(() => {
+    fireEvent.click(submit); fireEvent.click(submit);
+    fireEvent.click(cancel); fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(box.parentElement!.firstElementChild!);
+  });
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  expect(view.getByRole('dialog')).toBe(box);
+  expect(view.getByLabelText('줌 계정')).toHaveProperty('disabled', true);
+  await act(async () => rejectFirst());
+  await view.findByText('배정 실패 — 다시 시도');
+  expect(view.getByLabelText('줌 계정')).toHaveProperty('value', '3');
+  expect(view.getByRole('button', { name: '배정' })).toHaveProperty('disabled', false);
+  fireEvent.click(view.getByRole('button', { name: '배정' }));
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+  expect(post).toHaveBeenCalledTimes(2);
+});
+
+it('실제 선택1회는 dialog commit1·기존 회차 형제 render0·추가 GET0이다 (S3-REFRESH-01)', async () => {
+  // spy 기본 동작은 실제 훅 실행: 모든 기존 PerLessonRow는 렌더마다 이 훅을 호출한다.
+  const rowRenders = vi.spyOn(queries, 'useSendZoomNotice');
+  const commits: string[] = [];
+  const view = assignmentSetup(guides({ perLesson: [unassigned(), lesson({ serId: 9, id: 91, sourceOccurrenceId: 91 })] }),
+    (_id, phase) => { commits.push(phase); });
+  fireEvent.click(view.getByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  await act(async () => {});
+  const before = { commits: commits.length, rows: rowRenders.mock.calls.length, gets: calls.filter((c) => c.method === 'get').length };
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '4' } });
+  await act(async () => {});
+  const measured = {
+    commits: commits.length - before.commits,
+    siblingRenders: rowRenders.mock.calls.length - before.rows,
+    additionalGets: calls.filter((c) => c.method === 'get').length - before.gets,
+  };
+  expect(measured).toEqual({ commits: 1, siblingRenders: 0, additionalGets: 0 });
+  console.info('S3-b account selection measured', measured);
 });

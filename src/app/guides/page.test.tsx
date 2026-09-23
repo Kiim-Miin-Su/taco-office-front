@@ -5,16 +5,18 @@
  */
 
 import type { ReactNode } from 'react';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Guide, Guides, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
+import { RouteAccess } from '@/components/shell/RequireAuth';
 import GuidesPage from './page';
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
-vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
+const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/guides', useRouter: () => nav }));
 
 const me: Me = {
   id: 4,
@@ -101,13 +103,13 @@ const response: Guides = {
 
 const clients: QueryClient[] = [];
 
-function setup() {
-  useSession.setState({ me, ready: true });
+function setup(viewer: Me = me) {
+  useSession.getState().signIn('fixture', viewer);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   return render(
     <QueryClientProvider client={client}>
-      <GuidesPage />
+      <RouteAccess><GuidesPage /></RouteAccess>
     </QueryClientProvider>,
   );
 }
@@ -115,7 +117,8 @@ function setup() {
 afterEach(() => {
   cleanup();
   clients.splice(0).forEach((client) => client.clear());
-  useSession.setState({ me: null, ready: false });
+  useSession.getState().signOut();
+  nav.replace.mockClear(); nav.push.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -133,7 +136,7 @@ describe('안내 할 일 — GET /guides 서버 projection이 단일 진실원',
     expect(stat('강사 미확인')).toContain('1');
     expect(stat('반복 교체')).toContain('0');
     expect(view.getByRole('tab', { name: /할 일/ }).parentElement?.textContent).toContain('17');
-    expect(view.getByText('계정 배정 필요')).toBeTruthy();
+    expect(view.getByRole('button', { name: '계정 배정 →' })).toBeTruthy();
     expect(view.getByRole('button', { name: '학부모 안내' })).toHaveProperty('disabled', true);
     expect(view.getByRole('button', { name: '강사 안내' })).toHaveProperty('disabled', true);
   });
@@ -151,4 +154,60 @@ describe('안내 할 일 — GET /guides 서버 projection이 단일 진실원',
     expect(view.getByText('불러오지 못했습니다')).toBeTruthy();
     expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
   });
+});
+
+it.each([[false, false], [true, false], [false, true], [true, true]])(
+  '실제 RouteAccess는 관리=%s·쓰기=%s 조합으로 안내 조회와 배정 입력을 함께 방어한다',
+  async (canAdminPage, canCrudAll) => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+    const view = setup({ ...me, canAdminPage, canCrudAll });
+    if (canAdminPage && canCrudAll) {
+      await view.findByRole('button', { name: '계정 배정 →' });
+      expect(get).toHaveBeenCalledWith('/guides');
+    } else {
+      await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/schedule'));
+      expect(view.queryByRole('button', { name: '계정 배정 →' })).toBeNull();
+      expect(get).not.toHaveBeenCalled();
+    }
+  },
+);
+
+it.each(['canAdminPage', 'canCrudAll'] as const)('배정 창의 %s 회수는 초안을 폐기하고 새 요청을 차단한다', async (flag) => {
+  vi.spyOn(api, 'get').mockImplementation(async (url) => ({ data: url === '/meta' ? { zaccs: [{ id: 3, label: 'Study' }] } : response }));
+  const post = vi.spyOn(api, 'post');
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '3' } });
+  act(() => useSession.getState().setMe({ ...me, [flag]: false }));
+  expect(view.queryByRole('dialog')).toBeNull();
+  expect(view.queryByRole('button', { name: '계정 배정 →' })).toBeNull();
+  expect(post).not.toHaveBeenCalled();
+  expect(nav.replace).toHaveBeenCalledWith('/schedule');
+  act(() => useSession.getState().setMe(me));
+  fireEvent.click(await view.findByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  expect(view.getByLabelText('줌 계정')).toHaveProperty('value', '');
+});
+
+it('배정 성공 후 안내를 새로 읽어 계정 칩과 강사 안내 허용을 표시한다', async () => {
+  let assigned = false;
+  const get = vi.spyOn(api, 'get').mockImplementation(async (url) => ({ data: url === '/meta'
+    ? { zaccs: [{ id: 3, label: 'Study' }] }
+    : { ...response, perLesson: response.perLesson.map((row) => assigned
+      ? { ...row, id: 999, sourceOccurrenceId: 999, zaccId: 3, zaccLabel: 'Study', zoomAssigned: true, canSendTeacher: true }
+      : row) } }));
+  const post = vi.spyOn(api, 'post').mockImplementation(async () => { assigned = true; return { data: {} }; });
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '계정 배정 →' }));
+  await view.findByRole('option', { name: 'Study' });
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '3' } });
+  fireEvent.click(view.getByRole('button', { name: '배정' }));
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+  await view.findByRole('button', { name: '계정 변경' });
+  expect(view.getByText('Study')).toBeTruthy();
+  expect(view.getByRole('button', { name: '강사 안내' })).toHaveProperty('disabled', false);
+  expect(view.getByRole('button', { name: '학부모 안내' })).toHaveProperty('disabled', true);
+  expect(post).toHaveBeenCalledWith('/zoom/assign', { serId: 50, onDate: '2026-09-14', zaccId: 3 });
+  expect(get.mock.calls.filter(([url]) => url === '/guides')).toHaveLength(2);
 });

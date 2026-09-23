@@ -10,9 +10,9 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
-import { api } from './client';
+import { api, ApiError } from './client';
 import { useSession } from '@/store/useSession';
-import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody, useCreateZoomAccount, usePatchZoomAccount, useMeta } from './queries';
+import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody, useCreateZoomAccount, usePatchZoomAccount, useMeta, useAssignZoom, useGuides, useLessonTracking, useOccurrences } from './queries';
 
 /**
  * TanStack Query 는 **앞자락**으로만 거른다. `sessionQueryKey` 가 사용자 id 를 꼬리에
@@ -55,6 +55,57 @@ it('활성 상태 저장 뒤 열려 있는 meta 소비자가 새 후보를 받�
     await waitFor(() => expect(view.result.current.meta.data?.zaccs).toEqual([]));
     expect(get).toHaveBeenCalledTimes(2); // 최초 조회 1회 + 저장 후 후보 재조회 1회
   } finally { view.unmount(); client.clear(); get.mockRestore(); patch.mockRestore(); }
+});
+
+it.each([true, false])('줌 배정 성공=%s일 때 현재 사용자 안내·트래킹만 추가 갱신하고 meta는 유지한다', async (success) => {
+  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  const viewerId = useSession.getState().me?.id ?? 'anonymous';
+  const changed = [qk.guides, qk.tracking(8, '2026-09-19')];
+  const preserved = [qk.meta, qk.books, qk.drawer()];
+  [...changed, ...preserved].forEach((key) => client.setQueryData(sessionQueryKey(key, viewerId), { marker: 'before' }));
+  changed.forEach((key) => client.setQueryData(sessionQueryKey(key, 99999), { marker: 'other viewer' }));
+  const post = vi.spyOn(api, 'post');
+  if (success) post.mockResolvedValue({ data: {} });
+  else post.mockRejectedValue(new ApiError('RESOURCE_CONFLICT', '겹칩니다', 409));
+  const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+  const view = renderHook(() => useAssignZoom(), { wrapper });
+  try {
+    await act(async () => {
+      const pending = view.result.current.mutateAsync({ serId: 8, onDate: '2026-09-19', zaccId: 3 });
+      if (success) await pending;
+      else await expect(pending).rejects.toMatchObject({ status: 409 });
+    });
+    for (const key of changed) {
+      expect(client.getQueryState(sessionQueryKey(key, viewerId))?.isInvalidated).toBe(success);
+      expect(client.getQueryState(sessionQueryKey(key, 99999))?.isInvalidated).toBe(false);
+    }
+    for (const key of preserved) expect(client.getQueryState(sessionQueryKey(key, viewerId))?.isInvalidated).toBe(false);
+  } finally { view.unmount(); client.clear(); post.mockRestore(); }
+});
+
+it('배정 후 mounted 안내·트래킹·회차가 새 GET을 받고 meta GET은 늘지 않는다', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  let version = 0;
+  const get = vi.spyOn(api, 'get').mockImplementation(async () => ({ data: { version, zaccs: [] } }));
+  const post = vi.spyOn(api, 'post').mockImplementation(async () => { version = 1; return { data: {} }; });
+  const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+  const view = renderHook(() => ({
+    guides: useGuides(), tracking: useLessonTracking(8, '2026-09-19', true), occurrences: useOccurrences(RANGE), meta: useMeta(), assign: useAssignZoom(),
+  }), { wrapper });
+  const count = (url: string) => get.mock.calls.filter(([path]) => path === url).length;
+  try {
+    await waitFor(() => expect([view.result.current.guides, view.result.current.tracking, view.result.current.occurrences, view.result.current.meta].every((q) => q.isSuccess)).toBe(true));
+    await act(async () => { await view.result.current.assign.mutateAsync({ serId: 8, onDate: '2026-09-19', zaccId: 3 }); });
+    await waitFor(() => {
+      expect(view.result.current.guides.data).toMatchObject({ version: 1 });
+      expect(view.result.current.tracking.data).toMatchObject({ version: 1 });
+      expect(view.result.current.occurrences.data).toMatchObject({ version: 1 });
+    });
+    expect(count('/guides')).toBe(2);
+    expect(count('/schedule/tracking')).toBe(2);
+    expect(count('/schedule/occurrences')).toBe(2);
+    expect(count('/meta')).toBe(1);
+  } finally { view.unmount(); client.clear(); get.mockRestore(); post.mockRestore(); }
 });
 
 /** 인자를 받는 `qk` 마다 **실제 키 한 벌**. 새 키가 늘면 여기에도 한 줄이 늘어야 한다. */
@@ -226,7 +277,9 @@ describe('S2-b 할 일 쓰기의 종속 조회', () => {
  */
 describe('무효화 표기', () => {
   const src = readFileSync(join(__dirname, 'queries.ts'), 'utf8');
-  const args = [...src.matchAll(/invalidateQueries\(\{\s*queryKey:\s*([^}]+?)\s*\}\)/g)].map((m) => m[1].trim());
+  // viewer predicate는 앞자락을 바꾸지 않는다. 키 검사와 사용자 격리 실행 회귀를 함께 유지한다.
+  const args = [...src.matchAll(/invalidateQueries\(\{\s*queryKey:\s*([^}]+?)\s*\}\)/g)]
+    .map((m) => m[1].replace(/,\s*predicate:\s*\w+\s*$/, '').trim());
 
   it('무효화는 family 앞자락이거나 정확한 한 키다 — 그 사이는 없다', () => {
     expect(args.length).toBeGreaterThan(20);

@@ -2323,15 +2323,21 @@ export function usePatchZoomAccount(): UseMutationResult<ZoomAcct, unknown, { id
 /**
  * 배정 — 회차 하나(onDate 를 주면)거나 규칙 전체. 겹침 판정은 서버가 한다.
  *
- * 부르는 화면이 **아직 없다.** 원문의 시작 자리는 §43 안내 할 일의 「계정 배정 →」인데,
- * 그 줄을 그리려면 §43 「매번」 목록이 지금의 PNOTI 행이 아니라 **그날 온라인 회차**여야 한다 —
- * 목록의 정체가 바뀌는 일이라 블록 G(수업 안내)에서 한다. 서버 경로와 서랍의 줌 변경 요청은
- * 이미 이 배정을 쓴다 (C48).
+ * §43 GuidesTodo는 목록이 준 serId/원래 onDate로 회차 하나만 배정한다.
+ * 배정 성공은 계정 칩·발송 gate와 수업 준비 상태도 바꾸지만 meta의 활성 후보는 바꾸지 않는다.
  */
 export function useAssignZoom(): UseMutationResult<ZoomAssignResult, unknown, ZoomAssign> {
   const invalidate = useZoomInvalidate();
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  const belongsToViewer = ({ queryKey }: { queryKey: readonly unknown[] }) =>
+    queryKey.at(-2) === 'viewer' && queryKey.at(-1) === viewerId;
   return useMutation({
     mutationFn: async (w) => (await api.post<ZoomAssignResult>('/zoom/assign', w)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.guides, predicate: belongsToViewer });
+      void qc.invalidateQueries({ queryKey: family.tracking, predicate: belongsToViewer });
+    },
     onSettled: invalidate,
   });
 }

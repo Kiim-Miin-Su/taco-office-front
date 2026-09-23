@@ -6142,9 +6142,12 @@ export interface components {
         ZoomAssignDto: {
             /** @description 어느 수업 규칙인가 */
             serId: number;
-            /** @description YYYY-MM-DD. 주면 그 회차만, 안 주면 규칙 전체 */
+            /**
+             * Format: date
+             * @description 원래 회차 키 YYYY-MM-DD. 생략은 규칙 전체, null은 거절
+             */
             onDate?: string;
-            /** @description 붙일 계정. null 이면 뗀다 */
+            /** @description 붙일 계정. null/생략은 배정 제거. 회차 override 제거는 고정 배정 상속으로 돌아갈 수 있다 */
             zaccId?: number | null;
         };
         ZoomAssignResultDto: {
@@ -16527,7 +16530,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code ZACC_INACTIVE | 겹침(EXCLUDE) */
+            /** @description code ZACC_INACTIVE | ZOOM_ASSIGN_NOT_ONLINE | ZOOM_ASSIGN_CANCELED | MONTH_CLOSED | RESOURCE_CONFLICT */
             409: {
                 headers: {
                     [name: string]: unknown;

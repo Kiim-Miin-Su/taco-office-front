@@ -1,18 +1,20 @@
 /** @file-guide
  * 목적: 개발명세서 v2 §43의 안내 할 일(한 번 안내와 매번 회차 안내)을 표시한다.
- * 책임/재사용: 서버 GuidesDto의 집계·pending·capability만 소비하고, 안내 본문 편집은 GuideWriter에 위임한다.
+ * 책임/재사용: 서버 집계·capability를 소비한다. 부모는 회차 키만, 같은 파일의 배정 Dialog는 선택·요청 잠금만 소유하며 공용 UI/훅을 재사용한다. 안내 본문은 GuideWriter에 위임한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
 'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { Guide, Guides, PerLessonNotice } from '@/api/types';
-import { useSendZoomNotice } from '@/api/queries';
+import { useAssignZoom, useMeta, useSendZoomNotice } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
+import { Label, Select } from '@/components/ui/Field';
+import { Dialog } from '@/components/ui/Overlay';
 import { Panel } from '@/components/ui/Panel';
 import { StatCard } from '@/components/ui/StatCard';
 import { Table, type Column } from '@/components/ui/Table';
@@ -27,8 +29,69 @@ const CHANNEL: Record<PerLessonNotice['channel'], string> = {
   app: '앱',
 };
 
-function PerLessonRow({ lesson, data }: { lesson: PerLessonNotice; data: Guides }) {
-  const parentDisabled = !data.deliveryCapabilities.parentExternal;
+type AssignmentTarget = Pick<PerLessonNotice, 'serId' | 'onDate'>;
+
+/** 한 회차의 선택만 소유한다. 목록 재조회/재투영으로 sourceOccurrenceId가 바뀌어도 초안을 유지한다. */
+function ZoomAssignmentDialog({ target, caption, initialZaccId, onClose }: {
+  target: AssignmentTarget; caption: string; initialZaccId: number | null; onClose: () => void;
+}) {
+  const id = useId();
+  const [selectedId, setSelectedId] = useState(initialZaccId === null ? '' : String(initialZaccId));
+  // 이 컴포넌트는 창이 열린 동안만 mount된다. 선택 입력은 부모 목록의 state를 바꾸지 않는다.
+  const meta = useMeta();
+  const assign = useAssignZoom();
+  const writing = useRef(false);
+  const accounts = meta.data?.zaccs ?? [];
+  const selected = accounts.find((account) => String(account.id) === selectedId);
+  const pending = assign.isPending;
+  const canSubmit = !pending && !meta.isPending && !meta.isError
+    && selected !== undefined && Number.isSafeInteger(selected.id) && selected.id > 0;
+  const close = () => { if (!writing.current) onClose(); };
+  const submit = () => {
+    if (writing.current || !canSubmit || !selected) return;
+    writing.current = true;
+    assign.mutate({ serId: target.serId, onDate: target.onDate, zaccId: selected.id }, {
+      onSuccess: () => { writing.current = false; onClose(); },
+      onSettled: () => { writing.current = false; },
+    });
+  };
+
+  return (
+    <Dialog open onClose={close} title="줌 계정 배정" footer={(
+      <>
+        <Button variant="ghost" onClick={close} disabled={pending}>취소</Button>
+        <Button onClick={submit} disabled={!canSubmit}>{pending ? '배정 중…' : '배정'}</Button>
+      </>
+    )}>
+      <p className="mb-2 text-[13px] font-bold">{caption}</p>
+      <p className="mb-3 text-[12px] text-fg-subtle">이 회차의 계정만 바꿉니다. 같은 시간에 쓰는 계정은 저장할 때 확인합니다.</p>
+      <Label htmlFor={id}>줌 계정</Label>
+      <Select id={id} data-dialog-autofocus value={selectedId} disabled={pending}
+        onChange={(event) => { if (!writing.current) setSelectedId(event.target.value); }}>
+        <option value="">계정을 고르세요</option>
+        {selectedId && !selected ? <option value={selectedId} disabled>선택한 계정 · 현재 후보에 없음</option> : null}
+        {accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
+      </Select>
+      {meta.isPending ? <p role="status" className="mt-2 text-[12px] text-fg-subtle">계정을 불러오는 중입니다.</p> : null}
+      {meta.isError ? <Banner tone="danger" className="mt-3">
+        <p>{apiMessage(meta.error)}</p>
+        <Button size="sm" className="mt-2" onClick={() => void meta.refetch()} disabled={meta.isFetching}>다시 시도</Button>
+      </Banner> : !meta.isPending && accounts.length === 0 ? (
+        <Banner tone="warning" className="mt-3">배정할 수 있는 활성 계정이 없습니다.</Banner>
+      ) : null}
+      {!meta.isPending && !meta.isError && selectedId && !selected ? (
+        <Banner tone="warning" className="mt-3">선택한 계정이 현재 후보에 없습니다. 다른 계정을 고르세요.</Banner>
+      ) : null}
+      {assign.isError ? <Banner tone="danger" className="mt-3">{apiMessage(assign.error)}</Banner> : null}
+    </Dialog>
+  );
+}
+
+function PerLessonRow({ lesson, parentExternal, parentReason, assignmentOpen, onAssign }: {
+  lesson: PerLessonNotice; parentExternal: boolean; parentReason?: string | null;
+  assignmentOpen: boolean; onAssign: (target: AssignmentTarget) => void;
+}) {
+  const parentDisabled = !parentExternal;
   /*
    * 강사는 **내부 사용자**라 실제로 보낼 수 있다 (C98 · F-63) — 외부 발송 계약(N-42)과 다른 길이다.
    * 설 수 있는지는 서버 `canSendTeacher` 하나가 정한다: 화면이 온라인·줌 계정·강사를 다시 보면
@@ -50,20 +113,21 @@ function PerLessonRow({ lesson, data }: { lesson: PerLessonNotice; data: Guides 
             {lesson.kindName ?? lesson.serTitle ?? '수업명 미정'} · {lesson.teacherName ?? '강사 미정'}
           </span>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           {lesson.zoomAssigned ? (
             <Chip tone="info" styleKind="solid">
               {lesson.zaccLabel ?? '줌 배정 완료'}
             </Chip>
           ) : (
-            <Chip tone="danger">계정 배정 필요</Chip>
+            <Button size="sm" variant="ghost" disabled={assignmentOpen} onClick={() => onAssign(lesson)}>계정 배정 →</Button>
           )}
+          {lesson.zoomAssigned ? <Button size="sm" variant="ghost" disabled={assignmentOpen} onClick={() => onAssign(lesson)}>계정 변경</Button> : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <Button
             size="sm"
             disabled
-            title={parentDisabled ? (data.deliveryCapabilities.reason ?? '학부모 외부 발송 미연결') : '발송 API 연결 전'}
+            title={parentDisabled ? (parentReason ?? '학부모 외부 발송 미연결') : '발송 API 연결 전'}
           >
             {lesson.parentDeliveryRecorded ? '학부모 기록 완료' : '학부모 안내'}
           </Button>
@@ -99,6 +163,16 @@ function PerLessonRow({ lesson, data }: { lesson: PerLessonNotice; data: Guides 
 
 export function GuidesTodo({ data }: { data: Guides }) {
   const [writing, setWriting] = useState<Guide | null>(null);
+  const [assigning, setAssigning] = useState<AssignmentTarget | null>(null);
+  const openAssignment = ({ serId, onDate }: AssignmentTarget) => {
+    if (assigning === null) setAssigning({ serId, onDate });
+  };
+  const selectedLesson = assigning
+    ? data.perLesson.find((lesson) => lesson.serId === assigning.serId && lesson.onDate === assigning.onDate)
+    : undefined;
+  const assignmentCaption = selectedLesson
+    ? `${selectedLesson.notices.map((notice) => notice.studentName).join(', ') || selectedLesson.serTitle || selectedLesson.kindName || '수업'} · ${hm(selectedLesson.startMin)} ~ ${hm(selectedLesson.endMin)}`
+    : '선택한 수업';
   const capabilityReason = data.deliveryCapabilities.reason ?? '외부 발송 수신처와 제공자 정책이 연결되지 않았습니다.';
 
   const guideColumns: Array<Column<Guide>> = [
@@ -178,6 +252,9 @@ export function GuidesTodo({ data }: { data: Guides }) {
       </div>
 
       {writing ? <GuideWriter guide={writing} onClose={() => setWriting(null)} /> : null}
+      {assigning ? <ZoomAssignmentDialog key={`${assigning.serId}:${assigning.onDate}`} target={assigning}
+        caption={assignmentCaption} initialZaccId={selectedLesson?.zaccId ?? null}
+        onClose={() => setAssigning(null)} /> : null}
 
       <section id="guide-once" aria-labelledby="guide-once-title">
         <Banner tone="neutral">
@@ -205,7 +282,9 @@ export function GuidesTodo({ data }: { data: Guides }) {
           ) : (
             <div className="space-y-2">
               {data.perLesson.map((lesson) => (
-                <PerLessonRow key={lesson.sourceOccurrenceId} lesson={lesson} data={data} />
+                <PerLessonRow key={`${lesson.serId}:${lesson.onDate}`} lesson={lesson}
+                  parentExternal={data.deliveryCapabilities.parentExternal} parentReason={data.deliveryCapabilities.reason}
+                  assignmentOpen={assigning !== null} onAssign={openAssignment} />
               ))}
             </div>
           )}
