@@ -28,7 +28,7 @@ vi.mock('@/store/useSession', () => ({ useSession: () => signIn }));
 import LoginPage from './page';
 import { ApiError } from '@/api/client';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllEnvs(); });
 
 const result: LoginResult = {
   accessToken: 'access-token',
@@ -50,20 +50,43 @@ const result: LoginResult = {
 };
 
 describe('LoginPage — 생성 로그인 계약', () => {
-  /**
-   * S8 — 시드 계정은 **개발 빌드에만** 남는다.
-   *
-   * 여기서 볼 수 있는 것은 **개발·시험 쪽뿐이다**(vitest 는 `NODE_ENV='test'` 로 돈다).
-   * 운영 번들에서 문자열이 실제로 사라졌는지는 **소스로는 알 수 없고 빌드를 봐야** 알기 때문에
-   * 그쪽은 `docs/script/bundle-secret-check.mjs` 가 `npm run build` 뒤에 본다
-   * (release 게이트의 「front 번들 비밀 검사」). 둘 중 하나만 있으면 반쪽이다 —
-   * 이 시험만 있으면 운영에 실려도 초록이고, 검사만 있으면 개발에서 사라져도 초록이다.
-   */
-  it('⭐ 개발 빌드에서는 시드 칩과 미리 채운 두 칸이 그대로다 — 운영은 번들 검사가 본다', () => {
+  it('운영에서도 다섯 아이디를 선택하며 비밀번호는 비워 두고 사용자가 쓴 값은 보존한다', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.resetModules();
+    const { default: ProductionLoginPage } = await import('./page');
+    const onRender = vi.fn();
+    const view = render(<Profiler id="login-production" onRender={onRender}><ProductionLoginPage /></Profiler>);
+    const emailInput = view.getByLabelText('이메일') as HTMLInputElement;
+    const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
+    expect(emailInput.value).toBe('');
+    expect(passwordInput.value).toBe('');
+
+    for (const [email, role] of [
+      ['ceo@tnacademy.kr', '대표'], ['admin@tnacademy.kr', '관리자'],
+      ['head@tnacademy.kr', '매니저'], ['coord@tnacademy.kr', '매니저'],
+      ['t02@tnacademy.kr', '강사'],
+    ]) {
+      onRender.mockClear();
+      fireEvent.click(view.getByRole('button', { name: `${email} · ${role}` }));
+      expect(emailInput.value).toBe(email);
+      expect(passwordInput.value).toBe('');
+      expect(onRender).toHaveBeenCalledOnce();
+      expect(onRender.mock.calls[0][1]).toBe('update');
+    }
+    fireEvent.change(passwordInput, { target: { value: 'user-entered-password' } });
+    fireEvent.click(view.getByRole('button', { name: 'ceo@tnacademy.kr · 대표' }));
+    expect(passwordInput.value).toBe('user-entered-password');
+    expect(get).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  // 운영 시드 비밀번호의 실제 번들 부재는 build 뒤 bundle-secret-check가 별도로 검사한다.
+  it('개발 빌드에서는 기존 두 칸 자동 채움과 아이디 선택을 유지한다', () => {
     const view = render(<LoginPage />);
     expect((view.getByLabelText('이메일') as HTMLInputElement).value).toBe('ceo@tnacademy.kr');
     expect((view.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('taco1234!');
-    expect(view.getByText('개발 시드 계정 — 눌러서 채웁니다')).toBeTruthy();
+    expect(view.getByText('로그인 아이디 — 눌러서 이메일을 채웁니다')).toBeTruthy();
     // 조건은 빌드 때 접히는 형태여야 한다 — 런타임 변수로 빼면 문자열이 번들에 남는다
     expect(process.env.NODE_ENV).not.toBe('production');
   });
