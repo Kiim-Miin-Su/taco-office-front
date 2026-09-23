@@ -262,7 +262,7 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
         </Panel>
       ) : null}
 
-      <Panel className="mt-4" title="회차 소비 기록" sub="wait 로 들어가고, 포인트는 규정에서 서버가 스냅샷합니다 — 초과는 막지 않습니다">
+      <Panel className="mt-4" title="회차 소비 기록" sub="기록은 승인 대기로 저장합니다. 포인트는 서비스별 규정을 따르며, 배정 포인트를 넘겨도 기록할 수 있습니다.">
         {cy.closed ? (
           <p className="px-1 py-4 text-center text-[13px] text-fg-subtle">닫힌 사이클에는 기록할 수 없습니다.</p>
         ) : (

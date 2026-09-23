@@ -7144,8 +7144,8 @@ export interface components {
             startMin?: number;
             /** @description kind='gpa' 회차 SER id */
             serId?: number;
-            /** @description 기록지 URL — 500자 이내 */
-            noteUrl?: string;
+            /** @description 선택 기록지 HTTP(S) URL — 원문 500자 이내. 생략/null/공백은 비움 */
+            noteUrl?: string | null;
         };
         GpaUseStateDto: {
             /**

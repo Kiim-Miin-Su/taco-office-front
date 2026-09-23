@@ -1,14 +1,16 @@
 /** @file-guide
- * 목적: §82 GPA 머리 다섯 칸 · 포인트 규정 칩 · 초과 경고 · 학생 카드 격자 회귀.
- * 책임/재사용: 실제 GpaPage/useGpaBoard 를 쓰고 셸의 다른 조회만 어댑터로 막는다.
+ * 목적: §82 GPA 머리·학생 카드·사이클과 S3-c 기록지 URL 입력/저장 전이 회귀.
+ * 책임/재사용: 실제 GpaPage·QueryClient·API 훅을 쓰며 Axios adapter로 응답만 통제한다. RequireAuth mock은 실제 권한 검증이 아니다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AxiosError, type AxiosAdapter } from 'axios';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { GpaBoard } from '@/api/types';
+import type { GpaBoard, GpaUse, GpaUseCreate } from '@/api/types';
+import { family } from '@/api/queries';
 import GpaPage from './page';
 
 vi.mock('next/navigation', () => ({
@@ -45,7 +47,12 @@ const board: GpaBoard = {
 };
 
 const originalAdapter = api.defaults.adapter;
-afterEach(() => { cleanup(); api.defaults.adapter = originalAdapter; });
+const writeClients: QueryClient[] = [];
+afterEach(() => {
+  cleanup();
+  for (const client of writeClients.splice(0)) client.clear();
+  api.defaults.adapter = originalAdapter;
+});
 
 function setup(seed: Partial<GpaBoard> = {}) {
   api.defaults.adapter = vi.fn(async (config) => (
@@ -163,4 +170,125 @@ it('승인 단추는 서버가 준 canApprove 를 따른다 — 적은 사람에
   expect(rows[1].textContent).toContain('적은 사람은 승인 못 함');
   // 되돌림·삭제는 자기도 할 수 있다 — 승인이 아니라 취소다
   expect(within(rows[1]).getByRole('button', { name: '삭제' })).toBeTruthy();
+});
+
+/** S3-c: 실제 페이지·mutation·무효화를 함께 실행하고 HTTP 응답만 통제한다. */
+async function setupUseWrite(rejectWrite = false) {
+  let latest: GpaBoard = { ...board };
+  let gets = 0;
+  const posts: GpaUseCreate[] = [];
+  const adapter: AxiosAdapter = async (config) => {
+    const response = (data: unknown, status = 200) => ({
+      config, status, statusText: String(status), headers: {}, data,
+    });
+    if (config.method === 'get' && config.url === '/gpa') {
+      gets += 1;
+      return response(latest);
+    }
+    if (config.method === 'post' && config.url === '/gpa/uses') {
+      const body = JSON.parse(config.data as string) as GpaUseCreate;
+      posts.push(body);
+      if (rejectWrite) {
+        throw new AxiosError('Bad Request', 'ERR_BAD_REQUEST', config, undefined,
+          response({ code: 'BAD_REQUEST', message: '기록지 URL을 확인해 주세요' }, 400));
+      }
+      const created: GpaUse = {
+        id: 31, studentId: body.studentId, svcKey: body.svcKey,
+        points: board.services.find((service) => service.key === body.svcKey)!.point,
+        onDate: body.onDate, startMin: body.startMin ?? null, serId: null,
+        coordName: '코디', noteUrl: body.noteUrl ?? null, state: 'wait',
+        approvedByName: null, approvedOn: null, canApprove: true,
+      };
+      latest = { ...latest, uses: [created], totalUses: latest.totalUses + 1 };
+      return response(created, 201);
+    }
+    throw new Error(`Unexpected GPA request: ${config.method} ${config.url}`);
+  };
+  api.defaults.adapter = adapter;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  writeClients.push(client);
+  const view = render(<QueryClientProvider client={client}><GpaPage /></QueryClientProvider>);
+  await view.findByLabelText('기록지 URL (선택)');
+  const panel = view.getByRole('heading', { name: '회차 소비 기록' }).closest('section')!;
+  const fields = {
+    student: within(panel).getByLabelText('학생') as HTMLSelectElement,
+    service: within(panel).getByLabelText('서비스') as HTMLSelectElement,
+    date: within(panel).getByLabelText('날짜 (사이클 안)') as HTMLInputElement,
+    start: within(panel).getByLabelText('시작 (선택)') as HTMLInputElement,
+    url: within(panel).getByLabelText('기록지 URL (선택)') as HTMLInputElement,
+  };
+  return {
+    view, panel, fields, client, posts, gets: () => gets,
+    receive(next: GpaBoard) { latest = next; },
+    fill(noteUrl: string) {
+      fireEvent.change(fields.student, { target: { value: '1' } });
+      fireEvent.change(fields.service, { target: { value: 'prj' } });
+      fireEvent.change(fields.date, { target: { value: '2026-08-10' } });
+      fireEvent.change(fields.start, { target: { value: '14:30' } });
+      fireEvent.change(fields.url, { target: { value: noteUrl } });
+    },
+    submit() { fireEvent.click(within(panel).getByRole('button', { name: '기록 (대기)' })); },
+  };
+}
+
+const url500 = 'https://example.test/' + 'a'.repeat(500 - 'https://example.test/'.length);
+it.each([
+  ['일반 URL 앞뒤 공백', '  https://example.test/record  ', 'https://example.test/record'],
+  ['원문502자/trim후500자', ` ${url500} `, url500],
+  ['빈 문자열', '', undefined],
+  ['trim-empty', ' \t\n ', undefined],
+] as const)('S3-c URL 입력 %s: 기존 trim/생략 payload와 입력5개를 보존한다', async (_name, raw, expected) => {
+  const w = await setupUseWrite();
+  expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(5);
+  expect(w.fields.url.hasAttribute('maxlength')).toBe(false); // raw 제한으로 trim 후500 허용을 줄이지 않는다.
+  w.fill(raw);
+  w.submit();
+  await waitFor(() => expect(w.posts).toHaveLength(1));
+  expect(w.posts[0]).toEqual({
+    cycleId: 3, studentId: 1, svcKey: 'prj', onDate: '2026-08-10', startMin: 870,
+    ...(expected === undefined ? {} : { noteUrl: expected }),
+  });
+  await waitFor(() => expect(w.fields.date.value).toBe(''));
+  expect(w.gets()).toBe(2);
+});
+
+it('S3-c 400은 서버 문장과 초안을 보존하고 정상 새 GET도 입력을 덮지 않는다', async () => {
+  const w = await setupUseWrite(true);
+  const raw = '  javascript:alert(1)  ';
+  w.fill(raw);
+  w.submit();
+  await within(w.panel).findByText('기록지 URL을 확인해 주세요');
+  await waitFor(() => expect(w.gets()).toBe(2)); // 기존 onSettled의 실패 후 재조회.
+  expect(w.fields.url.value).toBe(raw);
+  expect(w.fields.date.value).toBe('2026-08-10');
+  expect(w.fields.start.value).toBe('14:30');
+  expect(w.fields.student.value).toBe('1');
+  expect(w.fields.service.value).toBe('prj');
+  w.receive({ ...board, totalUses: 19 });
+  await act(async () => { await w.client.invalidateQueries({ queryKey: family.gpa }); });
+  await w.view.findByText('19회');
+  expect(w.gets()).toBe(3);
+  expect(w.posts).toHaveLength(1);
+  expect(within(w.panel).getByLabelText('기록지 URL (선택)')).toBe(w.fields.url);
+  expect(w.fields.url.value).toBe(raw);
+  expect(w.fields.date.value).toBe('2026-08-10');
+  expect(within(w.panel).getByText('기록지 URL을 확인해 주세요')).toBeTruthy();
+});
+
+it('S3-c 성공은 날짜/시각/URL만 비우고 새 GET의 기록지 있음을 링크 없이 표시한다', async () => {
+  const w = await setupUseWrite();
+  w.fill('  https://example.test/record  ');
+  fireEvent.click(w.view.getAllByRole('button', { name: '타임라인' })[4]);
+  expect(w.view.queryByText('기록지 있음')).toBeNull();
+  w.submit();
+  await w.view.findByText('기록지 있음');
+  await waitFor(() => expect(w.fields.url.value).toBe(''));
+  expect(w.gets()).toBe(2);
+  expect(w.posts).toHaveLength(1);
+  expect(w.fields.date.value).toBe('');
+  expect(w.fields.start.value).toBe('');
+  expect(w.fields.student.value).toBe('1');
+  expect(w.fields.service.value).toBe('prj');
+  expect(w.view.getByText('기록지 있음').closest('a')).toBeNull();
+  expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(5);
 });
