@@ -78,19 +78,24 @@ describe('§23 상담 입구 (C90 · N-44 · N-45)', () => {
     expect(view.queryByText('노현우')).toBeNull();
     expect(view.getByText('옛건')).toBeTruthy();
     expect(view.getByText('등록학생')).toBeTruthy();
-    // 담당 칩과 겹친다 — 담당 없음이 없으니 김범준 4 를 누르면 그대로 둘
-    fireEvent.click(view.getByRole('button', { name: '김범준 4' }));
+    // 담당 칩과 겹친다 — 담당 없음이 없으니 김범준을 누르면 그대로 둘. 담당 칩에는 원본대로 수가 없다(23-07)
+    fireEvent.click(view.getByRole('button', { name: '김범준' }));
     expect(view.getByText('옛건')).toBeTruthy();
-    fireEvent.click(view.getAllByRole('button', { name: '전체' })[0]);
+    // 유입 경로 「전체 N」(수가 있는 쪽)으로 경로 거르기를 푼다
+    fireEvent.click(view.getByRole('button', { name: /^전체 \d+$/ }));
     expect(view.getByText('노현우')).toBeTruthy();
   });
 
   it('카드에는 유입 경로와 서버가 만든 「상담 오늘」 칩이 붙고, 「사후 관리 임박」 타일과 경고는 서버 수 그대로다 — 이 화면이 답인 경고는 이동하지 않는다', async () => {
     const view = await setup();
-    expect(view.getByText('세종고 · 카카오채널')).toBeTruthy();
-    expect(view.getByText('세종고 · 전화')).toBeTruthy();
-    // 옛 건·등록 건은 경로가 없다 — 카드에 아무것도 안 붙는다
-    expect(view.getAllByText('세종고')).toHaveLength(2);
+    // 유입 경로는 카드 오른쪽 위 글자 배지다(23-13) — 이름은 서버 낱말. 부제는 원본대로 「학교 · 담당」
+    expect(view.getByRole('img', { name: '유입 경로 카카오채널' }).textContent).toBe('K');
+    expect(view.getByRole('img', { name: '유입 경로 전화' }).textContent).toBe('T');
+    expect(view.getAllByText('세종고 · 김범준')).toHaveLength(4);
+    // 옛 건·등록 건은 경로가 없다 — 배지가 서지 않는다
+    expect(view.getAllByRole('img', { name: /유입 경로/ })).toHaveLength(2);
+    // 접수 경과 「N일」은 원문에 없는 값이라 카드에서 뺐다
+    expect(view.queryByText('3일')).toBeNull();
     expect(view.getAllByText('상담 오늘').length).toBeGreaterThanOrEqual(1);
     expect(view.getByText('사후 관리 임박').previousSibling?.textContent).toBe('1');
     fireEvent.click(view.getByRole('button', { name: '상담 오늘·지남 1' }));

@@ -30,6 +30,7 @@ const result: EnrollResult = {
   invoiceSkipped: null, bookIssues: [], booksMissing: [{ kindKey: 'class', subKey: 'writing', label: 'Writing' }],
   guideDrafts: 1, notifiedTeachers: 1, notifiedStaff: 2,
   unavailable: [{ serId: 5, date: '2026-10-05', teacherId: 6, teacherName: '김재훈', startMin: 960, endMin: 1080, reason: '병원' }], stage: 'enrolled',
+  diagBookApplied: false, latestDiag: null,
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -38,7 +39,7 @@ const posted: Array<{ url?: string; body: unknown }> = [];
 const got: string[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; got.length = 0; });
 
-function setup(onPost: (url: string) => { status: number; data: unknown } = (url) => ({ status: 201, data: url.endsWith('/preview') ? result : { ...result, preview: false } })) {
+function setup(onPost: (url: string) => { status: number; data: unknown } = (url) => ({ status: 201, data: url.endsWith('/preview') ? result : { ...result, preview: false } }), forLead: Lead = lead) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') {
       posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
@@ -57,7 +58,7 @@ function setup(onPost: (url: string) => { status: number; data: unknown } = (url
   const onDone = vi.fn();
   const view = render(
     <QueryClientProvider client={client}>
-      <LeadEnrollDialog open lead={lead} onClose={onClose} onDone={onDone} />
+      <LeadEnrollDialog open lead={forLead} onClose={onClose} onDone={onDone} />
     </QueryClientProvider>,
   );
   return { view, onClose, onDone };
@@ -134,4 +135,48 @@ it('겹치면 서버가 거절한 문장을 그대로 보이고 누구와 부딪
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(posted).toHaveLength(3));
   expect(posted[2]!.body).toMatchObject({ allowSameName: true });
+});
+
+/**
+ * 23-20 — 「다른 사람」 체크는 **오류 코드**(`STUDENT_SAME_NAME`)로 연다. 사용자에게는 서버 문장(apiMessage)만 보인다.
+ * 예전에는 문장 안에 필드명 `allowSameName` 이 있는지로 열었다 — 서버가 문장에서 필드명·결정 번호를 걷어내는 순간
+ * 체크가 조용히 사라진다. 문장은 사람의 것이고, 갈래를 가르는 것은 코드다.
+ */
+it('동명이인 체크는 서버 문장에 필드명이 없어도 코드(STUDENT_SAME_NAME)로 열린다', async () => {
+  const { view } = setup(() => ({ status: 409, data: { code: 'STUDENT_SAME_NAME', message: '이름이 같은 학생이 1명 있습니다 — 다른 사람이면 아래를 체크하고 다시 보냅니다' } }));
+  const dialog = await fillOneLine(view);
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(view.getByText(/이름이 같은 학생이 1명/)).toBeTruthy());
+  expect(view.getByLabelText('동명이인입니다 — 다른 사람으로 새로 만듭니다')).toBeTruthy();
+  expect(view.queryByText('STUDENT_SAME_NAME')).toBeNull();
+});
+
+/**
+ * DQ1 (2026-09-25) — 상담 진단에서 담당자가 교재를 골라 두었으면 첫 줄의 교재 칸이 그 교재로 선다.
+ * 화면은 교재 키를 **빼서** 보내고(서버가 최신 진단 줄의 교재를 채운다) 「교재 미정」을 고르면 null 을 보내 기본값을 끈다.
+ * 교재를 고른 사람은 담당자다 — 화면은 점수로 교재를 고르지 않는다.
+ */
+it('상담 진단에서 고른 교재가 첫 줄의 기본값이다 — 키를 빼서 보내 서버가 채우고, 「교재 미정」은 null 로 기본값을 끈다 (DQ1)', async () => {
+  const withDiag: Lead = {
+    ...lead,
+    latestDiag: { id: 3, leadId: 18, english: 62, math: 71, interview: 58, takenOn: null, level: 'practice', levelLabel: 'Practice', bookId: 41, bookTitle: 'Writing Basics', note: null, byId: 3, byName: 'Grace', at: '2026-09-20T10:00:00+09:00' },
+  };
+  const { view } = setup((url) => ({ status: 201, data: url.endsWith('/preview') ? { ...result, diagBookApplied: true, bookIssues: [{ id: 1, libId: 41, studentId: 99, state: 'wait', stateLabel: '대기' }], booksMissing: [] } : result }), withDiag);
+  const dialog = await fillOneLine(view);
+  const book = within(dialog).getByLabelText('수업 1 교재') as HTMLSelectElement;
+  expect(book.value).toBe('');
+  expect(book.options[book.selectedIndex]!.textContent).toBe('상담에서 고른 교재 — Writing Basics');
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posted).toHaveLength(1));
+  const lineWithoutBook: Record<string, unknown> = { ...expectedBody.lines[0]! };
+  delete lineWithoutBook.libId;
+  expect(posted[0]!.body).toEqual({ ...expectedBody, lines: [lineWithoutBook] });
+  expect((posted[0]!.body as { lines: object[] }).lines[0]).not.toHaveProperty('libId');
+  const box = await view.findByLabelText('등록 미리보기');
+  expect(box.textContent).toContain('요청 1건 (상담에서 담당자가 고른 교재 포함)');
+  // 「교재 미정」 — 기본값을 쓰지 않는다는 명시라 null 을 보낸다
+  fireEvent.change(book, { target: { value: 'none' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posted).toHaveLength(2));
+  expect(posted[1]!.body).toEqual(expectedBody);
 });

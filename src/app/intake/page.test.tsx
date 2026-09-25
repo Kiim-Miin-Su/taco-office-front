@@ -5,10 +5,10 @@
  */
 
 import type { ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api } from '@/api/client';
+import { api, ApiError } from '@/api/client';
 import { opsQueryKey } from '@/api/queries';
 import type { Lead, Ops } from '@/api/types';
 import { FAILURE_SEARCH_LABEL } from '@/lib/intake-search';
@@ -42,8 +42,8 @@ async function setup() {
   const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   const view = render(<QueryClientProvider client={client}><IntakePage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '중단 지점 3' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '중단 지점 3' }));
+  await waitFor(() => expect(view.getByRole('button', { name: '등록 실패 내역' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '등록 실패 내역' }));
   vi.useFakeTimers();
   const input = view.getByRole('searchbox', { name: FAILURE_SEARCH_LABEL });
   return { ...view, input, get, client };
@@ -57,8 +57,9 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     expect(view.getByRole('status').textContent).toBe('검색 결과 3건 / 전체 3건');
     act(() => { vi.advanceTimersByTime(1); });
     expect(view.getByRole('status').textContent).toBe('검색 결과 1건 / 전체 3건');
-    expect(view.getByText('타 학원 등록')).toBeTruthy();
-    expect(view.getByRole('button', { name: '중단 지점 3' })).toBeTruthy();
+    // 사유 글은 실패 카드 안에 있다(오른쪽 막대 · 안내 상자의 같은 낱말과 섞지 않는다)
+    expect(within(view.getByRole('list', { name: '실패한 상담' })).getByText('타 학원 등록')).toBeTruthy();
+    expect(view.getByRole('button', { name: '등록 실패 내역' })).toBeTruthy();
     expect(view.get).toHaveBeenCalledTimes(1);
     expect(view.get).toHaveBeenCalledWith('/ops', { params: {} });
     expect(view.client.getQueryData(opsQueryKey('anonymous', false))).toEqual(response);
@@ -84,7 +85,7 @@ describe('§24 검색 기능 통합 — 실제 useOps 캐시 소비', () => {
     act(() => { vi.advanceTimersByTime(260); });
     fireEvent.click(view.getByRole('button', { name: '단계 보드' }));
     expect(view.queryByRole('searchbox')).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: '중단 지점 3' }));
+    fireEvent.click(view.getByRole('button', { name: '등록 실패 내역' }));
     expect((view.getByRole('searchbox') as HTMLInputElement).value).toBe('장서우');
     expect(view.getByRole('status').textContent).toBe('검색 결과 1건 / 전체 3건');
     expect(view.get).toHaveBeenCalledTimes(1);
@@ -133,7 +134,7 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     const view = render(<QueryClientProvider client={client}><IntakePage /></QueryClientProvider>);
     // 「등록률」은 데이터 없이도 서므로 기다림의 표지로 못 쓴다 — 서버가 준 칸을 기다린다
-    await waitFor(() => expect(view.getByRole('button', { name: '김범준 12' })).toBeTruthy());
+    await waitFor(() => expect(view.getByRole('button', { name: '김범준' })).toBeTruthy());
     return view;
   }
 
@@ -164,15 +165,25 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
       expect(text).toContain(w);
     }
     // 깔때기 안은 › 셋, 등록 전→후 경계는 ⇒ 하나, 결과끼리는 | 하나
-    const marks = [...view.container.querySelectorAll('[aria-hidden]')].map((n) => n.textContent);
+    // 경고 기호 · 필터 칩의 글자 배지도 aria-hidden 이라 퍼널 화살표 기호만 골라 본다
+    const marks = [...view.container.querySelectorAll('[aria-hidden]')].map((n) => n.textContent).filter((t) => ['›', '⇒', '|'].includes(t ?? ''));
     expect(marks).toEqual(['›', '›', '›', '⇒', '|']);
   });
 
-  it('담당 칩은 서버가 센 사람만 세우고 화면은 「전체」만 붙인다', async () => {
+  it('담당 칩은 서버가 센 사람만 세우고 화면은 「전체」만 붙인다 — 원본대로 담당 칩에는 수가 없고 유입 경로 「전체」에 있다 (23-07)', async () => {
     const view = await head(full);
-    expect(view.getByRole('button', { name: '전체 4' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '김범준 12' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '담당 없음 6' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '전체' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '김범준' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '담당 없음' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '김범준 12' })).toBeNull();
+    expect(view.getByRole('button', { name: `전체 ${response.leads.length}` })).toBeTruthy();
+  });
+
+  it('경고는 서버 차례대로 서고 앞머리 기호만 화면이 붙인다 — 기호는 읽지 않는다 (23-08)', async () => {
+    const view = await head(full);
+    const unpaid = view.getByRole('button', { name: '미수 6명 ₩4,006,600' });
+    expect(unpaid.textContent).toBe('💰미수 6명 ₩4,006,600');
+    expect(view.getByRole('button', { name: '스케줄 미생성 9' }).textContent).toBe('📅스케줄 미생성 9');
   });
 
   it('0 인 경고는 서지 않고, 남은 경고는 서버 문장 그대로 선다', async () => {
@@ -200,7 +211,7 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
     // 보드 칸 여섯이 서버 이름 그대로 선다
     for (const f of renamed.funnel) expect(text).toContain(f.label);
     // 실패 지정 select 의 갈래도 같은 자리에서 온다
-    fireEvent.click(view.getByRole('button', { name: /중단 지점/ }));
+    fireEvent.click(view.getByRole('button', { name: '등록 실패 내역' }));
     expect(view.container.textContent).toContain('1차 후 미진행(서버)');
   });
 
@@ -217,5 +228,73 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
     const view = await head({ ...full, alerts: full.alerts.map((a) => ({ ...a, count: 0 })) });
     expect(view.queryByRole('button', { name: /미수/ })).toBeNull();
     expect(view.getByText('등록률')).toBeTruthy();
+  });
+});
+
+/**
+ * 24-02 (P1) — 원본 §24 「어느 단계에서 멈췄는지」 분류 카드. 표가 아니라 카드이고, **누르면 그 분류만 남는다**.
+ * 카드의 낱말과 순서는 서버의 `intakeHead.stops`, 건수는 검색이 적용된 실패 건을 기존 `stopRows` 로 묶은 것이다.
+ * 0 건 분류도 선다(칩 줄과 같은 규약 — 분류는 어휘다). 「분류 안 됨」은 그런 건이 있을 때만 선다.
+ */
+describe('§24 분류 카드 — 누르면 그 분류만 (24-02)', () => {
+  const cardNames = (group: HTMLElement) => within(group).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+  const listed = (view: Awaited<ReturnType<typeof setup>>) =>
+    within(view.getByRole('list', { name: '실패한 상담' })).getAllByRole('listitem').map((li) => li.querySelector('b')?.textContent);
+
+  it('전체 + 서버 네 분류(0 건도) + 분류 안 됨 카드가 서고, 누르면 그 분류의 실패 카드만 남으며 다시 누르면 전체로 돌아간다', async () => {
+    const view = await setup();
+    const group = view.getByRole('group', { name: '중단 지점으로 거르기' });
+    expect(cardNames(group)).toEqual([
+      '전체 3건', '상담 예약 전 이탈 0건', '1차 상담 전 이탈 0건', '1차 후 미진행 2건', '2차 후 미등록 0건', '분류 안 됨 1건',
+    ]);
+    expect(within(group).getByRole('button', { name: '전체 3건', pressed: true })).toBeTruthy();
+    expect(listed(view)).toEqual(['장서우', '신유나', '윤도현']);
+
+    fireEvent.click(within(group).getByRole('button', { name: '1차 후 미진행 2건' }));
+    expect(within(group).getByRole('button', { name: '1차 후 미진행 2건', pressed: true })).toBeTruthy();
+    expect(listed(view)).toEqual(['장서우', '신유나']);
+
+    fireEvent.click(within(group).getByRole('button', { name: '분류 안 됨 1건' }));
+    expect(listed(view)).toEqual(['윤도현']);
+
+    // 같은 카드를 한 번 더 누르면 「전체」로 — ChipRow 와 같은 규약
+    fireEvent.click(within(group).getByRole('button', { name: '분류 안 됨 1건' }));
+    expect(within(group).getByRole('button', { name: '전체 3건', pressed: true })).toBeTruthy();
+    expect(listed(view)).toHaveLength(3);
+    // 0 건 분류를 누르면 목록 대신 한 줄로 말한다
+    fireEvent.click(within(group).getByRole('button', { name: '2차 후 미등록 0건' }));
+    expect(view.getByText('이 분류에 해당하는 실패 건이 없습니다')).toBeTruthy();
+    expect(view.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('검색과 분류는 겹쳐 걸린다 — 카드 수는 검색 결과를 센다', async () => {
+    const view = await setup();
+    fireEvent.change(view.input, { target: { value: '역삼' } });
+    act(() => { vi.advanceTimersByTime(260); });
+    const group = view.getByRole('group', { name: '중단 지점으로 거르기' });
+    expect(cardNames(group)).toEqual([
+      '전체 1건', '상담 예약 전 이탈 0건', '1차 상담 전 이탈 0건', '1차 후 미진행 1건', '2차 후 미등록 0건', '분류 안 됨 0건',
+    ]);
+    fireEvent.click(within(group).getByRole('button', { name: '1차 후 미진행 1건' }));
+    expect(listed(view)).toEqual(['신유나']);
+  });
+
+  it('실패 카드를 누르면 같은 상세 서랍이 열려 되살리기가 바로 보인다 (23-14)', async () => {
+    const view = await setup();
+    const list = view.getByRole('list', { name: '실패한 상담' });
+    fireEvent.click(within(list).getByRole('button', { name: /장서우/ }));
+    const drawer = view.getByRole('dialog', { name: /장서우/ });
+    expect(within(drawer).getByRole('button', { name: '단계로 되살리기' })).toBeTruthy();
+  });
+});
+
+describe('조회 실패 문장 — 서버 말 그대로 (23-20)', () => {
+  it('무결성 오류를 권한 오류로 바꿔 말하지 않는다', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(new ApiError('INTERNAL', '상담 데이터 무결성 오류', 500));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const view = render(<QueryClientProvider client={client}><IntakePage /></QueryClientProvider>);
+    await waitFor(() => expect(view.getByText('상담 데이터 무결성 오류')).toBeTruthy());
+    expect(view.queryByText(/매니저 이상만/)).toBeNull();
+    expect(view.queryByText('INTERNAL')).toBeNull();
   });
 });

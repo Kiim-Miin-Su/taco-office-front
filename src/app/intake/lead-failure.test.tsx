@@ -21,14 +21,14 @@ vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { child
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
 const base: Lead = {
-  id: 1, name: '명시값학생', school: '언주중', ownerName: 'Grace', reason: '연락 두절',
+  id: 1, name: '기록있음학생', school: '언주중', ownerName: 'Grace', reason: '연락 두절',
   stage: 'failed', stopAt: 'after_first', ageDays: 0, createdAt: '2026-09-10', studentId: null, ownerId: null,
   failFrom: 'second', revivalStage: 'second', revivalSource: 'explicit',
   nextStages: [], touches: [],
 };
 const leads: Lead[] = [
   base,
-  { ...base, id: 2, name: '레거시학생', failFrom: null, revivalStage: null, revivalSource: null },
+  { ...base, id: 2, name: '예전건학생', failFrom: null, revivalStage: null, revivalSource: null },
   { ...base, id: 3, name: '진행중학생', stage: 'second', stopAt: null, failFrom: null, revivalStage: null, revivalSource: null },
   { ...base, id: 4, name: '등록학생', stage: 'enrolled', stopAt: null, failFrom: null, revivalStage: null, revivalSource: null },
 ];
@@ -54,7 +54,8 @@ describe('§24 실패 지정 — 진행 건', () => {
   it('중단 지점 없이는 확정 못 하고, 2단 확정으로만 서버 4어휘 body를 보낸다', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
-    expect(view.getByText(/현재 단계 「2차 상담」를 서버가 명시값/)).toBeTruthy();
+    // 실패 전 단계를 기록에 남긴다는 뜻만 업무 문장으로 — 필드명(fail_from)을 보이지 않는다 (23-20)
+    expect(view.getByText(/지금 단계 「2차 상담」 — 실패로 분류해도 기록에 남아/)).toBeTruthy();
 
     const confirm = view.getByRole('button', { name: '실패로 분류' }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true); // 지점 선택 전
@@ -73,35 +74,36 @@ describe('§24 실패 지정 — 진행 건', () => {
     await waitFor(() => expect(view.get).toHaveBeenCalledTimes(2)); // 성공 후 재조회
   });
 
-  it('등록 건은 입력 없이 ENROLLED_LOCKED 안내만 보여준다', async () => {
+  it('등록 건은 입력 없이 「실패로 바꿀 수 없다」 안내만 보여준다 — 오류 코드는 보이지 않는다', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /등록학생/ }));
-    expect(view.getByText(/실패 전환은 서버가 막습니다 \(ENROLLED_LOCKED\)/)).toBeTruthy();
+    expect(view.getByText('등록 완료된 건입니다 — 실패로 바꿀 수 없습니다.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('ENROLLED_LOCKED');
     expect(view.queryByRole('button', { name: '실패로 분류' })).toBeNull();
-    expect(view.queryByRole('button', { name: '되살리기' })).toBeNull();
+    expect(view.queryByRole('button', { name: '단계로 되살리기' })).toBeNull();
   });
 });
 
 describe('§24 되살리기 — 판정은 서버 응답만 소비', () => {
   it('명시값 건은 판정 근거를 보이고, 지정 없이 2단 되살리기로 빈 body를 보낸다', async () => {
     const view = await setup();
-    fireEvent.click(view.getByRole('button', { name: /명시값학생/ }));
-    expect(view.getByText(/실패 때 서버가 기록한 명시값/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: /기록있음학생/ }));
+    expect(view.getByText(/실패로 분류할 때 남긴 단계/)).toBeTruthy();
 
-    fireEvent.click(view.getByRole('button', { name: '되살리기' }));
+    fireEvent.click(view.getByRole('button', { name: '단계로 되살리기' }));
     fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 되살리기' }));
     await waitFor(() => expect(view.post).toHaveBeenCalledWith('/ops/leads/1/resume', {}));
   });
 
   it('미분류 레거시 건은 단계를 지정해야만 되살리기가 풀린다 — 추정 이관 없음', async () => {
     const view = await setup();
-    fireEvent.click(view.getByRole('button', { name: /레거시학생/ }));
-    expect(view.getByText(/미분류 — 실패 전 단계 이력이 없는 레거시 건/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: /예전건학생/ }));
+    expect(view.getByText(/미분류 — 실패 전 단계 기록이 없는 예전 건입니다/)).toBeTruthy();
 
-    const confirm = view.getByRole('button', { name: '되살리기' }) as HTMLButtonElement;
+    const confirm = view.getByRole('button', { name: '단계로 되살리기' }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
     fireEvent.change(view.getByLabelText(/되살릴 단계 \(지정 필수\)/), { target: { value: 'hold' } });
-    fireEvent.click(view.getByRole('button', { name: '되살리기' }));
+    fireEvent.click(view.getByRole('button', { name: '단계로 되살리기' }));
     fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 되살리기' }));
     await waitFor(() => expect(view.post).toHaveBeenCalledWith('/ops/leads/2/resume', { to: 'hold' }));
   });
@@ -117,10 +119,76 @@ describe('등록 확정 입구 (C91 · A-05)', () => {
     expect(within(dialog).getByLabelText('이름')).toHaveProperty('value', '진행중학생');
     expect(within(dialog).getByLabelText('학교')).toHaveProperty('value', '언주중');
     fireEvent.click(within(dialog).getByRole('button', { name: '취소 (Esc)' }));
-    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    // 등록 확정 창만 닫힌다 — 카드 상세 서랍(역시 dialog)은 남는다 (23-14)
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '등록 확정 — 진행중학생' })).toBeNull());
     // 등록 건 — 입구 없음
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
     fireEvent.click(view.getByRole('button', { name: /등록학생/ }));
     expect(view.queryByRole('button', { name: '등록 확정' })).toBeNull();
+  });
+});
+
+/**
+ * 23-20 (P0) — 상세에 개발 문장이 보이지 않는다.
+ * 절 번호(§) · 결정 번호(N-/A-/D-R) · 필드명(fail_from) · 오류 코드(ENROLLED_LOCKED)는 사람의 낱말이 아니다.
+ * 화면에 적힌 글과 마우스를 올리면 뜨는 title 둘 다 본다 — 둘 다 사용자에게 보인다.
+ */
+const INTERNAL = /§|N-\d|A-\d|D-R\d|fail_from|ENROLLED_LOCKED|서버 전이표|명시값|레거시|추정 이관/;
+const visibleText = () => [
+  document.body.textContent ?? '',
+  ...[...document.body.querySelectorAll('[title]')].map((n) => n.getAttribute('title') ?? ''),
+].join('\n');
+
+describe('상세 서랍의 사용자 글 (23-20 · P0)', () => {
+  it.each(['진행중학생', '기록있음학생', '예전건학생', '등록학생'])('%s 상세에 절 번호·결정 번호·필드명·오류 코드가 없다', async (name) => {
+    const view = await setup();
+    fireEvent.click(view.getByRole('button', { name: new RegExp(name) }));
+    expect(view.getByRole('dialog', { name: new RegExp(name) })).toBeTruthy();
+    expect(visibleText()).not.toMatch(INTERNAL);
+  });
+
+  it('등록 확정 창의 청구서 체크 글에도 절 번호가 없다', async () => {
+    const view = await setup();
+    fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
+    fireEvent.click(view.getByRole('button', { name: '등록 확정' }));
+    const dialog = await view.findByRole('dialog', { name: '등록 확정 — 진행중학생' });
+    expect(within(dialog).getByLabelText('첫 달 수업료 청구서를 함께 냅니다')).toBeTruthy();
+    expect(visibleText()).not.toMatch(INTERNAL);
+  });
+});
+
+/**
+ * 23-14 (P1) — 카드를 누르면 동작이 **첫 화면 안**에 뜬다.
+ * 예전에는 보드 아래 패널(1600×1000 에서 y≈960)이라 누른 뒤 한참 내려가야 했다. 공용 `Drawer` 로 옮겼다.
+ */
+describe('카드 → 상세 서랍 (23-14 · P1)', () => {
+  it('진행 건 카드를 누르면 서랍이 열리고 등록 확정·실패 분류·접촉 원장이 그 안에 있으며, Esc 로 닫힌다', async () => {
+    const view = await setup();
+    fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
+    const drawer = view.getByRole('dialog', { name: /진행중학생 — 2차 상담/ });
+    expect(within(drawer).getByRole('button', { name: '등록 확정' })).toBeTruthy();
+    expect(within(drawer).getByRole('button', { name: '실패로 분류' })).toBeTruthy();
+    expect(within(drawer).getByRole('region', { name: '접촉 원장' })).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(view.queryByRole('dialog')).toBeNull();
+  });
+
+  it('실패 건 서랍에는 되살리기가 있고 「닫기」로 닫는다', async () => {
+    const view = await setup();
+    fireEvent.click(view.getByRole('button', { name: /기록있음학생/ }));
+    const drawer = view.getByRole('dialog', { name: /기록있음학생/ });
+    expect(within(drawer).getByRole('button', { name: '단계로 되살리기' })).toBeTruthy();
+    fireEvent.click(within(drawer).getByRole('button', { name: '닫기' }));
+    expect(view.queryByRole('dialog')).toBeNull();
+  });
+
+  it('등록 확정 창 위에서 Esc 는 그 창만 닫고 서랍은 남는다', async () => {
+    const view = await setup();
+    fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
+    fireEvent.click(view.getByRole('button', { name: '등록 확정' }));
+    await view.findByRole('dialog', { name: '등록 확정 — 진행중학생' });
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '등록 확정 — 진행중학생' })).toBeNull());
+    expect(view.getByRole('dialog', { name: /진행중학생 — 2차 상담/ })).toBeTruthy();
   });
 });

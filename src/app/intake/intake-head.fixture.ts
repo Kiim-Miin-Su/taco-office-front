@@ -48,4 +48,12 @@ export const INTAKE_HEAD_FIXTURE: IntakeHead = {
   ],
   followUpSoon: 0,
   funnelSince: null,
+  // wave 3 (24-05) — 실패 사유 분류 다섯(어휘 · 0 이어도 선다). 「분류 안 됨」은 그런 건이 있을 때만 서버가 붙인다
+  failReasons: [
+    { key: 'unreachable', label: '연락 두절', count: 0, names: [] },
+    { key: 'other_academy', label: '타 학원 등록', count: 0, names: [] },
+    { key: 'schedule', label: '일정 안 맞음', count: 0, names: [] },
+    { key: 'cost', label: '비용', count: 0, names: [] },
+    { key: 'timing', label: '시기 안 맞음', count: 0, names: [] },
+  ],
 };

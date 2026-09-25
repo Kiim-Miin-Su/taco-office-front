@@ -11,6 +11,8 @@
  * 서버가 **같은 트랜잭션을 돌리고 되돌린 미리보기**로 준다(D-R37) — 화면이 요일을 세거나 단가를 곱하면 미리 본 값과 실제가 갈린다.
  * 겹치면 서버가 409 로 거절하고(A-06) 그때 「누구와」는 기존 `fetchConflicts` 로 한 번 묻는다(C84-b). 코드표(종류·과목·강사·강의실·학생)는
  * `GET /meta`, 교재는 `GET /books` — 창을 열 때만 읽는다. 모달은 공용 `Dialog`, 요일 단추는 `SessionEditor` 와 같은 모양이다.
+ * DQ1 (2026-09-25): 상담 진단에서 담당자가 교재를 골라 두었으면 **첫 줄의 교재 칸이 그 교재로** 선다 — 화면은 교재 키를 빼서 보내고
+ * 서버가 그 상담 건의 최신 진단 줄에서 교재를 채운다(미리보기에 그대로 보인다). 「교재 미정」을 고르면 null 을 보내 기본값을 쓰지 않는다.
  */
 'use client';
 import { useEffect, useId, useState, type ReactNode } from 'react';
@@ -22,6 +24,9 @@ import { KO_DOW, buildRrule, conflictLines, hhmm, parseHm, todayKst, unavailable
 import { won } from '@/lib/money';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+/** 서버 거절 코드 — 공용 client 가 ApiError 로 정규화한다. 정규화 전 모양도 받아 둔다 */
+const errorCode = (e: unknown): string | null =>
+  e instanceof ApiError ? e.code : (e as { response?: { data?: { code?: string } } })?.response?.data?.code ?? null;
 const md = (iso: string) => `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
 
 /** 배치안 줄의 화면 초안 — 보내기 전 낱말이다. 규칙·분은 보낼 때 만든다 */
@@ -37,9 +42,15 @@ interface LineDraft {
   roomId: string;
   sessions: string;
   libId: string;
+  /** 상담 배치안의 「주 N회」 — 요일 칸의 안내일 뿐 보내지 않는다(요일은 사람이 고른다 · 23-16) */
+  perWeek?: number;
 }
 let seq = 0;
 const newLine = (): LineDraft => ({ key: ++seq, kindKey: '', subKey: '', mode: 'offline', days: [], start: '16:00', end: '17:00', teacherId: '', roomId: '', sessions: '', libId: '' });
+/** 상담 배치안 줄 → 등록 줄 초안 — 종류 · 과목 · 강사만 옮긴다. 요일 · 시각은 사람이 다시 잡는다(원본 §24 「요일·시간만 다시 잡으면 됩니다」) */
+const fromPlan = (p: NonNullable<Lead['plan']>[number]): LineDraft => ({
+  ...newLine(), kindKey: p.kindKey, subKey: p.subKey ?? '', teacherId: p.teacherId ? String(p.teacherId) : '', perWeek: p.perWeek,
+});
 
 export interface LeadEnrollDialogProps {
   open: boolean;
@@ -55,6 +66,8 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   // 교재 목록도 창을 열 때만 — 카드를 고르기만 해도 /books 를 부르면 상담 화면이 값을 치른다 (C50 의 교훈 · 회귀가 GET 수를 센다)
   const books = useBooks(open);
   const write = useEnrollLead();
+  /** 상담 진단에서 담당자가 고른 교재 — 서버가 준 latestDiag 그대로. 없으면 교재 칸은 예전과 같다 */
+  const diagBook = lead.latestDiag?.bookId ? { id: lead.latestDiag.bookId, title: lead.latestDiag.bookTitle ?? `교재 #${lead.latestDiag.bookId}` } : null;
   const [existing, setExisting] = useState(false);
   const [studentId, setStudentId] = useState('');
   const [name, setName] = useState('');
@@ -70,15 +83,25 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   const [preview, setPreview] = useState<EnrollResult | null>(null);
   const [previewOf, setPreviewOf] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  /** 거절의 **코드** — 갈래(겹침 설명 · 동명이인 체크)는 이것으로 가른다. 사람에게는 `err`(서버 문장)만 보인다 (23-20) */
+  const [errCode, setErrCode] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<string[]>([]);
+
+  // 상담 배치안(23-16) — 재조회마다 새 배열이라 **내용**으로 비교한다(열린 창의 입력을 재조회가 지우지 않게)
+  const planKey = JSON.stringify((lead.plan ?? []).map((p) => [p.kindKey, p.subKey, p.teacherId, p.perWeek]));
+  const planLines = lead.plan ?? [];
+  const fromPlanCount = planLines.length;
 
   // 열 때마다 비운다 — 지난 창의 줄이 남아 있으면 그대로 등록된다
   useEffect(() => {
     if (!open) return;
-    setExisting(false); setStudentId(''); setName(lead.name); setGrade(''); setSchool(lead.school ?? '');
-    setStartedOn(todayKst()); setLines([newLine()]); setIssueInvoice(true); setAllowSameName(false); setMemo('');
-    setPreview(null); setPreviewOf(''); setErr(null); setConflicts([]);
-  }, [open, lead.id, lead.name, lead.school]);
+    // 상담 카드에 적어 둔 학년이 있으면 그대로 채운다 — 같은 사실을 두 번 적지 않게 (23-10). 없으면 빈 칸
+    setExisting(false); setStudentId(''); setName(lead.name); setGrade(lead.grade ?? ''); setSchool(lead.school ?? '');
+    // 배치안이 있으면 그 줄로 채운다(23-16 · §24 「당시 배치안이 그대로 채워지고」) — 없으면 빈 줄 하나
+    setStartedOn(todayKst()); setLines(planLines.length ? planLines.map(fromPlan) : [newLine()]); setIssueInvoice(true); setAllowSameName(false); setMemo('');
+    setPreview(null); setPreviewOf(''); setErr(null); setErrCode(null); setConflicts([]);
+    // planLines 는 planKey 로 대신 본다 — 배열 참조가 바뀌어도 내용이 같으면 다시 비우지 않는다
+  }, [open, lead.id, lead.name, lead.school, lead.grade, planKey]);
 
   // 강사 후보는 SessionEditor 와 같이 구성원 전부다 — 자습 감독처럼 강사가 아니어도 맡는 수업이 있다 (C74) · role 을 화면이 비교하지 않는다 (D-R39)
   const teachers = meta.data?.staff ?? [];
@@ -93,14 +116,17 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
     if (!lines.length) return { issue: '배치안 줄이 하나는 있어야 합니다' };
     if (issueInvoice && !ISO.test(dueOn)) return { issue: '청구서를 함께 내려면 납부 기한을 고르세요' };
     const out: LeadEnroll['lines'] = [];
-    for (const l of lines) {
+    for (const [i, l] of lines.entries()) {
       if (!l.kindKey) return { issue: '줄마다 종류를 고르세요' };
       const s = parseHm(l.start); const e = parseHm(l.end);
       if (s === null || e === null || s >= 1440) return { issue: '시각은 HH:MM 입니다' };
+      // 첫 줄이 「상담에서 고른 교재」 그대로면 키를 뺀다 — 서버가 최신 진단 줄의 교재를 채운다(DQ1). 'none' 은 「교재 미정」 명시
+      const fromDiag = i === 0 && diagBook !== null && l.libId === '';
+      const libId = l.libId && l.libId !== 'none' ? Number(l.libId) : null;
       out.push({
         kindKey: l.kindKey, subKey: l.subKey || null, mode: l.mode, rrule: buildRrule(l.days), startMin: s, endMin: e,
         teacherId: l.teacherId ? Number(l.teacherId) : null, roomId: l.roomId ? Number(l.roomId) : null, title: null,
-        sessions: l.sessions ? Number(l.sessions) : null, libId: l.libId ? Number(l.libId) : null,
+        sessions: l.sessions ? Number(l.sessions) : null, ...(fromDiag ? {} : { libId }),
       });
     }
     return {
@@ -119,8 +145,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   const canEnroll = canPreview && preview !== null && previewOf === bodyKey;
 
   /** 409 겹침이면 누구와 부딪혔는지 한 번 묻는다 — 막는 것은 서버이고 이것은 설명이다 (C84-b) */
-  const explainConflict = async (body: LeadEnroll, e: unknown) => {
-    const code = e instanceof ApiError ? e.code : (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
+  const explainConflict = async (body: LeadEnroll, code: string | null) => {
     if (code !== 'RESOURCE_CONFLICT') { setConflicts([]); return; }
     const lines: string[] = [];
     for (const l of body.lines) {
@@ -144,13 +169,17 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   const run = (kind: 'preview' | 'enroll') => {
     if (!('body' in built)) return;
     const body = built.body;
-    setErr(null); setConflicts([]);
+    setErr(null); setErrCode(null); setConflicts([]);
     write.mutate({ id: lead.id, kind, body }, {
       onSuccess: (r) => {
         if (kind === 'preview') { setPreview(r); setPreviewOf(JSON.stringify(body)); }
         else { onDone?.(r); onClose(); }
       },
-      onError: (e) => { setPreview(null); setErr(apiMessage(e)); void explainConflict(body, e); },
+      onError: (e) => {
+        const code = errorCode(e);
+        setPreview(null); setErr(apiMessage(e)); setErrCode(code);
+        void explainConflict(body, code);
+      },
     });
   };
 
@@ -202,6 +231,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
 
         {/* 배치안 줄 — 줄마다 시간표 규칙 하나 + 등록 한 줄 (+ 교재) */}
         <section aria-label="배치안" className="flex flex-col gap-2">
+          {fromPlanCount ? <p className="text-[11.5px] text-fg-2">상담 배치안 {fromPlanCount}줄이 채워졌습니다 — 요일·시간만 다시 잡으면 됩니다.</p> : null}
           {lines.map((l, i) => (
             <div key={l.key} className="rounded-lg border border-line p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -241,7 +271,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
               </div>
               <div className="mt-2 grid grid-cols-4 gap-2">
                 <div className="col-span-2">
-                  <Label hint="안 고르면 시작일 하루">요일</Label>
+                  <Label hint={l.perWeek ? `배치안 주 ${l.perWeek}회` : '안 고르면 시작일 하루'}>요일</Label>
                   <div className="mt-1 flex gap-1">
                     {KO_DOW.map((d, di) => (
                       <button key={d} type="button" aria-pressed={l.days.includes(di)} aria-label={`수업 ${i + 1} ${d}요일`} onClick={() => toggleDay(l.key, di)} disabled={pending}
@@ -261,7 +291,12 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                   <div className="flex gap-1">
                     <Input aria-label={`수업 ${i + 1} 회차`} type="number" min={1} value={l.sessions} onChange={(e) => patch(l.key, { sessions: e.target.value })} disabled={pending} placeholder="회차" className="w-16" />
                     <Select aria-label={`수업 ${i + 1} 교재`} value={l.libId} onChange={(e) => patch(l.key, { libId: e.target.value })} disabled={pending}>
-                      <option value="">교재 미정</option>
+                      {i === 0 && diagBook ? (
+                        <>
+                          <option value="">상담에서 고른 교재 — {diagBook.title}</option>
+                          <option value="none">교재 미정</option>
+                        </>
+                      ) : <option value="">교재 미정</option>}
                       {(books.data?.items ?? []).filter((b) => !l.subKey || !b.subKey || b.subKey === l.subKey).map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
                     </Select>
                   </div>
@@ -275,7 +310,8 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
         </section>
 
         <div className="flex flex-wrap items-center gap-4">
-          <Checkbox label="첫 달 수업료 청구서를 함께 냅니다 (§53)" checked={issueInvoice} onChange={(e) => setIssueInvoice(e.target.checked)} disabled={pending} />
+          {/* 청구서는 회계 §53 발행과 같은 함수다 — 절 번호는 사용자 글에 적지 않는다 (23-20) */}
+          <Checkbox label="첫 달 수업료 청구서를 함께 냅니다" checked={issueInvoice} onChange={(e) => setIssueInvoice(e.target.checked)} disabled={pending} />
           {issueInvoice ? (
             <div className="mt-2 max-w-48">
               <Label htmlFor={`${id}-due`} hint="이 날이 지나면 「기한 지남」에 듭니다">납부 기한</Label>
@@ -305,7 +341,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                   : preview.invoiceSkipped ? <span className="text-red">건너뜀 — {preview.invoiceSkipped.message}</span> : '내지 않음'}
               </li>
               <li className="text-fg-2">
-                교재 — 요청 {preview.bookIssues.length}건{preview.booksMissing.length ? <span className="text-amber"> · 배정 필요 {preview.booksMissing.map((b) => b.label).join(' · ')}</span> : null}
+                교재 — 요청 {preview.bookIssues.length}건{preview.diagBookApplied ? ' (상담에서 담당자가 고른 교재 포함)' : ''}{preview.booksMissing.length ? <span className="text-amber"> · 배정 필요 {preview.booksMissing.map((b) => b.label).join(' · ')}</span> : null}
               </li>
               <li className="text-fg-2">안내 초안 {preview.guideDrafts}건 · 알림 강사 {preview.notifiedTeachers}명 · 관리자 {preview.notifiedStaff}명</li>
             </ul>
@@ -325,7 +361,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
           <Banner tone="danger">
             {err}
             {conflicts.length ? <ul className="mt-1 list-disc pl-4">{conflicts.map((c) => <li key={c}>{c}</li>)}</ul> : null}
-            {err.includes('allowSameName') ? (
+            {errCode === 'STUDENT_SAME_NAME' ? (
               <div className="mt-1.5"><Checkbox label="동명이인입니다 — 다른 사람으로 새로 만듭니다" checked={allowSameName} onChange={(e) => setAllowSameName(e.target.checked)} /></div>
             ) : null}
           </Banner>
