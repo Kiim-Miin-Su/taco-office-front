@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Me } from '@/api/types';
 import {
-  ADMIN_NAV_ITEMS, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, isAdminNavActive, mostSpecificNavItem,
+  ADMIN_NAV_ITEMS, ONBOARDING_PATH, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, fallbackRouteFor, isAdminNavActive,
+  mostSpecificNavItem,
 } from './navigation';
 
 const ceo: Me = {
@@ -89,5 +90,45 @@ describe('명세서 탭 노출 SSOT', () => {
     expect(adminNavBadgeFor(reports, 'top', { reports: 5 })).toBe(5);
     expect(adminNavBadgeFor(exec, 'top', { approvals: 2 })).toBe(0);
     expect(adminNavBadgeFor(exec, 'sidebar', { approvals: 2 })).toBe(2);
+  });
+});
+
+/* W8 · 대표 지시 2026-09-26 「첫 로그인 시 아이디·비밀번호 강제 변경 · 변경 안 하면 홈 접속 불가 · 자동 리다이렉션」 */
+describe('첫 설정 잠금 — 한 규칙으로 돌려보낸다', () => {
+  const locked: Me = { ...ceo, mustChangeCredentials: true };
+  const done: Me = { ...ceo, mustChangeCredentials: false };
+
+  it.each(['/', '/schedule', '/ops', '/accounting', '/teacher', '/reports/12', '/unregistered'])(
+    '첫 설정 전에는 %s 도 닫고 첫 설정으로 보낸다', (path) => {
+      expect(canAccessAppRoute(path, locked)).toBe(false);
+      expect(canAccessAppRoute(path, { ...teacher, mustChangeCredentials: true })).toBe(false);
+    },
+  );
+
+  it('첫 설정 전에는 첫 설정 화면과 로그인만 열린다', () => {
+    expect(ONBOARDING_PATH).toBe('/onboarding');
+    expect(canAccessAppRoute('/onboarding', locked)).toBe(true);
+    expect(canAccessAppRoute('/login', locked)).toBe(true);
+    expect(fallbackRouteFor(locked)).toBe('/onboarding');
+  });
+
+  it('첫 설정이 필요 없는 계정에게 첫 설정 화면은 닫혀 있고 일정으로 보낸다 — 칸이 없는 옛 Me 도 같다', () => {
+    for (const me of [done, ceo, teacher]) {
+      expect(canAccessAppRoute('/onboarding', me)).toBe(false);
+      expect(fallbackRouteFor(me)).toBe('/schedule');
+    }
+    expect(canAccessAppRoute('/schedule', done)).toBe(true);
+    expect(canAccessAppRoute('/ops', done)).toBe(true);
+  });
+
+  it('로그아웃 상태는 첫 설정 화면도 닫고 로그인으로 보낸다', () => {
+    expect(canAccessAppRoute('/onboarding', null)).toBe(false);
+    expect(fallbackRouteFor(null)).toBe('/login');
+  });
+
+  it('보낸 곳이 다시 막히지 않는다 — 돌려보내기 고리가 없다', () => {
+    for (const me of [locked, done, teacher, null]) {
+      expect(canAccessAppRoute(fallbackRouteFor(me), me)).toBe(true);
+    }
   });
 });

@@ -192,3 +192,64 @@ it('권한 변경 시 같은 query key의 살아 있는 observer도 과거 응�
   expect(view.queryByText('옛 비용')).toBeNull();
   expect(load).toHaveBeenCalledTimes(1);
 });
+
+/* W8 · 대표 지시 2026-09-26 — 첫 설정 전에는 첫 설정 화면만. 서버 403 도 같은 곳으로 돌려보내고 고리를 만들지 않는다 */
+const locked: Me = { ...manager, mustChangeCredentials: true };
+
+it.each(['/schedule', '/ops', '/'])('첫 설정 전 계정은 %s 를 mount하지 않고 첫 설정으로 보낸다', (path) => {
+  const Page = vi.fn(() => <p>업무 화면</p>);
+  useSession.setState({ me: locked, ready: true });
+  nav.path = path;
+  route(<Page />);
+  expect(Page).not.toHaveBeenCalled();
+  expect(nav.replace).toHaveBeenCalledWith('/onboarding');
+});
+
+it('첫 설정 전 계정은 첫 설정 화면을 그대로 연다', () => {
+  useSession.setState({ me: locked, ready: true });
+  nav.path = '/onboarding';
+  const view = route(<p>첫 설정 폼</p>);
+  expect(view.getByText('첫 설정 폼')).toBeTruthy();
+  expect(nav.replace).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['첫 설정이 필요 없는 계정', manager, '/schedule'],
+  ['로그아웃 상태', null, '/login'],
+] as const)('%s 는 첫 설정 화면에서 %s 로 간다', (_, me, target) => {
+  useSession.setState({ me, ready: true });
+  nav.path = '/onboarding';
+  const view = route(<p>첫 설정 폼</p>);
+  expect(view.queryByText('첫 설정 폼')).toBeNull();
+  expect(nav.replace).toHaveBeenCalledWith(target);
+});
+
+it('어느 API 든 403 CREDENTIALS_CHANGE_REQUIRED 면 Me 를 다시 읽고 첫 설정으로 한 번만 보낸다', async () => {
+  nav.path = '/schedule'; useSession.getState().signIn('access', manager);
+  const client = new QueryClient(); client.setQueryData(['private'], '옛 데이터');
+  const calls: string[] = [];
+  api.defaults.adapter = async (config) => {
+    calls.push(config.url!);
+    const res = { config, headers: {}, status: 200, statusText: 'OK', data: locked };
+    if (config.url !== '/auth/me') {
+      throw new AxiosError('forbidden', AxiosError.ERR_BAD_REQUEST, config, undefined, {
+        ...res, status: 403, data: { code: 'CREDENTIALS_CHANGE_REQUIRED', message: '첫 설정을 먼저 마쳐 주세요' },
+      });
+    }
+    return res;
+  };
+  const view = route(<p>보호 본문</p>, client);
+  await act(async () => { await expect(api.get('/schedule/occurrences')).rejects.toMatchObject({ status: 403, code: 'CREDENTIALS_CHANGE_REQUIRED' }); });
+  await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/onboarding'));
+  expect(view.queryByText('보호 본문')).toBeNull();
+  expect(useSession.getState().me?.mustChangeCredentials).toBe(true);
+  // 잠김은 권한 변경이다 — 옛 사용자 캐시를 버린다
+  expect(client.getQueryData(['private'])).toBeUndefined();
+  expect(calls).toEqual(['/schedule/occurrences', '/auth/me']);
+  // 첫 설정 화면에 닿으면 더 보내지 않는다(고리 없음)
+  nav.replace.mockClear();
+  nav.path = '/onboarding';
+  view.rerender(<QueryClientProvider client={client}><RouteAccess><p>첫 설정 폼</p></RouteAccess></QueryClientProvider>);
+  await waitFor(() => expect(view.getByText('첫 설정 폼')).toBeTruthy());
+  expect(nav.replace).not.toHaveBeenCalled();
+});

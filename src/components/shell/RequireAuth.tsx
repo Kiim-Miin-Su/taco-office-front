@@ -13,7 +13,7 @@ import { clearSessionQueries, revalidateSession, sessionAccessKey } from '@/api/
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { useSession } from '@/store/useSession';
-import { canAccessAppRoute } from './navigation';
+import { canAccessAppRoute, fallbackRouteFor } from './navigation';
 
 /** 페이지를 mount하기 전에 차단한다. 페이지 내부의 return만으로는 hook의 GET을 막을 수 없다. */
 export function RouteAccess({ children }: { children: ReactNode }) {
@@ -63,7 +63,8 @@ export function RouteAccess({ children }: { children: ReactNode }) {
   }), [queryClient]);
 
   useEffect(() => {
-    if (ready && !allowed && (!me || (check.path === pathname && !check.error))) router.replace(me ? '/schedule' : '/login');
+    // 보낼 곳은 한 규칙(navigation.fallbackRouteFor)이 정한다 — 첫 설정 전 계정은 첫 설정으로 (W8)
+    if (ready && !allowed && (!me || (check.path === pathname && !check.error))) router.replace(fallbackRouteFor(me));
   }, [ready, allowed, me, router, check, pathname]);
 
   if (me && check.error) return <Banner tone="danger"><p>{apiMessage(check.error)}</p><Button onClick={retry}>권한 다시 확인</Button></Banner>;

@@ -22,9 +22,15 @@ export function clearSessionQueries(queryClient: Pick<QueryClient, 'clear'>): vo
   queryClient.clear();
 }
 
-/** 권한 값은 생성 Me에서 읽기만 한다. 이름/직함 변경을 권한 변경으로 취급하지 않는다. */
+/**
+ * 권한 값은 생성 Me에서 읽기만 한다. 이름/직함 변경을 권한 변경으로 취급하지 않는다.
+ * 첫 설정 잠금(W8 · mustChangeCredentials)도 접근 범위를 바꾸므로 같은 열쇠에 넣는다 — 서버 403 으로 잠김을 알게 되면
+ * 옛 요청 · 캐시를 버리고 화면을 다시 세운다. 칸이 없는 옛 Me 는 false 와 같게 읽는다.
+ */
 export function sessionAccessKey(me: Me | null): string {
-  return me ? JSON.stringify([me.id, me.role, Object.entries(me).filter(([key]) => key.startsWith('can')).sort()]) : 'anonymous';
+  return me ? JSON.stringify([
+    me.id, me.role, Object.entries(me).filter(([key]) => key.startsWith('can')).sort(), me.mustChangeCredentials === true,
+  ]) : 'anonymous';
 }
 
 const checks = new WeakMap<QueryClient, { generation: number; promise: Promise<void> }>();

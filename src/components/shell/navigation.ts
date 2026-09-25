@@ -90,13 +90,31 @@ export function adminNavItemsFor(surface: AdminNavSurface, me: Me | null): reado
     .map((item) => !me?.canAdminPage && item.personalLabel ? { ...item, label: item.personalLabel } : item);
 }
 
+/**
+ * 첫 설정 화면 (W8 · 대표 지시 2026-09-26 「첫 로그인 시 아이디·비밀번호 강제 변경 · 변경 안 하면 홈 접속 불가 · 자동 리다이렉션」).
+ * 첫 설정 전 계정이 열 수 있는 유일한 앱 경로다. 판정 재료는 서버가 준 `me.mustChangeCredentials` 하나다.
+ */
+export const ONBOARDING_PATH = '/onboarding';
+
 /** 메뉴와 직접 URL 진입이 같은 규칙을 사용한다. 미등록 업무 경로는 기본 거절한다. */
 export function canAccessAppRoute(pathname: string | null, me: Me | null): boolean {
   if (pathname === '/login') return true;
   if (!me || !pathname) return false;
+  // 첫 설정 전에는 첫 설정 화면만 · 필요 없는 계정에게 첫 설정 화면은 닫는다 — 서버도 같은 계정의 다른 API 를 403 으로 막는다
+  if (me.mustChangeCredentials) return pathname === ONBOARDING_PATH;
+  if (pathname === ONBOARDING_PATH) return false;
   if (pathname === '/') return true;
   const item = mostSpecificNavItem(pathname);
   return Boolean(item && canAccessNavItem(item, me));
+}
+
+/**
+ * 막힌 경로에서 보낼 곳 — 로그아웃은 로그인, 첫 설정 전은 첫 설정, 나머지는 일정.
+ * 보낸 곳은 위 규칙에서 늘 열려 있다(돌려보내기 고리가 없다 · navigation.test).
+ */
+export function fallbackRouteFor(me: Me | null): string {
+  if (!me) return '/login';
+  return me.mustChangeCredentials ? ONBOARDING_PATH : '/schedule';
 }
 
 export function isAdminNavActive(pathname: string | null, href: string): boolean {

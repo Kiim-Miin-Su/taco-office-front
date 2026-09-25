@@ -14,9 +14,14 @@ import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo } from '@/components/ui';
 import type { LoginBody, LoginResult } from '@/api/types';
 import { ROLES, type RoleKey } from '@/lib/roles';
+import { fallbackRouteFor } from '@/components/shell/navigation';
 
 /**
- * 2026-09-23 사용자 지시: 확인한 다섯 로그인 아이디를 운영·개발 모두 표시한다.
+ * 시험용 계정 칩 — 2026-09-26 대표 결정이 2026-09-23 「운영·개발 모두 표시」를 대신한다(W8).
+ *   ① 시험할 때는 칩을 누르면 아이디(이메일)와 비밀번호가 **둘 다** 채워진다.
+ *   ② 운영에서는 칩을 **그리지 않는다** — 두 칸만 남는다.
+ *   ③ 시험 기간에는 운영 사이트도 빌드 환경 값(Vercel `NEXT_PUBLIC_TEST_LOGIN=on`)으로 시험 모드를 켠다.
+ *      켜 둔 동안 시험 비밀번호가 그 번들에 실린다 — **운영 전환 전에 반드시 끈다**(번들 검사가 끈 빌드에서 막는다).
  * 표시는 공용 역할 어휘를 재사용하고, 실제 권한은 서버의 LoginResult만 믿는다.
  * 직원 전체 목록을 요청하거나 추가 공개하지 않는다.
  */
@@ -28,8 +33,16 @@ const LOGIN_ACCOUNTS: ReadonlyArray<{ email: string; role: RoleKey }> = [
   { email: 't02@tnacademy.kr', role: 'teacher' },
 ];
 
-// S8의 비밀번호 제외는 유지한다. Next가 빌드 때 접는 조건이며 실제 번들 검사도 유지한다.
-const DEV_PASSWORD = process.env.NODE_ENV === 'production' ? '' : 'taco1234!';
+/** 시험 모드 — 개발 빌드는 늘, 운영 빌드는 빌드 환경 값으로만 켠다. Next 가 빌드 때 두 값을 접는다 */
+const TEST_LOGIN = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_TEST_LOGIN === 'on';
+
+/*
+ * S8의 비밀번호 제외는 유지한다 — 시드 비밀번호 글자는 **개발 분기 안에만** 둔다(운영 빌드가 이 분기를 접어 버린다).
+ * 운영 빌드의 시험 모드는 빌드 환경 값만 읽는다(코드에 기본값 없음). 시험 모드를 끈 운영 빌드는 그 값도 읽지 않는다.
+ */
+const TEST_PASSWORD = process.env.NODE_ENV !== 'production'
+  ? 'taco1234!'
+  : process.env.NEXT_PUBLIC_TEST_LOGIN === 'on' ? (process.env.NEXT_PUBLIC_TEST_LOGIN_PASSWORD ?? '') : '';
 
 const ROLE_BY_KEY = new Map(ROLES.map((role) => [role.key, role]));
 
@@ -37,9 +50,9 @@ export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const signIn = useSession((s) => s.signIn);
-  // 운영은 직접 선택/입력하도록 두 칸 모두 비워 둔다. 개발 자동 채움은 유지한다.
+  // 운영 빌드는 시험 모드여도 두 칸을 비워 두고 칩으로만 채운다. 개발 자동 채움은 유지한다.
   const [email, setEmail] = useState(process.env.NODE_ENV === 'production' ? '' : LOGIN_ACCOUNTS[0].email);
-  const [password, setPassword] = useState(DEV_PASSWORD);
+  const [password, setPassword] = useState(process.env.NODE_ENV === 'production' ? '' : TEST_PASSWORD);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -54,7 +67,8 @@ export default function LoginPage() {
       const { data } = await api.post<LoginResult>('/auth/login', body);
       clearSessionQueries(queryClient);
       signIn(data.accessToken, data.user);
-      router.replace('/schedule');
+      // 첫 설정 전 계정은 첫 설정으로 — 보낼 곳은 경로 규칙 한 곳이 정한다 (W8)
+      router.replace(fallbackRouteFor(data.user));
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : '로그인하지 못했습니다');
     } finally {
@@ -91,25 +105,28 @@ export default function LoginPage() {
           {busy ? '들어가는 중…' : '들어가기'}
         </Button>
 
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="text-[11px] font-bold text-fg-subtle">로그인 아이디 — 눌러서 이메일을 채웁니다</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {LOGIN_ACCOUNTS.map((d) => (
-              <Button
-                key={d.email} size="sm" variant="ghost"
-                onClick={() => {
-                  setEmail(d.email);
-                  if (process.env.NODE_ENV !== 'production') setPassword(DEV_PASSWORD);
-                }}
-              >
-                <span>{d.email}</span>
-                <span className="ml-1 text-[10px] font-bold text-blue">
-                  · {ROLE_BY_KEY.get(d.role)?.label}
-                </span>
-              </Button>
-            ))}
+        {TEST_LOGIN ? (
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="text-[11px] font-bold text-fg-subtle">시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {LOGIN_ACCOUNTS.map((d) => (
+                <Button
+                  key={d.email} size="sm" variant="ghost"
+                  onClick={() => {
+                    setEmail(d.email);
+                    // 빌드에 시험 비밀번호가 없으면 사람이 적어 둔 비밀번호를 지우지 않는다
+                    if (TEST_PASSWORD) setPassword(TEST_PASSWORD);
+                  }}
+                >
+                  <span>{d.email}</span>
+                  <span className="ml-1 text-[10px] font-bold text-blue">
+                    · {ROLE_BY_KEY.get(d.role)?.label}
+                  </span>
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
       </form>
     </div>
   );
