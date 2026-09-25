@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGuideStudents } from '@/api/queries';
 import type { GuideStudent } from '@/api/types';
 import { Banner } from '@/components/ui/Banner';
@@ -17,6 +17,7 @@ import { QueryState } from '@/components/ui/QueryState';
 import { cn } from '@/components/ui/cn';
 import { downloadElementPng } from '@/lib/png-export';
 import { GuideDiagnosticSummary } from './GuideDiagnosticSummary';
+import { GuideBody, GuideTimeline } from './GuideReadout';
 import { GuideReasonChip, GuideStateChip } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 
@@ -81,6 +82,7 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
   const [exportError, setExportError] = useState(false);
   const guideRef = useRef<HTMLDivElement>(null);
   const guide = student.latestGuide;
+  useEffect(() => { if (!guide.pending) setWriting(false); }, [guide.pending]);
 
   const savePng = async () => {
     if (!guideRef.current) return;
@@ -98,7 +100,7 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
 
   return (
     <div className="min-w-0 grow space-y-4">
-      {writing ? <GuideWriter guide={guide} onClose={() => setWriting(false)} /> : null}
+      {writing && guide.pending ? <GuideWriter guide={guide} onClose={() => setWriting(false)} /> : null}
       {exportError ? <Banner tone="danger">안내문 PNG를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.</Banner> : null}
 
       <div ref={guideRef} className="rounded-xl border border-l-[4px] border-line border-l-blue bg-card p-4">
@@ -133,12 +135,7 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           <GuideDiagnosticSummary diagnostic={student.diagnostic} />
         </Panel>
 
-        <div className="mt-3 rounded-lg bg-inset p-3">
-          <div className="text-[11px] font-bold text-fg-subtle">안내 본문</div>
-          <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-fg">
-            {guide.body ?? '작성된 안내가 없습니다.'}
-          </p>
-        </div>
+        <GuideBody body={guide.body} />
 
         <Panel className="mt-3" title={`교재 ${student.books.length}종`}>
           {student.books.length === 0 ? (
@@ -157,20 +154,7 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           )}
         </Panel>
 
-        <footer className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-subtle">
-          <span>
-            작성 {guide.createdAt.slice(0, 16).replace('T', ' ')}
-            {guide.createdByName ? ` · ${guide.createdByName}` : ''}
-          </span>
-          <span>
-            발송 {guide.sentAt ? guide.sentAt.slice(0, 16).replace('T', ' ') : '—'}
-            {guide.sentByName ? ` · ${guide.sentByName}` : ''}
-          </span>
-          <span>
-            강사 확인 {guide.acknowledgedAt ? guide.acknowledgedAt.slice(0, 16).replace('T', ' ') : '—'}
-            {guide.acknowledgedByName ? ` · ${guide.acknowledgedByName}` : ''}
-          </span>
-        </footer>
+        <GuideTimeline guide={guide} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -200,7 +184,8 @@ export function GuideStudents() {
         return (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             <StudentRail students={data.items} pickedId={picked.studentId} onPick={setPickedId} />
-            <StudentGuideDetail student={picked} />
+            {/* 다른 학생/안내는 별도 편집 세션이며 같은 안내의 재조회는 초안을 유지한다. */}
+            <StudentGuideDetail key={`${picked.studentId}:${picked.latestGuide.id}`} student={picked} />
           </div>
         );
       }}

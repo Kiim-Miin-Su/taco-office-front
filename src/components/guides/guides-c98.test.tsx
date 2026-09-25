@@ -23,6 +23,7 @@ const me: Me = {
 const AUTO_BODY = '[첫 수업 안내]\n학생 고은설\n학년 G9\n강사 Sophia\n과목 Vocabulary\n형태 온라인\n시작일 2026-09-20\n교재 — 교재가 아직 배정되지 않았습니다\n\n';
 
 const guide: Guide = {
+  canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', state: 'draft', pending: true, studentName: '고은설',
   teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20', eventOn: '2026-09-20',
   sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0,
@@ -152,6 +153,40 @@ function guides(over: Partial<Guides> = {}): Guides {
     ...over,
   };
 }
+
+it('한 번 안내의 편집 대상을 바꾸면 이전 초안을 새 GUIDE id로 보내지 않는다', async () => {
+  useSession.getState().signIn('fixture', me);
+  const first = { ...guide, body: '첫 안내', siblingCount: 0 };
+  const second = { ...first, id: 6, studentName: '이하린', body: '둘째 안내' };
+  adapter((c) => c.method === 'put' ? { ...second, state: 'ready' } : []);
+  const view = render(<QueryClientProvider client={client()}>
+    <GuidesTodo data={guides({ guides: [first, second], perLesson: [] })} />
+  </QueryClientProvider>);
+  fireEvent.click(view.getAllByRole('button', { name: '안내 작성' })[0]);
+  fireEvent.change(view.getByLabelText('안내 본문'), { target: { value: '첫 안내의 미저장 초안' } });
+  fireEvent.click(view.getAllByRole('button', { name: '안내 작성' })[1]);
+  fireEvent.click(view.getByRole('button', { name: '작성' }));
+  await waitFor(() => expect(calls.filter((c) => c.method === 'put')).toHaveLength(1));
+  expect(calls.find((c) => c.method === 'put')).toMatchObject({ url: '/guides/6/body', body: { body: '둘째 안내' } });
+});
+
+it('한 번 안내의 같은 id refetch는 초안을 보존하며 최신 표시 정보를 사용한다', async () => {
+  useSession.getState().signIn('fixture', me);
+  adapter(() => []);
+  const qc = client();
+  const first = { ...guide, body: '기존 본문', siblingCount: 0 };
+  const draw = (item: Guide) => <QueryClientProvider client={qc}>
+    <GuidesTodo data={guides({ guides: [item], perLesson: [] })} />
+  </QueryClientProvider>;
+  const view = render(draw(first));
+  fireEvent.click(view.getByRole('button', { name: '안내 작성' }));
+  const input = view.getByLabelText('안내 본문');
+  fireEvent.change(input, { target: { value: '유지할 초안' } });
+  view.rerender(draw({ ...first, studentName: '새 표시 이름', body: '다시 조회한 본문' }));
+  expect(view.getByText('안내 작성 — 새 표시 이름')).toBeTruthy();
+  expect(view.getByLabelText('안내 본문')).toBe(input);
+  expect((input as HTMLTextAreaElement).value).toBe('유지할 초안');
+});
 
 it('강사 안내를 누르면 회차 키 (serId, onDate) 를 보낸다 (F-63)', async () => {
   useSession.getState().signIn('fixture', me);

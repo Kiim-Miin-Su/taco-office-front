@@ -6,17 +6,23 @@
 
 /**
  * 수업 안내 — 강사 덱 §10~13 · Figma 「웹 · 수업 안내」(7977:46327·7983:46928).
- * 이번 주 담당 학생(좌) + 학생 준비 정보(우): 교재·진단·수업 설정. 전부 GET /teacher/guides.
+ * 수신 GUIDE는 독립 GET /teacher/guides/received이며 현재 주 학생 자료보다 먼저 보여 준다.
+ * 이번 주 담당 학생(좌) + 학생 준비 정보(우)는 기존 GET /teacher/guides의 교재·진단·수업 설정이다.
  * 덱의 «학생 스타일 영역별 바»는 구조화 저장처가 없어 싣지 않는다 — 진단 요약(diag)으로 대신하고
  * 경계를 기록했다 (TBO-49 §6 조사 메모). 교재 «변경 요청·받기»는 미확정 쓰기 — disabled 표시만.
  */
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Button, Chip, PageHeader, Panel, QueryState } from '@/components/ui';
-import { useTeacherGuides } from '@/api/queries';
-import type { TeacherGuideStudent } from '@/api/types';
+import { Banner, Button, Chip, PageHeader, Panel, QueryState } from '@/components/ui';
+import { useAcknowledgeGuide, useReceivedGuides, useTeacherGuides } from '@/api/queries';
+import { apiMessage } from '@/api/client';
+import { positiveQueryId } from '@/lib/url-state';
+import { GuideBody, GuideTimeline } from '@/components/guides/GuideReadout';
+import { GuideReasonChip, GuideStateChip } from '@/components/guides/GuideStatus';
+import type { Guide, TeacherGuideStudent } from '@/api/types';
 import { hm, md } from '@/components/teacher/format';
 import { DiagnosticForm } from '@/components/teacher/DiagnosticForm';
 import { GuideDiagnosticSummary } from '@/components/guides/GuideDiagnosticSummary';
@@ -102,6 +108,66 @@ function BookCard({
   );
 }
 
+/** 수신 GUIDE의 선택·명시 확인만 소유한다. 현재 학생 교재/진단 권한을 이 목록에서 유도하지 않는다. */
+function ReceivedGuidesSection() {
+  const query = useReceivedGuides();
+  const ack = useAcknowledgeGuide();
+  const router = useRouter();
+  const search = useSearchParams();
+  const requested = search.getAll('guideId');
+  const requestedId = requested.length === 1 ? positiveQueryId(requested[0]) : null;
+  // 선택 id는 URL 한 곳에서 읽는다. 뒤로가기 때 이전 로컬 선택이 URL을 덮지 않는다.
+  const confirming = useRef(false);
+  const pick = (id: number) => {
+    if (confirming.current) return;
+    ack.reset();
+    router.replace(`/teacher/guides?guideId=${id}`, { scroll: false });
+  };
+  const confirm = (guide: Guide) => {
+    if (confirming.current || !guide.canAck || query.isError) return;
+    confirming.current = true;
+    ack.mutate(guide.id, { onSettled: () => { confirming.current = false; } });
+  };
+  return (
+    <Panel title="받은 안내" sub="수신한 내용을 읽고 확인해 주세요." className="mb-4 min-w-0">
+      <QueryState query={query} isEmpty={() => false}>
+        {({ items }) => {
+          const selectedId = requested.length ? requestedId : items[0]?.id;
+          const selected = items.find((guide) => guide.id === selectedId);
+          return (
+            <>
+              {items.length ? <ul className="mb-3 flex flex-wrap gap-2" aria-label="받은 안내 목록">
+                {items.map((guide) => <li key={guide.id} className="min-w-0 max-w-full">
+                  <Button variant={selected?.id === guide.id ? 'primary' : 'ghost'} disabled={ack.isPending}
+                    aria-pressed={selected?.id === guide.id} className="min-h-11 max-w-full whitespace-normal break-words text-left"
+                    onClick={() => pick(guide.id)}>
+                    {guide.studentName ?? '학생 미상'} · {guide.eventOn ?? guide.dueOn ?? '날짜 미정'}
+                  </Button>
+                </li>)}
+              </ul> : null}
+              {selected ? <article className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <GuideStateChip state={selected.state} /><GuideReasonChip reason={selected.reason} />
+                  <b className="min-w-0 break-words text-[13px]">{selected.studentName ?? '학생 미상'} · {selected.serTitle ?? '수업명 미정'}</b>
+                </div>
+                <GuideBody body={selected.body} />
+                <GuideTimeline guide={selected} />
+                <Button className="mt-3 min-h-11" disabled={!selected.canAck || ack.isPending}
+                  onClick={() => confirm(selected)}>
+                  {ack.isPending ? '확인 중…' : selected.state === 'read' ? '확인 완료' : '확인했습니다'}
+                </Button>
+              </article> : requested.length ? (
+                <Banner tone="warning">선택한 안내를 확인할 수 없습니다. 목록에서 안내를 골라 주세요.</Banner>
+              ) : <p className="text-[12px] text-fg-subtle">받은 안내가 없습니다.</p>}
+              {ack.isError && ack.variables === selected?.id ? <Banner tone="danger" className="mt-3">{apiMessage(ack.error)}</Banner> : null}
+            </>
+          );
+        }}
+      </QueryState>
+    </Panel>
+  );
+}
+
 export default function TeacherGuidesPage() {
   const [week, setWeek] = useState<string | undefined>(undefined);
   const [pickedId, setPickedId] = useState<number | null>(null);
@@ -111,6 +177,8 @@ export default function TeacherGuidesPage() {
   return (
     <RequireAuth>
       <AppShell>
+        <PageHeader title="수업 안내" />
+        <ReceivedGuidesSection />
         {/* 빈 주에도 주 내비는 살아 있어야 한다 — QA C28: isEmpty 로 좌측 레일까지 삼키면
             materialization horizon 밖 주에서 과거 주로 돌아갈 길이 없다. 빈 목록은 레일 안에서 말한다. */}
         <QueryState query={q} isEmpty={() => false}>
@@ -118,7 +186,7 @@ export default function TeacherGuidesPage() {
             const picked = d.students.find((s) => s.studentId === pickedId) ?? d.students[0];
             return (
               <>
-                <PageHeader title="수업 안내" sub={`${md(d.weekFrom)} – ${md(d.weekTo)} · 담당 학생 ${d.students.length}명`} />
+                <p className="text-[12px] text-fg-subtle">{md(d.weekFrom)} – {md(d.weekTo)} · 담당 학생 {d.students.length}명</p>
                 <div className="mt-3 flex flex-col gap-4 lg:flex-row">
                   <aside className="w-full shrink-0 lg:w-[300px]">
                     <div className="rounded-t-xl bg-fg px-4 py-3 text-card">

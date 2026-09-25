@@ -32,6 +32,7 @@ const me: Me = {
 };
 
 const guide: Guide = {
+  canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   id: 12,
   serId: 10,
   studentId: 7,

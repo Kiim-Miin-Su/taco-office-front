@@ -1,14 +1,14 @@
 /** @file-guide
  * 목적: 개발명세서 v2 §43의 안내 할 일(한 번 안내와 매번 회차 안내)을 표시한다.
- * 책임/재사용: 서버 집계·capability를 소비한다. 부모는 회차 키만, 같은 파일의 배정 Dialog는 선택·요청 잠금만 소유하며 공용 UI/훅을 재사용한다. 안내 본문은 GuideWriter에 위임한다.
+ * 책임/재사용: 서버 집계·capability를 소비한다. 부모는 회차 키만, 같은 파일의 배정 Dialog는 선택·요청 잠금만 소유하며 공용 UI/훅을 재사용한다. 안내 본문은 GuideWriter에 위임하고 GUIDE 발송은 canSend·동기 동작 잠금으로 보호한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { Guide, Guides, PerLessonNotice } from '@/api/types';
-import { useAssignZoom, useMeta, useSendZoomNotice } from '@/api/queries';
+import { useAssignZoom, useMeta, useSendGuide, useSendZoomNotice } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
@@ -162,7 +162,23 @@ function PerLessonRow({ lesson, parentExternal, parentReason, assignmentOpen, on
 }
 
 export function GuidesTodo({ data }: { data: Guides }) {
-  const [writing, setWriting] = useState<Guide | null>(null);
+  const [writingId, setWritingId] = useState<number | null>(null);
+  const writing = data.guides.find((guide) => guide.id === writingId && guide.pending);
+  const send = useSendGuide();
+  const actionLock = useRef<'edit' | 'send' | null>(null);
+  // 동일 id 재조회는 초안을 보존하되 발송된 안내에는 이전 편집 세션을 남기지 않는다.
+  useEffect(() => {
+    if (writingId !== null && !writing) {
+      setWritingId(null);
+      if (actionLock.current === 'edit') actionLock.current = null;
+    }
+  }, [writingId, writing]);
+  const closeWriter = () => { actionLock.current = null; setWritingId(null); };
+  const sendGuide = (guide: Guide) => {
+    if (actionLock.current || writing || !guide.canSend) return;
+    actionLock.current = 'send';
+    send.mutate(guide.id, { onSettled: () => { actionLock.current = null; } });
+  };
   const [assigning, setAssigning] = useState<AssignmentTarget | null>(null);
   const openAssignment = ({ serId, onDate }: AssignmentTarget) => {
     if (assigning === null) setAssigning({ serId, onDate });
@@ -212,7 +228,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
     {
       key: 'body',
       head: '안내',
-      cell: (guide) => <span className="line-clamp-2 text-fg-subtle">{guide.body ?? '안내 없음'}</span>,
+      cell: (guide) => <span className="line-clamp-2 min-w-0 max-w-md text-fg-subtle [overflow-wrap:anywhere]">{guide.body ?? '안내 없음'}</span>,
     },
     {
       key: 'due',
@@ -228,15 +244,16 @@ export function GuidesTodo({ data }: { data: Guides }) {
     {
       key: 'action',
       head: '',
-      width: 104,
-      cell: (guide) =>
-        guide.pending ? (
-          <Button size="sm" variant="primary" onClick={() => setWriting(guide)}>
-            안내 작성
-          </Button>
-        ) : (
-          <span className="text-fg-subtle">완료</span>
-        ),
+      width: 160,
+      cell: (guide) => (
+        <div className="flex flex-col items-start gap-2">
+          {guide.pending ? <Button size="sm" variant="ghost" disabled={send.isPending}
+            onClick={() => { if (actionLock.current !== 'send') { actionLock.current = 'edit'; setWritingId(guide.id); } }}>안내 작성</Button> : null}
+          <Button size="sm" disabled={!guide.canSend || Boolean(writing) || send.isPending}
+            onClick={() => sendGuide(guide)}>강사에게 보내기</Button>
+          {guide.sendBlockedReason ? <span className="break-words text-[11px] text-fg-subtle">{guide.sendBlockedReason}</span> : null}
+        </div>
+      ),
     },
   ];
 
@@ -251,7 +268,8 @@ export function GuidesTodo({ data }: { data: Guides }) {
         <StatCard label="반복 교체" value={data.stats.repeatedTeacherChange} tone="purple" />
       </div>
 
-      {writing ? <GuideWriter guide={writing} onClose={() => setWriting(null)} /> : null}
+      {send.isError ? <Banner tone="danger">{apiMessage(send.error)}</Banner> : null}
+      {writing ? <GuideWriter key={writing.id} guide={writing} onClose={closeWriter} /> : null}
       {assigning ? <ZoomAssignmentDialog key={`${assigning.serId}:${assigning.onDate}`} target={assigning}
         caption={assignmentCaption} initialZaccId={selectedLesson?.zaccId ?? null}
         onClose={() => setAssigning(null)} /> : null}

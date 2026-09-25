@@ -36,6 +36,7 @@ const me: Me = {
 };
 
 const guide = (id: number, state: Guide['state'], pending: boolean): Guide => ({
+  canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   id,
   serId: 10,
   studentId: id,

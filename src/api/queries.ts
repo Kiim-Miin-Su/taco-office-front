@@ -85,6 +85,7 @@ import type {
   GuideHistoryQuery,
   Guides,
   GuideStudents,
+  ReceivedGuides,
   GuideTemplate,
   GuideTemplateWrite,
   ZoomNoticeResult,
@@ -230,6 +231,7 @@ export const qk = {
   teacherHome: ['teacher', 'home'] as const,
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
+  receivedGuides: ['teacher', 'received-guides'] as const,
   teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
   teacherUnav: (anchor: string | undefined) => ['teacher', 'unavailable', anchor ?? 'current'] as const,
   gpa: (anchor: string | undefined) => ['gpa', anchor ?? 'current'] as const,
@@ -277,6 +279,7 @@ export const family = {
   teacherHome: ['teacher', 'home'] as const,
   teacherHistory: ['teacher', 'history'] as const,
   teacherGuides: ['teacher', 'guides'] as const,
+  receivedGuides: ['teacher', 'received-guides'] as const,
   teacherUnav: ['teacher', 'unavailable'] as const,
   gpa: ['gpa'] as const,
   zoom: ['zoom'] as const,
@@ -1036,6 +1039,38 @@ export function useSendZoomNotice(): UseMutationResult<ZoomNoticeResult, unknown
   });
 }
 
+/** GUIDE 전이만 갱신한다. 현재 학생의 교재·진단과 수신 안내는 별도 권한/캐시다. */
+function useGuideDeliveryInvalidate() {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return () => Promise.all([
+    family.guides, family.receivedGuides, family.board, family.tracking, family.drawer,
+  ].map((queryKey) => qc.invalidateQueries({
+    queryKey,
+    predicate: (query) => query.queryKey.at(-2) === 'viewer' && query.queryKey.at(-1) === viewerId,
+  })));
+}
+
+/** 저장된 GUIDE만 보낸다. 본문·수신자·상태·시각은 서버가 소유한다. */
+export function useSendGuide(): UseMutationResult<Guide, unknown, number> {
+  const invalidate = useGuideDeliveryInvalidate();
+  return useMutation({
+    mutationFn: async (id) => (await api.post<Guide>(`/guides/${id}/send`, {})).data,
+    onSuccess: invalidate,
+    onError: (error) => { if (error instanceof ApiError && error.status === 409) return invalidate(); },
+  });
+}
+
+/** 수신자 본인의 명시 확인. 단순 열람으로 확인을 만들지 않는다. */
+export function useAcknowledgeGuide(): UseMutationResult<Guide, unknown, number> {
+  const invalidate = useGuideDeliveryInvalidate();
+  return useMutation({
+    mutationFn: async (id) => (await api.post<Guide>(`/teacher/guides/${id}/ack`, {})).data,
+    onSuccess: invalidate,
+    onError: (error) => { if (error instanceof ApiError && error.status === 409) return invalidate(); },
+  });
+}
+
 export function useGuides(): UseQueryResult<Guides> {
   const viewerId = useViewerId();
   return useQuery({
@@ -1151,6 +1186,16 @@ export function useCreateTeacherSuggestion(): UseMutationResult<TeacherSuggestio
   return useMutation({
     mutationFn: async (w) => (await api.post<TeacherSuggestion>('/teacher/suggestions', w)).data,
     onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherSuggestions, viewerId) }),
+  });
+}
+
+/** 발송 당시 본인이 받은 안내. 현재 주 학생 자료를 조건으로 삼지 않는다. */
+export function useReceivedGuides(): UseQueryResult<ReceivedGuides> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.receivedGuides, viewerId),
+    queryFn: async () => (await api.get<ReceivedGuides>('/teacher/guides/received')).data,
+    staleTime: 60 * 1000,
   });
 }
 

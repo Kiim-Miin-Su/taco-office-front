@@ -147,6 +147,7 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.rateBook,
   qk.ops,
   qk.teacherHome,
+  qk.receivedGuides,
   qk.guides,
   qk.guideStudents,
   qk.guideHistoryRoot,

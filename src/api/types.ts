@@ -324,6 +324,7 @@ export type BookPackPatch = S['BookPackPatchDto'];
 /** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */
 export type Guides = S['GuidesDto'];
 export type Guide = S['GuideDto'];
+export type ReceivedGuides = S['ReceivedGuidesDto'];
 /** §44 학생별 — 학생 준비 정보와 최신 유효 안내는 서버 투영을 그대로 쓴다. */
 export type GuideStudents = S['GuideStudentsDto'];
 export type GuideStudent = S['GuideStudentDto'];
