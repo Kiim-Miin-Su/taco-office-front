@@ -60,10 +60,14 @@ describe('§17 구성원 (C97)', () => {
     expect(view.queryByRole('button', { name: '+ 구성원' })).toBeNull();
   });
 
-  it('「+ 구성원」은 강사·매니저만 고를 수 있고, 이름·이메일·8자 비밀번호가 있어야 서며, 시간대는 서랍의 그룹 낱말 그대로 보낸다 (D-41)', async () => {
+  it('「+ 구성원」은 강사·매니저만 고를 수 있고, 이름·이메일이 있어야 서며(비밀번호 칸은 없다 · W8), 시간대는 서랍의 그룹 낱말 그대로 보내고, 만들면 넘겨줄 정보를 보인다 (D-41)', async () => {
     const { view, client } = paint({ canAddMember: true, canWage: true });
     const invalidate = vi.spyOn(client, 'invalidateQueries');
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: who(9, '박수진', 'teacher', { wageRate: 42000, wageFrom: '2026-09-19', wageable: true }) } as never);
+    // 넘겨줄 정보는 서버 응답에서만 온다 — 화면에 초기 비밀번호가 적혀 있지 않다
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {
+      ...who(9, '박수진', 'teacher', { wageRate: 42000, wageFrom: '2026-09-19', wageable: true }), email: 'park@t.kr',
+      loginId: 'park@t.kr', initialPassword: 'server-initial-9',
+    } } as never);
     fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
     const dialog = view.getByRole('dialog');
     const roles = within(dialog).getByRole('group', { name: '역할' });
@@ -71,10 +75,9 @@ describe('§17 구성원 (C97)', () => {
     const make = within(dialog).getByRole('button', { name: '만들기' }) as HTMLButtonElement;
     expect(make.disabled).toBe(true);
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: ' 박수진 ' } });
-    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'Park@t.kr' } });
-    fireEvent.change(within(dialog).getByLabelText('첫 비밀번호'), { target: { value: 'short' } });
     expect(make.disabled).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText('첫 비밀번호'), { target: { value: 'park-1234!' } });
+    expect(within(dialog).queryByLabelText(/비밀번호/)).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'Park@t.kr' } });
     expect(make.disabled).toBe(false);
     fireEvent.change(within(dialog).getByLabelText('시간대'), { target: { value: 'America/New_York' } });
     fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: '영어' } });
@@ -82,8 +85,14 @@ describe('§17 구성원 (C97)', () => {
     fireEvent.change(within(dialog).getByLabelText('기본 시급 (선택)'), { target: { value: '42000' } });
     fireEvent.click(make);
     await waitFor(() => expect(post).toHaveBeenCalledWith('/drawer/staff', {
-      name: '박수진', email: 'Park@t.kr', password: 'park-1234!', role: 'teacher', hiredOn: '2026-08-20', title: '영어', tz: 'America/New_York', wageRate: 42000,
+      name: '박수진', email: 'Park@t.kr', role: 'teacher', hiredOn: '2026-08-20', title: '영어', tz: 'America/New_York', wageRate: 42000,
     }));
+    // 창은 닫히지 않고 넘겨줄 정보를 보인다 — 닫으면 다시 볼 수 없다
+    const box = await within(view.getByRole('dialog')).findByRole('region', { name: '넘겨줄 정보' });
+    expect(box.textContent).toContain('park@t.kr');
+    expect(box.textContent).toContain('server-initial-9');
+    expect(box.textContent).toContain('첫 로그인 때 아이디·비밀번호를 바꾸고 휴대폰·이메일을 확인해야 합니다');
+    fireEvent.click(within(view.getByRole('dialog')).getByRole('button', { name: '닫기' }));
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
     // 서랍과 /meta(담당·강사 고르기)가 새 사람을 알아야 한다
     const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
@@ -100,7 +109,6 @@ describe('§17 구성원 (C97)', () => {
     expect(within(dialog).queryByLabelText('기본 시급 (선택)')).toBeNull();
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: '박수진' } });
     fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'park2@t.kr' } });
-    fireEvent.change(within(dialog).getByLabelText('첫 비밀번호'), { target: { value: 'park-1234!' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '만들기' }));
     // 보내는 본문에 wageRate 가 없다 — 만드는 것 자체는 막지 않는다
     await waitFor(() => expect(post).toHaveBeenCalled());
@@ -114,7 +122,6 @@ describe('§17 구성원 (C97)', () => {
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: '중복' } });
     fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 't02@t.kr' } });
-    fireEvent.change(within(dialog).getByLabelText('첫 비밀번호'), { target: { value: 'another-pw-1' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '만들기' }));
     await waitFor(() => expect(within(dialog).getByText('이미 그 이메일로 로그인하는 사람이 있습니다')).toBeTruthy());
     expect(view.getByRole('dialog')).toBeTruthy();

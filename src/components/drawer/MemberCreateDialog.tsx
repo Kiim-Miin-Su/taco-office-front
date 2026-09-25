@@ -5,26 +5,29 @@
  */
 
 /**
- * §17 「+ 구성원」 (C97 · 테스트 시나리오 D-41 「강사 계정 생성」 · D-R39).
+ * §17 「+ 구성원」 (C97 · 테스트 시나리오 D-41 「강사 계정 생성」 · D-R39 · W8).
  *
- * 화면이 보내는 것은 **이름 · 이메일 · 첫 비밀번호 · 역할(강사·매니저) · 직함 · 시간대 · 전화 · 입사일 · 기본 시급**이다.
+ * 화면이 보내는 것은 **이름 · 이메일(아이디) · 역할(강사·매니저) · 직함 · 시간대 · 휴대폰 · 입사일 · 기본 시급**이다.
+ * **비밀번호 칸이 없다**(W8 · 대표 지시 2026-09-26) — 서버가 초기 비밀번호로 만들고 첫 로그인 때 바꾸게 한다.
+ * 만들어지면 창이 닫히지 않고 **넘겨줄 정보**(아이디 · 초기 비밀번호 — 서버 응답에서만 온다)를 보인다.
  * 대표·관리자는 고를 수 없다 — 권한을 올리는 길을 화면에 두지 않는다(서버 DTO 도 같은 둘만 받는다).
  * 단추가 서는지는 서버의 `canAddMember` 가 정한다 — 이 파일은 role 을 보지 않는다.
  * 시간대 낱말은 서랍의 「시간대 그룹」(D-R18) 그대로이고, 시급을 적으면 입사일(지났으면 오늘)부터의 WAGE 한 줄이 같이 선다(소급 없음).
- * 비밀번호는 보내기만 한다 — 응답에 없고 화면도 다시 보이지 않는다.
  */
 'use client';
 import { useEffect, useId, useState } from 'react';
 import { Banner, Button, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { apiMessage } from '@/api/client';
 import { useCreateMember } from '@/api/queries';
-import type { Member, StaffCreate, TzGroup } from '@/api/types';
+import type { Member, StaffCreate, StaffCreated, TzGroup } from '@/api/types';
 import { ROLES } from '@/lib/roles';
 import { todayKst } from '@/lib/calendar';
+import { MemberHandoverBox } from './MemberRowActions';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-/** 서버 `STAFF_CREATE_ROLES` 와 같은 둘 — 이름은 `ROLES` 표에서 꺼낸다(비교가 아니라 표시 · D-R39) */
-const PICKABLE: ReadonlyArray<StaffCreate['role']> = ['teacher', 'manager'];
+/** 서버 `STAFF_CREATE_ROLES` 와 같은 둘 — 이름은 `ROLES` 표에서 꺼낸다(비교가 아니라 표시 · D-R39). 「수정」 창도 같은 둘을 쓴다 */
+export const STAFF_PICKABLE_ROLES: ReadonlyArray<StaffCreate['role']> = ['teacher', 'manager'];
+const PICKABLE = STAFF_PICKABLE_ROLES;
 
 export interface MemberCreateButtonProps {
   tzGroups: TzGroup[];
@@ -44,7 +47,6 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
   const write = useCreateMember();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [role, setRole] = useState<StaffCreate['role']>('teacher');
   const [title, setTitle] = useState('');
   const [memberTz, setMemberTz] = useState(tz);
@@ -52,23 +54,25 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
   const [hiredOn, setHiredOn] = useState(todayKst());
   const [wageRate, setWageRate] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  /** 만든 뒤의 넘겨줄 정보 — 창을 닫으면 사라진다(다시 볼 수 없다 · 잊었으면 「비밀번호 초기화」) */
+  const [made, setMade] = useState<StaffCreated | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setName(''); setEmail(''); setPassword(''); setRole('teacher'); setTitle(''); setMemberTz(tz);
-    setPhone(''); setHiredOn(todayKst()); setWageRate(''); setErr(null);
+    setName(''); setEmail(''); setRole('teacher'); setTitle(''); setMemberTz(tz);
+    setPhone(''); setHiredOn(todayKst()); setWageRate(''); setErr(null); setMade(null);
   }, [open, tz]);
 
   const pending = write.isPending;
   const rate = wageRate.trim() === '' ? null : Number(wageRate);
   const rateOk = rate === null || (Number.isInteger(rate) && rate >= 1000);
-  // 8자 이상은 로그인 규칙과 같다 — 최종 판정은 서버 DTO 다
-  const canSubmit = name.trim().length > 0 && email.trim().length > 0 && password.length >= 8 && ISO.test(hiredOn) && rateOk && !pending;
+  // 최종 판정은 서버 DTO 다 — 비밀번호는 서버가 정한다(W8)
+  const canSubmit = name.trim().length > 0 && email.trim().length > 0 && ISO.test(hiredOn) && rateOk && !pending;
 
   const submit = () => {
     if (!canSubmit) return;
     const payload: StaffCreate = {
-      name: name.trim(), email: email.trim(), password, role, hiredOn,
+      name: name.trim(), email: email.trim(), role, hiredOn,
       ...(title.trim() ? { title: title.trim() } : {}),
       ...(memberTz ? { tz: memberTz } : {}),
       ...(phone.trim() ? { phone: phone.trim() } : {}),
@@ -77,7 +81,8 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
     };
     setErr(null);
     write.mutate(payload, {
-      onSuccess: (row) => { setOpen(false); onDone?.(row); },
+      // 창을 닫지 않고 넘겨줄 정보를 보인다 — 만든 사람이 강사에게 전해 줘야 한다
+      onSuccess: (row) => { setMade(row); onDone?.(row); },
       onError: (e) => setErr(apiMessage(e)),
     });
   };
@@ -90,16 +95,24 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
         onClose={() => setOpen(false)}
         title="구성원 추가"
         width={560}
-        footer={(
+        footer={made ? (
+          <Button type="button" onClick={() => setOpen(false)}>닫기</Button>
+        ) : (
           <>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>취소 (Esc)</Button>
             <Button type="button" onClick={submit} disabled={!canSubmit}
-              title={!canSubmit && !pending ? '이름 · 이메일 · 8자 이상의 비밀번호는 있어야 합니다' : undefined}>
+              title={!canSubmit && !pending ? '이름 · 이메일은 있어야 합니다' : undefined}>
               {pending ? '만드는 중…' : '만들기'}
             </Button>
           </>
         )}
       >
+        {made ? (
+          <div className="flex flex-col gap-3">
+            <Banner tone="success">{made.name} 계정을 만들었습니다.</Banner>
+            <MemberHandoverBox loginId={made.loginId} initialPassword={made.initialPassword} />
+          </div>
+        ) : (
         <div className="flex flex-col gap-3">
           <div>
             <Label>역할</Label>
@@ -107,7 +120,7 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
             <Segmented<StaffCreate['role']> ariaLabel="역할" value={role} disabled={pending} onChange={setRole}
               options={PICKABLE.map((key) => ({ value: key, label: ROLES.find((r) => r.key === key)?.label ?? key }))} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <Label htmlFor={`${id}-name`}>이름</Label>
               <Input id={`${id}-name`} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} disabled={pending} autoComplete="off" />
@@ -117,17 +130,11 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
               <Input id={`${id}-title`} value={title} maxLength={20} onChange={(e) => setTitle(e.target.value)} disabled={pending} placeholder="영어 · 코디네이터" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label htmlFor={`${id}-email`} hint="로그인 아이디 · 유일">이메일</Label>
-              <Input id={`${id}-email`} type="email" value={email} maxLength={120} onChange={(e) => setEmail(e.target.value)} disabled={pending} autoComplete="off" />
-            </div>
-            <div>
-              <Label htmlFor={`${id}-pw`} hint="8자 이상 · 첫 로그인 뒤 본인이 바꿉니다">첫 비밀번호</Label>
-              <Input id={`${id}-pw`} type="password" value={password} maxLength={72} onChange={(e) => setPassword(e.target.value)} disabled={pending} autoComplete="new-password" />
-            </div>
+          <div>
+            <Label htmlFor={`${id}-email`} hint="로그인 아이디 · 유일">이메일</Label>
+            <Input id={`${id}-email`} type="email" value={email} maxLength={120} onChange={(e) => setEmail(e.target.value)} disabled={pending} autoComplete="off" />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div>
               <Label htmlFor={`${id}-tz`}>시간대</Label>
               {/* 낱말은 서랍의 시간대 그룹 그대로다 — 표에 없는 값은 서버가 409 로 막는다 */}
@@ -136,7 +143,7 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
               </Select>
             </div>
             <div>
-              <Label htmlFor={`${id}-phone`}>전화</Label>
+              <Label htmlFor={`${id}-phone`} hint="휴대폰 · 첫 설정 때 확인합니다">휴대폰</Label>
               <Input id={`${id}-phone`} value={phone} maxLength={20} inputMode="tel" onChange={(e) => setPhone(e.target.value)} disabled={pending} />
             </div>
             <div>
@@ -152,8 +159,9 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
             </div>
           ) : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
-          <p className="text-[11px] text-fg-subtle">만들면 바로 그 이메일과 비밀번호로 로그인됩니다. 비밀번호는 해시로만 남고 다시 볼 수 없습니다.</p>
+          <p className="text-[11px] text-fg-subtle">비밀번호는 서버가 초기 비밀번호로 정합니다 — 만들면 넘겨줄 아이디와 초기 비밀번호를 보여 드립니다.</p>
         </div>
+        )}
       </Dialog>
     </>
   );

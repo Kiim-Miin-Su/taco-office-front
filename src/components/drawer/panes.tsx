@@ -34,6 +34,7 @@ import { REQ_TYPE_LABEL, ROLE_BAR, ROLE_TEXT } from '@/lib/roles';
 import { won } from '@/lib/money';
 import { occurrenceTargetValue, parseOccurrenceTarget, type ChangeReqDraft, type ChreqType } from './change-request';
 import { MemberCreateButton } from './MemberCreateDialog';
+import { MemberRowActions } from './MemberRowActions';
 import { WageChangeButton } from './WageChangeDialog';
 import { TodoCreateDialog } from './TodoCreateDialog';
 
@@ -640,6 +641,9 @@ function localHhmm(tz: string, now: number): string {
   }
 }
 
+/** 시간대 약칭 — 원문 §17 「서울 **KST** 고정」의 뒷말. IANA 식별자 → 약칭 표기만 둔다 */
+const TZ_ABBR: Readonly<Record<string, string>> = { 'Asia/Seoul': 'KST' };
+
 /** 1분마다 다시 그린다 — 컷이 분까지만 적으므로 초 단위로 깨울 이유가 없다 */
 function useMinuteTick(): number {
   const [now, setNow] = useState(() => Date.now());
@@ -678,12 +682,17 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
    * 표에 없는 값은 감추지 않고 저장값 그대로 보인다 — 새 시간대가 생긴 것을 알아야 한다.
    */
   const tzName = (value: string) => tzGroups.find((g) => g.tz === value)?.name ?? value;
+  /*
+   * 원문 머리는 「관리자 화면은 **서울 KST 고정**입니다」다(g2 17-1) — 그룹 이름(「서울」·서버 `tzg`) 뒤에
+   * 그 시간대의 약칭을 붙인다. 약칭은 IANA 식별자의 표기일 뿐 업무 값이 아니라 여기 둔다(관리자 화면은 KST 한 곳이다).
+   */
+  const abbr = TZ_ABBR[tz];
 
   return (
     <>
       {/* 원문 §17 머리는 평문이다 — 사용자 문장에 결정 번호를 적지 않는다(g2 C-7 · 근거 D-R12 · D-R39) */}
       <p className="mb-3 text-[12.5px] leading-relaxed text-fg-2">
-        관리자 화면은 <b className="text-fg">{tzName(tz)} 고정</b>입니다.
+        관리자 화면은 <b className="text-fg">{tzName(tz)}{abbr ? ` ${abbr}` : ''} 고정</b>입니다.
         옆의 시각은 <b className="text-fg">그 사람이 있는 곳의 지금</b>입니다.
         직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다.
       </p>
@@ -706,13 +715,16 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
           </div>
           <ul className="mt-1.5 flex flex-col gap-1">
             {g.members.map((m) => (
-              <li key={m.id} className="flex items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2">
+              <li key={m.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2">
                 <span className={`text-[12px] font-bold ${m.active ? 'text-fg' : 'text-fg-subtle line-through'}`}>
                   {m.name}
                 </span>
                 <span className="text-[11px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
                 {/* 직함은 컷의 묶음 이름이 있던 자리다 — 묶음으로 못 옮기는 대신 줄에 남긴다 */}
                 {m.title ? <Chip size="compact" tone="neutral">{m.title}</Chip> : null}
+                {/* W8 — 계정 상태는 서버 값 그대로: 첫 설정을 안 끝낸 계정 · 사용 중지된 계정 */}
+                {m.mustChangeCredentials ? <Chip size="compact" tone="warning">첫 설정 전</Chip> : null}
+                {m.active ? null : <Chip size="compact" tone="danger">사용 중지</Chip>}
                 {/* 시급은 볼 수 있는 사람에게만 온다(canWage) — 줄이 서는지는 서버의 wageable 이 가른다 (C97 · D-48) */}
                 {canWage && m.wageable ? (
                   <>
@@ -724,6 +736,8 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
                   </>
                 ) : null}
                 <span className="ml-auto text-[12px] tabular-nums text-fg-2">{localHhmm(m.tz ?? tz, now)}</span>
+                {/* 수정 · 비밀번호 초기화 · 사용 중지 · 삭제 — 서는지는 줄마다 서버 플래그가 가른다 (W8 · D-R39) */}
+                <MemberRowActions member={m} tzGroups={tzGroups} tz={tz} />
               </li>
             ))}
           </ul>

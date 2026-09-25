@@ -112,3 +112,10 @@ it('머리 문장에 결정 번호가 없다', () => {
   expect(view.container.textContent).toContain('관리자 화면은');
   expect(view.container.textContent).not.toMatch(/D-R\d/);
 });
+
+/* g2 대조 17-1 — 원문 §17 머리 「관리자 화면은 서울 KST 고정입니다」. 「서울」은 서버 시간대 그룹의 이름이다 */
+it('머리 문장은 시간대 그룹 이름 뒤에 KST 를 붙여 원문 그대로 말한다 (17-1)', () => {
+  const view = paint();
+  const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+  expect(text).toContain('관리자 화면은 서울 KST 고정입니다');
+});
