@@ -19,6 +19,7 @@ import { Banner, Button, PageHeader, Panel, QueryState } from '@/components/ui';
 import { useCreateTeacherUnav, useDeleteTeacherUnav, useTeacherUnav } from '@/api/queries';
 import type { TeacherUnav, TeacherUnavBlock } from '@/api/types';
 import { dowOf, hm } from '@/components/teacher/format';
+import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 
 const H0 = 8;                     // 격자 첫 시간 (원본 §15)
 const H1 = 23;                    // 격자 끝
@@ -231,6 +232,8 @@ export default function TeacherUnavailablePage() {
   return (
     <RequireAuth>
       <AppShell>
+        {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
+        <TeacherPolicyBar screen="unavailable" className="mb-3" />
         <QueryState query={q} isEmpty={() => false}>
           {(d) => <Body d={d} anchor={anchor} setAnchor={setAnchor} />}
         </QueryState>

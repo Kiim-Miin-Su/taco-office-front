@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { Me } from '@/api/types';
 import { Chip, cn } from '@/components/ui';
 import {
-  adminNavBadgeFor, adminNavItemsFor, isAdminNavActive,
+  adminNavBadgeFor, adminNavItemsFor, mostSpecificNavItem,
   type AdminNavBadge, type AdminNavItem,
 } from './navigation';
 
@@ -16,16 +16,17 @@ export type AdminNavBadges = Readonly<Partial<Record<AdminNavBadge, number>>>;
 
 function AdminNavLink({
   item,
-  pathname,
+  activeHref,
   badges,
   canAdminPage,
 }: {
   item: AdminNavItem;
-  pathname: string | null;
+  activeHref: string | undefined;
   badges: AdminNavBadges;
   canAdminPage: boolean;
 }) {
-  const active = isAdminNavActive(pathname, item.href);
+  // 켜지는 탭은 가장 좁게 맞는 항목 하나 — 하위 화면에서 상위 탭까지 켜지지 않게
+  const active = item.href === activeHref;
   const count = adminNavBadgeFor(item, 'top', badges);
   const activeColor = canAdminPage ? 'bg-header-active text-white' : 'bg-blue text-white';
 
@@ -57,10 +58,11 @@ export function AdminTopNavigation({
   badges: AdminNavBadges;
   me: Me | null;
 }) {
+  const activeHref = mostSpecificNavItem(pathname)?.href;
   return (
     <nav aria-label="주 메뉴" className="order-last flex min-w-0 basis-full items-center gap-0.5 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto">
       {adminNavItemsFor('top', me).map((item) => (
-        <AdminNavLink key={item.href} item={item} pathname={pathname} badges={badges} canAdminPage={Boolean(me?.canAdminPage)} />
+        <AdminNavLink key={item.href} item={item} activeHref={activeHref} badges={badges} canAdminPage={Boolean(me?.canAdminPage)} />
       ))}
     </nav>
   );

@@ -18,6 +18,7 @@ import { Button, Chip, PageHeader, Panel, QueryState, type Tone } from '@/compon
 import { useCreateTeacherSuggestion, useTeacherSuggestions } from '@/api/queries';
 import type { TeacherSuggestion, TeacherSuggestionCreate } from '@/api/types';
 import { md } from '@/components/teacher/format';
+import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 
 /** D-11 분류 4종 — 라벨·부제는 덱 §33 그대로 */
 const CATS = [
@@ -89,6 +90,8 @@ export default function TeacherSuggestionsPage() {
   return (
     <RequireAuth>
       <AppShell>
+        {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
+        <TeacherPolicyBar screen="suggestions" className="mb-3" />
         <QueryState query={q} isEmpty={() => false}>
           {(d) => {
             const spent = !d.canPost;

@@ -19,6 +19,8 @@ import { Banner, Button, Chip, Input, Label, PageHeader, Panel, QueryState, Sele
 import { useCreateSettingRequest, useTeacherHome } from '@/api/queries';
 import type { TeacherLesson, TeacherSettings } from '@/api/types';
 import { REP, hm, hours, md } from '@/components/teacher/format';
+import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
+import { useLessonName } from '@/components/teacher/lesson-name';
 
 const REQ_STATE: Record<string, { label: string; tone: Tone }> = {
   pending: { label: '승인 대기', tone: 'info' },
@@ -136,6 +138,7 @@ function MySettings({ s }: { s: TeacherSettings }) {
 }
 
 function LessonRow({ l, withDate }: { l: TeacherLesson; withDate?: boolean }) {
+  const lessonName = useLessonName();
   // 휴강 사유는 서버 낱말이다 — 옛 휴강(사유 없음)은 「수업 취소」 그대로 (C92 · C-31 · N-25)
   const rep = l.canceled
     ? { label: l.cancelKindLabel ? `휴강 · ${l.cancelKindLabel}` : '수업 취소', tone: 'neutral' as Tone }
@@ -148,7 +151,7 @@ function LessonRow({ l, withDate }: { l: TeacherLesson; withDate?: boolean }) {
         {hm(l.startMin)}–{hm(l.startMin + l.durMin)}
       </div>
       <div className="min-w-0 grow">
-        <div className="truncate text-[14px] font-bold text-fg">{l.title ?? l.subKey ?? l.kindKey}</div>
+        <div className="truncate text-[14px] font-bold text-fg">{lessonName(l)}</div>
         <div className="truncate text-[12px] text-fg-subtle">
           {l.students ? `${l.students} 학생` : '학생 미배정'} · {l.mode === 'online' ? '비대면' : '대면'} · {place}
         </div>
@@ -174,6 +177,8 @@ export default function TeacherHomePage() {
   return (
     <RequireAuth>
       <AppShell>
+        {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
+        <LateReportPolicy className="mb-3" />
         <QueryState query={q} isEmpty={() => false}>
           {(d) => {
             const todayMin = d.today.filter((l) => !l.canceled).reduce((a, l) => a + l.durMin, 0);

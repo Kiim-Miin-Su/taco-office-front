@@ -85,7 +85,15 @@ describe('AdminNavigation', () => {
     expect(active.classList.contains('text-white')).toBe(true);
     expect(active.classList.contains('bg-header-active')).toBe(false);
     expect(view.queryByRole('link', { name: '스케줄' })).toBeNull();
-    expect(view.getAllByRole('link').map((link) => link.textContent)).toEqual(['홈', '캘린더', '리포트']);
+    expect(view.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      '홈', '캘린더', '불가 시간', '리포트', '수업 안내', '수업 히스토리', '건의 사항',
+    ]);
+  });
+
+  it('강사 하위 화면에서는 그 메뉴 하나만 켜진다 — 「홈」이 같이 켜지지 않는다', () => {
+    const view = render(<AdminTopNavigation pathname="/teacher/unavailable" me={{ ...me, canAdminPage: false }} badges={{}} />);
+    const current = view.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page');
+    expect(current.map((link) => link.textContent)).toEqual(['불가 시간']);
   });
 
   it('최종 canAdminPage 플래그가 바뀌면 같은 메뉴의 활성 색과 라벨을 갱신한다', () => {

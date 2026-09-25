@@ -15,12 +15,19 @@ import type { Me } from '@/api/types';
 export type AdminNavSurface = 'top' | 'sidebar';
 export type AdminNavIcon = 'calendar' | 'approval';
 export type AdminNavBadge = 'reports' | 'approvals';
+/**
+ * 강사 메뉴 패널의 앞 아이콘 — Figma `Teacher/Navigation`(7681:21765) 의 Icon INSTANCE_SWAP 값(Lucide 이름).
+ * 아이콘을 패널 쪽 href 표로 따로 적으면 메뉴 목록이 두 벌이 된다 — 그래서 항목 옆에 둔다.
+ */
+export type PersonalNavIcon = 'home' | 'calendar' | 'calendar-x' | 'file-text' | 'columns' | 'history' | 'message';
 
 export interface AdminNavItem {
   href: string;
   label: string;
   /** 관리자 화면이 없는 개인용 UI의 표시 이름. URL/권한 규칙은 공유한다. */
   personalLabel?: string;
+  /** 개인용(강사) 메뉴 패널에서만 그리는 앞 아이콘. 관리자 상단 탭은 쓰지 않는다. */
+  personalIcon?: PersonalNavIcon;
   surfaces: readonly AdminNavSurface[];
   icon?: AdminNavIcon;
   badge?: AdminNavBadge;
@@ -35,22 +42,24 @@ const BOTH = ['top', 'sidebar'] as const satisfies readonly AdminNavSurface[];
 const ADMIN = ['canAdminPage', 'canCrudAll'] as const;
 
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
-  { href: '/teacher', label: '홈', surfaces: BOTH, icon: 'calendar', personalOnly: true },
-  // 홈 바로가기로 여는 개인용 하위 화면 — 메뉴에는 없고 URL 규칙만 공유한다 (탭 활성은 홈이 담당)
-  { href: '/teacher/history', label: '수업 히스토리', surfaces: [], personalOnly: true },
-  { href: '/teacher/suggestions', label: '건의 사항', surfaces: [], personalOnly: true },
-  { href: '/teacher/guides', label: '수업 안내', surfaces: [], personalOnly: true },
-  { href: '/teacher/unavailable', label: '불가 시간', surfaces: [], personalOnly: true },
-  { href: '/schedule', label: '스케줄', personalLabel: '캘린더', surfaces: BOTH, icon: 'calendar' },
+  /* 강사 메뉴 7개 — 강사 원문 덱 §6 「① 홈 ② 캘린더 ③ 불가 시간 ④ 리포트 ⑤ 수업 안내 ⑥ 수업 히스토리 ⑦ 건의 사항」
+     (Figma 강사 웹 Menu panel 과 같은 차례 · 1:1 대조 2026-09-25). 예전에는 넷을 홈 바로가기로만 두어 상단에
+     셋만 섰고, 하위 화면에서 「홈」 탭이 켜졌다. 개인용 항목은 관리 화면 사용자에게 걸러지므로 관리자 차례는 그대로다. */
+  { href: '/teacher', label: '홈', personalIcon: 'home', surfaces: BOTH, icon: 'calendar', personalOnly: true },
+  { href: '/schedule', label: '스케줄', personalLabel: '캘린더', personalIcon: 'calendar', surfaces: BOTH, icon: 'calendar' },
+  { href: '/teacher/unavailable', label: '불가 시간', personalIcon: 'calendar-x', surfaces: BOTH, personalOnly: true },
   { href: '/intake', label: '상담', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/consulting', label: '컨설팅', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/board', label: '수업', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/books', label: '교재', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/guides', label: '수업 안내', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   {
-    href: '/reports', label: '리포트', surfaces: BOTH, icon: 'approval', badge: 'reports',
+    href: '/reports', label: '리포트', personalIcon: 'file-text', surfaces: BOTH, icon: 'approval', badge: 'reports',
     badgeSurfaces: BOTH,
   },
+  { href: '/teacher/guides', label: '수업 안내', personalIcon: 'columns', surfaces: BOTH, personalOnly: true },
+  { href: '/teacher/history', label: '수업 히스토리', personalIcon: 'history', surfaces: BOTH, personalOnly: true },
+  { href: '/teacher/suggestions', label: '건의 사항', personalIcon: 'message', surfaces: BOTH, personalOnly: true },
   { href: '/accounting', label: '회계', surfaces: BOTH, icon: 'calendar', requires: [...ADMIN, 'canMoney'] },
   { href: '/ops', label: '운영', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   {
@@ -86,12 +95,22 @@ export function canAccessAppRoute(pathname: string | null, me: Me | null): boole
   if (pathname === '/login') return true;
   if (!me || !pathname) return false;
   if (pathname === '/') return true;
-  const item = ADMIN_NAV_ITEMS.find((nav) => isAdminNavActive(pathname, nav.href));
+  const item = mostSpecificNavItem(pathname);
   return Boolean(item && canAccessNavItem(item, me));
 }
 
 export function isAdminNavActive(pathname: string | null, href: string): boolean {
   return pathname === href || Boolean(pathname?.startsWith(`${href}/`));
+}
+
+/**
+ * 이 경로를 가장 좁게 맞추는 항목 — `/teacher/unavailable` 은 `/teacher` 도 앞자락으로 맞지만 제 항목이 있다.
+ * 활성 탭과 직접 URL 권한이 같은 판정을 쓴다(둘이 다른 항목을 고르면 켜진 탭과 막는 규칙이 갈린다).
+ */
+export function mostSpecificNavItem(pathname: string | null): AdminNavItem | undefined {
+  return ADMIN_NAV_ITEMS
+    .filter((nav) => isAdminNavActive(pathname, nav.href))
+    .reduce<AdminNavItem | undefined>((best, nav) => (!best || nav.href.length > best.href.length ? nav : best), undefined);
 }
 
 export function adminNavBadgeFor(

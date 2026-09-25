@@ -20,12 +20,14 @@ import { Banner, Button, Chip, PageHeader, Panel, QueryState } from '@/component
 import { useAcknowledgeGuide, useReceivedGuides, useTeacherGuides } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { positiveQueryId } from '@/lib/url-state';
-import { GuideBody, GuideTimeline } from '@/components/guides/GuideReadout';
-import { GuideReasonChip, GuideStateChip } from '@/components/guides/GuideStatus';
+import { GuideBody, GuideNote, GuideTimeline } from '@/components/guides/GuideReadout';
+import { GuideReasonChip, GuideStateChip, guideLessonLabel } from '@/components/guides/GuideStatus';
 import type { Guide, TeacherGuideStudent } from '@/api/types';
 import { hm, md } from '@/components/teacher/format';
 import { DiagnosticForm } from '@/components/teacher/DiagnosticForm';
 import { GuideDiagnosticSummary } from '@/components/guides/GuideDiagnosticSummary';
+import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
+import { useLessonName } from '@/components/teacher/lesson-name';
 
 const addDays = (iso: string, n: number): string => {
   const d = new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000);
@@ -36,7 +38,8 @@ const addDays = (iso: string, n: number): string => {
 const LANG_LABEL: Record<string, string> = { ko: '한국어 수업', en: '영어로만 수업', mix: '혼용 수업' };
 
 function StudentRow({ s, active, onPick }: { s: TeacherGuideStudent; active: boolean; onPick: () => void }) {
-  const subjects = [...new Set(s.lessons.map((l) => l.title ?? l.subKey ?? ''))].filter(Boolean).join(', ');
+  const lessonName = useLessonName();
+  const subjects = [...new Set(s.lessons.map((l) => lessonName(l)))].join(', ');
   return (
     <li>
       <button
@@ -148,9 +151,14 @@ function ReceivedGuidesSection() {
               {selected ? <article className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <GuideStateChip state={selected.state} /><GuideReasonChip reason={selected.reason} />
-                  <b className="min-w-0 break-words text-[13px]">{selected.studentName ?? '학생 미상'} · {selected.serTitle ?? '수업명 미정'}</b>
+                  <b className="min-w-0 break-words text-[13px]">{selected.studentName ?? '학생 미상'} · {guideLessonLabel(selected)}</b>
                 </div>
                 <GuideBody body={selected.body} />
+                {/* 관리자가 적은 두 상자 — 서버가 받는 강사에게만 싣는다(g4 §44-3). 비었으면 상자가 「적지 않음」이라 말한다 */}
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <GuideNote label="지도 방향" text={selected.direction} tone="info" />
+                  <GuideNote label="관리자 코멘트 · 강사만" text={selected.adminNote} tone="warning" />
+                </div>
                 <GuideTimeline guide={selected} />
                 <Button className="mt-3 min-h-11" disabled={!selected.canAck || ack.isPending}
                   onClick={() => confirm(selected)}>
@@ -169,6 +177,7 @@ function ReceivedGuidesSection() {
 }
 
 export default function TeacherGuidesPage() {
+  const lessonName = useLessonName();
   const [week, setWeek] = useState<string | undefined>(undefined);
   const [pickedId, setPickedId] = useState<number | null>(null);
   /** 진단을 쓰고 있는 학생 — 한 번에 한 명 (화면이 두 폼을 들고 있으면 어느 쪽을 저장했는지 흐려진다) */
@@ -177,6 +186,8 @@ export default function TeacherGuidesPage() {
   return (
     <RequireAuth>
       <AppShell>
+        {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
+        <TeacherPolicyBar screen="guides" className="mb-3" />
         <PageHeader title="수업 안내" />
         <ReceivedGuidesSection />
         {/* 빈 주에도 주 내비는 살아 있어야 한다 — QA C28: isEmpty 로 좌측 레일까지 삼키면
@@ -246,7 +257,7 @@ export default function TeacherGuidesPage() {
                       <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-fg-subtle">
                         {picked.lessons.map((l) => (
                           <span key={`${l.onDate}-${l.startMin}`}>
-                            {md(l.onDate)} {hm(l.startMin)} <b className="text-fg">{l.title ?? l.subKey ?? ''}</b>
+                            {md(l.onDate)} {hm(l.startMin)} <b className="text-fg">{lessonName(l)}</b>
                           </span>
                         ))}
                       </div>

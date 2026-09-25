@@ -175,3 +175,13 @@ it('수신 목록이 비어 있어도 현재 주 자료와 빈 수신 안내가 
   expect(view.queryByRole('button', { name: '확인했습니다' })).toBeNull();
   expect(calls.filter((c) => c.method === 'post')).toHaveLength(0);
 });
+
+it('받은 안내는 관리자가 적은 「지도 방향」·「관리자 코멘트」 두 상자를 서버 값 그대로 보인다 (g4 §44-3 · QA 0925 H7)', async () => {
+  const guide = { ...initial, direction: '어휘 먼저 · 문장은 짧게', adminNote: '어머니가 숙제량을 걱정하십니다' } as Guide;
+  const { view } = setup({ search: 'guideId=5', items: [guide] });
+  const direction = await view.findByRole('region', { name: '지도 방향' });
+  expect(direction.textContent).toContain('어휘 먼저 · 문장은 짧게');
+  expect(view.getByRole('region', { name: '관리자 코멘트 · 강사만' }).textContent).toContain('어머니가 숙제량을 걱정하십니다');
+  // 수업 이름표는 공용 규칙 — 규칙 제목이 있으면 그것
+  expect(view.getByText('수신 학생 · 수신 수업')).toBeTruthy();
+});

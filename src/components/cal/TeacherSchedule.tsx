@@ -17,6 +17,7 @@ import { ReportDetailDrawer } from '@/components/report/ReportDetailDrawer';
 import { Banner, Button, Chip, Panel } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
 import { STATUS_LABEL, STATUS_LOOK } from './EventBlock';
+import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
 
 const EMPTY: Occurrence[] = [];
 type Lookup = {
@@ -138,6 +139,8 @@ export function TeacherSchedule() {
 
   return (
     <AppShell>
+      {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
+      <LateReportPolicy className="mb-3" />
       <h1 className="mb-4 text-[20px] font-bold text-fg">캘린더</h1>
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
         <div className="flex min-w-0 flex-col gap-5">

@@ -17,7 +17,7 @@
 'use client';
 import { useMeta } from '@/api/queries';
 import { cn } from '@/components/ui';
-import { useSession } from '@/store/useSession';
+import { useTeacherSurface } from './teacher-surface';
 
 /**
  * 모양은 Figma `Teacher/Late Report Policy`(= 디자인 시스템 `Data/Penalty Banner` 인스턴스) 그대로다 —
@@ -25,7 +25,7 @@ import { useSession } from '@/store/useSession';
  * 칸 안 낱말은 반투명 흰색을 쓰지 않는다 — 옅은 칸(white/15) 위 85% 흰색은 대비 3.9:1 이라 작은 글씨 기준(4.5) 미달이다.
  */
 export function LateReportPolicy({ className }: { className?: string }) {
-  const teacherSurface = useSession((s) => Boolean(s.me && !s.me.canAdminPage));
+  const teacherSurface = useTeacherSurface();
   // 코드표는 화면이 이미 받는 것 — 같은 세션 키라 한 번만 부른다. 관리 화면에서는 부르지도 않는다
   const meta = useMeta(teacherSurface);
   // 띠는 **깎이는 구간만** 적는다(금액 0 인 「1시간 안에 제출」은 부제로 말한다)

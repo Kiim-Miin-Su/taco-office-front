@@ -6,11 +6,12 @@
 
 /**
  * 인증된 업무 화면의 공용 셸. 메뉴/본문은 권한과 역할별 명세에 따라 조립한다.
- * 업무 탭은 상단 한 벌. 원본의 도메인별 좌우 패널은 해당 페이지가 소유한다.
+ * 관리자: 업무 탭은 상단 한 벌. 원본의 도메인별 좌우 패널은 해당 페이지가 소유한다.
+ * 강사(canAdminPage 아님): components/teacher/TeacherShell — ☰ 머리줄 + 메뉴 패널 (강사 덱 · Figma).
  */
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Home, Maximize, Minimize, Palette, RotateCcw, ShieldCheck, Workflow } from 'lucide-react';
+import { ArrowLeft, Home, Maximize, Minimize, Palette, RotateCcw, ShieldCheck } from 'lucide-react';
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
@@ -21,13 +22,17 @@ import { useDrawer, useUnwritten } from '@/api/queries';
 import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
 import { ApprovalFlowDialog } from '@/components/approval/ApprovalFlowDialog';
 
-/** 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다. */
-export type WorkspacePanelApi = { openDrawer: (pane: DrawerPane) => void };
+/**
+ * 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다.
+ * `activePane` 은 **지금 열린 칸**(닫혀 있으면 null)이다 — 오른쪽 레일이 그 칸을 채운 타일로 보인다 (g2 C-2).
+ */
+export type WorkspacePanelApi = { openDrawer: (pane: DrawerPane) => void; activePane: DrawerPane | null };
 export type DrawerEntry = { pane: DrawerPane; identity: string };
 type PanelSlot = ReactNode | ((api: WorkspacePanelApi) => ReactNode);
 import { Banner, Button, Dialog, Logo, cn } from '@/components/ui';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
 import { objectParticle } from '@/lib/calendar';
+import { TeacherShell } from '@/components/teacher/TeacherShell';
 import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
 import { useUndoLast } from './useUndoLast';
 import styles from './AppShell.module.css';
@@ -65,8 +70,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   // 되돌리기는 상단바에도 있고(원본 §16) 스케줄 화면의 띠에도 있다 — 둘 다 같은 훅을 쓴다 (N-138)
   const undoLast = useUndoLast();
   const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
-  const side = typeof sidePanel === 'function' ? sidePanel({ openDrawer }) : sidePanel;
-  const right = typeof rightPanel === 'function' ? rightPanel({ openDrawer }) : rightPanel;
+  const panelApi: WorkspacePanelApi = { openDrawer, activePane: drawer ? drawerPane : null };
+  const side = typeof sidePanel === 'function' ? sidePanel(panelApi) : sidePanel;
+  const right = typeof rightPanel === 'function' ? rightPanel(panelApi) : rightPanel;
 
   useEffect(() => {
     const sync = () => setFullScreen(Boolean(document.fullscreenElement));
@@ -106,75 +112,96 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   }
   return (
     <div data-ui={me?.canAdminPage ? 'admin' : 'teacher'} data-print="surface" className={cn(styles.shell, 'bg-bg text-fg')}>
-      <header data-print="chrome" className={cn(styles.header, isAdmin ? 'border-b border-header-line bg-header' : 'bg-fg')}>
-        {isAdmin && leftTool ? <div className="mr-1 flex shrink-0 items-center">{leftTool}</div> : null}
-        <Logo size={isAdmin ? 26 : 22} withMark={!isAdmin} onDark className="mr-auto shrink-0 sm:mr-3" />
-        {isAdmin ? <div className="flex shrink-0 items-center gap-2 border-header-line sm:border-x sm:px-3">
-          {onToday ? <button type="button" onClick={onToday} className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
-            <Home size={14} aria-hidden />오늘 전체
-          </button> : <a href="/schedule" className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
-            <Home size={14} aria-hidden />오늘 전체
-          </a>}
-          <button type="button" onClick={() => router.back()} className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
-            <ArrowLeft size={14} aria-hidden />뒤로
-          </button>
-          {/*
-            원본 §16 컷의 상단바 세 번째 단추다 — 되돌릴 것이 없으면 **흐리게** 그려져 있다.
-            그래서 조건부로 사라지지 않고 **늘 서 있고** 못 누를 때는 이유를 `title` 이 말한다.
-            컷의 「⌄」는 눌렀을 때가 컷에 없어 만들지 않는다 (D-R44 — 없는 메뉴를 짓지 않는다).
-          */}
-          <button type="button" onClick={() => undoLast.undo({ onFail: setScreenError })}
-            disabled={!undoLast.canUndo || undoLast.pending}
-            title={undoLast.canUndo ? `${undoLast.label}${objectParticle(undoLast.label ?? '')} 되돌립니다 · Ctrl/⌘+Z` : '되돌릴 최근 일정 작업이 없습니다'}
-            className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2 disabled:opacity-40">
-            <RotateCcw size={14} aria-hidden />되돌리기
-          </button>
-        </div> : null}
-        <AdminTopNavigation pathname={path} badges={badges} me={me} />
-        {isAdmin ? <button type="button" onClick={() => void toggleFullScreen()} aria-label={fullScreen ? '전체 화면 종료' : '전체 화면'}
-          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
-          {fullScreen ? <Minimize size={14} aria-hidden /> : <Maximize size={14} aria-hidden />}
-          <span className="hidden xl:inline">{fullScreen ? '전체 화면 종료' : '전체 화면'}</span>
-        </button> : null}
-        {canViewApprovalFlow ? <button type="button" onClick={() => setApprovalFlow(true)} aria-haspopup="dialog"
-          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white">
-          <Workflow size={14} aria-hidden />결재 흐름 <span className="rounded bg-white/15 px-1.5">{approvalCount}</span>
-        </button> : null}
-        <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">
-            {isAdmin ? <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span> : null}
-            <span>{me?.name}</span>
-            {/* 역할의 낱말도 서버가 만든다 — 화면이 제 표를 들면 서랍 §17 과 여기가 갈린다 (D-R18) */}
-            {me ? <span className="rounded bg-header-tool px-1.5 py-0.5 text-[10px]">{me.title || me.roleLabel}</span> : null}
-          </summary>
-          <div className="absolute right-0 top-full z-30 mt-1 min-w-28 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
-            <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>
+      {isAdmin ? <>
+        <header data-print="chrome" className={cn(styles.header, 'border-b border-header-line bg-header')}>
+          {leftTool ? <div className="mr-1 flex shrink-0 items-center">{leftTool}</div> : null}
+          <Logo size={26} withMark={false} onDark className="mr-auto shrink-0 sm:mr-3" />
+          <div className="flex shrink-0 items-center gap-2 border-header-line sm:border-x sm:px-3">
+            {onToday ? <button type="button" onClick={onToday} className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
+              <Home size={14} aria-hidden />오늘 전체
+            </button> : <a href="/schedule" className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
+              <Home size={14} aria-hidden />오늘 전체
+            </a>}
+            <button type="button" onClick={() => router.back()} className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+              <ArrowLeft size={14} aria-hidden />뒤로
+            </button>
+            {/*
+              원본 §16 컷의 상단바 세 번째 단추다 — 되돌릴 것이 없으면 **흐리게** 그려져 있다.
+              그래서 조건부로 사라지지 않고 **늘 서 있고** 못 누를 때는 이유를 `title` 이 말한다.
+              컷의 「⌄」는 눌렀을 때가 컷에 없어 만들지 않는다 (D-R44 — 없는 메뉴를 짓지 않는다).
+            */}
+            <button type="button" onClick={() => undoLast.undo({ onFail: setScreenError })}
+              disabled={!undoLast.canUndo || undoLast.pending}
+              title={undoLast.canUndo ? `${undoLast.label}${objectParticle(undoLast.label ?? '')} 되돌립니다 · Ctrl/⌘+Z` : '되돌릴 최근 일정 작업이 없습니다'}
+              className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2 disabled:opacity-40">
+              <RotateCcw size={14} aria-hidden />되돌리기
+            </button>
           </div>
-        </details>
-        {isAdmin ? <button type="button" onClick={() => setDesign(true)}
-          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
-          <Palette size={14} aria-hidden /><span className="hidden xl:inline">디자인</span>
-        </button> : null}
-        {isAdmin ? <button type="button" onClick={() => setPermissions(true)}
-          className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
-          <ShieldCheck size={14} aria-hidden />권한
-        </button> : null}
-        {isAdmin && rightTool ? <div className="ml-1 flex shrink-0 items-center">{rightTool}</div> : null}
-      </header>
-      <div data-print="surface" className={styles.workspace}>
-        {isAdmin && side ? <div data-print="chrome" className={cn(styles.panel, 'border-r border-line bg-card')}>{side}</div> : null}
-        <main data-print="surface" className={cn(styles.main, !flush && 'p-3 sm:p-6')}>
-          {screenError ? <Banner tone="warning" className="mb-3">{screenError}</Banner> : null}
-          {isAdmin ? children : <div className="mx-auto max-w-[1440px]">{children}</div>}
-        </main>
-        {isAdmin && right ? <div data-print="chrome" className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
-      </div>
-      {isAdmin ? <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} /> : null}
+          <AdminTopNavigation pathname={path} badges={badges} me={me} />
+          <button type="button" onClick={() => void toggleFullScreen()} aria-label={fullScreen ? '전체 화면 종료' : '전체 화면'}
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+            {fullScreen ? <Minimize size={14} aria-hidden /> : <Maximize size={14} aria-hidden />}
+            <span className="hidden xl:inline">{fullScreen ? '전체 화면 종료' : '전체 화면'}</span>
+          </button>
+          {canViewApprovalFlow ? <button type="button" onClick={() => setApprovalFlow(true)} aria-haspopup="dialog"
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white">
+            {/* 원문 머리 단추는 「● 승인 대기 N」이다(g2 75-1). 글자는 어두운 바탕 대비 때문에 흰색 그대로 둔다(tokens.test) */}
+            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber ring-1 ring-white/60" />승인 대기 <span className="rounded bg-white/15 px-1.5">{approvalCount}</span>
+          </button> : null}
+          <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span>
+              <span>{me?.name}</span>
+              {/* 역할의 낱말도 서버가 만든다 — 화면이 제 표를 들면 서랍 §17 과 여기가 갈린다 (D-R18) */}
+              {me ? <span className="rounded bg-header-tool px-1.5 py-0.5 text-[10px]">{me.title || me.roleLabel}</span> : null}
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-1 min-w-28 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
+              <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>
+            </div>
+          </details>
+          <button type="button" onClick={() => setDesign(true)}
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+            <Palette size={14} aria-hidden /><span className="hidden xl:inline">디자인</span>
+          </button>
+          <button type="button" onClick={() => setPermissions(true)}
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+            <ShieldCheck size={14} aria-hidden />권한
+          </button>
+          {rightTool ? <div className="ml-1 flex shrink-0 items-center">{rightTool}</div> : null}
+        </header>
+        <div data-print="surface" className={styles.workspace}>
+          {side ? <div data-print="chrome" className={cn(styles.panel, 'border-r border-line bg-card')}>{side}</div> : null}
+          {/*
+            본문 칸 — 탭 02 서랍이 붙는 자리다. 원문 서랍은 **머리줄 아래 · 오른쪽 레일 왼쪽**에 붙고
+            머리줄·레일은 늘 보이고 눌린다(g2 대조 C-1 · 서랍이 레일을 덮어 레일 클릭이 막히던 실측).
+            그래서 서랍은 화면 전체가 아니라 이 칸(위치 잡힌 조상)을 채운다 — 좌우 패널은 이 칸 밖이다.
+          */}
+          <div data-print="surface" className="relative flex min-h-0 min-w-0 flex-1">
+            <main data-print="surface" className={cn(styles.main, !flush && 'p-3 sm:p-6')}>
+              {screenError ? <Banner tone="warning" className="mb-3">{screenError}</Banner> : null}
+              {children}
+            </main>
+            <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} />
+          </div>
+          {right ? <div data-print="chrome" className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
+        </div>
+      </> : (
+        /*
+          강사 표면 — 강사 덱 · Figma 「현재 · 강사 웹」(7676:21759)·「현재 · 모바일」(7615:1605) 그대로
+          Teacher/Header(☰) + 메뉴 패널이다. 관리자 머리줄·업무 탭·서랍·좌우 패널은 조립하지 않는다(받은 prop 도 그리지 않는다).
+          본문은 전폭이고 여백은 모바일 8 · 웹 16 (Figma Content viewport — 캘린더·홈 모바일 8, 웹 대부분 16).
+          되돌리기·전체 화면이 없으니 셸 오류 띠(screenError)도 강사에게는 생기지 않는다.
+        */
+        <TeacherShell pathname={path} me={me} onLogout={out}>
+          <main data-print="surface" className={cn(styles.main, !flush && 'p-2 sm:p-4')}>{children}</main>
+        </TeacherShell>
+      )}
       {canViewApprovalFlow && drawerData?.approvalFlow ? (
         <ApprovalFlowDialog open={approvalFlow} flow={drawerData.approvalFlow} onClose={() => setApprovalFlow(false)} />
       ) : null}
       <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
-      <Dialog open={isAdmin && permissions} onClose={() => setPermissions(false)} title="권한" width={800}
+      {/* 원문 §76 창 = 폭 640(§75 와 같다) · 머리 오른쪽 × (76-3) */}
+      <Dialog open={isAdmin && permissions} onClose={() => setPermissions(false)} title="권한" width={640} closeX
         footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>
         <div className="max-h-[70dvh] overflow-y-auto"><PermissionMatrix me={me} /></div>
       </Dialog>

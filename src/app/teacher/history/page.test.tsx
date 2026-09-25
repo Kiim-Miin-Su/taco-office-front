@@ -24,7 +24,8 @@ import TeacherHistoryPage from './page';
 const mocks = vi.hoisted(() => ({ history: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useTeacherHistory: mocks.history,
-  useMeta: () => ({ data: { lateReportTiers: LATE_TIERS_FIXTURE } }),
+  // 과목 이름도 코드표에서 온다 — 화면이 코드값(ap-chem)을 찍지 않는다 (QA 0925)
+  useMeta: () => ({ data: { lateReportTiers: LATE_TIERS_FIXTURE, subs: [{ key: 'ap-chem', name: 'AP Chem' }], kinds: [] } }),
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
@@ -55,13 +56,14 @@ it('수업 기록 한 줄은 **세 묶음**으로 나뉜다 — 모바일에서 
   const view = render(<TeacherHistoryPage />);
   await waitFor(() => expect(view.container.querySelector('li')).toBeTruthy());
 
-  const row = [...view.container.querySelectorAll('li')].find((li) => li.textContent?.includes('ap-chem'))!;
+  const row = [...view.container.querySelectorAll('li')].find((li) => li.textContent?.includes('AP Chem'))!;
   const groups = [...row.querySelectorAll('div')].filter((d) => d.className.includes('sm:contents'));
   expect(groups).toHaveLength(2); // ① 시각·학생·시수, ③ 대면·상태·금액 (② 과목은 그대로 한 칸)
   expect(row.textContent).toContain('16:00');
   expect(row.textContent).toContain('김민준 외 1명');
   expect(row.textContent).toContain('1.5h');
-  expect(row.textContent).toContain('ap-chem');
+  expect(row.textContent).toContain('AP Chem');
+  expect(row.textContent).not.toContain('ap-chem');
   expect(row.textContent).toContain('대면');
   expect(row.textContent).toContain('67,500원');
 });
@@ -71,7 +73,7 @@ it('웹 한 줄의 순서는 원본 그대로다 — order 1~7 이 한 번씩 �
   const view = render(<TeacherHistoryPage />);
   await waitFor(() => expect(view.container.querySelector('li')).toBeTruthy());
 
-  const row = [...view.container.querySelectorAll('li')].find((li) => li.textContent?.includes('ap-chem'))!;
+  const row = [...view.container.querySelectorAll('li')].find((li) => li.textContent?.includes('AP Chem'))!;
   const orders = [...row.querySelectorAll('*')]
     .flatMap((el) => [...el.classList])
     .filter((c) => /^sm:order-[1-7]$/.test(c))

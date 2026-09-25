@@ -93,15 +93,32 @@ describe('원본 관리자 공용 셸', () => {
     const view = shell({ sidePanel: <Panel />, rightPanel: <Panel /> });
     expect(panel).not.toHaveBeenCalled();
     expect(view.queryByText('관리 도구')).toBeNull();
-    expect(view.getByRole('link', { name: '캘린더' })).toBeTruthy();
     expect(view.queryByRole('link', { name: '오늘 전체' })).toBeNull();
     expect(view.queryByRole('button', { name: '전체 화면' })).toBeNull();
     expect(view.queryByRole('button', { name: '권한' })).toBeNull();
-    expect(view.queryByRole('button', { name: /결재 흐름/ })).toBeNull();
+    expect(view.queryByRole('button', { name: /승인 대기/ })).toBeNull();
     expect(view.queryByRole('dialog', { name: '서랍' })).toBeNull();
     expect(mocks.drawer).toHaveBeenLastCalledWith(false);
     expect(mocks.unwritten).toHaveBeenLastCalledWith(undefined, false);
-    expect(view.getByRole('img', { name: '티엔아카데미' })).toBeTruthy();
+    // 강사 머리줄은 Figma Teacher/Header — ☰ 로 여는 메뉴 패널이고, 관리자식 상단 탭·TN 마크는 없다
+    const header = view.getByRole('banner');
+    expect(header.className).toContain('bg-header');
+    expect(within(header).queryByRole('link')).toBeNull();
+    expect(view.queryByRole('img', { name: '티엔아카데미' })).toBeNull();
+    expect(view.getByRole('main').querySelector('[class*="max-w"]')).toBeNull();
+    fireEvent.click(within(header).getByRole('button', { name: '메뉴' }));
+    const nav = view.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '캘린더' })).toBeTruthy();
+    expect(within(nav).queryByRole('link', { name: '수업' })).toBeNull();
+  });
+
+  it('강사 로그아웃은 머리줄에 바로 서고 관리자와 같은 세션 정리를 거친다', async () => {
+    useSession.setState({ me: { ...me, canAdminPage: false, role: 'teacher', roleLabel: '강사', title: null } });
+    mocks.post.mockResolvedValue({});
+    const view = shell();
+    fireEvent.click(within(view.getByRole('banner')).getByRole('button', { name: '로그아웃' }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/login'));
+    expect(mocks.post).toHaveBeenCalledWith('/auth/logout');
   });
 
   it('관리자에게 지정된 좌우 도구를 하나씩 렌더한다', () => {
@@ -119,20 +136,23 @@ describe('원본 관리자 공용 셸', () => {
     expect(mocks.back).toHaveBeenCalledOnce();
   });
 
-  it('상단 결재 흐름은 §75 읽기 모달을 열고 권한은 기존 상세 내용을 연다', () => {
+  it('상단 「승인 대기」는 §75 읽기 모달을 열고 권한은 기존 상세 내용을 연다', () => {
     const view = shell();
-    fireEvent.click(view.getByRole('button', { name: '결재 흐름 4' }));
+    fireEvent.click(view.getByRole('button', { name: '승인 대기 4' }));
     expect(view.getByRole('dialog', { name: '결재 흐름' })).toBeTruthy();
     expect(view.queryByRole('dialog', { name: '서랍' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '닫기' }));
     fireEvent.click(view.getByRole('button', { name: '권한' }));
-    expect(view.getByRole('dialog', { name: '권한' })).toBeTruthy();
+    const permissions = view.getByRole('dialog', { name: '권한' });
+    // §76 창은 폭 640 · 머리 × (76-3)
+    expect(within(permissions).getByRole('button', { name: '창 닫기' })).toBeTruthy();
+    expect(permissions.getAttribute('style') ?? '').toContain('640');
   });
 
   it('§75 배지는 approvalFlow.total을 쓰고 §14 inboxCount와 섞지 않는다', () => {
     const view = shell();
-    expect(view.getByRole('button', { name: '결재 흐름 4' })).toBeTruthy();
-    expect(view.queryByRole('button', { name: /결재 흐름 3/ })).toBeNull();
+    expect(view.getByRole('button', { name: '승인 대기 4' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: /승인 대기 3/ })).toBeNull();
   });
 
   it('deep link entry는 새 조회 없이 기존 §14 서랍의 지정 pane을 연다', () => {
@@ -198,5 +218,53 @@ describe('U1 워크스페이스 셸 확장 — 헤더 도구와 함수형 패널
     fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
     fireEvent.click(view.getByRole('button', { name: '이력 열기' }));
     expect(within(view.getByRole('dialog', { name: '서랍' })).getByText('chreqs')).toBeTruthy();
+  });
+});
+
+/**
+ * g2 대조 C-1 · C-2 — 탭 02 서랍은 **머리줄 아래 · 오른쪽 레일 왼쪽** 칸에 붙고, 레일은 지금 열린 칸을 안다.
+ * 전에는 서랍이 화면 전체(fixed inset-0)를 덮어 레일을 누를 수 없었다(실측 2초 타임아웃).
+ * jsdom 은 눌림 판정을 하지 않으므로 **자리(DOM 구조)** 로 확인한다 — 실제 클릭은 실브라우저 QA 가 본다.
+ */
+describe('g2 서랍 자리 · 레일 활성 칸', () => {
+  function withRail() {
+    const seen: Array<string | null> = [];
+    const view = render(<QueryClientProvider client={new QueryClient()}>
+      <AppShell
+        rightPanel={({ openDrawer, activePane }) => {
+          seen.push(activePane);
+          return (
+            <nav aria-label="워크스페이스 바로가기">
+              <button onClick={() => openDrawer('notis')}>레일 알림</button>
+              <button onClick={() => openDrawer('approvals')}>레일 승인</button>
+            </nav>
+          );
+        }}
+      ><h1>본문</h1></AppShell>
+    </QueryClientProvider>);
+    return { view, seen };
+  }
+
+  it('레일은 서랍이 닫혀 있으면 null, 열리면 그 칸, 닫히면 다시 null 을 받는다', () => {
+    const { view, seen } = withRail();
+    expect(seen.at(-1)).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '레일 알림' }));
+    expect(seen.at(-1)).toBe('notis');
+    // 서랍이 열린 채로 레일을 다시 눌러 칸을 바꾼다 — 레일이 덮이지 않는다
+    fireEvent.click(view.getByRole('button', { name: '레일 승인' }));
+    expect(seen.at(-1)).toBe('approvals');
+    fireEvent.click(within(view.getByRole('dialog', { name: '서랍' })).getByRole('button', { name: '닫기' }));
+    expect(seen.at(-1)).toBeNull();
+  });
+
+  it('서랍은 본문 칸 안에 붙는다 — 머리줄과 레일은 그 칸 밖이라 늘 보이고 눌린다', () => {
+    const { view } = withRail();
+    fireEvent.click(view.getByRole('button', { name: '레일 알림' }));
+    const drawer = view.getByRole('dialog', { name: '서랍' });
+    const stage = drawer.parentElement!;
+    expect(stage.className).toContain('relative');
+    expect(stage.contains(view.getByRole('main'))).toBe(true);
+    expect(stage.contains(view.getByRole('banner'))).toBe(false);
+    expect(stage.contains(view.getByRole('navigation', { name: '워크스페이스 바로가기' }))).toBe(false);
   });
 });

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Me } from '@/api/types';
 import {
-  ADMIN_NAV_ITEMS, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, isAdminNavActive,
+  ADMIN_NAV_ITEMS, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, isAdminNavActive, mostSpecificNavItem,
 } from './navigation';
 
 const ceo: Me = {
@@ -22,12 +22,23 @@ const teacher: Me = {
 };
 
 describe('명세서 탭 노출 SSOT', () => {
-  it.each(['top', 'sidebar'] as const)('%s에서 대표 10탭, 강사 3탭(개인 홈 포함)만 노출한다', (surface) => {
+  // 강사 메뉴는 강사 원문 덱 §6 의 7개 차례 그대로다(1:1 대조 2026-09-25 — 예전 「3탭」은 넷을 홈 바로가기로 숨겼다)
+  it.each(['top', 'sidebar'] as const)('%s에서 대표 10탭, 강사 7메뉴(원문 차례)만 노출한다', (surface) => {
     expect(adminNavItemsFor(surface, ceo)).toHaveLength(10);
-    expect(adminNavItemsFor(surface, teacher).map((x) => x.href)).toEqual(['/teacher', '/schedule', '/reports']);
+    expect(adminNavItemsFor(surface, teacher).map((x) => x.label)).toEqual([
+      '홈', '캘린더', '불가 시간', '리포트', '수업 안내', '수업 히스토리', '건의 사항',
+    ]);
     expect(adminNavItemsFor(surface, null)).toEqual([]);
     // 관리자 노출분은 표 객체 그대로여야 한다(복제 금지) — 첫 항목은 personalOnly 홈을 건너뛴 /schedule
     expect(adminNavItemsFor(surface, ceo)[0]).toBe(ADMIN_NAV_ITEMS.find((x) => x.href === '/schedule'));
+  });
+
+  it('강사 메뉴 패널 7칸은 모두 Figma Teacher/Navigation 아이콘을 갖고, 관리자 전용 탭은 갖지 않는다', () => {
+    expect(adminNavItemsFor('sidebar', teacher).map((x) => x.personalIcon)).toEqual([
+      'home', 'calendar', 'calendar-x', 'file-text', 'columns', 'history', 'message',
+    ]);
+    const teacherHrefs = new Set(adminNavItemsFor('sidebar', teacher).map((x) => x.href));
+    expect(ADMIN_NAV_ITEMS.filter((x) => !teacherHrefs.has(x.href) && x.personalIcon)).toEqual([]);
   });
 
   it.each(['manager', 'admin'] as const)('%s도 money=false면 회계 탭 자체가 없다 (§52)', (role) => {
@@ -64,6 +75,10 @@ describe('명세서 탭 노출 SSOT', () => {
 
   it('하위 route만 active로 본다', () => {
     expect(isAdminNavActive('/reports/12', '/reports')).toBe(true);
+    // 켜지는 탭은 가장 좁게 맞는 항목 하나 — 강사 하위 화면에서 「홈」이 같이 켜지지 않는다
+    expect(mostSpecificNavItem('/teacher/unavailable')?.href).toBe('/teacher/unavailable');
+    expect(mostSpecificNavItem('/teacher')?.href).toBe('/teacher');
+    expect(mostSpecificNavItem('/reports/12')?.href).toBe('/reports');
     expect(isAdminNavActive('/reports-old', '/reports')).toBe(false);
     expect(isAdminNavActive(null, '/reports')).toBe(false);
   });

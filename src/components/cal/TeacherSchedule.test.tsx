@@ -7,6 +7,7 @@
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Occurrence } from '@/api/types';
+import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 import { TeacherSchedule } from './TeacherSchedule';
 import SchedulePage from '@/app/schedule/page';
 
@@ -20,7 +21,11 @@ vi.mock('@/api/queries', () => ({
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
-vi.mock('@/store/useSession', () => ({ useCan: () => false }));
+vi.mock('@/store/useSession', () => ({
+  useCan: () => false,
+  // 강사 표면 — 정책 띠(LateReportPolicy)가 세션 플래그만 본다
+  useSession: <T,>(select: (state: { me: { canAdminPage: boolean } }) => T) => select({ me: { canAdminPage: false } }),
+}));
 vi.mock('@/components/report/ReportDetailDrawer', () => ({
   ReportDetailDrawer: ({ selection, onClose }: { selection: { serId: number; onDate: string } | null; onClose: () => void }) =>
     selection ? <div role="dialog" aria-label="리포트 상세">{selection.serId}|{selection.onDate}<textarea aria-label="리포트 초안" /><button onClick={onClose}>닫기</button></div> : null,
@@ -45,6 +50,7 @@ beforeEach(() => {
   mocks.meta.mockReturnValue({ data: {
     kinds: [{ key: 'class', name: '수업', rep: true }, { key: 'meeting', name: '회의', rep: false }],
     subs: [{ key: 'writing', name: 'Writing' }], zaccs: [{ id: 1, label: 'TN 학원 1번방' }],
+    lateReportTiers: LATE_TIERS_FIXTURE,
   } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 }, isLoading: false, isError: false, refetch: vi.fn() });
   mocks.drawer.mockReturnValue({ data: { approvals: { mine: [] }, changeReqs: [] }, isLoading: false, isError: false });
@@ -52,6 +58,14 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 
 describe('강사 캘린더 기본 오늘 목록', () => {
+  it('강사 정책(리포트 지각 차감)이 화면 최상단 — 제목보다 위에 선다 (대표 결정 2026-09-25)', () => {
+    const view = render(<TeacherSchedule />);
+    const note = view.getByRole('note', { name: '리포트 지각 제출 차감' });
+    expect(note.textContent).toContain('1시간 지각 시5,000원 차감');
+    const heading = view.getByRole('heading', { name: '캘린더' });
+    expect(note.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('캘린더 route가 강사에게 관리자 격자·일정 쓰기 hook을 mount하지 않는다', () => {
     const view = render(<SchedulePage />);
     expect(view.getByRole('heading', { name: '캘린더', level: 1 })).toBeTruthy();

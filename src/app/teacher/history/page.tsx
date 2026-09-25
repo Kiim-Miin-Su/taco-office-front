@@ -18,6 +18,8 @@ import { useMeta, useTeacherHistory } from '@/api/queries';
 import type { TeacherHistoryLesson } from '@/api/types';
 import { won } from '@/lib/money';
 import { LATE_TONE, REP, dowOf, hm, hours } from '@/components/teacher/format';
+import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
+import { useLessonName } from '@/components/teacher/lesson-name';
 
 const addMonth = (ym: string, n: number): string => {
   const d = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1));
@@ -73,6 +75,7 @@ function SRow({ name, how, amount }: { name: string; how?: string; amount: strin
  * (실측 scrollWidth 513). 가로로 밀린 화면에서는 오른쪽 금액을 볼 수가 없다.
  */
 function Row({ l }: { l: TeacherHistoryLesson }) {
+  const lessonName = useLessonName();
   const rep = l.canceled ? { label: '수업 취소', tone: 'neutral' as Tone } : REP[l.repState];
   const who = l.students
     ? `${l.students.split(', ')[0]}${l.studentCount > 1 ? ` 외 ${l.studentCount - 1}명` : ''}`
@@ -110,7 +113,7 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
         {/* ② 과목 */}
         <div className="flex min-w-0 items-center gap-2 sm:order-3 sm:grow">
           <span className={`truncate text-[14px] font-bold text-fg ${l.canceled ? 'line-through' : ''}`}>
-            {l.title ?? l.subKey ?? l.kindKey}
+            {lessonName(l)}
           </span>
           {kindChips(l).map((c) => <Chip key={c.label} size="compact" tone={c.tone}>{c.label}</Chip>)}
         </div>
@@ -133,6 +136,8 @@ export default function TeacherHistoryPage() {
   return (
     <RequireAuth>
       <AppShell>
+        {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
+        <TeacherPolicyBar screen="history" className="mb-3" />
         <QueryState query={q} isEmpty={() => false}>
           {(d) => {
             const s = d.settlement;
@@ -176,7 +181,7 @@ export default function TeacherHistoryPage() {
                           {s.confirmed ? '확정' : s.saved ? '마감 작성 중' : '실시간 계산'}
                         </Chip>
                       </div>
-                      <SRow name="수업료 · 시급 기준" how={`제출 인정 ${hours(s.writtenMinutes)}시간 (리포트 쓴 수업만 · D-R7)`} amount={won(s.gross)} />
+                      <SRow name="수업료 · 시급 기준" how={`제출 인정 ${hours(s.writtenMinutes)}시간 (리포트 쓴 수업만)`} amount={won(s.gross)} />
                       <SRow name="리포트 지각 제출 차감" how="수업 종료 시각 기준 두 구간" amount={s.lateCut > 0 ? `−${won(s.lateCut)}` : '없음'} />
                       <SRow name="원천징수" how="소득세 3% + 지방소득세 · 각각 절사" amount={`−${won(s.incomeTax + s.localTax)}`} />
                       <div className="mt-2 flex items-baseline justify-between border-t border-card/25 pt-3">
