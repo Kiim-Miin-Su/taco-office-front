@@ -470,7 +470,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** RSEND/PDFLOG 발송 이력 — 날짜 또는 리포트로 필터 */
+        /** RSEND/PDFLOG 발송 이력 — 날짜 또는 리포트로 필터 · span 이면 일/주/월 묶음(§48) */
         get: operations["ReportsController_deliveryHistory"];
         put?: never;
         post?: never;
@@ -663,6 +663,46 @@ export interface paths {
          * @description 세는 것은 lib/payout-sheet 한 곳(강사 히스토리와 같다). 리포트를 쓴 수업만 시수·금액에 들고, 미작성은 빠지며 얼마가 빠지는지 센다. 휴강은 시수에 잡히지 않는다. 저장된 초안이 계산과 다르면 줄에 함께 보인다.
          */
         get: operations["AccountingController_payoutSheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payouts/{staffId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * §56 강사 한 사람 상세 — 시급 · 수업 날짜 · 리포트 미작성 · 정산 내역 (w5 · 56-01)
+         * @description 시트와 같은 함수(lib/payout-sheet)가 센다 — 줄(row)은 시트의 그 줄과 같은 값이고 수업 줄의 강사료 합이 총액이다. 그 달 정산에 없는 사람은 404(없는 정산을 0원으로 지어내지 않는다).
+         */
+        get: operations["AccountingController_payoutDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/cashflow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * §55 들어온 돈 — 기간 요약 · 입금 달력 · 분류별 · 미수 전체 (w5 · 55-01 · 55-02 · 55-03 · 55-05)
+         * @description 한 기간의 돈은 두 갈래다 — 그 기간에 들어온 입금 줄(pay.paid_on)과 기한이 그 기간인 덜 받은 청구서의 남은 돈(예정). 청구 = 입금 + 예정. 분류는 입금 목록의 칩과 같은 함수(payCategory)가 정한다. 분류 칩으로 좁혀도 칩 건수는 그대로다. 미수 전체는 기간과 무관하다. 끝이 시작보다 앞서면 409 BAD_RANGE.
+         */
+        get: operations["AccountingController_cashflow"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1477,6 +1517,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/plans/{id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * §65 「+ 대표 지시」 — 기획에 과제(TODO) 한 줄 · 담당 알림 · 감사 줄을 한 트랜잭션에서 (w5 · 65-4)
+         * @description 과제는 TODO(src=plan · plan_id) 한 줄이다 — §62 기한 표·§61 「과제 N/M」·§64 할 일이 같은 줄을 읽는다. 기획 결재 권한이 있어야 하고 끝난 기획에는 더하지 않는다. 막힌 문장은 읽기의 addTaskBlockedReason 과 같다.
+         */
+        post: operations["OpsController_addPlanTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/meetings/{id}": {
         parameters: {
             query?: never;
@@ -1531,6 +1591,130 @@ export interface paths {
          * @description 밖에서 알림을 보내면 할 일은 안 만들어졌는데 알림만 가서 받은 사람이 자기 목록에서 그것을 못 찾는다 (D-R43).
          */
         post: operations["OpsController_assignMeetingTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/diag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 진단 점수 이력 — 최근 것이 앞 · 담당자가 고를 레벨 낱말 (DQ1 · A-04)
+         * @description 점수(영어·수학·인터뷰)와 담당자가 고른 레벨·교재. 서버는 점수로 레벨을 정하지 않는다(자동 판정·자동 배치 없음). 등록되면 studentId 가 서고 같은 줄이 그 학생의 진단으로 읽힌다.
+         */
+        get: operations["LeadDiagController_history"];
+        put?: never;
+        /**
+         * 진단 점수 한 줄 — append-only · 같은 트랜잭션에 LOG (DQ1 · A-04)
+         * @description 보낸 칸만 새 줄에 들어간다(지난 줄은 그대로 · 가장 최근 줄이 지금 값). 점수는 0 이상 정수(만점·경계 없음). 레벨·교재는 담당자가 고른 값 그대로 저장한다.
+         */
+        post: operations["LeadDiagController_append"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 배치안 초안 통째로 바꾸기 — 과목 · 주 N회 · 강사 (23-16 · 24-07)
+         * @description 보낸 줄로 바꿔 적는다(빈 배열 = 비우기 · 8줄까지). 단가는 받지 않는다 — 읽을 때 적은 날의 단가표(RATE)가 붙고 금액 권한이 있을 때만 내려간다. 깔때기 안(1차 · 2차 대기 · 2차 상담 · 보류)에서만 — 등록·실패 건은 409 LEAD_PLAN_LOCKED. LOG(LEAD plan) 가 같은 트랜잭션.
+         */
+        put: operations["LeadPlanController_savePlan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/hold/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「연장 +2일」 — 보류 재확인 날짜를 이틀 늘린다 (23-16)
+         * @description 유효 재확인 날짜(적어 둔 날짜 · 없으면 보류에 들어온 날 + 2일)에 이틀을 더해 LEAD.recheck_on 에 적는다. 보류가 아니면 409 LEAD_NOT_HOLD. LOG(LEAD hold_extend).
+         */
+        post: operations["LeadPlanController_extendHold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/appts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 2차 · 진단 일정 한 줄 — 날짜 · 시각 · 강의실/온라인 (23-15)
+         * @description 종류(diag · second)마다 한 줄 — 같은 종류를 다시 보내면 고쳐 적는다. 이미 시간표에 만든 줄은 409 LEAD_APPT_SCHEDULED(시간표에서 옮긴다). 깔때기 밖은 409 LEAD_APPT_LOCKED · 끝이 시작보다 앞이면 409 BAD_RANGE · 온라인에 강의실이면 409 LEAD_APPT_PLACE. LOG(LEAD appt).
+         */
+        put: operations["LeadPlanController_saveAppt"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/appts/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 2차 · 진단 일정 한 줄 지우기 — 아직 시간표에 만들지 않은 줄만 (23-15)
+         * @description 잘못 잡은 일정을 카드에서 걷어낸다. 이미 시간표에 만든 줄은 409 LEAD_APPT_SCHEDULED — 회차·리포트는 시간표가 정본이라 여기서 지우지 않는다(시간표에서 회차를 지우면 연결이 풀려 다시 지울 수 있다). 없는 줄 404 LEAD_APPT_NOT_FOUND · 깔때기 밖 409 LEAD_APPT_LOCKED. LOG(LEAD appt_delete · before).
+         */
+        delete: operations["LeadPlanController_deleteAppt"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/leads/{id}/appts/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「스케줄에 N건 만들기」 — 아직 시간표에 없는 일정마다 회차(ONCE)를 만들고 잇는다 (23-15)
+         * @description 기존 시간표 쓰기(ScheduleWriteService.create)를 한 트랜잭션에서 부른다 — 진단 = 진단고사 종류, 2차 = 상담 종류, 강사 자리 = 상담 담당. 겹침은 시간표 EXCLUDE 가 막는다 → 409 RESOURCE_CONFLICT(전부 되돌린다). 만들 것이 없으면 409 LEAD_APPT_NONE · 코드표에 종류가 없으면 409 LEAD_APPT_CODE_MISSING. 담당의 불가 시간은 막지 않고 unavailable 로 돌려준다.
+         */
+        post: operations["LeadPlanController_scheduleAppts"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3044,6 +3228,85 @@ export interface paths {
         patch: operations["CatalogController_patchSub"];
         trace?: never;
     };
+    "/students/{id}/guardians": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 학생의 보호자 — 사용 중이 먼저, 사용 중지는 뒤 (연락처 포함 · 관리 화면 전용) */
+        get: operations["GuardiansController_list"];
+        put?: never;
+        /**
+         * 보호자 추가 — 메일·휴대폰 중 하나는 있어야 한다
+         * @description 휴대폰은 숫자만 저장한다. 대표로 고르면 같은 학생의 전 대표는 내려간다. 대표를 고르지 않았고 대표가 없으면 이 사람이 대표다.
+         */
+        post: operations["GuardiansController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardians/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 지금 보낼 수 있는 채널 — 메일(SMTP)·문자(SENS). 설정이 없으면 까닭과 함께 잠긴다 */
+        get: operations["GuardiansController_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardians/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 보호자 선택 발송 — 고른 보호자 × 고른 채널마다 한 번, 원장에 한 줄
+         * @description 서버가 그 학생의 사용 중 보호자인지 · 그 채널을 받는지 · PNOTI 가 그 학생의 학부모 줄인지 다시 본다. 채널 설정이 없으면 보내지 않고 not_configured 로 남긴다(보낸 척하지 않는다). PNOTI.sent_at 은 실제로 나간 줄이 하나라도 있을 때만 찍힌다. 같은 requestKey 는 앞선 결과를 돌려준다.
+         */
+        post: operations["GuardiansController_send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardians/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 보호자 사용 중지 — 지우지 않는다(발송 원장이 가리킨다). 대표였으면 대표도 내려간다 */
+        delete: operations["GuardiansController_deactivate"];
+        options?: never;
+        head?: never;
+        /**
+         * 보호자 고치기 — 보낸 칸만 바꾼다. null 은 비운다. active:true 는 다시 쓰기
+         * @description 연락처를 비우면 그 채널 받기도 꺼진다. 사용 중지한 보호자는 active:true 와 함께만 고친다.
+         */
+        patch: operations["GuardiansController_patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3154,6 +3417,10 @@ export interface components {
             sub: string;
             /** @description 수업료가 아닌 돈인가 — §57 이 세는 것 */
             other: boolean;
+            /** @description §53 「새 청구서 발행」으로 지금 낼 수 있는가 — 발행(409 INV_TYPE_NOT_SUPPORTED)과 같은 판정 (PB-01) */
+            issuable: boolean;
+            /** @description 못 내는 이유 — 발행 409 의 문장과 같다. 낼 수 있으면 null (PB-01) */
+            issueBlockedReason: string | null;
         };
         CancelReasonDto: {
             /**
@@ -3192,6 +3459,17 @@ export interface components {
              */
             tone: "ok" | "warn" | "bad";
         };
+        TeacherPolicyDto: {
+            /**
+             * @description 어느 강사 화면의 띠인가
+             * @enum {string}
+             */
+            screen: "unavailable" | "guides" | "history" | "suggestions";
+            /** @description 띠 제목 */
+            title: string;
+            /** @description 규칙 줄 — 숫자는 판정 상수에서 만든다 */
+            lines: string[];
+        };
         MetaDto: {
             kinds: components["schemas"]["KindDto"][];
             subs: components["schemas"]["SubDto"][];
@@ -3207,6 +3485,8 @@ export interface components {
             cancelTreats: components["schemas"]["CancelTreatDto"][];
             /** @description 리포트 지각 제출 차감 셋 — 작은 것부터 (D-R32 · 2026-09-25) */
             lateReportTiers: components["schemas"]["LateReportTierDto"][];
+            /** @description 강사 화면 최상단 정책 띠 — 불가 시간·수업 안내·히스토리·건의 (2026-09-25) */
+            teacherPolicies: components["schemas"]["TeacherPolicyDto"][];
         };
         AttendanceDto: {
             id: number;
@@ -3748,6 +4028,10 @@ export interface components {
         UnwrittenByTeacherDto: {
             teacherId: number;
             teacherName: string;
+            /** @description 역할 낱말(강사 · 매니저 …) — 서버 lib/role-words 한 벌. 오른쪽 머리 「이름 · 역할」 (g5 47-07) */
+            roleLabel: string;
+            /** @description 직함(staff.title) — 원문 「Sophia 강사 · 코디네이터」의 뒤 낱말. 없으면 null */
+            title?: string | null;
             count: number;
             /** @description 가장 오래된 것 */
             oldestDate?: string | null;
@@ -3898,11 +4182,46 @@ export interface components {
             sentAt: string;
             sentBy: number;
             sentByName: string;
+            /** @description 보낸 리포트들의 과목 이름(없으면 종류 이름) — 원문 줄 「과목 · 강사 · 08-19 수업」 */
+            subjectNames: string[];
+            /** @description 보낸 리포트들의 강사 이름 — 회차 강사, 없으면 리포트 작성 강사 */
+            teacherNames: string[];
+        };
+        ReportSendGroupDto: {
+            /**
+             * Format: date
+             * @description 묶음 첫날(KST) — 주는 월요일, 달은 1일
+             */
+            from: string;
+            /**
+             * Format: date
+             * @description 묶음 끝날(KST)
+             */
+            to: string;
+            /** @description 묶음 이름 — 일 「MM-DD」 · 주 「MM-DD ~ MM-DD」 · 달 「YYYY년 M월」 */
+            label: string;
+            /** @description 보낸 건수(재발송 포함) */
+            count: number;
+            /** @description 보존된 기록지(PNG) 장수 — fileCount 합 */
+            sheets: number;
+            /** @description 받은 학생 수 */
+            students: number;
+            /** @description 이 묶음에 든 발송 id(최신 먼저) — 화면이 items 를 이 묶음에 놓는다 */
+            sendIds: number[];
         };
         ReportSendHistoryListDto: {
             /** @description 필터에 맞는 전체 이력 수. items 100건 상한과 분리한다. */
             total: number;
             items: components["schemas"]["ReportSendHistoryDto"][];
+            /**
+             * @description 요청한 눈금 — 없으면 null
+             * @enum {string|null}
+             */
+            span?: "day" | "week" | "month" | null;
+            /** @description span 묶음(최신 먼저). 건수·기록지·인원은 100건 상한 밖까지 센다 */
+            groups: components["schemas"]["ReportSendGroupDto"][];
+            /** @description 필터에 맞는 기록지 전체 장수 — 머리 「기록지 N장」 */
+            sheets: number;
         };
         ReportDeliveryFileInputDto: {
             repId: number;
@@ -4157,6 +4476,8 @@ export interface components {
             carryAmount?: number | null;
             /** @description 이월 처리를 누를 수 있는가 — 마감한 달은 false 다 (N-39 · S5) */
             carryable: boolean;
+            /** @description 이월 단추가 설 자리인데 막힌 이유 — 마감 · 받는 달 수업료 청구서가 이미 나감. 설 자리가 아니거나 누를 수 있으면 null (PB-04) */
+            carryBlockedReason?: string | null;
             /** @description 이미 넘겼으면 그 시각 — 한 달은 한 번만 넘긴다 */
             carriedAt?: string | null;
             /** @description 지난달에서 **넘어온** 돈 — 이 달이 받은 것이다 */
@@ -4268,6 +4589,125 @@ export interface components {
             unwrittenCount: number;
             /** @description 실지급 합 — 줄의 합. 화면이 더하지 않는다 */
             netTotal?: number | null;
+            /** @description 금액을 볼 수 있는가 (D-R39) */
+            canSeeAmounts: boolean;
+            /** @description 리포트 쓴 수업 시간 합(분) — 「88.7시간」 */
+            writtenMinutes: number;
+            /** @description 미작성으로 보류된 수업 시간 합(분) — 「보류 98.4h」 */
+            unwrittenMinutes: number;
+            /** @description 강사료(총액) 합 — 금액 권한 없으면 null */
+            grossTotal: number | null;
+            /** @description 지각 차감 합 (D-R32) */
+            lateCutTotal: number | null;
+            /** @description 세금 합 — 소득세 + 지방세 (D-15) */
+            taxTotal: number | null;
+        };
+        PayoutRateDto: {
+            /** @description 이 날부터 (WAGE.from_date) */
+            fromDate: string;
+            /** @description 시급 — 금액 권한 없으면 null */
+            rate: number | null;
+        };
+        PayoutLessonDto: {
+            serId: number;
+            /** @description YYYY-MM-DD */
+            onDate: string;
+            startMin: number;
+            durMin: number;
+            /** @description 수업 이름 — 제목 → 과목 → 종류 순 (서버가 고른다) */
+            name: string;
+            /** @description 그날 명단 이름 */
+            students: string | null;
+            studentCount: number;
+            /** @description 휴강인가 */
+            canceled: boolean;
+            /**
+             * @description 정산 갈래
+             * @enum {string}
+             */
+            settle: "written" | "unwritten" | "canceled" | "na" | "upcoming";
+            /** @description 갈래 이름 — 「리포트 씀」·「리포트 미작성」·「휴강」·「리포트 대상 아님」·「아직」 (D-R18) */
+            settleLabel: string;
+            /** @description 이 수업의 강사료 — 쓴 수업만 · 금액 권한 없으면 null */
+            pay: number | null;
+            /** @description 지각 차감 — 쓴 수업만 (D-R32) */
+            lateCut: number | null;
+        };
+        PayoutDetailDto: {
+            staffId: number;
+            staffName: string;
+            /** @description YYYY-MM */
+            month: string;
+            /** @description 시트의 그 줄과 같은 값 — 같은 함수가 셌다 */
+            row: components["schemas"]["PayoutSheetRowDto"];
+            /** @description 이 달에 걸린 시급 — 달 시작 때의 시급 + 달 안에서 바뀐 것 (D8) */
+            rates: components["schemas"]["PayoutRateDto"][];
+            /** @description 이 달의 수업 — 날짜 내림차순 (강사 히스토리와 같은 순서) */
+            lessons: components["schemas"]["PayoutLessonDto"][];
+        };
+        CashflowDayDto: {
+            /** @description YYYY-MM-DD */
+            date: string;
+            /** @description 그날의 돈(입금 + 예정) — 달력 칸의 금액 */
+            amount: number | null;
+            paidAmount: number | null;
+            expectedAmount: number | null;
+            /** @description 그날의 건수(입금 + 예정) */
+            count: number;
+            /** @description 그날 기한인 예정 건수 — 원본 달력 칸의 숫자 배지 */
+            expectedCount: number;
+        };
+        CashflowCategoryDto: {
+            key: string;
+            /** @description §55 컷의 낱말 */
+            label: string;
+            /** @description 이 기간의 건수(입금 + 예정) — 칩 「수업료 2」 */
+            count: number;
+            /** @description 청구(입금 + 예정) */
+            billed: number | null;
+            /** @description 입금 */
+            paid: number | null;
+            /** @description 받은 비율 % — 입금 / 청구, 반올림. 청구 0 이면 0 · 금액 권한 없으면 null */
+            rate: number | null;
+        };
+        CashflowOpenDto: {
+            invId: number;
+            studentName: string;
+            /** @description 「전액」(아직 한 푼도 안 받음) · 「잔액」(일부 받음) — 분납 회차별 기한은 저장처가 없다(55-06) */
+            partLabel: string;
+            /** @description 남은 돈 — 금액 권한 없으면 null */
+            amount: number | null;
+            dueOn: string | null;
+            /** @description 「21일 연체」·「오늘」·「D-7」·「기한 없음」 — 낱말은 서버 (D-R18) */
+            whenLabel: string;
+            /** @description 줄 바탕 — 'danger'(연체) | 'warning'(7일 안) | null */
+            tone: string | null;
+        };
+        CashflowDto: {
+            from: string | null;
+            to: string | null;
+            /** @description 기간 낱말 — 「전체」·「2026년 8월」·「8월 21일」·「08-17 ~ 08-23」 */
+            label: string;
+            /** @description 기간의 날 수 — 「31일」. 전체면 null */
+            dayCount: number | null;
+            /** @description 고른 분류 — 없으면 null(전체) */
+            category: string | null;
+            /** @description 오늘 (KST) — 달력의 오늘 칸 */
+            today: string;
+            /** @description 건수(입금 + 예정) — 「11건」 */
+            count: number;
+            /** @description 청구 = 입금 + 예정 */
+            billed: number | null;
+            /** @description 입금 */
+            paid: number | null;
+            /** @description 예정 — 기한이 이 기간인 청구서의 남은 돈 */
+            expected: number | null;
+            /** @description 돈이 있는 날만 — 날짜 오름차순 */
+            days: components["schemas"]["CashflowDayDto"][];
+            /** @description 분류 여섯 — 0건도 선다(어휘) · 고른 분류와 무관 */
+            categories: components["schemas"]["CashflowCategoryDto"][];
+            /** @description 미수 전체 — 기간과 무관 · 기한 이른 순 */
+            open: components["schemas"]["CashflowOpenDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
         };
@@ -4705,6 +5145,104 @@ export interface components {
             /** @description KST 시각 */
             at: string;
         };
+        LeadDiagDto: {
+            id: number;
+            leadId: number;
+            /** @description 영어 점수 — 만점은 정해지지 않았다(DQ1) */
+            english?: number | null;
+            /** @description 수학 점수 */
+            math?: number | null;
+            /** @description 인터뷰 점수 */
+            interview?: number | null;
+            /** @description 진단고사를 본 날 YYYY-MM-DD — 모르면 null */
+            takenOn?: string | null;
+            /** @description foundation | practice | master — 담당자가 고른 값. 아직 안 골랐으면 null */
+            level?: string | null;
+            /** @description 레벨 낱말 (서버가 만든다) */
+            levelLabel?: string | null;
+            /** @description 담당자가 고른 교재 — 서가(LIB) id */
+            bookId?: number | null;
+            /** @description 교재 이름 */
+            bookTitle?: string | null;
+            note?: string | null;
+            byId: number;
+            byName?: string | null;
+            /** @description 적은 시각 (KST) */
+            at: string;
+        };
+        LeadRecontactDto: {
+            /** @description 실패로 분류된 뒤 접촉 원장에 한 줄이라도 있는가 */
+            done: boolean;
+            /** @description 「재연락 완료」 · 「재연락 대기」 */
+            label: string;
+            /** @description 칩 색 — 'info'(완료) | 'warning'(대기) */
+            tone: string;
+            /**
+             * Format: date
+             * @description 다음 연락일 — 마지막 접촉의 「다음은 언제」. 없으면 null
+             */
+            on?: string | null;
+            /** @description 다음 연락일까지 — 「D-28」 · 「오늘」 · 「3일 지남」. 날짜가 없으면 null */
+            dueLabel?: string | null;
+        };
+        LeadStageDueDto: {
+            /** @description 그 단계에서 할 일 — 「2차 일정 + 진단고사 잡기」 */
+            task: string;
+            /**
+             * Format: date
+             * @description 기한 — 그 단계에 들어온 날 + SLA 일수
+             */
+            dueOn: string;
+            /** @description 「오늘」 · 「D-1」 · 「1일 지남」 */
+            dueLabel: string;
+            /** @description 띠·카드 바탕 색 — 'danger'(지남) | 'warning'(오늘) | 'neutral' */
+            tone: string;
+        };
+        LeadPlanLineDto: {
+            /** @description 줄 차례 1~8 */
+            seq: number;
+            kindKey: string;
+            /** @description 종류 이름 (코드표) */
+            kindLabel: string;
+            subKey?: string | null;
+            /** @description 과목 이름 (코드표) */
+            subLabel?: string | null;
+            /** @description 주 N회 (1~7) */
+            perWeek: number;
+            teacherId?: number | null;
+            teacherName?: string | null;
+            /** @description 한 줄 낱말 — 「SAT Reading 주2 · Rebecca」. 서버가 만든다 (D-R18) */
+            label: string;
+            /** @description 회당 단가 — 줄을 적은 날의 단가표(RATE · 1인 구간 · 과목 단가 우선). 금액을 볼 수 없는 사람·단가표에 없는 과목은 null (D-R39 · 짓지 않는다) */
+            unitPrice?: number | null;
+        };
+        LeadApptDto: {
+            /**
+             * @description diag(진단고사) | second(2차 상담)
+             * @enum {string}
+             */
+            kind: "diag" | "second";
+            /** @description 「진단」 · 「2차」 (서버 낱말) */
+            kindLabel: string;
+            /**
+             * Format: date
+             * @description 날짜 — 시간표에 만든 뒤에는 그 회차의 날짜(시간표가 정본)
+             */
+            onDate: string;
+            /** @description 시작 분 */
+            startMin: number;
+            /** @description 끝 분 */
+            endMin: number;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            roomId?: number | null;
+            /** @description 장소 한 마디 — 강의실 이름 · 「온라인 줌」 · 「장소 미정」 */
+            placeLabel: string;
+            /** @description 시간표 회차 — 없으면 「미생성」 */
+            serId?: number | null;
+            /** @description 시간표에 만들었는가 — false 면 카드에 「미생성」 */
+            scheduled: boolean;
+        };
         LeadDto: {
             id: number;
             /** @description FQ 클라이언트 검색 대상. 원문을 보존한다. */
@@ -4746,6 +5284,32 @@ export interface components {
             nextLabel?: string | null;
             /** @description 칩 색 — 'danger'(지남·밀림) | 'warning'(오늘) | 'info'(임박) | null */
             nextTone?: string | null;
+            /** @description 최신 진단 점수 한 줄(점수 셋 · 본 날 · 담당자가 고른 레벨·교재) — 적은 적이 없으면 null */
+            latestDiag?: components["schemas"]["LeadDiagDto"] | null;
+            /** @description 학년 — 원본 §23 카드의 학년 칩. 적은 그대로(표기 규약을 서버가 바꾸지 않는다) · 옛 건 null */
+            grade?: string | null;
+            /** @description 실패 사유 분류 — unreachable | other_academy | schedule | cost | timing (원본 §24 다섯) · 분류 전·옛 건 null */
+            reasonKind?: string | null;
+            /** @description 실패 사유 분류 낱말 — 「연락 두절」. 서버가 만든다 (D-R18) */
+            reasonKindLabel?: string | null;
+            /**
+             * Format: date
+             * @description 실패한 날(KST) — 도달 기록의 마지막 「등록 실패」 줄. 실패 건이 아니거나 도달 기록이 없는 옛 건은 null
+             */
+            failedAt?: string | null;
+            /** @description 실패 건의 재연락 — 「재연락 완료/대기」 · 다음 연락일. 실패 시각을 모르는 옛 건·실패 아닌 건은 null */
+            recontact?: components["schemas"]["LeadRecontactDto"] | null;
+            /** @description 단계 기한 띠 — 슬라이드 23 SLA(1차 2일 · 2차 대기 7일 · 2차 상담 1일 · 보류 2일). 보류는 재확인 날짜 · 2차 대기는 2차 일정이 있으면 그 날짜가 기한이다. 들어온 날을 모르면 null */
+            stageDue?: components["schemas"]["LeadStageDueDto"] | null;
+            /** @description 배치안 초안 줄(23-16) — §23 카드 「SAT Reading 주2 · Rebecca」 · §24 「당시 배치안」 · 등록 확정 창의 기본 줄. 적은 적이 없으면 [] */
+            plan?: components["schemas"]["LeadPlanLineDto"][];
+            /** @description 2차 · 진단 일정(23-15) — 종류마다 한 줄 · 진단이 앞. 없으면 [] */
+            appts?: components["schemas"]["LeadApptDto"][];
+            /**
+             * Format: date
+             * @description 보류 재확인 날짜(23-16) — 적어 둔 날짜 또는 보류에 들어온 날 + 2일. 보류가 아니거나 들어온 날을 모르면 null
+             */
+            recheckOn?: string | null;
         };
         ComplaintDto: {
             id: number;
@@ -4816,6 +5380,14 @@ export interface components {
             dueState: "none" | "proposed" | "approved";
             /** @description 보완 요청을 받은 횟수 — 0 이면 칩이 서지 않는다 (LOG 에서 센다) */
             reworkCount: number;
+            /** @description 끝낸 과제 수 — 이 기획에 걸린 TODO(plan_id) 중 끝난 것 (§61 「과제 1/3」) */
+            taskDone: number;
+            /** @description 과제 전체 수 — 이 기획에 걸린 TODO(plan_id) */
+            taskTotal: number;
+            /** @description 기한 한 낱말 — 「4일 지남」·「오늘」·「D-2」(§62 dueLabel 과 같은 함수). 기한이 없거나 끝난(승인·완료) 기획이면 null — 끝난 기획의 날짜는 재촉이 아니다 */
+            dueLabel: string | null;
+            /** @description 기한 상태 이름 — 「기한 없음」·「기한 제안」·「기한 승인됨」 (§65 dueStateLabel 과 같은 낱말) */
+            dueStateLabel: string;
         };
         PlanStageDto: {
             /** @description 저장값 */
@@ -4859,6 +5431,18 @@ export interface components {
             stage: "draft" | "review" | "rework" | "approved" | "done";
             stageLabel: string;
         };
+        MeetingAttendeeDto: {
+            staffId: number;
+            name: string;
+            title?: string | null;
+            /**
+             * @description waiting | in | out — null 을 false 로 접지 않는다
+             * @enum {string}
+             */
+            state: "waiting" | "in" | "out";
+            /** @description 칩에 쓰는 이름 — 낱말은 서버가 만든다 (D-R18) */
+            stateLabel: string;
+        };
         MeetingDto: {
             id: number;
             /**
@@ -4884,6 +5468,10 @@ export interface components {
             placeLabel?: string | null;
             /** @description 아직 답 안 한 사람 — 「대기 4」 (원본 §63 · confirmed IS NULL · C57) */
             waiting: number;
+            /** @description 참석자 — 이름 · 세 값 상태 (§66 과 같은 모양 · 순서도 같다) */
+            attendeeList: components["schemas"]["MeetingAttendeeDto"][];
+            /** @description 아직 오지 않은 회의인가 — 오늘 포함(끝났는지는 날짜만으로 모른다). 날짜 없는 옛 회의는 false · 원본 §63 「예정」 */
+            upcoming: boolean;
         };
         MarketingDto: {
             id: number;
@@ -5002,6 +5590,15 @@ export interface components {
             /** @description 그 경로로 온 건수 — 서버가 센다 (D-R37) */
             count: number;
         };
+        IntakeFailReasonDto: {
+            /** @description unreachable | other_academy | schedule | cost | timing | none */
+            key: string;
+            label: string;
+            /** @description 그 분류의 실패 건수 — 서버가 센다 (D-R37) */
+            count: number;
+            /** @description 그 분류의 학생 이름 — 막대 아래 이름 칩 */
+            names: string[];
+        };
         IntakeHeadDto: {
             funnel: components["schemas"]["IntakeFunnelStepDto"][];
             /** @description 등록률 % — 등록 / 전체, 정수 반올림. 전체 0 이면 0 */
@@ -5019,6 +5616,10 @@ export interface components {
             followUpSoon: number;
             /** @description 도달 기록이 시작된 날 — §71 퍼널이 「언제부터의 값」인지 화면이 말한다 (N-45 · N-25). 기록이 없으면 null */
             funnelSince?: string | null;
+            /** @description §24 실패 사유 분류 다섯 + 「분류 안 됨」(있을 때만) — 막대 집계와 실패 지정 폼의 낱말 (24-05) */
+            failReasons: components["schemas"]["IntakeFailReasonDto"][];
+            /** @description 2차 · 진단 일정 종류 둘(「진단」 · 「2차」) — 일정 폼의 낱말 (23-15 · D-R18) */
+            apptKinds?: components["schemas"]["IntakeWordDto"][];
         };
         OpsRangeDto: {
             /** @description 없으면 전체 */
@@ -5083,6 +5684,14 @@ export interface components {
             canCreateMeeting: boolean;
             /** @description 「+ 기획 올리기」가 서는가 (D-R39) */
             canCreatePlan: boolean;
+            /** @description 기한 지난 컴플레인 — 열린 건만 · 갈래 칩과 무관(같은 기간) · §67 「기한 지남 N」과 컴플레인 탭 동그라미 */
+            cplOverdue?: number;
+            /** @description 대표 손이 가야 할 기획 — 검토 요청 + 보완 요청 (§61 「단계 보드」 동그라미와 기획 탭 동그라미) */
+            planPending?: number;
+            /** @description 내가 아직 답하지 않은 회의 수 — 원본 §63 「내 응답 대기 N」. 참석 응답 쓰기는 결정 대기(N-32)라 지금은 보기만 한다 */
+            mtMyWaiting?: number;
+            /** @description 속기록을 쓴 회의 수 — 원본 §63 「54회 · 속기록 32」의 뒤 수 (같은 기간) */
+            mtMinutesCount?: number;
         };
         MeetingCreateDto: {
             /**
@@ -5156,6 +5765,8 @@ export interface components {
             ownerId?: number | null;
             /** @description 첫 접촉 한 줄 — 원하는 것 · 학부모 · 연락처 · 「소개」면 누구 소개인지. 적으면 접촉 원장의 첫 줄이 된다(어떻게 = 유입 경로에서) */
             note?: string | null;
+            /** @description 학년 — 원본 §23 카드의 학년 칩(23-10). 비우면 null */
+            grade?: string | null;
         };
         LeadStageMoveDto: {
             /**
@@ -5183,6 +5794,11 @@ export interface components {
             stopAt: "before_book" | "before_first" | "after_first" | "after_second";
             /** @description 사유 — 500자 이내. 생략하면 기존 사유 유지 */
             reason?: string;
+            /**
+             * @description 사유 분류 — 원본 §24 다섯(연락 두절 · 타 학원 등록 · 일정 안 맞음 · 비용 · 시기 안 맞음). 생략하면 기존 분류 유지. 낱말은 GET /ops.intakeHead.failReasons
+             * @enum {string}
+             */
+            reasonKind?: "unreachable" | "other_academy" | "schedule" | "cost" | "timing";
         };
         LeadResumeDto: {
             /**
@@ -5218,7 +5834,7 @@ export interface components {
             title?: string | null;
             /** @description 등록 회차 수 — ENR.sessions (비우면 정하지 않음) */
             sessions?: number | null;
-            /** @description 교재 — 서가(LIB) id. 있으면 배부 요청(wait)이 남고, 없으면 「교재 배정이 필요합니다」 알림이 간다 */
+            /** @description 교재 — 서가(LIB) id. 있으면 배부 요청(wait)이 남고, null 이면 「교재 배정이 필요합니다」 알림이 간다. 키를 빼면 상담 진단에서 담당자가 고른 교재를 첫 그런 줄에 기본으로 쓴다(없으면 null 과 같다) */
             libId?: number | null;
         };
         LeadEnrollDto: {
@@ -5329,6 +5945,10 @@ export interface components {
             unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 상담 단계 — 언제나 enrolled */
             stage: string;
+            /** @description 교재를 적지 않은 줄에 상담 진단에서 담당자가 고른 교재를 기본으로 요청했는가 */
+            diagBookApplied: boolean;
+            /** @description 그 학생의 최신 상담 진단 — 등록으로 생긴 연결(lead.student_id)을 따라 읽은 값. 없으면 null */
+            latestDiag?: components["schemas"]["LeadDiagDto"] | null;
         };
         ComplaintCreateDto: {
             /**
@@ -5540,6 +6160,10 @@ export interface components {
             editBlockedReason: string | null;
             /** @description 갈 수 있는 다음 단계 — 비면 옮길 곳이 없다 */
             nextStages: components["schemas"]["PlanNextStageDto"][];
+            /** @description 「+ 대표 지시」로 과제를 더할 수 있는가 — 기획 결재 권한 · 끝나지 않은 기획 */
+            canAddTask: boolean;
+            /** @description 과제를 못 더하는 이유 — 더할 수 있으면 null */
+            addTaskBlockedReason: string | null;
         };
         PlanPatchDto: {
             title?: string;
@@ -5569,17 +6193,15 @@ export interface components {
             /** @description 보완 요청 사유 — 되돌릴 때는 필수다 */
             reason?: string;
         };
-        MeetingAttendeeDto: {
-            staffId: number;
-            name: string;
-            title?: string | null;
+        PlanTaskCreateDto: {
+            title: string;
+            /** @description 누구에게 — 활동 중인 구성원 */
+            toId: number;
             /**
-             * @description waiting | in | out — null 을 false 로 접지 않는다
-             * @enum {string}
+             * Format: date
+             * @description 기한 — 비우면 기한 없음
              */
-            state: "waiting" | "in" | "out";
-            /** @description 칩에 쓰는 이름 — 낱말은 서버가 만든다 (D-R18) */
-            stateLabel: string;
+            dueOn?: string;
         };
         MeetingTaskDto: {
             id: number;
@@ -5597,6 +6219,12 @@ export interface components {
             mtTypeLabel: string;
             title?: string | null;
             onDate?: string | null;
+            /** @description 시작 분 — 이어진 회차가 있을 때만 */
+            startMin: number | null;
+            /** @description 끝 분 — 이어진 회차가 있을 때만 */
+            endMin: number | null;
+            /** @description 자리 — 「6호」 또는 「온라인 TN」 (§63 placeLabel 과 같은 낱말) */
+            placeLabel: string | null;
             attendees: components["schemas"]["MeetingAttendeeDto"][];
             /** @description 참석하겠다고 답한 사람 수 */
             confirmed: number;
@@ -5626,6 +6254,85 @@ export interface components {
             toId: number;
             /** @description 기한 YYYY-MM-DD — 비우면 기한 없음 */
             dueOn?: string;
+        };
+        LeadDiagLevelDto: {
+            /** @enum {string} */
+            key: "foundation" | "practice" | "master";
+            label: string;
+        };
+        LeadDiagListDto: {
+            leadId: number;
+            /** @description 등록되면 그 학생 — 같은 줄이 lead.student_id 를 따라 그 학생의 진단이 된다(값을 옮겨 적지 않는다) */
+            studentId?: number | null;
+            /** @description append-only 이력 — 최근 것이 앞. 첫 줄이 지금 값이다 */
+            items: components["schemas"]["LeadDiagDto"][];
+            /** @description 담당자가 고르는 레벨 셋 — 점수로 추천하지 않는다 */
+            levels: components["schemas"]["LeadDiagLevelDto"][];
+        };
+        LeadDiagWriteDto: {
+            /** @description 영어 점수 — 0 이상 정수. 만점은 정해지지 않아 위 끝을 두지 않는다(저장 형식 한계만 막는다) */
+            english?: number | null;
+            /** @description 수학 점수 — 0 이상 정수 */
+            math?: number | null;
+            /** @description 인터뷰 점수 — 0 이상 정수 */
+            interview?: number | null;
+            /**
+             * Format: date
+             * @description 진단고사를 본 날 YYYY-MM-DD
+             */
+            takenOn?: string | null;
+            /**
+             * @description 담당자가 고른 레벨 — 서버가 점수로 정하지 않는다. 낱말은 LeadDiagListDto.levels
+             * @enum {string|null}
+             */
+            level?: "foundation" | "practice" | "master" | null;
+            /** @description 담당자가 고른 교재 — 서가(LIB) id. 없는 교재면 404 BOOK_NOT_FOUND */
+            bookId?: number | null;
+            /** @description 메모 — 감사 기록(LOG)에는 남기지 않는다(연락처가 섞일 수 있다) */
+            note?: string | null;
+        };
+        LeadPlanLineWriteDto: {
+            /** @description 종류 — 코드표(KIND) */
+            kindKey: string;
+            /** @description 과목 — 코드표(SUB) · 비우면 종류 이름으로 부른다 */
+            subKey?: string | null;
+            /** @description 주 N회 */
+            perWeek: number;
+            /** @description 강사 — 비워도 된다(초안) */
+            teacherId?: number | null;
+        };
+        LeadPlanWriteDto: {
+            lines: components["schemas"]["LeadPlanLineWriteDto"][];
+        };
+        LeadApptWriteDto: {
+            /**
+             * @description diag(진단고사) | second(2차 상담)
+             * @enum {string}
+             */
+            kind: "diag" | "second";
+            /**
+             * Format: date
+             * @description 날짜
+             */
+            onDate: string;
+            /** @description 시작 분 (0~1439 · 시간표 회차와 같은 범위) */
+            startMin: number;
+            /** @description 끝 분 — 시작보다 뒤 */
+            endMin: number;
+            /**
+             * @description 현장이면 강의실, 온라인이면 강의실 없음
+             * @enum {string}
+             */
+            mode: "offline" | "online";
+            /** @description 강의실 — 현장일 때(비우면 「장소 미정」) */
+            roomId?: number | null;
+        };
+        LeadApptScheduleResultDto: {
+            lead: components["schemas"]["LeadDto"];
+            /** @description 이번에 만든 시간표 회차 수 */
+            created: number;
+            /** @description 담당(시간표의 강사 자리)이 적어 둔 불가 시간과 겹친 회차 — 경고일 뿐 막지 않는다 */
+            unavailable: components["schemas"]["UnavWarnDto"][];
         };
         BookDto: {
             /** @description 교재 코드 — 카드에 그대로 보인다 */
@@ -5788,6 +6495,8 @@ export interface components {
             byName?: string | null;
             /** @description KST ISO */
             at: string;
+            /** @description 가리키던 행이 지워졌는가 — hist 는 FK 가 없어 줄이 남는다. 참이면 subject 가 「지워진 배부 #N」꼴 */
+            refMissing: boolean;
         };
         BookHistoryDto: {
             items: components["schemas"]["BookHistoryRowDto"][];
@@ -5828,6 +6537,10 @@ export interface components {
             createdByName?: string | null;
             deliveredAt?: string | null;
             receivedAt?: string | null;
+            /** @description 전달한 사람 이름(gpapack.delivered_by) — 옛 건은 null */
+            deliveredByName?: string | null;
+            /** @description 수령 확인한 사람 이름(gpapack.received_by) — 옛 건은 null */
+            receivedByName?: string | null;
             students: components["schemas"]["BookPackStudentDto"][];
             books: components["schemas"]["BookPackLibDto"][];
             /** @description pending 자료를 전달해도 되는가 — 필수 링크 판정은 서버가 한다 */
@@ -5837,10 +6550,17 @@ export interface components {
             /** @description 전달 전에 채워야 할 항목 */
             deliveryBlockers: string[];
         };
+        BookPackCoordinatorDto: {
+            key: string;
+            label: string;
+            count: number;
+            /** @description 전달했는데 아직 수령 확인이 없는 묶음 수 */
+            unreceived: number;
+        };
         BookPacksDto: {
             items: components["schemas"]["BookPackDto"][];
             types: components["schemas"]["NamedCountDto"][];
-            coordinators: components["schemas"]["NamedCountDto"][];
+            coordinators: components["schemas"]["BookPackCoordinatorDto"][];
         };
         BookPackWriteDto: {
             /** @enum {string} */
@@ -5938,7 +6658,19 @@ export interface components {
             studentName?: string | null;
             teacherName?: string | null;
             serTitle?: string | null;
+            /** @description 과목 이름(sub.name) — 과목 없는 회차는 null */
+            subName?: string | null;
+            /** @description 수업 종류 이름(kind.name) — 과목이 없을 때 부를 이름 */
+            kindName?: string | null;
+            /** @description 그 회차의 시작 분(KST 자정 기준). 회차가 없으면 규칙의 시작 분 */
+            startMin?: number | null;
+            /** @description 강의실 이름 — 그 회차의 강의실, 없으면 규칙의 강의실. 온라인·미정이면 null */
+            roomName?: string | null;
             body?: string | null;
+            /** @description §44 「지도 방향」 — 옛 안내 null (g4 §44-3) */
+            direction?: string | null;
+            /** @description §44 「관리자 코멘트 · 강사만」 — 관리자와 받는 강사에게만 싣는다. 학부모 발송 본문·안내문 PNG 에는 쓰지 않는다 (g4 §44-3) */
+            adminNote?: string | null;
             dueOn?: string | null;
             /**
              * Format: date
@@ -5986,6 +6718,10 @@ export interface components {
             teacherId?: number | null;
             teacherName?: string | null;
             kindName?: string | null;
+            /** @description 과목 이름(sub.name) — 과목 없는 회차는 null (g4 「수업명 미정」) */
+            subName?: string | null;
+            /** @description 강의실 이름 — 그 회차의 강의실, 없으면 규칙의 강의실. 없으면 null */
+            roomName?: string | null;
             zaccId?: number | null;
             zaccLabel?: string | null;
             zoomAssigned: boolean;
@@ -6005,6 +6741,29 @@ export interface components {
             body: string;
             /** @description 아직 안 보냈으면 null */
             sentAt?: string | null;
+        };
+        GuideMissingDto: {
+            sourceOccurrenceId: number;
+            /** Format: date */
+            eventOn: string;
+            serId: number;
+            studentId: number;
+            studentName: string;
+            teacherId?: number | null;
+            teacherName?: string | null;
+            serTitle?: string | null;
+            /** @description 과목 이름(sub.name) — 과목 없는 회차는 null */
+            subName?: string | null;
+            /** @description 수업 종류 이름(kind.name) — 과목이 없을 때 부를 이름 */
+            kindName?: string | null;
+            /** @description 그 회차의 시작 분(KST 자정 기준). 회차가 없으면 규칙의 시작 분 */
+            startMin?: number | null;
+            /** @description 강의실 이름 — 그 회차의 강의실, 없으면 규칙의 강의실. 온라인·미정이면 null */
+            roomName?: string | null;
+            /** @enum {string} */
+            reason: "new" | "teacher_change";
+            /** @description 그 수업 날(기한)이 며칠 지났는가 — 오늘이거나 앞날이면 0. §43 「마감 지남」 칩의 근거 */
+            overdueDays: number;
         };
         GuideStatsDto: {
             monitoring: number;
@@ -6026,7 +6785,9 @@ export interface components {
             guides: components["schemas"]["GuideDto"][];
             /** @description 회차마다 나가는 안내 */
             perLesson: components["schemas"]["PerLessonNoticeDto"][];
-            /** @description 아직 안 보낸 안내 수 */
+            /** @description 안내가 필요한데(첫 수업·강사 교체) 아직 GUIDE 가 없는 학생 — §43 「안내 없음」 줄. 판정은 §45 누락 카드와 같은 함수이고, 할 일 창은 수업 날 기준 최근 30일 ~ 앞으로 7일이다 */
+            missing: components["schemas"]["GuideMissingDto"][];
+            /** @description 할 일 수 = 안 보낸 안내 + 안내 없음 + 회차 안내 미기록 — 탭 배지와 목록이 같은 수 */
             todoCount: number;
             /** @description 강사 전용 service 재사용 시 자기 것만 본 그 강사 id. 관리자 API는 null */
             scopedTeacherId?: number | null;
@@ -6062,23 +6823,12 @@ export interface components {
             latestGuide: components["schemas"]["GuideDto"];
             books: components["schemas"]["GuideBookDto"][];
             diagnostic?: components["schemas"]["GuideDiagnosticDto"] | null;
+            /** @description §44 진단 카드 셋(영어 · 수학 · 인터뷰) — 등록된 상담 건(lead.student_id)의 최신 진단 점수(DQ1). 없으면 null */
+            scores?: components["schemas"]["LeadDiagDto"] | null;
         };
         GuideStudentsDto: {
             /** @description GUIDE가 있는 학생과 최신 유효 안내 */
             items: components["schemas"]["GuideStudentDto"][];
-        };
-        GuideMissingDto: {
-            sourceOccurrenceId: number;
-            /** Format: date */
-            eventOn: string;
-            serId: number;
-            studentId: number;
-            studentName: string;
-            teacherId?: number | null;
-            teacherName?: string | null;
-            serTitle?: string | null;
-            /** @enum {string} */
-            reason: "new" | "teacher_change";
         };
         GuideHistoryDayDto: {
             /** Format: date */
@@ -6121,6 +6871,10 @@ export interface components {
         GuideBodyDto: {
             /** @description 안내 본문 */
             body: string;
+            /** @description 「지도 방향」 — 안 보내면 그대로, 빈 글자·null 은 비운다 */
+            direction?: string | null;
+            /** @description 「관리자 코멘트 · 강사만」 — 강사에게만 보인다(학부모 발송 본문·안내문 PNG 에 싣지 않는다). 안 보내면 그대로, 빈 글자·null 은 비운다 */
+            adminNote?: string | null;
         };
         GuideCopySkippedDto: {
             id: number;
@@ -6249,7 +7003,7 @@ export interface components {
             requester: "mother" | "father";
             ownerId: number;
             amount: number;
-            /** @description 약정 회차. 실제 일정 생성 정책은 미확정이므로 저장만 하며 수업을 자동 생성하지 않는다. */
+            /** @description 약정 회차 — 계약서의 숫자다. 이 값으로 회차를 미리 만들지 않는다. 시간표 회차는 「회차 기록」(POST /consulting/{id}/sessions)이 날짜마다 만든다(C95). */
             sessions: number;
             /** Format: date */
             startOn: string;
@@ -6260,10 +7014,15 @@ export interface components {
             /** @description share='picked'일 때 1명 이상 필수, 그 밖에는 비워야 한다. */
             pickedStaffIds?: number[];
         };
+        ConsultingContractStepDto: {
+            step: number;
+            label: string;
+            sub: string;
+        };
         ConsultingTypeCapabilityDto: {
             defaultItemsSupported: boolean;
             reason: string | null;
-            /** @description 실제 일정 생성 정책은 원본에 없어 현재 false */
+            /** @description 「회차 기록」이 시간표 회차(SER)를 만드는가 — C95 부터 true (30-02) */
             scheduleCreationSupported: boolean;
             scheduleCreationReason: string | null;
         };
@@ -6344,6 +7103,12 @@ export interface components {
             sessions: number | null;
             /** @enum {string} */
             share: "all" | "money_only" | "picked" | "private";
+            /** @description 공개 범위 이름 — 「수납만 공개」 (D-R18) */
+            shareLabel: string;
+            /** @description 공개 범위의 뜻 한 줄 — 「금액만 보이고 내용은 숨깁니다」(슬라이드 32 · 30-06) */
+            shareMeaning?: string | null;
+            /** @description 계약 5단계 — 이름과 한 줄(원본 §30 스테퍼 · 30-07). 낱말은 서버가 쥔다 */
+            contractSteps: components["schemas"]["ConsultingContractStepDto"][];
             pickedStaffIds: number[];
             pickedStaffNames: string[];
             createdAt: string;
@@ -6382,6 +7147,20 @@ export interface components {
             serId?: number | null;
             /** @description C95 · 오늘까지 한 회차인가 — 날짜가 오늘 이하(또는 미정). 앞으로 잡아 둔 날짜는 false (기록 ≠ 완료 · N-18) */
             done?: boolean;
+            /** @description 시작 KST 분 — 연결된 시간표 회차의 시각 (31-07) */
+            startMin?: number | null;
+            /** @description 끝 KST 분 (자정은 1440) */
+            endMin?: number | null;
+            /** @description 그 회차를 맡은 사람 — 시간표 회차의 강사(예외가 있으면 예외의 강사) */
+            staffName?: string | null;
+            /** @description 강의실 이름 — 없으면 null */
+            roomName?: string | null;
+            /** @description 「기록됨」 — 무엇을 · 왜 · 어떻게가 다 찼는가. 할 일을 접는 조건과 같다 (서버 판정) */
+            recorded?: boolean;
+            /** @description 결과 — 인용 상자 */
+            result?: string | null;
+            /** @description 다음까지 — 적으면 담당의 할 일과 알림이 선다 (슬라이드 31 연동) */
+            nextUntil?: string | null;
         };
         ConsItemDto: {
             id: number;
@@ -6398,6 +7177,8 @@ export interface components {
              * @description 처리일 — 미완료면 null
              */
             doneOn?: string | null;
+            /** @description 처리 시각 KST(YYYY-MM-DDTHH:MI:SS+09:00) — 원본 §31 「2026-07-22 14:00 · 김범준」의 시각 (31-04). 미완료면 null */
+            doneAt?: string | null;
             /** @description template(§29 자동 생성분) | manual(N-18-a 확정 전 쓰기 없음) */
             source: string;
         };
@@ -6452,6 +7233,14 @@ export interface components {
             /** @description 칸 이름 아래 한 줄 — **다음에 무엇을 하는지** (원본 §26) */
             sub: string;
         };
+        ConsultingShareWordDto: {
+            /** @enum {string} */
+            key: "all" | "money_only" | "picked" | "private";
+            /** @description 「전체 공개」 … */
+            label: string;
+            /** @description 「관리자 누구나 봅니다」 … */
+            meaning: string;
+        };
         ConsultingListDto: {
             items: components["schemas"]["ConsultingDto"][];
             /** @description 금액을 볼 수 있는가 (D-R39) */
@@ -6460,6 +7249,8 @@ export interface components {
             canSetPrivate: boolean;
             /** @description §26 칸 셋 — 빈 칸도 이름과 한 줄을 갖는다 */
             stages: components["schemas"]["ConsultingStageDto"][];
+            /** @description 공개 범위 넷의 이름과 뜻 — §29 「누가 볼 수 있나」 칩과 그 아래 한 줄(29-06). 「전체 비공개」를 고를 수 있는지는 canSetPrivate */
+            shares?: components["schemas"]["ConsultingShareWordDto"][];
         };
         ConsItemToggleDto: {
             /** @description true = 완료 처리(처리자·시각 서버 기록) · false = 해제 */
@@ -6520,15 +7311,22 @@ export interface components {
             /** @description 단계 이름 — 낱말은 서버가 만든다 (D-R18) */
             stageLabel: string;
             /**
-             * @description 건이 생긴 날 — 계약 시작일이라는 칸은 원문에 없다
+             * @description 건이 생긴 날 — 계약 시작일이 아니다(그것은 startOn)
              * @example 2026-07-12
              */
             createdOn: string;
+            /**
+             * @description 계약 시작일 — §29 「시작 *」(cons.start_on). 미정이면(옛 건 포함) null
+             * @example 2026-07-12
+             */
+            startOn?: string | null;
             /** @description 종료 예정일 — 미정이면 null */
             endOn?: string | null;
             ownerName?: string | null;
             /** @description 기록된 회차 수 — 완료 회차가 아니다 (N-18 §4-17) */
             sessionsLogged: number;
+            /** @description 오늘까지 한 회차 수 — §26 카드 · §30 머리와 **같은 셈**(날짜가 오늘 이하 또는 미정 · 27-04). 앞으로 잡아 둔 날짜는 세지 않는다 */
+            sessionsDone: number;
             /** @description 약정 회차 — 미정이면 null */
             sessions?: number | null;
             itemsDone: number;
@@ -6633,6 +7431,10 @@ export interface components {
             what?: string | null;
             why?: string | null;
             how?: string | null;
+            /** @description 결과 — 원본 §31 인용 상자 (31-08) */
+            result?: string | null;
+            /** @description 다음까지 — 바뀌어 적히면 담당의 할 일(TODO) 한 줄과 알림이 같은 트랜잭션에서 선다(슬라이드 31 연동 · 31-08). 한 회차에 할 일은 하나 — 고쳐 적으면 그 할 일의 제목을 바꾼다 */
+            nextUntil?: string | null;
         };
         ConsCloseDto: {
             /** @description 안내 문구 틀(gtpl) — 고르면 그 본문이 안내문이 된다. 없으면 서버 기본 문장 */
@@ -6688,6 +7490,8 @@ export interface components {
             teacherId?: number | null;
             teacherName?: string | null;
             roomName?: string | null;
+            /** @description 온라인 회차에 붙은 줌 계정 이름 — 장소 배지 「온라인 {이름}」(§34). 없으면 null */
+            zaccLabel?: string | null;
             /** @enum {string} */
             mode: "offline" | "online";
             kindKey: string;
@@ -6742,6 +7546,36 @@ export interface components {
             marks: components["schemas"]["BoardMarkCountDto"][];
             missing: number;
         };
+        BoardDayDto: {
+            /** @description 회차 span의 실제 날짜 */
+            date: string;
+            /** @description 휴강을 뺀 수업 수 */
+            lessons: number;
+            /** @description 네 축 중 하나라도 덜 된 수업 수 — 「N 남음」 */
+            remaining: number;
+            /** @description 그날 휴강한 수업 수 */
+            canceled: number;
+            /** @description 그날 수업의 과목 키 — 시각 순 처음 나온 순서, 겹치지 않게(달력 칸 색 점) */
+            subKeys: string[];
+        };
+        BoardFacetSubjectDto: {
+            key: string;
+            name: string;
+            /** @description 그 기간의 (휴강 아닌) 수업 수 */
+            lessons: number;
+        };
+        BoardFacetTeacherDto: {
+            id: number;
+            name: string;
+            /** @description 그 기간의 (휴강 아닌) 수업 수 */
+            lessons: number;
+        };
+        BoardFacetsDto: {
+            /** @description 과목 코드표 순서(sort) → 이름 */
+            subjects: components["schemas"]["BoardFacetSubjectDto"][];
+            /** @description 이름 순 */
+            teachers: components["schemas"]["BoardFacetTeacherDto"][];
+        };
         BoardDto: {
             from: string;
             to: string;
@@ -6751,6 +7585,9 @@ export interface components {
             summary: components["schemas"]["BoardSummaryDto"];
             teacherRows: components["schemas"]["BoardTeacherRowDto"][];
             weeks: components["schemas"]["BoardWeekDto"][];
+            /** @description 날짜별 집계 — §35 요일 머리 · §36 달력 칸 */
+            days: components["schemas"]["BoardDayDto"][];
+            facets: components["schemas"]["BoardFacetsDto"];
             /** @description 저장하지 않는다는 사실을 화면이 그대로 적을 수 있게 (D-R4) */
             computedAt: string;
         };
@@ -7178,6 +8015,8 @@ export interface components {
             /** @description YYYY-MM-DD */
             onDate: string;
             startMin?: number | null;
+            /** @description 끝 시각(KST 분 · 자정은 1440) — 기록에는 칸이 없어 연결 회차(serId)가 그날 놓인 자리에서 읽는다. 회차가 없으면 null — 원본 §82 회차 내역 「18:00–18:45」 (82-8) */
+            endMin: number | null;
             /** @description kind='gpa' 회차 연결 */
             serId?: number | null;
             coordName?: string | null;
@@ -7269,6 +8108,10 @@ export interface components {
             unit?: string | null;
             /** @description 금액이라 권한을 타는 칸인가 */
             money: boolean;
+            /** @description 「6/49」처럼 분모가 있는 칸의 분모 — 원본 §70 「수업 준비 6/49」. 분모가 없는 칸은 null (69-6 · 70-1) */
+            total?: number | null;
+            /** @description 값 아래 한 줄 — 「다 된 것」 · 이익의 「-268%」(원본 §70 · §71). 서버가 짓는다. 없으면 null */
+            note?: string | null;
         };
         ExecAreaMemoDto: {
             /** @enum {string} */
@@ -7307,6 +8150,21 @@ export interface components {
             /** @description 못 고치는 이유 — 고칠 수 있으면 null. 쓰기가 내는 문장과 같은 말이다 */
             writeBlockedReason: string | null;
         };
+        ExecAreaTileDto: {
+            key: string;
+            /** @description 「오늘 입금」 · 「이번 주 접수」 — 기간 앞말까지 서버가 붙인다 */
+            label: string;
+            /** @description 금액 칸인데 볼 권한이 없으면 null — 0 이 아니다 (D-R39) */
+            value: number | null;
+            /** @enum {string} */
+            unit: "원" | "건";
+            /** @description 값 아래 한 줄 — 「5건」 · 「계약 ₩1,700,000」 · 「교재 · 안내 · 줌」. 없으면 null */
+            sub: string | null;
+            /** @description 손봐야 할 것이 있어 붉게 볼 칸인가 — 서버 판정 */
+            alert: boolean;
+            /** @description 값 대신 그릴 글 — 기한 지난 것이 0 이면 「없음」(원본 §71). 없으면 null */
+            display: string | null;
+        };
         ExecAreaDto: {
             /** @description money · mkt · ops · consulting · complaint · lesson (대표 관심순 고정 · D-R25) */
             key: string;
@@ -7317,6 +8175,10 @@ export interface components {
             count: number;
             /** @description 줄을 누르면 가는 곳 — 결재 흐름은 이동만 한다 (D-R27) */
             go: string;
+            /** @description 카드 한 줄 요약 — 「못 받은 돈 ₩8,550,000 · 그중 2건은 기한이 지났습니다」(원본 §69). 금액을 볼 수 없으면 금액이 빠진 문장이다 (69-8 · D-R39) */
+            headline: string;
+            /** @description 카드 안 타일 2~3 — 순서·낱말은 서버가 정한다 (69-8) */
+            tiles: components["schemas"]["ExecAreaTileDto"][];
         };
         ExecInboxDto: {
             id: number;
@@ -7367,6 +8229,17 @@ export interface components {
         ExecDto: {
             from: string;
             to: string;
+            /**
+             * @description 기간이 말해 주는 주기 — 하루=day · 월~일=week · 달력 한 달=month · 그 밖=range. 인자로 받지 않는다
+             * @enum {string}
+             */
+            periodKind: "day" | "week" | "month" | "range";
+            /** @description 시트 머리 제목 — 「일일 업무 보고」 · 「주간 업무 보고」 · 「월간 업무 보고」 (69-1) */
+            sheetTitle: string;
+            /** @description 시트 머리·도구 줄의 기간 — 「26년 8월 21일 금요일」 · 「08월 17일 ~ 08월 23일」 · 「2026년 8월」. 결재함 줄과 같은 함수로 짓는다 (69-4 · D-R18) */
+            periodLabel: string;
+            /** @description 시트 머리 지표 넷 — 기간마다 원문 칸이 다르다. 일일: 들어온 돈 · 못 받은 돈 · 결재 대기 · 안 끝난 컴플레인 / 주간: 입금 · 신규 문의 · 마케팅 게시 · 수업 준비 x/y / 월간: 매출 (입금) · 강사료 · 지출 · 이익 (69-6 · 70-1 · 71-1). 결재 대기·컴플레인은 영역 타일과 같은 판정이다 */
+            head: components["schemas"]["ExecStatDto"][];
             stats: components["schemas"]["ExecStatDto"][];
             reports: components["schemas"]["ExecReportDto"][];
             /** @description §69 6영역 — 대표 관심순 고정 */
@@ -7519,6 +8392,8 @@ export interface components {
             reqType?: string | null;
             /** @description 무엇을 바라는가 — 서버가 만든 문장을 그대로 그린다 (D-R18) */
             asked?: string | null;
+            /** @description 올린 사람이 자기 말로 적은 사유 — §14 카드의 인용 줄. 적힌 것이 없거나 줄에 이미 보인 글과 같으면 null */
+            reason?: string | null;
             /** @description 이 사람이 **지금** 이 줄을 여기서 처리할 수 있는가 (§14). 화면은 이 값만 보고 단추를 그린다 */
             canAct?: boolean;
             /** @description 처리하지 못하는 이유 — 할 수 있으면 null. 시급 요청은 `canWage` 까지 있어야 승인된다 (S5) */
@@ -7630,8 +8505,12 @@ export interface components {
         };
         NotiDto: {
             id: number;
+            /** @description §16 카드의 굵은 제목(NOTI.title). 제목 칸이 생기기 전 행과 제목을 안 적는 쓰기는 null — 그때는 본문이 한 줄이다 */
+            title?: string | null;
             body: string;
             fromName?: string | null;
+            /** @description 보낸 이의 역할 낱말(§16 메타 줄 · lib/role-words) — 시스템이 보낸 것은 null */
+            fromRoleLabel?: string | null;
             toId?: number | null;
             link?: string | null;
             read: boolean;
@@ -7946,6 +8825,141 @@ export interface components {
             /** @description 끄면 새 수업에서 고를 수 없다. 이미 도는 수업은 건드리지 않는다 */
             active?: boolean;
             sort?: number;
+        };
+        GuardianDto: {
+            id: number;
+            studentId: number;
+            name: string;
+            /** @description 어머니 · 아버지 · 보호자 … 사람이 적은 말 */
+            relation?: string | null;
+            /** @description 관리 화면 전용 — 강사 응답에는 없다 */
+            email?: string | null;
+            /** @description 숫자만 (관리 화면 전용) */
+            phone?: string | null;
+            /** @description 보이는 모양 010-1234-5678 — 서버가 만든다 */
+            phoneDisplay?: string | null;
+            receiveEmail: boolean;
+            receiveSms: boolean;
+            /** @description 지금 받는 채널 — 받기를 켰고 연락처가 있는 것만. 발송 창은 채널 이름을 따로 풀지 않고 이 값을 읽는다 */
+            receives: ("email" | "sms")[];
+            /** @description 대표 보호자 — 학생당 하나. 발송 창에서 미리 체크된다 */
+            isPrimary: boolean;
+            /** @description false = 사용 중지(지우지 않는다 · 발송 원장이 가리킨다) */
+            active: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        GuardianListDto: {
+            studentId: number;
+            studentName: string;
+            /** @description 사용 중인 보호자가 먼저(대표 → 이름), 사용 중지는 뒤 */
+            guardians: components["schemas"]["GuardianDto"][];
+        };
+        GuardianCreateDto: {
+            name: string;
+            /** @description 어머니 · 아버지 · 보호자 … */
+            relation?: string | null;
+            email?: string | null;
+            /** @description 010-1234-5678 · 01012345678 — 숫자만 저장한다 */
+            phone?: string | null;
+            /** @description 비우면 메일 주소가 있을 때 받는다 */
+            receiveEmail?: boolean;
+            /** @description 비우면 받지 않는다 */
+            receiveSms?: boolean;
+            /** @description 대표 보호자로 — 같은 학생의 전 대표는 내려간다 */
+            isPrimary?: boolean;
+        };
+        GuardianChannelDto: {
+            /** @enum {string} */
+            channel: "email" | "sms";
+            /** @description 화면에 보일 이름 — 서버가 준다 */
+            label: string;
+            ready: boolean;
+            /** @description 보낼 수 없는 까닭 — 보낼 수 있으면 null */
+            reason?: string | null;
+        };
+        GuardianChannelsDto: {
+            channels: components["schemas"]["GuardianChannelDto"][];
+        };
+        GuardianSendDto: {
+            studentId: number;
+            /** @description §43 회차 학부모 안내(PNOTI parent)에서 보낼 때 그 줄 — 실제로 나간 것이 하나라도 있으면 sent_at 이 찍힌다 */
+            pnotiId?: number | null;
+            /** @description 받을 보호자 — 서버가 그 학생의 사용 중 보호자인지 다시 본다 */
+            guardianIds: number[];
+            /** @description 보낼 채널 — 보호자가 받지 않는 채널은 그 보호자에게서 건너뛴다 */
+            channels: ("email" | "sms")[];
+            /** @description 메일 제목 — 비우면 서버가 「{학생} 학생 안내」로 적는다. 문자에는 쓰이지 않는다 */
+            subject?: string | null;
+            body: string;
+            /**
+             * Format: uuid
+             * @description 재시도·더블클릭 중복 방지 키 — 같은 키는 앞선 결과를 그대로 돌려준다
+             */
+            requestKey: string;
+        };
+        GuardianSendCountsDto: {
+            sent: number;
+            failed: number;
+            notConfigured: number;
+            /** @description 보호자가 받지 않는 채널이라 건너뛴 수 — 원장에 줄이 없다 */
+            skipped: number;
+        };
+        GuardianSendItemDto: {
+            guardianId: number;
+            guardianName: string;
+            relation?: string | null;
+            /** @enum {string} */
+            channel: "email" | "sms";
+            channelLabel: string;
+            /** @description 가린 받는 곳 — ab***@example.com · 010-****-1234 */
+            toMasked: string;
+            /** @enum {string} */
+            status: "sent" | "failed" | "not_configured";
+            /** @description 결과 낱말 — 서버가 준다 */
+            statusLabel: string;
+            /** @description 실패·미설정 까닭 (받는 곳은 가려져 있다) */
+            error?: string | null;
+            /** Format: date-time */
+            sentAt: string;
+        };
+        GuardianSendSkipDto: {
+            guardianId: number;
+            guardianName: string;
+            /** @enum {string} */
+            channel: "email" | "sms";
+            channelLabel: string;
+            reason: string;
+        };
+        GuardianSendResultDto: {
+            /** Format: uuid */
+            requestKey: string;
+            studentId: number;
+            pnotiId?: number | null;
+            /** @description 같은 키로 다시 온 요청 — 새로 보내지 않고 앞선 결과를 돌려준다 */
+            replayed: boolean;
+            /** @description PNOTI 발송 기록 시각 — 실제로 나간 것이 없으면 null */
+            pnotiSentAt?: string | null;
+            /** @description 한 줄 요약 — 서버가 만든다 */
+            summary: string;
+            counts: components["schemas"]["GuardianSendCountsDto"];
+            items: components["schemas"]["GuardianSendItemDto"][];
+            /** @description 처음 요청에서만 채운다 — 다시 온 요청은 원장만 돌려준다 */
+            skipped: components["schemas"]["GuardianSendSkipDto"][];
+        };
+        GuardianPatchDto: {
+            name?: string;
+            relation?: string | null;
+            email?: string | null;
+            phone?: string | null;
+            receiveEmail?: boolean;
+            receiveSms?: boolean;
+            isPrimary?: boolean;
+            /**
+             * @description true 만 받는다 — 다시 쓰기. 중지는 DELETE
+             * @enum {boolean}
+             */
+            active?: true;
         };
     };
     responses: never;
@@ -10041,6 +11055,8 @@ export interface operations {
                 /** @description 발송 대상 실제 KST 수업일. 큐에서 생략하면 어제, 이력에서 생략하면 전체. 이력은 발송 당시 날짜를 보존한다 */
                 onDate?: string;
                 repId?: number;
+                /** @description 보낸 내역을 묶는 눈금 — 일별 · 주별(월요일 시작) · 월별. 보낸 시각(KST) 기준. 없으면 groups 는 빈 배열 */
+                span?: "day" | "week" | "month";
             };
             header?: never;
             path?: never;
@@ -10875,6 +11891,165 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_payoutDetail: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM — 없으면 이번 달(KST) */
+                month?: string;
+            };
+            header?: never;
+            path: {
+                /** @description 강사 */
+                staffId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_cashflow: {
+        parameters: {
+            query?: {
+                /** @description 이 날부터 — 없으면 처음부터 */
+                from?: string;
+                /** @description 이 날까지 — 없으면 끝까지 */
+                to?: string;
+                /** @description 분류 칩으로 좁히기 — 달력·요약만 좁히고 칩 건수는 그대로다 */
+                category?: "tuition" | "gpa" | "consulting" | "diag_intake" | "exam_fee" | "etc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashflowDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description BAD_RANGE */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13153,7 +14328,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code ALREADY_ENROLLED | LEAD_FAILED | STUDENT_DUPLICATE | STUDENT_SAME_NAME | 시간표 겹침 | MONTH_CLOSED */
+            /** @description code ALREADY_ENROLLED | STUDENT_DUPLICATE | STUDENT_SAME_NAME | 시간표 겹침 | MONTH_CLOSED — 등록 실패 건도 되살리기 없이 바로 등록한다(원본 §24 「바로 수업 등록」 · 실패 이력은 도달 기록·LOG 에 남는다) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13228,7 +14403,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code ALREADY_ENROLLED | LEAD_FAILED | STUDENT_DUPLICATE | STUDENT_SAME_NAME | 시간표 겹침 | MONTH_CLOSED */
+            /** @description code ALREADY_ENROLLED | STUDENT_DUPLICATE | STUDENT_SAME_NAME | 시간표 겹침 | MONTH_CLOSED — 등록 실패 건도 되살리기 없이 바로 등록한다(원본 §24 「바로 수업 등록」 · 실패 이력은 도달 기록·LOG 에 남는다) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14140,6 +15315,81 @@ export interface operations {
             };
         };
     };
+    OpsController_addPlanTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanTaskCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PLAN_NOT_FOUND · STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CEO_ONLY | PLAN_DONE | TASK_TITLE_REQUIRED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     OpsController_meetingDetail: {
         parameters: {
             query?: never;
@@ -14355,6 +15605,517 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadDiagController_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDiagListDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadDiagController_append: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadDiagWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDiagListDto"];
+                };
+            };
+            /** @description 입력 검증 실패 | LEAD_DIAG_EMPTY */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND | BOOK_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadPlanController_savePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadPlanWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND | KIND_NOT_FOUND | SUB_NOT_FOUND | STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LEAD_PLAN_LOCKED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadPlanController_extendHold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LEAD_NOT_HOLD */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadPlanController_saveAppt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadApptWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND | ROOM_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LEAD_APPT_LOCKED | LEAD_APPT_SCHEDULED | LEAD_APPT_PLACE | BAD_RANGE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadPlanController_deleteAppt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                /** @description diag(진단고사) | second(2차 상담) */
+                kind: "diag" | "second";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 모르는 종류(diag · second 만) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND | LEAD_APPT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LEAD_APPT_LOCKED | LEAD_APPT_SCHEDULED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadPlanController_scheduleAppts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadApptScheduleResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LEAD_APPT_LOCKED | LEAD_APPT_NONE | LEAD_APPT_CODE_MISSING | RESOURCE_CONFLICT */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
@@ -21118,6 +22879,464 @@ export interface operations {
                 content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuardiansController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianListDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuardiansController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuardianCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianDto"];
+                };
+            };
+            /** @description code GUARDIAN_CONTACT_REQUIRED | GUARDIAN_CHANNEL_CONTACT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuardiansController_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianChannelsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuardiansController_send: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuardianSendDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianSendResultDto"];
+                };
+            };
+            /** @description code GUARDIAN_NOT_OF_STUDENT | GUARDIAN_INACTIVE | GUARDIAN_CHANNEL_MISMATCH | PNOTI_NOT_OF_STUDENT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code REQUEST_KEY_REUSED — 다른 학생에게 쓴 키 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuardiansController_deactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code GUARDIAN_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuardiansController_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuardianPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianDto"];
+                };
+            };
+            /** @description code GUARDIAN_CONTACT_REQUIRED | GUARDIAN_CHANNEL_CONTACT */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code GUARDIAN_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code GUARDIAN_INACTIVE */
             409: {
                 headers: {
                     [name: string]: unknown;

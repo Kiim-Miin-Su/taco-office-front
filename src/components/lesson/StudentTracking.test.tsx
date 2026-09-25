@@ -52,10 +52,11 @@ const setup = (d: LessonTracking | undefined, o?: { isLoading?: boolean; isError
 };
 afterEach(() => { cleanup(); mutate.mockReset(); withdrawMutate.mockReset(); permissions.canEdit = true; permissions.canMoney = false; });
 
-it('머리줄 문장은 서버가 만든 것을 그대로 쓴다 — 화면이 정원 − 인원을 다시 하지 않는다', () => {
+it('정원 · 단가 칩 줄은 여기서 다시 그리지 않는다 — 원문 §79 는 명단 바로 위에 둔다 (LessonDetail 이 같은 질의로 그린다)', () => {
   const v = setup(base);
-  expect(v.getByText('정원 4명 · 1명 더 넣을 수 있습니다')).toBeTruthy();
-  expect(v.getByText('3명')).toBeTruthy();
+  expect(v.queryByText('정원 4명 · 1명 더 넣을 수 있습니다')).toBeNull();
+  expect(v.queryByText('3명')).toBeNull();
+  expect(v.queryByText(/수업당/)).toBeNull();
 });
 
 it('「정시 / 지연」 낱말도 서버가 준 것이다 — 제출 시각을 화면에서 견주지 않는다', () => {
@@ -68,8 +69,7 @@ it('「정시 / 지연」 낱말도 서버가 준 것이다 — 제출 시각을
 it('금액을 못 보는 사람에게는 단가도 미수도 「가려짐」이다 (D-R39)', () => {
   const v = setup({ ...base, canSeeAmounts: false, unitPrice: null, total: null,
     students: [{ ...base.students[0], unpaid: null }] });
-  // 머리줄의 단가 칩과 학생 카드의 미수 칸 둘 다 가려진다
-  expect(v.getByText('1인 가려짐 · 수업당 가려짐')).toBeTruthy();
+  // 학생 카드의 미수 칸이 가려진다 (단가 칩은 명단 머리로 옮겼다 — LessonDetail.test 가 본다)
   expect(v.getByText('가려짐')).toBeTruthy();
   expect(v.queryByText(/1,170,000/)).toBeNull();
 });
@@ -91,11 +91,6 @@ it('진도 평균의 미확인 null과 실제 0%를 구분한다', () => {
   cleanup();
   const zero = setup({ ...base, students: [{ ...base.students[0], progressAverage: 0, progressKnownBooks: 1 }] });
   expect(zero.getByText('0%')).toBeTruthy();
-});
-
-it('단가표가 없으면 가격 대신 그 사실을 적는다', () => {
-  const v = setup({ ...base, priced: false, unitPrice: null, total: null });
-  expect(v.getByText('단가표 미등록 — 가격은 표시하지 않습니다')).toBeTruthy();
 });
 
 it('권한이 없으면 트래킹 칸을 비우고 이유를 적는다', () => {

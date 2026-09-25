@@ -183,6 +183,8 @@ import type {
   ZoomAssign,
   ZoomAssignResult,
   ZoomBoard,
+  GuardianChannels, GuardianCreate, Guardian, GuardianList, GuardianPatch, GuardianSend, GuardianSendResult,
+  LeadDiagList, LeadDiagWrite,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -243,6 +245,10 @@ export const qk = {
   meeting: (id: number) => ['ops', 'meeting', id] as const,
   /** §79 수강 학생 — 창을 열 때만 도는 질의. 갈래 전체를 버릴 때는 `family.tracking` (C55) */
   tracking: (serId: number, onDate: string) => ['schedule', 'tracking', serId, onDate] as const,
+  /** 학생의 보호자 (DQ3) — 창을 열 때만 도는 질의. 갈래 전체는 `family.guardians` */
+  guardians: (studentId: number) => ['guardians', 'student', studentId] as const,
+  /** 지금 보낼 수 있는 채널 — 서버 설정이 정한다 (DQ3) */
+  guardianChannels: ['guardians', 'channels'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -287,6 +293,7 @@ export const family = {
   books: ['books'] as const,
   consulting: ['consulting'] as const,
   tracking: ['schedule', 'tracking'] as const,
+  guardians: ['guardians'] as const,
 };
 
 /**
@@ -2439,5 +2446,88 @@ export function usePatchSub(): UseMutationResult<CatalogSub, unknown, { key: str
   return useMutation({
     mutationFn: async ({ key, ...body }) => (await api.patch<CatalogSub>(`/catalog/subs/${key}`, body)).data,
     onSettled: invalidate,
+  });
+}
+
+/* ══ 보호자와 선택 발송 (DQ3 대표 답변 2026-09-25 · 메일·SENS 만) ═══════════════════
+   연락처는 관리 화면 전용 응답이다 — 강사에게는 서버가 403 으로 막는다. 채널이 보낼 수 있는지는
+   서버 설정(`GET /guardians/channels`)이 정한다: 화면이 「메일은 된다」를 따로 적지 않는다. */
+
+export function useGuardians(studentId: number | null, enabled = true): UseQueryResult<GuardianList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.guardians(studentId ?? 0), viewerId),
+    queryFn: async () => (await api.get<GuardianList>(`/students/${studentId}/guardians`)).data,
+    enabled: enabled && studentId !== null,
+  });
+}
+
+export function useGuardianChannels(enabled = true): UseQueryResult<GuardianChannels> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.guardianChannels, viewerId),
+    queryFn: async () => (await api.get<GuardianChannels>('/guardians/channels')).data,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export type GuardianWrite =
+  | { kind: 'create'; studentId: number; body: GuardianCreate }
+  | { kind: 'patch'; id: number; body: GuardianPatch }
+  | { kind: 'deactivate'; id: number };
+
+/** 추가·고치기·사용 중지 — 대표 바꾸기는 다른 보호자 줄도 바꾸므로 그 학생 목록을 통째로 다시 받는다 */
+export function useGuardianWrite(): UseMutationResult<Guardian, unknown, GuardianWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => {
+      if (w.kind === 'create') return (await api.post<Guardian>(`/students/${w.studentId}/guardians`, w.body)).data;
+      if (w.kind === 'patch') return (await api.patch<Guardian>(`/guardians/${w.id}`, w.body)).data;
+      return (await api.delete<Guardian>(`/guardians/${w.id}`)).data;
+    },
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.guardians }); },
+  });
+}
+
+/**
+ * 선택 발송 — 결과(보호자×채널마다 보냄·실패·설정 없음)는 서버 원장 그대로다.
+ * 실제로 나간 것이 있으면 §43 회차 안내 줄의 「기록됨」이 바뀌므로 안내·§12 준비 갈래를 버린다.
+ */
+export function useSendToGuardians(): UseMutationResult<GuardianSendResult, unknown, GuardianSend> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<GuardianSendResult>('/guardians/send', body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.guides });
+      void qc.invalidateQueries({ queryKey: family.tracking });
+    },
+  });
+}
+
+/* ══ 상담 진단 점수 (DQ1 · 2026-09-25 「점수만 저장 + 담당자가 선택」) ═══════════════
+   점수 셋만 적고 레벨·교재는 담당자가 고른다 — 서버도 화면도 점수로 추천하지 않는다.
+   이력은 상세 서랍에서 「이력 보기」·「+ 점수 기록」을 눌렀을 때만 부른다(카드는 GET /ops 의 latestDiag 로 그린다 — 왕복 0). */
+
+/** 한 상담 건의 진단 이력 — 앞자락이 `qk.ops` 라 `family.ops` 무효화에 함께 걸린다 */
+export function leadDiagQueryKey(leadId: number) {
+  return [...qk.ops, 'lead-diag', leadId] as const;
+}
+
+export function useLeadDiag(leadId: number, enabled = true): UseQueryResult<LeadDiagList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(leadDiagQueryKey(leadId), viewerId),
+    queryFn: async () => (await api.get<LeadDiagList>(`/ops/leads/${leadId}/diag`)).data,
+    enabled,
+  });
+}
+
+/** 진단 한 줄 적기 — append-only. 카드의 latestDiag 와 이력이 같이 바뀌므로 운영 갈래를 통째로 버린다 */
+export function useAddLeadDiag(): UseMutationResult<LeadDiagList, unknown, { id: number } & LeadDiagWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<LeadDiagList>(`/ops/leads/${id}/diag`, body)).data,
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.ops }); },
   });
 }

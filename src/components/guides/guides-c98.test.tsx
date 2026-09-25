@@ -147,7 +147,7 @@ function lesson(over: Partial<PerLessonNotice> = {}): PerLessonNotice {
 
 function guides(over: Partial<Guides> = {}): Guides {
   return {
-    guides: [], perLesson: [lesson()], todoCount: 1, scopedTeacherId: null,
+    guides: [], perLesson: [lesson()], missing: [], todoCount: 1, scopedTeacherId: null,
     stats: { monitoring: 0, overdue: 0, drafting: 0, sendPending: 0, teacherUnconfirmed: 0, repeatedTeacherChange: 0 },
     deliveryCapabilities: { parentExternal: false, teacherExternal: false, reason: '외부 발송 미연결' },
     ...over,
@@ -215,13 +215,15 @@ it('못 보내는 회차는 단추가 잠기고 이유는 서버 문장이다 (F
   expect(button.title).toBe('줌 계정이 아직 배정되지 않았습니다');
 });
 
-it('학부모 안내는 그대로 잠긴다 — 수신처가 없다 (N-42)', () => {
+it('학부모 안내 줄(PNOTI)이 아직 없으면 잠기고 까닭을 붙인다 — 보낼 본문이 없다 (DQ3)', () => {
   useSession.getState().signIn('fixture', me);
   adapter(() => []);
   const view = render(
     <QueryClientProvider client={client()}><GuidesTodo data={guides()} /></QueryClientProvider>,
   );
-  expect((view.getByRole('button', { name: '학부모 안내' }) as HTMLButtonElement).disabled).toBe(true);
+  const button = view.getByRole('button', { name: '학부모 안내' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  expect(button.title).toContain('학부모 안내 줄이 아직 없습니다');
 });
 
 it('보낸 회차는 「강사 보냄」이 되고 다시 누를 수 없다 (F-63)', () => {

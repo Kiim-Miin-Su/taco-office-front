@@ -1,6 +1,6 @@
 /** @file-guide
  * 목적: 개발명세서 v2 §44의 학생별 최신 안내·진단·교재 화면을 표시한다.
- * 책임/재사용: GET /guides/students projection을 그대로 소비하고 편집·PNG는 공용 GuideWriter/png-export에 위임한다.
+ * 책임/재사용: GET /guides/students projection을 그대로 소비하고 편집·PNG는 공용 GuideWriter/png-export에, 학부모 발송은 GuardianSendDialog(보호자 선택 발송)에 위임한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
@@ -16,10 +16,11 @@ import { Panel } from '@/components/ui/Panel';
 import { QueryState } from '@/components/ui/QueryState';
 import { cn } from '@/components/ui/cn';
 import { downloadElementPng } from '@/lib/png-export';
-import { GuideDiagnosticSummary } from './GuideDiagnosticSummary';
-import { GuideBody, GuideTimeline } from './GuideReadout';
-import { GuideReasonChip, GuideStateChip } from './GuideStatus';
+import { GuideDiagnosticSummary, GuideScoreCards } from './GuideDiagnosticSummary';
+import { GuideBody, GuideNote, GuideTimeline } from './GuideReadout';
+import { GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
+import { GuardianSendDialog } from '@/components/guardians/GuardianSendDialog';
 
 const LANG_LABEL: Record<string, string> = {
   ko: '한국어',
@@ -78,6 +79,8 @@ function StudentRail({
 
 function StudentGuideDetail({ student }: { student: GuideStudent }) {
   const [writing, setWriting] = useState(false);
+  // 학부모에게 안내문 보내기 (DQ3) — 보호자·채널 선택과 결과는 보호자 발송 창이 서버에서 읽는다
+  const [sendingParent, setSendingParent] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
   const guideRef = useRef<HTMLDivElement>(null);
@@ -102,15 +105,22 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
     <div className="min-w-0 grow space-y-4">
       {writing && guide.pending ? <GuideWriter guide={guide} onClose={() => setWriting(false)} /> : null}
       {exportError ? <Banner tone="danger">안내문 PNG를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.</Banner> : null}
+      {sendingParent ? (
+        <GuardianSendDialog open student={{ id: student.studentId, name: student.studentName }}
+          defaultBody={guide.body ?? ''} title={`학부모에게 안내문 보내기 — ${student.studentName}`}
+          onClose={() => setSendingParent(false)} />
+      ) : null}
 
-      <div ref={guideRef} className="rounded-xl border border-l-[4px] border-line border-l-blue bg-card p-4">
+      {/* 단추 줄은 카드 안 아래(원문 §44 · g4 §44-6) — PNG 는 안쪽 내용(ref)만 찍어 단추가 안내문에 들지 않는다 */}
+      <div data-testid="guide-student-card" className="overflow-hidden rounded-xl border border-l-[4px] border-line border-l-blue bg-card">
+      <div ref={guideRef} className="bg-card p-4">
         <header className="flex flex-wrap items-center gap-2 border-b border-line pb-3">
           <GuideReasonChip reason={guide.reason} />
           <h2 className="text-[20px] font-bold">{student.studentName}</h2>
           {student.grade ? <Chip>{student.grade}</Chip> : null}
           <GuideStateChip state={guide.state} />
           <span className="ml-auto text-[12px] font-bold text-fg-subtle">
-            {guide.teacherName ?? '강사 미정'} · {guide.serTitle ?? '수업명 미정'}
+            {guide.teacherName ?? '강사 미정'} · {guideLessonLabel(guide)}
           </span>
         </header>
 
@@ -132,10 +142,14 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           title="진단 요약"
           sub={student.diagnostic ? `${student.diagnostic.createdAt.slice(0, 10)} 기록` : '최근 진단 기록'}
         >
+          <GuideScoreCards scores={student.scores} />
           <GuideDiagnosticSummary diagnostic={student.diagnostic} />
         </Panel>
 
         <GuideBody body={guide.body} />
+        <div className="mt-3">
+          <GuideNote label="지도 방향" text={guide.direction} tone="info" />
+        </div>
 
         <Panel className="mt-3" title={`교재 ${student.books.length}종`}>
           {student.books.length === 0 ? (
@@ -157,7 +171,12 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
         <GuideTimeline guide={guide} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      {/* 관리자 코멘트는 강사에게만 남기는 말 — PNG(ref) 밖에 두어 안내문 그림·학부모 발송 본문에 싣지 않는다 (g4 §44-3) */}
+      <div className="px-4 pb-4">
+        <GuideNote label="관리자 코멘트 · 강사만" text={guide.adminNote} tone="warning" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 border-t border-line p-4 lg:grid-cols-4">
         <Button disabled={!guide.pending} onClick={() => setWriting(true)}>
           수정
         </Button>
@@ -165,9 +184,14 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           {exporting ? '만드는 중…' : '안내문 PNG'}
         </Button>
         <LinkButton href="/schedule">+ 수업</LinkButton>
+        <Button disabled={!guide.body?.trim()} title={guide.body?.trim() ? '보호자를 골라 안내문을 보냅니다' : '안내를 먼저 작성해 주세요'}
+          onClick={() => setSendingParent(true)}>
+          학부모에게 보내기
+        </Button>
         <Button variant="success" disabled title="강사 확인 전이는 수신처·세션 계약 확정 후 연결합니다">
           {guide.acknowledgedAt ? '강사 확인 완료' : '강사 확인 대기'}
         </Button>
+      </div>
       </div>
     </div>
   );

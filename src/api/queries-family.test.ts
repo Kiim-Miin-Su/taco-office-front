@@ -137,6 +137,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   // 강사 시급 이력 — 회계 갈래 안에 산다. 새 줄이 정산 시트를 함께 바꾼다 (C97 · D-48)
   wageHistory: qk.wageHistory(7),
   consultingDetail: qk.consultingDetail(7),
+  // 학생의 보호자 — 보호자 갈래 안에 산다. 대표 바꾸기가 같은 학생의 다른 줄도 바꾼다 (DQ3)
+  guardians: qk.guardians(4),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
@@ -162,6 +164,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.consStudents,
   // §52 트래킹 보드 — 회계 갈래 안에 산다 (C69)
   qk.invBoard,
+  // 보낼 수 있는 채널 — 보호자 갈래 안에 산다 (DQ3)
+  qk.guardianChannels,
 ];
 
 describe('갈래 앞자락', () => {

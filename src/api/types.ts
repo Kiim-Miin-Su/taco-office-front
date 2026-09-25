@@ -410,3 +410,19 @@ export type ChangeReqResult = S['ChangeReqResultDto'];
 /** §14 요청 처리 결과 — `applied` 가 승인이 **실제로 바꾼 것**이다 */
 export type ReqReviewResult = S['ReqReviewResultDto'];
 export type ConflictRow = S['ConflictRowDto'];
+
+/* 보호자와 선택 발송 (DQ3 · 2026-09-25) — 메일·문자 둘뿐. 연락처는 관리 화면 전용이다 */
+export type Guardian = S['GuardianDto'];
+export type GuardianList = S['GuardianListDto'];
+export type GuardianCreate = S['GuardianCreateDto'];
+export type GuardianPatch = S['GuardianPatchDto'];
+export type GuardianChannel = S['GuardianChannelDto'];
+export type GuardianChannels = S['GuardianChannelsDto'];
+export type GuardianSend = S['GuardianSendDto'];
+export type GuardianSendResult = S['GuardianSendResultDto'];
+export type GuardianSendItem = S['GuardianSendItemDto'];
+
+/* 상담 진단 점수 (DQ1 · 2026-09-25 「점수만 저장 + 담당자가 선택」) — 레벨·교재는 담당자가 고른 값이다. 자동 판정 없음 */
+export type LeadDiag = S['LeadDiagDto'];
+export type LeadDiagList = S['LeadDiagListDto'];
+export type LeadDiagWrite = S['LeadDiagWriteDto'];

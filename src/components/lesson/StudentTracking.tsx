@@ -18,6 +18,7 @@
  * 기간·복귀 여부는 서버가 준 `pause` 그대로입니다 — 단추가 서는지도 그 값이 정합니다 (D-R39).
  * 「수강 종료」(C94-c · H-80/N-136)는 `StudentWithdrawDialog` — 잔여 회차·환불액은 서버 미리보기이고, 종료 뒤 회차의 카드는
  * 「종료 M/D」 칩으로 남되 인원·단가에서는 빠집니다(서버 `ended`).
+ * 「보호자」(DQ3 · 2026-09-25)는 `GuardianListDialog` — 학생 한 명의 보호자 여럿과 대표·받는 채널을 관리합니다.
  */
 'use client';
 import Link from 'next/link';
@@ -29,6 +30,7 @@ import { useCan } from '@/store/useSession';
 import { won } from '@/lib/money';
 import { StudentPauseDialog, StudentResumeDialog, pauseLabel } from './StudentPauseDialog';
 import { StudentWithdrawDialog, endedLabel } from './StudentWithdrawDialog';
+import { GuardianListDialog } from '../guardians/GuardianList';
 import type { TrackedReport, TrackedStudent } from '@/api/types';
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
@@ -59,7 +61,7 @@ function ReportRow({ r }: { r: TrackedReport }) {
 function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
   s: TrackedStudent; canSeeAmounts: boolean; onDate: string; serId: number; canEdit: boolean; canMoney: boolean;
 }) {
-  const [dialog, setDialog] = useState<'pause' | 'resume' | 'withdraw' | null>(null);
+  const [dialog, setDialog] = useState<'pause' | 'resume' | 'withdraw' | 'guardians' | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const write = useStudentPause();
   const pause = s.pause ?? null;
@@ -98,6 +100,10 @@ function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
           {canWithdraw ? (
             <Button size="sm" variant="ghost" onClick={() => setDialog('withdraw')}>수강 종료</Button>
           ) : null}
+          {/* 보호자 연락처는 관리 권한만 — 서버도 같은 플래그로 막는다 (DQ3 · D-R39) */}
+          {canEdit ? (
+            <Button size="sm" variant="ghost" onClick={() => setDialog('guardians')}>보호자</Button>
+          ) : null}
           <Link href={`/schedule?studentId=${s.id}`}><Button size="sm" variant="ghost">시간표</Button></Link>
           <Link href={`/board?studentId=${s.id}`}><Button size="sm" variant="ghost">학생 보드</Button></Link>
         </span>
@@ -120,6 +126,7 @@ function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
         defaultEndedOn={onDate}
         onClose={close}
       />
+      <GuardianListDialog open={dialog === 'guardians'} student={{ id: s.id, name: s.name }} onClose={close} />
       <StudentResumeDialog
         open={dialog === 'resume'}
         title={`복귀 — ${s.name}`}
@@ -170,21 +177,7 @@ export function StudentTracking({ serId, onDate }: { serId: number; onDate: stri
 
       {d ? (
         <>
-          {/* 원문 머리줄 — 숫자와 문장은 서버가 만든다 (D-R37) */}
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="text-[12.5px] font-bold text-fg">{d.count}명</span>
-            <Chip tone={d.canAdd > 0 ? 'info' : 'warning'}>{d.capLabel}</Chip>
-            {d.priced ? (
-              <Chip>
-                1인 {d.canSeeAmounts && d.unitPrice != null ? won(d.unitPrice) : '가려짐'}
-                {' · 수업당 '}
-                {d.canSeeAmounts && d.total != null ? won(d.total) : '가려짐'}
-              </Chip>
-            ) : (
-              <Chip tone="warning">단가표 미등록 — 가격은 표시하지 않습니다</Chip>
-            )}
-          </div>
-
+          {/* 정원 · 단가 칩 줄은 원문 §79 대로 **명단 바로 위**(LessonDetail 의 수강 학생 펼침)에 선다 — 같은 질의라 여기서는 다시 그리지 않는다 */}
           <div className="flex flex-col gap-2">
             {d.students.map((s) => (
               <StudentCard key={s.id} s={s} canSeeAmounts={d.canSeeAmounts} onDate={onDate} serId={serId} canEdit={canEdit} canMoney={canMoney} />

@@ -12,7 +12,7 @@ import { api } from '@/api/client';
 import type { Consulting, ConsultingDetail, ConsultingList, Me } from '@/api/types';
 import { qk, sessionQueryKey, useUpdateConsultingShare } from './queries';
 import { useSession } from '@/store/useSession';
-import { CONSULTING_STAGE_FIXTURE, consultingItem } from '@/components/consulting/consulting.fixture';
+import { CONSULTING_STAGE_FIXTURE, CONTRACT_STEPS_FIXTURE, consultingItem } from '@/components/consulting/consulting.fixture';
 
 const me = {
   id: 2, name: '김민수', role: 'admin', roleLabel: '관리자', title: '관리자',
@@ -30,7 +30,8 @@ const detail = {
   id: 7, consType: 'admissions', consTypeLabel: '국제학교 지원', stage: 'contract', contractStep: 1,
   studentIds: [10], studentNames: ['고은성'], requester: 'mother', ownerId: 3, ownerName: '김범준',
   startOn: '2026-09-21', endOn: '2026-10-20', amount: 800000, sessions: 6,
-  share: 'all', pickedStaffIds: [], pickedStaffNames: [], createdAt: '2026-09-21T00:00:00.000Z',
+  share: 'all', shareLabel: '전체 공개', shareMeaning: '관리자 누구나 봅니다', contractSteps: CONTRACT_STEPS_FIXTURE,
+  pickedStaffIds: [], pickedStaffNames: [], createdAt: '2026-09-21T00:00:00.000Z',
   typeCapability: { defaultItemsSupported: true, reason: null, scheduleCreationSupported: false, scheduleCreationReason: '일정 정책 미정' },
   capabilities: {
     canEdit: true, canChangeShare: true, canSetPrivate: false, canAddContractFile: true, canRemoveContractFile: true,
