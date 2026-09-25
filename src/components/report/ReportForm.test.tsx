@@ -4,11 +4,19 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
-import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Me, ReportBody, ReportDetail, ReportField } from '@/api/types';
+import { useSession } from '@/store/useSession';
+import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 import { ReportEditor, ReportForm } from './ReportForm';
+
+vi.mock('@/api/queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api/queries')>()),
+  // 지각 차감 띠는 코드표(/meta)의 서버 구간을 그린다 — 네트워크 대신 서버 응답 모양 한 벌
+  useMeta: (enabled = true) => ({ data: enabled ? { lateReportTiers: LATE_TIERS_FIXTURE } : undefined }),
+}));
 
 const fields: ReportField[] = [
   { key: 'content', label: '③ 수업 내용', hint: '이번 수업에서 다룬 내용', min: 1, max: 2000 },
@@ -78,5 +86,41 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
     );
     expect(view.container.textContent).toContain('시간 미정');
     expect(view.container.textContent).not.toContain('00:00');
+  });
+});
+
+describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상단 (대표 지시 2026-09-25)', () => {
+  afterEach(() => { cleanup(); useSession.setState({ me: null, ready: false }); });
+  const detail = (canEdit: boolean): ReportDetail => ({
+    id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
+    subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: canEdit ? 'none' : 'wait',
+    written: !canEdit, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
+    body: { content: '', progress: '', homework: '' }, fields,
+    canEdit, canReview: false, lang: 'ko', writtenAt: null,
+    canExport: false, canDeliver: false, exportFiles: [], subjectName: 'AP Chemistry',
+    submittedAt: null, reviewedAt: null, rejectReason: null,
+  });
+  const mount = (d: ReportDetail) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    return render(<QueryClientProvider client={client}><ReportEditor detail={d} subject="AP Chemistry" /></QueryClientProvider>);
+  };
+  const as = (canAdminPage: boolean) => useSession.setState({
+    me: { id: 3, name: '강사', canAdminPage, canCrudAll: canAdminPage } as unknown as Me, ready: true,
+  });
+
+  it('강사가 쓸 수 있는 양식이면 첫 줄에 안내가 온다', () => {
+    as(false);
+    const view = mount(detail(true));
+    const note = view.getByRole('note', { name: '리포트 지각 제출 차감' });
+    expect(note.textContent).toContain('1시간 지각 시5,000원 차감');
+    expect(note.textContent).toContain('4시간 이후10,000원 차감');
+    expect(view.container.firstElementChild?.firstElementChild?.contains(note)).toBe(true);
+  });
+
+  it('읽기 전용이거나 관리 화면 로그인이면 그리지 않는다', () => {
+    as(false);
+    expect(mount(detail(false)).queryByRole('note')).toBeNull();
+    as(true);
+    expect(mount(detail(true)).queryByRole('note')).toBeNull();
   });
 });

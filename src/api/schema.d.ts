@@ -99,7 +99,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 코드표 — 수업 종류 · 과목 · 강의실 · 줌 · 구성원 · 학생 */
+        /**
+         * 코드표 — 수업 종류 · 과목 · 강의실 · 줌 · 구성원 · 학생
+         * @description 학생 명단과 줌 회의 번호는 관리 화면(canAdminPage)에만 싣는다 — 강사에게는 students 가 빈 배열, meetingId 가 null 이다 (보안 검수 0925 · D-R39).
+         */
         get: operations["MetaController_get"];
         put?: never;
         post?: never;
@@ -3172,6 +3175,23 @@ export interface components {
             /** @description 칸 아래 한 줄 — 무엇이 일어나는지 */
             sub: string;
         };
+        LateReportTierDto: {
+            /** @description 수업 종료 후 이 분(分) 이상이면 이 구간 */
+            fromMinutes: number;
+            /** @description 차감액(원) — 0 이면 차감 없음 */
+            amount: number;
+            /** @description 규칙 표 구간 낱말 — 예 「1시간 이상 ~ 4시간 미만」 */
+            range: string;
+            /** @description 안내 띠 짧은 낱말 — 예 「1시간 지각 시」 */
+            when: string;
+            /** @description 금액 낱말 — 예 「5,000원 차감」 */
+            cut: string;
+            /**
+             * @description 색 — 화면은 이 값만 본다
+             * @enum {string}
+             */
+            tone: "ok" | "warn" | "bad";
+        };
         MetaDto: {
             kinds: components["schemas"]["KindDto"][];
             subs: components["schemas"]["SubDto"][];
@@ -3185,6 +3205,8 @@ export interface components {
             cancelReasons: components["schemas"]["CancelReasonDto"][];
             /** @description 휴강 처리 셋 — 이월 · 차감 · 보강 이관 (C92) */
             cancelTreats: components["schemas"]["CancelTreatDto"][];
+            /** @description 리포트 지각 제출 차감 셋 — 작은 것부터 (D-R32 · 2026-09-25) */
+            lateReportTiers: components["schemas"]["LateReportTierDto"][];
         };
         AttendanceDto: {
             id: number;

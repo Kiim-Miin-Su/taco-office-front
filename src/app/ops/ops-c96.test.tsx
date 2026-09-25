@@ -37,7 +37,7 @@ const me: Me = {
 };
 
 const META: Meta = {
-  kinds: [], subs: [], invTypes: [], cancelReasons: [], cancelTreats: [], students: [],
+  kinds: [], subs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], students: [],
   rooms: [{ id: 1, branch: '본원', name: '1호', capacity: 10 }],
   zaccs: [{ id: 3, label: 'TN', meetingId: '123' }],
   staff: [

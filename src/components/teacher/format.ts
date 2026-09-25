@@ -35,3 +35,9 @@ export const REP: Record<string, { label: string; tone: Tone } | undefined> = {
   // 리포트 대상이 아닌 종류(자습·회의) — 못 쓰는 리포트를 「미작성」이라 부르지 않는다 (C94-b)
   na: { label: '리포트 대상 아님', tone: 'neutral' },
 };
+
+/**
+ * D-R32 리포트 지각 제출 차감의 **색만** 옮긴다. 구간·금액·낱말은 `GET /meta` 의 `lateReportTiers`
+ * (판정 정본 back lib/rules LATE_REPORT_TIERS)에서 온다 — 화면에 금액 사본을 두지 않는다 (대표 지시 2026-09-25).
+ */
+export const LATE_TONE: Record<'ok' | 'warn' | 'bad', Tone> = { ok: 'success', warn: 'warning', bad: 'danger' };

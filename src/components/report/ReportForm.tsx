@@ -17,6 +17,7 @@ import { useReportReview, useReportWrite } from '@/api/queries';
 import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
 import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
 import { Banner, Button, CountedTextarea, Label, Panel, Textarea } from '../ui';
+import { LateReportPolicy } from '../teacher/LateReportPolicy';
 
 export function ReportForm({ fields, value, onChange, readOnly }: {
   fields: ReportField[];
@@ -95,6 +96,8 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 쓰는 사람에게만 — 작성 양식 최상단에 지각 차감을 적는다 (대표 결정 2026-09-25 · 강사 로그인만) */}
+      {detail.canEdit ? <LateReportPolicy /> : null}
       <Panel title="① 학생" sub="이름·학년은 명단 레코드에서 자동으로 입력됩니다.">
         <div className="text-[13px] font-bold text-fg">
           {detail.students.map((student) => `${student.name}${student.grade ? ` · ${student.grade}` : ''}`).join(' / ') || '학생 없음'}

@@ -16,6 +16,7 @@ import { ReportDeliveryHistory } from '@/components/report/ReportDeliveryHistory
 import { ReportDeliveryQueue } from '@/components/report/ReportDeliveryQueue';
 import { ReportWeeklyTrackingBoundary } from '@/components/report/ReportWeeklyTrackingBoundary';
 import { TeacherReportList } from '@/components/report/TeacherReportList';
+import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
 import { UnwrittenReportBoard } from '@/components/report/UnwrittenReportBoard';
 import {
   useMeta, useReportDelivery, useReportDeliveryHistory, useReportReminder, useReports, useUnwritten,
@@ -219,6 +220,8 @@ function TeacherReports({ requestedSerId, requestedOnDate }: {
 
   return (
     <>
+      {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 그린다 */}
+      <LateReportPolicy className="mb-3" />
       <PageHeader title="리포트" sub="내 수업 리포트를 확인하고 작성합니다." />
       <Tabs<TeacherSection>
         className="mb-3"

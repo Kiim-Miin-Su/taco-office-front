@@ -18,10 +18,14 @@ import type { ReactNode } from 'react';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TeacherHistory } from '@/api/types';
+import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 import TeacherHistoryPage from './page';
 
 const mocks = vi.hoisted(() => ({ history: vi.fn() }));
-vi.mock('@/api/queries', () => ({ useTeacherHistory: mocks.history }));
+vi.mock('@/api/queries', () => ({
+  useTeacherHistory: mocks.history,
+  useMeta: () => ({ data: { lateReportTiers: LATE_TIERS_FIXTURE } }),
+}));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -113,4 +117,13 @@ it.each([
   expect(text).toContain(tail);
   // 낱말이 아니라 결론을 읽는다 — 「지급 완료」는 낱말이 정해질 때까지 만들지 않는다 (N-27)
   expect(text).not.toContain('지급 완료');
+});
+
+it('리포트 지각 차감 규칙 표는 서버 구간(/meta lateReportTiers)을 그대로 그린다 — 화면 사본 없음 (2026-09-25)', async () => {
+  mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  const panel = await view.findByText('리포트 지각 차감 규칙');
+  const box = panel.closest('section, aside, div[class*="rounded"]')?.parentElement ?? view.container;
+  const rows = [...box.querySelectorAll('ul li')].map((li) => li.textContent);
+  expect(rows).toEqual(LATE_TIERS_FIXTURE.map((tier) => `${tier.range}${tier.cut}`));
 });

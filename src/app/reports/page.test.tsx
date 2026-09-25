@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
+import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 
 const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 const mocks = vi.hoisted(() => ({
@@ -20,9 +21,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace }),
   useSearchParams: () => new URLSearchParams(nav.search),
 }));
-vi.mock('@/store/useSession', () => ({ useCan: (name: keyof typeof mocks.permissions) => mocks.permissions[name] }));
+vi.mock('@/store/useSession', () => ({
+  useCan: (name: keyof typeof mocks.permissions) => mocks.permissions[name],
+  // 지각 차감 안내 띠(LateReportPolicy)는 세션의 canAdminPage 만 본다
+  useSession: <T,>(select: (state: { me: { canAdminPage: boolean } | null }) => T) =>
+    select({ me: { canAdminPage: mocks.permissions.canCrudAll } }),
+}));
 vi.mock('@/api/queries', () => ({
-  useMeta: () => ({ data: { subs: [] } }),
+  useMeta: () => ({ data: { subs: [], lateReportTiers: LATE_TIERS_FIXTURE } }),
   useUnwritten: mocks.unwritten,
   useReports: mocks.reports,
   useReportDelivery: mocks.deliveryQuery,
@@ -66,6 +72,20 @@ describe('리포트 역할별 화면', () => {
     expect(view.queryByText('강사별 조치 보드')).toBeNull();
     expect(mocks.deliveryQuery).not.toHaveBeenCalled();
     expect(mocks.reminder).not.toHaveBeenCalled();
+  });
+
+  it('강사 화면 최상단에 리포트 지각 차감(1시간 5,000원 · 4시간 이후 10,000원)을 적는다', () => {
+    const view = render(<ReportsPage />);
+    const note = view.getByRole('note', { name: '리포트 지각 제출 차감' });
+    expect(note.textContent).toContain('1시간 지각 시5,000원 차감');
+    expect(note.textContent).toContain('4시간 이후10,000원 차감');
+    const heading = view.getByRole('heading', { name: '리포트' });
+    expect(note.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('관리 화면에는 강사 정책 띠를 그리지 않는다', () => {
+    mocks.permissions.canCrudAll = true;
+    expect(render(<ReportsPage />).queryByRole('note', { name: '리포트 지각 제출 차감' })).toBeNull();
   });
 
   it('대표·관리자·매니저 capability는 원본 4탭과 같은 서버 배지를 공유한다', () => {

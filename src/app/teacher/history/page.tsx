@@ -14,22 +14,15 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Button, Chip, PageHeader, Panel, QueryState, type Tone } from '@/components/ui';
-import { useTeacherHistory } from '@/api/queries';
+import { useMeta, useTeacherHistory } from '@/api/queries';
 import type { TeacherHistoryLesson } from '@/api/types';
 import { won } from '@/lib/money';
-import { REP, dowOf, hm, hours } from '@/components/teacher/format';
+import { LATE_TONE, REP, dowOf, hm, hours } from '@/components/teacher/format';
 
 const addMonth = (ym: string, n: number): string => {
   const d = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
-
-/** D-R32 안내 스티커 — 표시용 사본. 판정 정본은 back lib/rules(LATE_REPORT_TIERS)이며 화면 차감액은 서버 값만 쓴다. */
-const LATE_RULE: ReadonlyArray<{ range: string; say: string; tone: Tone }> = [
-  { range: '수업 종료 후 1시간 미만', say: '차감 없음', tone: 'success' },
-  { range: '1시간 이상 ~ 4시간 미만', say: '5,000원 차감', tone: 'warning' },
-  { range: '4시간 이상', say: '10,000원 차감', tone: 'danger' },
-];
 
 function kindChips(l: TeacherHistoryLesson): Array<{ label: string; tone: Tone }> {
   const out: Array<{ label: string; tone: Tone }> = [];
@@ -136,6 +129,7 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
 export default function TeacherHistoryPage() {
   const [month, setMonth] = useState<string | undefined>(undefined);
   const q = useTeacherHistory(month);
+  const meta = useMeta();
   return (
     <RequireAuth>
       <AppShell>
@@ -241,10 +235,11 @@ export default function TeacherHistoryPage() {
                   <aside className="w-full shrink-0 lg:w-[344px]">
                     <Panel title="리포트 지각 차감 규칙" sub="수업이 끝난 시각부터 계산 · 연강도 수업별 적용 · 추가 유예 없음">
                       <ul className="flex flex-col gap-2">
-                        {LATE_RULE.map((r) => (
-                          <li key={r.range} className="flex items-center justify-between gap-2 text-[13px]">
+                        {/* 구간·금액·낱말은 서버 판정 정본(/meta lateReportTiers) — 화면에 금액 사본을 두지 않는다 (2026-09-25) */}
+                        {(meta.data?.lateReportTiers ?? []).map((r) => (
+                          <li key={r.fromMinutes} className="flex items-center justify-between gap-2 text-[13px]">
                             <span className="text-fg">{r.range}</span>
-                            <Chip size="compact" tone={r.tone}>{r.say}</Chip>
+                            <Chip size="compact" tone={LATE_TONE[r.tone]}>{r.cut}</Chip>
                           </li>
                         ))}
                       </ul>
