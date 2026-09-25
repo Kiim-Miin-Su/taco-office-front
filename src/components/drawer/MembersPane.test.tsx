@@ -49,6 +49,14 @@ it('묶음의 이름도 인원도 서버가 준 것이다 — 화면이 다시 �
   expect(heads(view.container)).toEqual(['강사3', '매니저1', '대표1']);
 });
 
+it('묶음 머리 글자는 띠와 같은 역할 색이다 — 강사 파랑 · 매니저 보라 · 대표 주황 (17-2)', () => {
+  const view = paint();
+  expect(view.getByText('강사').className).toContain('text-blue');
+  expect(view.getByText('매니저').className).toContain('text-violet');
+  expect(view.getByText('대표').className).toContain('text-orange');
+  expect(view.getByText('대표').previousElementSibling?.className).toContain('bg-orange');
+});
+
 it('서버가 센 수가 줄 수와 달라도 화면은 서버의 수를 적는다 — 세는 자리는 하나다 (D-R37)', () => {
   // 화면이 몰래 다시 세고 있으면 이 시험이 「2」를 보게 된다
   const view = paint([{ ...groups[0], count: 13 }]);
@@ -96,4 +104,11 @@ it('없는 단추를 있다고 말하지 않는다 — 서랍에는 시간대를
   expect(text).toContain('고정');
   expect(text).not.toContain('여기서 바꾼');
   expect(view.queryAllByRole('button')).toHaveLength(0);
+});
+
+/* g2 대조 C-7 — 사용자 문장에 결정 번호를 적지 않는다(근거는 주석으로) */
+it('머리 문장에 결정 번호가 없다', () => {
+  const view = paint();
+  expect(view.container.textContent).toContain('관리자 화면은');
+  expect(view.container.textContent).not.toMatch(/D-R\d/);
 });

@@ -22,10 +22,10 @@ const meta = {
   students: [{ id: 7, name: '양찬욱', grade: 'G10', school: null }],
   // 종류 목록도 서버가 준다 — 화면이 코드표를 다시 적지 않는다 (D-R18 · C64)
   invTypes: [
-    { key: 'tuition', label: '수업료 청구', sub: '정규 수업', other: false },
-    { key: 'consulting', label: '컨설팅비 청구', sub: '진학 컨설팅 · 인터뷰 준비', other: true },
-    { key: 'diag_intake', label: '진단고사 + 상담 비용', sub: '진단고사 · 입학 상담', other: true },
-    { key: 'exam_fee', label: 'MAP + CAT 응시료', sub: 'MAP · CAT 응시료', other: true },
+    { key: 'tuition', label: '수업료 청구', sub: '정규 수업', other: false, issuable: true, issueBlockedReason: null },
+    { key: 'consulting', label: '컨설팅비 청구', sub: '진학 컨설팅 · 인터뷰 준비', other: true, issuable: false, issueBlockedReason: '수업료 외 청구는 금액 규칙이 정해지면 열립니다' },
+    { key: 'diag_intake', label: '진단고사 + 상담 비용', sub: '진단고사 · 입학 상담', other: true, issuable: false, issueBlockedReason: '수업료 외 청구는 금액 규칙이 정해지면 열립니다' },
+    { key: 'exam_fee', label: 'MAP + CAT 응시료', sub: 'MAP · CAT 응시료', other: true, issuable: false, issueBlockedReason: '수업료 외 청구는 금액 규칙이 정해지면 열립니다' },
   ],
 };
 
@@ -137,10 +137,14 @@ it('거절 이유는 서버 문장을 그대로 보여 준다 — 화면이 이�
 it('종류 목록을 서버에서 받아 그린다 — 화면에 코드표를 다시 적지 않는다 (D-R18 · C64)', async () => {
   const view = setup();
   fireEvent.click(view.getByRole('button', { name: '+ 새 청구서 발행' }));
-  await waitFor(() => expect(view.getByRole('option', { name: 'MAP + CAT 응시료' })).toBeTruthy());
+  await waitFor(() => expect(view.getByRole('option', { name: /MAP \+ CAT 응시료/ })).toBeTruthy());
   const select = view.getByLabelText('종류') as HTMLSelectElement;
   expect([...select.options].map((o) => o.value)).toEqual(meta.invTypes.map((t) => t.key));
-  expect([...select.options].map((o) => o.textContent)).toEqual(meta.invTypes.map((t) => t.label));
+  // 낼 수 있는지도 서버가 말한다 — 수업료 외 종류는 금액 규칙이 정해질 때까지 잠긴다 (PB-01)
+  expect([...select.options].map((o) => o.disabled)).toEqual([false, true, true, true]);
+  expect(select.options[0].textContent).toBe('수업료 청구');
+  expect(select.options[3].textContent).toBe('MAP + CAT 응시료 — 아직 낼 수 없음');
+  expect(select.options[3].title).toBe('수업료 외 청구는 금액 규칙이 정해지면 열립니다');
 });
 
 /* ── 일괄 발행 (C94-a · H-75) ─────────────────────────────────────────── */
@@ -174,4 +178,11 @@ it('일괄 발행이 막히면(마감 달) 서버 문장을 그대로 보여 준
   fireEvent.change(view.getByLabelText('납부 기한'), { target: { value: '2026-08-25' } });
   fireEvent.click(view.getByRole('button', { name: '8월 청구서 일괄 발행' }));
   await waitFor(() => expect(view.getByText(/2026년 8월은 마감됐습니다/)).toBeTruthy());
+});
+
+/** 원문 §53 — 「+ 새 청구서 발행」은 주단추, 원문 밖 「청구서 일괄 발행」은 보조 모양 (w5 · 53-03) */
+it('「+ 새 청구서 발행」이 주단추이고 일괄 발행은 보조 단추다', () => {
+  const view = setup();
+  expect(view.getByRole('button', { name: '+ 새 청구서 발행' }).className).toContain('bg-primary');
+  expect(view.getByRole('button', { name: '청구서 일괄 발행' }).className).not.toContain('bg-primary');
 });

@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import { family } from '@/api/queries';
-import type { Guide, GuideStudent, GuideStudents as GuideStudentsDto, Me } from '@/api/types';
+import type { Guide, GuideStudent, GuideStudent as GuideStudentDto, GuideStudents as GuideStudentsDto, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import * as pngExport from '@/lib/png-export';
 import { GuideStudents } from './GuideStudents';
@@ -217,4 +217,75 @@ it.each(['sent', 'read'] as const)('같은 GUIDE id가 %s로 재조회되면 이
   await waitFor(() => expect(view.queryByLabelText('안내 본문')).toBeNull());
   expect(view.getByRole('button', { name: '수정' })).toHaveProperty('disabled', true);
   expect(writes).toHaveLength(0);
+});
+
+/**
+ * g4 §44-2 — 진단 카드 셋 「영어 62 · 수학 71 · 인터뷰 58」. 값은 서버 scores(DQ1 상담 진단의 최신 줄) 그대로이고
+ * 없는 과목은 「—」다(0 으로 짓지 않는다). §44-6 — 단추 넷(수정 · 안내문 PNG · + 수업 · 강사 확인)은 카드 **안** 아래.
+ */
+it('진단 점수 카드 셋은 서버 scores 그대로이고, 단추 줄은 카드 안에 있되 PNG 에는 들지 않는다 (§44)', async () => {
+  const first = student(1, '강라율');
+  const withScores: GuideStudentDto = {
+    ...first,
+    scores: {
+      id: 5, leadId: 9, english: 62, math: 71, interview: null, takenOn: '2026-08-20',
+      level: 'practice', levelLabel: 'Practice', bookId: null, bookTitle: null, note: null, byId: 1, byName: '김민수',
+      at: '2026-08-20T10:00:00+09:00',
+    },
+  };
+  const png = vi.spyOn(pngExport, 'downloadElementPng').mockResolvedValue(undefined);
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [withScores] } });
+  useSession.getState().signIn('fixture', me);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><GuideStudents /></QueryClientProvider>);
+  const cards = await view.findByRole('group', { name: '진단 점수' });
+  expect(cards.textContent).toContain('영어62');
+  expect(cards.textContent).toContain('수학71');
+  expect(cards.textContent).toContain('인터뷰—');
+  expect(cards.textContent).toContain('Practice');
+  // 단추 줄은 안내 카드 안에 — 그러나 PNG 로 찍는 부분에는 들지 않는다
+  const card = view.getByTestId('guide-student-card');
+  expect(card.contains(view.getByRole('button', { name: '안내문 PNG' }))).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '안내문 PNG' }));
+  await waitFor(() => expect(png).toHaveBeenCalledTimes(1));
+  expect(png.mock.calls[0][0].textContent).not.toContain('안내문 PNG');
+});
+
+it('진단 점수가 없으면 카드 셋을 세우지 않는다 — 0 점을 짓지 않는다 (§44)', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [{ ...student(1, '강라율'), scores: null }] } });
+  useSession.getState().signIn('fixture', me);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><GuideStudents /></QueryClientProvider>);
+  await view.findByText('강라율 수준');
+  expect(view.queryByRole('group', { name: '진단 점수' })).toBeNull();
+});
+
+/**
+ * g4 §44-3 — 「지도 방향」 상자와 「관리자 코멘트 · 강사만」 상자. 관리자 코멘트는 강사에게만 남기는 말이라
+ * 카드에는 보이되 안내문 PNG(학부모에게도 나갈 수 있는 그림)에는 들지 않는다.
+ */
+it('지도 방향은 안내문에 싣고 관리자 코멘트는 카드에만 두어 PNG 에 싣지 않는다 (§44-3)', async () => {
+  const first = student(1, '강라율');
+  first.latestGuide = { ...first.latestGuide, direction: '어휘 먼저, 라이팅은 2주 뒤', adminNote: '숙제 양을 살펴 주세요' };
+  const png = vi.spyOn(pngExport, 'downloadElementPng').mockResolvedValue(undefined);
+  const { view } = setupEditor({ items: [first] });
+  const direction = await view.findByText('어휘 먼저, 라이팅은 2주 뒤');
+  const note = view.getByText('숙제 양을 살펴 주세요');
+  const card = view.getByTestId('guide-student-card');
+  expect(card.contains(direction)).toBe(true);
+  expect(card.contains(note)).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '안내문 PNG' }));
+  await waitFor(() => expect(png).toHaveBeenCalledTimes(1));
+  const text = png.mock.calls[0][0].textContent ?? '';
+  expect(text).toContain('어휘 먼저, 라이팅은 2주 뒤');
+  expect(text).not.toContain('숙제 양을 살펴 주세요');
+});
+
+it('지도 방향·관리자 코멘트가 없으면 두 상자에 「적지 않음」을 보인다 (§44-3)', async () => {
+  const { view } = setupEditor({ items: [student(1, '강라율')] });
+  await view.findByText('강라율 서버 최신 안내');
+  expect(view.getByRole('region', { name: '지도 방향' }).textContent).toContain('적지 않음');
+  expect(view.getByRole('region', { name: '관리자 코멘트 · 강사만' }).textContent).toContain('적지 않음');
 });

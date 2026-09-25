@@ -68,22 +68,52 @@ it('승인은 두 번 눌러야 나간다', () => {
   expect(onReview).toHaveBeenCalledWith({ id: 1, kind: 'req', decision: 'approve', reason: undefined });
 });
 
-it('반려는 사유를 적어야 열린다 (D-R13) — 그리고 적은 사유가 그대로 간다', () => {
-  const { view, onReview } = panel([row()]);
-  expect(view.getByRole('button', { name: '반려' }).hasAttribute('disabled')).toBe(true);
-  fireEvent.change(view.getByLabelText('사유'), { target: { value: '3개월 뒤 재검토' } });
+/* g2 대조 14-5 — 원문 처리 줄에는 「반려」·「승인」 두 단추만 있다. 사유 칸은 「반려」를 누른 뒤에만 펼쳐진다 */
+it('처음에는 두 단추만 있고 사유 칸이 없다 — 「반려」를 눌러야 펼쳐진다', () => {
+  const { view } = panel([row()]);
+  expect(view.queryByLabelText('사유')).toBeNull();
+  expect(view.queryByRole('textbox')).toBeNull();
+  expect(view.getByRole('button', { name: '반려' }).hasAttribute('disabled')).toBe(false);
   fireEvent.click(view.getByRole('button', { name: '반려' }));
+  expect(view.getByLabelText('사유')).toBeTruthy();
+});
+
+it('반려는 사유를 적어야 확정이 열린다 (D-R13) — 그리고 적은 사유가 그대로 간다', () => {
+  const { view, onReview } = panel([row()]);
+  fireEvent.click(view.getByRole('button', { name: '반려' }));
+  const confirm = view.getByRole('button', { name: '한 번 더 누르면 반려' });
+  expect(confirm.hasAttribute('disabled')).toBe(true);
+  fireEvent.click(confirm);
+  expect(onReview).not.toHaveBeenCalled();
+  fireEvent.change(view.getByLabelText('사유'), { target: { value: '3개월 뒤 재검토' } });
   fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 반려' }));
   expect(onReview).toHaveBeenCalledWith({ id: 1, kind: 'req', decision: 'reject', reason: '3개월 뒤 재검토' });
 });
 
-it('사유를 고치면 확정이 풀린다 — 다른 글자를 두고 눌러 버리지 않게', () => {
+it('펼친 사유 칸은 「취소」로 접고, 접힌 글자는 승인에 실리지 않는다', () => {
   const { view, onReview } = panel([row()]);
-  fireEvent.change(view.getByLabelText('사유'), { target: { value: '재검토' } });
   fireEvent.click(view.getByRole('button', { name: '반려' }));
-  fireEvent.change(view.getByLabelText('사유'), { target: { value: '재검토합니다' } });
-  expect(view.getByRole('button', { name: '반려' })).toBeTruthy();
-  expect(onReview).not.toHaveBeenCalled();
+  fireEvent.change(view.getByLabelText('사유'), { target: { value: '재검토' } });
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  expect(view.queryByLabelText('사유')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '승인' }));
+  fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 승인' }));
+  expect(onReview).toHaveBeenCalledWith({ id: 1, kind: 'req', decision: 'approve', reason: undefined });
+});
+
+/* g2 대조 14-3 — 원문 카드: 색 채운 분류 배지 + 요청자 이름(굵게) · 오른쪽 YYYY-MM-DD HH:MM / 회색 상자 「지금 → 바라는 것」 */
+it('§14 카드는 요청자 이름을 먼저, 날짜는 연도까지, 바라는 것은 따로 상자에 적는다', () => {
+  const { view } = panel([row()]);
+  const card = view.getAllByRole('listitem')[0]!;
+  const who = within(card).getByText('이다현');
+  expect(who.className).toContain('font-bold');
+  expect(within(card).getByText('2026-09-12 10:00')).toBeTruthy();
+  const box = within(card).getByText('42,000원/시간 → 45,000원/시간');
+  expect(box.tagName).toBe('P');
+  // 이름과 바라는 것이 한 줄로 이어 붙지 않는다(옛 「이다현 · 42,000원…」 한 줄)
+  expect(within(card).queryByText(/이다현 · 42,000/)).toBeNull();
+  // 배지는 분류의 색이다 — 시급 변경은 붉은 결 (g2 14-8 · 분류 → 결 대응은 ApprovalRowContent 한 곳)
+  expect(within(card).getByText('시급 변경').className).toContain('bg-red');
 });
 
 it('서버가 거절하면 그 말을 그대로 띄운다', () => {
@@ -143,4 +173,45 @@ it('시급 권한이 없으면 승인 단추 대신 이유가 줄에 적힌다 (
   expect(within(card).queryByRole('button', { name: '승인' })).toBeNull();
   expect(card.textContent).toContain('시급을 다룰 권한이 필요합니다');
   expect(within(card).getByRole('link').getAttribute('title')).toBe('시급을 다룰 권한이 필요합니다');
+});
+
+/* g2 대조 14-4 — 원문 카드에는 올린 사람이 자기 말로 적은 **사유 인용 줄**(분류 색 세로 띠)이 있다 */
+it('§14 카드는 올린 사람의 사유를 분류 색 세로 띠로 인용한다 — 서버가 안 주면 줄이 없다', () => {
+  const { view } = panel([
+    row({ reason: '근속 2년차입니다' }),
+    row({ id: 2, kind: 'chreq', reqType: 'cancel', title: '휴강 요청', category: 'schedule_change', categoryLabel: '스케줄 변경', reason: null }),
+  ]);
+  const [first, second] = view.getAllByRole('listitem');
+  const quote = within(first!).getByText('근속 2년차입니다');
+  expect(quote.className).toContain('border-l-2');
+  expect(quote.className).toContain('border-l-red');
+  expect(second!.querySelector('.border-l-2')).toBeNull();
+});
+
+/* g2 대조 14-9 — 원문 머리는 평문이고 건수를 말한다. 결정 번호를 사용자 문장에 적지 않는다(C-7) */
+it('머리는 평문으로 대기 건수를 말하고 내부 번호가 없다', () => {
+  const { view } = panel([row(), row({ id: 2 })]);
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('강사·코디네이터가 올린 요청이 2건 대기 중입니다.');
+  expect(text).toContain('반려에도 사유가 남습니다.');
+  expect(text).not.toMatch(/D-R\d/);
+  // 되돌리기 절은 결재 되돌리기가 생길 때까지 적지 않는다 (14-1 결정 대기)
+  expect(text).not.toContain('되돌리기');
+});
+
+/* g2 대조 14-8 — 분류 칩 앞에 카드 배지와 같은 색 점이 있고, 「전체」에는 없다 */
+it('분류 칩 앞에 같은 색 점이 서고 「전체」에는 점이 없다', () => {
+  const { view } = panel([row()]);
+  const group = view.getByRole('group', { name: '승인 요청 분류' });
+  const dot = (name: string) => within(group).getByRole('button', { name }).querySelector('span[aria-hidden]');
+  expect(dot('전체 1')).toBeNull();
+  expect(dot('시급 변경 1')?.className).toContain('bg-red');
+  expect(dot('스케줄 변경 0')?.className).toContain('bg-blue');
+});
+
+/* g2 대조 14-10 — 「반려」는 흰 바탕에 붉은 글자, 「승인」은 갈색 채움 */
+it('「반려」는 붉은 글자 테두리, 「승인」은 갈색 채움이다', () => {
+  const { view } = panel([row()]);
+  expect(view.getByRole('button', { name: '반려' }).className).toContain('!text-red');
+  expect(view.getByRole('button', { name: '승인' }).className).toContain('bg-primary');
 });

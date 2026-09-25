@@ -33,3 +33,45 @@
     color-mix(in srgb, var(--event-color) 4%, var(--card)) 6px 12px
   );
 }
+
+/* 원문 §09 월간 칸 — 테두리 없이 왼쪽 띠 + 옅은 채움. 온라인은 사선 대신 띠를 끊어 그린다(좁은 줄에서 사선은 글자를 덮는다). */
+.flat {
+  border-color: transparent;
+}
+
+.flat.online {
+  background-image: none;
+}
+
+.flat.online::before {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--event-color) 0 3px,
+    transparent 3px 5px
+  );
+}
+
+/* 원문 §07 범례 「학생 결강」 — 회색 사선. 「학원 취소」 — 옅은 빨강 채움 + 빨강 테두리. 「휴원」 — 점선 테두리 + 세로 줄무늬.
+   과목색(.subject) 위에 얹으므로 이 파일에서 뒤에 둔다(같은 명시도 · 뒤가 이긴다). */
+.cancelStudent {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--fg-subtle) 24%, transparent) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.cancelAcademy {
+  background-color: color-mix(in srgb, var(--red) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--red) 55%, var(--card));
+}
+
+.paused {
+  border-style: dotted;
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--amber) 24%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+}

@@ -62,7 +62,8 @@ export function InvoiceIssuer() {
         <Button variant="secondary" onClick={() => { setBatchOpen((v) => !v); setBatchResult(null); }}>
           {batchOpen ? '일괄 발행 닫기' : '청구서 일괄 발행'}
         </Button>
-        <Button onClick={() => { setOpen((v) => !v); setMade(null); }}>
+        {/* 원문 §53 은 「+ 새 청구서 발행」을 **주단추**(채움)로 그린다 — 일괄 발행은 원문 밖이라 보조 모양으로 둔다(53-03) */}
+        <Button variant="primary" onClick={() => { setOpen((v) => !v); setMade(null); }}>
           {open ? '닫기' : '+ 새 청구서 발행'}
         </Button>
       </div>
@@ -138,8 +139,11 @@ export function InvoiceIssuer() {
               <Label htmlFor="iv-type">종류</Label>
               {/* 낱말도 목록도 서버가 준다 — 종류가 늘어도 이 자리는 그대로다 (D-R18) */}
               <Select id="iv-type" value={invType} onChange={(e) => setInvType(e.target.value as InvType)}>
+                {/* 낼 수 있는지도 서버가 말한다(`issuable`) — 수업료 외 종류는 금액 규칙이 정해질 때까지 잠겨 있다 (PB-01) */}
                 {(meta.data?.invTypes ?? []).map((t) => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
+                  <option key={t.key} value={t.key} disabled={!t.issuable} title={t.issueBlockedReason ?? undefined}>
+                    {t.issuable ? t.label : `${t.label} — 아직 낼 수 없음`}
+                  </option>
                 ))}
               </Select>
             </div>
@@ -149,7 +153,7 @@ export function InvoiceIssuer() {
             </div>
           </div>
           <p className="mt-2 text-[11px] text-fg-subtle">
-            기한을 고르면 그 날이 지난 뒤부터 「기한 지남」과 §69 회계 배지에 듭니다. 미리 채워 두지 않습니다 — 언제까지 받을지는 매번 정하는 일입니다.
+            기한을 고르면 그 날이 지난 뒤부터 「기한 지남」과 대표 보고의 회계 배지에 듭니다. 미리 채워 두지 않습니다 — 언제까지 받을지는 매번 정하는 일입니다.
           </p>
 
           {issue.isError ? <Banner tone="danger" className="mt-3">{apiMessage(issue.error)}</Banner> : null}

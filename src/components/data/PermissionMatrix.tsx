@@ -32,9 +32,10 @@ export function PermissionMatrix({ me }: { me: Me | null }) {
   const possible = ROWS.filter(allowed).length;
   const columns: Column<PermissionRow>[] = [
     { key: 'feature', head: '기능', cell: (row) => <span className="font-bold">{row.feature}</span> },
-    { key: 'description', head: '무엇인가', cell: (row) => row.description },
-    { key: 'who', head: '누가', cell: (row) => <Chip>{row.who}</Chip> },
-    { key: 'now', head: '지금', cell: (row) => (
+    // 원문 §76 은 기능만 왼쪽이고 나머지 셋은 가운데다 · 「누가」 칩은 색을 채운다(g2 76-2 — 칩 낱말은 권한 깃발 이름 · 의도적 차이)
+    { key: 'description', head: '무엇인가', align: 'center', cell: (row) => row.description },
+    { key: 'who', head: '누가', align: 'center', cell: (row) => <Chip styleKind="solid">{row.who}</Chip> },
+    { key: 'now', head: '지금', align: 'center', cell: (row) => (
       <span className={allowed(row) ? 'font-bold text-green' : 'text-fg-subtle'}>
         {allowed(row) ? '✓ 가능' : '잠김'}
       </span>

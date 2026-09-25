@@ -9,6 +9,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { ConsSessionsResult, ConsultingDetail } from '@/api/types';
 import { ConsultingSessionDialog } from './ConsultingSessionDialog';
+import { CONTRACT_STEPS_FIXTURE } from './consulting.fixture';
 
 const meta = {
   kinds: [], subs: [], staff: [
@@ -21,13 +22,14 @@ const detail = {
   id: 1, consType: 'admissions', consTypeLabel: '국제학교 지원', stage: 'running', contractStep: 5,
   studentIds: [5], studentNames: ['오예린'], requester: 'mother', ownerId: 3, ownerName: '김범준',
   startOn: '2026-07-08', endOn: '2027-01-31', amount: 8400000, sessions: 13,
-  share: 'money_only', pickedStaffIds: [], pickedStaffNames: [], createdAt: '2026-07-08T00:00:00+09:00',
+  share: 'money_only', shareLabel: '수납만 공개', shareMeaning: '금액만 보이고 내용은 숨깁니다', contractSteps: CONTRACT_STEPS_FIXTURE,
+  pickedStaffIds: [], pickedStaffNames: [], createdAt: '2026-07-08T00:00:00+09:00',
   typeCapability: { defaultItemsSupported: true, reason: null, scheduleCreationSupported: false, scheduleCreationReason: '약정 회차만 저장' },
   capabilities: {
     canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
     canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: null,
-    canAddSession: true, canClose: false, closeBlockedReason: '약정 13회 중 8회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다 (예외 종료는 N-18-a)',
+    canAddSession: true, canClose: false, closeBlockedReason: '약정 13회 중 8회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다',
   },
   contractFiles: [], signedFiles: [], feedback: [], delivery: null, payment: { paid: 4400000, due: 4000000, invoiceId: null },
   sessionsDone: 8, sessionsPlanned: 0, requiredLeft: 3, closedAt: null, closedByName: null,

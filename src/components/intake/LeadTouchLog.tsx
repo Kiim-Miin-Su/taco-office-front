@@ -24,7 +24,8 @@ export interface LeadTouchLogProps {
   onDone?: (row: Lead) => void;
 }
 
-const fmtAt = (iso: string) => iso.replace('T', ' ').slice(5, 16);
+/** 접촉 시각 「MM-DD HH:MM」 — §24 실패 카드의 최근 접촉 줄도 같은 모양을 쓴다 */
+export const touchAtLabel = (iso: string) => iso.replace('T', ' ').slice(5, 16);
 
 export function LeadTouchLog({ lead, kinds, onDone }: LeadTouchLogProps) {
   const id = useId();
@@ -91,7 +92,7 @@ export function LeadTouchLog({ lead, kinds, onDone }: LeadTouchLogProps) {
               <Chip tone="neutral" size="compact">{t.kindLabel}</Chip>
               <span className="text-fg">{t.note}</span>
               {t.nextOn ? <span className="text-fg-subtle">→ {t.nextOn.slice(5).replace('-', '/')}</span> : null}
-              <span className="ml-auto text-[11px] text-fg-subtle">{t.byName ?? '—'} · {fmtAt(t.at)}</span>
+              <span className="ml-auto text-[11px] text-fg-subtle">{t.byName ?? '—'} · {touchAtLabel(t.at)}</span>
             </li>
           ))}
         </ul>

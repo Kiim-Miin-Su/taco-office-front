@@ -5,7 +5,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
+import {
+  changeReqBody, changeReqReady, EMPTY_DRAFT, newChangeReqDraft, occurrenceTargetValue, parseOccurrenceTarget,
+  type ChangeReqDraft,
+} from './change-request';
 
 const draft = (over: Partial<ChangeReqDraft> = {}): ChangeReqDraft => ({
   ...EMPTY_DRAFT,
@@ -44,5 +47,21 @@ describe('변경 요청 폼 계약', () => {
     expect(changeReqReady(draft({ reqType: 'room', resourceTarget: 'room', roomId: '' }))).toBe(false);
     expect(changeReqReady(draft({ reqType: 'cancel', reason: ' '.repeat(501) }))).toBe(false);
     expect(changeReqReady(draft({ reqType: 'cancel', reason: ` ${'a'.repeat(500)} ` }))).toBe(true);
+  });
+});
+
+describe('§19 어느 날 · 어느 일정 (g2 대조 19-2 · 19-8)', () => {
+  it('새 초안의 「어느 날」은 받은 날(기본 오늘)이고, 「어느 날」은 보내는 본문에 실리지 않는다', () => {
+    expect(newChangeReqDraft('2026-09-25').day).toBe('2026-09-25');
+    expect(newChangeReqDraft('2026-09-25').serId).toBe('');
+    const body = changeReqBody(draft({ day: '2026-09-25', onDate: '2026-09-24' }));
+    expect(body).not.toHaveProperty('day');
+    expect(body.onDate).toBe('2026-09-24');
+  });
+
+  it('「어느 일정」 값은 회차의 두 키를 그대로 오간다', () => {
+    const value = occurrenceTargetValue(41, '2026-09-24');
+    expect(parseOccurrenceTarget(value)).toEqual({ serId: '41', onDate: '2026-09-24' });
+    expect(parseOccurrenceTarget('')).toEqual({ serId: '', onDate: '' });
   });
 });

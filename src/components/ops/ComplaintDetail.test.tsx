@@ -53,7 +53,7 @@ function setup(onPatch: (n: number) => { status: number; data: unknown }, over: 
 
 it('심각도·기한 지남·단계 한 줄은 서버 낱말이고, 바뀐 칸만 보내며, 담당 없이 대응은 서버가 거절한 문장을 그대로 띄운다 (J-101 · J-98)', async () => {
   const { view, onClose, onTeacherChange, onWithdraw } = setup((n) => (n === 1
-    ? { status: 409, data: { code: 'CPL_OWNER_REQUIRED', message: '대응으로 옮기려면 담당을 정해야 합니다 (§67 「담당을 정해야 합니다」)' } }
+    ? { status: 409, data: { code: 'CPL_OWNER_REQUIRED', message: '대응으로 옮기려면 담당을 정해야 합니다' } }
     : { status: 200, data: { ...complaint, stage: 'acting', ownerName: '강민지' } }));
   const dialog = await view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
   const text = (dialog.textContent ?? '').replace(/\s+/g, ' ');
@@ -68,7 +68,7 @@ it('심각도·기한 지남·단계 한 줄은 서버 낱말이고, 바뀐 칸�
   fireEvent.click(save);
   await waitFor(() => expect(patched).toHaveLength(1));
   expect(patched[0]).toEqual({ url: '/ops/complaints/2', body: { stage: 'acting' } });
-  await waitFor(() => expect(view.getByText(/담당을 정해야 합니다 \(§67/)).toBeTruthy());
+  await waitFor(() => expect(view.getByText(/대응으로 옮기려면 담당을 정해야 합니다/)).toBeTruthy());
   expect(onClose).not.toHaveBeenCalled();
   // 담당을 정하고 조치를 적으면 그 둘만 더 보낸다
   await waitFor(() => expect(within(dialog).getByRole('option', { name: '강민지' })).toBeTruthy());

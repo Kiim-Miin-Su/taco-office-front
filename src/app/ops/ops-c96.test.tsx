@@ -37,7 +37,7 @@ const me: Me = {
 };
 
 const META: Meta = {
-  kinds: [], subs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], students: [],
+  kinds: [], subs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [], students: [],
   rooms: [{ id: 1, branch: '본원', name: '1호', capacity: 10 }],
   zaccs: [{ id: 3, label: 'TN', meetingId: '123' }],
   staff: [
@@ -56,10 +56,11 @@ const ops = (over: Partial<Ops> = {}): Ops => ({
   meetings: [
     { id: 11, mtType: 'plan', mtTypeLabel: '기획 회의', title: '겨울 특강', onDate: '2026-09-18',
       attendees: 5, confirmed: 1, hasMinutes: false, serId: 900, startMin: 660, endMin: 720,
-      placeLabel: '1호', waiting: 4 },
+      placeLabel: '1호', waiting: 4, upcoming: true,
+      attendeeList: [{ staffId: 4, name: '김민선', title: null, state: 'in', stateLabel: '참석' }] },
     { id: 12, mtType: 'general', mtTypeLabel: '일반 회의', title: '옛 회의', onDate: '2026-09-15',
       attendees: 2, confirmed: 2, hasMinutes: true, serId: null, startMin: null, endMin: null,
-      placeLabel: null, waiting: 0 },
+      placeLabel: null, waiting: 0, upcoming: false, attendeeList: [] },
   ],
   // 「32건」이라 적혀 있으면 화면은 32 를 그린다 — 줄 수(2)를 세지 않는다
   mtTypeCounts: [
@@ -245,8 +246,8 @@ beforeEach(() => { useSession.setState({ me: null, ready: false }); });
 describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
   it('칩의 숫자는 **서버가 준 것**이다 — 화면은 줄 수를 다시 세지 않는다 (D-R37)', async () => {
     const view = setup(ops());
-    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
 
     const chips = await waitFor(() => view.getByRole('group', { name: '회의 종류' }));
     // 줄은 둘인데 칩은 32·0·7 이라고 적는다 — 서버가 센 수가 화면의 수다
@@ -282,8 +283,8 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     const view = setup(ops({
       areaCounts: [{ key: 'teaching', label: '수업', count: 3 }, { key: 'payment', label: '수납', count: 1 }],
     }));
-    await waitFor(() => expect(view.getByRole('tab', { name: /^컴플레인/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^컴플레인/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
 
     const chips = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
     fireEvent.click(within(chips).getByRole('button', { name: '수업 3' }));
@@ -291,10 +292,30 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     expect(opsCalls(view.get)[1]).toEqual({ area: 'teaching' });
   });
 
+  /*
+   * 원문 §67 칩 줄은 「전체 3」처럼 **전체에도 건수**를 단다 (67-4). 갈래 건수는 갈래를 안 건 채로
+   * 서버가 센 것이라, 그 합이 곧 전체다 — 할 일 칩의 「전체 N」이 `todoOwnerCounts` 합인 것과 같은 규약이다.
+   * 갈래를 골라 목록이 좁아져도 「전체」의 수는 그대로다(목록 줄 수를 세지 않는다).
+   */
+  it('§67 칩 줄의 「전체」도 건수를 단다 — 서버 갈래 건수의 합이고, 갈래를 골라도 그대로다 (67-4)', async () => {
+    const view = setup(ops({
+      areaCounts: [{ key: 'teaching', label: '수업', count: 3 }, { key: 'payment', label: '수납', count: 1 }],
+    }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
+    const chips = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
+    expect(within(chips).getByRole('button', { name: '전체 4' })).toBeTruthy();
+    fireEvent.click(within(chips).getByRole('button', { name: '수업 3' }));
+    await waitFor(() => expect(opsCalls(view.get)).toHaveLength(2));
+    // 새 갈래의 응답이 오면 칩 줄이 다시 선다 — 「전체」는 여전히 서버 갈래 건수의 합이다
+    const again = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
+    expect(within(again).getByRole('button', { name: '전체 4' })).toBeTruthy();
+  });
+
   it('회의 종류 칩은 **받은 목록에서** 거른다 — 요청이 늘지 않는다 (§24 FQ 규약)', async () => {
     const view = setup(ops());
-    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
     await waitFor(() => expect(view.getByText('겨울 특강')).toBeTruthy());
 
     const chips = view.getByRole('group', { name: '회의 종류' });
@@ -306,8 +327,8 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
 
   it('시각과 자리는 **이어진 회차**에서 온다 — 옛 회의는 지어내지 않고 「시각 없음」이다 (N-25)', async () => {
     const view = setup(ops());
-    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
 
     await waitFor(() => expect(view.getByText('11:00–12:00')).toBeTruthy());
     expect(view.getByText('1호')).toBeTruthy();
@@ -320,10 +341,10 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
 describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
   it('단추가 서는지도 **서버가 정한다** — canCreate* 가 false 면 단추가 없다 (D-R39)', async () => {
     const view = setup(ops({ canCreateMeeting: false, canCreatePlan: false }));
-    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
     expect(view.queryByRole('button', { name: '+ 회의 잡기' })).toBeNull();
-    fireEvent.click(view.getByRole('tab', { name: /^기획/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ }));
     expect(view.queryByRole('button', { name: '+ 기획 올리기' })).toBeNull();
   });
 
@@ -333,12 +354,12 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
       data: {
         meeting: { id: 99, mtType: 'plan', mtTypeLabel: '기획 회의', title: '새 회의', onDate: '2026-10-01',
           attendees: 2, confirmed: 0, hasMinutes: false, serId: 901, startMin: 660, endMin: 720,
-          placeLabel: '온라인 TN', waiting: 2 },
+          placeLabel: '온라인 TN', waiting: 2, upcoming: true, attendeeList: [] },
         attendees: 2, unavailable: [],
       },
     } as never);
-    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
     fireEvent.click(view.getByRole('button', { name: '+ 회의 잡기' }));
 
     await waitFor(() => expect(view.getByLabelText('제목')).toBeTruthy());
@@ -367,8 +388,8 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
     vi.spyOn(api, 'post').mockRejectedValue({
       response: { status: 409, data: { code: 'RESOURCE_CONFLICT', message: '그 시간에 1호는 이미 찼습니다' } },
     } as never);
-    await waitFor(() => expect(view.getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
     fireEvent.click(view.getByRole('button', { name: '+ 회의 잡기' }));
 
     await waitFor(() => expect(view.getByLabelText('날짜')).toBeTruthy());
@@ -389,8 +410,8 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({
       data: { plan: { id: 5, title: '겨울 특강 개설', stage: 'draft', stageLabel: '초안', overdueDays: 0, dueState: 'none' } },
     } as never);
-    await waitFor(() => expect(view.getByRole('tab', { name: /^기획/ })).toBeTruthy());
-    fireEvent.click(view.getByRole('tab', { name: /^기획/ }));
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ }));
     fireEvent.click(view.getByRole('button', { name: '+ 기획 올리기' }));
 
     await waitFor(() => expect(view.getByLabelText('제목')).toBeTruthy());
@@ -420,5 +441,62 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0][0]).toBe('/drawer/todos');
     expect(post.mock.calls[0][1]).toMatchObject({ title: '교재 주문', toId: 4 });
+  });
+});
+
+/* ── w5 · 원문 §63 · §59 재대조 (63-1 · 63-4 · 63-5 · 63-6 · 63-8 · 59-6) ─────────────── */
+
+describe('w5 — §63 회의 줄 · 머리 · 속 갈래', () => {
+  const top = (view: ReturnType<typeof setup>) => within(view.getByRole('tablist', { name: '운영 보기' }));
+
+  it('줄은 카드다 — 긴 날짜 · 이름 칩 · 「예정」 · 자리, 줄을 누르면 상세가 열린다 (63-1 · 63-8)', async () => {
+    const view = setup(ops());
+    await waitFor(() => expect(top(view).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(top(view).getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(view.getByText('26년 9월 18일 금요일')).toBeTruthy());
+    expect(view.getByText('김민선')).toBeTruthy();
+    expect(view.getByText('예정')).toBeTruthy();
+    expect(view.queryByRole('table')).toBeNull(); // 표가 아니다
+    expect(view.queryByRole('button', { name: '열기' })).toBeNull(); // 줄 자체가 단추다
+    expect(view.getByRole('button', { name: /^회의 기획 회의 2026-09-18 겨울 특강/ })).toBeTruthy();
+  });
+
+  it('머리의 「내 응답 대기 N」·「N회 · 속기록 M」은 서버 값이다 — 목록 줄 수를 세지 않는다 (63-5 · 63-6)', async () => {
+    const view = setup(ops({ mtMyWaiting: 17, mtMinutesCount: 32 }));
+    await waitFor(() => expect(top(view).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(top(view).getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(view.getByText('내 응답 대기 17')).toBeTruthy());
+    // 회의 수는 서버 갈래 칩의 합(32 + 0 + 7) — 받은 줄(2)이 아니다
+    expect(view.getByText('39회', { selector: 'b' })).toBeTruthy();
+    expect(view.getByText('속기록 32')).toBeTruthy();
+  });
+
+  it('속 갈래 「할 일」은 회의에서 나온 열린 할 일이다 — 새 요청 없이 받은 목록에서 거른다 (63-4)', async () => {
+    const view = setup(ops({ todos: [
+      { id: 41, title: '회의에서 나온 일', toId: 7, toName: '김재훈', fromName: '대표', dueOn: null, done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0 },
+      { id: 42, title: '수업에서 나온 일', toId: 7, toName: '김재훈', fromName: '대표', dueOn: null, done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0 },
+    ] }));
+    await waitFor(() => expect(top(view).getByRole('tab', { name: /^회의/ })).toBeTruthy());
+    fireEvent.click(top(view).getByRole('tab', { name: /^회의/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '회의 보기' })).getByRole('tab', { name: /^할 일/ }));
+    expect(view.getByText('회의에서 나온 일')).toBeTruthy();
+    expect(view.queryByText('수업에서 나온 일')).toBeNull();
+    expect(opsCalls(view.get)).toHaveLength(1);
+  });
+
+  it('§59 「회의 속기록」은 마케팅 회의만 거른 §63 줄이다 (59-6)', async () => {
+    const view = setup(ops({ meetings: [
+      { id: 21, mtType: 'marketing', mtTypeLabel: '마케팅 회의', title: '릴스 점검', onDate: '2026-09-15',
+        attendees: 0, confirmed: 0, hasMinutes: true, serId: null, startMin: null, endMin: null,
+        placeLabel: null, waiting: 0, upcoming: false, attendeeList: [] },
+      { id: 22, mtType: 'plan', mtTypeLabel: '기획 회의', title: '기획 점검', onDate: '2026-09-16',
+        attendees: 0, confirmed: 0, hasMinutes: true, serId: null, startMin: null, endMin: null,
+        placeLabel: null, waiting: 0, upcoming: false, attendeeList: [] },
+    ] }));
+    await waitFor(() => expect(top(view).getByRole('tab', { name: /^마케팅/ })).toBeTruthy());
+    fireEvent.click(top(view).getByRole('tab', { name: /^마케팅/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '마케팅 보기' })).getByRole('tab', { name: /^회의 속기록/ }));
+    expect(view.getByText('릴스 점검')).toBeTruthy();
+    expect(view.queryByText('기획 점검')).toBeNull();
   });
 });

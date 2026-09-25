@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import type { Consulting, ConsultingStage } from '@/api/types';
+import type { Consulting, ConsultingDetail, ConsultingStage } from '@/api/types';
 
 /**
  * §26 의 **서버 응답 모양** — 시험용 한 벌 (C86-e).
@@ -16,6 +16,15 @@ export const CONSULTING_STAGE_FIXTURE: ConsultingStage[] = [
   { key: 'contract', label: '계약', sub: '계약서 만들고 서명받기' },
   { key: 'running', label: '진행', sub: '회차별로 만나고 기록' },
   { key: 'done', label: '종료', sub: '마무리하고 안내' },
+];
+
+/** §30 계약 5단계 — 서버 낱말(contractSteps · 30-07)의 모양. 상세 표본이 함께 쓴다 */
+export const CONTRACT_STEPS_FIXTURE: ConsultingDetail['contractSteps'] = [
+  { step: 1, label: '계약서 준비', sub: '초안을 올립니다' },
+  { step: 2, label: '피드백', sub: '누구나 의견을 답니다' },
+  { step: 3, label: '전달', sub: '학부모께 보냅니다' },
+  { step: 4, label: '서명', sub: '스캔본을 받습니다' },
+  { step: 5, label: '수납', sub: '계약금을 받습니다' },
 ];
 
 /** 한 건 — 「무엇이 오는가」를 말한다. 값은 각 시험이 덮어쓴다 */

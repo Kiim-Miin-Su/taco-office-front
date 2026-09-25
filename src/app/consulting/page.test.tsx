@@ -90,6 +90,21 @@ describe('§26 조회 계약 통합', () => {
     expect(view.queryByText('회차 기록 — 테스트 학생')).toBeNull();
   });
 
+  it('「단계 보드」 동그라미는 열린 건(계약 + 진행) 수다 — 원본 §26 「2」 (26-04)', () => {
+    query.data = { items: [item, { ...item, id: 2, stage: 'running' }, { ...item, id: 3, stage: 'done' }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
+    const view = render(<ConsultingPage />);
+    const tab = view.getByRole('tab', { name: /단계 보드/ });
+    expect(tab.parentElement?.querySelector('[aria-hidden]')?.textContent).toBe('2');
+  });
+
+  it('탭 카드는 제목과 같은 줄(머리 가운데 자리)에 선다 (26-01)', () => {
+    query.data = { items: [item], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
+    const view = render(<ConsultingPage />);
+    const center = view.container.querySelector('[data-page-header-center]') as HTMLElement;
+    expect(center.contains(view.getByRole('tab', { name: /단계 보드/ }))).toBe(true);
+    expect(center.parentElement?.contains(view.getByRole('heading', { name: '컨설팅' }))).toBe(true);
+  });
+
   it('단계 선택은 표시만 바꾸고 전체 건수·잠긴 카드의 권한은 유지한다', () => {
     query.data = { items: [item, { ...item, id: 2, stage: 'running', studentNames: ['진행 학생'], canOpen: false }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
     const view = render(<ConsultingPage />);

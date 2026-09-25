@@ -25,18 +25,49 @@ const me: Me = {
   canApprove: true, canHide: true, canGpaPack: true,
 };
 
+type Area = Exec['areas'][number];
+type Tile = Area['tiles'][number];
+const t = (key: string, label: string, value: number | null, unit: '원' | '건', sub: string | null = null, alert = false): Tile =>
+  ({ key, label, value, unit, sub, alert, display: null });
+
+/** 원본 §69(2026-08-21) 컷의 카드 여섯 — 문장과 타일은 서버가 짓는다(여기서는 응답 모양 그대로 둔다) */
+const areas: Area[] = [
+  { key: 'money', label: '회계', review: '납부 기한이 지난 청구서 수', count: 2, go: '/accounting',
+    headline: '못 받은 돈 ₩8,550,000 · 그중 2건은 기한이 지났습니다',
+    tiles: [t('in', '오늘 입금', 0, '원', '0건'), t('unpaid', '못 받은 돈', 8_550_000, '원', '5건', true), t('overdue', '기한 지남', 2, '건', '₩3,000,000', true)] },
+  { key: 'mkt', label: '마케팅', review: '없음 (정보성)', count: 0, go: '/ops',
+    headline: '오늘 올린 것이 없습니다',
+    tiles: [t('posts', '올린 것', 0, '건', '—', true), t('feedback', '대표 피드백', 0, '건', '없음')] },
+  { key: 'ops', label: '운영', review: '결재 대기 + 기한 지난 할 일', count: 1, go: '/ops',
+    headline: '기획 1건이 대표 결재를 기다립니다',
+    tiles: [t('waiting', '결재 대기', 1, '건', '확인 필요', true), t('running', '진행 중 기획', 2, '건', '오늘 회의 1건'), t('todos', '안 끝난 할 일', 3, '건')] },
+  { key: 'consulting', label: '컨설팅', review: '수납 전이라 진행이 잠긴 계약', count: 1, go: '/consulting',
+    headline: '1건이 수납 전이라 진행이 잠겨 있습니다',
+    tiles: [t('paid', '받은 돈', 400_000, '원', '계약 ₩1,700,000'), t('due', '남은 돈', 1_300_000, '원', '다음 회차 08-24', true)] },
+  { key: 'complaint', label: '컴플레인', review: '아직 안 끝난 건', count: 2, go: '/ops',
+    headline: '2건이 아직 안 끝났습니다',
+    tiles: [t('received', '오늘 접수', 0, '건', '—'), t('open', '안 끝난 것', 2, '건', null, true)] },
+  { key: 'lesson', label: '수업', review: '교재·안내·줌·리포트가 덜 된 수업', count: 17, go: '/board',
+    headline: '수업 20건 중 17건 준비 덜 됨',
+    tiles: [t('lessons', '오늘 수업', 20, '건', '휴강 없음'), t('missing', '준비 안 됨', 17, '건', '교재 · 안내 · 줌', true)] },
+];
+
+type Head = Exec['head'][number];
+const h = (key: string, label: string, value: number | null, unit: string, money: boolean, o: { total?: number; note?: string } = {}): Head =>
+  ({ key, label, value, unit, money, total: o.total ?? null, note: o.note ?? null });
+
+const dayHead: Head[] = [
+  h('revenue', '오늘 들어온 돈', 0, '원', true), h('unpaid', '못 받은 돈', 8_550_000, '원', true),
+  h('waiting', '결재 대기', 1, '건', false), h('complaints', '안 끝난 컴플레인', 2, '건', false),
+];
+
 const data: Exec = {
   from: '2026-08-21', to: '2026-08-21',
+  periodKind: 'day', sheetTitle: '일일 업무 보고', periodLabel: '26년 8월 21일 금요일',
+  head: dayHead,
   stats: [{ key: 'lessons', label: '진행한 수업', value: 20, unit: '회', money: false }],
   reports: [],
-  areas: [
-    { key: 'money', label: '회계', review: '납부 기한이 지난 청구서 수', count: 2, go: '/accounting' },
-    { key: 'mkt', label: '마케팅', review: '없음 (정보성)', count: 0, go: '/ops' },
-    { key: 'ops', label: '운영', review: '결재 대기 + 기한 지난 할 일', count: 1, go: '/ops' },
-    { key: 'consulting', label: '컨설팅', review: '수납 전이라 진행이 잠긴 계약', count: 1, go: '/consulting' },
-    { key: 'complaint', label: '컴플레인', review: '아직 안 끝난 건', count: 2, go: '/ops' },
-    { key: 'lesson', label: '수업', review: '교재·안내·줌·리포트가 덜 된 수업', count: 17, go: '/board' },
-  ],
+  areas,
   reviewCount: 23,
   filled: 0,
   inbox: [
@@ -69,44 +100,111 @@ it('머리의 살펴볼 것은 6영역 배지의 합이고, 정보성 영역은 
   const sum = data.areas.reduce((a, x) => a + x.count, 0);
   expect(sum).toBe(data.reviewCount);
   // 마케팅은 0 이라 숫자 대신 ✓
-  expect(view.getByRole('button', { name: /마케팅/ }).textContent).toContain('✓');
+  expect(view.getByRole('region', { name: '마케팅' }).textContent).toContain('✓');
 });
 
 /**
- * **K-110** — 원문 §69 는 카드마다 오른쪽에 「보기 ›」라 적는다. 제품은 `›` 하나였고 그것이
- * `aria-hidden` 이라 **보조기기에는 이 줄이 눌린다는 말이 하나도 없었다.** 이동은 되고 있었으므로
- * 고친 것은 **낱말뿐**이다 — 카드의 줄(N-67)은 정할 것이고 이것은 빠뜨린 것이다.
+ * **K-110** — 원문 §69 는 카드마다 오른쪽 위에 「보기 ›」라 적는다. 제품은 `›` 하나였고 그것이
+ * `aria-hidden` 이라 **보조기기에는 이 줄이 눌린다는 말이 하나도 없었다.**
  *
+ * 카드가 메모 칸까지 한 벌이 된 뒤로(69-7) 카드 전체는 단추일 수 없다 — 「보기」가 단추다.
  * 0 건의 `✓` 도 같은 종류다. 글리프는 낱말이 아니라 보조기기가 「마케팅 ✓」라고만 읽는다.
  */
 it('⭐ 영역 카드마다 「보기」가 글자로 서고, 0 건의 ✓ 는 글자로도 읽힌다 (K-110)', async () => {
   const view = setup();
-  await waitFor(() => expect(view.getByRole('button', { name: /회계/ })).toBeTruthy());
+  await waitFor(() => expect(view.getByRole('button', { name: '회계 보기' })).toBeTruthy());
   for (const a of data.areas) {
-    const card = view.getByRole('button', { name: new RegExp(a.label) });
-    expect(card.textContent).toContain('보기');
+    const go = view.getByRole('button', { name: `${a.label} 보기` });
+    expect(go.textContent).toContain('보기');
     // 접근 이름에도 들어가야 한다 — 글자가 `aria-hidden` 이면 있으나 마나다
-    expect(card.getAttribute('aria-hidden')).toBeNull();
+    expect(go.getAttribute('aria-hidden')).toBeNull();
   }
-  expect(view.getByRole('button', { name: /마케팅/ }).textContent).toContain('살펴볼 것 없음');
-  // 카드 전체가 단추인 것은 그대로다 — 안에 또 단추를 넣지 않았다
-  expect(view.getByRole('button', { name: /회계/ }).querySelectorAll('button')).toHaveLength(0);
+  expect(view.getByRole('region', { name: '마케팅' }).textContent).toContain('살펴볼 것 없음');
 });
 
-it('영역을 누르면 그 화면으로 간다 — 대표 보고 안에서 처리하지 않는다 (D-R27)', async () => {
+it('영역의 「보기」를 누르면 그 화면으로 간다 — 대표 보고 안에서 처리하지 않는다 (D-R27)', async () => {
   const view = setup();
-  await waitFor(() => expect(view.getByRole('button', { name: /회계/ })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: /회계/ }));
+  await waitFor(() => expect(view.getByRole('button', { name: '회계 보기' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '회계 보기' }));
   expect(nav.push).toHaveBeenCalledWith('/accounting');
 });
 
-it('결재함은 되돌아온 것을 먼저 보이고 사유를 그대로 적는다 (§75 순서)', async () => {
+/* ══ §69 시트 — 머리 · 지표 · 카드 한 벌 (69-1 · 69-2 · 69-6 · 69-7 · 69-8) ══ */
+
+it('보고서 시트 머리에 제목과 기간이 서고, 「살펴볼 것」·「담당 x/6」이 그 오른쪽이다 (69-1)', async () => {
   const view = setup();
-  await waitFor(() => expect(view.getByRole('button', { name: /결재함/ })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: /결재함/ }));
-  expect(view.container.textContent).toContain('되돌아온 것 · 1건');
-  expect(view.container.textContent).toContain('숫자만으로는 모를 것');
-  expect(view.container.textContent).toContain('2/6 적음');
+  const sheet = await view.findByRole('region', { name: '일일 업무 보고' });
+  const head = within(sheet).getByRole('heading', { name: '일일 업무 보고' }).parentElement!;
+  expect(head.textContent).toContain('26년 8월 21일 금요일');
+  expect(head.textContent).toContain('살펴볼 것 23');
+  expect(head.textContent).toContain('담당 0/6 기재');
+});
+
+it('「대표께 올리기」는 도구 줄 오른쪽 끝, 「인쇄」 옆이다 — 첫 화면에서 보인다 (69-2)', async () => {
+  const view = setupWrite();
+  await waitFor(() => expect(view.getByRole('button', { name: '대표께 올리기' })).toBeTruthy());
+  const bar = view.getByRole('button', { name: '대표께 올리기' }).closest('[data-print="chrome"]')!;
+  expect(within(bar as HTMLElement).getByRole('button', { name: '인쇄' })).toBeTruthy();
+  // 시트(보고 본문) 안에 있지 않다 — 인쇄하면 빠진다
+  expect((await view.findByRole('region', { name: '일일 업무 보고' })).contains(view.getByRole('button', { name: '대표께 올리기' }))).toBe(false);
+});
+
+it('머리 지표 넷은 서버가 준 칸 그대로다 — 일일은 돈 · 결재 대기 · 컴플레인 (69-6)', async () => {
+  const view = setup();
+  const sheet = await view.findByRole('region', { name: '일일 업무 보고' });
+  const text = sheet.textContent ?? '';
+  for (const w of ['오늘 들어온 돈₩0', '못 받은 돈₩8,550,000', '결재 대기1건', '안 끝난 컴플레인2건']) expect(text).toContain(w);
+  // 옛 여섯 칸(진행한 수업 …)은 원문 머리에 없다
+  expect(text).not.toContain('진행한 수업');
+});
+
+it('주간 머리의 「수업 준비 6/49」는 서버가 준 분모 그대로이고 부제가 선다 (70-1)', async () => {
+  const view = setupWrite({
+    periodKind: 'week', sheetTitle: '주간 업무 보고', periodLabel: '08월 17일 ~ 08월 23일',
+    head: [
+      h('revenue', '이번 주 입금', 0, '원', true), h('leads', '신규 문의', 5, '건', false),
+      h('posts', '마케팅 게시', 4, '건', false), h('prep', '수업 준비', 6, '건', false, { total: 49, note: '다 된 것' }),
+    ],
+  });
+  const sheet = await view.findByRole('region', { name: '주간 업무 보고' });
+  expect(sheet.textContent).toContain('수업 준비6/49다 된 것');
+  expect(sheet.textContent).toContain('신규 문의5건');
+});
+
+it('카드 한 장에 한 줄 요약 · 타일 · 메모 칸이 함께 선다 — 문장과 숫자는 서버 것이다 (69-7 · 69-8)', async () => {
+  const view = setup();
+  const money = await view.findByRole('region', { name: '회계' });
+  expect(money.textContent).toContain('못 받은 돈 ₩8,550,000 · 그중 2건은 기한이 지났습니다');
+  const tiles = within(money).getByRole('list', { name: '회계 숫자' });
+  expect(within(tiles).getAllByRole('listitem').map((li) => li.textContent))
+    .toEqual(['오늘 입금₩00건', '못 받은 돈₩8,550,0005건', '기한 지남2건₩3,000,000']);
+  expect(within(money).getByRole('textbox', { name: '회계 메모' })).toBeTruthy();
+  const lesson = view.getByRole('region', { name: '수업' });
+  expect(lesson.textContent).toContain('교재 · 안내 · 줌');
+});
+
+it('타일 값이 null 이면 「가려짐」이다 — 서버가 금액을 안 준 것이지 0 원이 아니다 (D-R39)', async () => {
+  const masked = areas.map((a) => (a.key === 'money'
+    ? { ...a, headline: '못 받은 돈 5건 · 그중 2건은 기한이 지났습니다', tiles: a.tiles.map((x) => (x.unit === '원' ? { ...x, value: null } : x)) }
+    : a));
+  const view = setupWrite({ areas: masked, canSeeAmounts: false });
+  const money = await view.findByRole('region', { name: '회계' });
+  expect(money.textContent).toContain('오늘 입금가려짐');
+  expect(money.textContent).not.toContain('₩8,550,000');
+});
+
+it('결재함은 상태별로 묶고 되돌아온 것이 먼저다 — 묶음 머리는 상태 띠와 같은 낱말이다 (§75 순서 · 73-2)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getByRole('tab', { name: /결재함/ })).toBeTruthy());
+  fireEvent.click(view.getByRole('tab', { name: /결재함/ }));
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('반려1건되돌아왔습니다 — 고쳐서 다시 올려주세요');
+  expect(text).toContain('작성 중1건아직 올리지 않았습니다');
+  expect(text.indexOf('되돌아왔습니다')).toBeLessThan(text.indexOf('아직 올리지 않았습니다'));
+  expect(text).toContain('숫자만으로는 모를 것');
+  expect(text).toContain('2/6 적음');
+  // 원문에 없는 안내 띠는 서지 않는다 (73-1)
+  expect(text).not.toContain('이동만');
   // N-12 — 결재함에는 승인·반려가 없다
   expect(view.queryByRole('button', { name: '승인' })).toBeNull();
   expect(view.queryByRole('button', { name: '반려' })).toBeNull();
@@ -114,8 +212,8 @@ it('결재함은 되돌아온 것을 먼저 보이고 사유를 그대로 적는
 
 it('결재함 줄을 누르면 그 기간의 보고로 이동만 한다 (N-12)', async () => {
   const view = setup();
-  await waitFor(() => expect(view.getByRole('button', { name: /결재함/ })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: /결재함/ }));
+  await waitFor(() => expect(view.getByRole('tab', { name: /결재함/ })).toBeTruthy());
+  fireEvent.click(view.getByRole('tab', { name: /결재함/ }));
   fireEvent.click(view.getByRole('button', { name: /08-17 ~ 08-23/ }));
   await waitFor(() => expect(view.container.textContent).toContain('08-17 ~ 08-23'));
   // 주간 뷰로 옮겨 왔다 — 기간 내비가 보인다
@@ -127,12 +225,12 @@ it('§75 report deep link의 view/date를 초기화하고 브라우저 URL 변�
   nav.search = 'view=week&date=2026-08-17&rpt=2';
   const view = setup();
   await waitFor(() => expect(view.container.textContent).toContain('08-17 ~ 08-23'));
-  expect(view.getByRole('button', { name: /주간/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(view.getByRole('tab', { name: /주간/ }).getAttribute('aria-selected')).toBe('true');
 
   nav.search = 'view=month&date=2026-09-01&rpt=3';
   view.rerender(<QueryClientProvider client={view.client}><ExecPage /></QueryClientProvider>);
   await waitFor(() => expect(view.container.textContent).toContain('2026년 9월'));
-  expect(view.getByRole('button', { name: /월간/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(view.getByRole('tab', { name: /월간/ }).getAttribute('aria-selected')).toBe('true');
 });
 
 /* ══ §69 쓰기 — 「숫자만으로는 모를 것」과 서명 (C85-a) ══════════════ */
@@ -171,8 +269,12 @@ it('하나도 안 적으면 올릴 수 없다 (D-R14) — 숫자는 이 화면�
   const view = setupWrite();
   await waitFor(() => expect(view.getByRole('textbox', { name: '운영 메모' })).toBeTruthy());
   expect(view.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(true);
+  // 잠긴 이유가 화면에 보여야 한다 — 단추가 도구 줄로 옮겨 가며 안내 한 줄이 빠졌다(웹 e2e K-103 · 2026-09-25)
+  expect(view.getByText('한 줄이라도 적어야 올릴 수 있습니다')).toBeTruthy();
+  expect(view.getByRole('button', { name: '대표께 올리기' }).getAttribute('title')).toBe('한 줄이라도 적어야 올릴 수 있습니다');
   fireEvent.change(view.getByRole('textbox', { name: '운영 메모' }), { target: { value: '한 줄' } });
   expect(view.getByRole('button', { name: '대표께 올리기' }).hasAttribute('disabled')).toBe(false);
+  expect(view.queryByText('한 줄이라도 적어야 올릴 수 있습니다')).toBeNull();
 });
 
 /**
@@ -282,7 +384,8 @@ it('월간 판은 서버가 준 줄만 세우고 머리의 수와 줄들의 합�
   });
   await waitFor(() => expect(view.container.textContent).toContain('어디서 놓쳤나'));
   const text = view.container.textContent ?? '';
-  expect(text).toContain('이번 달 들어온 문의 15건 중 등록 실패 6건');
+  // 머리 한 줄은 원본 §71 그대로 「등록 실패 N건」 (71-6)
+  expect(text).toContain('등록 실패 6건');
   // 분류 안 된 실패도 제 줄로 선다 — 이 줄을 빼면 머리의 6 과 줄들의 합이 갈린다 (N-25)
   for (const w of ['상담 예약 전 이탈', '1차 후 미진행', '2차 후 미등록', '분류 안 됨']) {
     expect(text).toContain(w);
@@ -318,15 +421,93 @@ it('월간 퍼널은 서버 줄·비율 그대로이고 부제가 도달 기록 
       ],
     },
   });
-  await waitFor(() => expect(view.container.textContent).toContain('상담 퍼널 — 유입에서 등록까지'));
-  const list = view.getByRole('list', { name: '상담 퍼널' });
+  // 원본 §71 — 제목 「상담 퍼널」 옆에 작게 「유입에서 등록까지」
+  const list = await view.findByRole('list', { name: '상담 퍼널' });
+  expect(view.container.textContent).toContain('상담 퍼널 유입에서 등록까지');
   expect(within(list).getAllByRole('listitem').map((li) => li.textContent))
-    .toEqual(['유입15100%', '1차 상담15100%', '2차 대기960%', '2차 상담853%', '등록213%']);
+    .toEqual(['유입15', '1차 상담15100%', '2차 대기960%', '2차 상담853%', '등록213%']);
   expect(view.container.textContent).toContain('도달 기록은 2026-09-18 부터 — 그 전 건은 지금 단계로만 셉니다');
 });
 
 it('도달 기록이 아직 없으면 퍼널 부제가 그 사실을 말한다 — 화면이 「언제부터」를 지어내지 않는다', async () => {
   const view = setupWrite({ monthly: { leads: 4, lost: 0, lostRows: [], funnel: [{ key: 'inflow', label: '유입', count: 4, pct: 100 }], funnelSince: null } });
-  await waitFor(() => expect(view.container.textContent).toContain('상담 퍼널 — 유입에서 등록까지'));
+  await view.findByRole('list', { name: '상담 퍼널' });
   expect(view.container.textContent).toContain('도달 기록이 아직 없습니다 — 지금 단계로만 셉니다');
+});
+
+/* ══ 머리 돈 칸 — 「가려짐」은 권한일 때만 · 강사료·이익은 월간 머리에만 (69-14 · 69-15 · 71-1) ══ */
+
+const monthHead: Head[] = [
+  h('revenue', '매출 (입금)', 0, '원', true), h('payout', '강사료', 168_000, '원', true),
+  h('expense', '지출', 0, '원', true),
+  // 수입이 0 이면 비율이 없다 — 서버가 부제(note)를 비운다. 권한 때문이 아니다
+  h('profit', '이익', -168_000, '원', true),
+];
+const wholeMonth: NonNullable<Exec['monthly']> = { leads: 0, lost: 0, lostRows: [], funnel: [], funnelSince: null };
+const monthSeed: Partial<Exec> = { periodKind: 'month', sheetTitle: '월간 업무 보고', periodLabel: '2026년 8월', monthly: wholeMonth };
+
+/** 시트 머리 지표에서 이름으로 칸을 찾아 값 글자를 읽는다 */
+const headCard = (view: ReturnType<typeof render>, title: string, label: string): string | null => {
+  const sheet = view.getByRole('region', { name: title });
+  const el = [...sheet.querySelectorAll('div')].find((d) => d.textContent === label);
+  return el ? (el.nextElementSibling?.textContent ?? '') : null;
+};
+
+it('월간 머리 넷은 돈이고 이익률은 「이익」의 부제다 — 적자는 원본 모양 「₩-168,000」 (71-1)', async () => {
+  const view = setupWrite({ ...monthSeed, head: monthHead.map((x) => (x.key === 'profit' ? { ...x, note: '-50%' } : x)) });
+  await waitFor(() => expect(headCard(view, '월간 업무 보고', '이익')).not.toBeNull());
+  expect(headCard(view, '월간 업무 보고', '매출 (입금)')).toBe('₩0');
+  expect(headCard(view, '월간 업무 보고', '이익')).toBe('₩-168,000');
+  expect(view.getByRole('region', { name: '월간 업무 보고' }).textContent).toContain('-50%');
+});
+
+it('금액을 볼 수 있는데 값이 없으면 「—」다 — 「가려짐」은 권한이 없을 때만이다 (69-14)', async () => {
+  const view = setupWrite({ ...monthSeed, head: monthHead.map((x) => (x.key === 'payout' ? { ...x, value: null } : x)), canSeeAmounts: true });
+  await waitFor(() => expect(headCard(view, '월간 업무 보고', '강사료')).not.toBeNull());
+  expect(headCard(view, '월간 업무 보고', '강사료')).toBe('—');
+  expect(view.getByRole('region', { name: '월간 업무 보고' }).textContent).not.toContain('가려짐');
+});
+
+it('권한이 없어 서버가 금액을 안 주면 그때만 「가려짐」이다', async () => {
+  const view = setupWrite({ ...monthSeed, head: monthHead.map((x) => ({ ...x, value: null })), canSeeAmounts: false });
+  await waitFor(() => expect(headCard(view, '월간 업무 보고', '매출 (입금)')).not.toBeNull());
+  expect(headCard(view, '월간 업무 보고', '매출 (입금)')).toBe('가려짐');
+  expect(headCard(view, '월간 업무 보고', '이익')).toBe('가려짐');
+});
+
+it('일·주 머리에는 강사료·이익이 없다 — 칸을 정하는 것은 서버다 (69-15)', async () => {
+  const view = setup();
+  await waitFor(() => expect(headCard(view, '일일 업무 보고', '오늘 들어온 돈')).not.toBeNull());
+  for (const hiddenLabel of ['강사료', '이익', '이익률']) expect(headCard(view, '일일 업무 보고', hiddenLabel), hiddenLabel).toBeNull();
+});
+
+/* ══ §69 뷰 탭 — 네 장 모두 기간을 적고, 날짜는 결재함 줄과 같은 모양이다 (69-3 · 69-4) ══ */
+
+it('뷰 탭 네 장이 모두 아래 한 줄에 그 기간을 적는다 — 고른 탭만이 아니다 (69-3)', async () => {
+  nav.search = 'view=day&date=2026-08-21';
+  const view = setup();
+  await waitFor(() => expect(view.getByRole('tab', { name: /결재함/ }).textContent).toContain('2건'));
+  const tab = (name: RegExp) => view.getByRole('tab', { name }).textContent ?? '';
+  expect(tab(/일일/)).toContain('26년 8월 21일 금요일');
+  expect(tab(/주간/)).toContain('08-17 ~ 08-23');
+  expect(tab(/월간/)).toContain('2026년 8월');
+  expect(view.getByRole('tab', { name: /일일/ }).getAttribute('aria-selected')).toBe('true');
+});
+
+it('도구 줄의 날짜는 결재함 줄(서버 낱말)과 같은 모양이다 — 한 화면에 날짜가 두 모양이면 안 된다 (69-4)', async () => {
+  nav.search = 'view=day&date=2026-08-21';
+  const view = setup();
+  // 결재함 줄의 낱말 — 서버가 지은 것이다. 도구 줄 날짜도 서버 `periodLabel` 이라 같은 함수에서 나온다
+  const serverLabel = data.inbox.find((r) => r.rptType === 'day')!.label;
+  await waitFor(() => expect(view.getByRole('button', { name: '오늘' }).parentElement!.textContent).toContain(serverLabel));
+  expect(data.periodLabel).toBe(serverLabel);
+});
+
+it('사용자 문구에 결정 코드·절 번호를 적지 않는다', async () => {
+  const view = setupWrite({ stats: [], monthly: { leads: 1, lost: 0, lostRows: [], funnel: [], funnelSince: null } });
+  await waitFor(() => expect(view.getAllByPlaceholderText('숫자만으로는 모를 것').length).toBe(6));
+  const visible = `${view.container.textContent ?? ''} ${[...view.container.querySelectorAll('[placeholder]')].map((e) => e.getAttribute('placeholder')).join(' ')}`;
+  expect(visible).not.toMatch(/D-R\d|N-\d|§\s?\d/);
+  fireEvent.click(view.getByRole('tab', { name: /결재함/ }));
+  expect(view.container.textContent ?? '').not.toMatch(/D-R\d|N-\d|§\s?\d/);
 });

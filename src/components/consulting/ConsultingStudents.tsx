@@ -41,24 +41,32 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
       <header className="mb-3 flex flex-wrap items-center gap-2">
         <Chip tone="info">{consultingTypeLabel(c.consType)}</Chip>
         <Chip tone={tone}>{c.stageLabel}</Chip>
-        <span className="text-[12.5px] font-bold">
-          {c.createdOn} ~ {c.endOn ?? '종료일 미정'}
+        {/* 기간의 앞은 **계약 시작일**(cons.start_on)이다 — 건이 생긴 날(createdOn)이 아니다 (27-05). 시작일이 없는 옛 건만 생긴 날로 적고 그렇다고 말한다 */}
+        <span className="text-[12.5px] font-bold" title={c.startOn ? undefined : '시작일이 없어 건이 생긴 날을 적었습니다'}>
+          {c.startOn ?? c.createdOn} ~ {c.endOn ?? '종료일 미정'}
         </span>
         <span className="text-[12.5px] text-fg-subtle">{c.ownerName ?? '담당 미지정'}</span>
-        <Button size="sm" className="ml-auto" onClick={() => onOpen?.(c.id)}>열기</Button>
+        {/* 「열기」는 갈색 주버튼 — 원본 §27 (27-06) */}
+        <Button size="sm" variant="primary" className="ml-auto" onClick={() => onOpen?.(c.id)}>열기</Button>
       </header>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg bg-inset p-3">
           <div className="text-[11px] font-bold text-fg-subtle">회차</div>
-          {/* 기록 행 수 ≠ 완료 회차 (N-18 §4-17) — 화면이 그 둘을 같은 말로 적지 않는다 */}
+          {/*
+            「2 / 6」은 **한 회차**(오늘까지)다 — §26 카드 · §30 머리와 같은 서버 셈(sessionsDone · 27-04).
+            기록 행 수(sessionsLogged)는 앞으로 잡아 둔 날짜까지 세어 두 화면의 수가 갈렸다. 잡아 둔 날짜는 따로 적는다.
+          */}
           <div className="mb-2 text-[17px] font-bold">
-            {c.sessionsLogged} / {c.sessions ?? '—'}
+            {c.sessionsDone} / {c.sessions ?? '—'}
           </div>
           <ConsultingProgress
-            value={c.sessionsLogged} max={c.sessions ?? 0}
-            label={`기록 ${c.sessionsLogged}회 / 약정 ${c.sessions ?? 0}회`}
+            value={c.sessionsDone} max={c.sessions ?? 0}
+            label={`회차 ${c.sessionsDone}회 / 약정 ${c.sessions ?? 0}회`}
           />
+          {c.sessionsLogged > c.sessionsDone ? (
+            <div className="mt-1 text-[11px] text-fg-subtle">잡힌 날짜 {c.sessionsLogged - c.sessionsDone}</div>
+          ) : null}
         </div>
         <div className="rounded-lg bg-inset p-3">
           <div className="text-[11px] font-bold text-fg-subtle">항목</div>
@@ -120,7 +128,12 @@ export function ConsultingStudents({ items, loading, onOpen }: ConsultingStudent
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <Panel title={`학생 ${list.length}명`} sub="눌러서 자세히">
+      {/* 원본 §27 — 왼쪽 목록 머리는 진한 갈색 띠(흰 글 「학생 N명 · 눌러서 자세히」 · 27-01) */}
+      <section aria-label="학생 목록" className="self-start overflow-hidden rounded-xl border border-line bg-card">
+        <header className="flex items-baseline gap-2 bg-header px-3 py-2.5">
+          <h2 className="text-[13px] font-bold text-white">학생 {list.length}명</h2>
+          <span className="text-[11px] text-white/60">눌러서 자세히</span>
+        </header>
         <ul className="divide-y divide-line">
           {list.map((s) => {
             const on = picked?.studentId === s.studentId;
@@ -147,18 +160,21 @@ export function ConsultingStudents({ items, loading, onOpen }: ConsultingStudent
                     ))}
                   </div>
                   <div className="mt-1.5 text-[11.5px] text-fg-subtle">{moneyPair(s.paid, s.amount)}</div>
+                  {/* 고른 줄 표시 「▶」 (27-03) */}
+                  {on ? <span aria-hidden className="mt-1 block text-[10px] text-fg-subtle">▶</span> : null}
                 </button>
               </li>
             );
           })}
         </ul>
-      </Panel>
+      </section>
 
       {picked ? (
         <section>
           <header className="mb-3 flex flex-wrap items-baseline gap-2">
             <h2 className="text-[19px] font-bold">{picked.name}</h2>
-            {picked.grade ? <Chip tone="neutral">{picked.grade}</Chip> : null}
+            {/* 오른쪽 머리 학년 칩은 진한 바탕 (원본 §27) */}
+            {picked.grade ? <Chip tone="neutral" styleKind="solid">{picked.grade}</Chip> : null}
             {/* 건수도 서버가 센 값이다 — 보이는 것만 센다(원문 §27 규칙) */}
             <span className="text-[12.5px] text-fg-subtle">컨설팅 <b className="text-fg">{picked.caseCount}</b>건</span>
             <span className="text-[12.5px] text-fg-subtle">{moneyPair(picked.paid, picked.amount)}</span>

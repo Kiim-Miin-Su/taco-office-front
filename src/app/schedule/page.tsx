@@ -27,14 +27,15 @@ import { ScheduleSidebar } from '@/components/shell/ScheduleSidebar';
 import { WorkspaceRail } from '@/components/shell/WorkspaceRail';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useUndoLast } from '@/components/shell/useUndoLast';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { CheckSquare, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
+import { Banner, Button, Chip, LinkButton, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
+import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
 import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
 import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import {
-  filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar, SCHEDULE_VIEWS,
-  type ScheduleFilters,
+  activeFilterCount, filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar, SCHEDULE_VIEWS,
+  type ScheduleFilters, type ScheduleTarget,
 } from '@/components/cal/ScheduleToolbar';
 import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor';
 import { eventColorStyle, type DragData } from '@/components/cal/EventBlock';
@@ -43,12 +44,12 @@ import { Legend } from '@/components/cal/Legend';
 import { PeriodSummaryBar } from '@/components/cal/PeriodSummaryBar';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
-import { fetchConflicts, useDrawer, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
+import { fetchConflicts, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import {
-  boundingRange, boundsOf, clampSplitRatio, conflictLines, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
-  selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, todayKst, unsplitPanes, updatePane,
+  boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
+  selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
 import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, UnavWarn, WriteResult } from '@/api/types';
@@ -57,15 +58,24 @@ import { downloadElementPng } from '@/lib/png-export';
 import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
 
 /**
- * 원본 §11 개인 도구줄의 진입 단추 넷. **여는 화면이 원본에 없다** — 컷은 단추만 보여 주고
- * 눌렀을 때를 보여 주지 않는다. 지어내지 않고(D-R44) 못 누르는 이유를 적어 둔다.
+ * 원본 §11 개인 도구줄의 진입 단추 넷 [가능 시간 · 안내 · 정산 · 메모].
+ * 「안내」·「정산」은 이미 있는 화면으로 간다(§43 수업 안내 · §57 강사료 정산 — 정산은 금액이라 회계 권한일 때만 선다).
+ * 「가능 시간」·「메모」는 **여는 화면이 원본에 없다** — 지어내지 않고(D-R44) 못 누르는 이유를 적어 둔다.
  */
-const PERSON_ENTRIES: Array<{ label: string; why: string }> = [
-  { label: '가능 시간', why: '강사가 낸 불가 시간을 이 표에 겹쳐 보는 자리입니다 — 겹침 계산이 아직 없습니다' },
-  { label: '안내', why: '이 강사의 수업 안내로 가는 자리입니다 — 사람으로 좁히는 진입이 아직 없습니다' },
-  { label: '정산', why: '이 강사의 월 정산으로 가는 자리입니다 — 금액이라 회계 탭 권한을 함께 정해야 합니다 (D-R9 · D-R39)' },
-  { label: '메모', why: '이 강사에 대한 메모 자리입니다 — 저장할 표가 아직 없습니다' },
+const PERSON_BLOCKED: Array<{ label: string; why: string }> = [
+  { label: '가능 시간', why: '강사가 적어 둔 불가 시간을 이 표에 겹쳐 보는 자리입니다 — 관리 화면에서 읽는 길이 아직 없습니다' },
+  { label: '메모', why: '이 강사에 대한 메모 자리입니다 — 무엇을 어디에 남길지 아직 정해지지 않았습니다' },
 ];
+
+/**
+ * 학생 목록 순서 — 원문 §10 은 학년순(K → G3 → G4 …)이다. 「G숫자」와 「K」만 순서를 알고,
+ * 모르는 학년 낱말은 뒤로 보내 이름순으로 둔다(학년 낱말을 지어 해석하지 않는다).
+ */
+function gradeRank(grade: string): number {
+  if (/^k$/i.test(grade.trim())) return 0;
+  const g = /^g\s*(\d{1,2})$/i.exec(grade.trim());
+  return g ? Number(g[1]) : 100;
+}
 
 /** 저장이 막힌 자리 — 겹침을 **그 자리 그대로** 다시 물어보기 위한 좌표다. */
 interface ConflictProbe {
@@ -76,6 +86,18 @@ interface ConflictProbe {
   roomId?: number | null;
   zaccId?: number | null;
   exceptSerId?: number | null;
+}
+
+/**
+ * 개인표에서 여는 새 일정에 **그 사람을 미리 넣는다** — 원문 §10·§11 본문
+ * 「일정 추가 시 학생(강사)이 자동으로 채워집니다」. 고른 사람이 없거나 전체 보기면 아무도 넣지 않는다 —
+ * 보이지 않는 사람을 초안에 지어 넣으면 누가 들어갔는지 모른 채 저장된다.
+ */
+function personDraft(pane: CalendarPaneState): Pick<SessionDraft, 'studentIds' | 'teacherId'> {
+  if (pane.personId === null) return {};
+  if (pane.view === 'student') return { studentIds: [pane.personId] };
+  if (pane.view === 'teacher') return { teacherId: pane.personId };
+  return {};
 }
 
 /** 개인 도구줄의 기간 칸 — 원본 §10·§11 은 「주간 · 일간 · 월간」 순서로 놓는다. */
@@ -114,11 +136,15 @@ interface PasteCursor {
 type A =
   | { t: 'view'; v: View }
   | { t: 'date'; d: string }
+  /** 도구줄 날짜 칸 — 보기(기간·대상)는 그대로 두고 날짜만 옮긴다 (원문 §07 「2026-08-21 (금) ▾」) */
+  | { t: 'jump'; d: string }
   | { t: 'deepLinkDate'; d: string }
   | { t: 'deepLinkStudent'; id: number }
   | { t: 'step'; dir: -1 | 1 }
   | { t: 'today' }
   | { t: 'person'; id: number | null }
+  /** 개인표에 들어왔는데 고른 사람이 없으면 목록 첫 사람 — 원문 §10·§11 은 첫 사람이 골라진 채 열린다 */
+  | { t: 'personAt'; index: CalendarPaneIndex; id: number }
   | { t: 'personPeriod'; v: PersonPeriod }
   | { t: 'open'; o: Occurrence | null }
   | { t: 'selected'; keys: string[] }
@@ -153,8 +179,9 @@ function reducer(s: S, a: A): S {
     }
     case 'date':
       // 전체 주·월간 날짜는 일간으로 이동한다. 개인표는 사람도 **기간도** 그대로 둔다 (§8~§11) —
-      // 기간을 바꾸는 자리는 개인 도구줄 하나뿐이다.
+      // 기간을 바꾸는 자리는 기간 축(도구줄 [일간·주간·월간] · 개인 도구줄)뿐이다.
       return patchPane({ date: a.d, view: pane.view === 'week' || pane.view === 'month' ? 'day' : pane.view });
+    case 'jump': return patchPane({ date: a.d });
     case 'deepLinkDate':
       return {
         ...patchPane({ date: a.d, view: 'day' }),
@@ -181,6 +208,12 @@ function reducer(s: S, a: A): S {
           ...(pane.view === 'teacher' ? { teacherId: null } : {}),
         },
       };
+    }
+    case 'personAt': {
+      const target = s.panes[a.index];
+      // 그 사이 사람을 골랐거나 보기가 바뀌었으면 건드리지 않는다 — 사람이 고른 것을 덮지 않는다
+      if (!target || target.personId !== null || (target.view !== 'student' && target.view !== 'teacher')) return s;
+      return { ...s, panes: updatePane(s.panes, a.index, { personId: a.id }) };
     }
     case 'open': return { ...s, open: a.o };
     case 'selected': return { ...s, selected: a.keys };
@@ -293,6 +326,12 @@ function AdminSchedulePage() {
   const [draft, setDraft] = useState<SessionDraft | null>(null);
   const [exporting, setExporting] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  /** 원문 §07 「+ 빈 시간 찾기」 — 일간 표에서 강의실마다 수업이 없는 칸을 칠한다(화면 표시만 · 이미 읽은 회차로 센다) */
+  const [freeOn, setFreeOn] = useState(false);
+  /** 원문 §11 To-Do 띠의 「+ 주기」 — 받는 사람 기본값이 그 강사인 할 일 창(서랍·운영과 같은 창 · C96) */
+  const [todoFor, setTodoFor] = useState<number | null>(null);
+  const todoWrite = useDrawerWrite();
+  const canMoney = useCan('canMoney');
 
   // 클릭과 드래그를 가른다 — 4px 을 움직여야 드래그다. 이게 없으면 열기 클릭이 전부 드래그가 된다
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -500,6 +539,8 @@ function AdminSchedulePage() {
         startMin,
         endMin,
         roomId: d.colAxis === 'room' ? (d.colId ?? null) : null,
+        // 끌기를 시작한 표가 곧 고른 표다 — 누르는 순간 그 표로 초점이 옮겨 간다 (onPointerDownCapture)
+        ...personDraft(s.panes[s.focused] ?? s.panes[0]),
       });
       return;
     }
@@ -694,7 +735,10 @@ function AdminSchedulePage() {
     return () => document.removeEventListener('keydown', onKey);
   });
 
-  const chooseSlot = (date: string, startMin: number, colAxis?: 'room' | 'teacher', colId?: number | null) => {
+  /** 빈 칸 → 붙여넣기 위치 또는 새 일정. `pane` 은 그 칸이 있는 표다 — 개인표면 그 사람이 초안에 들어간다 */
+  const chooseSlot = (
+    pane: CalendarPaneState, date: string, startMin: number, colAxis?: 'room' | 'teacher', colId?: number | null,
+  ) => {
     if (s.clipboard) {
       go({ t: 'cursor', value: { date, startMin, colAxis, colId } });
       setErr(null);
@@ -705,19 +749,28 @@ function AdminSchedulePage() {
       startMin,
       endMin: Math.min(1440, startMin + 60),
       roomId: colAxis === 'room' ? (colId ?? null) : null,
+      ...personDraft(pane),
     });
   };
 
   /** Meta lookup 한 벌을 모든 표·상세·범례가 공유한다 (§88·§89). */
-  const { subName, kindName, colorOf } = useMemo(() => {
+  const { subName, kindName, kindLabel, zaccLabel, capOf, kindColor, colorOf } = useMemo(() => {
     const codes: CalendarCodeLookup = {
       subs: new Map((meta.data?.subs ?? []).map((x) => [x.key, x])),
       kinds: new Map((meta.data?.kinds ?? []).map((x) => [x.key, x])),
     };
+    const zaccs = new Map((meta.data?.zaccs ?? []).map((x) => [x.id, x.label]));
     const colorOf: CalendarColorOf = (o) => calendarEventColor(o, codes);
     return {
       subName: (o: Occurrence) => (o.subKey ? codes.subs.get(o.subKey)?.name : undefined),
       kindName: (o: Occurrence) => codes.kinds.get(o.kindKey)?.name,
+      kindLabel: (kindKey: string) => codes.kinds.get(kindKey)?.name,
+      // 블록의 장소 줄 「온라인 TN Zoom 1」 — 계정 이름도 코드표 한 벌에서 온다 (원문 §07·§08)
+      zaccLabel: (o: Occurrence) => (o.zaccId == null ? undefined : zaccs.get(o.zaccId)),
+      // 블록 정원 점(●●●○)의 정원 — §79 카드의 「정원 N명」과 같은 코드표 값(서버 LessonTracking.cap = kind.cap)
+      capOf: (o: Occurrence) => codes.kinds.get(o.kindKey)?.cap,
+      // 개인표 종류 칩의 색 띠 — 블록과 같은 색 해석기(과목 없이 종류로)
+      kindColor: (kindKey: string) => calendarEventColor({ kindKey }, codes),
       colorOf,
     };
   }, [meta.data]);
@@ -748,8 +801,18 @@ function AdminSchedulePage() {
     const people = peopleSource.map((person) => {
       const list = mine(person.id);
       // 시수 산식은 기간 집계와 **같은 함수**다 — 두 곳에서 따로 세면 칩과 상단 줄이 갈린다 (D-R11).
-      return { ...person, n: list.length, hours: periodSummary(list).hours };
-    }).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'ko'));
+      const sum = periodSummary(list);
+      // 원문 §10·§11 목록 카드의 종류별 칩(「모의수업 1 · 자습 5」) — 같은 배열을 종류로 묶어 센다
+      const kinds = new Map<string, number>();
+      for (const o of list) if (!o.canceled) kinds.set(o.kindKey, (kinds.get(o.kindKey) ?? 0) + 1);
+      return {
+        ...person, n: list.length, held: sum.total - sum.canceled, hours: sum.hours, unsubmitted: sum.unsubmitted,
+        kinds: Array.from(kinds, ([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count),
+      };
+    }).sort((a, b) => (pane.view === 'student'
+      // 학생은 원문 §10 처럼 학년순, 선생님은 이 기간 많이 맡은 순
+      ? gradeRank(a.sub) - gradeRank(b.sub) || a.name.localeCompare(b.name, 'ko')
+      : b.n - a.n || a.name.localeCompare(b.name, 'ko')));
     const grid = shown === 'month' ? monthGrid(pane.date) : [];
     // 상단 집계는 **칸에 그린 것과 같은 배열**에서 센다 (N-19). 월간 격자만 앞뒤 달이
     // 섞여 있어 그 달로 자른다 — 라벨이 「N월」이면 세는 것도 그 달이어야 한다.
@@ -757,28 +820,63 @@ function AdminSchedulePage() {
     const summary = periodSummary(
       items.filter((o) => o.date >= summaryRange.from && o.date <= summaryRange.to),
     );
+    // 대상 줄의 요약은 **전체 기준**이다 — 원문 §10·§11 은 사람을 골라도 「일정 54건 …」을 그대로 두고
+    // 그 사람의 수치는 개인 머리가 말한다. 전체 보기에서는 items 가 곧 paneAll 이라 같은 수다.
+    const baseSummary = pane.view === 'student' || pane.view === 'teacher'
+      ? periodSummary(paneAll.filter((o) => o.date >= summaryRange.from && o.date <= summaryRange.to))
+      : summary;
+    // 원문 §07 「⏱ 09-22」 — 이 표가 그리는 시간 축(기본 09~22 + 실제 수업만큼 넓힘 · N-43 접지 않는다)
+    const axis = timeRange(shown === 'day' ? items.filter((o) => o.date === pane.date) : items);
+    const axisLabel = `${hhmm(axis.from).slice(0, 2)}–${hhmm(axis.to).slice(0, 2)}`;
     const head = shown === 'month'
       ? `${pane.date.slice(0, 4)}년 ${+pane.date.slice(5, 7)}월`
       : shown === 'day' ? label(pane.date) : `${label(paneRange.from)} – ${label(paneRange.to)}`;
     const outOfHorizon = !!hz.data && (paneRange.from < hz.data.from || paneRange.to > hz.data.to);
-    return { pane, shown, range: paneRange, items, columns, people, grid, head, summary, outOfHorizon };
+    return { pane, shown, range: paneRange, items, columns, people, grid, head, summary, baseSummary, axisLabel, outOfHorizon };
   }), [filteredAll, hz.data, meta.data, s.panes]);
 
   const activeModel = paneModels[s.focused] ?? paneModels[0];
 
-  const exportSchedule = async () => {
-    if (!exportRef.current || exporting) return;
+  // 원문 §10·§11 — 학생별·선생님별로 들어오면 목록 첫 사람(학생은 학년순 · 선생님은 많이 맡은 순)이 골라진 채 표가 보인다
+  useEffect(() => {
+    paneModels.forEach((model, index) => {
+      const { pane, people } = model;
+      if ((pane.view === 'student' || pane.view === 'teacher') && pane.personId === null && people.length) {
+        go({ t: 'personAt', index: index as CalendarPaneIndex, id: people[0].id });
+      }
+    });
+  }, [paneModels]);
+  /** 원문 §07 둘째 축의 지금 값 — 대상 줄과 도구줄이 같은 하나를 본다 */
+  const activeTarget: ScheduleTarget = activeModel.pane.view === 'student' || activeModel.pane.view === 'teacher'
+    ? activeModel.pane.view : 'all';
+  const activePerson = activeModel.people.find((p) => p.id === activeModel.pane.personId);
+  const targetLabel = activeTarget === 'all' ? '전체'
+    : `${activeTarget === 'student' ? '학생별' : '선생님별'} · ${activePerson?.name ?? '고르지 않음'}`;
+
+  /** 표 한 벌을 PNG 로 — 도구줄(전체)과 개인 머리(그 사람 표)가 같은 공용 내보내기를 쓴다 */
+  const exportElement = async (element: HTMLElement | null, fileName: string) => {
+    if (!element || exporting) return;
     setExporting(true);
     try {
-      await downloadElementPng(
-        exportRef.current,
-        `${activeModel.pane.date}-${activeModel.pane.view}-schedule.png`,
-      );
+      await downloadElementPng(element, fileName);
       setErr(null);
     } catch {
       setErr('스케줄 PNG를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setExporting(false);
+    }
+  };
+  const exportSchedule = () => exportElement(
+    exportRef.current, `${activeModel.pane.date}-${activeModel.pane.view}-schedule.png`,
+  );
+
+  /** 원문 §10 개인 머리 「크게」 — 그 사람 표를 전체 화면으로 (셸의 전체 화면과 같은 브라우저 동작) */
+  const enlarge = async (element: HTMLElement | null) => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await element?.requestFullscreen();
+    } catch {
+      setErr('이 브라우저에서 표를 크게 열 수 없습니다. 브라우저의 전체 화면 메뉴를 이용해 주세요.');
     }
   };
 
@@ -814,8 +912,55 @@ function AdminSchedulePage() {
     const paneIndex = index as CalendarPaneIndex;
     const { pane, shown, items, columns, people, grid, head, summary, outOfHorizon } = model;
     const focused = s.focused === paneIndex;
-    const side = s.panes.length === 1 ? '단일' : paneIndex === 0 ? '왼쪽' : '오른쪽';
-    const basis = s.panes.length === 1 ? 1 : paneIndex === 0 ? s.ratio : 1 - s.ratio;
+    const split = s.panes.length === 2;
+    const side = !split ? '단일' : paneIndex === 0 ? '왼쪽' : '오른쪽';
+    const basis = !split ? 1 : paneIndex === 0 ? s.ratio : 1 - s.ratio;
+    const isPerson = pane.view === 'student' || pane.view === 'teacher';
+    // 원문 §10·§11 블록 셋째 줄 — 학생별이면 강사, 선생님별이면 학생
+    const person = pane.view === 'student' ? 'student' as const : pane.view === 'teacher' ? 'teacher' as const : undefined;
+    // [일정 · 리포트] — 「리포트」면 과목색을 주지 않아 블록이 리포트 상태색(STATUS_LOOK)을 그린다
+    const blockColor = s.filters.display === 'report' ? undefined : colorOf;
+    const chosen = people.find((p) => p.id === pane.personId);
+
+    const grids = shown === 'day' ? (
+      <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
+        columnOf={(occurrence) => occurrence.roomId ?? null}
+        subName={subName} kindName={kindName} zaccLabel={zaccLabel} capOf={capOf} person={person} colorOf={blockColor}
+        showFree={freeOn && !isPerson}
+        onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
+        onSelect={select} selected={selectedSet} interactive={canEdit}
+        cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
+        onAddAt={(date, startMin, roomId) => chooseSlot(pane, date, startMin, 'room', roomId)} />
+    ) : shown === 'month' ? (
+      <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} kindName={kindName} colorOf={blockColor} interactive={canEdit}
+        onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
+        onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
+        onPickDate={(date) => go({ t: 'date', d: date })}
+        onAdd={canEdit ? (date) => chooseSlot(pane, date, 10 * 60) : undefined} />
+    ) : (
+      <WeekGrid date={pane.date} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
+        capOf={capOf} person={person} dark={isPerson} totals={isPerson}
+        colorOf={blockColor} interactive={canEdit}
+        onSelect={select} selected={selectedSet} cursor={s.cursor}
+        onAddAt={canEdit ? (date, startMin) => chooseSlot(pane, date, startMin) : undefined}
+        onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
+        onPickDate={(date) => go({ t: 'date', d: date })} />
+    );
+
+    /*
+     * 원문 §11 「To-Do Tasks」 띠 — 이 강사가 이 기간에 받은 할 일. 서랍이 이미 읽은 할 일(관리자는 전부)을
+     * 받는 사람 · 기한으로 걸러 그리기만 한다(새 요청 0). 기한 없는 열린 일도 받은 일이라 함께 둔다.
+     */
+    const personTodos = pane.view === 'teacher' && pane.personId !== null
+      ? (drawerData?.todos ?? []).filter((todo) => todo.toId === pane.personId && (
+        todo.dueOn ? todo.dueOn >= model.range.from && todo.dueOn <= model.range.to : !todo.done
+      ))
+      : [];
+    // 원문 §11 종류별 칩 「수업 2건 · 2.5h」 — 그 사람 표와 같은 배열을 종류로 묶어 같은 함수로 센다 (D-R11)
+    const kindChips = pane.view === 'teacher'
+      ? Array.from(items.reduce((m, o) => m.set(o.kindKey, [...(m.get(o.kindKey) ?? []), o]), new Map<string, Occurrence[]>()),
+        ([key, list]) => ({ key, sum: periodSummary(list) })).filter((k) => k.sum.total > k.sum.canceled)
+      : [];
 
     return (
       <section
@@ -835,23 +980,27 @@ function AdminSchedulePage() {
         className={`min-w-[152px] rounded-xl border bg-card outline-none transition-shadow ${
           s.filters.density === 'compact' ? 'p-1' : s.filters.density === 'wide' ? 'p-3' : 'p-2'
         } ${
-          focused ? 'border-blue ring-2 ring-blue' : 'border-line'
+          focused && split ? 'border-blue ring-2 ring-blue' : 'border-line'
         }`}
         style={{ flexGrow: basis, flexBasis: 0 }}
       >
-        <div className={`mb-2 flex min-h-9 flex-wrap items-center gap-2 rounded-lg px-2 py-1 ${focused ? 'bg-blue/5' : 'bg-inset/50'}`}>
-          <span className={`size-2 rounded-full ${focused ? 'bg-blue' : 'bg-line-2'}`} />
-          <span className={`text-[11px] font-bold ${focused ? 'text-blue' : 'text-fg-subtle'}`}>{side} 표</span>
-          <Chip>{SCHEDULE_VIEWS.find((view) => view.value === pane.view)?.label}</Chip>
-          <span className="min-w-0 truncate text-[12px] font-bold text-fg">{head}</span>
-          <div className="ml-auto flex items-center gap-1">
-            <Button size="sm" aria-label={`${side} 표 이전 기간`} onClick={() => go({ t: 'step', dir: -1 })}>‹</Button>
-            <Button size="sm" onClick={() => go({ t: 'today' })}>오늘</Button>
-            <Button size="sm" aria-label={`${side} 표 다음 기간`} onClick={() => go({ t: 'step', dir: 1 })}>›</Button>
-          </div>
-        </div>
-
-        <PeriodSummaryBar summary={summary} month={shown === 'month'} />
+        {/* 「왼쪽 · 오른쪽 표」 머리는 분할일 때만 선다 — 단일 표의 기간·이동은 대상 줄과 도구줄이 말한다 (원문 §07) */}
+        {split ? (
+          <>
+            <div className={`mb-2 flex min-h-9 flex-wrap items-center gap-2 rounded-lg px-2 py-1 ${focused ? 'bg-blue/5' : 'bg-inset/50'}`}>
+              <span className={`size-2 rounded-full ${focused ? 'bg-blue' : 'bg-line-2'}`} />
+              <span className={`text-[11px] font-bold ${focused ? 'text-blue' : 'text-fg-subtle'}`}>{side} 표</span>
+              <Chip>{SCHEDULE_VIEWS.find((view) => view.value === pane.view)?.label}</Chip>
+              <span className="min-w-0 truncate text-[12px] font-bold text-fg">{head}</span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button size="sm" aria-label={`${side} 표 이전 기간`} onClick={() => go({ t: 'step', dir: -1 })}>‹</Button>
+                <Button size="sm" onClick={() => go({ t: 'today' })}>오늘</Button>
+                <Button size="sm" aria-label={`${side} 표 다음 기간`} onClick={() => go({ t: 'step', dir: 1 })}>›</Button>
+              </div>
+            </div>
+            <PeriodSummaryBar summary={model.baseSummary} month={shown === 'month'} />
+          </>
+        ) : null}
 
         {outOfHorizon ? (
           <div className="mb-2">
@@ -861,70 +1010,114 @@ function AdminSchedulePage() {
           </div>
         ) : null}
 
-        {pane.view === 'student' || pane.view === 'teacher' ? (
-          <div className="grid gap-3 xl:grid-cols-[180px_1fr]">
-            <Panel title={pane.view === 'student' ? '학생' : '선생님'} sub="고르면 이 표만 바뀝니다">
-              <div className="max-h-[560px] overflow-y-auto">
+        {isPerson ? (
+          <div className="grid gap-3 xl:grid-cols-[300px_1fr]">
+            {/* 원문 §10·§11 목록 카드 — 어두운 머리 「학생 20명 · 눌러서 바뀝니다」, 줄마다 이름 · 학년/직함 · 종류별 칩 · 「N회 · N.Nh」 */}
+            <section aria-label={`${pane.view === 'student' ? '학생' : '선생님'} 목록`}
+              className="self-start overflow-hidden rounded-xl border border-line bg-card">
+              <div className="flex items-baseline gap-2 bg-fg px-3 py-2.5 text-white">
+                <span className="text-[13px] font-bold">{pane.view === 'student' ? '학생' : '선생님'} {people.length}명</span>
+                <span className="text-[11px] text-white/60">눌러서 바뀝니다</span>
+              </div>
+              <div className="max-h-[640px] overflow-y-auto">
                 {people.map((person) => (
                   <button key={person.id} type="button" onClick={() => go({ t: 'person', id: person.id })}
-                    className={`flex w-full items-center gap-2 border-b border-line px-3 py-2 text-left transition-colors hover:bg-inset ${
-                      pane.personId === person.id ? 'bg-blue/10' : ''}`}>
-                    <span className="text-[12px] font-bold text-fg">{person.name}</span>
-                    <span className="text-[11px] text-fg-subtle">{person.sub}</span>
-                    <span className={`ml-auto text-[11px] ${person.n ? 'font-bold text-blue' : 'text-line-2'}`}>
-                      {person.n ? `${person.n}건` : '—'}
+                    aria-pressed={pane.personId === person.id}
+                    className={`flex w-full flex-col items-start gap-1.5 border-b border-line px-3 py-2.5 text-left transition-colors hover:bg-inset ${
+                      pane.personId === person.id ? 'border-l-4 border-l-primary bg-primary/10' : ''}`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[13px] font-bold text-fg">{person.name}</span>
+                      {person.sub ? <Chip size="compact">{person.sub}</Chip> : null}
                     </span>
+                    {person.kinds.length ? (
+                      <span className="flex flex-wrap gap-1">
+                        {person.kinds.map((k) => (
+                          <span key={k.key} style={{ borderLeftColor: kindColor(k.key) }}
+                            className="rounded border border-l-[3px] border-line bg-inset px-1.5 text-[10.5px] font-bold text-fg-2">
+                            {kindLabel(k.key) ?? '종류'} {k.count}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                    <span className={`text-[11px] ${person.held ? 'font-bold text-fg-2' : 'text-line-2'}`}>
+                      {person.held}회 · {person.hours.toFixed(1)}h
+                    </span>
+                    {/* 선생님 줄의 빨간 「리포트 N」 — 끝났는데 아직 제출하지 않은 리포트(기간 집계와 같은 판정) */}
+                    {pane.view === 'teacher' && person.unsubmitted ? (
+                      <Chip tone="danger" size="compact">리포트 {person.unsubmitted}</Chip>
+                    ) : null}
                   </button>
                 ))}
               </div>
-            </Panel>
+            </section>
             {pane.personId ? (
-              <div className="flex min-w-0 flex-col gap-3">
-                {/* 원본 §10·§11 개인 도구줄 — 사람 이름 · 집계 · 기간(주간·일간·월간) */}
+              <div data-person-table className="flex min-w-0 flex-col gap-3 bg-bg">
+                {/* 원문 §10·§11 개인 머리 — 이름 · 학년/직함 칩 · 「수업 N · 시간 N.N」 · 기간 · 진입 · 크게 · PNG */}
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-3">
-                  <span className="text-[12px] font-bold text-fg">
-                    {people.find((person) => person.id === pane.personId)?.name}
+                  <span className="text-[17px] font-bold text-fg">{chosen?.name}</span>
+                  {chosen?.sub ? <Chip styleKind="solid">{chosen.sub}</Chip> : null}
+                  <span className="text-[12px] text-fg-2"
+                    title="이 기간 · 취소 제외. 정산 시수는 회계 탭에서 월 단위로 확정됩니다">
+                    수업 <b className="text-fg">{summary.total - summary.canceled}</b> · 시간 <b className="text-fg">{summary.hours.toFixed(1)}</b>
                   </span>
-                  <Chip tone="info">{items.filter((o) => !o.canceled).length}회</Chip>
-                  {pane.view === 'teacher' ? (
-                    <Chip title="이 기간 · 취소 제외 (D-R11). 정산 시수는 회계 탭에서 월 단위로 확정됩니다">
-                      이 기간 시수 {(people.find((person) => person.id === pane.personId)?.hours ?? 0).toFixed(1)}시간
-                    </Chip>
-                  ) : null}
                   <div className="ml-auto flex flex-wrap items-center gap-2">
                     <Segmented ariaLabel={`${side} 개인 표 기간`} value={pane.personPeriod}
                       options={PERSON_PERIODS}
                       onChange={(value) => go({ t: 'personPeriod', v: value })} />
-                    {/*
-                      원본 §11 은 기간 옆에 진입 단추 넷을 더 둔다. 여는 화면이 원본에 없어
-                      아직 배선하지 않았다 — 빈칸으로 두지 않고 **왜 못 누르는지**를 적는다
-                      (`ScheduleSidebar` 의 자동 연계·가능 시간과 같은 표기).
-                    */}
-                    {pane.view === 'teacher' ? PERSON_ENTRIES.map((entry) => (
-                      <Button key={entry.label} size="sm" disabled title={entry.why}>{entry.label}</Button>
-                    )) : null}
+                    {pane.view === 'teacher' ? (
+                      <>
+                        {PERSON_BLOCKED.slice(0, 1).map((entry) => (
+                          <Button key={entry.label} size="sm" disabled title={entry.why}>{entry.label}</Button>
+                        ))}
+                        <LinkButton size="sm" href="/guides" title="수업 안내로 갑니다">안내</LinkButton>
+                        {canMoney ? <LinkButton size="sm" href="/accounting?tab=payout" title="강사료 정산 탭으로 갑니다">정산</LinkButton> : null}
+                        {PERSON_BLOCKED.slice(1).map((entry) => (
+                          <Button key={entry.label} size="sm" disabled title={entry.why}>{entry.label}</Button>
+                        ))}
+                      </>
+                    ) : null}
+                    <Button size="sm" onClick={(event) => void enlarge(event.currentTarget.closest<HTMLElement>('[data-person-table]'))}>
+                      <Maximize2 size={13} aria-hidden />크게
+                    </Button>
+                    <Button size="sm" variant="dark" disabled={exporting} aria-label="개인 표를 PNG로 저장"
+                      onClick={(event) => void exportElement(
+                        event.currentTarget.closest<HTMLElement>('[data-person-table]'),
+                        `${pane.date}-${pane.view}-${pane.personId}-schedule.png`,
+                      )}>
+                      PNG
+                    </Button>
                   </div>
                 </div>
-                {shown === 'day' ? (
-                  <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
-                    columnOf={(occurrence) => occurrence.roomId ?? null}
-                    subName={subName} colorOf={colorOf} onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-                    onSelect={select} selected={selectedSet} interactive={canEdit}
-                    cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
-                    onAddAt={(date, startMin, roomId) => chooseSlot(date, startMin, 'room', roomId)} />
-                ) : shown === 'month' ? (
-                  <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} colorOf={colorOf} interactive={canEdit}
-                    onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
-                    onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-                    onPickDate={(date) => go({ t: 'date', d: date })}
-                    onAdd={canEdit ? (date) => chooseSlot(date, 10 * 60) : undefined} />
-                ) : (
-                  <WeekGrid date={pane.date} items={items} subName={subName} colorOf={colorOf} interactive={canEdit}
-                    onSelect={select} selected={selectedSet} cursor={s.cursor}
-                    onAddAt={canEdit ? chooseSlot : undefined}
-                    onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-                    onPickDate={(date) => go({ t: 'date', d: date })} />
-                )}
+                {pane.view === 'teacher' ? (
+                  <>
+                    <div role="group" aria-label="받은 할 일"
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-3 py-2">
+                      <CheckSquare size={15} aria-hidden className="text-fg" />
+                      <b className="text-[13px] text-fg">To-Do Tasks</b>
+                      {personTodos.length ? personTodos.slice(0, 6).map((todo) => (
+                        <Chip key={todo.id} tone={todo.done ? 'neutral' : todo.overdueDays > 0 ? 'danger' : 'info'}
+                          title={`${todo.srcLabel}${todo.fromName ? ` · ${todo.fromName}` : ''}`}>
+                          {todo.done ? <s>{todo.title}</s> : todo.title}{todo.dueOn ? ` · ${todo.dueOn.slice(5)}` : ''}
+                        </Chip>
+                      )) : <span className="text-[12px] text-fg-subtle">이 기간에 받은 일이 없습니다</span>}
+                      {personTodos.length > 6 ? <span className="text-[11px] text-fg-subtle">외 {personTodos.length - 6}건</span> : null}
+                      {canEdit ? (
+                        <Button size="sm" className="ml-auto" onClick={() => setTodoFor(pane.personId)}>+ 주기</Button>
+                      ) : null}
+                    </div>
+                    {kindChips.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {kindChips.map((k) => (
+                          <span key={k.key} style={{ borderLeftColor: kindColor(k.key) }}
+                            className="rounded-lg border border-l-4 border-line bg-card px-2.5 py-1 text-[12px] font-bold text-fg-2">
+                            {kindLabel(k.key) ?? '종류'} {k.sum.total - k.sum.canceled}건 · {k.sum.hours.toFixed(1)}h
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+                {grids}
               </div>
             ) : (
               <Panel title="사람을 고르세요">
@@ -934,26 +1127,7 @@ function AdminSchedulePage() {
               </Panel>
             )}
           </div>
-        ) : shown === 'day' ? (
-          <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
-            columnOf={(occurrence) => occurrence.roomId ?? null}
-            subName={subName} colorOf={colorOf} onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-            onSelect={select} selected={selectedSet} interactive={canEdit}
-            cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
-            onAddAt={(date, startMin, roomId) => chooseSlot(date, startMin, 'room', roomId)} />
-        ) : shown === 'week' ? (
-          <WeekGrid date={pane.date} items={items} subName={subName} colorOf={colorOf} interactive={canEdit}
-            onSelect={select} selected={selectedSet} cursor={s.cursor}
-            onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-            onPickDate={(date) => go({ t: 'date', d: date })}
-            onAddAt={canEdit ? chooseSlot : undefined} />
-        ) : (
-          <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} colorOf={colorOf} interactive={canEdit}
-            onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
-            onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-            onPickDate={(date) => go({ t: 'date', d: date })}
-            onAdd={canEdit ? (date) => chooseSlot(date, 10 * 60) : undefined} />
-        )}
+        ) : grids}
 
         {q.isLoading ? <p className="mt-3 text-[12px] text-fg-subtle">불러오는 중…</p> : null}
         {!q.isLoading && items.length === 0 && !outOfHorizon ? (
@@ -993,16 +1167,19 @@ function AdminSchedulePage() {
             items={filteredAll}
             canEdit={canEdit}
             splitOn={s.panes.length === 2}
-            onCreate={() => setDraft({ date: activeModel.pane.date, startMin: 540, endMin: 600, roomId: null })}
+            onCreate={() => setDraft({
+              date: activeModel.pane.date, startMin: 540, endMin: 600, roomId: null, ...personDraft(activeModel.pane),
+            })}
             onHistory={() => openDrawer('chreqs')}
             onSplit={() => go({ t: 'split' })}
           />
         ) : undefined}
-        rightPanel={railOpen ? ({ openDrawer }) => (
+        rightPanel={railOpen ? ({ openDrawer, activePane }) => (
           <WorkspaceRail
             approvals={drawerData?.approvals.inboxCount ?? 0}
             unread={drawerData?.notis.filter((n) => !n.read).length ?? 0}
             onOpen={openDrawer}
+            activePane={activePane}
           />
         ) : undefined}
       >
@@ -1013,32 +1190,46 @@ function AdminSchedulePage() {
           onDragEnd={onDragEnd}
           onDragCancel={onDragCancel}
         >
-        <PageHeader
-          title="스케줄"
-          sub="§4·§7~§12 — 기본/분할은 같은 표를 반복 렌더하고, bounding range를 한 번만 읽습니다."
-        />
+        <PageHeader title="스케줄" />
 
         <ScheduleToolbar
-          view={activeModel.pane.view}
+          period={paneView(activeModel.pane) as PersonPeriod}
+          target={activeTarget}
           filters={s.filters}
           meta={meta.data}
           splitOn={s.panes.length === 2}
           exporting={exporting}
-          onViewChange={(view) => go({ t: 'view', v: view })}
+          date={activeModel.pane.date}
+          axisLabel={activeModel.axisLabel}
+          freeOn={freeOn}
+          freeAvailable={activeModel.shown === 'day' && activeTarget === 'all'}
+          onPeriodChange={(period) => (
+            activeTarget === 'all' ? go({ t: 'view', v: period }) : go({ t: 'personPeriod', v: period })
+          )}
+          onTargetChange={(target) => go({ t: 'view', v: target === 'all' ? paneView(activeModel.pane) : target })}
           onFiltersChange={(value) => go({ t: 'filters', value })}
+          onDateChange={(date) => go({ t: 'jump', d: date })}
+          onStep={(dir) => go({ t: 'step', dir })}
+          onToday={() => go({ t: 'today' })}
+          onFreeToggle={() => setFreeOn((v) => !v)}
           onSplit={() => go({ t: 'split' })}
           onExport={exportSchedule}
         />
 
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <Chip tone="info">● {s.panes.length === 1 ? '단일 표' : s.focused === 0 ? '왼쪽 표 선택됨' : '오른쪽 표 선택됨'}</Chip>
-          <span className="text-[12px] font-bold text-fg">{activeModel.head}</span>
-          {/* 머리와 표의 집계는 **같은 수**여야 한다 — 같은 「2026년 9월」 옆에 다른 수가 붙으면
-              그것이 곧 원문 §09 의 268 vs 200 이다 (N-19). */}
-          <span className="text-[11px] text-fg-subtle" title="고른 표의 기간 집계 — 아래 표의 「일정 N건」과 같은 수입니다">
-            {activeModel.summary.total}건
-          </span>
+        {/*
+          원문 §07 대상 줄 하나 — 「대상 · 전체 전체 · 전체 기준 …」 + 오른쪽 「2026-08-21 (금) · 일정 21건 · 현장 7 / 온라인 14 · 23.0시간 · 승인 대기 2」.
+          날짜를 세 번 적던 자리(「● 단일 표」 줄 · 표 머리 · 요약 줄)를 하나로 모았다. 요약은 전체 기준이다(§10·§11 도 그렇다).
+          머리와 표의 집계는 **같은 수**여야 한다 — 같은 「2026년 9월」 옆에 다른 수가 붙으면 그것이 곧 원문 §09 의 268 vs 200 이다 (N-19).
+        */}
+        <div role="group" aria-label="대상"
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-3 py-2">
+          <span className="rounded-md border border-line px-2 py-1 text-[11px] font-bold text-fg-subtle">대상</span>
+          <span className="text-[14px] font-bold text-fg">{targetLabel}</span>
+          <Chip>{activeFilterCount(s.filters) ? `필터 ${activeFilterCount(s.filters)}개` : '전체 기준'}</Chip>
+          {s.panes.length === 2 ? <Chip tone="info">● {s.focused === 0 ? '왼쪽 표 선택됨' : '오른쪽 표 선택됨'}</Chip> : null}
           {s.cursor ? <Chip tone="info">붙여넣기 위치 {label(s.cursor.date)} · {Math.floor(s.cursor.startMin / 60)}:{String(s.cursor.startMin % 60).padStart(2, '0')}</Chip> : null}
+          <PeriodSummaryBar summary={activeModel.baseSummary} month={activeModel.shown === 'month'} label={activeModel.head}
+            className="ml-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[12px] font-bold text-fg-2" />
         </div>
 
         {err ? (
@@ -1095,7 +1286,7 @@ function AdminSchedulePage() {
           {s.panes.length === 2 ? renderPane(paneModels[1], 1) : null}
         </div>
 
-        <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} />
+        <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} display={s.filters.display} />
         </div>
 
         <ClipboardBar
@@ -1112,6 +1303,7 @@ function AdminSchedulePage() {
           allStudents={meta.data?.students}
           cancelReasons={meta.data?.cancelReasons}
           cancelTreats={meta.data?.cancelTreats}
+          meta={meta.data}
           onWritten={(result, label) => doneWrite(result, label)}
           onClose={() => go({ t: 'open', o: null })}
         />
@@ -1138,6 +1330,16 @@ function AdminSchedulePage() {
           meta={meta.data}
           onClose={() => setDraft(null)}
           onCreated={(result) => doneWrite(result, '새 일정')}
+        />
+
+        {/* 원문 §11 To-Do 띠의 「+ 주기」 — 서랍·운영과 같은 창이다(C96). 받는 사람 기본값은 고른 강사다 */}
+        <TodoCreateDialog
+          open={canEdit && todoFor !== null} onClose={() => setTodoFor(null)} busy={todoWrite.isPending}
+          meId={todoFor} people={meta.data?.staff ?? []}
+          onCreate={(body) => todoWrite.mutate({ kind: 'todoCreate', body }, {
+            onSuccess: () => { setErr(null); setNotice(`할 일을 주었습니다 — ${body.title}`); },
+            onError: (e) => setErr(apiMessage(e)),
+          })}
         />
 
         {/* 반복이면 저장 직전 1회만 묻는다 — 단발에서 이 창이 뜨면 버그다 (§5A.0) */}

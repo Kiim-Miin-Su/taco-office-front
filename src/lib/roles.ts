@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: roles.ts — ROLES, RoleKey, ROLE_TONE, ROLE_BAR, REQ_TYPE_LABEL (util)
+ * 목적: roles.ts — ROLES, RoleKey, ROLE_TONE, ROLE_BAR, ROLE_TEXT, REQ_TYPE_LABEL (util)
  * 책임/재사용: 현재 lib 계층의 순수 계산/표시 방어를 우선 재사용한다. UI·네트워크·DB 부수효과와 서버 업무 권위를 섞지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -30,10 +30,15 @@ export const ROLE_TONE: Record<string, 'neutral' | 'info'> = {
  *
  * 컷은 묶음마다 다른 색을 쓴다(파랑 · 보라 · 청록 · 주황). `ROLE_TONE` 은 두 가지뿐이라
  * 그 자리에 쓰면 네 묶음 중 셋이 같은 색이 된다 — 묶음을 나눈 뜻이 사라진다.
- * 그래서 표를 따로 두되 **여기 한 곳에만** 둔다.
+ * 그래서 표를 따로 두되 **여기 한 곳에만** 둔다. 청록·주황은 전용 토큰이 생겨 빌려 쓰던 초록·호박을 돌려놓았다.
  */
 export const ROLE_BAR: Record<string, string> = {
-  teacher: 'bg-blue', manager: 'bg-violet', admin: 'bg-green', ceo: 'bg-amber',
+  teacher: 'bg-blue', manager: 'bg-violet', admin: 'bg-teal', ceo: 'bg-orange',
+};
+
+/** §17 묶음 머리 **글자색** — 띠와 같은 색이다(g2 17-2). 띠 표와 짝이라 같은 곳에 둔다 */
+export const ROLE_TEXT: Record<string, string> = {
+  teacher: 'text-blue', manager: 'text-violet', admin: 'text-teal', ceo: 'text-orange',
 };
 
 /**
@@ -42,10 +47,10 @@ export const ROLE_BAR: Record<string, string> = {
  * 표에 없는 값은 감추지 않고 그대로 보여 준다 — 새 종류가 생긴 것을 알아야 한다.
  */
 export const REQ_TYPE_LABEL: Record<string, string> = {
-  wage_change: '시급 변경', unav_add: '불가 시간 추가', doc: '서류',
-  time: '시간 변경', time_move: '시간 이동', teacher: '강사 변경',
+  wage_change: '시급 변경', tz_change: '시간대 변경', unav_add: '불가 시간 추가', doc: '서류', book_change: '교재 변경',
+  time: '시간 변경', time_move: '시간 옮기기', teacher: '강사 바꾸기',
   // 컷 §19 의 갈래 이름 그대로다 — 「시간 옮기기 · 강사 바꾸기 · 강의실 바꾸기 · **휴강**」.
   // `cancel` 을 「취소」라 적던 동안, 같은 줄의 대상 칸(서버가 지은 문장)은 「휴강」이라
   // 적고 있었다 — 한 줄이 제 갈래를 두 이름으로 부르고 있었다 (`lib/change-request.ts`).
-  room: '강의실 변경', off: '휴강', cancel: '휴강',
+  room: '강의실 바꾸기', off: '휴강', cancel: '휴강',
 };

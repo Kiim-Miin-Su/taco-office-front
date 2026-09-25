@@ -35,29 +35,29 @@ const rows: ChangeReq[] = [
   },
 ];
 
-it('원문 탭 넷이 제 건수를 세고, 처음에는 확인 대기만 보인다', () => {
+it('원문 탭 넷 — 건수는 「확인 대기」에만 붙고, 처음에는 확인 대기만 보인다 (g2 20-4)', () => {
   const view = render(<ChangeReqsPane rows={rows} />);
   expect(view.getByRole('button', { name: '확인 대기 1' })).toBeTruthy();
-  expect(view.getByRole('button', { name: '반영 1' })).toBeTruthy();
-  expect(view.getByRole('button', { name: '반려 1' })).toBeTruthy();
-  expect(view.getByRole('button', { name: '전체 3' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '반영' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '반려' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '전체' })).toBeTruthy();
   expect(view.container.textContent).toContain('강사 → KJ');
   expect(view.container.textContent).not.toContain('20:00–21:30 로 이동');
 });
 
 it('탭을 바꾸면 그 상태만 보인다 — 전체는 셋 다', () => {
   const view = render(<ChangeReqsPane rows={rows} />);
-  fireEvent.click(view.getByRole('button', { name: '반영 1' }));
+  fireEvent.click(view.getByRole('button', { name: '반영' }));
   expect(view.container.textContent).toContain('20:00–21:30 로 이동');
   expect(view.container.textContent).toContain('이후 전체');
-  fireEvent.click(view.getByRole('button', { name: '전체 3' }));
+  fireEvent.click(view.getByRole('button', { name: '전체' }));
   expect(view.container.textContent).toContain('강사 → KJ');
   expect(view.container.textContent).toContain('휴강');
 });
 
 it('반려 사유는 신청 사유를 덮어쓰지 않는다 — 둘 다 남는다 (v4.18 · D-R13)', () => {
   const view = render(<ChangeReqsPane rows={rows} />);
-  fireEvent.click(view.getByRole('button', { name: '반려 1' }));
+  fireEvent.click(view.getByRole('button', { name: '반려' }));
   expect(view.container.textContent).toContain('그날은 진단고사가 있습니다');
 });
 
@@ -65,4 +65,12 @@ it('확인할 것이 없으면 원문 문구 그대로 말한다', () => {
   const view = render(<ChangeReqsPane rows={rows.filter((r) => r.state !== 'pending')} />);
   expect(view.container.textContent).toContain('확인할 요청이 없습니다');
   expect(view.container.textContent).toContain('반영하면 시간표가 바뀌고 이력에 남습니다');
+});
+
+/* g2 대조 20-5 — 원문 머리는 평문 한 줄이고, 「승인 대기함에서 합니다」 같은 덧문장이 없다 */
+it('머리는 원문 평문 한 줄뿐이다 — 처리 위치 덧문장을 달지 않는다', () => {
+  const view = render(<ChangeReqsPane rows={rows} />);
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('강사·학생·강의실이 겹치면 넣을 수 없습니다 · 반영하면 시간표가 바뀌고 이력에 남습니다');
+  expect(text).not.toContain('승인 대기함에서 합니다');
 });

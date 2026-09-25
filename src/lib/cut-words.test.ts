@@ -19,10 +19,11 @@ it('컨설팅 계약 다섯 걸음은 컷 §30 의 이름이다', () => {
   expect([...CONSULTING_CONTRACT_STEPS]).toEqual(['계약서 준비', '피드백', '전달', '서명', '수납']);
 });
 
-it('변경 요청 갈래 넷은 컷 §19 의 이름이다 — 「취소」가 아니라 「휴강」', () => {
-  expect(REQ_TYPE_LABEL.time_move).toBe('시간 이동');
-  expect(REQ_TYPE_LABEL.teacher).toBe('강사 변경');
-  expect(REQ_TYPE_LABEL.room).toBe('강의실 변경');
+it('변경 요청 갈래 넷은 컷 §19 의 이름이다 — 「옮기기·바꾸기」와 「취소」가 아니라 「휴강」', () => {
+  // 2026-09-25 컷 §19 「무엇을」 칩을 다시 열어 교정했다 — C68 은 「시간 이동·강사 변경·강의실 변경」을 컷 낱말로 잘못 적었다
+  expect(REQ_TYPE_LABEL.time_move).toBe('시간 옮기기');
+  expect(REQ_TYPE_LABEL.teacher).toBe('강사 바꾸기');
+  expect(REQ_TYPE_LABEL.room).toBe('강의실 바꾸기');
   // 같은 줄의 대상 칸(서버 문장)이 「휴강」이라 적는다 — 한 줄이 두 이름을 가지면 안 된다
   expect(REQ_TYPE_LABEL.cancel).toBe('휴강');
 });

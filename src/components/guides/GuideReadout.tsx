@@ -17,6 +17,20 @@ export function GuideBody({ body }: Pick<Guide, 'body'>) {
   );
 }
 
+/**
+ * §44 「지도 방향」·「관리자 코멘트 · 강사만」 상자 (g4 §44-3). 값은 서버 GUIDE 칸 그대로 —
+ * 비었으면 「적지 않음」이라고만 적고 다른 칸의 말로 채우지 않는다.
+ */
+export function GuideNote({ label, text, tone }: { label: string; text: string | null | undefined; tone: 'info' | 'warning' }) {
+  const look = tone === 'warning' ? 'border-amber/30 bg-amber/5' : 'border-blue/30 bg-blue/5';
+  return (
+    <section aria-label={label} className={`rounded-lg border p-3 ${look}`}>
+      <div className="text-[11px] font-bold text-fg-subtle">{label}</div>
+      <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{text?.trim() ? text : '적지 않음'}</p>
+    </section>
+  );
+}
+
 type Timeline = Pick<Guide,
   'createdAt' | 'createdByName' | 'sentAt' | 'sentByName' | 'acknowledgedAt' | 'acknowledgedByName' | 'acknowledgedAfterSeconds'>;
 

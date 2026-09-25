@@ -139,4 +139,20 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     expect(view.container.textContent).toContain('강사 강사');
   });
 
+  /**
+   * g5 §49-01 · §49-03 · §49-04 · §49-05 — 머리 「26년 9월 4일 금요일 수업분」 / 「어제 한 수업을 오늘 보냅니다」,
+   * 넓은 화면 5열, 카드 머리 = 이름 · 학년 칩 · 오른쪽 「N건」, 수업 줄 왼쪽 과목색 막대 · 시각 · 과목 · 강사.
+   */
+  it('머리는 긴 날짜, 카드는 학년 칩과 건수, 줄은 과목색 막대다 (§49)', () => {
+    const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} subjectColorOf={() => 'rgb(86, 119, 165)'} />);
+    expect(view.getByRole('heading', { name: '26년 9월 4일 금요일 수업분' })).toBeTruthy();
+    expect(view.getByText('어제 한 수업을 오늘 보냅니다')).toBeTruthy();
+    expect(view.getByTestId('delivery-cards').className).toContain('2xl:grid-cols-5');
+    const card = view.getByRole('checkbox', { name: /학생A/ }).closest('article') as HTMLElement;
+    expect(card.textContent).toContain('고2');
+    expect(card.textContent).toContain('1건');
+    const line = card.querySelector('button') as HTMLButtonElement;
+    expect(line.style.borderLeftColor).toBe('rgb(86, 119, 165)');
+    expect(line.textContent).toContain('16:00');
+  });
 });

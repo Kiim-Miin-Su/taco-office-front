@@ -139,7 +139,7 @@ it('「내역」은 청구서가 쓸 바로 그 줄을 보여 준다', () => {
   fireEvent.click(v.getAllByRole('button', { name: '내역' })[0]);
   expect(v.getByText('SAT Reading')).toBeTruthy();
   expect(v.getByText('8회 × 140,000원')).toBeTruthy();
-  expect(v.getByText(/청구서 생성 시 이 계산 결과를 씁니다/)).toBeTruthy();
+  expect(v.getByText(/청구서를 만들 때 이 계산 결과를 그대로 씁니다/)).toBeTruthy();
 });
 
 it('줄이 비면 왜 비었는지 말한다 — 「0원으로 꾸미지 않는다」', () => {
@@ -184,6 +184,15 @@ it('넘길 돈이 있어도 **서버가 아니라면** 단추가 서지 않는�
   const v = render(<TuitionTable data={d} onCarry={() => {}} />);
   expect(v.getByText('420,000원')).toBeTruthy();
   expect(v.queryByRole('button', { name: '이월 처리' })).toBeNull();
+});
+
+it('서버가 이월을 막은 줄은 단추 대신 **막힌 이유**를 둔다 — 쓰기의 409 와 같은 문장 (PB-04)', () => {
+  const d = clone();
+  d.items[0].carryable = false;
+  d.items[0].carryBlockedReason = '다음 달 청구서가 이미 나가 이월할 수 없습니다';
+  const v = render(<TuitionTable data={d} onCarry={() => {}} />);
+  expect(v.queryByRole('button', { name: '이월 처리' })).toBeNull();
+  expect(v.getByLabelText('다음 달 청구서가 이미 나가 이월할 수 없습니다').textContent).toBe('이월 막힘');
 });
 
 it('누르면 그 학생으로 알린다', () => {
@@ -260,4 +269,24 @@ it('마감된 달은 배지가 서고 「마감 해제」는 사유가 있어야
   fireEvent.change(within(dialog).getByLabelText('해제 사유'), { target: { value: ' 8월 휴강 하나를 빠뜨렸다 ' } });
   fireEvent.click(submit);
   expect(onReopenMonth).toHaveBeenCalledWith('8월 휴강 하나를 빠뜨렸다');
+});
+
+/*
+ * 불러오는 동안은 「—」다 (54-01). 「가려짐」은 **권한이 없어서 서버가 안 줬다**는 뜻이라,
+ * 아직 응답이 오지 않은 자리에 적으면 대표에게도 권한이 없다고 거짓말을 한다.
+ * 같은 페이지 머리 여섯 칸(`Head`)이 이미 이렇게 막는다 — 여기도 같은 규칙이다.
+ */
+it('응답 전에는 머리 금액 두 칸이 「가려짐」이 아니라 「—」다 — 권한이 없다고 말하지 않는다', () => {
+  const v = render(<TuitionTable loading />);
+  expect(headBox(v, '지금까지 금액')).toBe('—');
+  expect(headBox(v, '다음 달로 넘길 돈')).toBe('—');
+  expect(v.queryByText('가려짐')).toBeNull();
+});
+
+it('내역 창 설명은 사람의 말이다 — 절 번호를 적지 않는다', () => {
+  const v = render(<TuitionTable data={clone()} />);
+  fireEvent.click(within(v.getAllByRole('row').find((r) => (r.textContent ?? '').includes('이하린'))!).getByRole('button', { name: '내역' }));
+  const text = document.body.textContent ?? '';
+  expect(text).toContain('이 줄이 곧 청구서의 줄입니다');
+  expect(text).not.toMatch(/§\s?\d/);
 });

@@ -30,10 +30,18 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
   const copy = useCopyGuide();
   // 쓴 말이 있으면 그것이 정본이고, 없으면 서버가 만든 자동 채움으로 연다 (F-60)
   const [body, setBody] = useState(guide.body ?? guide.autoFill?.body ?? '');
+  // §44-3 두 상자 — 저장된 값으로 연다. 바꾼 칸만 보낸다: 안 보낸 칸은 서버가 그대로 두므로 본문만 고친 사람이 남의 메모를 덮지 않는다
+  const [direction, setDirection] = useState(guide.direction ?? '');
+  const [adminNote, setAdminNote] = useState(guide.adminNote ?? '');
   const [pick, setPick] = useState('');
   const [copied, setCopied] = useState<GuideCopyResult | null>(null);
   const facts = guide.autoFill?.facts ?? [];
   const canCopy = guide.siblingCount > 0;
+  const payload = {
+    id: guide.id, body,
+    ...(direction !== (guide.direction ?? '') ? { direction } : {}),
+    ...(adminNote !== (guide.adminNote ?? '') ? { adminNote } : {}),
+  };
 
   return (
     <Panel
@@ -74,6 +82,18 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
       <Label htmlFor="g-body">안내 본문</Label>
       <Textarea id="g-body" rows={6} value={body} onChange={(e) => setBody(e.target.value)} />
 
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <Label htmlFor="g-direction">지도 방향</Label>
+          <Textarea id="g-direction" rows={3} maxLength={4000} value={direction} onChange={(e) => setDirection(e.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor="g-admin-note">관리자 코멘트 · 강사만</Label>
+          <Textarea id="g-admin-note" rows={3} maxLength={4000} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} />
+          <p className="mt-1 text-[11px] text-fg-subtle">강사에게만 보입니다. 안내 본문과 안내문 PNG에는 들어가지 않습니다.</p>
+        </div>
+      </div>
+
       {write.isError ? <Banner tone="danger" className="mt-3">{apiMessage(write.error)}</Banner> : null}
       {copy.isError ? <Banner tone="danger" className="mt-3">{apiMessage(copy.error)}</Banner> : null}
       {copied ? (
@@ -95,7 +115,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
             disabled={write.isPending || copy.isPending || body.trim() === ''}
             title={`같은 수업 같은 날의 다른 학생 ${guide.siblingCount}명에게 옮깁니다`}
             onClick={() =>
-              write.mutate({ id: guide.id, body }, {
+              write.mutate(payload, {
                 onSuccess: () => copy.mutate({ id: guide.id }, { onSuccess: setCopied }),
               })
             }
@@ -105,7 +125,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
         ) : null}
         <Button
           disabled={write.isPending || body.trim() === ''}
-          onClick={() => write.mutate({ id: guide.id, body }, { onSuccess: onClose })}
+          onClick={() => write.mutate(payload, { onSuccess: onClose })}
         >
           작성
         </Button>

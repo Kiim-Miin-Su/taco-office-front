@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: 회계 입금 표의 미확인/권한 가림/0원과 생성 nullable 계약 소비 회귀.
+ * 목적: 회계 입금 표의 미확인/권한 가림/0원과 생성 nullable 계약 소비 회귀 · §55 기간 칩 · §56 카드/상세 연결.
  * 책임/재사용: 실제 AccountingPage/useAccounting/Table/won을 사용하고 셸의 다른 조회만 제외한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -9,6 +9,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Accounting, Me, PayoutSheet, PayoutSheetRow } from '@/api/types';
+import type { Cashflow } from '@/components/accounting/accounting-queries';
+import { monthBounds, todayKst } from '@/lib/calendar';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -38,8 +40,11 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
       { id: 5, studentName: '기존 이체', paidOn: '2026-09-11', amount: null, method: 'transfer', category: 'etc', categoryLabel: '기타' },
     ],
   };
-  const get = vi.fn(async config => ({ config, status: 200, statusText: 'OK', headers: {}, data }));
-  api.defaults.adapter = get;
+  // §55 들어온 돈은 기간 질의(`/accounting/cashflow`)를 **그 탭에서 한 번** 더 부른다 — 입금 줄 표는 추가 조회가 없다
+  const get = vi.fn(async (config: { url?: string }) => ({
+    config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/accounting/cashflow' ? flowOf(canSeeAmounts) : data,
+  }));
+  api.defaults.adapter = get as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } }); clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
   await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 5' })).toBeTruthy());
@@ -53,8 +58,20 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   expect(cells('다른 수단')[4]).toBe('card');
   expect(cells('기존 이체')[4]).toBe('계좌');
   expect(view.container.textContent).not.toContain('null');
-  expect(get).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(view.getByRole('group', { name: '기간 요약' })).toBeTruthy());
+  const urls = get.mock.calls.map(([c]) => c.url);
+  expect(urls.filter((u) => u === '/accounting')).toHaveLength(1);
+  expect(urls.filter((u) => u === '/accounting/cashflow')).toHaveLength(1);
 });
+
+/** §55 기간 요약 표본 — 금액 권한을 따라 금액만 null 이다 */
+function flowOf(canSeeAmounts: boolean, over: Partial<Cashflow> = {}): Cashflow {
+  const m = (v: number) => (canSeeAmounts ? v : null);
+  return {
+    from: '2026-09-01', to: '2026-09-30', label: '2026년 9월', dayCount: 30, category: null, today: '2026-09-11',
+    count: 0, billed: m(0), paid: m(0), expected: m(0), days: [], categories: [], open: [], canSeeAmounts, ...over,
+  };
+}
 
 /**
  * §52·§56 회계 머리 **여섯 칸** — 원문의 낱말과 차례 그대로인가 (C43).
@@ -125,6 +142,11 @@ const sheetRow = (confirmed: boolean): PayoutSheetRow => ({
 });
 const sheetOf = (confirmed: boolean): PayoutSheet => ({
   month: '2026-08', today: '2026-09-18', monthEnded: true, rows: [sheetRow(confirmed)], unwrittenCount: 0, netTotal: 1925297, canSeeAmounts: true,
+  writtenMinutes: 2880, unwrittenMinutes: 0, grossTotal: 2016000, lateCutTotal: 25000, taxTotal: 65703,
+});
+/** §56 상세 — 그 사람의 줄은 시트의 그 줄이다 */
+const detailOf = (confirmed: boolean) => ({
+  staffId: 6, staffName: '이다현', month: '2026-08', row: sheetRow(confirmed), rates: [{ fromDate: '2026-01-01', rate: 42000 }], lessons: [],
 });
 const EMPTY: Accounting = {
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
@@ -139,6 +161,7 @@ it.each([
   const sheetGet = vi.fn();
   api.defaults.adapter = (async (config: { url?: string }) => {
     if (config.url === '/accounting/payouts') { sheetGet(); return { config, status: 200, statusText: 'OK', headers: {}, data: sheetOf(confirmed) }; }
+    if (config.url === '/accounting/payouts/6') return { config, status: 200, statusText: 'OK', headers: {}, data: detailOf(confirmed) };
     return { config, status: 200, statusText: 'OK', headers: {}, data: EMPTY };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -147,12 +170,16 @@ it.each([
   await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산' })).toBeTruthy());
   expect(sheetGet).not.toHaveBeenCalled();
   fireEvent.click(view.getByRole('button', { name: '강사료 정산' }));
-  await waitFor(() => expect(view.getByText('이다현')).toBeTruthy());
+  await waitFor(() => expect(view.getByRole('button', { name: '이다현 자세히 보기' })).toBeTruthy());
   expect(sheetGet).toHaveBeenCalledTimes(1);
-  const row = within(view.getByText('이다현').closest('tr')!);
-  expect(row.getByText(label)).toBeTruthy();
-  // 「지급 확정」 단추는 서버의 canConfirm 그대로 — 확정된 줄에는 없다
-  expect(row.queryByRole('button', { name: '지급 확정' }) === null).toBe(confirmed);
+  // 왼쪽 카드에 상태 칩이 선다
+  expect(within(view.getByRole('button', { name: '이다현 자세히 보기' })).getByText(label)).toBeTruthy();
+  // 「지급 확정」 단추는 서버의 canConfirm 그대로 — 상세 머리에 서고, 확정된 사람에게는 없다
+  fireEvent.click(view.getByRole('button', { name: '이다현 자세히 보기' }));
+  await waitFor(() => expect(view.getByText('2026-01-01부터 42,000원/시간')).toBeTruthy());
+  const head = within(view.getByRole('heading', { name: '이다현 · 8월 정산' }).closest('header')!);
+  expect(head.getByText(label)).toBeTruthy();
+  expect(head.queryByRole('button', { name: '지급 확정' }) === null).toBe(confirmed);
 });
 
 /** 단가표 (C94-d) — 그 탭을 열 때만 부르고, 「지금」은 서버의 current 다 */
@@ -201,32 +228,50 @@ it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙�
 /**
  * §55 의 **분류 여섯** — 대표 결정 2026-09-13 (N-37 ③ 「Entity, DTO 의 정합성과 단일 진실원 해결」).
  * 저장된 칸이 아니라 서버가 읽어 만든 값이고, **건수가 0이어도 칩이 선다**(분류는 어휘다).
+ * w5 — 칩은 이제 **고른 기간(기본 이번 달)의 수**이고 누르면 그 분류로 다시 묻는다(55-01 · 55-05).
+ * 전 기간 수를 세던 옛 칩줄은 사라졌다 — 같은 이름(「수업료 2」)이 두 숫자가 되지 않게.
  */
-it('분류 칩 여섯은 건수가 0이어도 서고 낱말은 서버가 준 것이다', async () => {
+it('분류 칩 여섯은 이번 달 기간으로 묻고 건수가 0이어도 서며, 누르면 그 분류로 다시 묻는다 (55-01 · 55-05)', async () => {
   useSession.getState().signIn('fixture', me);
   const data: Accounting = {
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
     invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], expenseCategories: [],
-    payCategories: [
-      { key: 'tuition', label: '수업료', count: 2, amount: 100 },
-      { key: 'gpa', label: 'GPA 관리비', count: 0, amount: 0 },
-      { key: 'consulting', label: '컨설팅비', count: 0, amount: 0 },
-      { key: 'diag_intake', label: '진단고사 · 상담', count: 0, amount: 0 },
-      { key: 'exam_fee', label: '시험 응시료', count: 0, amount: 0 },
-      { key: 'etc', label: '기타', count: 1, amount: 30 },
-    ],
+    // 전 기간 칩의 원천 — 이 탭은 더 이상 이것으로 칩을 그리지 않는다
+    payCategories: [{ key: 'tuition', label: '수업료', count: 9, amount: 900 }],
   };
-  api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
+  const categories: Cashflow['categories'] = [
+    { key: 'tuition', label: '수업료', count: 2, billed: 100, paid: 100, rate: 100 },
+    { key: 'gpa', label: 'GPA 관리비', count: 0, billed: 0, paid: 0, rate: 0 },
+    { key: 'consulting', label: '컨설팅비', count: 0, billed: 0, paid: 0, rate: 0 },
+    { key: 'diag_intake', label: '진단고사 · 상담', count: 0, billed: 0, paid: 0, rate: 0 },
+    { key: 'exam_fee', label: '시험 응시료', count: 0, billed: 0, paid: 0, rate: 0 },
+    { key: 'etc', label: '기타', count: 1, billed: 30, paid: 0, rate: 0 },
+  ];
+  const flows: Array<Record<string, string> | undefined> = [];
+  api.defaults.adapter = (async (config: { url?: string; params?: Record<string, string> }) => {
+    if (config.url === '/accounting/cashflow') {
+      flows.push(config.params);
+      return { config, status: 200, statusText: 'OK', headers: {}, data: flowOf(true, { categories, count: 3, category: config.params?.category ?? null }) };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data };
+  }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
   await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 0' })).toBeTruthy());
   fireEvent.click(view.getByRole('button', { name: '들어온 돈 0' }));
-  expect(view.getByText('수업료 2')).toBeTruthy();
+  await waitFor(() => expect(view.getByRole('button', { name: '수업료 2' })).toBeTruthy());
+  // 기본은 이번 달 — 1일부터 끝날까지(앞뒤 달을 섞지 않는다)
+  expect(flows[0]).toEqual(monthBounds(todayKst()));
   // 0 인 분류도 사라지지 않는다 — 「이 학원은 GPA 관리를 안 한다」고 말하게 된다
-  expect(view.getByText('GPA 관리비 0')).toBeTruthy();
-  expect(view.getByText('시험 응시료 0')).toBeTruthy();
-  expect(view.getByText('기타 1')).toBeTruthy();
+  expect(view.getByRole('button', { name: 'GPA 관리비 0' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '시험 응시료 0' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '전체 3' }).getAttribute('aria-pressed')).toBe('true');
+  // 전 기간 칩(「수업료 9」)은 없다
+  expect(view.queryByText('수업료 9')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '수업료 2' }));
+  await waitFor(() => expect(flows.at(-1)).toEqual({ ...monthBounds(todayKst()), category: 'tuition' }));
+  await waitFor(() => expect(view.getByRole('button', { name: '수업료 2' }).getAttribute('aria-pressed')).toBe('true'));
 });
 
 /**

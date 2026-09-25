@@ -7,14 +7,17 @@
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
+import type { Occurrence } from '@/api/types';
+import { WorkspaceRail } from '@/components/shell/WorkspaceRail';
 import { AppDrawer } from './AppDrawer';
 
-const mocks = vi.hoisted(() => ({ drawer: vi.fn(), meta: vi.fn(), write: vi.fn(), zoom: vi.fn() }));
+const mocks = vi.hoisted(() => ({ drawer: vi.fn(), meta: vi.fn(), write: vi.fn(), zoom: vi.fn(), occ: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
   useMeta: mocks.meta,
   useDrawerWrite: () => ({ mutate: mocks.write, mutateAsync: mocks.write, isPending: false }),
   useZoom: mocks.zoom,
+  useOccurrences: mocks.occ,
 }));
 vi.mock('@/store/useSession', () => ({
   useSession: (select: (state: { me: { id: number } }) => unknown) => select({ me: { id: 1 } }),
@@ -30,12 +33,13 @@ beforeEach(() => {
   mocks.drawer.mockReturnValue({
     data: {
       approvals: { count: 2, inboxCount: 2 }, notis: [], notiCategories: [], kinds: [], zoomAccounts: [], members: [],
-      tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }],
+      tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }], changeReqs: [],
     },
     isLoading: false, isError: false,
   });
-  mocks.meta.mockReturnValue({ data: { staff: [], rooms: [], zaccs: [] } });
+  mocks.meta.mockReturnValue({ data: { staff: [], rooms: [], zaccs: [], subs: [], kinds: [] } });
   mocks.zoom.mockReturnValue({ data: undefined, isLoading: false });
+  mocks.occ.mockReturnValue({ data: undefined, isLoading: false });
 });
 afterEach(() => {
   cleanup();
@@ -117,26 +121,85 @@ describe('공용 서랍의 제어형 선택', () => {
     ));
   });
 
-  it('닫고 승인으로 다시 열어도 기존 변경 요청 초안을 보존하고 닫힌 조회를 끈다', () => {
+  it('§19 창을 닫고 서랍을 닫았다 다시 열어도 변경 요청 초안을 보존하고, 닫힌 조회를 끈다', () => {
     const change = vi.fn();
     const close = vi.fn();
-    const view = render(<AppDrawer open pane="chreqNew" onPaneChange={change} onClose={close} />);
-    const placeholder = '왜 바꿔야 하는지 한 줄이라도 적어 주세요';
-    fireEvent.change(view.getByPlaceholderText(placeholder), { target: { value: '저장하지 않은 변경 사유' } });
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={change} onClose={close} />);
+    // 창이 닫혀 있으면 코드표·그날 일정을 부르지 않는다
+    expect(mocks.meta).toHaveBeenLastCalledWith(false);
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const dialog = view.getByRole('dialog', { name: '변경 요청' });
+    expect(mocks.meta).toHaveBeenLastCalledWith(true);
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '왜 바꾸나요' }), { target: { value: '저장하지 않은 변경 사유' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소' }));
+    expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '닫기' }));
     expect(close).toHaveBeenCalledOnce();
-    view.rerender(<AppDrawer open={false} pane="chreqNew" onPaneChange={change} onClose={close} />);
+    view.rerender(<AppDrawer open={false} pane="chreqs" onPaneChange={change} onClose={close} />);
     expect(view.queryByRole('dialog')).toBeNull();
     // C38 — 서랍은 알림 조회 범위(기본 month)를 함께 넘긴다. 닫히면 여전히 조회를 끈다
     expect(mocks.drawer).toHaveBeenLastCalledWith(false, 'month');
     expect(mocks.meta).toHaveBeenLastCalledWith(false);
     view.rerender(<AppDrawer open pane="approvals" onPaneChange={change} onClose={close} />);
     expect(view.getByText('승인 내용')).toBeTruthy();
-    expect(view.queryByPlaceholderText(placeholder)).toBeNull();
-    view.rerender(<AppDrawer open pane="chreqNew" onPaneChange={change} onClose={close} />);
-    expect((view.getByPlaceholderText(placeholder) as HTMLTextAreaElement).value).toBe('저장하지 않은 변경 사유');
-    expect(mocks.meta).toHaveBeenLastCalledWith(true);
+    view.rerender(<AppDrawer open pane="chreqs" onPaneChange={change} onClose={close} />);
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    expect((within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value)
+      .toBe('저장하지 않은 변경 사유');
     expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('탭 02 서랍은 화면 전체가 아니라 셸이 준 칸에 붙는다 — 투명 클릭 받이·비모달 (g2 C-1)', () => {
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    const drawer = view.getByRole('dialog', { name: '승인 대기함' });
+    expect(drawer.parentElement?.className).toContain('absolute');
+    expect(drawer.parentElement?.className).not.toContain('fixed');
+    expect(drawer.getAttribute('aria-modal')).toBeNull();
+  });
+
+  /* g2 대조 C-4 — 원문 서랍 머리는 어두운 바(머리줄 색) + 흰 제목 + × 이고, 부제가 없다(건수는 레일 배지가 말한다) */
+  it('머리는 어두운 바에 흰 제목과 × 뿐이다 — 부제를 달지 않는다', () => {
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    const drawer = view.getByRole('dialog', { name: '승인 대기함' });
+    const head = within(drawer).getByRole('heading', { name: '승인 대기함' });
+    expect(head.className).toContain('text-white');
+    expect(head.closest('header')!.className).toContain('bg-header');
+    expect(within(drawer).queryByText(/안 읽은 알림|모든 시각/)).toBeNull();
+    expect(within(drawer).getByRole('button', { name: '닫기' })).toBeTruthy();
+  });
+
+  /*
+   * g2 대조 C-3 — 원문 서랍 안에는 칸 전환 줄이 없다. 레일이 그 일을 한다.
+   * 레일이 없는 화면(운영의 결재 바로가기 등)에서는 서랍 안 줄이 유일한 전환 수단이라 남긴다.
+   */
+  it('레일이 떠 있으면 서랍 안 칸 전환 줄을 그리지 않고, 레일이 없으면 남긴다', () => {
+    const drawerOnly = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(drawerOnly.getByRole('navigation', { name: '서랍 메뉴' })).toBeTruthy();
+    drawerOnly.unmount();
+    const withRail = render(
+      <>
+        <AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />
+        <WorkspaceRail approvals={2} unread={0} onOpen={() => undefined} activePane="approvals" />
+      </>,
+    );
+    expect(withRail.queryByRole('navigation', { name: '서랍 메뉴' })).toBeNull();
+    expect(withRail.getByRole('navigation', { name: '워크스페이스 바로가기' })).toBeTruthy();
+  });
+
+  /* 원문 §19 창 머리 — 「변경 요청」 + 부제 + × */
+  it('§19 창 머리에 부제와 × 가 서고, × 는 창만 닫는다 — 서랍과 초안은 남는다', () => {
+    const close = vi.fn();
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={close} />);
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const dialog = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect(dialog.getByText(/겹치면 넣을 수 없습니다/)).toBeTruthy();
+    fireEvent.change(dialog.getByRole('textbox', { name: '왜 바꾸나요' }), { target: { value: '초안 사유' } });
+    fireEvent.click(dialog.getByRole('button', { name: '창 닫기' }));
+    expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    expect((within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value)
+      .toBe('초안 사유');
   });
 
   /*
@@ -150,5 +213,139 @@ describe('공용 서랍의 제어형 선택', () => {
     expect(mocks.zoom).toHaveBeenLastCalledWith(undefined, true);
     view.rerender(<AppDrawer open={false} pane="zoom" onPaneChange={() => undefined} onClose={() => undefined} />);
     expect(mocks.zoom).toHaveBeenLastCalledWith(undefined, false);
+  });
+});
+
+/**
+ * §19 변경 요청 넣기 — **「어느 일정」을 고른다** (g2 대조 19-2 · P0).
+ *
+ * 전에는 「수업 번호」 숫자를 직접 치게 했다 — 사용자는 SER id 를 알 수 없다.
+ * 이제 「어느 날」(기본 오늘)의 일정을 시간표와 같은 질의로 받아 고르고, 보내는 계약(`serId`·`onDate`)은 그대로다.
+ */
+describe('§19 변경 요청 창 — 어느 날 · 어느 일정 · 무엇을 · 왜', () => {
+  const occ = (over: Partial<Occurrence>): Occurrence => ({
+    serId: 41, date: '2026-09-25', onDate: '2026-09-25', startMin: 1200, endMin: 1260, kindKey: 'class', extra: false,
+    subKey: 'map-read', title: null, teacherId: 7, teacherName: '김재훈', roomId: null, roomName: null, zaccId: null,
+    mode: 'offline', canceled: false, hasException: false, recurring: true, repState: 'plan', ended: false,
+    written: false, attendanceMode: 'unavailable', attendance: null, students: [],
+    ...over,
+  } as Occurrence);
+
+  beforeEach(() => {
+    // 오늘(KST)만 고정한다 — 타이머까지 가짜로 쓰면 testing-library 의 대기가 멈춘다
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-25T03:00:00Z')); // KST 2026-09-25 12:00
+    mocks.meta.mockReturnValue({
+      data: {
+        staff: [{ id: 3, name: '김범준', title: null }], rooms: [], zaccs: [], kinds: [],
+        subs: [{ key: 'map-read', name: 'MAP Reading', color: 'var(--sub-map-read)' }],
+      },
+    });
+    mocks.occ.mockReturnValue({
+      isLoading: false,
+      data: {
+        from: '2026-09-25', to: '2026-09-25',
+        items: [
+          // 9/24 회차를 9/25 20:00 으로 옮긴 것 — 그려지는 날(date)과 원래 날(onDate)이 다르다
+          occ({ serId: 41, date: '2026-09-25', onDate: '2026-09-24' }),
+          occ({ serId: 7, startMin: 600, endMin: 660, subKey: null, title: '자습실', canceled: true }),
+        ],
+      },
+    });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function openDialog() {
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    return { view, dialog: within(view.getByRole('dialog', { name: '변경 요청' })) };
+  }
+
+  it('어느 날은 오늘로 열리고 그날 일정을 시간표 질의로 부른다 — 수업 번호를 치는 칸은 없다', () => {
+    const { dialog } = openDialog();
+    expect((dialog.getByLabelText(/어느 날/) as HTMLInputElement).value).toBe('2026-09-25');
+    expect(mocks.occ).toHaveBeenLastCalledWith({ from: '2026-09-25', to: '2026-09-25' }, true);
+    expect(dialog.queryByPlaceholderText('예: 12')).toBeNull();
+    expect(dialog.queryByText('수업 번호')).toBeNull();
+    const pick = dialog.getByRole('combobox', { name: '어느 일정' });
+    const options = within(pick).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual([
+      '고르세요', '10:00–11:00 · 자습실 · 김재훈 · 휴강', '20:00–21:00 · MAP Reading · 김재훈',
+    ]);
+    // 휴강한 회차는 보이되 고를 수 없다
+    expect((options[1] as HTMLOptionElement).disabled).toBe(true);
+    // 원문 차례 — 어느 날 → 어느 일정 → 무엇을 → 왜 바꾸나요
+    const order = ['어느 날', '어느 일정', '무엇을', '왜 바꾸나요']
+      .map((name) => dialog.getByText(name, { selector: 'label' }));
+    for (let i = 1; i < order.length; i += 1) {
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it('고른 일정의 두 키(serId · 원래 날)로 보내고, 시:분 입력은 분으로 옮긴다 — 계약 불변', async () => {
+    mocks.write.mockResolvedValue({ id: 9, conflicts: [] });
+    const { view, dialog } = openDialog();
+    const submit = dialog.getByRole('button', { name: '요청 넣기' });
+    expect(submit.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(dialog.getByRole('combobox', { name: '어느 일정' }), { target: { value: '41|2026-09-24' } });
+    expect(dialog.getByRole('button', { name: '시간 옮기기' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.change(dialog.getByLabelText('새 시작'), { target: { value: '20:30' } });
+    fireEvent.change(dialog.getByLabelText('새 끝'), { target: { value: '21:30' } });
+    fireEvent.change(dialog.getByRole('textbox', { name: '왜 바꾸나요' }), { target: { value: '어머니 요청' } });
+    expect(submit.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(submit);
+    await waitFor(() => expect(mocks.write).toHaveBeenCalledWith({
+      kind: 'changeReq',
+      body: {
+        reqType: 'time_move', serId: 41, onDate: '2026-09-24', startMin: 1230, endMin: 1290,
+        reason: '어머니 요청', applyAll: undefined,
+      },
+    }));
+    // 넣었으면 창이 닫히고 칸이 알린다
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull());
+    expect(view.getByText(/요청을 넣었습니다/)).toBeTruthy();
+    // 새 초안은 다시 오늘로 열린다
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const again = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect((again.getByRole('combobox', { name: '어느 일정' }) as HTMLSelectElement).value).toBe('');
+    expect((again.getByLabelText(/어느 날/) as HTMLInputElement).value).toBe('2026-09-25');
+  });
+
+  it('날을 바꾸면 고른 일정이 비고 그날로 다시 묻는다', () => {
+    const { dialog } = openDialog();
+    const pick = dialog.getByRole('combobox', { name: '어느 일정' }) as HTMLSelectElement;
+    fireEvent.change(pick, { target: { value: '41|2026-09-24' } });
+    expect(pick.value).toBe('41|2026-09-24');
+    fireEvent.change(dialog.getByLabelText(/어느 날/), { target: { value: '2026-09-26' } });
+    expect(pick.value).toBe('');
+    expect(mocks.occ).toHaveBeenLastCalledWith({ from: '2026-09-26', to: '2026-09-26' }, true);
+    // 날을 비우면 부르지 않는다 — 조각 날짜로 묻지 않는다
+    fireEvent.change(dialog.getByLabelText(/어느 날/), { target: { value: '' } });
+    expect(mocks.occ.mock.lastCall?.[1]).toBe(false);
+  });
+
+  it('무엇을은 칩 넷이다 — 강사 쪽을 누르면 바꿀 강사 칸이 선다', () => {
+    const { dialog } = openDialog();
+    const group = within(dialog.getByRole('group', { name: '무엇을' }));
+    expect(group.getAllByRole('button').map((b) => b.textContent)).toEqual(['시간 옮기기', '강사 바꾸기', '강의실 바꾸기', '휴강']);
+    fireEvent.click(group.getByRole('button', { name: '강사 바꾸기' }));
+    expect(group.getByRole('button', { name: '강사 바꾸기' }).getAttribute('aria-pressed')).toBe('true');
+    expect(dialog.getByLabelText('바꿀 강사')).toBeTruthy();
+    expect(dialog.queryByLabelText('새 시작')).toBeNull();
+  });
+
+  it('겹치면 창을 닫지 않고 누구와 겹치는지 창 안에서 말한다', async () => {
+    mocks.write.mockResolvedValue({
+      id: null,
+      conflicts: [{ serId: 12, onDate: '2026-09-24', startMin: 1230, endMin: 1290, title: 'SAT Math', with: 'teacher', whoName: '김재훈' }],
+    });
+    const { view, dialog } = openDialog();
+    fireEvent.change(dialog.getByRole('combobox', { name: '어느 일정' }), { target: { value: '41|2026-09-24' } });
+    fireEvent.change(dialog.getByLabelText('새 시작'), { target: { value: '20:30' } });
+    fireEvent.change(dialog.getByLabelText('새 끝'), { target: { value: '21:30' } });
+    fireEvent.change(dialog.getByRole('textbox', { name: '왜 바꾸나요' }), { target: { value: '어머니 요청' } });
+    fireEvent.click(dialog.getByRole('button', { name: '요청 넣기' }));
+    await waitFor(() => expect(dialog.getByText(/1건과 겹칩니다/)).toBeTruthy());
+    expect(view.getByRole('dialog', { name: '변경 요청' })).toBeTruthy();
   });
 });

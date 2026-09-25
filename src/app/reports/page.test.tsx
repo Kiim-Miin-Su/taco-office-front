@@ -14,7 +14,7 @@ const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 const mocks = vi.hoisted(() => ({
   permissions: { canCrudAll: false, canApprove: false },
   unwritten: vi.fn(), reports: vi.fn(), deliveryQuery: vi.fn(), historyQuery: vi.fn(), reminder: vi.fn(), detail: vi.fn(),
-  board: vi.fn(), deliveryView: vi.fn(), historyView: vi.fn(), weeklyView: vi.fn(),
+  board: vi.fn(), deliveryView: vi.fn(), historyView: vi.fn(), weeklyView: vi.fn(), fullText: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -44,6 +44,7 @@ vi.mock('@/components/report/ReportDeliveryHistory', () => ({ ReportDeliveryHist
 vi.mock('@/components/report/ReportWeeklyTrackingBoundary', () => ({ ReportWeeklyTrackingBoundary: mocks.weeklyView }));
 vi.mock('@/components/report/ReportForm', () => ({ ReportEditor: () => null }));
 vi.mock('@/components/report/ReportExportPanel', () => ({ ReportExportPanel: () => null }));
+vi.mock('@/components/report/ReportFullTextDialog', () => ({ ReportFullTextDialog: mocks.fullText }));
 
 import ReportsPage from './page';
 
@@ -63,6 +64,7 @@ describe('리포트 역할별 화면', () => {
     mocks.deliveryView.mockReturnValue(<div>어제 보내기 화면</div>);
     mocks.historyView.mockReturnValue(<div>보낸 내역 화면</div>);
     mocks.weeklyView.mockReturnValue(<div>주간 기준 미확정</div>);
+    mocks.fullText.mockReturnValue(null);
   });
 
   it('강사는 전체 추적·독촉·발송 탭 없이 자기 작성 목록만 본다', () => {
@@ -140,10 +142,33 @@ describe('리포트 역할별 화면', () => {
     mocks.reports.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false });
     const view = render(<ReportsPage />);
     expect(view.getByRole('heading', { name: '리포트 승인 대기' })).toBeTruthy();
+    // 머리 문장에 내부 절 번호(§14)를 찍지 않는다 — 사람이 읽는 낱말만
+    expect(view.container.textContent ?? '').not.toMatch(/§\s?\d/);
+    expect(view.getByText('승인 서랍에서 고른 리포트를 검토합니다.')).toBeTruthy();
     expect(view.queryByRole('tab')).toBeNull();
     expect(mocks.reports).toHaveBeenCalledWith({ state: 'wait' }, true);
     fireEvent.click(view.getByRole('button', { name: '안 쓴 리포트로 돌아가기' }));
     expect(nav.replace).toHaveBeenLastCalledWith('/reports', { scroll: false });
+  });
+
+  /**
+   * §50 — 어제 보내기의 「전문 보기」는 가운데 모달 「리포트 전문」(미리보기+내보내기)이다.
+   * 작성·검토 서랍은 강사 캘린더와 승인 큐 몫이다. 아직 내보낼 수 없는(미승인) 리포트는 서랍으로 열어 검토한다.
+   */
+  it('어제 보내기에서 내보낼 수 있는 리포트의 전문 보기는 서랍이 아니라 전문 창으로 연다 (§50)', () => {
+    nav.search = 'section=delivery';
+    mocks.permissions.canCrudAll = true;
+    render(<ReportsPage />);
+    const queue = mocks.deliveryView.mock.calls.at(-1)?.[0] as { onOpenReport: (report: unknown, studentId: number) => void };
+    const report = { id: 11, serId: 111, onDate: '2026-09-24', canExport: true, exportFiles: [{ studentId: 21 }] };
+    act(() => queue.onOpenReport(report, 21));
+    expect(mocks.fullText.mock.calls.at(-1)?.[0]).toMatchObject({ report, studentId: 21 });
+    // 서랍 상세 조회는 열리지 않는다
+    expect(mocks.detail).not.toHaveBeenCalledWith(111, '2026-09-24');
+
+    act(() => queue.onOpenReport({ id: 12, serId: 112, onDate: '2026-09-24', canExport: false, exportFiles: [] }, 22));
+    expect(mocks.detail).toHaveBeenLastCalledWith(112, '2026-09-24');
+    expect(mocks.fullText.mock.calls.at(-1)?.[0]).toMatchObject({ report: null });
   });
 
   it('승인 예외만 있는 강사는 승인 큐만 열고 관리 화면을 열지 않는다', () => {

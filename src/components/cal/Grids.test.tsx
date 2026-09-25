@@ -50,7 +50,8 @@ describe('관리자 달력 날짜 정확성', () => {
     const dateButton = view.getByRole('button', { name: '2026-09-01 (화) 날짜 선택' });
     const cell = within(dateButton.parentElement!.parentElement!);
 
-    expect(cell.getByText('5건')).toBeTruthy();
+    // 원문 §09 칸 오른쪽 위는 숫자만(「8」) — 「5건」 낱말은 title 로 되찾는다
+    expect(cell.getByTitle('5건').textContent).toBe('5');
     expect(cell.getAllByRole('button', { name: /수업 \d/ }).map((button) => button.textContent)).toEqual([
       '10:00수업 1', '11:00수업 2', '12:00수업 3',
     ]);
@@ -121,8 +122,27 @@ describe('관리자 달력 날짜 정확성', () => {
     expect(first?.style.width).toBe('calc(50% - 3px)');
     expect(second?.style.width).toBe('calc(50% - 3px)');
     expect(view.queryByRole('button', { name: '+1' })).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: /14:00 수업 20/ }));
+    // 시간 비례 격자는 블록 제목에 시각을 붙이지 않는다 — 축이 말한다 (원문 §08 · 시각은 title 에 남는다)
+    const block = view.getByRole('button', { name: /^수업 20/ });
+    expect(block.getAttribute('title')).toContain('14:00–15:00');
+    fireEvent.click(block);
     expect(onOpen).toHaveBeenCalledWith(items[0]);
+  });
+
+  it('블록의 세부 줄은 격자가 그린 높이로 정한다 — 45분은 강사 한 줄, 90분은 학생·장소까지', () => {
+    const who = { teacherName: '김재훈', roomName: '6호', students: [{ id: 1, name: '강라율', droppedOnce: false, paused: false }] };
+    const items = [
+      occurrence(30, { startMin: 14 * 60, endMin: 14 * 60 + 45, ...who }),
+      occurrence(31, { startMin: 14 * 60, endMin: 15 * 60 + 30, date: '2026-09-02', onDate: '2026-09-02', ...who }),
+    ];
+    const view = render(<WeekGrid date="2026-09-01" items={items} />);
+    const short = within(view.container.querySelector<HTMLElement>('[data-week-event="30|2026-09-01"]')!);
+    const tall = within(view.container.querySelector<HTMLElement>('[data-week-event="31|2026-09-02"]')!);
+    expect(short.getByText('김재훈')).toBeTruthy();
+    expect(short.queryByText('강라율')).toBeNull();
+    expect(tall.getByText('김재훈')).toBeTruthy();
+    expect(tall.getByText('강라율')).toBeTruthy();
+    expect(tall.getByText('현장 6호')).toBeTruthy();
   });
 
   it('주간 빈 칸은 날짜와 실제 30분 시각을 전달하고 cursor도 그 슬롯만 표시한다', () => {
@@ -135,5 +155,32 @@ describe('관리자 달력 날짜 정확성', () => {
     fireEvent.click(slot);
     expect(onAddAt).toHaveBeenCalledOnce();
     expect(onAddAt).toHaveBeenCalledWith('2026-09-03', 16 * 60);
+  });
+});
+
+describe('주간 머리 모양 · 개인표 합계 줄 (원문 §08 · §10)', () => {
+  it('전체 주간은 밝은 머리 「2일 · 1건」, 개인표(dark)는 어두운 머리다 · 시간 열 머리는 「한국 시간」', () => {
+    const items = [occurrence(1)];
+    const light = render(<WeekGrid date="2026-09-01" items={items} />);
+    const head = light.getByRole('button', { name: '2026-09-01 (화) 날짜 선택' });
+    expect(head.textContent).toBe('화1일 · 1건');
+    expect(head.parentElement!.className).toContain('bg-inset');
+    expect(light.getByText('한국 시간')).toBeTruthy();
+    cleanup();
+    const dark = render(<WeekGrid date="2026-09-01" items={items} dark />);
+    expect(dark.getByRole('button', { name: '2026-09-01 (화) 날짜 선택' }).parentElement!.className).toContain('bg-fg');
+  });
+
+  it('합계 줄은 요일마다 「회 / 시간」을 기간 집계와 같은 함수로 세고, 취소는 빼며 없는 날은 「—」다', () => {
+    const items = [occurrence(1), occurrence(2), { ...occurrence(3), canceled: true }];
+    const view = render(<WeekGrid date="2026-09-01" items={items} totals />);
+    const row = view.getByRole('row', { name: '합계' });
+    expect(within(row).getByText('2회')).toBeTruthy();
+    const tue = row.querySelector('[data-week-total="2026-09-01"]')!;
+    expect(tue.textContent).toBe('22.0h');
+    expect(row.querySelector('[data-week-total="2026-09-02"]')!.textContent).toBe('—');
+    cleanup();
+    const none = render(<WeekGrid date="2026-09-01" items={items} />);
+    expect(none.queryByRole('row', { name: '합계' })).toBeNull();
   });
 });

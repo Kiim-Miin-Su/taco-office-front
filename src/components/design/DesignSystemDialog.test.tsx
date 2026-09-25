@@ -79,6 +79,22 @@ it('컴포넌트 갤러리는 열두 장이고 「N회 씀」은 세어 둔 값�
   expect(usedIn('입력 묶음')).toBe(`${usage.counts.field}회 씀`);
 });
 
+it('상태 배지는 점 + 색 글자, 알림 상자는 굵은 색 제목 + 점 목록이다 (86-2 · 86-4)', () => {
+  const v = open();
+  fireEvent.click(v.getByRole('button', { name: /컴포넌트/ }));
+  // 배지 견본과 표 상태 칸이 같은 공용 점 모양을 쓴다 — 알약(rounded-full)이 아니다
+  for (const badge of v.getAllByText('완료')) {
+    expect(badge.className).toContain('text-green');
+    expect(badge.className).not.toContain('rounded-full');
+    expect(badge.querySelector('[aria-hidden]')?.className).toContain('bg-green');
+  }
+  const ok = v.getByText('✓ 겹치는 것이 없습니다');
+  expect(ok.className).toContain('text-green');
+  expect(v.getByText('스케줄에 컨설팅 3일로 들어갑니다').tagName).toBe('LI');
+  expect(v.getByText('⛔ 2곳이 겹칩니다').className).toContain('text-red');
+  expect(v.getByText('08-21 16:00 MAP Reading').tagName).toBe('LI');
+});
+
 it('갈래 단추는 개수를 달고 있다 — 색 9 · 크기 8 · 컴포넌트 12', () => {
   const v = open();
   const text = (name: string) =>
@@ -91,4 +107,70 @@ it('갈래 단추는 개수를 달고 있다 — 색 9 · 크기 8 · 컴포넌�
 it('닫혀 있으면 아무것도 그리지 않는다', () => {
   const v = render(<DesignSystemDialog open={false} onClose={vi.fn()} />);
   expect(v.queryByText('디자인 · 컴포넌트')).toBeNull();
+});
+
+/*
+ * 원문 §85 컷은 머리 오른쪽 끝에 「×」 닫기가 있고 바닥 단추 줄이 없다 (85-3).
+ * 제품은 바닥 「닫기」만 있고 × 가 없었다. 닫는 자리는 하나다.
+ */
+it('머리 오른쪽에 × 닫기가 있고 바닥 「닫기」 단추는 없다 — 누르면 닫는다 (85-3)', () => {
+  const onClose = vi.fn();
+  const v = render(<DesignSystemDialog open onClose={onClose} />);
+  const dialog = v.getByRole('dialog', { name: /디자인 · 컴포넌트/ });
+  const close = within(dialog).getAllByRole('button', { name: '닫기' });
+  expect(close).toHaveLength(1);
+  expect(close[0].textContent).toBe('×');
+  fireEvent.click(close[0]);
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it('창의 설명 문구에 절 번호·결정 코드를 적지 않는다', () => {
+  const v = open();
+  expect(v.container.ownerDocument.body.textContent ?? '').not.toMatch(/§\s?\d|N-\d|D-R\d/);
+  fireEvent.click(v.getByRole('button', { name: /크기 · 모양/ }));
+  expect(v.container.ownerDocument.body.textContent ?? '').not.toMatch(/§\s?\d|N-\d|D-R\d/);
+});
+
+/*
+ * 85-2 — 부제 「색과 크기를 바꾸면 화면 전체가 바로 바뀝니다」가 **참이어야 한다.**
+ * 바꾸는 곳은 문서 뿌리의 CSS 변수 하나이고, 저장하지 않는다(저장처는 결정 대기) — 「처음으로」가 되돌린다.
+ */
+it('견본에서 색을 고르면 문서 뿌리의 변수가 바뀌고, 「처음으로」가 되돌린다 — 저장하지 않는다 (85-2)', () => {
+  const root = document.documentElement;
+  root.style.setProperty('--primary', '#83624D');
+  try {
+    const v = open();
+    // 쉬는 모양은 컷 그대로 — 바꾼 것이 없으면 「처음으로」도 없다
+    expect(v.queryByRole('button', { name: '처음으로' })).toBeNull();
+    const pick = v.getByLabelText('기본 색 바꾸기') as HTMLInputElement;
+    expect(pick.type).toBe('color');
+    expect(pick.value).toBe('#83624d');
+    fireEvent.change(pick, { target: { value: '#112233' } });
+    expect(root.style.getPropertyValue('--primary')).toBe('#112233');
+    expect(v.getByText('#112233')).toBeTruthy();
+    expect(v.getByText(/이 화면에만 · 저장하지 않습니다/)).toBeTruthy();
+    fireEvent.click(v.getByRole('button', { name: '처음으로' }));
+    // 되돌리면 뿌리에 적은 값을 지운다 — 값의 정본은 tokens.css 다
+    expect(root.style.getPropertyValue('--primary')).toBe('');
+    expect(v.queryByRole('button', { name: '처음으로' })).toBeNull();
+  } finally {
+    root.style.removeProperty('--primary');
+  }
+});
+
+it('크기도 바꾼다 — 「12px」 모양의 값만 숫자 칸이 된다 (85-2)', () => {
+  const root = document.documentElement;
+  root.style.setProperty('--r-md', '12px');
+  try {
+    const v = open();
+    fireEvent.click(v.getByRole('button', { name: /크기 · 모양/ }));
+    const input = v.getByLabelText('모서리 (크게) 바꾸기') as HTMLInputElement;
+    expect(input.value).toBe('12');
+    fireEvent.change(input, { target: { value: '20' } });
+    expect(root.style.getPropertyValue('--r-md')).toBe('20px');
+    fireEvent.click(v.getByRole('button', { name: '처음으로' }));
+    expect(root.style.getPropertyValue('--r-md')).toBe('');
+  } finally {
+    root.style.removeProperty('--r-md');
+  }
 });

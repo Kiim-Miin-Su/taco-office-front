@@ -11,10 +11,11 @@
  * 백엔드 rules.ts → ReportDetailDto.fields를 그대로 읽어 그린다.
  */
 'use client';
-import { forwardRef, useState } from 'react';
+import { Fragment, forwardRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useReportReview, useReportWrite } from '@/api/queries';
 import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
+import { longDateLabel } from '@/lib/calendar';
 import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
 import { Banner, Button, CountedTextarea, Label, Panel, Textarea } from '../ui';
 import { LateReportPolicy } from '../teacher/LateReportPolicy';
@@ -155,35 +156,50 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
   );
 }
 
-/** 학부모에게 나가는 전문(§50). PNG 파일 이름은 서버가 정한다 (D-R33). */
-export type ReportPreviewProps = ReportExportContent;
+/**
+ * 학부모에게 나가는 전문(§50). PNG 파일 이름은 서버가 정한다 (D-R33).
+ * `teacherName`·`accent`(과목색)는 부르는 쪽이 리포트에서 그대로 넘긴다 — 본문 문자열(서버 descriptor)은 바뀌지 않는다.
+ */
+export type ReportPreviewProps = ReportExportContent & {
+  teacherName?: string | null;
+  accent?: string | null;
+};
 
 export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(function ReportPreview(
-  { studentName, grade, date, subject, timeLabel, fields, body },
+  { studentName, grade, date, subject, timeLabel, fields, body, teacherName, accent },
   ref,
 ) {
+  const color = accent ?? 'var(--blue)';
   return (
     <Panel title="학부모가 받는 화면" sub="칸도 순서도 바뀌지 않습니다.">
-      <div ref={ref} className="overflow-hidden rounded-lg border border-line-2 bg-card">
-        <header className="bg-fg px-4 py-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[16px] font-bold text-white">{studentName}</span>
-            <span className="text-[11px] text-line-2">{grade}</span>
+      <div ref={ref} data-testid="report-document" className="overflow-hidden rounded-lg border border-line-2 bg-card">
+        {/* 원문 §50 머리 — 흰 바탕 · 이름(크게) + 학년 · 오른쪽 「TN ACADEMY」 · 아래 굵은 선 (g5 50-03) */}
+        <header className="flex items-end justify-between gap-3 border-b-2 border-fg bg-card px-4 pb-2.5 pt-3">
+          {/* 393px 점검 — 이름 칸은 줄어들며 줄을 바꾸고 로고는 줄지 않는다 */}
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span className="break-words text-[18px] font-bold text-fg">{studentName}</span>
+            {grade ? <span className="text-[11px] text-fg-subtle">{grade}</span> : null}
           </div>
-          <div className="mt-0.5 text-[10.5px] text-line-2">티엔아카데미 · {date}</div>
+          <span className="shrink-0 text-[11px] font-bold tracking-[0.2em] text-fg">TN ACADEMY</span>
         </header>
-        <div className="flex items-center gap-3 bg-inset px-4 py-2 text-[11.5px]">
-          <span className="font-bold text-fg">{date}</span>
-          <span className="font-bold text-blue">{subject}</span>
-          <span className="text-fg-subtle">{timeLabel}</span>
-        </div>
-        <div className="flex flex-col gap-3 p-4">
-          {fields.map((field) => (
-            <div key={field.key} className="border-l-2 border-blue pl-3">
-              <div className="text-[11px] font-bold text-fg">{field.label.replace(/^[①②③④⑤]\s*/, '')}</div>
-              <p className="mt-1 whitespace-pre-wrap text-[11.5px] leading-relaxed text-fg-2">{body[field.key] || '—'}</p>
+        <div className="p-4">
+          {/* 수업 한 블록 — 연한 바탕 + 과목색 왼쪽 막대, 수업 줄에 강사 이름, 칸은 2열 (g5 50-04 · 50-05) */}
+          <div data-testid="report-lesson-block" className="rounded-lg border-l-4 bg-inset p-3" style={{ borderLeftColor: color }}>
+            <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
+              <span className="font-bold text-fg">{longDateLabel(date)}</span>
+              <span className="font-bold" style={{ color }}>{subject}</span>
+              <span className="rounded bg-card px-1.5 py-0.5 text-fg-subtle">{timeLabel}</span>
+              {teacherName ? <b className="text-fg">{teacherName}</b> : null}
             </div>
-          ))}
+            <dl className="mt-3 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5">
+              {fields.map((field) => (
+                <Fragment key={field.key}>
+                  <dt className="text-[11px] font-bold text-fg-subtle">{field.label.replace(/^[①②③④⑤]\s*/, '')}</dt>
+                  <dd className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-fg">{body[field.key] || '—'}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </div>
         </div>
       </div>
     </Panel>

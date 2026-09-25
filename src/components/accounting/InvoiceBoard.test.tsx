@@ -45,6 +45,13 @@ it('칸 넷은 컷의 이름과 한 줄 설명을 그대로 쓴다 — 비어도
   expect(colOf(v, '입금 완료').getByText('없습니다')).toBeTruthy();
 });
 
+/** 원문 §52 칸 머리의 번호 ①②③④ — 옮겨 가는 순서를 번호로 적는다 (w5 · 52-01) */
+it('칸 머리에 1~4 번호가 칸의 자리대로 선다', () => {
+  const v = render(<InvoiceBoard data={clone()} />);
+  const heads = [...v.container.querySelectorAll('section > header > div > span:first-child')].map((h) => [h.children[0]?.textContent, h.children[1]?.textContent]);
+  expect(heads).toEqual([['1', '청구서 작성'], ['2', '청구서 전달'], ['3', '입금 완료'], ['4', '입금 기록']]);
+});
+
 /**
  * 화면이 `stateLabel` 을 읽어 칸을 고르면 **판정이 두 벌**이 된다 (N-28 · 대표 결정).
  * 서버가 「일부 납부」 카드를 어느 칸에 넣든 화면은 그 칸에 그린다.

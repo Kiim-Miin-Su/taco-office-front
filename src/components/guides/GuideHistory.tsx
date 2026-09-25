@@ -16,8 +16,8 @@ import { Chip } from '@/components/ui/Chip';
 import { Panel } from '@/components/ui/Panel';
 import { QueryState } from '@/components/ui/QueryState';
 import { Segmented } from '@/components/ui/Segmented';
-import { addDays, dowOf, KO_DOW, todayKst } from '@/lib/calendar';
-import { GuideReasonChip, GuideStateChip } from './GuideStatus';
+import { addDays, longDateLabel, todayKst } from '@/lib/calendar';
+import { GUIDE_STATE_ORDER, GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 
 const SPANS: Array<{ value: GuideHistorySpan; label: string }> = [
@@ -39,27 +39,29 @@ function periodLabel(span: GuideHistorySpan, anchor: string): string {
   return `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월 ${Number(anchor.slice(8, 10))}일`;
 }
 
-function dayLabel(day: string): string {
-  return `${day.slice(2, 4)}년 ${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일 ${KO_DOW[dowOf(day)]}요일`;
-}
-
+/**
+ * 안 한 것 카드 — **카드 전체가 단추**다(원문 §45 「안 한 것 클릭 → 초안 자동 생성 후 편집 창」 · g4 §45-2).
+ * 누르면 서버가 다시 검증한 뒤 초안을 만들고 작성 창이 열린다 — 동작은 전과 같다.
+ */
 function MissingCard({ item, creating, onCreate }: { item: GuideMissing; creating: boolean; onCreate: () => void }) {
   return (
-    <article className="rounded-lg border border-l-[3px] border-red/30 border-l-red bg-red/5 p-3">
-      <header className="flex items-center gap-2">
+    <button
+      type="button"
+      disabled={creating}
+      onClick={onCreate}
+      aria-label={`${item.studentName} ${guideLessonLabel(item)} — 누락 안내 초안 만들기`}
+      className="rounded-lg border border-l-[3px] border-red/30 border-l-red bg-red/5 p-2.5 text-left transition hover:bg-red/10 disabled:opacity-60"
+    >
+      <span className="flex items-center gap-1.5">
         <GuideReasonChip reason={item.reason} />
-        <b className="text-[13px]">{item.studentName}</b>
         <span className="ml-auto text-[11px] text-fg-subtle">{item.eventOn.slice(5)}</span>
-      </header>
-      <div className="mt-2 flex items-center gap-2 text-[11.5px] text-fg-subtle">
-        <span className="truncate">{item.serTitle ?? '수업명 미정'}</span>
-        <span aria-hidden>·</span>
-        <span>{item.teacherName ?? '강사 미정'}</span>
-      </div>
-      <Button className="mt-3 w-full" size="sm" variant="danger" disabled={creating} onClick={onCreate}>
-        {creating ? '초안 만드는 중…' : '누락 안내 초안 만들기'}
-      </Button>
-    </article>
+      </span>
+      <b className="mt-1.5 block truncate text-[13px]" title={item.studentName}>{item.studentName}</b>
+      <span className="mt-0.5 block truncate text-[11px] text-fg-subtle" title={guideLessonLabel(item)}>
+        {guideLessonLabel(item)}
+      </span>
+      <span className="block truncate text-[11px] text-fg-subtle">{creating ? '초안 만드는 중…' : (item.teacherName ?? '강사 미정')}</span>
+    </button>
   );
 }
 
@@ -69,7 +71,7 @@ function HistoryRow({ guide }: { guide: Guide }) {
       <GuideStateChip state={guide.state} />
       <GuideReasonChip reason={guide.reason} />
       <b className="text-[12.5px]">{guide.studentName ?? '학생 미상'}</b>
-      <span className="text-[11.5px] text-fg-subtle">{guide.serTitle ?? '수업명 미정'}</span>
+      <span className="text-[11.5px] text-fg-subtle">{guideLessonLabel(guide)}</span>
       <span className="text-[11.5px] text-fg-subtle">{guide.teacherName ?? '강사 미정'}</span>
       <time className="ml-auto text-[11px] text-fg-subtle">
         {guide.sentAt?.slice(11, 16) ?? guide.createdAt.slice(11, 16) ?? '—'}
@@ -87,7 +89,8 @@ export function GuideHistory() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* 요약 칩 셋은 기간 이동 줄 같은 줄 오른쪽 (원문 §45 · g4 §45-3) */}
+      <div data-testid="guide-history-bar" className="flex flex-wrap items-center gap-2">
         <Segmented options={SPANS} value={span} onChange={setSpan} />
         <div className="flex min-w-[280px] items-center rounded-lg border border-line bg-card">
           <Button
@@ -109,6 +112,13 @@ export function GuideHistory() {
             오늘
           </Button>
         </div>
+        {query.data ? (
+          <div className="ml-auto flex flex-wrap gap-2 text-[12px]">
+            <Chip tone="info">{query.data.counts.created}건 만듦</Chip>
+            <Chip tone="success">{query.data.counts.sent}건 보냄</Chip>
+            <Chip tone="danger">안 한 것 {query.data.counts.missing}</Chip>
+          </div>
+        ) : null}
       </div>
 
       {create.isError ? <Banner tone="danger">{apiMessage(create.error)}</Banner> : null}
@@ -117,18 +127,12 @@ export function GuideHistory() {
       <QueryState query={query} isEmpty={() => false}>
         {(data) => (
           <>
-            <div className="flex flex-wrap justify-end gap-2 text-[12px]">
-              <Chip tone="info">{data.counts.created}건 만듦</Chip>
-              <Chip tone="success">{data.counts.sent}건 보냄</Chip>
-              <Chip tone="danger">안 한 것 {data.counts.missing}</Chip>
-            </div>
-
             {data.missing.length > 0 ? (
               <Panel
                 title="안내를 아직 안 했습니다"
                 sub="첫 수업이거나 강사가 바뀐 학생만 잡습니다. 누르면 서버가 다시 검증한 뒤 초안을 만듭니다."
               >
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
                   {data.missing.map((item) => {
                     const creating =
                       create.isPending &&
@@ -163,8 +167,13 @@ export function GuideHistory() {
                 data.days.map((day) => (
                   <details key={day.date} open className="group overflow-hidden rounded-xl border border-line bg-card">
                     <summary className="flex cursor-pointer list-none items-center gap-2 bg-inset px-4 py-3">
-                      <b className="text-[13px]">{dayLabel(day.date)}</b>
+                      <b className="text-[13px]">{longDateLabel(day.date)}</b>
                       <Chip>{day.items.length}건</Chip>
+                      {/* 상태 합계 — 서버가 준 그날 줄을 상태별로 묶어 센 수 (g4 §45-4) */}
+                      {GUIDE_STATE_ORDER.map((state) => {
+                        const count = day.items.filter((item) => item.state === state).length;
+                        return count > 0 ? <GuideStateChip key={state} state={state} count={count} /> : null;
+                      })}
                       <span className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" aria-hidden>
                         ⌄
                       </span>

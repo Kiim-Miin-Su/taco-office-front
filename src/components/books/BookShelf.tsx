@@ -96,16 +96,37 @@ export function BookShelf({
     } else create.mutate(body, { onSuccess: done });
   };
   const error = create.error ?? patch.error;
+  /*
+   * 경고 띠에 **어느 교재인지**를 적는다 (원본 §39). 수는 서버 newerCount·noFileCount 그대로이고
+   * 이름은 같은 응답의 items 에서 서버가 센 것과 같은 칸으로 고른다 — hasNewer(서버 판정) · teFileId 없음.
+   * 필터로 좁힌 rows 가 아니라 전체 items 라야 머리 수와 이름 수가 갈리지 않는다.
+   */
+  const newerBooks = (q.data?.items ?? []).filter((b) => b.hasNewer);
+  const noTeBooks = (q.data?.items ?? []).filter((b) => b.teFileId == null);
   return (
     <div className="space-y-3">
       {q.data && q.data.newerCount > 0 ? (
         <Banner tone="warning">
-          더 최신 판이 있는 교재 <b>{q.data.newerCount}종</b> — 판 버튼을 눌러 바꿉니다.
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span aria-hidden>⇧</span>
+            <b>{`더 최신 판이 있는 교재 ${q.data.newerCount}종`}</b>
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+              {newerBooks
+                .map((b) => (b.edition && b.latestEdition ? `${b.title} ${b.edition}→${b.latestEdition}` : b.title))
+                .join(', ')}
+            </span>
+            <span className="text-fg-subtle">판 버튼을 눌러 바꿉니다</span>
+          </div>
         </Banner>
       ) : null}
       {q.data && q.data.noFileCount > 0 ? (
         <Banner tone="danger">
-          TE 파일이 없는 교재 <b>{q.data.noFileCount}종</b> — 강사에게 보낼 파일을 확인해 주세요.
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span aria-hidden>⚠</span>
+            <b>{`TE 없는 교재 ${q.data.noFileCount}종`}</b>
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{noTeBooks.map((b) => b.title).join(', ')}</span>
+            <span className="text-fg-subtle">강사에게 보낼 파일이 없습니다</span>
+          </div>
         </Banner>
       ) : null}
       <Panel

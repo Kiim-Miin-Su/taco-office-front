@@ -146,3 +146,13 @@ it('묶음이 여럿이면 여럿을 그린다 — 화면이 날짜로 다시 �
   // 발행일이 없는 건도 버리지 않는다
   expect(v.getByText('날짜 없음')).toBeTruthy();
 });
+
+/** 57-02 — 줄의 점·띠는 §55 분류 칩과 같은 한 벌의 빛깔이다(컨설팅 분홍 · 진단 청록 · 응시료 주황 계열) */
+it('줄의 점 색은 §55 분류와 같은 토큰을 쓴다', () => {
+  const v = render(<OtherIncome data={clone()} />);
+  const dotOf = (label: string) => v.getByText(label).parentElement!.querySelector('span[aria-hidden]')!.className.split(/\s+/);
+  // 빌려 쓰던 수업 종류 색이 아니라 분홍·청록·주황 전용 토큰이다(tokens.css)
+  expect(dotOf('컨설팅비')).toContain('bg-pink');
+  expect(dotOf('진단고사 + 상담 비용')).toContain('bg-teal');
+  expect(dotOf('MAP + CAT')).toContain('bg-orange');
+});

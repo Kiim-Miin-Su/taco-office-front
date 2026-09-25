@@ -4,11 +4,11 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Meta, Occurrence } from '@/api/types';
 import {
-  filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar,
+  activeFilterCount, filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar,
   type ScheduleFilters,
 } from './ScheduleToolbar';
 
@@ -17,7 +17,7 @@ afterEach(cleanup);
 const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#123456', cap: 4, grp: 'lesson', rep: true, extra: false }],
   subs: [{ key: 'writing', name: 'Writing', color: '#654321' }],
-  rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [],
+  rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [{ id: 5, label: 'TN Zoom 1' }], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
   students: [{ id: 3, name: '학생 3' }],
   staff: [
     { id: 11, name: '강사 11', role: 'teacher', canAdminPage: false, canGpaPack: false },
@@ -66,18 +66,27 @@ describe('filterScheduleOccurrences', () => {
 
 it('공용 도구줄은 native 입력과 기존 버튼으로 모든 제어값을 상위 상태에 위임한다', () => {
   const onFiltersChange = vi.fn();
-  const onViewChange = vi.fn();
+  const onPeriodChange = vi.fn();
+  const onTargetChange = vi.fn();
+  const onDateChange = vi.fn();
+  const onStep = vi.fn();
+  const onToday = vi.fn();
   const onSplit = vi.fn();
   const onExport = vi.fn();
   const view = render(
-    <ScheduleToolbar view="day" filters={INITIAL_SCHEDULE_FILTERS} meta={meta} splitOn={false}
-      onViewChange={onViewChange} onFiltersChange={onFiltersChange} onSplit={onSplit} onExport={onExport} />,
+    <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={INITIAL_SCHEDULE_FILTERS} meta={meta} splitOn={false}
+      onPeriodChange={onPeriodChange} onTargetChange={onTargetChange} onFiltersChange={onFiltersChange}
+      onDateChange={onDateChange} onStep={onStep} onToday={onToday} onSplit={onSplit} onExport={onExport} />,
   );
 
-  fireEvent.click(view.getByRole('button', { name: '주간' }));
-  expect(onViewChange).toHaveBeenCalledWith('week');
+  // 원문 §07 — 보기 축이 둘이다: [일간 · 주간 · 월간] + [전체 · 학생별 · 선생님별]
+  fireEvent.click(within(view.getByRole('group', { name: '스케줄 기간' })).getByRole('button', { name: '주간' }));
+  expect(onPeriodChange).toHaveBeenCalledWith('week');
+  fireEvent.click(within(view.getByRole('group', { name: '스케줄 대상' })).getByRole('button', { name: '학생별' }));
+  expect(onTargetChange).toHaveBeenCalledWith('student');
 
-  const teacher = view.getByRole('combobox', { name: '강사 필터' });
+  // 원문 낱말 「구성원」 — 담당(강사 칸)으로 좁힌다
+  const teacher = view.getByRole('combobox', { name: '구성원 필터' });
   expect(teacher.tagName).toBe('SELECT');
   expect(view.getByRole('option', { name: '관리자 12' })).toBeTruthy();
   fireEvent.change(view.getByRole('combobox', { name: '수업 종류 필터' }), { target: { value: 'class' } });
@@ -90,14 +99,51 @@ it('공용 도구줄은 native 입력과 기존 버튼으로 모든 제어값을
   expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, studentId: 3 });
   fireEvent.change(view.getByRole('combobox', { name: '강의실 필터' }), { target: { value: '7' } });
   expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, roomId: 7 });
+  fireEvent.change(view.getByRole('combobox', { name: '줌 계정 필터' }), { target: { value: '5' } });
+  expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, zaccId: 5 });
 
   fireEvent.click(view.getByRole('button', { name: '온라인' }));
   expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, mode: 'online' });
-  fireEvent.click(view.getByRole('button', { name: '촘촘' }));
-  expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, density: 'compact' });
+  // 밀도 기본은 원문 캡처의 「촘촘」이다
+  expect(INITIAL_SCHEDULE_FILTERS.density).toBe('compact');
+  fireEvent.click(view.getByRole('button', { name: '보통' }));
+  expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, density: 'normal' });
+  // [일정 · 리포트] — 블록 색이 말하는 것만 바꾼다
+  fireEvent.click(view.getByRole('button', { name: '리포트' }));
+  expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, display: 'report' });
+
+  // 원문 §07 오른쪽 날짜 칸 — 임의 날짜로 바로 간다 · ‹ › 오늘
+  fireEvent.change(view.getByLabelText('날짜'), { target: { value: '2026-10-02' } });
+  expect(onDateChange).toHaveBeenCalledWith('2026-10-02');
+  fireEvent.click(view.getByRole('button', { name: '이전 기간' }));
+  fireEvent.click(view.getByRole('button', { name: '다음 기간' }));
+  fireEvent.click(view.getByRole('button', { name: '오늘' }));
+  expect(onStep.mock.calls).toEqual([[-1], [1]]);
+  expect(onToday).toHaveBeenCalledOnce();
 
   fireEvent.click(view.getByRole('button', { name: '세로로 나누기' }));
   fireEvent.click(view.getByRole('button', { name: '현재 스케줄을 PNG로 저장' }));
   expect(onSplit).toHaveBeenCalledOnce();
   expect(onExport).toHaveBeenCalledOnce();
+});
+
+it('「전체」 필터 칩은 좁힌 축을 모두 풀되 밀도·블록 색은 그대로 둔다', () => {
+  const onFiltersChange = vi.fn();
+  const narrowed: ScheduleFilters = {
+    ...INITIAL_SCHEDULE_FILTERS, mode: 'online', roomId: 7, zaccId: 5, density: 'wide', display: 'report',
+  };
+  expect(activeFilterCount(narrowed)).toBe(3);
+  const view = render(
+    <ScheduleToolbar period="week" target="all" date="2026-09-14" filters={narrowed} meta={meta} splitOn={false}
+      onPeriodChange={vi.fn()} onTargetChange={vi.fn()} onFiltersChange={onFiltersChange}
+      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onSplit={vi.fn()} onExport={vi.fn()} />,
+  );
+  fireEvent.click(view.getByRole('button', { name: '필터 초기화' }));
+  expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, density: 'wide', display: 'report' });
+});
+
+it('줌 계정 필터는 회차의 줌 계정으로만 좁힌다', () => {
+  const online = occurrence({ serId: 8, mode: 'online', zaccId: 5 });
+  const other = occurrence({ serId: 9, mode: 'online', zaccId: 6 });
+  expect(filterScheduleOccurrences([online, other], { ...INITIAL_SCHEDULE_FILTERS, zaccId: 5 })).toEqual([online]);
 });

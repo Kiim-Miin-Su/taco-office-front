@@ -90,6 +90,15 @@ it('넘긴 학생을 위에 모아 세고 줄마다 배정·사용·초과를 �
   expect(text).toContain('이하린 — 배정 12p / 사용 16p · 4p 초과');
 });
 
+it('포인트 규정 칩은 서비스 색이다 — 숙제 지원 청록 · Quiz 대비 주황 (82-2) · 경고는 굵은 제목 + 점 목록 (86-4)', async () => {
+  const view = setup();
+  const hw = await view.findByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '1p 숙제 지원');
+  expect(hw.className).toContain('text-teal');
+  expect(view.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '2p Quiz 대비').className).toContain('text-orange');
+  expect(view.getByText('⛔ 배정 포인트를 넘긴 학생 2명').className).toContain('text-red');
+  expect(view.getAllByRole('listitem').some((li) => li.textContent?.startsWith('박하경 — 배정 8p'))).toBe(true);
+});
+
 it('카드는 서버가 준 순서 그대로 서고 화면이 다시 정렬하지 않는다 — 넘긴 학생이 먼저다', async () => {
   const view = setup();
   await waitFor(() => expect(view.container.textContent).toContain('학생별 포인트 · 5명'));
@@ -154,22 +163,101 @@ it('마감이 열리면 확인 창 → POST /gpa/cycles/{id}/close → 응답의
  */
 it('승인 단추는 서버가 준 canApprove 를 따른다 — 적은 사람에게는 서지 않는다 (S1)', async () => {
   const use = (id: number, canApprove: boolean) => ({
-    id, studentId: 1, svcKey: 'hw', points: 1, onDate: '2026-08-10', startMin: null, serId: null,
+    id, studentId: 1, svcKey: 'hw', points: 1, onDate: '2026-08-10', startMin: null, endMin: null, serId: null,
     coordName: '코디', noteUrl: null, state: 'wait' as const, approvedByName: null, approvedOn: null, canApprove,
   });
   const view = setup({ uses: [use(11, true), use(12, false)] });
   await waitFor(() => expect(view.container.textContent).toContain('56p'));
-  fireEvent.click(view.getAllByRole('button', { name: '타임라인' })[4]);
+  // 카드를 누르면 그 학생이 골라진다 (82-4)
+  fireEvent.click(view.getByRole('button', { name: /^고은성/ }));
 
-  // 「초과」 안내도 목록이라 타임라인 줄만 골라낸다 — 줄마다 잔여를 적는 쪽이 타임라인이다
-  await waitFor(() => expect(view.container.textContent).toContain('소비 타임라인'));
-  const rows = view.getAllByRole('listitem').filter((li) => li.textContent?.includes('잔여 '));
+  // 「초과」 안내도 목록이라 타임라인 목록 안의 줄만 골라낸다
+  const list = await view.findByRole('list', { name: '고은성 소비 타임라인' });
+  const rows = within(list).getAllByRole('listitem');
   expect(rows).toHaveLength(2);
   expect(within(rows[0]).getByRole('button', { name: '승인' })).toBeTruthy();
   expect(within(rows[1]).queryByRole('button', { name: '승인' })).toBeNull();
   expect(rows[1].textContent).toContain('적은 사람은 승인 못 함');
   // 되돌림·삭제는 자기도 할 수 있다 — 승인이 아니라 취소다
   expect(within(rows[1]).getByRole('button', { name: '삭제' })).toBeTruthy();
+});
+
+/*
+ * 원문 §82 선택 학생 상세 머리 — 이름 옆 미니 지표 넷 「배정 10p · 쓴 것 0p · 대기 1p · 남은 것 9p」(82-6).
+ * 값은 서버가 이미 학생 줄에 준 것이다(alloc · used · wait · remain) — 화면이 uses 를 다시 더하지 않는다.
+ */
+it('타임라인을 열면 그 학생의 배정 · 쓴 것 · 대기 · 남은 것을 서버 값 그대로 보인다 (82-6)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.container.textContent).toContain('56p'));
+  // 강라울 — 배정 10 · 사용 0 · 대기 1 · 잔여 9 · 담당 Kim. 카드를 누르면 골라진다 (82-4)
+  fireEvent.click(view.getByRole('button', { name: /^강라울/ }));
+  const panel = await waitFor(() => view.getByRole('heading', { name: /강라울 · 소비 타임라인/ }).closest('section')!);
+  const stat = (label: string) => {
+    const el = [...panel.querySelectorAll('div')].find((d) => d.textContent === label);
+    return el?.nextElementSibling?.textContent ?? null;
+  };
+  expect(stat('배정')).toBe('10p');
+  expect(stat('쓴 것')).toBe('0p');
+  expect(stat('대기')).toBe('1p');
+  expect(stat('남은 것')).toBe('9p');
+  expect(panel.textContent).toContain('담당 Kim');
+});
+
+/* ══ §82 원문 배치 — 사이클 이동기 · 카드 고르기 · 회차 내역 (82-1 · 82-3 · 82-4 · 82-8) ══ */
+
+it('머리 첫 칸이 사이클 이동기다 — 「‹ 3차 사이클 [진행 중] 2026-07-27 ~ 2026-08-23 ›」 (82-1)', async () => {
+  const view = setup();
+  const prev = await view.findByRole('button', { name: '이전 사이클' });
+  const card = prev.parentElement!;
+  expect(card.textContent).toBe('‹3차 사이클진행 중2026-07-27 ~ 2026-08-23›');
+  // 이전·다음이 있는지는 서버가 말한다 — hasPrev · hasNext
+  expect((prev as HTMLButtonElement).disabled).toBe(false);
+  expect((view.getByRole('button', { name: '다음 사이클' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('부제는 원문 그대로 「4주 사이클 · 포인트제 · 내부 자료 · 학부모 비공개」이고 뒤 둘만 붉다 (82-3)', async () => {
+  const view = setup();
+  const sub = await view.findByText((_, el) => el?.tagName === 'P' && el.textContent === '4주 사이클 · 포인트제 · 내부 자료 · 학부모 비공개');
+  expect(within(sub).getByText('내부 자료 · 학부모 비공개').className).toBe('text-red');
+});
+
+it('카드를 누르면 그 학생이 골라지고 다시 누르면 풀린다 — 카드가 단추다 (82-4)', async () => {
+  const view = setup();
+  const card = await view.findByRole('button', { name: /^강라울/ });
+  expect(card.getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(card);
+  expect(view.getByRole('button', { name: /^강라울/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(view.getByRole('heading', { name: /강라울 · 소비 타임라인/ })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: /^강라울/ }));
+  expect(view.queryByRole('heading', { name: /강라울 · 소비 타임라인/ })).toBeNull();
+  // 배정 편집 줄은 카드 **밖**이다 — 단추 안에 입력칸을 넣을 수 없다
+  expect(card.querySelector('input')).toBeNull();
+});
+
+it('고른 학생의 「회차 내역」은 읽는 표다 — 날짜·시간(끝은 서버 값)·서비스·P·코디·기록지·상태 (82-8)', async () => {
+  const use = (id: number, o: Partial<GpaUse>): GpaUse => ({
+    id, studentId: 2, svcKey: 'hw', points: 1, onDate: '2026-08-21', startMin: 1080, endMin: 1125, serId: 9,
+    coordName: 'Kim', noteUrl: null, state: 'wait', approvedByName: null, approvedOn: null, canApprove: true, ...o,
+  });
+  const view = setup({ uses: [use(21, {}), use(22, { onDate: '2026-08-22', endMin: null, noteUrl: 'https://example.test/n', state: 'ok', svcKey: 'prj', points: 2 })] });
+  fireEvent.click(await view.findByRole('button', { name: /^강라울/ }));
+  const panel = view.getByRole('heading', { name: /강라울 회차 내역/ }).closest('section')!;
+  expect(panel.textContent).toContain('2건');
+  const heads = [...panel.querySelectorAll('th')].map((th) => th.textContent);
+  expect(heads).toEqual(['날짜 · 시간', '학생', '서비스', 'P', '코디네이터', '기록지', '상태']);
+  const rows = [...panel.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+  expect(rows).toEqual([
+    ['08-21 18:00–18:45', '강라울', '숙제 지원', '1', 'Kim', '—', '승인 대기'],
+    // 연결 회차가 없으면 끝을 지어내지 않는다 · 기록지는 링크로 열지 않는다(S3-c)
+    ['08-22 18:00', '강라울', '프로젝트 피드백', '2', 'Kim', '기록지 있음', '승인'],
+  ]);
+  expect(panel.querySelector('a')).toBeNull();
+});
+
+it('GPA 화면 문구에 결정 코드를 적지 않는다 — 부제는 「학부모 비공개 — 내부 자료」다', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.container.textContent).toContain('내부 자료'));
+  expect(view.container.textContent ?? '').not.toMatch(/D-R\d|N-\d|§\s?\d/);
 });
 
 /** S3-c: 실제 페이지·mutation·무효화를 함께 실행하고 HTTP 응답만 통제한다. */
@@ -195,7 +283,7 @@ async function setupUseWrite(rejectWrite = false) {
       const created: GpaUse = {
         id: 31, studentId: body.studentId, svcKey: body.svcKey,
         points: board.services.find((service) => service.key === body.svcKey)!.point,
-        onDate: body.onDate, startMin: body.startMin ?? null, serId: null,
+        onDate: body.onDate, startMin: body.startMin ?? null, endMin: null, serId: null,
         coordName: '코디', noteUrl: body.noteUrl ?? null, state: 'wait',
         approvedByName: null, approvedOn: null, canApprove: true,
       };
@@ -278,7 +366,7 @@ it('S3-c 400은 서버 문장과 초안을 보존하고 정상 새 GET도 입력
 it('S3-c 성공은 날짜/시각/URL만 비우고 새 GET의 기록지 있음을 링크 없이 표시한다', async () => {
   const w = await setupUseWrite();
   w.fill('  https://example.test/record  ');
-  fireEvent.click(w.view.getAllByRole('button', { name: '타임라인' })[4]);
+  fireEvent.click(w.view.getByRole('button', { name: /^고은성/ }));
   expect(w.view.queryByText('기록지 있음')).toBeNull();
   w.submit();
   await w.view.findByText('기록지 있음');

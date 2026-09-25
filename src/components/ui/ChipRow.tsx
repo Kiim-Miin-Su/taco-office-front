@@ -18,14 +18,25 @@ import type { ReactNode } from 'react';
 import { Chip, type Tone } from './Chip';
 import { cn } from './cn';
 
+/**
+ * 칩 앞 **색 점** — 과목·분류 칩(§34 과목)이 쓴다. 값은 CSS 색(`var(--…)` 토큰 또는 서버 Meta 색)이라
+ * 런타임 색도 받는다. 점은 장식이라 읽지 않는다(aria-hidden) — 이름은 칩 글자가 말한다.
+ * (§14·§16 서랍 칩은 눌린 모양이 어두운 채움이라 로컬 `FilterPill`, §55 는 네모 점이라 그대로 둔다.)
+ */
+function ChipDot({ color }: { color: string }) {
+  return <span data-chip-dot aria-hidden className="mr-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
+}
+
 export function ChipButton({
-  pressed, disabled, onClick, children, tone = 'neutral', title, className,
+  pressed, disabled, onClick, children, tone = 'neutral', dot, title, className,
 }: {
   pressed: boolean;
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
   tone?: Tone;
+  /** 칩 앞 색 점의 CSS 색 — 없으면 점 없음(지금 모양) */
+  dot?: string;
   title?: string;
   className?: string;
 }) {
@@ -38,7 +49,7 @@ export function ChipButton({
       onClick={onClick}
       className={cn('rounded-full disabled:opacity-50', pressed ? 'ring-2 ring-primary ring-offset-1 ring-offset-bg' : '', className)}
     >
-      <Chip tone={pressed ? 'info' : tone} styleKind={pressed ? 'solid' : 'outline'}>{children}</Chip>
+      <Chip tone={pressed ? 'info' : tone} styleKind={pressed ? 'solid' : 'outline'}>{dot ? <ChipDot color={dot} /> : null}{children}</Chip>
     </button>
   );
 }
@@ -48,6 +59,8 @@ export interface ChipOption<T extends string> {
   label: string;
   /** 서버가 센 건수 — 없으면 안 적는다 (D-R37) */
   count?: number;
+  /** 칩 앞 색 점의 CSS 색 — 없으면 점 없음 */
+  dot?: string;
 }
 
 /**
@@ -71,7 +84,7 @@ export function ChipRow<T extends string>({
         {allLabel}{allCount === undefined ? '' : ` ${allCount}`}
       </ChipButton>
       {options.map((o) => (
-        <ChipButton key={o.value} pressed={value === o.value} disabled={disabled}
+        <ChipButton key={o.value} pressed={value === o.value} disabled={disabled} dot={o.dot}
           onClick={() => onChange(value === o.value ? '' : o.value)}>
           {o.label}{o.count === undefined ? '' : ` ${o.count}`}
         </ChipButton>

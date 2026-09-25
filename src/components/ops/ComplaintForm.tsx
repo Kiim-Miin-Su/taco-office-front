@@ -116,7 +116,7 @@ export function ComplaintCreateButton({ areas, severities, onDone }: ComplaintCr
               options={[{ value: '', label: '미정' }, ...severities.map((s) => ({ value: s.key as NonNullable<ComplaintCreate['severity']>, label: s.label }))]} />
           </div>
           {err ? <Banner tone="danger">{err}</Banner> : null}
-          <p className="text-[11px] text-fg-subtle">접수하면 「접수」 칸에 서고 담당을 정해야 「대응」으로 옮길 수 있습니다 (§67).</p>
+          <p className="text-[11px] text-fg-subtle">접수하면 「접수」 칸에 서고 담당을 정해야 「대응」으로 옮길 수 있습니다.</p>
         </div>
       </Dialog>
     </>

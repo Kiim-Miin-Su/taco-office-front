@@ -32,7 +32,7 @@ const result: TeacherChangeResult = {
   steps: [
     { key: 'schedule', label: '스케줄', count: 12, note: '규칙 2개 · 회차 12회 — 10/5부터 계속(규칙을 가른다)' },
     { key: 'guide', label: '안내 초안', count: 2, note: '학생마다 강사 교체 안내 초안' },
-    { key: 'parent', label: '학부모 안내', count: 2, note: '보낼 안내로 남겼습니다 — 학부모 수신처는 아직 없습니다 (N-42)' },
+    { key: 'parent', label: '학부모 안내', count: 2, note: '보낼 안내로 남겼습니다 — 학부모 수신처는 아직 없습니다' },
     { key: 'book', label: '교재 확인', count: 1, note: '이관 학생의 배부 교재' },
     { key: 'payout', label: '정산 시수', count: 12, note: '10월 12회 → 김범준' },
     { key: 'notify', label: '선생님 전달', count: 2, note: '새 강사 김범준 · 원래 강사 김재훈 · 관리자 3명' },
@@ -92,7 +92,7 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
   const text = (box.textContent ?? '').replace(/\s+/g, ' ');
   expect(text).toContain('김재훈 → 김범준 · 2026-10-05부터 · 회차 12회');
   for (const w of ['1. 스케줄 12회', '2. 안내 초안 2건', '3. 학부모 안내 2건', '4. 교재 확인 1권', '5. 정산 시수 12회', '6. 선생님 전달 2명']) expect(text).toContain(w);
-  expect(text).toContain('학부모 수신처는 아직 없습니다 (N-42)');
+  expect(text).toContain('학부모 수신처는 아직 없습니다');
   expect(text).toContain('2026-10-07 16:00–17:00 · 김범준 — 병원');
   expect(text).toContain('컴플레인 #2 → 「강사 교체됨」 · 대응 칸으로');
   await waitFor(() => expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(false));

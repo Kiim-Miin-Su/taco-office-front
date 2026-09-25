@@ -18,21 +18,25 @@ export interface PeriodSummaryBarProps {
   summary: PeriodSummary;
   /** 월간이면 집계가 격자(6주)가 아니라 **그 달**이라는 것을 말해 준다 */
   month?: boolean;
+  /** 줄 맨 앞의 기간 — 원문 §07 대상 줄 오른쪽 「2026-08-21 (금) · 일정 21건 · …」 */
+  label?: string;
+  className?: string;
 }
 
 const Dot = () => <span aria-hidden className="text-line-2">·</span>;
 
-export function PeriodSummaryBar({ summary, month }: PeriodSummaryBarProps) {
+export function PeriodSummaryBar({ summary, month, label, className }: PeriodSummaryBarProps) {
   const { total, onsite, online, hours, waiting, unsubmitted } = summary;
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 px-2 text-[11px] font-bold text-fg-2">
+    <div className={className ?? 'mb-2 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 px-2 text-[11px] font-bold text-fg-2'}>
+      {label ? <><span className="text-fg">{label}</span><Dot /></> : null}
       <span title={month ? '이 달 1일~말일 기준 — 격자의 흐린 앞뒤 달 칸은 세지 않습니다' : '이 기간 전부 — 취소·휴강도 셉니다'}>
         일정 <span className="text-fg">{total}</span>건
       </span>
       <Dot />
-      <span title="현장 + 온라인 = 일정 건수 (v2 §09)">현장 {onsite} / 온라인 {online}</span>
+      <span title="현장 + 온라인 = 일정 건수">현장 {onsite} / 온라인 {online}</span>
       <Dot />
-      <span title="취소·휴강은 시수에서 뺍니다 (D-R11). 정산 시수는 회계 탭에서 월 단위로 확정됩니다">
+      <span title="취소·휴강은 시수에서 뺍니다. 정산 시수는 회계 탭에서 월 단위로 확정됩니다">
         {hours.toFixed(1)}시간
       </span>
       <Dot />

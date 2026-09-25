@@ -49,7 +49,7 @@ function setup(viewer = me, selectMarketing = true) {
   const view = render(<QueryClientProvider client={client}>
     <Profiler id="ops" onRender={commits}><OpsPage /></Profiler>
   </QueryClientProvider>);
-  if (selectMarketing) fireEvent.click(view.getByRole('tab', { name: /^마케팅/ }));
+  if (selectMarketing) fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
   return { ...view, client, commits };
 }
 function expectHidden(view: ReturnType<typeof setup>) {
@@ -71,7 +71,7 @@ it('§75 운영 deep link는 기획 상세 또는 §14 원 요청 서랍으로 �
   nav.search = 'tab=plan&plan=31';
   const plan = setup(me, false);
   await waitFor(() => expect(plan.getByText('기획 보고서 31')).toBeTruthy());
-  expect(plan.getByRole('tab', { name: /^기획/ }).getAttribute('aria-selected')).toBe('true');
+  expect(within(plan.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ }).getAttribute('aria-selected')).toBe('true');
   cleanup();
 
   nav.search = 'tab=todo&request=44';
@@ -105,7 +105,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
     expect(view.getByText('123,400원')).toBeTruthy();
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일/ }));
-    fireEvent.click(view.getByRole('tab', { name: /^마케팅/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
     expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
   });
 
@@ -120,10 +120,11 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
    * 카드로 오면서 조용히 사라질 뻔했다.
    */
   it('⭐ 탭 머리는 원문 차례의 카드 다섯이고, 아래 한 줄과 동그라미 수를 보조기기도 읽는다 (C96 ⓐ)', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+    // 마케팅 동그라미는 **고쳐야 할 피드백** 수다 (w5 · C-4) — 활동 줄 수가 아니다
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, feedbackNeedsFix: 1 } });
     const view = setup();
     // 건수가 실린 뒤에 센다 — 탭 다섯은 데이터 없이도 서므로 개수만 기다리면 0 건 상태를 잰다
-    await waitFor(() => expect(view.getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy());
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy());
     const topTabs = within(view.getByRole('tablist', { name: '운영 보기' }));
     const tabs = topTabs.getAllByRole('tab');
     expect(tabs).toHaveLength(5);
@@ -135,13 +136,13 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
       expect(view.getByText(sub)).toBeTruthy();
     }
     // 건수는 **이름에도** 들어간다 — 눈에만 보이면 보조기기는 한 번도 못 듣는다
-    expect(view.getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy();
+    expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy();
     // 0 건은 동그라미를 달지 않는다 — 없는 것을 굳이 보여 주지 않는다 (시드 todos 0건)
     expect(topTabs.getByRole('tab', { name: /^할 일/ }).parentElement?.textContent).not.toMatch(/\d/);
     // 고른 탭만 선택으로 읽힌다
-    fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
-    expect(view.getByRole('tab', { name: /^회의/ }).getAttribute('aria-selected')).toBe('true');
-    expect(view.getByRole('tab', { name: /^마케팅/ }).getAttribute('aria-selected')).toBe('false');
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
+    expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }).getAttribute('aria-selected')).toBe('true');
+    expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }).getAttribute('aria-selected')).toBe('false');
   });
 
   /**
@@ -249,7 +250,7 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
   const open = () => {
     vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplStages, complaints } });
     const view = setup(me, false);
-    fireEvent.click(view.getByRole('tab', { name: /^컴플레인/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
     return view;
   };
 
@@ -269,7 +270,7 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
       },
     });
     const view = setup(me, false);
-    fireEvent.click(view.getByRole('tab', { name: /^컴플레인/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
     await waitFor(() => expect(view.container.textContent).toContain('접수(서버)'));
     const text = view.container.textContent ?? '';
     for (const w of ['대응(서버)', '결과(서버)', '스케줄(서버)', '수업(서버)']) expect(text).toContain(w);
@@ -303,24 +304,33 @@ describe('§67 컴플레인 보드 (C86-d)', () => {
  * §63 회의 목록의 참석 — C86-f.
  * 같은 줄의 종류·속기록이 이미 칩인데 참석만 맨 글씨였다. 원본은 칩이다.
  */
-it('참석은 칩으로 서고 모자라면 경고색이다 (§63)', async () => {
+it('참석은 **이름 칩**으로 서고 상태(세 값)가 색이다 — 원문 §63 줄 (w5 · 63-2)', async () => {
   vi.spyOn(api, 'get').mockResolvedValue({
     data: {
       ...response,
       meetings: [
-        { id: 1, mtType: 'mt-pl', mtTypeLabel: '기획 회의', title: '주간 기획', onDate: '2026-08-20',
-          attendees: 4, confirmed: 2, minutes: false, byName: null },
-        { id: 2, mtType: 'mt-cs', mtTypeLabel: '컨설팅 회의', title: '컨설팅 점검', onDate: '2026-08-21',
-          attendees: 3, confirmed: 3, minutes: true, byName: '김범준' },
+        { id: 1, mtType: 'plan', mtTypeLabel: '기획 회의', title: '주간 기획', onDate: '2026-08-20',
+          attendees: 2, confirmed: 1, waiting: 1, hasMinutes: false, serId: null, startMin: null, endMin: null, placeLabel: null,
+          upcoming: false,
+          attendeeList: [
+            { staffId: 3, name: '홍지승', title: null, state: 'waiting', stateLabel: '응답 대기' },
+            { staffId: 4, name: '김성재', title: null, state: 'in', stateLabel: '참석' },
+          ] },
       ],
     },
   });
   const view = setup(me, false);
-  fireEvent.click(view.getByRole('tab', { name: /^회의/ }));
+  fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
   await waitFor(() => expect(view.container.textContent).toContain('주간 기획'));
-  // 수는 서버가 준 값 그대로다 — 화면이 참석을 다시 세지 않는다
-  expect(view.container.textContent).toContain('2/4');
-  expect(view.container.textContent).toContain('3/3');
+  // 이름과 상태는 서버가 준 값 그대로다 — 화면이 참석을 다시 세거나 판정하지 않는다
+  const waiting = view.getByText('홍지승');
+  expect(waiting.getAttribute('title')).toBe('응답 대기');
+  expect(waiting.className).toContain('bg-amber');
+  expect(view.getByText('김성재').className).toContain('bg-green');
+  expect(view.getByText('대기 1')).toBeTruthy();
+  // 지난 회의는 「예정」이 아니라 속기록이 끝맺음이다
+  expect(view.queryByText('예정')).toBeNull();
+  expect(view.getByText('속기록 없음')).toBeTruthy();
 });
 
 /**
@@ -332,12 +342,64 @@ it('참석은 칩으로 서고 모자라면 경고색이다 (§63)', async () =>
 it('§61 카드의 「보완 N」은 서버가 센 값이고 0 이면 칩이 서지 않는다', async () => {
   vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, plans: [
     { id: 7, title: '되돌아온 기획', stage: 'rework', stageLabel: '보완 요청', goal: null, ask: null,
-      dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 2 },
+      dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 2,
+      taskDone: 0, taskTotal: 0, dueLabel: null, dueStateLabel: '기한 없음' },
     { id: 8, title: '손으로 박은 건', stage: 'rework', stageLabel: '보완 요청', goal: null, ask: null,
-      dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 0 },
+      dueOn: null, ownerName: '홍지승', overdueDays: 0, dueState: 'none', reworkCount: 0,
+      taskDone: 0, taskTotal: 0, dueLabel: null, dueStateLabel: '기한 없음' },
   ] } });
   const view = setup(me, false);
-  fireEvent.click(await view.findByRole('tab', { name: /^기획/ }));
+  fireEvent.click(await waitFor(() => within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ })));
   expect(view.getByText('보완 2')).toBeTruthy();
   expect(view.queryByText('보완 0')).toBeNull();
+});
+
+/* ── w5 · 1:1 대조 둘째 물결 — 원문 §61 · §67 · C-4 ───────────────────────── */
+
+it('§61 카드 — 「과제 N/M」·기한 낱말·기한 상태 칩은 서버 값이고, 탭 동그라미는 검토+보완 수다 (61-1 · 61-2 · 61-3 · C-4)', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, planPending: 2, plans: [
+    { id: 7, title: '9월 신규 상담 유입 30% 늘리기', stage: 'review', stageLabel: '검토 요청', goal: null, ask: null,
+      dueOn: '2026-08-25', ownerName: '홍지승', overdueDays: 4, dueState: 'proposed', reworkCount: 0,
+      taskDone: 1, taskTotal: 3, dueLabel: '4일 지남', dueStateLabel: '기한 제안' },
+    { id: 9, title: 'SE/TE 공개 범위 확대', stage: 'done', stageLabel: '완료', goal: null, ask: null,
+      dueOn: '2026-08-11', ownerName: '김범준', overdueDays: 0, dueState: 'approved', reworkCount: 0,
+      taskDone: 2, taskTotal: 2, dueLabel: null, dueStateLabel: '기한 승인됨' },
+  ] } });
+  const view = setup(me, false);
+  await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획 2건/ })).toBeTruthy());
+  fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ }));
+  expect(view.getByText('기획 결재')).toBeTruthy();
+  expect(view.getByText('과제 1/3')).toBeTruthy();
+  expect(view.getByText('과제 2/2')).toBeTruthy();
+  const late = view.getByText('4일 지남');
+  expect(late.className).toContain('text-red');
+  expect(view.getByText('08-25')).toBeTruthy();
+  expect(view.getByText('기한 제안')).toBeTruthy();
+  expect(view.getByText('기한 승인됨')).toBeTruthy();
+  // 속 갈래도 카드형이고 동그라미는 같은 수(서버 planPending)다
+  expect(within(view.getByRole('tablist', { name: '기획 보기' })).getByRole('tab', { name: /^단계 보드 2건/ })).toBeTruthy();
+  // C-9 — 칸 머리 윗선 단계색 · 오른쪽 큰 단계색 건수(검토 요청 호박 · 완료 초록)
+  const review = view.container.querySelector('[data-board-column="review"]') as HTMLElement;
+  expect(review.className).toContain('border-t-amber');
+  expect(within(review).getByText('1', { selector: 'span.text-\\[20px\\]' }).className).toContain('text-amber');
+  expect((view.container.querySelector('[data-board-column="done"]') as HTMLElement).className).toContain('border-t-green');
+});
+
+it('§67 — 「기한 지남 N」 칩과 탭 동그라미는 서버 cplOverdue 이고, 「이력」은 같은 컴플레인을 표로 보인다 (67-1 · 67-2 · C-4)', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplOverdue: 2,
+    cplStages: [{ key: 'received', label: '접수', sub: '받았습니다' }],
+    complaints: [{ id: 5, area: 'lesson', areaLabel: '수업', studentId: null, studentName: '양찬욱', stage: 'received',
+      body: '진도가 느리다는 말씀', action: null, result: null, createdAt: '2026-08-20', ageDays: 1,
+      ownerId: null, ownerName: null, dueOn: '2026-08-19', overdueDays: 2, severity: null, severityLabel: null,
+      teacherChanged: false, canWithdraw: false }],
+  } });
+  const view = setup(me, false);
+  await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인 2건/ })).toBeTruthy());
+  fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
+  expect(view.getByText('기한 지남 2')).toBeTruthy();
+  fireEvent.click(within(view.getByRole('tablist', { name: '컴플레인 보기' })).getByRole('tab', { name: /^이력/ }));
+  const table = view.getByRole('table');
+  expect(within(table).getByText('진도가 느리다는 말씀')).toBeTruthy();
+  expect(within(table).getByText('담당 없음')).toBeTruthy();
+  expect(within(table).getByText('접수')).toBeTruthy();
 });

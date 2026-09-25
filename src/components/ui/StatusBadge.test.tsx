@@ -25,3 +25,20 @@ it('나머지 상태 낱말은 그대로다 — 한 배지에서만 고치지 �
     expect(render(<StatusBadge state={state} />).getByText(word)).toBeTruthy();
   }
 });
+
+/**
+ * 컷 §47 상태 칸은 **점 + 색 글자**이고 반려가 **주황**이다(g5 47-06).
+ * 알약 모양(기본)은 다른 화면이 쓰므로 그대로 둔다 — 반려 보라도 그대로다.
+ */
+it('dot 이면 점 + 색 글자이고 반려는 주황이다 — 기본 알약은 그대로다', () => {
+  const pill = render(<StatusBadge state="rej" />).getByText('반려');
+  expect(pill.className).toContain('rounded-full');
+  expect(pill.className).toContain('text-violet');
+  cleanup();
+  const v = render(<><StatusBadge state="rej" dot /><StatusBadge state="none" dot /></>);
+  const rej = v.getByText('반려');
+  expect(rej.className).toContain('text-orange');
+  expect(rej.className).not.toContain('rounded-full');
+  expect(rej.querySelector('[aria-hidden]')?.className).toContain('bg-orange');
+  expect(v.getByText('미작성').className).toContain('text-red');
+});

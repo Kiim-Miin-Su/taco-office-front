@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { AnchorHTMLAttributes, ReactNode } from 'react';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { KindRow, ZoomAccount } from '@/api/types';
 import { KindsPane, ZoomPane } from './panes';
@@ -47,4 +47,23 @@ it('묶음 이름은 서버가 준 낱말이다 — 화면이 코드표를 다�
   const text = view.container.textContent ?? '';
   expect(text).not.toContain('intake');
   expect(text).not.toContain('lesson');
+});
+
+/*
+ * g2 대조 18-1 · 18-2 · 18-5 · 18-6 — 원문 §18 은 묶음별 카드 목록이다: 묶음 머리(색 띠 · 「수업 1」) +
+ * 줄 「■ 이름 정원 N [리포트]」. 리포트 배지는 대상인 줄에만 서고, 머리 문장에 결정 번호가 없다.
+ */
+it('§18 은 묶음 머리와 「정원 N」 줄이고, 리포트 배지는 대상에만 선다', () => {
+  const view = render(<KindsPane kinds={[...kinds, { key: 'mock', name: '모의수업', color: '#BC7855', cap: 1, grp: 'lesson', grpLabel: '수업', rep: true }]} />);
+  const sections = [...view.container.querySelectorAll('section')];
+  expect(sections.map((s) => s.querySelector('div')?.textContent)).toEqual(['수업2', '상담·진단1']);
+  const [lesson, intake] = sections;
+  expect(within(lesson!).getByText('정원 4')).toBeTruthy();
+  expect(within(lesson!).getAllByText('리포트')).toHaveLength(2);
+  expect(within(intake!).queryByText('리포트')).toBeNull();
+  // 색 표식은 둥근 사각이다 — 원형 점이 아니다
+  expect(lesson!.querySelector('li span[aria-hidden]')?.className).toContain('rounded-sm');
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('리포트 표시가 붙은 프로그램만 리포트 작성·차감 대상입니다.');
+  expect(text).not.toMatch(/D-R\d/);
 });

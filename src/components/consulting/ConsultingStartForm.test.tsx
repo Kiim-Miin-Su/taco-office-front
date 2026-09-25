@@ -10,7 +10,7 @@ import type { ConsultingCreate, Meta } from '@/api/types';
 import { ConsultingStartForm } from './ConsultingStartForm';
 
 const meta = {
-  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [],
+  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
   staff: [
     { id: 2, name: '김민수', role: 'admin', canAdminPage: true, canGpaPack: true },
     { id: 3, name: '김범준', role: 'manager', canAdminPage: true, canGpaPack: true },
@@ -106,5 +106,30 @@ describe('ConsultingStartForm', () => {
     fireEvent.submit(view.container.querySelector('form') as HTMLFormElement);
     expect(submit.mock.calls[0][0].amount).toBe(900000);
     expect(submit.mock.calls[0][0]).not.toHaveProperty('pickedStaffIds');
+  });
+  it('원본 §29 모양 — 「누가 요청」 칩(필수 표시 없음) · 공개 범위 뜻 한 줄(서버 낱말) · 「시작하면」 세 줄 · 바닥 「취소」 왼쪽 (29-03 · 29-06 · 29-07 · 29-08)', () => {
+    const words = [
+      { key: 'all', label: '전체 공개', meaning: '관리자 누구나 봅니다' },
+      { key: 'money_only', label: '수납만 공개', meaning: '금액만 보이고 내용은 숨깁니다' },
+      { key: 'picked', label: '지정 공개', meaning: '고른 사람만 봅니다' },
+      { key: 'private', label: '전체 비공개', meaning: '담당자와 대표만 봅니다' },
+    ] as const;
+    const view = render(<ConsultingStartForm meta={meta} canSetPrivate={false} shareWords={words} pending={false} onCancel={vi.fn()} onSubmit={vi.fn()} />);
+    expect(view.getByText('누가 요청')).toBeTruthy();
+    expect(view.queryByText('누가 요청 *')).toBeNull();
+    expect(view.getByRole('button', { name: '어머니', pressed: true })).toBeTruthy();
+    expect(view.getByText('관리자 누구나 봅니다')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '수납만 공개' }));
+    expect(view.getByText('금액만 보이고 내용은 숨깁니다')).toBeTruthy();
+    expect(view.getByText('꼭')).toBeTruthy();
+    const box = view.getByRole('region', { name: '시작하면' });
+    expect(box.textContent).toContain('금액을 넣으면 회계에 잡힙니다');
+    fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '800000' } });
+    expect(box.textContent).toContain('계약 단계로 들어갑니다 · 계약서 → 피드백 → 전달 → 서명 → 수납');
+    expect(box.textContent).toContain('회계에 800,000원으로 잡힙니다');
+    expect(box.textContent).toContain('회차를 넣으면 스케줄에 컨설팅으로 들어갑니다');
+    const footer = view.getByRole('button', { name: '시작하기' }).parentElement!;
+    expect(footer.className).toContain('justify-between');
+    expect(footer.firstElementChild?.textContent).toBe('취소');
   });
 });

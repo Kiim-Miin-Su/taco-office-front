@@ -31,6 +31,8 @@ export interface CalCellProps {
   items: Occurrence[];
   /** 과목 이름 — 코드표에서 온다. 화면이 색·이름을 만들지 않는다 (D-R18) */
   subName?: (o: Occurrence) => string | undefined;
+  /** 종류 이름 — 과목·제목이 없는 회차의 제목 자리 (코드값을 찍지 않는다 · D-R18) */
+  kindName?: (o: Occurrence) => string | undefined;
   colorOf?: CalendarColorOf;
   /** 몇 개까지 보이고 나머지는 「+N건 더」로 접는다 (§9 · §36) */
   max?: number;
@@ -57,7 +59,7 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, colorOf, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
+  date, head, items, subName, kindName, colorOf, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
   droppable, draggable, children,
 }: CalCellProps) {
   const instanceId = useId();
@@ -76,7 +78,8 @@ export function CalCell({
       className={cn(
         'relative flex min-h-[78px] flex-col gap-1 border-b border-r border-line p-1.5',
         muted && 'bg-inset/40',
-        isToday && 'bg-blue/[0.04]',
+        // 원문 §09 오늘 칸 — 칸 전체가 옅은 주황이고 날짜 옆에 빨간 「오늘」
+        isToday && 'bg-amber/[0.07]',
         active && 'z-[1] ring-2 ring-inset ring-blue',
         onAdd && 'cursor-cell',
         drop.isOver && 'bg-blue/10',
@@ -93,13 +96,17 @@ export function CalCell({
           {onPickDate ? (
             <button type="button" onClick={() => onPickDate(date)}
               aria-label={`${date} (${KO_DOW[dowOf(date)]}) 날짜 선택`}
-              className={cn('rounded px-1 hover:bg-blue/10 focus-visible:outline-blue',
-                isToday && 'bg-blue font-bold text-white hover:bg-blue')}>
-              {head}
+              className={cn('rounded px-1 text-[13px] font-bold hover:bg-blue/10 focus-visible:outline-blue',
+                isToday ? 'text-red' : !muted && 'text-fg')}>
+              {head}{isToday ? <span className="ml-1">오늘</span> : null}
             </button>
-          ) : isToday ? <span className="rounded bg-blue px-1 font-bold text-white">{head}</span> : <span>{head}</span>}
-          {/* 빈 날짜에는 수를 적지 않는다 — 원문 §09 의 빈 칸에는 「0건」이 없다 */}
-          {items.length > 0 ? <span className="ml-auto">{items.length}건</span> : null}
+          ) : (
+            <span className={cn('px-1 text-[13px] font-bold', isToday ? 'text-red' : !muted && 'text-fg')}>
+              {head}{isToday ? <span className="ml-1">오늘</span> : null}
+            </span>
+          )}
+          {/* 빈 날짜에는 수를 적지 않는다 — 원문 §09 의 빈 칸에는 「0건」이 없고, 있는 칸도 숫자만 적는다(「8」) */}
+          {items.length > 0 ? <span className="ml-auto" title={`${items.length}건`}>{items.length}</span> : null}
         </div>
       ) : null}
 
@@ -108,8 +115,10 @@ export function CalCell({
           key={`${o.serId}-${o.date}-${o.startMin}`}
           occ={o}
           subName={subName?.(o)}
+          kindName={kindName?.(o)}
           color={colorOf?.(o)}
           compact={compact}
+          flat
           onClick={() => onOpen?.(o)}
           onSelect={onSelect}
           selected={selected?.has(occurrenceKey(o))}

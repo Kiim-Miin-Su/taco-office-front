@@ -3,7 +3,7 @@
  * 책임/재사용: 실제 NotisPane 을 쓰고 서버 판정(분류·색)은 props 로 받은 값만 그린다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Noti } from '@/api/types';
 import { addDays, todayKst } from '@/lib/calendar';
@@ -106,4 +106,43 @@ it('전부 읽음은 안 읽은 것이 있을 때만 눌린다', () => {
   const allRead = setup({ notis: notis.map((n) => ({ ...n, read: true })) });
   expect(allRead.view.getByRole('button', { name: '전부 읽음으로 표시' }).hasAttribute('disabled')).toBe(true);
   expect(allRead.view.container.textContent).toContain('읽지 않은 알림이 없습니다');
+});
+
+/*
+ * g2 대조 16-1 · 16-2 · 16-4 — 원문 카드: 분류 아이콘 타일 · **굵은 제목** · 상세 한 줄 · 메타(분류 · 보낸 이 · 역할 · 시각)
+ * · 안 읽음 점. 제목은 서버의 title 이고, 없는 옛 알림은 본문이 굵은 한 줄이 된다.
+ */
+it('카드는 아이콘 타일 · 굵은 제목 · 상세 · 메타(분류 · 보낸 이 · 역할 · 시각)로 선다', () => {
+  const { view } = setup({
+    notis: [
+      { ...notis[0]!, title: 'MAP Reading 리포트 독촉', body: '08-18 16:30 종료 후 65시간 경과', fromName: 'Allissa', fromRoleLabel: '강사', at: `${todayKst()}T09:12:00+09:00` },
+      { ...notis[2]!, title: null },
+    ],
+  });
+  const [titled, old] = view.getAllByRole('listitem');
+  const title = within(titled!).getByText('MAP Reading 리포트 독촉');
+  expect(title.className).toContain('font-bold');
+  expect(within(titled!).getByText('08-18 16:30 종료 후 65시간 경과')).toBeTruthy();
+  expect(titled!.textContent).toContain('작성 독촉 · Allissa · 강사 · 09:12');
+  expect(titled!.querySelector('svg')).toBeTruthy();
+  // 안 읽은 것도 바탕은 흰색이다 — 파란 틴트가 아니라 오른쪽 점 하나다
+  expect(titled!.className).toContain('bg-card');
+  expect(titled!.className).not.toContain('bg-blue');
+  // 제목이 없는 옛 알림은 본문이 굵은 한 줄이다 — 본문을 잘라 제목을 짓지 않는다
+  expect(within(old!).getByText('시험 준비 자료 기록 승인').className).toContain('font-bold');
+});
+
+it('안 읽음 점을 누르면 읽음이 된다 — 「전부 읽음으로 표시」는 전폭 단추다', () => {
+  const { props, view } = setup();
+  fireEvent.click(view.getByRole('button', { name: '읽음' }));
+  expect(props.onRead).toHaveBeenCalledWith(1);
+  expect(view.getByRole('button', { name: '전부 읽음으로 표시' }).className).toContain('w-full');
+});
+
+/* g2 대조 16-3 — 분류 칩 앞에 카드 타일과 같은 색 점 */
+it('분류 칩 앞에 색 점이 서고 전체·안 읽음에는 없다', () => {
+  const { view } = setup();
+  expect(view.getByRole('button', { name: '전체 3' }).querySelector('span[aria-hidden]')).toBeNull();
+  expect(view.getByRole('button', { name: '작성 독촉 2' }).querySelector('span[aria-hidden]')?.className).toContain('bg-red');
+  expect(view.getByRole('button', { name: '리포트 1' }).querySelector('span[aria-hidden]')?.className).toContain('bg-green');
 });

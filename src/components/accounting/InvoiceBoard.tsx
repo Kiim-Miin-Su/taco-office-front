@@ -77,7 +77,9 @@ export function InvoiceBoard({ data, loading }: InvoiceBoardProps) {
       {cols.length === 0 ? (
         <p className="text-[12px] text-fg-subtle">{loading ? '불러오는 중…' : '아직 불러오지 않았습니다'}</p>
       ) : (
-        <Board columns={cols} renderCard={(c) => <Card c={c} />} itemKey={(c) => c.invId} empty="없습니다" />
+        /* 칸 머리 번호 ①②③④ — 원문 §52 는 왼쪽에서 오른쪽으로 옮겨 가는 순서를 번호로 적는다(52-01).
+           공용 Board 의 번호 자리를 그대로 쓴다 — 번호는 칸의 자리이지 서버 값이 아니다 */
+        <Board numbered columns={cols} renderCard={(c) => <Card c={c} />} itemKey={(c) => c.invId} empty="없습니다" />
       )}
     </>
   );

@@ -3,10 +3,10 @@
  * 책임/재사용: 실제 TodosPane과 생성 OpenAPI 타입을 사용하고 서버 권한 판정은 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { DrawerTodo } from '@/api/types';
-import { addDays, mondayOf, todayKst } from '@/lib/calendar';
+import { addDays, dowOf, KO_DOW, mondayOf, todayKst } from '@/lib/calendar';
 import { TodosPane } from './panes';
 
 afterEach(cleanup);
@@ -54,8 +54,45 @@ it('기본은 이번 주 월~일이고 같은 응답에서 벗어난 다음 주 
   expect(view.container.textContent).toContain('회의록 정리');
   expect(view.container.textContent).toContain('완료된 점검');
   expect(view.container.textContent).not.toContain('다음 주 작업');
-  expect(view.container.textContent).toContain('월요일');
-  expect(view.container.textContent).toContain('일요일');
+  // 요일 머리는 원문 §15 그대로 「월 17」 모양이다 (g2 15-3)
+  const heads = view.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+  expect(heads).toHaveLength(7);
+  expect(heads[0]).toBe(`월 ${Number(monday.slice(8))}`);
+  expect(heads[6]).toBe(`일 ${Number(addDays(monday, 6).slice(8))}`);
+});
+
+/* g2 대조 15-1 — 원문 요약은 한 줄이다: 「N건 [안 끝난 것 N] [기한 지남 N] … [끝난 것 지우기]」 */
+it('요약은 한 줄 — 건수 · 칩 둘 · 오른쪽 「끝난 것 지우기」 · 기간 낱말은 「MM-DD ~ MM-DD」', () => {
+  const { view } = setup();
+  const clear = view.getByRole('button', { name: '끝난 것 지우기' });
+  const line = clear.parentElement!;
+  // 전체 묶음 · 이번 주 — 회의록 정리(열림) · 완료된 점검 · 남의 끝난 것 = 3건, 안 끝난 것 1
+  expect(line.textContent).toContain('3건');
+  expect(within(line).getByText('안 끝난 것 1')).toBeTruthy();
+  expect(within(line).getByText('기한 지남 0')).toBeTruthy();
+  expect(line.className).toContain('border-b');
+  expect(view.container.textContent).toContain(`${monday.slice(5)} ~ ${addDays(monday, 6).slice(5)}`);
+  // 통계 카드 석 장은 없어졌다
+  expect(view.queryByText('할 일', { selector: 'p' })).toBeNull();
+});
+
+/* g2 대조 15-2 — 요일마다 카드: 머리 + 「끝낸 것/전체」 배지, 빈 날은 한 줄 「—」, 오늘 카드는 갈색 테두리 */
+it('요일 카드는 끝낸 것/전체 배지를 달고, 빈 날은 「—」 한 줄로 접히며, 오늘 카드는 갈색 테두리다', () => {
+  const { view } = setup();
+  const card = (day: string) =>
+    view.getByRole('heading', { name: `${KO_DOW[dowOf(day)]} ${Number(day.slice(8))}` }).closest('section')!;
+  // 화요일 — 완료된 점검 · 남의 끝난 것 둘 다 끝났다
+  expect(within(card(addDays(monday, 1))).getByText('2/2')).toBeTruthy();
+  // 월요일 — 회의록 정리 하나, 안 끝났다
+  expect(within(card(monday)).getByText('0/1')).toBeTruthy();
+  // 수요일은 비었다 — 한 줄 「—」 이고 항목 목록이 없다
+  const empty = card(addDays(monday, 2));
+  expect(empty.textContent).toContain('—');
+  expect(empty.querySelector('ul')).toBeNull();
+  // 오늘 카드만 갈색 테두리다
+  const today = card(todayKst());
+  expect(today.className).toContain('border-primary');
+  expect(card(todayKst() === monday ? addDays(monday, 1) : monday).className).not.toContain('border-primary');
 });
 
 it('완료 체크와 끝난 것 지우기는 상위 mutation 한 벌로 위임한다', () => {

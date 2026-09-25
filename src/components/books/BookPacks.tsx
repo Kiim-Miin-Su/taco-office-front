@@ -19,6 +19,7 @@ import {
 import type { BookPack, BookPackWrite } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { Banner, Button, Checkbox, Chip, Input, Label, Panel, QueryState, Select, Textarea } from '@/components/ui';
+import { kstDateTime } from '@/lib/calendar';
 import { downloadElementPng } from '@/lib/png-export';
 
 export function BookPacks({ focusPackId = null }: { focusPackId?: number | null }) {
@@ -117,10 +118,16 @@ export function BookPacks({ focusPackId = null }: { focusPackId?: number | null 
           </ul>
         </Panel>
         <Panel title="코디네이터">
+          {/* 원문 「Sophia 2건 미확인 1」 — 미확인(전달했는데 수령 전) 수는 서버가 센다 (g4 §41-5) */}
           {q.data?.coordinators.map((coordinator) => (
-            <div key={coordinator.key} className="mb-2 flex justify-between text-[12px]">
+            <div key={coordinator.key} className="mb-2 flex items-center justify-between gap-2 text-[12px]">
               <span>{coordinator.label}</span>
-              <b>{coordinator.count}건</b>
+              <span className="flex items-center gap-1.5">
+                <b>{coordinator.count}건</b>
+                {coordinator.unreceived > 0 ? (
+                  <Chip size="compact" tone="danger">{`미확인 ${coordinator.unreceived}`}</Chip>
+                ) : null}
+              </span>
             </div>
           ))}
         </Panel>
@@ -203,9 +210,12 @@ function BookPackCard({
           ))}
         </div>
         {pack.memo ? <p>{pack.memo}</p> : null}
+        {/* 전달·수령은 서버가 ISO 시각으로 준다 — 원문 §41 처럼 KST 날짜·시각으로 읽게 공용 포맷을 쓴다 */}
         <p className="text-fg-subtle">
-          코디네이터 {pack.coordinatorName ?? '—'} · 전달 {pack.deliveredAt ?? '—'} · 적용 {pack.effectiveOn ?? '—'} · 수령{' '}
-          {pack.receivedAt ?? '—'}
+          {/* 전달 뒤에 전달한 사람 — 원문 「전달 2026-08-20 · 김범준」 (g4 §41-2) */}
+          코디네이터 {pack.coordinatorName ?? '—'} · 전달 {kstDateTime(pack.deliveredAt) ?? '—'}
+          {pack.deliveredByName ? ` · ${pack.deliveredByName}` : ''} · 적용{' '}
+          {pack.effectiveOn ?? '—'} · 수령 {kstDateTime(pack.receivedAt) ?? '—'}
         </p>
       </div>
       {exportState === 'done' ? (

@@ -224,6 +224,25 @@ export const KO_DOW = ['일', '월', '화', '수', '목', '금', '토'];
 export const label = (iso: string): string =>
   `${+iso.slice(5, 7)}/${+iso.slice(8, 10)} (${KO_DOW[dowOf(iso)]})`;
 
+/**
+ * 'YYYY-MM-DD' → '26년 9월 18일 금요일' — 원문 §34·§40·§45 의 긴 날짜 한 모양.
+ * 교재 이력·안내 이력이 같은 식을 각자 적고 있었다 — 두 벌이면 한쪽만 고쳐져 갈린다.
+ */
+export const longDateLabel = (iso: string): string =>
+  `${iso.slice(2, 4)}년 ${+iso.slice(5, 7)}월 ${+iso.slice(8, 10)}일 ${KO_DOW[dowOf(iso)]}요일`;
+
+/**
+ * 시각(ISO) → KST 'YYYY-MM-DD HH:mm'. 서버가 어느 오프셋으로 주든 서울 시간으로 읽는다 (D-R12).
+ * 읽을 수 없는 값은 null — 화면이 ISO 원문(「…T19:00:00+09:00」)을 그대로 찍거나 날짜를 지어내지 않게 한다.
+ */
+export function kstDateTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return null;
+  const kst = new Date(at + 9 * 3600 * 1000).toISOString();
+  return `${kst.slice(0, 10)} ${kst.slice(11, 16)}`;
+}
+
 /** 지금이 몇 분인가 — 오늘 칸의 빨간 선 위치 (§7) */
 export const nowMinKst = (): number => {
   const n = new Date(Date.now() + 9 * 3600 * 1000);

@@ -210,7 +210,7 @@ export default function ProgramsPage() {
               </Panel>
             ) : null}
 
-            <Panel title={`프로그램 ${q.data?.kinds.length ?? 0}종`} sub="리포트 표시가 붙은 프로그램만 리포트 작성·차감 대상입니다 (§18 원문)">
+            <Panel title={`프로그램 ${q.data?.kinds.length ?? 0}종`} sub="리포트 표시가 붙은 프로그램만 리포트 작성·차감 대상입니다">
               <Table columns={kindCols} rows={q.data?.kinds ?? []} rowKey={(r) => r.key} empty="프로그램이 없습니다" />
             </Panel>
           </>

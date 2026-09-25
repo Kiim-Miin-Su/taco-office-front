@@ -102,7 +102,7 @@ export function PaymentRecorder({ invoices, payments }: { invoices: Invoice[]; p
       <Panel
         className="min-w-0 grow"
         title={picked ? `입금 기록 · ${picked.studentName}` : '입금 기록'}
-        sub="한 청구서에 여러 줄로 나눠 받습니다 — 누계와 상태는 서버가 셉니다. 남은 금액은 회색 안내로만 보입니다 (A-D2)"
+        sub="한 청구서에 여러 줄로 나눠 받습니다 — 누계와 상태는 서버가 셉니다. 남은 금액은 회색 안내로만 보입니다"
       >
         {!picked ? (
           <p className="px-1 py-8 text-center text-[13px] text-fg-subtle">왼쪽에서 청구서를 골라 주세요.</p>

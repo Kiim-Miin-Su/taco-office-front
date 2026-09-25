@@ -97,7 +97,7 @@ function RateForm({ open, onClose, meta }: { open: boolean; onClose: () => void;
         </div>
         <p className="text-[11px] text-fg-subtle">
           그 날짜 이후 회차의 청구서·수업료 계산·명단 가격이 이 값을 읽습니다. 지난 줄은 남습니다 — 이미 낸 청구서가 그 값으로 서 있습니다.
-          그룹은 인원마다 줄을 둡니다(인원이 늘면 1인 단가가 내려갑니다 · D-R10).
+          그룹은 인원마다 줄을 둡니다(인원이 늘면 1인 단가가 내려갑니다).
         </p>
         {err ? <Banner tone="danger">{err}</Banner> : null}
       </div>
@@ -225,7 +225,7 @@ export function RateBook({ data, loading }: { data: RateBookData | undefined; lo
         <Table columns={rateCols} rows={data?.rates ?? []} rowKey={(r) => r.id} empty={loading ? '불러오는 중…' : '단가가 없습니다'} />
       </Panel>
       <Panel>
-        {head('학생별 예외', '그 학생의 그 종류만 이 값으로 — 사유가 남습니다 (H-81).',
+        {head('학생별 예외', '그 학생의 그 종류만 이 값으로 — 사유가 남습니다.',
           <Button type="button" size="sm" variant="secondary" onClick={() => setDialog('student')}>+ 예외 등록</Button>)}
         <Table columns={stuCols} rows={data?.studentRates ?? []} rowKey={(r) => r.id} empty={loading ? '불러오는 중…' : '예외가 없습니다'} />
       </Panel>

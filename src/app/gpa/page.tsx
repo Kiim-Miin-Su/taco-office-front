@@ -14,17 +14,20 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { apiMessage } from '@/api/client';
-import { Banner, Button, Chip, Dialog, PageHeader, Panel, QueryState, StatCard } from '@/components/ui';
+import { Banner, Button, Chip, Dialog, PageHeader, Panel, QueryState, StatCard, Table, type Column } from '@/components/ui';
+import { cn } from '@/components/ui/cn';
 import {
   useCloseGpaCycle, useCreateGpaUse, useDeleteGpaUse, useGpaBoard, usePutGpaAlloc, useSetGpaUseState,
 } from '@/api/queries';
-import type { GpaBoard, GpaCycle, GpaCycleCloseResult, GpaStudent } from '@/api/types';
+import type { GpaBoard, GpaCycle, GpaCycleCloseResult, GpaStudent, GpaUse } from '@/api/types';
 import { hm } from '@/components/teacher/format';
-import { GpaPointCard } from '@/components/data/GpaPointCard';
+import { GPA_SVC_DOT, GpaPointCard, gpaSvcTone } from '@/components/data/GpaPointCard';
 
 const addD = (iso: string, n: number): string =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const md = (iso: string): string => `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일`;
+/** 원본 §82 의 날짜 모양 — 「08-21」 */
+const mmdd = (iso: string): string => iso.slice(5);
 
 function AllocEditor({ s, cycleId, closed }: { s: GpaStudent; cycleId: number; closed: boolean }) {
   const put = usePutGpaAlloc();
@@ -72,7 +75,7 @@ function CycleClose({ cy, onDone }: { cy: GpaCycle; onDone: (r: GpaCycleCloseRes
         <Button onClick={() => setOpen(false)} disabled={close.isPending}>취소</Button>
         <Button variant="danger" disabled={close.isPending} onClick={() => close.mutate({ cycleId: cy.id }, { onSuccess: (r) => { setOpen(false); onDone(r); } })}>{close.isPending ? '마감 중…' : '마감'}</Button>
       </>}>
-        <p className="text-[12px] text-fg-2">이월 없음 — 마감하면 남은 포인트는 소멸하고(D-R29) 이 사이클의 기록·승인·배정이 잠깁니다. 뒤에 사이클이 없으면 끝날 다음 날부터 4주를 엽니다. 되돌릴 수 없습니다.</p>
+        <p className="text-[12px] text-fg-2">이월 없음 — 마감하면 남은 포인트는 소멸하고 이 사이클의 기록·승인·배정이 잠깁니다. 뒤에 사이클이 없으면 끝날 다음 날부터 4주를 엽니다. 되돌릴 수 없습니다.</p>
         {close.isError ? <Banner tone="danger" className="mt-2">{apiMessage(close.error)}</Banner> : null}
       </Dialog>
     </>
@@ -91,7 +94,7 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
   if (!d.cycle) {
     return (
       <>
-        <PageHeader title="GPA 관리" sub="학부모 비공개 · 내부 자료 (D-R30)" />
+        <PageHeader title="GPA 관리" sub="학부모 비공개 · 내부 자료" />
         <Banner className="mt-3" tone="info">등록된 GPA 사이클이 없습니다 — 사이클은 운영에서 만들어집니다.</Banner>
       </>
     );
@@ -115,17 +118,55 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
     }, { onSuccess: () => setForm((f) => ({ ...f, onDate: '', startMin: '', noteUrl: '' })) });
   };
 
+  /**
+   * 원본 §82 「{학생} 회차 내역 N건」 — **읽는 표**다(82-8). 쓰는 폼(아래 「회차 소비 기록」)과 별개다.
+   * 끝 시각은 서버가 연결 회차에서 읽어 준다(`endMin` — 회차가 없으면 시작만 적는다). 기록지는 링크로 열지 않는다 —
+   * 기록지 열기는 따로 정할 일이라(S3-c) 「있음」만 적는다. 「전체 보기」는 여는 화면이 원문에 없어 두지 않는다.
+   */
+  const historyCols: Array<Column<GpaUse>> = [
+    {
+      key: 'at', head: '날짜 · 시간', width: 150,
+      cell: (u) => `${mmdd(u.onDate)}${u.startMin != null ? ` ${hm(u.startMin)}${u.endMin != null ? `–${hm(u.endMin)}` : ''}` : ''}`,
+    },
+    { key: 'who', head: '학생', width: 90, cell: () => picked?.name ?? '—' },
+    {
+      key: 'svc', head: '서비스',
+      cell: (u) => {
+        const svc = d.services.find((x) => x.key === u.svcKey);
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className={cn('h-2 w-2 rounded-sm', GPA_SVC_DOT[gpaSvcTone(u.svcKey)])} />
+            {svc?.name ?? u.svcKey}
+          </span>
+        );
+      },
+    },
+    { key: 'p', head: 'P', width: 50, cell: (u) => u.points },
+    { key: 'coord', head: '코디네이터', width: 110, cell: (u) => u.coordName ?? '—' },
+    { key: 'note', head: '기록지', width: 110, cell: (u) => (u.noteUrl ? '기록지 있음' : '—') },
+    {
+      key: 'state', head: '상태', width: 110,
+      // 상태 배지 = 점 + 색 글자 (원본 §82 「● 승인 대기」)
+      cell: (u) => (
+        <span className={cn('inline-flex items-center gap-1.5 font-bold', u.state === 'ok' ? 'text-green' : 'text-amber')}>
+          <span aria-hidden className={cn('h-2 w-2 rounded-full', u.state === 'ok' ? 'bg-green' : 'bg-amber')} />
+          {u.state === 'ok' ? '승인' : '승인 대기'}
+        </span>
+      ),
+    },
+  ];
+
+  const pick = (studentId: number) => setPickedId(picked?.studentId === studentId ? null : studentId);
+
   return (
     <>
-      <PageHeader
-        title="GPA 관리"
-        sub={`${cy.no}차 사이클 · ${md(cy.from)} – ${md(cy.to)} (4주) · 학부모 비공개 — 내부 자료 (D-R30)`}
-      />
+      {/* 원본 §82 부제 그대로 — 뒤 둘(내부 자료 · 학부모 비공개)은 붉게 말한다(82-3 · 공용 PageHeader 가 노드 부제를 받는다) */}
+      <PageHeader title="GPA 관리" sub={<>4주 사이클 · 포인트제 · <span className="text-red">내부 자료 · 학부모 비공개</span></>} />
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <Button size="sm" disabled={!d.hasPrev} onClick={() => { setAnchor(addD(cy.from, -1)); setPickedId(null); }}>← 이전 사이클</Button>
-        <Button size="sm" variant={anchor === undefined ? 'primary' : 'secondary'} onClick={() => { setAnchor(undefined); setPickedId(null); }}>현재 사이클</Button>
-        <Button size="sm" disabled={!d.hasNext} onClick={() => { setAnchor(addD(cy.to, 1)); setPickedId(null); }}>다음 사이클 →</Button>
+        {anchor !== undefined ? (
+          <Button size="sm" variant="ghost" onClick={() => { setAnchor(undefined); setPickedId(null); }}>현재 사이클로</Button>
+        ) : null}
         <span className="ml-auto"><CycleClose cy={cy} onDone={setClosed} /></span>
       </div>
       {closed && closed.cycle.id === cy.id ? (
@@ -134,29 +175,47 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
         </Banner>
       ) : null}
 
-      {/*
-        원본 §82 「포인트 규정」 줄 — 갈래마다 칩 하나, 끝에 이월 규칙.
-        「이월 없음」은 닫힌 사이클에만 말해선 안 된다 — **닫히기 전에 알아야 쓸 수 있다.**
-      */}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[12px] text-fg-subtle">포인트 규정</span>
-        {d.services.map((sv) => (
-          <Chip key={sv.key} size="compact" tone="info">{sv.point}p {sv.name}</Chip>
-        ))}
-        <Chip size="compact" tone="neutral">이월 없음 · 사이클 종료 시 소멸</Chip>
-      </div>
-
       {cy.closed ? (
         <Banner className="mt-3" tone="warning">닫힌 사이클입니다 — 이월 없이 잔여가 소멸했고, 기록·승인·배정을 바꿀 수 없습니다.</Banner>
       ) : null}
 
-      {/* 원본 §82 머리 — 다섯 칸이다. 다섯째 「N회 진행」은 포인트가 아니라 **회수**다 */}
-      <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {/*
+        원본 §82 머리 — 첫 칸이 **사이클 이동기**다 「‹ 3차 사이클 [진행 중] 2026-07-27 ~ 2026-08-23 ›」(82-1).
+        나머지 다섯 칸 — 다섯째 「N회 진행」은 포인트가 아니라 **회수**다.
+      */}
+      <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="col-span-2 flex items-center gap-1 rounded-xl border border-line bg-card px-2 py-3 sm:col-span-1">
+          <button type="button" aria-label="이전 사이클" disabled={!d.hasPrev}
+            className="rounded-md px-2 py-1 text-[14px] text-fg-2 hover:bg-inset disabled:opacity-30"
+            onClick={() => { setAnchor(addD(cy.from, -1)); setPickedId(null); }}>‹</button>
+          <span className="min-w-0 grow text-center">
+            <span className="flex items-center justify-center gap-1.5">
+              <b className="text-[14px] text-fg">{cy.no}차 사이클</b>
+              <Chip size="compact" tone={cy.closed ? 'neutral' : 'success'}>{cy.closed ? '마감' : '진행 중'}</Chip>
+            </span>
+            <span className="block text-[11px] text-fg-subtle">{cy.from} ~ {cy.to}</span>
+          </span>
+          <button type="button" aria-label="다음 사이클" disabled={!d.hasNext}
+            className="rounded-md px-2 py-1 text-[14px] text-fg-2 hover:bg-inset disabled:opacity-30"
+            onClick={() => { setAnchor(addD(cy.to, 1)); setPickedId(null); }}>›</button>
+        </div>
         <StatCard label="배정" value={`${d.totalAlloc}p`} />
-        <StatCard label="사용" value={`${d.totalUsed}p`} note="승인" />
+        <StatCard label="사용" value={`${d.totalUsed}p`} note="승인" tone="warning" />
         <StatCard label="승인 대기" value={`${d.totalWait}p`} tone="warning" />
         <StatCard label="잔여" value={`${d.totalRemain}p`} tone={d.totalRemain < 0 ? 'danger' : 'success'} note="배정 − 사용 − 대기" />
         <StatCard label="진행" value={`${d.totalUses}회`} note="승인 대기 포함" />
+      </div>
+
+      {/*
+        원본 §82 「포인트 규정」 띠 — 지표 **아래**, 옅은 바탕 띠 안. 서비스마다 제 색이고(82-2) 카드·회차 내역과 한 표를 쓴다.
+        「이월 없음」은 닫힌 사이클에만 말해선 안 된다 — **닫히기 전에 알아야 쓸 수 있다.**
+      */}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl bg-inset px-3 py-2">
+        <span className="mr-1 text-[12px] font-bold text-fg-subtle">포인트 규정</span>
+        {d.services.map((sv) => (
+          <Chip key={sv.key} tone={gpaSvcTone(sv.key)} styleKind="outline">{sv.point}p {sv.name}</Chip>
+        ))}
+        <Chip tone="warning" styleKind="outline">이월 없음 · 사이클 종료 시 소멸</Chip>
       </div>
 
       {/*
@@ -165,22 +224,21 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
         수도 줄도 서버가 준 값 그대로다 (D-R37).
       */}
       {over.length > 0 ? (
-        <Banner tone="danger" className="mb-4">
-          <b>배정 포인트를 넘긴 학생 {over.length}명</b>
-          <ul className="mt-1 flex flex-col gap-0.5">
-            {over.map((s) => (
-              <li key={s.studentId}>
-                {s.name} — 배정 {s.alloc}p / 사용 {s.used + s.wait}p · <b>{-s.remain}p 초과</b> · 추가 결제 또는 다음 사이클 조정이 필요합니다
-              </li>
-            ))}
-          </ul>
-        </Banner>
+        // 공용 알림 상자의 굵은 색 제목 + 점 목록(86-4) — 원본 §82 「⛔ 배정 포인트를 넘긴 학생 N명」
+        <Banner
+          tone="danger"
+          className="mb-4"
+          title={`⛔ 배정 포인트를 넘긴 학생 ${over.length}명`}
+          items={over.map((s) => (
+            <>{s.name} — 배정 {s.alloc}p / 사용 {s.used + s.wait}p · <b>{-s.remain}p 초과</b> · 추가 결제 또는 다음 사이클 조정이 필요합니다</>
+          ))}
+        />
       ) : null}
 
       {/*
         원본 §82 「학생별 포인트 · N명 · 잔여 적은 순」 — 표가 아니라 **카드 격자**다.
         순서도 서버가 정한다(초과가 맨 앞) — 화면이 다시 정렬하면 컷의 순서와 갈린다.
-        배정을 고치는 한 줄만 제품이 더한 것이다: §82 는 우리에겐 화면이고, 고칠 자리가 여기뿐이다.
+        카드를 누르면 그 학생이 골라진다(82-4). 배정을 고치는 한 줄만 제품이 더한 것이다 — 카드 밖에 둔다.
       */}
       <Panel title={`학생별 포인트 · ${d.students.length}명`} sub="잔여 적은 순 — 넘긴 학생이 먼저 옵니다">
         {d.students.length === 0
@@ -188,52 +246,66 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
           : (
             <div className="grid grid-cols-1 gap-3 p-1 sm:grid-cols-2 lg:grid-cols-3">
               {d.students.map((s) => (
-                <GpaPointCard
-                  key={s.studentId}
-                  s={s}
-                  action={(
-                    <span className="flex flex-wrap items-center gap-2">
-                      <AllocEditor s={s} cycleId={cy.id} closed={cy.closed} />
-                      <Button
-                        className="ml-auto"
-                        size="sm"
-                        variant={picked?.studentId === s.studentId ? 'primary' : 'secondary'}
-                        onClick={() => setPickedId(picked?.studentId === s.studentId ? null : s.studentId)}
-                      >
-                        타임라인
-                      </Button>
-                    </span>
-                  )}
-                />
+                <div key={s.studentId} className="flex flex-col gap-1.5">
+                  <GpaPointCard s={s} selected={picked?.studentId === s.studentId} onSelect={() => pick(s.studentId)} />
+                  <AllocEditor s={s} cycleId={cy.id} closed={cy.closed} />
+                </div>
               ))}
             </div>
           )}
       </Panel>
 
       {picked ? (
-        <Panel className="mt-4" title={`${picked.name} · 소비 타임라인`} sub="대기(점선)는 잔여에서 이미 빠져 있습니다 — 승인은 확정 표시입니다">
+        <Panel
+          className="mt-4"
+          title={`${picked.name} · 소비 타임라인`}
+          sub={`${picked.coordName ? `담당 ${picked.coordName} · ` : ''}대기(점선)는 잔여에서 이미 빠져 있습니다 — 승인은 확정 표시입니다`}
+        >
+          {/*
+            원본 §82 선택 학생 머리의 미니 지표 넷 (82-6) — 배정 · 쓴 것 · 대기 · 남은 것.
+            값은 서버가 학생 줄에 이미 준 것(alloc · used · wait · remain)이다 — 화면이 uses 를 다시 더하지 않는다.
+          */}
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <StatCard label="배정" value={`${picked.alloc}p`} />
+            <StatCard label="쓴 것" value={`${picked.used}p`} />
+            <StatCard label="대기" value={`${picked.wait}p`} tone="warning" />
+            <StatCard label="남은 것" value={`${picked.remain}p`} tone={picked.remain < 0 ? 'danger' : 'success'} />
+          </div>
           {(setState.isError || remove.isError) ? (
             <Banner tone="danger" className="mb-2">{apiMessage(setState.isError ? setState.error : remove.error)}</Banner>
           ) : null}
           {uses.length === 0
             ? <p className="px-1 py-4 text-center text-[13px] text-fg-subtle">이 사이클 소비 기록이 없습니다.</p>
             : (
-              <ol className="flex flex-col gap-1.5">
+              <ol className="flex flex-col gap-1.5" aria-label={`${picked.name} 소비 타임라인`}>
                 {uses.map((u) => {
                   running -= u.points;
                   const svc = d.services.find((s) => s.key === u.svcKey);
+                  // 막대는 이 기록 뒤 **남은 비율**이다(원본 §82 타임라인 줄의 막대) — 넘기면 비고 붉게 말한다
+                  const left = picked.alloc > 0 ? Math.max(0, Math.min(1, running / picked.alloc)) : 0;
                   return (
                     <li
                       key={u.id}
-                      className={`flex items-center gap-3 rounded-lg border bg-card px-3 py-2 ${u.state === 'wait' ? 'border-dashed border-amber' : 'border-line'}`}
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${u.state === 'wait' ? 'border-dashed border-amber bg-amber/5' : 'border-line bg-card'}`}
                     >
-                      <span className="w-24 shrink-0 text-[12px] font-bold text-fg">{md(u.onDate)}{u.startMin != null ? ` ${hm(u.startMin)}` : ''}</span>
-                      <span className="min-w-0 grow truncate text-[12.5px] text-fg">
-                        {svc?.name ?? u.svcKey} <b className="text-red">−{u.points}p</b>
-                        {u.noteUrl ? <span className="ml-1.5 text-[11px] text-fg-subtle">기록지 있음</span> : null}
+                      {/* 날짜 위 · 시각 아래 — 원본 §82 「08-21 / 18:00」 (82-7) */}
+                      <span className="w-14 shrink-0 leading-tight">
+                        <b className="block text-[13px] text-fg">{mmdd(u.onDate)}</b>
+                        <span className="text-[11px] text-fg-subtle">{u.startMin != null ? hm(u.startMin) : '—'}</span>
                       </span>
-                      <span className={`w-20 shrink-0 text-right text-[12px] font-bold ${running < 0 ? 'text-red' : 'text-fg-subtle'}`}>잔여 {running}p</span>
-                      <Chip size="compact" tone={u.state === 'ok' ? 'success' : 'warning'}>{u.state === 'ok' ? '승인' : '대기'}</Chip>
+                      <span className="min-w-0 grow">
+                        <span className="flex items-center gap-1.5 text-[12.5px] font-bold text-fg">
+                          {svc?.name ?? u.svcKey}
+                          <Chip size="compact" tone={u.state === 'ok' ? 'success' : 'warning'} styleKind="solid">{u.state === 'ok' ? '승인' : '대기'}</Chip>
+                        </span>
+                        <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-line">
+                          <span className="block h-full rounded-full bg-green" style={{ width: `${Math.round(left * 100)}%` }} />
+                        </span>
+                      </span>
+                      <b className="w-12 shrink-0 text-right text-[13px] text-red">−{u.points}p</b>
+                      <span className={`w-16 shrink-0 text-right text-[12px] ${running < 0 ? 'font-bold text-red' : 'text-fg-subtle'}`}>
+                        <b className={running < 0 ? '' : 'text-fg'}>{running}p</b> 남음
+                      </span>
                       {cy.closed ? null : u.state === 'wait' ? (
                         <span className="flex shrink-0 gap-1">
                           {/* 승인 단추가 열리는지는 서버가 정한다 — 기록한 사람은 승인하지 못한다 (D-R39 · S1) */}
@@ -259,6 +331,15 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
                 })}
               </ol>
             )}
+        </Panel>
+      ) : null}
+
+      {picked ? (
+        <Panel
+          className="mt-4"
+          title={<>{picked.name} 회차 내역 <span className="ml-1 text-[11px] font-normal text-fg-subtle">{uses.length}건</span></>}
+        >
+          <Table columns={historyCols} rows={uses} rowKey={(u) => u.id} empty="이 사이클 회차 기록이 없습니다" />
         </Panel>
       ) : null}
 

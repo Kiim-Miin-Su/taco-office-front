@@ -57,6 +57,7 @@ const history: BookHistoryRow[] = [
     subject: 'Between the Lines · v2026.08',
     byName: '김민선',
     at: '2026-09-12T10:00:00+09:00',
+    refMissing: false,
   },
   {
     id: 8,
@@ -67,6 +68,7 @@ const history: BookHistoryRow[] = [
     subject: 'Between the Lines · v2026.08',
     byName: '김범준',
     at: '2026-09-11T09:20:00+09:00',
+    refMissing: false,
   },
 ];
 
@@ -210,8 +212,9 @@ it('이력에는 쓰는 단추가 없다 — 다른 쓰기가 남긴 것을 읽�
 
 it('칩 이름은 서버가 준 낱말이다 — 화면에 코드표를 다시 적지 않는다 (D-R18)', async () => {
   const view = wrap(<BookHistory />);
-  await waitFor(() => expect(view.getAllByText('교재 교체').length).toBeGreaterThan(0));
-  expect(view.getAllByText('교재 업로드').length).toBeGreaterThan(0);
+  // 칩·줄 라벨 앞에는 기호가 붙는다(§40) — 낱말 자체는 서버 것 그대로
+  await waitFor(() => expect(view.getAllByText(/교재 교체/).length).toBeGreaterThan(0));
+  expect(view.getAllByText(/교재 업로드/).length).toBeGreaterThan(0);
   // 영문 코드값은 화면에 없다
   const text = view.container.textContent ?? '';
   expect(text).not.toContain('book_swap');
@@ -237,4 +240,70 @@ it('날짜 접기는 제어 대상과 열린 상태를 보조기기에 알린다
   const controls = toggle.getAttribute('aria-controls');
   expect(controls).toBe('book-history-2026-09-12');
   expect(view.container.querySelector(`#${controls}`)).not.toBeNull();
+});
+
+it('활동 추이는 가장 최근 14일을 오래된 날 → 오늘 순으로 그리고 제목 일수가 막대 수와 같다 (§40)', async () => {
+  // 서버 byDay 는 이력 줄 순서(최신 먼저)로 온다. 오래된 쪽 14일을 자르면 오늘이 빠진다.
+  const days = Array.from({ length: 18 }, (_, i) => {
+    const key = `2026-09-${String(25 - i).padStart(2, '0')}`;
+    return { key, label: key, count: 1 + (i % 3) };
+  });
+  const view = wrap(<BookHistory />, { ...historyBoard, byDay: days });
+  await waitFor(() => expect(view.getByText('활동 추이 · 14일')).toBeTruthy());
+  const bars = [...view.container.querySelectorAll('div[title]')]
+    .map((bar) => bar.getAttribute('title') ?? '')
+    .filter((title) => /^2026-09-\d\d \d+건$/.test(title));
+  expect(bars).toHaveLength(14);
+  expect(bars[0]).toMatch(/^2026-09-12 /);
+  expect(bars[13]).toMatch(/^2026-09-25 /);
+  const keys = bars.map((title) => title.slice(0, 10));
+  expect([...keys].sort()).toEqual(keys);
+});
+
+/**
+ * §40 막대 높이 — 건수에 비례하되 **칸(96px) 안**에 든다. 전에는 건수 × 14px 라 7건부터 칸을 뚫고 나갔다.
+ */
+it('활동 추이 막대는 가장 많은 날을 기준으로 줄여 칸 안에 든다 (§40)', async () => {
+  const days = [
+    { key: '2026-09-20', label: '2026-09-20', count: 1 },
+    { key: '2026-09-21', label: '2026-09-21', count: 12 },
+    { key: '2026-09-22', label: '2026-09-22', count: 6 },
+  ];
+  const view = wrap(<BookHistory />, { ...historyBoard, byDay: days });
+  await waitFor(() => expect(view.getByText('활동 추이 · 3일')).toBeTruthy());
+  const height = (key: string) =>
+    parseFloat((view.container.querySelector(`div[title^="${key} "]`) as HTMLElement).style.height);
+  const most = height('2026-09-21');
+  expect(most).toBeLessThanOrEqual(72);
+  expect(height('2026-09-22')).toBeCloseTo(most / 2, 0);
+  expect(height('2026-09-20')).toBeLessThan(height('2026-09-22'));
+});
+
+/**
+ * §40-3 · §40-4 · §40-5 — 갈래 칩 앞에 상위 둘 「● 교재 N · ● 수업 안내 N」(서버 bookCount·guideCount),
+ * 행동 칩과 줄 라벨에 기호, 줄 왼쪽 띠 색이 갈래별, 기간 토글은 알약(Segmented).
+ */
+it('상위 두 갈래 수 · 행동 기호 · 갈래별 띠 색 · 알약 기간 토글 (§40)', async () => {
+  const view = wrap(<BookHistory />);
+  await waitFor(() => expect(view.getByText('교재 2')).toBeTruthy());
+  expect(view.getByText('수업 안내 0')).toBeTruthy();
+  // 행동 칩과 줄 라벨에 기호가 붙는다 — 교체 ⇄ · 업로드 ↑
+  expect(view.getByText('⇄ 교재 교체 1')).toBeTruthy();
+  const swapLine = view.getAllByText('⇄ 교재 교체').find((el) => el.tagName === 'B')!;
+  expect(swapLine.closest('[data-history-group]')?.getAttribute('data-history-group')).toBe('swap');
+  const uploadLine = view.getAllByText('↑ 교재 업로드').find((el) => el.tagName === 'B')!;
+  expect(uploadLine.closest('[data-history-group]')?.getAttribute('data-history-group')).toBe('book');
+  // 기간 토글은 알약 — 눌린 칸이 aria-pressed
+  expect(view.getByRole('button', { name: '월간' }).getAttribute('aria-pressed')).toBe('true');
+});
+
+/** §40-2 — 가리키던 행이 지워진 줄은 서버 문장(「지워진 배부 #23」)을 흐리게 보인다 — 빈칸(—)이 아니다 */
+it('지워진 대상의 이력 줄은 무엇이었는지 서버 문장을 그대로 흐리게 보인다 (§40)', async () => {
+  const view = wrap(<BookHistory />, {
+    ...historyBoard,
+    items: [{ ...history[0], id: 99, action: 'book_issue', actionLabel: '교재 배부', entity: 'issue', refId: 23,
+      subject: '지워진 배부 #23', refMissing: true }],
+  });
+  const line = await waitFor(() => view.getByText('지워진 배부 #23'));
+  expect(line.className).toContain('text-fg-subtle');
 });

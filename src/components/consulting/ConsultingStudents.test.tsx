@@ -15,7 +15,7 @@ const students: ConsStudent[] = [
     cases: [{
       id: 1, consType: 'admissions', stage: 'running', stageLabel: '진행',
       createdOn: '2026-07-12', endOn: '2026-10-10', ownerName: '김범준',
-      sessionsLogged: 2, sessions: 6, itemsDone: 4, itemsTotal: 7,
+      sessionsLogged: 2, sessionsDone: 2, sessions: 6, itemsDone: 4, itemsTotal: 7,
       amount: 800000, paid: 400000,
       items: [
         { id: 11, seq: 1, label: '지원서 작성', required: true, done: true, source: 'template', doneBy: '김범준', doneOn: '2026-08-01' },
@@ -28,7 +28,7 @@ const students: ConsStudent[] = [
     cases: [{
       id: 2, consType: 'essay', stage: 'contract', stageLabel: '계약',
       createdOn: '2026-08-02', endOn: null, ownerName: null,
-      sessionsLogged: 0, sessions: null, itemsDone: 0, itemsTotal: 0,
+      sessionsLogged: 0, sessionsDone: 0, sessions: null, itemsDone: 0, itemsTotal: 0,
       amount: 900000, paid: 0, items: [],
     }],
   },
@@ -106,4 +106,41 @@ it('「열기」는 그 건의 id 를 올려보낸다', () => {
 it('볼 수 있는 컨설팅이 없으면 그 말을 한다 — 빈 칸을 남기지 않는다', () => {
   const v = render(<ConsultingStudents items={[]} />);
   expect(v.getByText('볼 수 있는 컨설팅이 없습니다.')).toBeTruthy();
+});
+
+it('기간의 앞은 계약 시작일이다 — 건이 생긴 날이 아니다 (27-05)', () => {
+  const d = clone();
+  d[0].cases[0].startOn = '2026-07-20';
+  const v = render(<ConsultingStudents items={d} />);
+  expect(v.getByText('2026-07-20 ~ 2026-10-10')).toBeTruthy();
+  cleanup();
+  // 시작일이 없는 옛 건은 생긴 날로 적는다
+  const w = render(<ConsultingStudents items={clone()} />);
+  expect(w.getByText('2026-07-12 ~ 2026-10-10')).toBeTruthy();
+});
+
+/**
+ * 27-04 (P1) — §27 「회차 2 / 6」은 **한 회차**(서버 sessionsDone · 오늘까지)다. §26 카드 · §30 머리와 같은 셈이다.
+ * 예전에는 기록 행 수(sessionsLogged)를 적어, 앞으로 잡아 둔 날짜가 있으면 두 화면의 수가 갈렸다.
+ */
+it('회차는 서버의 「한 회차」를 적고 잡아 둔 날짜는 따로 말한다 — 기록 행 수를 한 회차로 적지 않는다 (27-04)', () => {
+  const d = clone();
+  d[0].cases[0] = { ...d[0].cases[0], sessionsLogged: 4, sessionsDone: 2 };
+  const v = render(<ConsultingStudents items={d} />);
+  expect(v.getByText('2 / 6')).toBeTruthy();
+  expect(v.queryByText('4 / 6')).toBeNull();
+  expect(v.getByText('잡힌 날짜 2')).toBeTruthy();
+  expect(v.getByRole('img', { name: '회차 2회 / 약정 6회' })).toBeTruthy();
+});
+
+it('원본 §27 모양 — 왼쪽 목록 머리는 진한 띠 「학생 N명 · 눌러서 자세히」, 고른 줄에 ▶, 오른쪽 학년 칩은 진한 바탕 (27-01 · 27-03)', () => {
+  const v = render(<ConsultingStudents items={clone()} />);
+  const list = v.getByRole('region', { name: '학생 목록' });
+  const head = list.querySelector('header')!;
+  expect(head.className).toContain('bg-header');
+  expect(head.textContent).toBe(`학생 ${students.length}명눌러서 자세히`);
+  const rows = list.querySelectorAll('li button');
+  expect(rows[0].getAttribute('aria-pressed')).toBe('true');
+  expect(rows[0].textContent).toContain('▶');
+  expect(rows[1]?.textContent ?? '').not.toContain('▶');
 });

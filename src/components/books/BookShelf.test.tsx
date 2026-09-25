@@ -37,7 +37,7 @@ afterEach(() => {
   mutation = {};
 });
 
-function setup() {
+function setup(books: (base: Record<string, unknown>) => Record<string, unknown> = (base) => base) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method !== 'get') {
@@ -46,7 +46,7 @@ function setup() {
     }
     const data =
       config.url === '/books'
-        ? {
+        ? books({
             items: [
               {
                 id: 4,
@@ -82,7 +82,7 @@ function setup() {
             noFileCount: 1,
             levels: ['Foundation', 'SAT'],
             grades: ['G11', 'G12'],
-          }
+          })
         : {
             kinds: [],
             subs: [{ key: 'sat', name: 'SAT', color: '#123456' }],
@@ -177,4 +177,23 @@ it('넓은 화면은 원본처럼 한 줄 다섯 권이며 카드 작업 이름�
   await waitFor(() => expect(view.getByRole('button', { name: 'SAT Reading 편집' })).toBeTruthy());
   expect(view.getByRole('button', { name: 'SAT Reading 새 판 올리기' })).toBeTruthy();
   expect(view.getByText('SAT Reading').closest('section')?.querySelector('.grid')?.className).toContain('2xl:grid-cols-5');
+});
+
+it('경고 띠 둘은 어느 교재인지와 판 이동을 응답에 있는 값으로 적는다 (§39)', async () => {
+  const view = setup((base) => ({
+    ...base,
+    items: (base.items as Array<Record<string, unknown>>).map((book) =>
+      book.id === 4 ? { ...book, edition: 'v2026.03', latestEdition: 'v2026.08', hasNewer: true } : book,
+    ),
+    newerCount: 1,
+    noFileCount: 1,
+  }));
+  const newer = (await view.findByText('더 최신 판이 있는 교재 1종')).closest('div') as HTMLElement;
+  expect(newer.textContent).toContain('SAT Reading v2026.03→v2026.08');
+  expect(newer.textContent).toContain('판 버튼을 눌러 바꿉니다');
+  const noTe = view.getByText('TE 없는 교재 1종').closest('div') as HTMLElement;
+  // 서버 noFileCount 와 같은 칸(teFileId 없음)으로 고른다 — Writing 만 TE 가 없다
+  expect(noTe.textContent).toContain('Writing');
+  expect(noTe.textContent).not.toContain('SAT Reading');
+  expect(noTe.textContent).toContain('강사에게 보낼 파일이 없습니다');
 });

@@ -10,7 +10,7 @@
  * **리포트 상태 하나에 배지 하나.** 화면마다 상태를 색으로 다시 매기지 않는다 —
  * 그렇게 하면 §07 캘린더와 §47 독촉 목록이 같은 회차를 다른 색으로 그린다.
  */
-import { Chip, type Tone } from './Chip';
+import { Chip, type ChipTone, type Tone } from './Chip';
 import type { RepState } from '@/api/types';
 
 const LABEL: Record<string, string> = {
@@ -23,6 +23,13 @@ const TONE: Record<string, Tone> = {
   wait: 'info', ok: 'success', rej: 'purple',
 };
 
-export function StatusBadge({ state }: { state: RepState | string }) {
+/**
+ * 점 모양(§47 상태 칸 「● 미작성」 · 「● 반려」)의 톤. 컷 §47 은 반려가 **주황**이다.
+ * 알약 모양의 반려 보라는 §07 범례 등 다른 컷과 함께 정할 일이라(g5 47-06) 여기서만 주황으로 둔다.
+ */
+const DOT_TONE: Record<string, ChipTone> = { ...TONE, rej: 'orange' };
+
+export function StatusBadge({ state, dot = false }: { state: RepState | string; dot?: boolean }) {
+  if (dot) return <Chip tone={DOT_TONE[state] ?? 'neutral'} styleKind="dot">{LABEL[state] ?? state}</Chip>;
   return <Chip tone={TONE[state] ?? 'neutral'}>{LABEL[state] ?? state}</Chip>;
 }

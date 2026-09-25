@@ -37,7 +37,7 @@ afterEach(() => {
   api.defaults.adapter = originalAdapter; useSession.getState().signOut(); put = {};
 });
 
-function setup(fail?: { status: number; data: unknown }) {
+function setup(fail?: { status: number; data: unknown }, over: Partial<Guide> = {}) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'put') {
@@ -51,7 +51,7 @@ function setup(fail?: { status: number; data: unknown }) {
   clients.push(client);
   let closed = false;
   const view = render(
-    <QueryClientProvider client={client}><GuideWriter guide={guide} onClose={() => { closed = true; }} /></QueryClientProvider>,
+    <QueryClientProvider client={client}><GuideWriter guide={{ ...guide, ...over }} onClose={() => { closed = true; }} /></QueryClientProvider>,
   );
   return { view, wasClosed: () => closed };
 }
@@ -93,4 +93,26 @@ it('거절 이유는 서버 문장을 그대로 보여 주고 창을 닫지 않�
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(view.getByText(/이미 보낸 안내/)).toBeTruthy());
   expect(wasClosed()).toBe(false);
+});
+
+/**
+ * g4 §44-3 — 「지도 방향」·「관리자 코멘트 · 강사만」 두 상자. 저장된 값으로 열고 **바꾼 칸만** 보낸다 —
+ * 안 보낸 칸은 서버가 그대로 두므로(GuideBodyDto) 본문만 고친 사람이 다른 사람이 적은 메모를 덮지 않는다.
+ */
+it('지도 방향·관리자 코멘트는 저장된 값으로 열고 바꾼 칸만 보낸다 (§44-3)', async () => {
+  const { view } = setup(undefined, { body: '본문', direction: '어휘 먼저', adminNote: null });
+  expect((view.getByLabelText('지도 방향') as HTMLTextAreaElement).value).toBe('어휘 먼저');
+  expect((view.getByLabelText('관리자 코멘트 · 강사만') as HTMLTextAreaElement).value).toBe('');
+  fireEvent.change(view.getByLabelText('관리자 코멘트 · 강사만'), { target: { value: '숙제 양을 살펴 주세요' } });
+  fireEvent.click(view.getByRole('button', { name: '작성' }));
+  await waitFor(() => expect(put.body).toBeTruthy());
+  expect(put.body).toEqual({ body: '본문', adminNote: '숙제 양을 살펴 주세요' });
+});
+
+it('지도 방향을 지우면 빈 글자로 보내 서버가 비운다 (§44-3)', async () => {
+  const { view } = setup(undefined, { body: '본문', direction: '어휘 먼저', adminNote: '메모' });
+  fireEvent.change(view.getByLabelText('지도 방향'), { target: { value: '' } });
+  fireEvent.click(view.getByRole('button', { name: '작성' }));
+  await waitFor(() => expect(put.body).toBeTruthy());
+  expect(put.body).toEqual({ body: '본문', direction: '' });
 });

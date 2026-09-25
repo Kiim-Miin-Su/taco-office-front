@@ -14,7 +14,6 @@ import { GuidesTodo } from '@/components/guides/GuidesTodo';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Button, LinkButton } from '@/components/ui/Button';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { QueryState } from '@/components/ui/QueryState';
 import { TabCards } from '@/components/ui/TabCards';
 
@@ -27,11 +26,23 @@ export default function GuidesPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <PageHeader
-          title="수업 안내"
-          sub="한 번 신규·강사 교체 · 매번 온라인 줌 계정"
-          right={
-            <div className="flex flex-wrap items-center justify-end gap-2">
+        {/* 원문 §43 머리 — 제목 · 탭 카드 · 단추가 한 줄 (교재 화면과 같은 배치 · g4 §43-8) */}
+        <div className="mb-4 flex flex-wrap items-start gap-4">
+          <div className="min-w-[220px]">
+            <h1 className="text-[20px] font-bold text-fg">수업 안내</h1>
+            <p className="mt-1 text-[12px] text-fg-subtle">한 번 신규·강사 교체 · 매번 온라인 줌 계정</p>
+          </div>
+          <TabCards<GuidePageTab>
+            label="수업 안내 화면"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'todo', label: '할 일', sub: '한 번 + 매번', badge: guides.data?.todoCount },
+              { value: 'history', label: '이력', sub: '기간별 기록' },
+              { value: 'students', label: '학생별', sub: '최신 안내' },
+            ]}
+          />
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               <LinkButton href="/zoom" size="sm">
                 줌 계정 관리
               </LinkButton>
@@ -51,21 +62,8 @@ export default function GuidesPage() {
               >
                 + 안내 작성
               </Button>
-            </div>
-          }
-        />
-
-        <TabCards<GuidePageTab>
-          className="mb-4"
-          label="수업 안내 화면"
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'todo', label: '할 일', sub: '한 번 + 매번', badge: guides.data?.todoCount },
-            { value: 'history', label: '이력', sub: '기간별 기록' },
-            { value: 'students', label: '학생별', sub: '최신 안내' },
-          ]}
-        />
+          </div>
+        </div>
 
         {tab === 'todo' ? (
           <QueryState query={guides} isEmpty={() => false}>

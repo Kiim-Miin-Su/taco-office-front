@@ -70,6 +70,7 @@ function history(anchor: string, sourceOccurrenceId = 99): GuideHistoryDto {
         teacherName: '강사1',
         serTitle: 'MAP Reading',
         reason: 'new',
+        overdueDays: 0,
       },
     ],
     days: [],
@@ -112,7 +113,7 @@ it('누락 카드가 투영 회차와 학생만 보내고 성공 즉시 GuideWri
   }));
   const { view } = setup();
 
-  fireEvent.click(view.getByRole('button', { name: '누락 안내 초안 만들기' }));
+  fireEvent.click(view.getByRole('button', { name: /누락 안내 초안 만들기/ }));
   await waitFor(() =>
     expect(post).toHaveBeenCalledWith('/guides/drafts', {
       sourceOccurrenceId: 99,
@@ -126,12 +127,39 @@ it('낙관 제거는 후보가 실제 들어 있는 기간 캐시만 바꾼다',
   vi.spyOn(api, 'post').mockImplementation(() => new Promise(() => undefined));
   const { client, view, otherAnchor } = setup();
 
-  fireEvent.click(view.getByRole('button', { name: '누락 안내 초안 만들기' }));
-  await waitFor(() => expect(view.queryByRole('button', { name: '누락 안내 초안 만들기' })).toBeNull());
+  fireEvent.click(view.getByRole('button', { name: /누락 안내 초안 만들기/ }));
+  await waitFor(() => expect(view.queryByRole('button', { name: /누락 안내 초안 만들기/ })).toBeNull());
 
   const untouched = client.getQueryData<GuideHistoryDto>(
     sessionQueryKey(qk.guideHistory({ span: 'month', anchor: otherAnchor }), me.id),
   );
   expect(untouched?.missing).toHaveLength(1);
   expect(untouched?.counts.missing).toBe(1);
+});
+
+/**
+ * g4 §45-2 · §45-3 · §45-4 — 안 한 것 카드는 **카드 전체가 단추**(누르면 초안 → 작성 창),
+ * 요약 칩 셋(만듦 · 보냄 · 안 한 것)은 기간 이동 줄 **같은 줄 오른쪽**, 날짜 머리에 상태 합계 칩.
+ */
+it('안 한 것 카드 전체가 단추이고, 요약 칩은 기간 줄에, 날짜 머리에 상태 합계가 선다 (§45)', async () => {
+  const today = todayKst();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const data: GuideHistoryDto = {
+    ...history(today),
+    days: [{ date: '2026-09-15', items: [guide, { ...guide, id: 13, state: 'ready' }, { ...guide, id: 14, state: 'sent', pending: false }] }],
+    counts: { created: 3, sent: 1, missing: 1 },
+  };
+  client.setQueryData(sessionQueryKey(qk.guideHistory({ span: 'month', anchor: today }), me.id), data);
+  clients.push(client);
+  useSession.setState({ me, ready: true });
+  const view = render(<QueryClientProvider client={client}><GuideHistory /></QueryClientProvider>);
+  const card = view.getByRole('button', { name: /학생1.*누락 안내 초안 만들기/ });
+  expect(card.textContent).toContain('MAP Reading');
+  const bar = view.getByTestId('guide-history-bar');
+  expect(bar.textContent).toContain('3건 만듦');
+  expect(bar.textContent).toContain('안 한 것 1');
+  const head = view.getByText('26년 9월 15일 화요일').closest('summary') as HTMLElement;
+  expect(head.textContent).toContain('작성 중 1');
+  expect(head.textContent).toContain('발송 대기 1');
+  expect(head.textContent).toContain('발송 완료 1');
 });

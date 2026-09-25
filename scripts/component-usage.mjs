@@ -37,7 +37,7 @@ export const COUNTED = {
   table: ['Table'],
   panel: ['Panel', 'PageHeader'],
   board: ['Board'],
-  overlay: ['Drawer', 'Dialog'],
+  overlay: ['Drawer', 'Dialog', 'WideDialog'],
   tabs: ['Tabs', 'Segmented', 'TabCards'],
 };
 
@@ -60,8 +60,8 @@ export function count() {
   for (const [key, tags] of Object.entries(COUNTED)) {
     let n = 0;
     for (const tag of tags) {
-      // 여는 태그만 — `</Button>` 과 `ButtonProps` 는 안 센다
-      const re = new RegExp(`<${tag}(?=[\\s/>])`, 'g');
+      // 여는 태그만 — `</Button>` 과 `ButtonProps` 는 안 센다. 제네릭 여는 태그(`<TabCards<T>`)도 센다
+      const re = new RegExp(`<${tag}(?=[\\s/><])`, 'g');
       for (const t of texts) n += (t.match(re) || []).length;
     }
     counts[key] = n;

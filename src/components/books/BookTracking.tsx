@@ -15,9 +15,16 @@ import {
   useTransitionBookIssue,
   useUpdateBookProgress,
 } from '@/api/queries';
-import { Banner, Button, Chip, Input, Label, Panel, QueryState, Select, StatCard } from '@/components/ui';
+import { Banner, Button, Chip, Input, Label, Panel, QueryState, Select, StatCard, cn, type StatTone } from '@/components/ui';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
+import { bookLevelPresentation } from '@/lib/book-presentation';
 import { todayKst } from '@/lib/calendar';
+
+/**
+ * 머리 여섯 칸의 **자리별 색** — 원문 §38-6 윗줄: 검정 · 호박 · 청록 · 빨강 · 보라 · 초록(컷 실측).
+ * 칸 이름·수·차례는 서버 `states` 그대로이고 화면은 자리에 색만 붙인다.
+ */
+const HEAD_TONE: readonly StatTone[] = ['neutral', 'warning', 'teal', 'danger', 'purple', 'success'];
 
 export function BookTracking({
   createRequest = 0,
@@ -113,19 +120,11 @@ export function BookTracking({
                   key={s.key}
                   label={s.label}
                   value={s.count}
-                  tone={
-                    n === 1
-                      ? 'warning'
-                      : n === 2
-                        ? 'info'
-                        : n === 3
-                          ? 'danger'
-                          : n === 4
-                            ? 'purple'
-                            : n === 5
-                              ? 'success'
-                              : 'neutral'
-                  }
+                  tone={HEAD_TONE[n] ?? 'neutral'}
+                  // 원문 §38-6: 칸마다 색 윗줄 · 0 인 칸 흐림 · 「정상」(마지막 칸)은 0 이어도 초록 채움
+                  accent={HEAD_TONE[n] ?? 'neutral'}
+                  fill={n === 5}
+                  dim={s.count === 0 && n !== 5}
                 />
               ))}
             </div>
@@ -149,7 +148,7 @@ export function BookTracking({
                     <span />
                     <span>학생</span>
                     <span>교재</span>
-                    <span>교재별 진도</span>
+                    <span>진도</span>
                     <span>할 일</span>
                     <span>다음 수업</span>
                     <span>자세히</span>
@@ -177,9 +176,17 @@ export function BookTracking({
                               const book = books.data?.items.find((item) => item.id === issue.libId);
                               return (
                                 <div key={issue.id} className="flex flex-wrap items-center gap-1">
-                                  <Chip size="compact" tone="success">
-                                    {(book?.level ?? '—').slice(0, 1)}
-                                  </Chip>
+                                  {/* 레벨 글자 사각 — §39 서가와 같은 선택기(M 초록 · P 주황 · F 빨강 · 그 밖은 중립) (g4 §38-3) */}
+                                  <span
+                                    data-level-marker
+                                    title={bookLevelPresentation(book?.level).label}
+                                    className={cn(
+                                      'inline-flex h-4 min-w-4 items-center justify-center rounded-[3px] px-0.5 text-[10px] font-bold text-white',
+                                      bookLevelPresentation(book?.level).bandClass,
+                                    )}
+                                  >
+                                    {bookLevelPresentation(book?.level).marker.slice(0, 1)}
+                                  </span>
                                   <b>
                                     {book?.title ?? `교재 #${issue.libId}`}
                                     {issue.edition ? ` · ${issue.edition}` : ''}
@@ -198,12 +205,8 @@ export function BookTracking({
                             s.issues.map((issue) => {
                               const book = books.data?.items.find((item) => item.id === issue.libId);
                               return (
-                                <div
-                                  key={issue.id}
-                                  className="flex items-center justify-between gap-2"
-                                  title={book?.title ?? `교재 #${issue.libId}`}
-                                >
-                                  <span className="truncate text-fg-subtle">{book?.title ?? `교재 #${issue.libId}`}</span>
+                                // 교재 이름은 옆 교재 열과 줄을 맞춰 한 번만 적는다 — 여기는 % 만 (g4 §38-4)
+                                <div key={issue.id} className="flex items-center gap-2" title={book?.title ?? `교재 #${issue.libId}`}>
                                   <b>{issue.progressPercent == null ? '—' : `${issue.progressPercent}%`}</b>
                                 </div>
                               );
@@ -235,8 +238,9 @@ export function BookTracking({
                         <div className="font-bold">
                           {s.nextLesson ? (
                             <>
-                              <span>{s.nextLesson.slice(0, 10) === todayKst() ? '오늘' : s.nextLesson.slice(5, 10)}</span>
-                              <p className="text-[10px] text-fg-subtle">{s.nextLesson.slice(11)}</p>
+                              {/* 원문 「오늘 / 08-21」 — 둘째 줄은 날짜 (g4 §38-5) */}
+                              <span>{s.nextLesson.slice(0, 10) === todayKst() ? '오늘' : s.nextLesson.slice(11, 16)}</span>
+                              <p className="text-[10px] text-fg-subtle">{s.nextLesson.slice(5, 10)}</p>
                             </>
                           ) : (
                             '예정 없음'

@@ -9,6 +9,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useReportDelivery, useReportDeliverySend } from '@/api/queries';
 import type { ReportDeliveryCreate, ReportDeliveryStudent, ReportDetail } from '@/api/types';
+import { longDateLabel } from '@/lib/calendar';
 import { renderReportPng, reportExportContent, reportTimeLabel } from '@/lib/report-export';
 import { Banner, Button, Checkbox, Chip } from '../ui';
 import { ReportPreview } from './ReportForm';
@@ -17,8 +18,10 @@ type QueueMessage = { tone: 'success' | 'danger'; text: string };
 
 const previewKey = (studentId: number, reportId: number) => `${studentId}:${reportId}`;
 
-export function ReportDeliveryQueue({ onOpenReport }: {
+export function ReportDeliveryQueue({ onOpenReport, subjectColorOf }: {
   onOpenReport: (report: ReportDetail, studentId: number) => void;
+  /** 과목색 — 공용 subjectColor 를 부르는 쪽이 넘긴다(수업 줄 왼쪽 막대 · g5 49-05) */
+  subjectColorOf?: (key?: string | null) => string | null;
 }) {
   const query = useReportDelivery();
   const send = useReportDeliverySend();
@@ -91,8 +94,9 @@ export function ReportDeliveryQueue({ onOpenReport }: {
     <section aria-label="어제 리포트 보내기">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-[18px] font-bold text-fg">{query.data.onDate} 수업분</h2>
-          <p className="mt-1 text-[12px] text-fg-subtle">어제 한 수업을 오늘 보냅니다 — 승인된 리포트만 학생별로 묶습니다.</p>
+          {/* 원문 §49 「26년 8월 20일 목요일 수업분」 / 「어제 한 수업을 오늘 보냅니다」 — 공용 긴 날짜 (g5 49-01) */}
+          <h2 className="text-[18px] font-bold text-fg">{`${longDateLabel(query.data.onDate)} 수업분`}</h2>
+          <p className="mt-1 text-[12px] text-fg-subtle">어제 한 수업을 오늘 보냅니다</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[12px] font-bold text-fg-subtle">보낼 수 있음 {query.data.remaining}명</span>
@@ -110,28 +114,38 @@ export function ReportDeliveryQueue({ onOpenReport }: {
       </div>
 
       {message ? <Banner tone={message.tone}><span aria-live="polite">{message.text}</span></Banner> : null}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      {/* 넓은 화면은 원문처럼 학생 카드 5열 (g5 49-03) */}
+      <div data-testid="delivery-cards" className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {query.data.students.map((group) => {
           const sent = group.lastSendId !== null;
           return (
             <article key={group.student.id} className="rounded-xl border border-line bg-card p-4">
-              <div className="flex items-start justify-between gap-3">
+              {/* 카드 머리 = 체크 · 이름 · 학년 칩 · 오른쪽 「N건」 (원문 §49 · g5 49-04). 상태 칩은 막힌 까닭이라 아래에 둔다 */}
+              <div className="flex items-start justify-between gap-2">
                 <Checkbox
-                  label={<span className="font-bold">{group.student.name} {group.student.grade ? `· ${group.student.grade}` : ''}</span>}
+                  label={(
+                    <span className="inline-flex items-center gap-1.5">
+                      <b>{group.student.name}</b>
+                      {group.student.grade ? <Chip size="compact">{group.student.grade}</Chip> : null}
+                    </span>
+                  )}
                   checked={group.canSend && selected.has(group.student.id)}
                   disabled={!group.canSend || send.isPending}
                   onChange={(event) => toggle(group.student.id, event.currentTarget.checked)}
                 />
-                <Chip tone={sent ? 'success' : group.blockedCount ? 'danger' : 'info'}>
-                  {sent ? '보냄' : group.blockedCount ? `${group.blockedCount}건 미승인` : '준비됨'}
-                </Chip>
+                <b className="shrink-0 text-[12px] text-fg">{`${group.reports.length}건`}</b>
               </div>
+              <Chip className="mt-1" tone={sent ? 'success' : group.blockedCount ? 'danger' : 'info'}>
+                {sent ? '보냄' : group.blockedCount ? `${group.blockedCount}건 미승인` : '준비됨'}
+              </Chip>
               <div className="mt-3 flex flex-col gap-2">
                 {group.reports.map((report) => (
                   <button
                     type="button"
                     key={report.id}
-                    className="flex items-center justify-between rounded-lg border border-line bg-inset px-3 py-2 text-left text-[12px] hover:border-blue"
+                    // 왼쪽 과목색 막대 (원문 §49 · g5 49-05)
+                    className="flex items-center justify-between gap-2 rounded-lg border border-l-4 border-line bg-inset px-3 py-2 text-left text-[12px] hover:border-blue"
+                    style={{ borderLeftColor: subjectColorOf?.(report.subKey) ?? 'var(--line)' }}
                     onClick={() => onOpenReport(report, group.student.id)}
                   >
                     {/*
@@ -165,6 +179,8 @@ export function ReportDeliveryQueue({ onOpenReport }: {
                 if (node) previews.current.set(key, node); else previews.current.delete(key);
               }}
               {...descriptor.content}
+              teacherName={report.teacherName}
+              accent={subjectColorOf?.(report.subKey) ?? null}
             />
           )];
         }))}

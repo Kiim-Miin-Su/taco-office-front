@@ -35,7 +35,7 @@ function setup(viewer = me, guide = initial) {
   let release: (() => void) | undefined;
   let hold = false;
   const calls: Array<{ method?: string; url?: string; body?: unknown }> = [];
-  const data = (): Guides => ({ guides: [current], perLesson: [], todoCount: 1, scopedTeacherId: null,
+  const data = (): Guides => ({ guides: [current], perLesson: [], missing: [], todoCount: 1, scopedTeacherId: null,
     stats: { monitoring: 1, overdue: 0, drafting: 0, sendPending: 1, teacherUnconfirmed: 0, repeatedTeacherChange: 0 },
     deliveryCapabilities: { parentExternal: false, teacherExternal: false, reason: '외부 미연결' } });
   api.defaults.adapter = async (config) => {
@@ -57,10 +57,13 @@ function setup(viewer = me, guide = initial) {
     refresh: async (next: Guide) => { current = next; await act(async () => { await client.invalidateQueries({ queryKey: family.guides }); }); } };
 }
 
-it('저장된 GUIDE id와 빈 본문만 보내고 성공 뒤 새 GET으로 발송 완료를 표시한다', async () => {
+it('저장된 GUIDE id와 빈 본문만 보내고 성공 뒤 새 GET으로 할 일 목록에서 빼고 이력 안내를 표시한다', async () => {
   const { view, calls } = setup();
   fireEvent.click(await view.findByRole('button', { name: '강사에게 보내기' }));
-  await view.findByText('발송 완료');
+  // §43 「한 번」은 할 일만 — 보낸 안내는 새 GET 의 pending=false 로 목록에서 빠진다
+  await view.findByText('안내를 강사에게 보냈습니다. 보낸 안내는 이력 탭에 남습니다.');
+  await waitFor(() => expect(view.queryByText('저장한 안내')).toBeNull());
+  expect(view.queryByRole('button', { name: '강사에게 보내기' })).toBeNull();
   expect(calls.filter((c) => c.method === 'post')).toEqual([{ method: 'post', url: '/guides/5/send', body: {} }]);
   expect(calls.filter((c) => c.url === '/guides')).toHaveLength(2);
 });
@@ -81,7 +84,7 @@ it('편집 중에는 발송을 막고 취소 후에도 미저장 본문을 전�
   expect(view.getByRole('button', { name: '강사에게 보내기' })).toHaveProperty('disabled', true);
   fireEvent.click(view.getByRole('button', { name: '취소' }));
   fireEvent.click(view.getByRole('button', { name: '강사에게 보내기' }));
-  await view.findByText('발송 완료');
+  await view.findByText('안내를 강사에게 보냈습니다. 보낸 안내는 이력 탭에 남습니다.');
   expect(calls.filter((c) => c.method === 'post')).toHaveLength(1);
   expect(calls.find((c) => c.method === 'post')?.body).toEqual({});
   expect(calls.some((c) => c.method === 'put')).toBe(false);
@@ -93,7 +96,8 @@ it('정상 refetch가 sent로 바꾸면 이전 writer를 닫아 저장·발송�
   fireEvent.change(view.getByLabelText('안내 본문'), { target: { value: '오래된 초안' } });
   await refresh({ ...initial, state: 'sent', pending: false, canSend: false, sendBlockedReason: '이미 보냈습니다' });
   await waitFor(() => expect(view.queryByLabelText('안내 본문')).toBeNull());
-  expect(view.getByRole('button', { name: '강사에게 보내기' })).toHaveProperty('disabled', true);
+  // 보낸 안내는 할 일이 아니므로 줄째 빠진다 — 발송 단추도 함께 사라진다 (§43)
+  expect(view.queryByRole('button', { name: '강사에게 보내기' })).toBeNull();
   expect(calls.filter((c) => c.method === 'put' || c.method === 'post')).toHaveLength(0);
 });
 
@@ -110,7 +114,7 @@ it('같은 tick 연속 클릭은 한 요청이며 409 뒤 오류·행을 보존�
   expect(calls.filter((c) => c.url === '/guides')).toHaveLength(2);
   fail(200);
   fireEvent.click(view.getByRole('button', { name: '강사에게 보내기' }));
-  await view.findByText('발송 완료');
+  await view.findByText('안내를 강사에게 보냈습니다. 보낸 안내는 이력 탭에 남습니다.');
   expect(calls.filter((c) => c.method === 'post')).toHaveLength(2);
 });
 

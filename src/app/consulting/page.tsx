@@ -20,7 +20,7 @@ import { apiMessage } from '@/api/client';
 import { ConsultingAccounting } from '@/components/consulting/ConsultingAccounting';
 import { ConsultingContractWorkflow } from '@/components/consulting/ConsultingContractWorkflow';
 import { ConsultingStartForm } from '@/components/consulting/ConsultingStartForm';
-import { ConsultingWorkflowDialog } from '@/components/consulting/ConsultingWorkflowDialog';
+import { WideDialog } from '@/components/ui/WideDialog';
 import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
 import type { Consulting } from '@/api/types';
 import {
@@ -61,7 +61,8 @@ export default function ConsultingPage() {
   /** 「이력」 — 끝난 것만. 같은 응답을 거를 뿐 질의를 늘리지 않는다 (C5-a 선례) */
   const done = (q.isError ? [] : d?.items ?? []).filter((c) => c.stage === 'done');
 
-  const detailView = view === 'board' || view === 'history';
+  // 학생별에서 「열기」도 그 자리에서 연다 — 이력 탭으로 옮겨 가면 닫은 뒤 진행 중인 건이 끝난 것만 있는 탭에 남는다 (27-07)
+  const detailView = view === 'board' || view === 'history' || view === 'students';
   const openSummary = q.isError || !detailView ? null : d?.items.find((c) => c.id === openId && c.canOpen) ?? null;
   const open = q.isError || !detailView
     ? null
@@ -110,22 +111,25 @@ export default function ConsultingPage() {
   return (
     <RequireAuth>
       <AppShell>
+        {/* 탭 카드 넷은 제목과 **같은 줄** 오른쪽이다 — 공용 PageHeader 가운데 자리(26-01) */}
         <PageHeader
           title="컨설팅"
-          sub="계약 → 진행 → 종료. 계약 단계는 5칸, 진행은 기록 회차와 진행 항목으로 표시합니다."
+          sub="계약서 · 회차 진행 · 종료 안내를 한 곳에서 봅니다"
           right={<Button variant="primary" onClick={() => { create.reset(); setStartOpen(true); }}>+ 컨설팅 시작</Button>}
-        />
-
-        <TabCards
-          className="mb-3" label="컨설팅 보기" value={view} onChange={setView}
-          options={[
-            { value: 'board', label: '단계 보드', sub: `${stageView.counts.all}건`, badge: stageView.counts.running },
-            // 학생 수는 §27 질의가 센 값이다 — 목록의 이름을 모아 세지 않는다 (D-R37)
-            { value: 'students', label: '학생별', sub: students.data ? `${students.data.items.length}명` : undefined },
-            { value: 'history', label: '이력', sub: `${stageView.counts.done}건 끝남` },
-            // 「남음」도 서버가 뺀 값이다. 아직 없으면 자리를 비운다
-            ...(canMoney ? [{ value: 'money' as const, label: '회계', sub: money.data ? `${won(money.data.totalDue)} 남음` : undefined }] : []),
-          ]}
+          center={(
+            <TabCards
+              label="컨설팅 보기" value={view} onChange={setView}
+              options={[
+                // 동그라미는 **열린 건**(계약 + 진행)이다 — 원본 §26 「2」 = 계약 1 + 진행 1 (26-04)
+                { value: 'board', label: '단계 보드', sub: `${stageView.counts.all}건`, badge: stageView.counts.contract + stageView.counts.running },
+                // 학생 수는 §27 질의가 센 값이다 — 목록의 이름을 모아 세지 않는다 (D-R37)
+                { value: 'students', label: '학생별', sub: students.data ? `${students.data.items.length}명` : undefined },
+                { value: 'history', label: '이력', sub: `${stageView.counts.done}건 끝남` },
+                // 「남음」도 서버가 뺀 값이다. 아직 없으면 자리를 비운다
+                ...(canMoney ? [{ value: 'money' as const, label: '회계', sub: money.data ? `${won(money.data.totalDue)} 남음` : undefined }] : []),
+              ]}
+            />
+          )}
         />
 
         {q.isError ? (
@@ -141,8 +145,8 @@ export default function ConsultingPage() {
               <ConsultingStudents
                 items={students.data?.items}
                 loading={students.isLoading}
-                // 「열기」는 그 건의 항목·회차로 간다 — 이력 탭이 그 자리다 (§31)
-                onOpen={(consId) => { setView('history'); setOpenId(consId); }}
+                // 「열기」는 그 건의 상세(계약 · 진행 · 종료)를 학생별 위에 연다 (§31 · 27-07)
+                onOpen={(consId) => setOpenId(consId)}
               />
             )
         ) : view === 'board' ? (
@@ -182,18 +186,20 @@ export default function ConsultingPage() {
         )}
 
         {startOpen ? (
-          <ConsultingWorkflowDialog open onClose={() => setStartOpen(false)} title="컨설팅 시작" sub="계약서부터 만듭니다">
+          // 시작 창은 원본 §29 대로 좁은 가운데 창(약 800px)이다 — 창 틀은 공용 WideDialog (29-01)
+          <WideDialog open width={800} onClose={() => setStartOpen(false)} title="컨설팅 시작" sub="계약서부터 만듭니다">
             <QueryState query={meta}>{(data) => (
               <ConsultingStartForm
                 meta={data}
                 canSetPrivate={d?.canSetPrivate ?? false}
+                shareWords={d?.shares}
                 pending={create.isPending}
                 error={create.error}
                 onCancel={() => setStartOpen(false)}
                 onSubmit={(body) => create.mutate(body, { onSuccess: (detail) => { setStartOpen(false); setOpenId(detail.id); } })}
               />
             )}</QueryState>
-          </ConsultingWorkflowDialog>
+          </WideDialog>
         ) : null}
 
         {open !== null ? (

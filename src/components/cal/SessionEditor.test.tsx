@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Meta } from '@/api/types';
+import type { Meta, Occurrence } from '@/api/types';
 import { SessionEditor } from './SessionEditor';
 
 const meta = {
@@ -64,4 +64,149 @@ it('설명을 못 가져와도 원래 문구는 남는다 — 실패가 실패�
   fireEvent.click(view.getByRole('button', { name: '만들기' }));
   await waitFor(() => expect(view.getByText(/같은 시간에/)).toBeTruthy());
   expect(view.queryByText(/\[강의실\]/)).toBeNull();
+});
+
+/* ── 개인표에서 연 새 일정 (원문 §10·§11 본문 「일정 추가 시 학생/강사가 자동으로 채워집니다」) ── */
+
+it('초안에 학생·강사가 들어 있으면 그대로 골라진 채 열리고 만들기 계약에 실린다 (§10·§11)', async () => {
+  const sent: Array<{ method?: string; url?: string; data?: unknown }> = [];
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    sent.push({ method: config.method, url: config.url, data: config.data ? JSON.parse(config.data) : undefined });
+    return { config, status: 201, statusText: 'Created', headers: {}, data: { effScope: 'this', log: [], projected: 1, serIds: [9], unavailable: [] } };
+  }) as never;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(qc);
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <SessionEditor draft={{ date: '2026-09-28', startMin: 570, endMin: 660, roomId: null, studentIds: [1], teacherId: 7 }}
+        meta={meta} onClose={vi.fn()} />
+    </QueryClientProvider>,
+  );
+  expect((view.getByLabelText('강사') as HTMLSelectElement).value).toBe('7');
+  expect(view.getByText(/수강 학생 · 1명/)).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent.some((r) => r.method === 'post')).toBe(true));
+  expect(sent.find((r) => r.method === 'post')!.data).toMatchObject({ teacherId: 7, studentIds: [1], fromDate: '2026-09-28' });
+});
+
+/* ── 일정 수정 — 수업 상세의 「일정 수정」 (원문 §12 · OccurrencePatchDto) ── */
+
+const lesson: Occurrence = {
+  serId: 3, date: '2026-09-28', onDate: '2026-09-28', startMin: 600, endMin: 660,
+  kindKey: 'class', extra: false, subKey: 'vocab', title: null,
+  teacherId: 7, teacherName: '김재훈', roomId: 1, roomName: '1호', zaccId: null, mode: 'offline',
+  canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false,
+  attendanceMode: 'manage', attendance: null, students: [],
+};
+const editMeta = {
+  ...meta,
+  staff: [...meta.staff, { id: 8, name: '이다현', role: 'teacher', canAdminPage: false, canGpaPack: false, title: null }],
+  rooms: [...meta.rooms, { id: 2, name: '2호' }],
+} as unknown as Meta;
+
+function setupEdit(occ: Occurrence, reply: 'ok' | 'conflict' = 'ok') {
+  const sent: Array<{ method?: string; url?: string; data?: Record<string, unknown>; params?: Record<string, unknown> }> = [];
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string; params?: Record<string, unknown> }) => {
+    sent.push({ method: config.method, url: config.url, data: config.data ? JSON.parse(config.data) : undefined, params: config.params });
+    if (config.method === 'patch') {
+      if (reply === 'conflict') {
+        return Promise.reject(Object.assign(new Error('conflict'), {
+          response: { status: 409, data: { code: 'RESOURCE_CONFLICT', message: '같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다' } },
+        }));
+      }
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { effScope: 'this', log: [], projected: 1, serIds: [3], unavailable: [], undoToken: 'u1' } };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: { conflicts: [
+      { serId: 9, onDate: '2026-09-28', startMin: 630, endMin: 690, title: 'MAP Reading', with: 'teacher', whoName: '김재훈' },
+    ] } };
+  }) as never;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(qc);
+  const onSaved = vi.fn();
+  const onClose = vi.fn();
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <SessionEditor edit={{ occ, name: 'Vocabulary' }} meta={editMeta} onClose={onClose} onSaved={onSaved} />
+    </QueryClientProvider>,
+  );
+  return { view, sent, onSaved, onClose, patches: () => sent.filter((r) => r.method === 'patch') };
+}
+
+it('편집은 지금 값으로 채워 열리고, 바꾼 칸만 PATCH 로 보낸다 — 단발은 범위를 묻지 않는다', async () => {
+  const { view, patches, onSaved, onClose } = setupEdit(lesson);
+  expect(view.getByRole('dialog', { name: '일정 수정 — Vocabulary · 2026-09-28' })).toBeTruthy();
+  expect((view.getByLabelText('날짜') as HTMLInputElement).value).toBe('2026-09-28');
+  expect((view.getByLabelText('시작') as HTMLInputElement).value).toBe('10:00');
+  expect((view.getByLabelText('끝') as HTMLInputElement).value).toBe('11:00');
+  expect((view.getByLabelText('강사') as HTMLSelectElement).value).toBe('7');
+  expect((view.getByLabelText('강의실') as HTMLSelectElement).value).toBe('1');
+  // 계약(OccurrencePatchDto)에 없는 칸은 편집 창에 없다 — 종류·과목·반복·명단은 여기서 바꾸지 않는다
+  expect(view.queryByLabelText('종류')).toBeNull();
+  expect(view.queryByLabelText('과목')).toBeNull();
+  expect(view.queryByText(/반복 — 요일을 고르면/)).toBeNull();
+
+  fireEvent.change(view.getByLabelText('시작'), { target: { value: '10:30' } });
+  fireEvent.change(view.getByLabelText('끝'), { target: { value: '11:30' } });
+  fireEvent.change(view.getByLabelText('강사'), { target: { value: '8' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].url).toBe('/schedule/3');
+  expect(patches()[0].data).toEqual({ startMin: 630, endMin: 690, teacherId: 8, scope: 'this', onDate: '2026-09-28' });
+  expect(view.queryByRole('dialog', { name: /반복 수업입니다/ })).toBeNull();
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+  expect(onSaved.mock.calls[0][0]).toMatchObject({ undoToken: 'u1' });
+  expect(onClose).toHaveBeenCalled();
+});
+
+it('반복 수업은 저장 직전에 범위를 한 번 묻고 고른 범위를 싣는다 — 다른 날·미정 강사도 계약 그대로', async () => {
+  const { view, patches } = setupEdit({ ...lesson, recurring: true });
+  fireEvent.change(view.getByLabelText('날짜'), { target: { value: '2026-09-30' } });
+  fireEvent.change(view.getByLabelText('강사'), { target: { value: '' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  // 고르기 전에는 아무것도 보내지 않는다
+  const future = await view.findByRole('button', { name: /향후/ });
+  expect(patches()).toHaveLength(0);
+  fireEvent.click(future);
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ date: '2026-09-30', teacherId: null, scope: 'future', onDate: '2026-09-28' });
+});
+
+it('바뀐 것이 없거나 시각이 틀리면 보내지 않는다 — 겹침이 아니면 「강행할 수 없습니다」 안내를 붙이지 않는다', async () => {
+  const { view, patches } = setupEdit(lesson);
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  expect(await view.findByText('바뀐 것이 없습니다')).toBeTruthy();
+  expect(view.queryByText(/강행할 수 없습니다/)).toBeNull();
+  fireEvent.change(view.getByLabelText('끝'), { target: { value: '10:05' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  expect(await view.findByText(/길이는 10분에서 8시간 사이/)).toBeTruthy();
+  expect(patches()).toHaveLength(0);
+});
+
+it('코드표에 없는 지금 강사·강의실도 그대로 골라진 채 열린다 — 모르는 값을 「미정」으로 바꿔 보내지 않는다', async () => {
+  // 그만둔 강사처럼 목록(meta.staff)에 없는 사람이 맡은 회차 — 목록에 없다고 빈 값이 되면 저장이 강사를 지운다
+  const { view, patches } = setupEdit({ ...lesson, teacherId: 99, teacherName: '옛 강사', roomId: 77, roomName: '옛 강의실' });
+  expect((view.getByLabelText('강사') as HTMLSelectElement).value).toBe('99');
+  expect((view.getByLabelText('강의실') as HTMLSelectElement).value).toBe('77');
+  fireEvent.change(view.getByLabelText('끝'), { target: { value: '11:30' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ startMin: 600, endMin: 690, scope: 'this', onDate: '2026-09-28' });
+});
+
+it('겹쳐서 막히면 새 일정과 같은 ConflictGuard 로 누구와를 붙인다 — 자기 회차는 겹침에서 뺀다', async () => {
+  const { view, sent, onSaved } = setupEdit(lesson, 'conflict');
+  fireEvent.change(view.getByLabelText('시작'), { target: { value: '10:30' } });
+  fireEvent.change(view.getByLabelText('끝'), { target: { value: '11:30' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  await waitFor(() => expect(view.getByText(/같은 시간에/)).toBeTruthy());
+  await waitFor(() => expect(view.getByText(/\[강사\] 김재훈 · 2026-09-28 10:30–11:30 · MAP Reading/)).toBeTruthy());
+  expect(view.getByText(/강행할 수 없습니다/)).toBeTruthy();
+  const probe = sent.filter((r) => r.url === '/schedule/conflicts');
+  expect(probe).toHaveLength(1);
+  expect(probe[0].params).toMatchObject({ date: '2026-09-28', startMin: 630, endMin: 690, teacherId: 7, roomId: 1, exceptSerId: 3 });
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(view.getByRole('dialog', { name: /^일정 수정/ })).toBeTruthy();
 });

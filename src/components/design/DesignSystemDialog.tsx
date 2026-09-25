@@ -16,6 +16,9 @@
  *
  * **「N회 씀」도 손으로 적지 않는다** — `scripts/component-usage.mjs` 가 소스를 세고,
  * 회귀가 다시 세어 오래됐는지 본다. 손으로 적은 숫자는 적은 그날부터 틀리기 시작한다.
+ *
+ * **창 틀은 공용 `WideDialog`** 다 (85-3) — 원문 컷은 머리 오른쪽 끝에 「×」가 있고 바닥 단추 줄이 없다.
+ * 확인창용 `Dialog` 는 머리 「×」도 본문 스크롤도 없어서 바닥 「닫기」를 달고 본문 안에서 따로 스크롤하고 있었다.
  */
 'use client';
 import { useMemo, useState } from 'react';
@@ -25,10 +28,12 @@ import {
   cssVarValue, tokensAsCss, tokensAsJson, type TokenRow,
 } from '@/lib/design-system';
 import {
-  Banner, Board, Button, Chip, Column, Dialog, Input, Label, Panel, Segmented,
-  StatCard, StatusBadge, Table, cn,
+  Banner, Board, Button, Chip, Column, Input, Label, Panel, Segmented,
+  StatCard, Table, cn,
 } from '@/components/ui';
+import { WideDialog } from '@/components/ui/WideDialog';
 import { BoardMarks } from '@/components/board/BoardViews';
+import type { CheckMark } from '@/api/types';
 
 export interface DesignSystemDialogProps {
   open: boolean;
@@ -48,15 +53,43 @@ function download(name: string, text: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function ColorRow({ row }: { row: TokenRow }) {
-  const value = cssVarValue(row.key);
+/**
+ * 「색과 크기를 바꾸면 화면 전체가 바로 바뀝니다」 (85-2) — 그 말을 **참으로** 만든다.
+ *
+ * 바꾸는 곳은 문서 뿌리의 CSS 변수 **하나**다(`--primary` …). 화면의 모든 색·투명도 수식이 그 변수에서
+ * 나오므로(tailwind `withAlpha` 가 `rgb(from var(--x) …)` 다) 창을 닫으면 온 화면이 바뀐 값으로 보인다.
+ * 값의 정본은 계속 `styles/tokens.css` 다 — **저장하지 않는다.** 어디에 저장할지는 정해지지 않았다
+ * (브라우저 한정인지, 모두에게인지 — 결정 대기). 그래서 새로 고치면 처음 값으로 돌아가고, 「처음으로」가 바로 되돌린다.
+ */
+function setToken(key: string, value: string | null) {
+  if (typeof document === 'undefined') return;
+  if (value === null) document.documentElement.style.removeProperty(`--${key}`);
+  else document.documentElement.style.setProperty(`--${key}`, value);
+}
+
+/** `<input type="color">` 는 소문자 여섯 자리만 받는다 — 읽은 값이 그 모양이 아니면 바꾸는 칸을 세우지 않는다 */
+const asHex = (v: string): string | null => (/^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null);
+/** 크기 토큰은 `12px` 모양일 때만 숫자로 바꾼다 */
+const asPx = (v: string): number | null => (/^\d+px$/.test(v) ? Number(v.slice(0, -2)) : null);
+
+type Edit = (key: string, value: string) => void;
+
+function ColorRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit: Edit }) {
+  const hex = asHex(value);
   return (
     <li className="flex items-center gap-3 rounded-xl border border-line bg-card p-3">
-      <span
-        aria-hidden
-        className="h-10 w-10 shrink-0 rounded-lg border border-line"
-        style={{ background: `var(--${row.key})` }}
-      />
+      {/* 견본을 누르면 색을 고른다 — 컷의 모양(견본 + 이름 + 값) 그대로 두고 견본이 입력칸이 된다 */}
+      <label className="relative h-10 w-10 shrink-0 cursor-pointer rounded-lg border border-line" style={{ background: `var(--${row.key})` }}>
+        {hex ? (
+          <input
+            type="color"
+            aria-label={`${row.name} 바꾸기`}
+            value={hex}
+            onChange={(e) => onEdit(row.key, e.currentTarget.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        ) : null}
+      </label>
       <span className="min-w-0 grow">
         <span className="block text-[13.5px] font-bold">{row.name}</span>
         <span className="block text-[11.5px] text-fg-subtle">{row.use}</span>
@@ -71,8 +104,8 @@ function ColorRow({ row }: { row: TokenRow }) {
   );
 }
 
-function SizeRow({ row }: { row: TokenRow }) {
-  const value = cssVarValue(row.key);
+function SizeRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit: Edit }) {
+  const px = asPx(value);
   return (
     <li className="flex items-center gap-3 rounded-xl border border-line bg-card p-3">
       <span
@@ -84,7 +117,17 @@ function SizeRow({ row }: { row: TokenRow }) {
         <span className="block text-[13.5px] font-bold">{row.name}</span>
         <span className="block text-[11.5px] text-fg-subtle">{row.use}</span>
       </span>
-      <code className="shrink-0 rounded-md bg-inset px-2 py-1 font-mono text-[11.5px]">{value || '—'}</code>
+      {px !== null ? (
+        <input
+          type="number"
+          min={0}
+          max={400}
+          aria-label={`${row.name} 바꾸기`}
+          value={px}
+          onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isInteger(n) && n >= 0) onEdit(row.key, `${n}px`); }}
+          className="w-20 shrink-0 rounded-md border border-line bg-card px-2 py-1 text-right font-mono text-[11.5px]"
+        />
+      ) : <code className="shrink-0 rounded-md bg-inset px-2 py-1 font-mono text-[11.5px]">{value || '—'}</code>}
     </li>
   );
 }
@@ -107,46 +150,70 @@ function Part({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
+/** 표시 마크 견본 세 상태 — 됐다 · 안 됐다 · 해당 없음 (원본 §86 카드 한 줄 「됐는지 · 안 됐는지 · 해당 없음」) */
+const MARK_SAMPLES: Array<{ mark: CheckMark; word: string }> = [
+  { mark: { key: 'book', done: true, na: false }, word: '교재' },
+  { mark: { key: 'guide', done: false, na: false }, word: '안내' },
+  { mark: { key: 'zoom', done: false, na: true }, word: '해당 없음' },
+];
+
+/**
+ * 표 견본 — 원본 §86 은 상태 칸에 **「● 완료 · ● 대기」**(점 + 색 글자)를 적는다 (86-5).
+ * 리포트 상태 낱말(승인 · 승인 대기)을 빌려 오면 견본이 한 화면의 업무 낱말을 말하게 된다.
+ */
 const SAMPLE_ROWS = [
-  { id: 1, who: '고은성', what: 'MAP Reading', state: 'ok' },
-  { id: 2, who: '민제인', what: 'Writing', state: 'wait' },
+  { id: 1, who: '고은성', what: 'MAP Reading', done: true },
+  { id: 2, who: '민제인', what: 'Writing', done: false },
 ];
 const SAMPLE_COLS: Array<Column<(typeof SAMPLE_ROWS)[number]>> = [
   { key: 'w', head: '학생', cell: (r) => r.who },
   { key: 'x', head: '과목', cell: (r) => r.what },
-  { key: 's', head: '상태', width: 100, cell: (r) => <StatusBadge state={r.state} /> },
+  {
+    key: 's', head: '상태', width: 100,
+    // 상태 배지 견본과 같은 공용 점 모양(`Chip` dot · 86-2) — 표 안에서 따로 그리지 않는다
+    cell: (r) => <Chip tone={r.done ? 'success' : 'warning'} styleKind="dot">{r.done ? '완료' : '대기'}</Chip>,
+  },
 ];
 
 export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
   const [pane, setPane] = useState<Pane>('color');
   const [sample, setSample] = useState('하루만');
+  /** 이 창에서 바꾼 값 — 화면에만 있다(저장하지 않는다 · 85-2). 키 → 새 값 */
+  const [edited, setEdited] = useState<Record<string, string>>({});
+  const valueOf = (key: string) => edited[key] ?? cssVarValue(key);
+  const edit: Edit = (key, value) => { setToken(key, value); setEdited((prev) => ({ ...prev, [key]: value })); };
+  const reset = () => { for (const key of Object.keys(edited)) setToken(key, null); setEdited({}); };
+  const editedCount = Object.keys(edited).length;
   const counts = useMemo(
     () => ({ color: TOKEN_COLORS.length, size: TOKEN_SIZES.length + TOKEN_LAYOUT.length, parts: GALLERY.length }),
     [],
   );
 
   return (
-    <Dialog
+    <WideDialog
       open={open} onClose={onClose} width={1180}
-      title={
-        <span className="flex flex-wrap items-center gap-3">
-          <span className="grow">
-            <span className="block">디자인 · 컴포넌트</span>
-            <span className="block text-[12px] font-normal text-fg-subtle">
-              색과 크기를 바꾸면 화면 전체가 바로 바뀝니다
-            </span>
-          </span>
+      title="디자인 · 컴포넌트"
+      sub="색과 크기를 바꾸면 화면 전체가 바로 바뀝니다"
+      actions={(
+        <>
+          {/* 바꾼 것이 있을 때만 선다 — 쉬는 모양은 원문 컷 그대로다 */}
+          {editedCount > 0 ? (
+            <>
+              <span className="text-[11.5px] text-fg-subtle">바꾼 것 {editedCount} · 이 화면에만 · 저장하지 않습니다</span>
+              <Button size="sm" onClick={reset}>처음으로</Button>
+            </>
+          ) : null}
           <Button size="sm" onClick={() => download('tokens.css', tokensAsCss(ALL_TOKENS), 'text/css')}>
             CSS 내보내기
           </Button>
           <Button size="sm" onClick={() => download('tokens.json', tokensAsJson(ALL_TOKENS), 'application/json')}>
             토큰 JSON
           </Button>
-        </span>
-      }
-      footer={<Button onClick={onClose}>닫기</Button>}
+        </>
+      )}
     >
-      <div className="grid max-h-[70dvh] grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-[180px_minmax(0,1fr)]">
+      {/* 스크롤은 창의 본문이 한다 — 안에서 한 번 더 스크롤하지 않는다 */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
         <nav aria-label="디자인 시스템 갈래" className="flex gap-2 sm:flex-col">
           {([
             ['color', '색', counts.color],
@@ -170,23 +237,23 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
           {pane === 'color' ? (
             <>
               <ul className="space-y-2">
-                {TOKEN_COLORS.map((r) => <ColorRow key={r.key} row={r} />)}
+                {TOKEN_COLORS.map((r) => <ColorRow key={r.key} row={r} value={valueOf(r.key)} onEdit={edit} />)}
               </ul>
               <Banner tone="neutral" className="mt-3">
                 <b>기본 색 · 보라 · 초록 · 주황</b> 넷은 작은 글자에서 대비 4.5:1 을 맞추려고
-                명세서 §85 컷보다 어둡게 잡았습니다 (2026-09-10). 나머지 다섯은 컷 값 그대로입니다.
+                명세서 컷보다 어둡게 잡았습니다 (2026-09-10). 나머지 다섯은 컷 값 그대로입니다.
                 Figma 의 <b>TACO v2 · Spec Foundations</b> 도 이미 이 값이라, 지금 갈리는 것은 <b>컷 하나</b>뿐입니다.
               </Banner>
             </>
           ) : pane === 'size' ? (
             <>
               <h3 className="mb-2 text-[12px] font-bold text-fg-subtle">쓰는 값</h3>
-              <ul className="space-y-2">{TOKEN_SIZES.map((r) => <SizeRow key={r.key} row={r} />)}</ul>
+              <ul className="space-y-2">{TOKEN_SIZES.map((r) => <SizeRow key={r.key} row={r} value={valueOf(r.key)} onEdit={edit} />)}</ul>
               <h3 className="mb-2 mt-4 text-[12px] font-bold text-fg-subtle">화면 틀</h3>
-              <ul className="space-y-2">{TOKEN_LAYOUT.map((r) => <SizeRow key={r.key} row={r} />)}</ul>
+              <ul className="space-y-2">{TOKEN_LAYOUT.map((r) => <SizeRow key={r.key} row={r} value={valueOf(r.key)} onEdit={edit} />)}</ul>
               <Banner tone="info" className="mt-3">
-                원문 §85 는 이 갈래를 <b>「5개」</b>라 적었는데 지금 토큰은 여덟입니다 —
-                어느 다섯이 정본인지 확인이 필요합니다 (N-34).
+                명세서는 이 갈래를 <b>「5개」</b>라 적었는데 지금 토큰은 여덟입니다 —
+                어느 다섯이 정본인지 확인이 필요합니다.
               </Banner>
             </>
           ) : (
@@ -201,21 +268,25 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
                 </div>
               </Part>
               <Part k="badge">
-                <div className="flex flex-wrap gap-2">
-                  <Chip tone="success">완료</Chip>
-                  <Chip tone="warning">대기</Chip>
-                  <Chip tone="danger">지연</Chip>
-                  <Chip tone="info">진행</Chip>
-                  <Chip tone="purple">컨설팅</Chip>
+                {/* 원본 §86 상태 배지 = 점 + 색 글자(「● 완료」) — 알약이 아니다 (86-2) */}
+                <div className="flex flex-wrap gap-3">
+                  <Chip tone="success" styleKind="dot">완료</Chip>
+                  <Chip tone="warning" styleKind="dot">대기</Chip>
+                  <Chip tone="danger" styleKind="dot">지연</Chip>
+                  <Chip tone="info" styleKind="dot">진행</Chip>
+                  <Chip tone="purple" styleKind="dot">컨설팅</Chip>
                 </div>
               </Part>
               <Part k="mark">
-                <BoardMarks marks={[
-                  { key: 'book', done: true, na: false },
-                  { key: 'guide', done: false, na: false },
-                  { key: 'zoom', done: false, na: true },
-                  { key: 'report', done: false, na: true },
-                ]} />
+                {/* 원본 §86 견본은 **세 상태와 그 뜻**이다 — 「✓ 교재 · ! 안내 · – 해당 없음」 (86-3).
+                    글리프는 현황판이 쓰는 그 부품(`BoardMarks` 기호 모양)을 그대로 쓴다 */}
+                <div className="flex flex-wrap items-center gap-4">
+                  {MARK_SAMPLES.map(({ mark, word }) => (
+                    <span key={mark.key} className="inline-flex items-center gap-1.5 text-[12px] text-fg-2">
+                      <BoardMarks variant="symbols" marks={[mark]} />{word}
+                    </span>
+                  ))}
+                </div>
               </Part>
               <Part k="input">
                 <Input placeholder="이름을 넣어주세요" aria-label="본보기 입력칸" />
@@ -244,14 +315,16 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
               </Part>
               <Part k="stat">
                 <div className="grid grid-cols-3 gap-2">
-                  <StatCard label="다 됐음" value="6/49" tone="success" />
-                  <StatCard label="교재 안 됨" value="42" tone="danger" />
+                  {/* 원본 §86 요약 카드 견본은 초록 · 분홍 옅은 바탕이다(공용 `fill`). 숫자 위/라벨 아래 모양은 확인 필요(86-7) */}
+                  <StatCard label="다 됐음" value="6/49" tone="success" fill />
+                  <StatCard label="교재 안 됨" value="42" tone="danger" fill />
                   <StatCard label="휴강" value="0" />
                 </div>
               </Part>
               <Part k="banner">
-                <Banner tone="success">겹치는 것이 없습니다</Banner>
-                <Banner tone="danger" className="mt-2">2곳이 겹칩니다 — 08-21 16:00 MAP Reading</Banner>
+                {/* 원본 §86 알림 상자 = 굵은 색 제목 + 점 목록 (86-4) */}
+                <Banner tone="success" title="✓ 겹치는 것이 없습니다" items={['스케줄에 컨설팅 3일로 들어갑니다']} />
+                <Banner tone="danger" className="mt-2" title="⛔ 2곳이 겹칩니다" items={['08-21 16:00 MAP Reading']} />
               </Part>
               <Part k="table">
                 <Table columns={SAMPLE_COLS} rows={SAMPLE_ROWS} rowKey={(r) => r.id} />
@@ -286,6 +359,6 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
           )}
         </div>
       </div>
-    </Dialog>
+    </WideDialog>
   );
 }

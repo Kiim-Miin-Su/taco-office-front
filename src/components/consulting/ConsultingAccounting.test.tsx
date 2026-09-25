@@ -158,3 +158,14 @@ it('열기 서랍은 납부 기록을 한 줄도 빼지 않고 보여 준다', (
   expect(v.getByText('계약금')).toBeTruthy();
   expect(v.getByText('김민수')).toBeTruthy();
 });
+
+it('원본 §28 모양 — 개발 설명 없는 타일 · 제목 없는 표 · 단계는 점 + 색 글자 · 「남음」은 빨강 · 납부 기록은 가운데 (28-01~04)', () => {
+  const v = render(<ConsultingAccounting data={clone()} />);
+  expect(v.queryByText('서버가 뺀 값입니다')).toBeNull();
+  expect(v.queryByRole('heading', { name: '계약별 수납' })).toBeNull();
+  const stage = v.getByText('진행');
+  expect(stage.className).toContain('text-violet');
+  expect(stage.querySelector('[aria-hidden]')?.className).toContain('bg-violet');
+  expect(v.getByText('900,000원', { selector: 'span.text-red' })).toBeTruthy();
+  expect(v.getByText('07-12 400,000원').closest('td')?.className).toContain('text-center');
+});

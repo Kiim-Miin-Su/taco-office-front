@@ -106,7 +106,7 @@ function setup() {
         : config.url === '/books'
           ? {
               items: [
-                { id: 4, code: 'SAT', title: 'SAT Reading', pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 4, code: 'SAT', title: 'SAT Reading', level: 'Master', pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
                 { id: 5, code: 'WR', title: 'Writing', pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
               ],
               bySub: {},
@@ -169,4 +169,33 @@ it('학생 한 줄의 진도는 각 교재와 짝지어 표시한다', async () 
   await waitFor(() => expect(view.getByText('75%')).toBeTruthy());
   expect(view.getAllByTitle('SAT Reading')[0].textContent).toContain('20%');
   expect(view.getByTitle('Writing').textContent).toContain('75%');
+});
+
+/**
+ * §38-3 · §38-4 · §38-5 — 레벨 글자 사각은 §39 서가와 같은 색(M 초록 · P 주황 · F 빨강 — 공용 bookLevelPresentation),
+ * 열 이름은 「진도」(교재 이름을 다시 적지 않는다), 다음 수업 둘째 줄은 시각이 아니라 날짜.
+ */
+it('레벨 사각은 서가와 같은 색이고, 열 이름은 「진도」, 다음 수업 둘째 줄은 날짜다 (§38)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getByText('75%')).toBeTruthy());
+  const marker = view.getAllByText('M').find((el) => el.getAttribute('data-level-marker') !== null)!;
+  expect(marker.className).toContain('bg-green');
+  expect(view.getByText('진도')).toBeTruthy();
+  expect(view.queryByText('교재별 진도')).toBeNull();
+  expect(view.getByText('09-14')).toBeTruthy();
+});
+
+/** §38-6 — 머리 여섯 칸 색 윗줄(검정 · 호박 · 청록 · 빨강 · 보라 · 초록), 0 인 칸 흐림, 「정상」 초록 채움 */
+it('머리 칸은 자리별 색 윗줄이고 0 인 칸은 흐리며 「정상」은 초록 채움이다 (§38-6)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getAllByText('전달 대기').length).toBeGreaterThanOrEqual(1));
+  const headBox = (label: string) => view.getAllByText(label)
+    .map((el) => el.parentElement as HTMLElement)
+    .find((box) => box.className.includes('border-t-[3px]'))!;
+  expect(headBox('전달 대기').className).toContain('border-t-teal/40');
+  expect(headBox('강사 요청').className).toContain('border-t-violet');
+  expect(headBox('강사 요청').className).not.toContain('border-t-violet/40');
+  expect(headBox('정상').className).toContain('bg-green/10');
+  expect(headBox('정상').className).toContain('border-t-green');
+  expect(headBox('정상').className).not.toContain('border-t-green/40');
 });

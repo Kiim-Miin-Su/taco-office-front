@@ -70,7 +70,7 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
 
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="분류별 지출" sub="확정된 것만 셉니다 — 결재 중인 신청은 아직 나간 돈이 아닙니다 (A-D5 간이 5분류 + 임대료)">
+      <Panel title="분류별 지출" sub="확정된 것만 셉니다 — 결재 중인 신청은 아직 나간 돈이 아닙니다">
         {totals.length === 0 ? (
           <p className="px-1 py-4 text-center text-[13px] text-fg-subtle">확정된 지출이 없습니다.</p>
         ) : (
@@ -121,7 +121,7 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
           )}
         </Panel>
 
-        <Panel className="min-w-0 grow" title={picked ? `심사 · ${picked.merchant ?? '—'}` : '심사'} sub="신청 금액은 안내일 뿐입니다 — 확정 금액은 직접 넣습니다 (A-1). 증액은 없습니다 (A-D3)">
+        <Panel className="min-w-0 grow" title={picked ? `심사 · ${picked.merchant ?? '—'}` : '심사'} sub="신청 금액은 안내일 뿐입니다 — 확정 금액은 직접 넣습니다. 증액은 없습니다">
           {!picked ? (
             <p className="px-1 py-8 text-center text-[13px] text-fg-subtle">왼쪽에서 신청을 골라 주세요.</p>
           ) : (
@@ -145,11 +145,11 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
 
               {mine ? (
                 <Banner tone="warning" className="mb-3">
-                  본인이 올린 신청입니다 — 금액을 제안하는 사람과 확정하는 사람은 다릅니다. 다른 심사자가 처리해야 합니다 (A-5).
+                  본인이 올린 신청입니다 — 금액을 제안하는 사람과 확정하는 사람은 다릅니다. 다른 심사자가 처리해야 합니다.
                 </Banner>
               ) : null}
               {picked.hasReceipt ? null : (
-                <Banner tone="warning" className="mb-3">영수증이 없습니다 — 승인할 수 없고 반려만 가능합니다 (A-4).</Banner>
+                <Banner tone="warning" className="mb-3">영수증이 없습니다 — 승인할 수 없고 반려만 가능합니다.</Banner>
               )}
 
               <div className="flex flex-wrap items-end gap-2.5">
@@ -193,10 +193,10 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
 
               {overRequest ? (
                 <Banner tone="danger" className="mt-2">
-                  신청 금액 {won(picked.requestedAmount)}보다 크게 승인할 수 없습니다 — 증액은 재신청으로 처리합니다 (A-D3).
+                  신청 금액 {won(picked.requestedAmount)}보다 크게 승인할 수 없습니다 — 증액은 재신청으로 처리합니다.
                 </Banner>
               ) : differs && !form.reason.trim() ? (
-                <Banner tone="warning" className="mt-2">신청 금액과 다릅니다 — 사유를 적어야 승인됩니다 (A-3).</Banner>
+                <Banner tone="warning" className="mt-2">신청 금액과 다릅니다 — 사유를 적어야 승인됩니다.</Banner>
               ) : null}
               {review.isError ? <Banner tone="danger" className="mt-2">{apiMessage(review.error)}</Banner> : null}
             </>

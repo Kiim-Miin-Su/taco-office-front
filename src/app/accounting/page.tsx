@@ -28,6 +28,7 @@ import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { OtherIncome } from '@/components/accounting/OtherIncome';
 import { InvoiceBoard } from '@/components/accounting/InvoiceBoard';
 import { PayoutSheet } from '@/components/accounting/PayoutSheet';
+import { PaymentFlow } from '@/components/accounting/PaymentFlow';
 import { RateBook } from '@/components/accounting/RateBook';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
@@ -172,7 +173,9 @@ export default function AccountingPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <PageHeader title="회계" sub="청구서 → 전달 → 입금 → 기록. 강사료는 리포트를 쓴 수업만 계산합니다." />
+        {/* 부제는 원문 §52~§57 머리의 앞 절이다(C-04). 뒤 절 「개별 내역을 비공개로 지정할 수 있습니다」는
+            아직 없는 기능이라 적지 않는다 — 없는 기능을 있다고 말하는 문장이 된다 */}
+        <PageHeader title="회계" sub="매출 · 수납 · 지출 · 결산을 한 곳에서 봅니다" />
 
         {/*
           회계 머리 **여섯 칸** — §52·§56 원문 그대로의 낱말·차례다 (C43).
@@ -197,7 +200,7 @@ export default function AccountingPage() {
 
         {s && !s.canSeeAmounts ? (
           <Banner tone="warning" className="mb-3">
-            금액은 <b>대표만</b> 봅니다 (D-R39). 서버가 값을 내려보내지 않으므로 화면에도 없습니다 — 숨긴 것이 아니라 받지 않은
+            금액은 <b>대표만</b> 봅니다. 서버가 값을 내려보내지 않으므로 화면에도 없습니다 — 숨긴 것이 아니라 받지 않은
             것입니다.
           </Banner>
         ) : null}
@@ -265,14 +268,16 @@ export default function AccountingPage() {
           <PaymentRecorder invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
         ) : tab === 'pay' ? (
           <>
-            {/* 컷 §55 의 분류 칩줄 — **건수가 0이어도 선다.** 분류는 어휘이지 데이터가 아니다 */}
-            <div className="mb-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11.5px] font-bold text-fg-subtle">분류</span>
-              <Chip tone="neutral">전체 {q.data?.payments.length ?? 0}</Chip>
-              {(q.data?.payCategories ?? []).map((c) => (
-                <Chip key={c.key} tone={c.count > 0 ? 'info' : 'neutral'}>{c.label} {c.count}</Chip>
-              ))}
-            </div>
+            {/*
+              컷 §55 — 기간 요약 · 입금 달력 · 분류별 · 미수 전체 (w5). 분류 칩줄도 그 안으로 옮겼다:
+              칩의 건수가 **고른 기간의 수**가 되어야 컷의 「전체 11」과 같은 뜻이고, 전 기간 수를 세는 칩줄이
+              나란히 서면 같은 이름(「수업료 2」)이 두 숫자가 된다. 0 건 칩이 서는 규약은 그대로다(분류는 어휘다).
+            */}
+            <PaymentFlow />
+            {/* 입금 줄 하나하나는 기간과 무관하게 그대로 둔다 — 달력은 날마다의 합이라 줄을 대신하지 못한다 */}
+            <h3 className="mb-2 mt-2 text-[13px] font-bold text-fg">
+              입금 줄 <span className="text-[11.5px] font-normal text-fg-subtle">전체 기간</span>
+            </h3>
             <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
           </>
         ) : tab === 'out' ? (
@@ -290,8 +295,8 @@ export default function AccountingPage() {
           */}
         {tab === 'payout' ? (
           <Banner tone="info" className="mt-4">
-            정산은 <b>「리포트를 썼는가」 하나</b>로 계산합니다 — 승인 여부는 보지 않습니다 (D-R7). 깎이는 것은 지각뿐이고, 기준은
-            수업이 끝난 시각부터 분 단위입니다 (D-R32). 「지급 확정」은 대표가 끝난 달에만 할 수 있고, 그 순간의 계산을 굳힙니다 (O-148).
+            정산은 <b>「리포트를 썼는가」 하나</b>로 계산합니다 — 승인 여부는 보지 않습니다. 깎이는 것은 지각뿐이고, 기준은
+            수업이 끝난 시각부터 분 단위입니다. 「지급 확정」은 대표가 끝난 달에만 할 수 있고, 그 순간의 계산을 굳힙니다.
           </Banner>
         ) : null}
       </AppShell>

@@ -41,13 +41,23 @@ it('격자는 서버가 준 시간 범위를 그대로 그린다 — 계정 × 0
   LABELS.forEach((l) => expect(view.getAllByText(l).length).toBeGreaterThan(0));
 });
 
-it('「지금 가능」과 「만석 시간대」는 서버가 센 값이다 — 화면이 격자를 다시 세지 않는다', () => {
-  // 격자에는 붉은 칸이 다섯이지만 화면은 그것을 세지 않는다. 서버가 준 5·1 을 적는다
-  const view = render(<ZoomPane rows={rows} board={{ ...board, freeNow: 5, fullHours: 1 }} />);
-  const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+it('「지금 가능」과 「만석 시간대」는 서버가 센 값이다 — 큰 숫자 위 · 라벨 아래 · 보조 문구 없음 (g2 21-2)', () => {
+  const view = render(<ZoomPane rows={rows} board={board} />);
+  const text = view.container.textContent ?? '';
   expect(text).toContain('지금 가능');
   expect(text).toContain('만석 시간대');
-  expect(text).toContain('12시 기준');
+  const box = view.getByText('지금 가능').parentElement!;
+  expect(box.className).toContain('text-center');
+  expect(box.firstElementChild?.textContent).toBe('5');
+  // 오늘이면 보조 문구가 없다 — 원문 상자는 숫자와 라벨 둘뿐이다
+  expect(text).not.toContain('12시 기준');
+  expect(text).not.toContain('한 계정도 안 남은 시간');
+});
+
+/* g2 대조 21-3 — 원문 §21 칸에는 경고 상자가 없다. 로그인 정보를 안 내리는 규칙은 서버가 지킨다 */
+it('로그인 정보 경고 상자를 서랍에 달지 않는다', () => {
+  const view = render(<ZoomPane rows={rows} board={board} />);
+  expect(view.container.textContent).not.toContain('로그인 정보');
 });
 
 it('지금 쓸 수 있는 계정은 서버가 준 **이름 그대로**다 — 화면이 고르지 않는다', () => {

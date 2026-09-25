@@ -35,7 +35,8 @@ export function LeadStageMove({ lead, onDone }: LeadStageMoveProps) {
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-line bg-inset px-3 py-2">
       <div className="w-52">
-        <Label htmlFor={`lead-next-${lead.id}`} hint="갈 수 있는 곳만 섭니다 (서버 전이표)">다음 단계</Label>
+        {/* 갈 수 있는 곳은 서버 `nextStages` 그대로다 — 사용자에게는 업무 문장만 보인다 (23-20 · 내부 용어·절 번호 금지) */}
+        <Label htmlFor={`lead-next-${lead.id}`} hint="지금 단계에서 갈 수 있는 곳만 보입니다">다음 단계</Label>
         <Select id={`lead-next-${lead.id}`} value={to} disabled={pending} onChange={(e) => { setTo(e.target.value as LeadStageMoveBody['to'] | ''); setArmed(false); }}>
           <option value="">단계 선택</option>
           {lead.nextStages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -57,7 +58,7 @@ export function LeadStageMove({ lead, onDone }: LeadStageMoveProps) {
       >
         {pending ? '옮기는 중…' : armed ? '한 번 더 누르면 이동' : '다음 단계 →'}
       </Button>
-      <span className="text-[11px] text-fg-subtle">옮기면 도달 기록에 한 줄이 남습니다 — §71 퍼널이 그 기록으로 셉니다 (N-45).</span>
+      <span className="text-[11px] text-fg-subtle">옮기면 단계 기록에 한 줄이 남고, 대표 보고의 상담 퍼널이 그 기록으로 셉니다.</span>
       {move.isError ? <Banner tone="danger" className="basis-full">{apiMessage(move.error)}</Banner> : null}
     </div>
   );

@@ -6,11 +6,32 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
+  addDays, boundingRange, kstDateTime, longDateLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
   periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 import type { Occurrence } from '@/api/types';
+
+// 긴 날짜는 §34·§40·§45 원문 컷의 「26년 8월 21일 금요일」 한 모양이다 — 화면마다 따로 적지 않는다
+it.each([
+  ['2026-09-18', '26년 9월 18일 금요일'],
+  ['2026-08-20', '26년 8월 20일 목요일'],
+  ['2026-01-04', '26년 1월 4일 일요일'],
+] as const)('긴 날짜 %s → %s', (iso, expected) => {
+  expect(longDateLabel(iso)).toBe(expected);
+});
+
+// 시각은 서버가 어느 오프셋으로 주든 KST 로 읽는다 — ISO 원문을 화면에 그대로 찍지 않는다 (§41)
+it.each([
+  ['2026-09-17T19:00:00+09:00', '2026-09-17 19:00'],
+  ['2026-09-17T10:00:00.000Z', '2026-09-17 19:00'],
+  ['2026-09-17T20:30:00Z', '2026-09-18 05:30'],
+] as const)('시각 %s → %s', (iso, expected) => {
+  expect(kstDateTime(iso)).toBe(expected);
+});
+it.each([null, undefined, '', 'not-a-date'])('읽을 수 없는 시각 %s 은 null — 지어내지 않는다', (value) => {
+  expect(kstDateTime(value)).toBeNull();
+});
 
 it.each(['12:60','12:99','24:01','25:00','1:9','-1:00'])('시각 %s를 합산 보정하지 않고 거절한다', value=>{
   expect(parseHm(value)).toBeNull();

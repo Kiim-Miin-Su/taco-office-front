@@ -4,9 +4,9 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render, within } from '@testing-library/react';
+import { fireEvent, render, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LessonTracking, Occurrence, RosterResult } from '@/api/types';
+import type { LessonTracking, Meta, Occurrence, RosterResult } from '@/api/types';
 
 const { mutate, permissions, tracking } = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -17,6 +17,8 @@ const { mutate, permissions, tracking } = vi.hoisted(() => ({
 
 vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate, isPending: false }),
+  // 「일정 수정」 창이 409 뒤 한 번 묻는 겹침 설명 — 이 파일은 계약만 본다
+  fetchConflicts: vi.fn(async () => []),
   useAttendanceWrite: () => ({ mutate: vi.fn(), isPending: false }),
   // §79 학생 트래킹은 창을 열 때만 도는 별도 질의다 — 이 파일은 명단 계약만 본다 (C55)
   useLessonTracking: () => tracking,
@@ -91,7 +93,7 @@ describe('LessonDetail 명단 결과', () => {
     permissions.canAdminPage = false;
     const view = render(<LessonDetail occ={{ ...occurrence, attendanceMode: 'readonly' }} onClose={() => undefined} />);
     expect(view.getByText('기존학생')).toBeTruthy();
-    expect(view.queryByRole('button', { name: '휴강 · 취소' })).toBeNull();
+    expect(view.queryByRole('button', { name: '휴강 · 수정' })).toBeNull();
     expect(view.queryByRole('button', { name: '이 회차만 빼기' })).toBeNull();
     expect(view.queryByRole('region', { name: '학생 트래킹' })).toBeNull();
     expect(mutate).not.toHaveBeenCalled();
@@ -145,7 +147,7 @@ describe('LessonDetail 명단 결과', () => {
   it('휴강 창을 연 채 권한을 잃으면 창도 사라진다', () => {
     const props = { occ: occurrence, onClose: () => undefined, ...cancelMeta };
     const view = render(<LessonDetail {...props} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 수정' }));
     expect(view.getByRole('dialog', { name: /^휴강 — / })).toBeTruthy();
     permissions.canEdit = false;
     view.rerender(<LessonDetail {...props} />);
@@ -155,7 +157,7 @@ describe('LessonDetail 명단 결과', () => {
 
   it('휴강은 사유·처리·메모를 이번 회차 계약으로 보낸다 — 처리 기본은 첫 줄(이월) (C-30)', () => {
     const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 수정' }));
     const dialog = view.getByRole('dialog', { name: /^휴강 — / });
     // 사유를 고르기 전에는 보낼 수 없다
     const submit = within(dialog).getByRole('button', { name: '휴강' });
@@ -174,7 +176,7 @@ describe('LessonDetail 명단 결과', () => {
 
   it('차감은 서버가 deductible 이라 한 사유에서만 고를 수 있다 — 학원 사정이면 잠기고 이월로 돌아간다 (C-31 · C-32)', () => {
     const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 수정' }));
     const dialog = view.getByRole('dialog', { name: /^휴강 — / });
     const deduct = within(dialog).getByRole('radio', { name: /차감/ }) as HTMLInputElement;
     expect(deduct.disabled).toBe(true);
@@ -195,7 +197,7 @@ describe('LessonDetail 명단 결과', () => {
 
   it('「그날 전체」를 켜면 날짜 하나로 day-cancel 을 보낸다 — 회차를 화면이 세지 않는다 (C-33)', () => {
     const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 수정' }));
     const dialog = view.getByRole('dialog', { name: /^휴강 — / });
     fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'academy' } });
     fireEvent.click(within(dialog).getByRole('checkbox'));
@@ -208,7 +210,7 @@ describe('LessonDetail 명단 결과', () => {
 
   it('보강 이관은 날짜·시각을 받아 makeup 으로 보낸다 — 시각 기본은 원래 회차와 같은 길이 · 같은 날은 거절 · 그날 전체는 숨는다 (C-34)', () => {
     const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 수정' }));
     const dialog = view.getByRole('dialog', { name: /^휴강 — / });
     fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'academy' } });
     fireEvent.click(within(dialog).getByRole('radio', { name: /보강 이관/ }));
@@ -259,7 +261,7 @@ describe('LessonDetail 명단 결과', () => {
   it('강사 화면(관리자 아님)에는 「그날 전체」가 없다', () => {
     permissions.canAdminPage = false;
     const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} {...cancelMeta} />);
-    fireEvent.click(view.getByRole('button', { name: '휴강' }));
+    fireEvent.click(view.getByRole('button', { name: '휴강 · 수정' }));
     expect(within(view.getByRole('dialog', { name: /^휴강 — / })).queryByRole('checkbox')).toBeNull();
   });
 
@@ -286,7 +288,7 @@ describe('LessonDetail 명단 결과', () => {
       />,
     );
     expect(view.getByText('휴강 · 학생 결석 · 차감')).toBeTruthy();
-    expect(view.queryByRole('button', { name: '휴강' })).toBeNull();
+    expect(view.queryByRole('button', { name: '휴강 · 수정' })).toBeNull();
   });
 
   it('명단 저장 응답의 인원·안내·교재 후속 작업을 추가 조회 없이 보여 준다', () => {
@@ -299,8 +301,8 @@ describe('LessonDetail 명단 결과', () => {
       />,
     );
 
-    fireEvent.change(view.getByRole('combobox'), { target: { value: '2' } });
-    fireEvent.click(view.getByRole('button', { name: '넣기' }));
+    // 원문 §79 — 후보 칩을 한 번 눌러 넣는다 (고르고 「넣기」 두 단계가 아니다). 쓰기 길은 그대로다
+    fireEvent.click(view.getByRole('button', { name: '신규학생 넣기' }));
 
     expect(mutate).toHaveBeenCalledWith(
       { kind: 'roster', serId: 3, body: { op: 'add', onDate: '2026-09-03', studentId: 2 } },
@@ -309,6 +311,33 @@ describe('LessonDetail 명단 결과', () => {
     expect(view.getByText('명단을 반영했습니다 · 2/4명 · 1인 45,000원(2인 구간) · 수업당 90,000원')).toBeTruthy();
     expect(view.getByText('수업 안내가 필요합니다')).toBeTruthy();
     expect(view.getByText('교재 배부 확인이 필요합니다')).toBeTruthy();
+  });
+
+  it('학생 넣기는 이름으로 찾아 후보를 좁히고, 이미 명단에 있는 학생은 후보에 없다 (§79)', async () => {
+    const view = render(
+      <LessonDetail
+        occ={occurrence}
+        allStudents={[{ id: 1, name: '기존학생' }, { id: 2, name: '강라율', grade: 'G7' }, { id: 4, name: '고은설', grade: 'G8' }]}
+        onClose={() => undefined}
+      />,
+    );
+    const search = view.getByRole('searchbox', { name: '넣을 학생 이름으로 찾기' });
+    expect(search.getAttribute('placeholder')).toBe('이름으로 찾기 · 전체 2명');
+    expect(view.queryByRole('button', { name: '기존학생 넣기' })).toBeNull();
+    expect(view.getByRole('button', { name: '강라율 넣기' }).textContent).toContain('G7');
+    // select 와 「넣기」 두 단계 입력은 없다
+    expect(view.queryByRole('combobox')).toBeNull();
+
+    fireEvent.change(search, { target: { value: '고은' } });
+    await waitFor(() => expect(view.queryByRole('button', { name: '강라율 넣기' })).toBeNull());
+    fireEvent.click(view.getByRole('button', { name: '고은설 넣기' }));
+    expect(mutate).toHaveBeenCalledWith(
+      { kind: 'roster', serId: 3, body: { op: 'add', onDate: '2026-09-03', studentId: 4 } },
+      expect.any(Object),
+    );
+
+    fireEvent.change(search, { target: { value: '없는이름' } });
+    expect(await view.findByText('「없는이름」에 맞는 학생이 없습니다')).toBeTruthy();
   });
 });
 
@@ -395,6 +424,80 @@ describe('§12 준비 줄 (C82-b)', () => {
   });
 });
 
+/**
+ * §12 바닥 주 단추 「일정 수정」 — 이미 있는 `PATCH /schedule/{id}` 를 새 일정 창의 편집 모드와
+ * 반복 범위 창으로 잇는다. 쓰기 길은 `useScheduleWrite` 의 patch 하나뿐이다.
+ */
+describe('§12 일정 수정', () => {
+  const editMeta = {
+    staff: [{ id: 7, name: '강사' }, { id: 8, name: '다른 강사' }],
+    rooms: [{ id: 1, name: '강의실 1' }, { id: 2, name: '강의실 2' }],
+  } as unknown as Meta;
+
+  beforeEach(() => {
+    mutate.mockReset();
+    permissions.canEdit = true;
+    permissions.canAdminPage = true;
+    tracking.data = undefined;
+  });
+
+  it('관리 권한이 있고 휴강이 아닌 회차에만 서며, 누르면 지금 값으로 채운 편집 창이 열린다', () => {
+    const view = render(<LessonDetail occ={occurrence} meta={editMeta} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '일정 수정' }));
+    const dialog = view.getByRole('dialog', { name: /^일정 수정 — AP Chemistry · 2026-09-03/ });
+    expect((within(dialog).getByLabelText('시작') as HTMLInputElement).value).toBe('10:00');
+    expect((within(dialog).getByLabelText('강사') as HTMLSelectElement).value).toBe('7');
+    view.unmount();
+
+    const canceled = render(<LessonDetail occ={{ ...occurrence, canceled: true }} meta={editMeta} onClose={() => undefined} />);
+    expect(canceled.queryByRole('button', { name: '일정 수정' })).toBeNull();
+    canceled.unmount();
+
+    // 코드표를 안 넘기는 화면에서는 세우지 않는다 — 강사·강의실 목록 없이 여는 편집 창은 반쪽이다
+    const noMeta = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    expect(noMeta.queryByRole('button', { name: '일정 수정' })).toBeNull();
+    noMeta.unmount();
+
+    permissions.canEdit = false;
+    const teacher = render(<LessonDetail occ={occurrence} meta={editMeta} onClose={() => undefined} />);
+    expect(teacher.queryByRole('button', { name: '일정 수정' })).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('편집 창을 연 채 권한을 잃으면 창도 사라진다', () => {
+    const props = { occ: occurrence, meta: editMeta, onClose: () => undefined };
+    const view = render(<LessonDetail {...props} />);
+    fireEvent.click(view.getByRole('button', { name: '일정 수정' }));
+    expect(view.getByRole('dialog', { name: /^일정 수정/ })).toBeTruthy();
+    permissions.canEdit = false;
+    view.rerender(<LessonDetail {...props} />);
+    expect(view.queryByRole('dialog', { name: /^일정 수정/ })).toBeNull();
+  });
+
+  it('반복 수업은 범위를 고른 뒤 patch 하나로 보내고, 성공하면 결과를 「일정 수정」으로 넘긴 채 창을 닫는다', async () => {
+    const written = { effScope: 'this', log: [], projected: 1, serIds: [3], unavailable: [], undoToken: 'u9' };
+    mutate.mockImplementationOnce((_write, options) => options.onSuccess(written));
+    const onWritten = vi.fn();
+    const view = render(<LessonDetail occ={occurrence} meta={editMeta} onWritten={onWritten} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '일정 수정' }));
+    const dialog = view.getByRole('dialog', { name: /^일정 수정/ });
+    fireEvent.change(within(dialog).getByLabelText('끝'), { target: { value: '11:30' } });
+    fireEvent.change(within(dialog).getByLabelText('강의실'), { target: { value: '2' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+    const onlyThis = await view.findByRole('button', { name: /이번만/ });
+    expect(mutate).not.toHaveBeenCalled();
+    fireEvent.click(onlyThis);
+
+    expect(mutate).toHaveBeenCalledWith(
+      // 시각은 짝으로 간다 — 끝만 보내면 「향후·모두」에서 시작이 규칙값으로 읽혀 길이가 바뀐다
+      { kind: 'patch', serId: 3, body: { startMin: 600, endMin: 690, roomId: 2, scope: 'this', onDate: '2026-09-03' } },
+      expect.any(Object),
+    );
+    expect(onWritten).toHaveBeenCalledWith(written, '일정 수정');
+    expect(view.queryByRole('dialog', { name: /^일정 수정/ })).toBeNull();
+  });
+});
+
 describe('휴원 (C92-c · C-36)', () => {
   it('휴원 중인 학생은 명단에 남되 「휴원」 칩이 붙는다 — 그날 인원·청구에서 빠지는 것은 서버가 센다', () => {
     tracking.data = undefined;
@@ -405,5 +508,120 @@ describe('휴원 (C92-c · C-36)', () => {
     expect(text).toContain('· 휴원 1');
     expect(view.getByText('기존학생')).toBeTruthy();
     expect(view.getByText('휴원')).toBeTruthy();
+  });
+});
+
+/**
+ * 원문 §12·§79 — 화면 가운데 **큰 창 두 칸**(왼쪽 준비 · 오른쪽 학생 트래킹) + 바닥 단추 줄.
+ * 서랍(오른쪽 520px 한 칸)에 세로로 쌓던 것을 공용 `WideDialog` 로 옮겼다. 낱말·판정은 그대로 서버 것이다.
+ */
+describe('§12·§79 큰 창 두 칸', () => {
+  const trackingOf = (over: Partial<LessonTracking> = {}): LessonTracking => ({
+    serId: occurrence.serId, onDate: occurrence.onDate, cap: 4, count: 1, canAdd: 3,
+    capLabel: '정원 4명 · 3명 더 넣을 수 있습니다',
+    prep: [
+      { key: 'directive', label: '대표 지시 할 일', done: true, detail: '1/1 끝남' },
+      { key: 'fixed', label: '일정 확정', done: true, detail: '26년 9월 3일 목요일 10:00-11:00' },
+      { key: 'teacher', label: '강사 배정', done: true, detail: '강사' },
+      { key: 'roster', label: '수강 학생', done: true, detail: '1명 / 정원 4명 · 기존학생' },
+      { key: 'book', label: '교재 배정', done: false, detail: '기존학생 없음' },
+      { key: 'feedback', label: '강사 피드백', done: false, detail: '아직 없습니다' },
+    ],
+    prepDone: 4, prepTotal: 6, prepRemainLabel: '2가지 남았습니다',
+    priced: true, unitPrice: 45000, total: 45000, canSeeAmounts: true,
+    students: [],
+    ...over,
+  });
+  const editMeta = {
+    staff: [{ id: 7, name: '강사' }], rooms: [{ id: 1, name: '강의실 1' }], zaccs: [],
+  } as unknown as Meta;
+
+  beforeEach(() => {
+    mutate.mockReset();
+    permissions.canEdit = true;
+    permissions.canAdminPage = true;
+    tracking.data = undefined;
+    tracking.isLoading = false;
+  });
+
+  it('제목 · 종류 칩 · 긴 날짜 한 줄 머리, 오른쪽 학생 트래킹, 바닥 「닫기 · 휴강 · 수정 · 일정 수정」', () => {
+    tracking.data = trackingOf();
+    const view = render(<LessonDetail occ={occurrence} kindName="수업" meta={editMeta} onClose={() => undefined} />);
+    const dialog = view.getByRole('dialog', { name: 'AP Chemistry' });
+    // 서랍(aside)이 아니라 가운데 창이다
+    expect(view.container.ownerDocument.querySelector('aside')).toBeNull();
+    const text = (dialog.textContent ?? '').replace(/\s+/g, ' ');
+    // 원문 「26년 8월 21일 금요일 16:00 – 17:30 · 1.5시간 · 현장 1호 · 양찬욱, …」 모양
+    expect(text).toContain('26년 9월 3일 목요일 10:00 – 11:00 · 1시간 · 현장 강의실 1 · 기존학생');
+    expect(within(dialog).getByText('수업')).toBeTruthy();
+    expect(within(dialog).getByRole('region', { name: '학생 트래킹' })).toBeTruthy();
+    // 머리 × 와 바닥 「닫기」 — 원문 컷에 둘 다 있다
+    expect(within(dialog).getAllByRole('button', { name: '닫기' })).toHaveLength(2);
+    expect(within(dialog).getByRole('button', { name: '휴강 · 수정' })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: '일정 수정' })).toBeTruthy();
+  });
+
+  it('길이가 한 시간이 아니면 「1.5시간」처럼 적고, 강사 화면(준비 없음)은 머리에 강사를 적는다', () => {
+    permissions.canAdminPage = false;
+    permissions.canEdit = false;
+    const view = render(<LessonDetail occ={{ ...occurrence, endMin: 690 }} onClose={() => undefined} />);
+    const text = (view.getByRole('dialog', { name: 'AP Chemistry' }).textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('10:00 – 11:30 · 1.5시간 · 현장 강의실 1 · 강사 · 기존학생');
+    // 준비를 못 읽어도 명단은 따로 선다
+    expect(view.getByRole('region', { name: '수강 학생' })).toBeTruthy();
+  });
+
+  it('원문 §79 — 「수강 학생」 준비 줄이 ▼ 로 펼쳐지고 그 안에 정원·단가 칩과 명단이 선다', () => {
+    tracking.data = trackingOf();
+    const view = render(<LessonDetail occ={occurrence} kindName="수업" onClose={() => undefined} />);
+    const row = view.getByRole('button', { name: /^수강 학생/ });
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    // 칩 줄은 명단 머리에 있다 — 오른쪽 트래킹 칸에는 없다 (같은 질의 · 한 곳에만 그린다)
+    const panel = row.parentElement as HTMLElement;
+    expect(within(panel).getByText('정원 4명 · 3명 더 넣을 수 있습니다')).toBeTruthy();
+    expect(within(panel).getByText('1인 45,000원 · 수업당 45,000원')).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: '이 회차만 빼기' })).toBeTruthy();
+    const track = view.getByRole('region', { name: '학생 트래킹' });
+    expect(within(track).queryByText(/정원 4명/)).toBeNull();
+    // 준비 줄 안에 섰으니 따로 서는 명단 칸은 없다 — 명단은 한 벌이다
+    expect(view.queryByRole('region', { name: '수강 학생' })).toBeNull();
+
+    fireEvent.click(row);
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    expect(view.queryByRole('button', { name: '이 회차만 빼기' })).toBeNull();
+    fireEvent.click(row);
+    expect(view.getByRole('button', { name: '이 회차만 빼기' })).toBeTruthy();
+  });
+
+  it('금액을 못 보면 단가 칩이 「가려짐」이고, 단가표가 없으면 그 사실을 적는다 (D-R39)', () => {
+    tracking.data = trackingOf({ canSeeAmounts: false, unitPrice: null, total: null });
+    const hidden = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    expect(hidden.getByText('1인 가려짐 · 수업당 가려짐')).toBeTruthy();
+    hidden.unmount();
+    tracking.data = trackingOf({ priced: false, unitPrice: null, total: null });
+    const none = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    expect(none.getByText('단가표 미등록 — 가격은 표시하지 않습니다')).toBeTruthy();
+  });
+
+  it('원문 §12 준비 줄 ▶ — 교재는 /books, 피드백은 그 리포트, 시간·강사 줄은 같은 창의 「일정 수정」, 지시 줄은 누르지 않는다', () => {
+    tracking.data = trackingOf();
+    const view = render(<LessonDetail occ={occurrence} kindName="수업" meta={editMeta} onClose={() => undefined} />);
+    expect(view.getByRole('link', { name: /^교재 배정/ }).getAttribute('href')).toBe('/books');
+    expect(view.getByRole('link', { name: /^강사 피드백/ }).getAttribute('href')).toBe('/reports?serId=3&onDate=2026-09-03');
+    expect(view.queryByRole('link', { name: /^대표 지시/ })).toBeNull();
+    expect(view.queryByRole('button', { name: /^대표 지시/ })).toBeNull();
+    // 완료 줄은 초록, 미완 줄은 분홍 — 원문 §12 의 줄 톤
+    expect(view.getByRole('link', { name: /^교재 배정/ }).className).toContain('bg-red/');
+    expect(view.getByRole('button', { name: /^강사 배정/ }).className).toContain('bg-green/');
+    fireEvent.click(view.getByRole('button', { name: /^강사 배정/ }));
+    expect(view.getByRole('dialog', { name: /^일정 수정 — AP Chemistry/ })).toBeTruthy();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('휴강 회차 · 코드표 없는 화면에서는 시간·강사 줄도 편집 창을 열지 않는다 — 바닥 「일정 수정」과 같은 판정', () => {
+    tracking.data = trackingOf();
+    const view = render(<LessonDetail occ={{ ...occurrence, canceled: true }} meta={editMeta} onClose={() => undefined} />);
+    expect(view.queryByRole('button', { name: /^강사 배정/ })).toBeNull();
+    expect(view.queryByRole('button', { name: '일정 수정' })).toBeNull();
   });
 });

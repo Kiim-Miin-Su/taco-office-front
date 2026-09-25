@@ -85,6 +85,7 @@ const response: Guides = {
       sentAt: null,
     },
   ],
+  missing: [],
   todoCount: 17,
   scopedTeacherId: null,
   stats: {
@@ -136,10 +137,36 @@ describe('안내 할 일 — GET /guides 서버 projection이 단일 진실원',
     expect(stat('발송 대기')).toContain('1');
     expect(stat('강사 미확인')).toContain('1');
     expect(stat('반복 교체')).toContain('0');
+    // §43-12 — 칸마다 색 윗줄, 0 인 칸은 흐림(강사 미확인 = 청록)
+    const box = (label: string) => view.getAllByText(label)[0]?.parentElement?.className ?? '';
+    expect(box('강사 미확인')).toContain('border-t-teal');
+    expect(box('강사 미확인')).not.toContain('border-t-teal/40');
+    expect(box('마감 초과')).toContain('border-t-red');
+    expect(box('반복 교체')).toContain('border-t-violet/40');
     expect(view.getByRole('tab', { name: /할 일/ }).parentElement?.textContent).toContain('17');
     expect(view.getByRole('button', { name: '계정 배정 →' })).toBeTruthy();
     expect(view.getByRole('button', { name: '학부모 안내' })).toHaveProperty('disabled', true);
     expect(view.getByRole('button', { name: '강사 안내' })).toHaveProperty('disabled', true);
+  });
+
+  it('「한 번」 목록은 서버 pending 안내만 세운다 — 발송 완료·강사 확인은 이력으로 간다 (§43)', async () => {
+    // 탭 배지(todoCount)는 pending 안내 수 + 덜 끝난 회차 수다. 목록이 끝난 것까지 세우면
+    // 배지 2 옆에 「5건」이 서서 할 일 화면이 할 일이 아닌 것을 보인다.
+    const once: Guides = {
+      ...response,
+      guides: [guide(11, 'draft', true), guide(12, 'ready', true), guide(13, 'sent', false), guide(14, 'read', false)],
+      perLesson: [],
+      todoCount: 2,
+    };
+    vi.spyOn(api, 'get').mockResolvedValue({ data: once });
+    const view = setup();
+    const panel = (await view.findByText('수업 안내와 교재')).closest('section') as HTMLElement;
+    expect(panel.textContent).toContain('2건');
+    expect(view.getByText('학생11')).toBeTruthy();
+    expect(view.getByText('학생12')).toBeTruthy();
+    expect(view.queryByText('학생13')).toBeNull();
+    expect(view.queryByText('학생14')).toBeNull();
+    expect(view.getByRole('tab', { name: /할 일/ }).parentElement?.textContent).toContain('2');
   });
 
   it('응답을 기다리는 동안 공용 로딩 상태를 표시한다', () => {
@@ -211,4 +238,41 @@ it('배정 성공 후 안내를 새로 읽어 계정 칩과 강사 안내 허용
   expect(view.getByRole('button', { name: '학부모 안내' })).toHaveProperty('disabled', true);
   expect(post).toHaveBeenCalledWith('/zoom/assign', { serId: 50, onDate: '2026-09-14', zaccId: 3 });
   expect(get.mock.calls.filter(([url]) => url === '/guides')).toHaveLength(2);
+});
+
+/**
+ * g4 §43-2 — 원문 「한 번」 목록은 필요한데 GUIDE 가 아직 없는 학생(「안내 없음」)도 세우고 그 줄에서 「안내 작성」.
+ * 줄의 「안내 작성」은 §45 누락 카드와 같은 POST /guides/drafts 이고, 만든 초안으로 바로 작성 창이 열린다.
+ * §43-10 — 기한 칸은 긴급도 낱말(「마감 지남」·「오늘 안에」)이고 판정은 서버 overdueDays 그대로.
+ */
+it('「안내 없음」 줄이 할 일에 서고 줄에서 초안을 만들어 바로 작성한다 · 긴급도 칩 (§43)', async () => {
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const missingRow = {
+    sourceOccurrenceId: 777, eventOn: '2026-09-18', serId: 70, studentId: 21, studentName: '백승우',
+    teacherId: 3, teacherName: '강사', serTitle: null, subName: 'MAP Reading', kindName: '수업', startMin: 960, roomName: '3호',
+    reason: 'new' as const, overdueDays: 7,
+  };
+  const withMissing: Guides = {
+    ...response,
+    guides: [{ ...guide(11, 'draft', true), dueOn: today, eventOn: today }],
+    perLesson: [],
+    missing: [missingRow],
+    todoCount: 2,
+  };
+  const created = { ...guide(31, 'draft', true), studentName: '백승우', studentId: 21 };
+  // 작성 창이 문구 틀 목록을 따로 읽는다 — 그 길은 빈 목록
+  vi.spyOn(api, 'get').mockImplementation(async (url) => ({ data: url === '/guides/templates' ? [] : withMissing }));
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: created });
+  const view = setup();
+  const panel = (await view.findByText('수업 안내와 교재')).closest('section') as HTMLElement;
+  // 배지(서버 todoCount) = 목록 줄 수 = 안내 없음 1 + 안 보낸 안내 1
+  expect(panel.textContent).toContain('2건');
+  expect(view.getByText('백승우')).toBeTruthy();
+  expect(view.getByText('안내 없음')).toBeTruthy();
+  expect(view.getByText('MAP Reading · 16:00 · 3호')).toBeTruthy();
+  expect(view.getByText('마감 지남 · 7일')).toBeTruthy();
+  expect(view.getByText('오늘 안에')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '백승우 안내 작성' }));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/guides/drafts', { sourceOccurrenceId: 777, studentId: 21 }));
+  await view.findByText('안내 작성 — 백승우');
 });

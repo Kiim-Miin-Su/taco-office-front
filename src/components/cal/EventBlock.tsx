@@ -15,8 +15,15 @@
  *
  * 드래그(TBO-41 · §5): `dragData` 를 주면 잡아서 옮길 수 있고, `resizable` 이면
  * 하단 6px 핸들로 길이를 바꾼다. **판정과 저장은 페이지가 한다** — 블록은 잡히기만 한다.
+ *
+ * 줄(원문 §07·§08): 제목 + 오른쪽 배지(종류 · 리포트 상태 · 정원 점 ●●●○) / 담당 강사 / 「학생, 학생 외 N · 현장 6호」.
+ * 전부 이미 오는 값(회차 · 코드표)이다. 블록 높이가 모자라면 **아래 줄부터 그리지 않고**
+ * (`lines` — 격자가 높이로 정한다) 빠진 글자는 전부 버튼의 `title` 로 되찾는다.
+ * 시간 비례 격자(일간·주간)에서는 제목에 시작 시각을 붙이지 않는다 — 축이 이미 말한다(원문 §07·§08).
+ * 월간 칸은 원문 §09 처럼 「08:00 Vocabulary」로 시각을 붙이고 테두리 없는 왼쪽 띠 + 옅은 채움이다.
+ * 개인표(§10·§11)는 「과목 / 시간대 / 담당 강사(학생별) · 학생(선생님별)」 세 줄이다.
  */
-import { useId, type CSSProperties } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '../ui/cn';
 import { hhmm, type SelectMode } from '@/lib/calendar';
@@ -42,6 +49,53 @@ export const STATUS_LABEL: Array<[keyof typeof STATUS_LOOK, string]> = [
   ['none', '미작성'], ['plan', '예정'], ['wait', '승인 대기'], ['ok', '승인'], ['rej', '반려'],
 ];
 
+/**
+ * 블록 배지로 올리는 리포트 상태 — 원문 §07 「승인 대기」 · §08 「리포트 반려」.
+ * 끝난(승인) · 아직(예정·미작성) 상태는 배지를 달지 않는다 — 색과 범례가 이미 말한다.
+ */
+const REPORT_BADGE: Partial<Record<string, { label: string; look: string }>> = {
+  wait: { label: '승인 대기', look: 'bg-amber text-white' },
+  rej: { label: '리포트 반려', look: 'bg-violet text-white' },
+};
+
+/**
+ * 기본 종류(수업)는 배지를 달지 않는다 — 원문 §07·§08 의 MAP Reading · MAP Math 블록에는
+ * 종류 배지가 없고 자습 · 회의 · 상담 · GPA 에만 있다. 새 일정 창의 기본 종류와 같은 코드다.
+ */
+const PLAIN_KIND = 'class';
+
+/**
+ * 세부 줄 한 줄(mt-0.5 + leading 12px) · 제목 줄(leading 15px) · 위아래 여백(py-1 4+4 · 테두리 1+1) (px).
+ * 아래 클래스와 같은 값이다 — 클래스를 바꾸면 여기도 바꾼다.
+ */
+const DETAIL_LINE_PX = 14;
+const HEAD_PX = 15;
+const PAD_PX = 10;
+
+/**
+ * 블록 높이(px)에 들어가는 세부 줄 수 — 시간 비례 격자가 그린 높이를 그대로 받는다.
+ * 30분(26px) 0 · 45분(40px) 1 · 60분(54px) 2 · 90분(82px) 4. 넘치는 줄은 그리지 않는다.
+ */
+export function blockDetailLines(heightPx: number): number {
+  return Math.max(0, Math.floor((heightPx - PAD_PX - HEAD_PX) / DETAIL_LINE_PX));
+}
+
+/**
+ * 정원 점(원문 §07·§08 「●●●○」 · 범례 「●●○ 정원 · 여석」)을 그리는 정원 상한.
+ * 자습(12)·회의(10)처럼 점이 한 줄을 넘는 종류는 종류 배지가 이미 자리를 쓴다 — 표시 상한일 뿐 판정이 아니다.
+ */
+const CAP_DOTS_MAX = 8;
+
+/** 원문 「양찬욱, 고은설 외 3」 — 둘까지 적고 나머지는 수로 접는다. 전부는 title 에 있다 */
+function shortNames(names: string[]): string {
+  if (names.length <= 2) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')} 외 ${names.length - 2}`;
+}
+
+function Badge({ look, children }: { look: string; children: ReactNode }) {
+  return <span className={cn('max-w-[60%] shrink-0 truncate rounded-sm px-1 text-[9.5px] leading-[14px]', look)}>{children}</span>;
+}
+
 /** 드래그 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
 export type DragData =
   | { type: 'move' | 'resize'; occ: Occurrence }
@@ -57,6 +111,26 @@ export type DragData =
 export interface EventBlockProps {
   occ: Occurrence;
   subName?: string;
+  /** 종류 이름 — 코드표(meta)에서 온다. 기본 종류(수업)에는 배지를 달지 않는다 */
+  kindName?: string;
+  /** 줌 계정 이름 — 온라인 회차의 장소 줄 「온라인 TN Zoom 1」 (코드표 meta.zaccs) */
+  zaccLabel?: string;
+  /** 종류의 정원 — 코드표 meta.kinds.cap. 주면 배지 자리가 비었을 때 정원 점(●●●○)을 그린다 */
+  cap?: number;
+  /** 시간 비례 격자 — 제목 줄에 시작 시각을 붙이지 않는다(축이 말한다 · 원문 §07·§08) */
+  hideTime?: boolean;
+  /** 월간 칸 모양 — 테두리 없이 왼쪽 띠 + 옅은 채움 (원문 §09) */
+  flat?: boolean;
+  /**
+   * 개인표 줄 모양 (원문 §10·§11 「과목 / 시간대 / 담당 강사」) — 학생별이면 셋째 줄이 강사,
+   * 선생님별이면 학생이다. 주지 않으면 전체 표의 줄 모양이다.
+   */
+  person?: 'student' | 'teacher';
+  /**
+   * 세부 줄 상한 — 시간 비례 격자가 블록 높이로 정한다 (`blockDetailLines`).
+   * 주지 않으면 전부 그린다(높이를 모르는 소비자). compact 면 0 이다.
+   */
+  lines?: number;
   /** 관리자 adapter의 검증된 과목/종류색. 생략하면 기존 리포트 상태 표현을 유지한다. */
   color?: string;
   compact?: boolean;
@@ -74,7 +148,7 @@ export interface EventBlockProps {
 export const eventColorStyle = (color: string): CSSProperties => ({ '--event-color': color } as CSSProperties);
 
 export function EventBlock({
-  occ, subName, color, compact, onClick, onSelect, selected, draggable, resizable,
+  occ, subName, kindName, zaccLabel, cap, hideTime, flat, person, lines, color, compact, onClick, onSelect, selected, draggable, resizable,
 }: EventBlockProps) {
   const key = `${occ.serId}|${occ.onDate}`;
   // 선택은 회차 키를 공유하지만 같은 회차의 split 복제본은 서로 다른 DOM 노드다.
@@ -91,7 +165,72 @@ export function EventBlock({
   });
 
   const look = color ? styles.subject : (STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na);
-  const names = occ.students.map((s) => s.name).join(' · ');
+  const studentNames = occ.students.map((s) => s.name);
+  const names = shortNames(studentNames);
+  // 코드값(kindKey)은 코드표가 아직 없을 때만의 마지막 자리다 — 종류 이름이 있으면 그것을 쓴다 (D-R18)
+  const heading = subName ?? occ.title ?? kindName ?? occ.kindKey;
+  // 장소 — 현장은 강의실, 온라인은 줌 계정 (원문 「· 현장 6호」 「· 온라인 TN」)
+  const place = occ.mode === 'online'
+    ? `온라인${zaccLabel ? ` ${zaccLabel}` : ''}`
+    : occ.roomName ? `현장 ${occ.roomName}` : null;
+  // 제목이 이미 종류 이름이면 같은 낱말을 배지로 또 달지 않는다
+  const kindBadge = kindName && occ.kindKey !== PLAIN_KIND && kindName !== heading ? kindName : null;
+  const reportBadge = REPORT_BADGE[occ.repState] ?? null;
+  // 정원 점 — 그날 명단(그날 빠짐 · 휴원 제외)이 정원 몇 자리를 채웠는지. §79 카드의 인원과 같은 규칙이다(서버 LessonTracking.count).
+  // 배지 자리는 하나라 종류·리포트 배지가 서면 점은 title 로만 간다(원문 블록도 오른쪽 위 배지가 하나다).
+  const seated = occ.students.filter((s) => !s.droppedOnce && !s.paused).length;
+  // 명단이 모두 휴원이면 그 회차는 「휴원」 모양이다 — 회차는 지우지 않고 인원만 빠진다 (C92-c)
+  const allPaused = occ.students.length > 0 && occ.students.every((s) => s.paused || s.droppedOnce)
+    && occ.students.some((s) => s.paused);
+  const capLabel = cap && cap > 1 ? `정원 ${seated}/${cap}명` : null;
+  const dots = !compact && capLabel && cap! <= CAP_DOTS_MAX && !kindBadge && !reportBadge
+    ? { filled: Math.min(seated, cap!), empty: Math.max(0, cap! - seated) }
+    : null;
+  // 휴강의 처리(이월/차감/보강 이관)는 회계가 읽는 값이라 블록에도 적는다 — 낱말은 서버 것 (C92)
+  const status = occ.canceled && occ.cancelTreatLabel
+    ? `휴강 · ${occ.cancelTreatLabel}${occ.makeupDate ? ` → ${occ.makeupDate.slice(5)}` : ''}`
+    : occ.makeupOfDate ? `보강 · ${occ.makeupOfDate.slice(5)} 회차`
+      : occ.hasException ? '예외 있음' : null;
+
+  /**
+   * 세부 줄은 **보이는 차례**(강사 → 학생·장소 → 상태)로 그리되, 높이가 모자라면 **덜 급한 것부터** 뺀다:
+   * 강사 → 휴강 처리·예외 → 학생·장소. 회계가 읽는 휴강 처리가 학생 이름보다 먼저 남는다.
+   */
+  const details: Array<{ key: string; keep: number; node: ReactNode }> = [];
+  if (person) {
+    // 개인표 — 시간대 줄이 둘째다(원문 「14:00 –15:30」: 시작은 굵게, 끝은 작게). 셋째 줄은 그 표에 없는 사람이다
+    details.push({
+      key: 'time', keep: 0,
+      node: <><span className="text-[11px] font-bold">{hhmm(occ.startMin)}</span> –{hhmm(occ.endMin)}</>,
+    });
+    const who = person === 'student' ? occ.teacherName : names;
+    if (who) details.push({ key: 'who', keep: 1, node: who });
+    if (status) details.push({ key: 'status', keep: 2, node: status });
+  } else {
+    if (occ.teacherName) details.push({ key: 'teacher', keep: 0, node: occ.teacherName });
+    if (names || place) {
+      details.push({
+        key: 'people', keep: 2,
+        node: <>{names ? <span>{names}</span> : null}{names && place ? ' · ' : null}{place ? <span>{place}</span> : null}</>,
+      });
+    }
+    if (status) details.push({ key: 'status', keep: 1, node: status });
+  }
+  const fit = compact ? 0 : (lines ?? details.length);
+  const kept = new Set([...details].sort((a, b) => a.keep - b.keep).slice(0, fit).map((d) => d.key));
+
+  // 잘리거나 빠진 글자는 전부 여기서 되찾는다 — 좁은 블록에서도 정보가 사라지지 않는다
+  const title = [
+    `${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${heading}`,
+    occ.teacherName,
+    studentNames.join(', ') || null,
+    place,
+    status,
+    kindBadge,
+    reportBadge?.label,
+    capLabel,
+    occ.extra ? '추가' : null,
+  ].filter(Boolean).join(' · ');
   const dragging = move.isDragging || resize.isDragging;
   // 읽기 전용 블록도 상세를 여는 버튼이다. dnd-kit의 disabled attributes를 그대로
   // 펼치면 aria-disabled=true가 붙어 강사에게 상세 자체가 잠긴 것으로 노출된다.
@@ -118,14 +257,20 @@ export function EventBlock({
           onSelect?.(occ, 'single');
           onClick?.();
         }}
-        title={`${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subName ?? occ.kindKey}${names ? ` · ${names}` : ''}`}
+        title={title}
         style={color ? eventColorStyle(color) : undefined}
         className={cn(
           'relative flex h-full w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left transition-shadow hover:shadow-sm',
           // 온라인은 점선, 관리자 과목색 표현에는 같은 색의 사선도 더한다.
           occ.mode === 'online' ? 'border-dashed' : 'border-solid',
           color && occ.mode === 'online' && styles.online,
+          color && flat && styles.flat,
           occ.canceled && 'opacity-45 line-through',
+          // 원문 §07 범례 「학생 결강 · 학원 취소 · 휴원」 — 휴강 사유(서버 cancelKind)와 휴원(students[].paused)으로 모양을 가른다.
+          // 학생 결석만 「학생 결강」이고 나머지 사유(학원 사정 · 공휴일 · 강사 결강 · 기타)는 학원이 접은 것이다
+          occ.canceled && occ.cancelKind === 'student_absent' && styles.cancelStudent,
+          occ.canceled && occ.cancelKind && occ.cancelKind !== 'student_absent' && styles.cancelAcademy,
+          !occ.canceled && allPaused && styles.paused,
           draggable && 'touch-none select-none cursor-grab active:cursor-grabbing',
           // 낙관 반영 중인 원본 자리 — 고스트는 DragOverlay 가 그린다 (§5.1)
           dragging && 'opacity-40',
@@ -134,25 +279,28 @@ export function EventBlock({
         )}
         aria-pressed={selected}
       >
-        <div className="flex items-center gap-1 text-[11px] font-bold leading-tight">
-          <span>{hhmm(occ.startMin)}</span>
-          <span className="truncate">{subName ?? occ.title ?? occ.kindKey}</span>
+        <div className="flex min-w-0 items-center gap-1 text-[11px] font-bold leading-[15px]">
+          {hideTime || person ? null : <span className="shrink-0">{hhmm(occ.startMin)}</span>}
+          <span className="min-w-0 flex-1 truncate">{heading}</span>
           {/* 추가 수업(KIND.extra)은 시간표에서 「추가」로 갈린다 — 판정은 서버의 `extra` 다 (C94-d · C-38) */}
-          {occ.extra ? <span className="shrink-0 rounded-sm bg-fg/15 px-1 text-[9.5px] leading-[14px]">추가</span> : null}
+          {occ.extra ? <Badge look="bg-fg/15">추가</Badge> : null}
+          {!compact && kindBadge ? <Badge look="bg-fg/15">{kindBadge}</Badge> : null}
+          {!compact && reportBadge ? <Badge look={reportBadge.look}>{reportBadge.label}</Badge> : null}
+          {dots ? (
+            <span aria-hidden data-cap-dots className="flex shrink-0 items-center gap-[2px] rounded-full bg-fg/15 px-1 py-[3px]">
+              {Array.from({ length: dots.filled }, (_, i) => <span key={`f${i}`} className="size-[6px] rounded-full bg-current" />)}
+              {Array.from({ length: dots.empty }, (_, i) => <span key={`e${i}`} className="size-[6px] rounded-full border border-current" />)}
+            </span>
+          ) : null}
         </div>
-        {!compact && names ? (
-          <div className="mt-0.5 truncate text-[10px] opacity-80">{names}</div>
-        ) : null}
-        {/* 휴강의 처리(이월/차감/보강 이관)는 회계가 읽는 값이라 블록에도 적는다 — 낱말은 서버 것 (C92) */}
-        {!compact && occ.canceled && occ.cancelTreatLabel ? (
-          <div className="mt-0.5 text-[10px] font-bold opacity-90">
-            휴강 · {occ.cancelTreatLabel}{occ.makeupDate ? ` → ${occ.makeupDate.slice(5)}` : ''}
+        {details.filter((d) => kept.has(d.key)).map((d) => (
+          <div key={d.key} className={cn(
+            'mt-0.5 truncate text-[10px] leading-[12px]',
+            d.key === 'status' ? 'font-bold opacity-90' : d.key === 'teacher' ? 'font-bold opacity-80' : 'opacity-80',
+          )}>
+            {d.node}
           </div>
-        ) : !compact && occ.makeupOfDate ? (
-          <div className="mt-0.5 text-[10px] font-bold opacity-90">보강 · {occ.makeupOfDate.slice(5)} 회차</div>
-        ) : !compact && occ.hasException ? (
-          <div className="mt-0.5 text-[10px] font-bold opacity-90">예외 있음</div>
-        ) : null}
+        ))}
       </button>
 
       {resizable ? (

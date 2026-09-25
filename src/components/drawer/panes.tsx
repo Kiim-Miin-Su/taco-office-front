@@ -12,31 +12,58 @@
  * 그래야 §14 승인 대기함과 §75 결재 흐름이 **같은 숫자**를 말한다 (D-R26).
  */
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { AlarmClock, ArrowLeftRight, Bell, Check, CornerDownLeft, Info, type LucideIcon } from 'lucide-react';
 import {
-  Banner, Button, Checkbox, Chip, ConflictGuard, Input, Label, Segmented, Select, StatCard, Table, Textarea,
-  type Column, type Tone,
+  Banner, Button, Checkbox, Chip, ChipButton, ConflictGuard, Input, Label, Segmented, Select, Table,
+  cn, type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
-import { approvalKindLabel, ApprovalRowContent } from '@/components/approval/ApprovalRowContent';
+import {
+  approvalCategoryTone, approvalKindLabel, ApprovalRowContent, TONE_MARK,
+} from '@/components/approval/ApprovalRowContent';
 import type {
   ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo, DrawerTodoCreate,
-  KindRow, MemberGroup, Noti, Room, StaffBrief, TzGroup, Zacc, ZoomAccount, ZoomBoard,
+  Kind, KindRow, MemberGroup, Noti, Occurrence, Room, StaffBrief, Sub, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
 import {
-  addDays, conflictLines, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, step, todayKst, weekDays,
+  addDays, conflictLines, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, parseHm, step, todayKst, weekDays,
 } from '@/lib/calendar';
-import { REQ_TYPE_LABEL, ROLE_BAR } from '@/lib/roles';
+import { REQ_TYPE_LABEL, ROLE_BAR, ROLE_TEXT } from '@/lib/roles';
 import { won } from '@/lib/money';
-import { changeReqReady, type ChangeReqDraft, type ChreqType } from './change-request';
+import { occurrenceTargetValue, parseOccurrenceTarget, type ChangeReqDraft, type ChreqType } from './change-request';
 import { MemberCreateButton } from './MemberCreateDialog';
 import { WageChangeButton } from './WageChangeDialog';
 import { TodoCreateDialog } from './TodoCreateDialog';
 
-export { changeReqBody, changeReqReady, EMPTY_DRAFT, type ChangeReqDraft } from './change-request';
+export { changeReqBody, changeReqReady, EMPTY_DRAFT, newChangeReqDraft, type ChangeReqDraft } from './change-request';
 
-const NOTI_TONE: Record<string, Tone> = { alarm: 'info', ok: 'success', warn: 'warning' };
+/**
+ * 원문 §14·§16 의 **누르는 칩** — 눌린 칩은 어두운 채움, 나머지는 흰 바탕에 분류 색 점(g2 대조 14-8 · 16-3).
+ * 두 칸이 같은 모양을 각자 그리던 것을 한 벌로 모았다. 공용 `ChipRow` 는 눌린 모양이 파란 채움이라 원문과 달라 쓰지 않는다.
+ */
+function FilterPill({ pressed, dot, onClick, children }: {
+  pressed: boolean; dot?: string; onClick: () => void; children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors',
+        pressed ? 'border-fg bg-fg text-card' : 'border-line bg-card text-fg hover:border-primary/50',
+      )}
+    >
+      {dot ? <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-full', dot)} /> : null}
+      {children}
+    </button>
+  );
+}
+
+/** 「반려」·「끝난 것 지우기」처럼 되돌리기 어려운 쪽 — 원문은 흰 바탕에 붉은 글자·옅은 붉은 테두리다(g2 14-10) */
+const DANGER_OUTLINE = '!border-red/40 !text-red';
 
 /**
  * 서랍 맨 아래의 **목적지 단추** — 원문 §18 「프로그램 · 과목 전체 열기」와 §21 「줌 계정 관리」다.
@@ -74,7 +101,13 @@ const Section = ({ title, count, children }: { title: string; count?: number; ch
 
 export interface ApReview { id: number; kind: string; decision: 'approve' | 'reject'; reason?: string }
 
-/** 한 줄 처리 — 두 번 눌러야 나간다. 반려는 사유를 적어야 단추가 열린다 (D-R13). */
+/**
+ * 한 줄 처리 — 원문 §14 처리 줄에는 **「반려」·「승인」 두 단추만** 있다 (g2 대조 14-5).
+ *
+ * 사유 칸은 **「반려」를 누른 뒤에만** 펼쳐진다 — 늘 펼쳐 두면 줄마다 빈 입력이 서서 승인만 할
+ * 사람에게도 「사유를 적어야 하나」를 묻는다. 반려는 사유를 적어야 확정 단추가 열리고(D-R13)
+ * 두 번째 누름이 확정이다. 승인도 두 번 눌러야 나간다. 펼친 사유 칸은 「취소」로 접는다.
+ */
 function ApActions({ r, onReview, busy }: {
   r: ApRow; onReview: (v: ApReview) => void; busy: boolean;
 }) {
@@ -82,29 +115,41 @@ function ApActions({ r, onReview, busy }: {
   const [reason, setReason] = useState('');
   const send = (decision: 'approve' | 'reject') => {
     setArmed(null);
-    onReview({ id: r.id, kind: r.kind, decision, reason: reason.trim() || undefined });
+    // 승인에는 사유 칸이 없다 — 접혀 보이지 않는 글자를 함께 보내지 않는다
+    onReview({ id: r.id, kind: r.kind, decision, reason: decision === 'reject' ? reason.trim() || undefined : undefined });
   };
+  const rejecting = armed === 'reject';
   return (
-    <div className="mt-2 border-t border-line pt-2">
-      <Label htmlFor={`ap-why-${r.id}`} hint="반려 시 필수">사유</Label>
-      <Input
-        id={`ap-why-${r.id}`}
-        value={reason}
-        onChange={(e) => { setReason(e.target.value); setArmed(null); }}
-        placeholder="반려 사유 · 승인 메모"
-      />
-      <div className="mt-1.5 flex justify-end gap-1.5">
+    <div className="mt-2">
+      {rejecting ? (
+        <div className="mb-1.5 rounded-md border border-red/30 bg-red/5 p-2">
+          <Label htmlFor={`ap-why-${r.id}`} hint="반려 시 필수">사유</Label>
+          <Input
+            id={`ap-why-${r.id}`}
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="왜 반려하는지 적어 주세요 — 올린 사람에게 그대로 갑니다"
+          />
+        </div>
+      ) : null}
+      <div className="flex justify-end gap-1.5">
+        {rejecting ? (
+          <Button size="sm" variant="ghost" onClick={() => { setArmed(null); setReason(''); }}>취소</Button>
+        ) : null}
         <Button
           size="sm"
-          variant={armed === 'reject' ? 'primary' : 'secondary'}
-          disabled={busy || !reason.trim()}
-          onClick={() => (armed === 'reject' ? send('reject') : setArmed('reject'))}
+          variant="secondary"
+          className={DANGER_OUTLINE}
+          // 펼친 뒤에는 사유가 있어야 확정이 열린다 (D-R13)
+          disabled={busy || (rejecting && !reason.trim())}
+          onClick={() => (rejecting ? send('reject') : setArmed('reject'))}
         >
-          {armed === 'reject' ? '한 번 더 누르면 반려' : '반려'}
+          {rejecting ? '한 번 더 누르면 반려' : '반려'}
         </Button>
         <Button
           size="sm"
-          variant={armed === 'approve' ? 'primary' : 'dark'}
+          variant="primary"
           disabled={busy}
           onClick={() => (armed === 'approve' ? send('approve') : setArmed('approve'))}
         >
@@ -126,7 +171,7 @@ function ApList({ rows, onGo, onReview, busy }: {
         <li key={`${r.kind}-${r.id}`}>
           {r.canAct && onReview ? (
             <div className="rounded-lg border border-line bg-card p-2.5">
-              <ApprovalRowContent row={r} />
+              <ApprovalRowContent row={r} variant="inbox" />
               <ApActions r={r} onReview={onReview} busy={!!busy} />
             </div>
           ) : (
@@ -136,7 +181,7 @@ function ApList({ rows, onGo, onReview, busy }: {
               title={r.actBlockedReason ?? undefined}
               className="block rounded-lg border border-line bg-card p-2.5 transition-colors hover:border-blue hover:bg-blue/5"
             >
-              <ApprovalRowContent row={r} />
+              <ApprovalRowContent row={r} variant="inbox" />
               {r.actBlockedReason ? (
                 <p className="mt-1 text-[11px] text-fg-subtle">{r.actBlockedReason}</p>
               ) : null}
@@ -154,18 +199,23 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
 }) {
   const [filter, setFilter] = useState<string>('all');
   const actionable = flow.inbox.filter((r) => r.canAct).length;
+  const linkOnly = flow.inbox.length - actionable;
   const shown = flow.inbox.filter((row) => filter === 'all' || row.category === filter);
   return (
     <>
-      <Banner tone="info" className="mb-4">
-        강사와 코디네이터가 올린 요청은 <b>전건이 뜹니다</b> — 자동 승인도 조건부 통과도 없습니다 (D-R34).
+      {/*
+        원문 §14 머리는 평문 한 줄이다 — 건수는 서버가 센 inboxCount(g2 14-9). 전건이 뜨고 자동 승인이 없다는 규칙은
+        목록 자체가 말한다. 「모든 처리는 되돌리기로 취소됩니다」는 결재 되돌리기가 생길 때까지 적지 않는다
+        (14-1 결정 대기 — 없는 기능을 말하게 된다). 단추 없는 줄(N-12)이 있으면 어디서 처리하는지만 덧붙인다.
+      */}
+      <p className="mb-3 text-[12.5px] leading-relaxed text-fg-2">
+        강사·코디네이터가 올린 요청이 <b className="text-fg">{flow.inboxCount}건</b> 대기 중입니다.
         {actionable > 0 ? (
-          <> <b>요청</b>은 여기서 처리하고, <b>반려에도 사유가 남습니다</b> (D-R13).
-            나머지 갈래는 <b>줄을 눌러 그 화면에서</b> 합니다.</>
+          <> 반려에도 <b className="text-fg">사유</b>가 남습니다.{linkOnly > 0 ? ' 단추가 없는 줄은 줄을 눌러 그 화면에서 처리합니다.' : ''}</>
         ) : (
-          <> 승인·반려는 <b>줄을 눌러 그 화면에서</b> 합니다.</>
+          <> 줄을 눌러 그 화면에서 처리합니다.</>
         )}
-      </Banner>
+      </p>
       {error ? <Banner tone="danger" className="mb-4">{error}</Banner> : null}
       {flow.missingKinds.length > 0 ? (
         <Banner tone="warning" className="mb-4">
@@ -174,24 +224,20 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
           없는 것이 아니라 못 세는 것입니다.
         </Banner>
       ) : null}
-      <div className="mb-3 flex flex-wrap gap-1" aria-label="승인 요청 분류">
+      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="승인 요청 분류">
         {[
           { key: 'all', label: '전체', count: flow.inboxCount },
           ...flow.categories.filter((category) => category.count > 0 || category.key !== 'other'),
         ].map((category) => (
-          <button
+          <FilterPill
             key={category.key}
-            type="button"
-            aria-pressed={filter === category.key}
+            pressed={filter === category.key}
+            // 분류 칩 앞의 점은 카드 배지와 같은 색이다 — 「전체」에는 점이 없다 (g2 14-8)
+            dot={category.key === 'all' ? undefined : TONE_MARK[approvalCategoryTone(category.key)].dot}
             onClick={() => setFilter(category.key)}
-            className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors ${
-              filter === category.key
-                ? 'border-fg bg-fg text-card'
-                : 'border-line bg-card text-fg-subtle hover:border-primary/50'
-            }`}
           >
             {category.label} {category.count}
-          </button>
+          </FilterPill>
         ))}
       </div>
       <ApList rows={shown} onGo={onGo} onReview={onReview} busy={busy} />
@@ -217,11 +263,42 @@ function stepTodoPeriod(period: TodoPeriod, anchor: string, direction: -1 | 1): 
   return addDays(anchor, (period === 'week' ? 7 : 1) * direction);
 }
 
+/** 기간 낱말 — 원문 §15 주간은 「08-17 ~ 08-23」이다(g2 15-3). 일간은 달력과 같은 낱말, 월간은 「2026년 8월」 */
 function todoPeriodLabel(period: TodoPeriod, anchor: string): string {
   const range = todoPeriodBounds(period, anchor);
   if (period === 'month') return `${+anchor.slice(0, 4)}년 ${+anchor.slice(5, 7)}월`;
   if (period === 'day') return label(anchor);
-  return `${label(range.from)} — ${label(range.to)}`;
+  return `${range.from.slice(5)} ~ ${range.to.slice(5)}`;
+}
+
+/**
+ * 원문 §15 요일 **카드** — 머리 「목 20」 + 오른쪽 「끝낸 것/전체」 배지, 항목은 카드 안(g2 15-2).
+ * 빈 날은 한 줄로 접힌 카드(오른쪽 「—」)이고, **오늘 카드는 갈색 테두리**다. 항목 줄은 운영 §64 와 같은 `TodoRows` 다.
+ */
+function TodoDayCard({ heading, items, today = false, busy, onToggle }: {
+  heading: ReactNode; items: DrawerTodo[]; today?: boolean; busy: boolean;
+  onToggle: (id: number, done: boolean) => void;
+}) {
+  if (items.length === 0) {
+    return (
+      <section className={cn('flex items-center justify-between rounded-lg border bg-inset px-3 py-2', today ? 'border-primary' : 'border-line')}>
+        <h3 className="text-[13px] font-bold text-fg-subtle">{heading}</h3>
+        <span aria-hidden className="text-fg-subtle">—</span>
+      </section>
+    );
+  }
+  const done = items.filter((t) => t.done).length;
+  return (
+    <section className={cn('overflow-hidden rounded-lg border bg-card', today ? 'border-primary' : 'border-line')}>
+      <div className="flex items-center justify-between bg-inset px-3 py-2">
+        <h3 className="text-[13px] font-bold text-fg">{heading}</h3>
+        <Chip tone="warning" styleKind="solid" title={`끝낸 것 ${done} / 전체 ${items.length}`}>{done}/{items.length}</Chip>
+      </div>
+      <div className="p-2">
+        <TodoRows items={items} busy={busy} onToggle={onToggle} />
+      </div>
+    </section>
+  );
 }
 
 const TODO_SOURCE_DOT: Record<string, string> = {
@@ -332,32 +409,33 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <StatCard className="p-2" label="할 일" value={rows.length} />
-        <StatCard className="p-2" label="안 끝난 것" value={left} tone="info" />
-        <StatCard className="p-2" label="기한 지남" value={overdue} tone="danger" />
+      {/*
+        원문 §15 요약은 **한 줄**이다 — 「6건 [안 끝난 것 5] [기한 지남 2] … [끝난 것 지우기]」 + 아래 선(g2 15-1).
+        수는 지금처럼 같은 `rows` 배열에서 센다 — 단추의 숫자와 지우는 목록도 같은 배열이다(S4).
+        칩은 0 이어도 선다 — 칩 줄은 어휘이지 데이터가 아니다(C66).
+      */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-line pb-3">
+        <span className="text-[15px] font-bold text-fg">{rows.length}건</span>
+        <Chip tone="warning">안 끝난 것 {left}</Chip>
+        <Chip tone="danger" styleKind="solid">기한 지남 {overdue}</Chip>
+        <Button className={cn('ml-auto', DANGER_OUTLINE)} size="sm" variant="secondary" disabled={busy || done === 0}
+          onClick={() => onClear(doneRows.map((t) => t.id))}>끝난 것 지우기</Button>
       </div>
 
-      <div className="mb-3 flex justify-end">
-        <Button size="sm" variant="secondary" disabled={busy || done === 0} onClick={() => onClear(doneRows.map((t) => t.id))}>끝난 것 지우기</Button>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {dayKeys.map((day) => {
-          const items = rows.filter((t) => t.dueOn === day);
-          return (
-            <section key={day}>
-              <h3 className="mb-1.5 flex items-center gap-2 text-[12px] font-bold text-fg">
-                <span>{KO_DOW[dowOf(day)]}요일</span>
-                <span className="text-fg-subtle">{day.slice(5).replace('-', '/')}</span>
-                <Chip tone={items.some((t) => !t.done) ? 'info' : 'neutral'}>{items.filter((t) => !t.done).length}</Chip>
-              </h3>
-              <TodoRows items={items} busy={busy} onToggle={onToggle} />
-            </section>
-          );
-        })}
-        {undated.length > 0 ? <section><h3 className="mb-1.5 text-[12px] font-bold text-fg">기한 없음</h3><TodoRows items={undated} busy={busy} onToggle={onToggle} /></section> : null}
-        {rows.length === 0 ? <Empty>이 기간에는 할 일이 없습니다</Empty> : null}
+      <div className="flex flex-col gap-2">
+        {dayKeys.map((day) => (
+          <TodoDayCard
+            key={day}
+            heading={<>{KO_DOW[dowOf(day)]} <span className="ml-1 text-[15px]">{Number(day.slice(8))}</span></>}
+            items={rows.filter((t) => t.dueOn === day)}
+            today={day === todayKst()}
+            busy={busy} onToggle={onToggle}
+          />
+        ))}
+        {undated.length > 0 ? (
+          <TodoDayCard heading="기한 없음" items={undated} busy={busy} onToggle={onToggle} />
+        ) : null}
+        {dayKeys.length === 0 && undated.length === 0 ? <Empty>이 기간에는 할 일이 없습니다</Empty> : null}
       </div>
 
       {/* 창은 운영 §64 의 「+ 할 일 주기」와 **같은 것**이다 (C96) — 경로가 하나니 창도 하나다 */}
@@ -371,6 +449,20 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
 }
 
 /* ── §16 알림 ────────────────────────────────────────────────────── */
+
+/**
+ * §16 카드의 **분류 아이콘 타일**과 칩 앞 점 — 원문 🔔 재알람 · ⏰ 작성 독촉 · ↩ 요청 처리 · ✓ 리포트 · ⇄ 일정 변경(g2 16-1 · 16-3).
+ * 분류 코드표는 서버가 갖고(`lib/noti.ts`) 여기는 코드값 → 그림·토큰 대응만 한 곳에 둔다(D-R41).
+ */
+const NOTI_LOOK: Readonly<Record<string, { icon: LucideIcon; tile: string; dot: string }>> = {
+  report_due: { icon: AlarmClock, tile: 'bg-red/10 text-red', dot: 'bg-red' },
+  re_alarm: { icon: Bell, tile: 'bg-red/10 text-red', dot: 'bg-primary' },
+  report: { icon: Check, tile: 'bg-green/10 text-green', dot: 'bg-green' },
+  schedule: { icon: ArrowLeftRight, tile: 'bg-amber/10 text-amber', dot: 'bg-amber' },
+  request: { icon: CornerDownLeft, tile: 'bg-blue/10 text-blue', dot: 'bg-blue' },
+  etc: { icon: Info, tile: 'bg-inset text-fg-2', dot: 'bg-fg-subtle' },
+};
+const notiLook = (category: string) => NOTI_LOOK[category] ?? NOTI_LOOK.etc!;
 
 /**
  * §16 알림 — 분류 칩 · 날짜 묶음 · 전부 읽음 · 보관.
@@ -437,17 +529,15 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
           { key: 'unread', label: `안 읽음 ${unread}` },
           ...categories.map((category) => ({ key: category.key, label: `${category.label} ${category.count}` })),
         ].map((c) => (
-          <button
+          <FilterPill
             key={c.key}
-            type="button"
-            aria-pressed={filter === c.key}
+            pressed={filter === c.key}
+            // 분류 칩 앞의 점은 카드 타일과 같은 색이다 — 전체·내게 온 것·안 읽음에는 점이 없다 (g2 16-3)
+            dot={NOTI_LOOK[c.key]?.dot}
             onClick={() => setFilter(c.key)}
-            className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors ${
-              filter === c.key ? 'border-fg bg-fg text-card' : 'border-line bg-card text-fg-subtle hover:border-primary/50'
-            }`}
           >
             {c.label}
-          </button>
+          </FilterPill>
         ))}
       </div>
 
@@ -457,48 +547,65 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
         <section key={g}>
           <h3 className="mb-1.5 text-[12px] font-bold text-fg-subtle">{g}</h3>
           <ul className="flex flex-col gap-1.5">
-            {rows.map((n) => (
-              <li
-                key={n.id}
-                className={`rounded-lg border p-2.5 ${n.read ? 'border-line bg-card' : 'border-blue/30 bg-blue/5'}`}
-              >
-                <div className="flex items-start gap-2">
-                  <Chip tone={NOTI_TONE[n.tone] ?? 'info'} styleKind="outline">{n.categoryLabel}</Chip>
-                  <p className="min-w-0 flex-1 text-[12px] text-fg">{n.body}</p>
+            {rows.map((n) => {
+              const look = notiLook(n.category);
+              const Icon = look.icon;
+              return (
+                /*
+                  원문 §16 카드 — 분류 타일 · **굵은 제목** · 상세 한 줄 · 메타(분류 · 보낸 이 · 역할 · 시각) · 안 읽음 점 (g2 16-1 · 16-2 · 16-4).
+                  제목은 서버의 `title` 이고, 제목이 없는 옛 알림은 본문이 굵은 한 줄이 된다 — 본문을 잘라 제목을 짓지 않는다.
+                  안 읽은 것도 바탕은 흰색이고 오른쪽 점 하나로 말한다.
+                */
+                <li key={n.id} className="flex items-start gap-3 rounded-lg border border-line bg-card p-3">
+                  <span aria-hidden className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg', look.tile)}>
+                    <Icon size={17} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-bold text-fg">{n.title ?? n.body}</p>
+                    {n.title ? <p className="mt-0.5 text-[12.5px] font-bold text-fg-2">{n.body}</p> : null}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] font-bold text-fg-subtle">
+                      <span>
+                        {[n.categoryLabel, n.fromName ?? '시스템', n.fromRoleLabel, n.at.slice(11, 16)].filter(Boolean).join(' · ')}
+                      </span>
+                      {/* 원문 M-124·M-127 의 낱말은 「열기 ›」다 — 「원본」이라 적고 있었다 (C99 · D-R18) */}
+                      {n.link ? (
+                        <Link
+                          href={n.link}
+                          className="ml-auto font-bold text-blue hover:underline"
+                          /*
+                            **열면 읽은 것이다** (원문 M-127 「읽음 처리된다」). 여는 것과 읽음이 따로
+                            놀아서, 눌러서 그 화면까지 가 놓고도 수신함에는 안 읽음으로 남아 있었다.
+                            막지 않는다 — 이동은 그대로 가고 읽음만 함께 보낸다. 남의 알림은 서버가
+                            어차피 거절하므로 **내 것일 때만** 부른다(읽음 단추와 같은 판정).
+                          */
+                          onClick={() => { if (!n.read && mine(n)) onRead(n.id); }}
+                        >
+                          열기 ›
+                        </Link>
+                      ) : null}
+                    </p>
+                  </div>
+                  {/* 안 읽음 점 — 내 것이면 누르면 읽음이 된다. 남의 알림은 서버가 거절하므로 점 대신 그 사실을 적는다 */}
                   {!n.read && mine(n) ? (
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => onRead(n.id)}>읽음</Button>
+                    <button
+                      type="button" disabled={busy} onClick={() => onRead(n.id)} aria-label="읽음" title="읽음으로 표시"
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-inset disabled:opacity-40"
+                    >
+                      <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    </button>
                   ) : !n.read ? (
                     <Chip size="compact" tone="neutral">남의 알림</Chip>
                   ) : null}
-                </div>
-                <p className="mt-1 flex gap-2 text-[11px] text-fg-subtle">
-                  <span>{n.fromName ?? '시스템'}</span>
-                  <span>{n.at.slice(5, 16).replace('T', ' ')}</span>
-                  {/* 원문 M-124·M-127 의 낱말은 「열기 ›」다 — 「원본」이라 적고 있었다 (C99 · D-R18) */}
-                  {n.link ? (
-                    <Link
-                      href={n.link}
-                      className="ml-auto font-bold text-blue hover:underline"
-                      /*
-                        **열면 읽은 것이다** (원문 M-127 「읽음 처리된다」). 여는 것과 읽음이 따로
-                        놀아서, 눌러서 그 화면까지 가 놓고도 수신함에는 안 읽음으로 남아 있었다.
-                        막지 않는다 — 이동은 그대로 가고 읽음만 함께 보낸다. 남의 알림은 서버가
-                        어차피 거절하므로 **내 것일 때만** 부른다(읽음 단추와 같은 판정).
-                      */
-                      onClick={() => { if (!n.read && mine(n)) onRead(n.id); }}
-                    >
-                      열기 ›
-                    </Link>
-                  ) : null}
-                </p>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        <Button variant="primary" disabled={busy || myUnread === 0} onClick={onReadAll}>전부 읽음으로 표시</Button>
+      {/* 원문 §16 은 전폭 갈색 단추 하나다(g2 16-5) — 30일 창 단추와 안내는 그 아래 줄로 (N-7 · D-16) */}
+      <Button variant="primary" className="w-full" disabled={busy || myUnread === 0} onClick={onReadAll}>전부 읽음으로 표시</Button>
+      <div className="flex flex-wrap items-center gap-2">
         {widened ? (
           <Button size="sm" disabled={busy} onClick={() => onWiden(false)}>최근 30일만 보기</Button>
         ) : olderCount > 0 ? (
@@ -574,11 +681,12 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
 
   return (
     <>
-      <Banner tone="neutral" className="mb-3">
-        관리자 화면은 <b>{tzName(tz)} 고정</b>입니다 (D-R12).
-        옆의 시각은 <b>그 사람이 있는 곳의 지금</b>입니다.
-        직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다 (D-R39).
-      </Banner>
+      {/* 원문 §17 머리는 평문이다 — 사용자 문장에 결정 번호를 적지 않는다(g2 C-7 · 근거 D-R12 · D-R39) */}
+      <p className="mb-3 text-[12.5px] leading-relaxed text-fg-2">
+        관리자 화면은 <b className="text-fg">{tzName(tz)} 고정</b>입니다.
+        옆의 시각은 <b className="text-fg">그 사람이 있는 곳의 지금</b>입니다.
+        직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다.
+      </p>
       {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
       {canAddMember ? (
         <div className="mb-3 flex justify-end">
@@ -592,7 +700,8 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
             {/* 색은 토큰에서 꺼낸다 — 여기서 hex 를 적지 않는다 (D-R41) */}
             <span className={`h-8 w-1 shrink-0 rounded-r ${ROLE_BAR[g.role] ?? 'bg-line'}`} aria-hidden />
             {/* 이름도 인원도 서버가 만든 것이다 — 화면이 다시 짓거나 세지 않는다 (D-R18 · D-R37) */}
-            <span className="py-1.5 text-[12px] font-bold text-fg">{g.label}</span>
+            {/* 머리 글자도 띠와 같은 역할 색이다(g2 17-2) */}
+            <span className={`py-1.5 text-[12px] font-bold ${ROLE_TEXT[g.role] ?? 'text-fg'}`}>{g.label}</span>
             <span className="text-[12px] text-fg-subtle">{g.count}</span>
           </div>
           <ul className="mt-1.5 flex flex-col gap-1">
@@ -639,26 +748,57 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
 
 /* ── §18 프로그램 · 과목 ─────────────────────────────────────────── */
 
+/**
+ * 묶음 머리의 색 — 원문 §18 「수업」 파랑 · 「상담·진단」 청록 · 「회의」 보라. 코드값 → 토큰 대응은 여기 한 곳이다 (D-R41).
+ * 묶음 **이름**은 서버의 `grpLabel` 이다 — 화면이 코드표를 다시 적지 않는다 (C48 · D-R18).
+ */
+const KIND_GROUP_LOOK: Readonly<Record<string, { bar: string; text: string }>> = {
+  lesson: { bar: 'bg-blue', text: 'text-blue' },
+  intake: { bar: 'bg-green', text: 'text-green' },
+  meeting: { bar: 'bg-violet', text: 'text-violet' },
+};
+
+/**
+ * 원문 §18 은 **묶음별 카드 목록**이다 — 묶음 머리(색 띠 · 「수업 4」)와 줄 「■ 이름 정원 N [리포트]」(g2 18-1 · 18-2 · 18-6).
+ * 전에는 5열 표였다. 묶음은 서버가 준 줄 차례(kind.sort) 그대로 처음 나온 순서이고, 머리의 수는 **그 아래 그리는 줄의 수**다 —
+ * 같은 배열에서 나오므로 머리와 줄이 갈리지 않는다. 리포트 배지는 대상인 줄에만 선다.
+ */
 export function KindsPane({ kinds }: { kinds: KindRow[] }) {
-  const cols: Array<Column<KindRow>> = [
-    { key: 'color', head: '', width: 28, cell: (k) => (
-      // 색은 코드표가 출처다 — 화면에 hex 를 적지 않는다 (D-R18 · D-R41)
-      <span className="inline-block h-3 w-3 rounded-full" style={{ background: k.color }} aria-hidden />
-    ) },
-    { key: 'name', head: '이름', cell: (k) => <span className="font-bold text-fg">{k.name}</span> },
-    // 묶음 이름은 서버가 만든다 — 화면이 코드표를 다시 적으니 원문(「상담·진단」)과 갈렸다 (C48 · D-R18)
-    { key: 'grp', head: '묶음', cell: (k) => k.grpLabel },
-    { key: 'cap', head: '정원', align: 'right', cell: (k) => `${k.cap}명` },
-    { key: 'rep', head: '리포트', align: 'center', cell: (k) => (
-      k.rep ? <Chip tone="success">대상</Chip> : <Chip tone="neutral">아님</Chip>
-    ) },
-  ];
+  const groups: Array<{ grp: string; label: string; rows: KindRow[] }> = [];
+  for (const kind of kinds) {
+    const group = groups.find((g) => g.grp === kind.grp);
+    if (group) group.rows.push(kind);
+    else groups.push({ grp: kind.grp, label: kind.grpLabel, rows: [kind] });
+  }
   return (
     <>
-      <Banner tone="info" className="mb-3">
-        <b>리포트 대상</b>인 종류만 리포트를 씁니다 (D-R6). 상담·회의는 아무리 지나도 「안 쓴 리포트」가 되지 않습니다.
-      </Banner>
-      <Table columns={cols} rows={kinds} rowKey={(k) => k.key} />
+      {/* 원문 §18 머리 평문(g2 18-5) — 결정 번호를 적지 않는다(C-7). 대상 여부 자체는 서버 kind.rep 이다(18-3 결정 대기) */}
+      <p className="mb-3 text-[12.5px] text-fg-2">
+        <b className="text-fg">리포트</b> 표시가 붙은 프로그램만 리포트 작성·차감 대상입니다.
+      </p>
+      {groups.map((g) => {
+        const look = KIND_GROUP_LOOK[g.grp] ?? { bar: 'bg-line', text: 'text-fg' };
+        return (
+          <section key={g.grp} className="mb-3">
+            <div className="flex items-center gap-2 overflow-hidden rounded-lg border border-line bg-card">
+              <span className={cn('h-8 w-1 shrink-0 rounded-r', look.bar)} aria-hidden />
+              <span className={cn('py-1.5 text-[12px] font-bold', look.text)}>{g.label}</span>
+              <span className="text-[12px] text-fg-subtle">{g.rows.length}</span>
+            </div>
+            <ul className="mt-1.5 flex flex-col gap-1">
+              {g.rows.map((k) => (
+                <li key={k.key} className="flex items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2">
+                  {/* 색은 코드표가 출처다 — 화면에 hex 를 적지 않는다 (D-R18 · D-R41). 원문 표식은 둥근 사각이다 */}
+                  <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: k.color }} aria-hidden />
+                  <span className="text-[13px] font-bold text-fg">{k.name}</span>
+                  <span className="text-[12px] text-fg-subtle">정원 {k.cap}</span>
+                  {k.rep ? <Chip tone="success" styleKind="solid" className="ml-auto">리포트</Chip> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
       {/* 원문 §18 의 마지막 줄이다 — 서랍은 보여 주기만 하고, 만들고 고치는 자리는 따로 있다 */}
       <OpenAll href="/programs">프로그램 · 과목 전체 열기</OpenAll>
     </>
@@ -670,63 +810,104 @@ export function KindsPane({ kinds }: { kinds: KindRow[] }) {
 /** 생성된 oneOf의 reqType만 쓴다. 잘못된 time/off 낱말은 컴파일되지 않는다. */
 const CHREQ_TYPE_OPTIONS: ChreqType[] = ['time_move', 'teacher', 'room', 'cancel'];
 
-export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent, error, staff, rooms, zaccs }: {
+/** 필수 표시 — 원문 §19 의 「*」. 보조기기의 이름에는 넣지 않는다(라벨은 낱말만 읽힌다) */
+const Req = () => <span aria-hidden className="ml-0.5 text-primary">*</span>;
+
+/**
+ * 「어느 일정」 한 줄의 이름 — 원문 §19 가 말하는 「고른 날의 일정」을 사람이 알아보는 낱말로.
+ * 이름은 과목 → 제목 → 종류 순으로 코드표(`GET /meta`)에서 꺼낸다 — 강사 오늘 목록과 같은 순서다.
+ */
+function occurrenceLabel(occ: Occurrence, subs: Sub[], kinds: Kind[]): string {
+  const name = (occ.subKey ? subs.find((sub) => sub.key === occ.subKey)?.name : undefined)
+    ?? occ.title ?? kinds.find((kind) => kind.key === occ.kindKey)?.name ?? occ.kindKey;
+  return [`${hhmm(occ.startMin)}–${hhmm(occ.endMin)}`, name, occ.teacherName, occ.canceled ? '휴강' : null]
+    .filter(Boolean).join(' · ');
+}
+
+/**
+ * 원문 §19 — **「+ 변경 요청」이 여는 가운데 창**의 본문. 창과 단추는 부르는 쪽(`AppDrawer`)이 갖는다.
+ *
+ * 차례는 원문 그대로 **어느 날 → 어느 일정 → 무엇을 → 왜 바꾸나요** 다.
+ * 전에는 「수업 번호」를 숫자로 직접 치게 했는데 **사용자는 SER id 를 알 수 없다** (g2 대조 19-2 · P0).
+ * 이제 고른 날의 일정을 시간표와 **같은 질의**(`GET /schedule/occurrences`)로 받아 그중에서 고른다 —
+ * 보내는 계약(`serId`·`onDate`)은 그대로이고, 값은 목록이 준 두 키를 옮겨 적을 뿐이다.
+ */
+export function ChangeReqForm({
+  draft, onDraft, conflicts, error, occurrences, occurrencesLoading, staff, rooms, zaccs, subs, kinds,
+}: {
   draft: ChangeReqDraft; onDraft: (d: ChangeReqDraft) => void;
-  onSubmit: () => void; conflicts: ConflictRow[]; busy: boolean; sent: boolean; error?: string | null;
-  staff: StaffBrief[]; rooms: Room[]; zaccs: Zacc[];
+  conflicts: ConflictRow[]; error?: string | null;
+  /** 「어느 날」의 일정 — 없으면 아직 못 받은 것이다(부르는 쪽이 날짜가 있을 때만 부른다) */
+  occurrences: Occurrence[] | undefined; occurrencesLoading: boolean;
+  staff: StaffBrief[]; rooms: Room[]; zaccs: Zacc[]; subs: Sub[]; kinds: Kind[];
 }) {
   const set = <K extends keyof ChangeReqDraft>(k: K, v: ChangeReqDraft[K]) => onDraft({ ...draft, [k]: v });
   const needsTime = draft.reqType === 'time_move';
   const timeIssue = needsTime && draft.startMin && draft.endMin
     ? lessonTimeIssue(Number(draft.startMin), Number(draft.endMin))
     : null;
-  const ready = changeReqReady(draft);
+  const target = draft.serId && draft.onDate ? occurrenceTargetValue(draft.serId, draft.onDate) : '';
+  const dayItems = (occurrences ?? []).slice().sort((a, b) => a.startMin - b.startMin);
+  // 시:분 입력은 계약(분)으로 옮겨 적는다 — 잘못된 칸은 비운다(서버와 같은 경계는 lessonTimeIssue 가 말한다)
+  const setTime = (key: 'startMin' | 'endMin', value: string) => {
+    const min = parseHm(value);
+    set(key, min === null ? '' : String(min));
+  };
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,5fr)] gap-3">
+        <div>
+          <Label htmlFor="chreq-day">어느 날<Req /></Label>
+          {/* 날을 바꾸면 고른 일정은 그날의 것이 아니게 된다 — 함께 비운다 */}
+          <Input id="chreq-day" type="date" value={draft.day}
+            onChange={(e) => onDraft({ ...draft, day: e.currentTarget.value, serId: '', onDate: '' })} />
+        </div>
+        <div>
+          <Label htmlFor="chreq-occ">어느 일정<Req /></Label>
+          <Select id="chreq-occ" value={target} disabled={!draft.day}
+            onChange={(e) => onDraft({ ...draft, ...parseOccurrenceTarget(e.currentTarget.value) })}>
+            <option value="">
+              {!draft.day ? '날짜부터 고르세요'
+                : occurrencesLoading ? '일정을 읽는 중…'
+                  : dayItems.length === 0 ? '이날은 일정이 없습니다' : '고르세요'}
+            </option>
+            {dayItems.map((occ) => (
+              // 휴강한 회차는 바꿀 것이 없다 — 숨기지 않고 보이되 고르지 못하게 둔다
+              <option key={occurrenceTargetValue(occ.serId, occ.onDate)} value={occurrenceTargetValue(occ.serId, occ.onDate)}
+                disabled={occ.canceled}>
+                {occurrenceLabel(occ, subs, kinds)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
       <div>
-        <Label>무엇을 바꾸나요</Label>
-        <Select
-          value={draft.reqType}
-          onChange={(e) => set('reqType', e.currentTarget.value as ChreqType)}
-        >
+        <Label>무엇을<Req /></Label>
+        {/* 원문 §19 는 칩 단추 넷이다 — 누르는 칩의 모양은 공용 ChipButton 한 벌을 쓴다 (C96) */}
+        <div role="group" aria-label="무엇을" className="flex flex-wrap gap-1.5">
           {CHREQ_TYPE_OPTIONS.map((v) => (
-            <option key={v} value={v}>{REQ_TYPE_LABEL[v] ?? v}</option>
+            <ChipButton key={v} pressed={draft.reqType === v} onClick={() => set('reqType', v)}>
+              {REQ_TYPE_LABEL[v] ?? v}
+            </ChipButton>
           ))}
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>수업 번호</Label>
-          <Input value={draft.serId} inputMode="numeric" placeholder="예: 12"
-            onChange={(e) => set('serId', e.currentTarget.value.replace(/\D/g, ''))} />
-        </div>
-        <div>
-          <Label>날짜</Label>
-          <Input type="date" value={draft.onDate} onChange={(e) => set('onDate', e.currentTarget.value)} />
         </div>
       </div>
-
-      <Checkbox
-        checked={draft.applyAll}
-        onChange={(e) => set('applyAll', e.currentTarget.checked)}
-        label="선택한 회차부터 이후 전체에 적용 요청"
-      />
 
       {needsTime ? (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>시작 (분)</Label>
-            <Input value={draft.startMin} inputMode="numeric" placeholder="1200 = 20:00"
-              onChange={(e) => set('startMin', e.currentTarget.value.replace(/\D/g, ''))} />
-            {draft.startMin ? <p className="mt-1 text-[11px] text-fg-subtle">{hhmm(Number(draft.startMin))}</p> : null}
+            <Label htmlFor="chreq-start">새 시작</Label>
+            <Input id="chreq-start" type="time" step={300}
+              value={draft.startMin ? hhmm(Number(draft.startMin)) : ''}
+              onChange={(e) => setTime('startMin', e.currentTarget.value)} />
           </div>
           <div>
-            <Label>끝 (분)</Label>
-            <Input value={draft.endMin} inputMode="numeric" placeholder="1290 = 21:30"
-              onChange={(e) => set('endMin', e.currentTarget.value.replace(/\D/g, ''))} />
-            {draft.endMin ? <p className="mt-1 text-[11px] text-fg-subtle">{hhmm(Number(draft.endMin))}</p> : null}
+            <Label htmlFor="chreq-end">새 끝</Label>
+            <Input id="chreq-end" type="time" step={300}
+              value={draft.endMin ? hhmm(Number(draft.endMin)) : ''}
+              onChange={(e) => setTime('endMin', e.currentTarget.value)} />
           </div>
           {timeIssue ? <p className="col-span-2 text-[11px] text-red">{timeIssue}</p> : null}
         </div>
@@ -734,8 +915,8 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent,
 
       {draft.reqType === 'teacher' ? (
         <div>
-          <Label>바꿀 강사</Label>
-          <Select value={draft.teacherId} onChange={(e) => set('teacherId', e.currentTarget.value)}>
+          <Label htmlFor="chreq-teacher">바꿀 강사</Label>
+          <Select id="chreq-teacher" value={draft.teacherId} onChange={(e) => set('teacherId', e.currentTarget.value)}>
             <option value="">강사를 선택하세요</option>
             {staff.map((member) => (
               <option key={member.id} value={member.id}>
@@ -755,14 +936,14 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent,
             options={[{ value: 'room', label: '강의실' }, { value: 'zoom', label: 'Zoom' }]}
           />
           {draft.resourceTarget === 'room' ? (
-            <Select value={draft.roomId} onChange={(e) => set('roomId', e.currentTarget.value)}>
+            <Select value={draft.roomId} onChange={(e) => set('roomId', e.currentTarget.value)} aria-label="바꿀 강의실">
               <option value="">강의실을 선택하세요</option>
               {rooms.map((room) => (
                 <option key={room.id} value={room.id}>{room.branch} · {room.name}</option>
               ))}
             </Select>
           ) : (
-            <Select value={draft.zaccId} onChange={(e) => set('zaccId', e.currentTarget.value)}>
+            <Select value={draft.zaccId} onChange={(e) => set('zaccId', e.currentTarget.value)} aria-label="바꿀 Zoom 계정">
               <option value="">Zoom 계정을 선택하세요</option>
               {zaccs.map((zacc) => <option key={zacc.id} value={zacc.id}>{zacc.label}</option>)}
             </Select>
@@ -770,10 +951,18 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent,
         </div>
       ) : null}
 
+      {/* 원문에 없는 칸이다 — CHREQ.apply_all 과 §20 「(이 회차만)」 짝이라 남긴다 (의도적 차이) */}
+      <Checkbox
+        checked={draft.applyAll}
+        onChange={(e) => set('applyAll', e.currentTarget.checked)}
+        label="선택한 회차부터 이후 전체에 적용 요청"
+      />
+
       <div>
-        <Label>사유 (필수)</Label>
-        <Textarea rows={3} value={draft.reason} onChange={(e) => set('reason', e.currentTarget.value)}
-          placeholder="왜 바꿔야 하는지 한 줄이라도 적어 주세요" />
+        <Label htmlFor="chreq-why">왜 바꾸나요<Req /></Label>
+        <Input id="chreq-why" value={draft.reason} maxLength={500}
+          onChange={(e) => set('reason', e.currentTarget.value)}
+          placeholder="어머니 요청 · 강사 병원 일정" />
       </div>
 
       {error ? <ConflictGuard result="blocking" message={error} /> : null}
@@ -786,13 +975,6 @@ export function ChangeReqForm({ draft, onDraft, onSubmit, conflicts, busy, sent,
           dates={conflictLines(conflicts)}
         />
       ) : null}
-      {sent && conflicts.length === 0 ? (
-        <ConflictGuard result="ok" message="요청을 넣었습니다 — 승인은 그 화면에서 이뤄집니다" />
-      ) : null}
-
-      <Button variant="primary" disabled={!ready || busy} onClick={onSubmit}>
-        {busy ? '보내는 중…' : '변경 요청 넣기'}
-      </Button>
     </div>
   );
 }
@@ -812,7 +994,11 @@ const CHREQ_TABS = [
 ] as const;
 export type ChreqTab = (typeof CHREQ_TABS)[number]['value'];
 
-export function ChangeReqsPane({ rows }: { rows: ChangeReq[] }) {
+export function ChangeReqsPane({ rows, onCreate }: {
+  rows: ChangeReq[];
+  /** 원문 §20 머리 오른쪽 「+ 변경 요청」 — §19 창을 연다 (g2 대조 20-2 · 창은 부르는 쪽이 갖는다) */
+  onCreate?: () => void;
+}) {
   const [tab, setTab] = useState<ChreqTab>('pending');
   const shown = tab === 'all' ? rows : rows.filter((c) => c.state === tab);
   const cols: Array<Column<ChangeReq>> = [
@@ -833,24 +1019,25 @@ export function ChangeReqsPane({ rows }: { rows: ChangeReq[] }) {
   ];
   return (
     <>
-      <div className="mb-3 flex flex-wrap gap-1">
-        {CHREQ_TABS.map((t) => {
-          const n = t.value === 'all' ? rows.length : rows.filter((c) => c.state === t.value).length;
-          return (
-            <button
-              key={t.value} type="button" onClick={() => setTab(t.value)} aria-pressed={tab === t.value}
-              className={`rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors ${
-                tab === t.value ? 'bg-primary text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
-            >
-              {t.label} {n}
-            </button>
-          );
-        })}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* 보기 전환은 공용 Segmented 한 벌이다(§15 와 같은 모양). 건수는 원문대로 「확인 대기」에만 붙는다(g2 20-4) */}
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          ariaLabel="변경 요청 상태"
+          options={CHREQ_TABS.map((t) => ({
+            value: t.value,
+            label: t.value === 'pending' ? `${t.label} ${rows.filter((c) => c.state === 'pending').length}` : t.label,
+          }))}
+        />
+        {onCreate ? (
+          <Button className="ml-auto" variant="primary" size="sm" onClick={onCreate} aria-haspopup="dialog">+ 변경 요청</Button>
+        ) : null}
       </div>
-      <Banner tone="neutral" className="mb-3">
-        강사·학생·강의실이 <b>겹치면 넣을 수 없습니다</b> — <b>반영하면 시간표가 바뀌고 이력에 남습니다</b>.
-        반영·반려는 <b>승인 대기함</b>에서 합니다.
-      </Banner>
+      {/* 원문 §20 머리 평문 한 줄(g2 20-5) — 처리 위치는 레일의 「승인 대기함」이 말하므로 덧문장을 달지 않는다 */}
+      <p className="mb-3 text-[12.5px] text-fg-2">
+        강사·학생·강의실이 <b className="text-fg">겹치면 넣을 수 없습니다</b> · 반영하면 시간표가 바뀌고 <b className="text-fg">이력</b>에 남습니다
+      </p>
       <Table columns={cols} rows={shown} rowKey={(c) => c.id} empty={
         tab === 'pending' ? '확인할 요청이 없습니다' : '해당하는 요청이 없습니다'
       } />
@@ -881,6 +1068,17 @@ export function ChangeReqsPane({ rows }: { rows: ChangeReq[] }) {
  * 겹침 경고는 서랍 payload 가 주는 것이고 격자와 출처가 다르다. 그래서 **겹친 계정 이름만** 말하고
  * 건수를 두 번 적지 않는다 — 배정 건수는 「줌 계정 관리」의 표가 가진다 (D-R22).
  */
+/** §21 숫자 상자 — 원문은 큰 숫자가 위, 라벨이 아래, 가운데 정렬이고 보조 문구가 없다 */
+function ZoomCount({ label: name, value, note }: { label: string; value: ReactNode; note: string | null }) {
+  return (
+    <div className="rounded-lg border border-line bg-card px-3 py-3 text-center">
+      <strong className="block text-[24px] leading-none text-fg">{value}</strong>
+      <span className="mt-1.5 block text-[12px] font-bold text-fg-2">{name}</span>
+      {note ? <span className="mt-0.5 block text-[10.5px] text-fg-subtle">{note}</span> : null}
+    </div>
+  );
+}
+
 export function ZoomPane({ rows, board, loading }: {
   rows: ZoomAccount[]; board?: ZoomBoard; loading?: boolean;
 }) {
@@ -911,15 +1109,11 @@ export function ZoomPane({ rows, board, loading }: {
             <ZoomGrid board={board} compact />
           </div>
 
+          {/* 원문 §21 숫자 상자 — 큰 숫자 위 · 라벨 아래 · 가운데(g2 21-2). 「지금」은 오늘만 뜻이 있다 — 다른 날이면 서버가 nowHour 를 비운다 */}
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {/* 「지금」은 오늘만 뜻이 있다 — 다른 날을 보면 서버가 nowHour 를 비운다 */}
-            <StatCard
-              label="지금 가능"
-              value={board.nowHour === null ? '—' : `${board.freeNow}`}
-              tone="success"
-              note={board.nowHour === null ? '오늘만 셉니다' : `${String(board.nowHour).padStart(2, '0')}시 기준`}
-            />
-            <StatCard label="만석 시간대" value={`${board.fullHours}`} tone="danger" note="한 계정도 안 남은 시간" />
+            <ZoomCount label="지금 가능" value={board.nowHour === null ? '—' : board.freeNow}
+              note={board.nowHour === null ? '오늘만 셉니다' : null} />
+            <ZoomCount label="만석 시간대" value={board.fullHours} note={null} />
           </div>
 
           {board.freeLabels.length > 0 ? (
@@ -934,10 +1128,10 @@ export function ZoomPane({ rows, board, loading }: {
         </p>
       )}
 
-      <Banner tone="warning" className="mt-3">
-        로그인 정보는 <b>이 화면에 내려오지 않습니다.</b> 학생 참가 링크와 같은 자리에 두지 않는 것이 규칙입니다.
-      </Banner>
-      {/* 원문 §21 의 마지막 줄이다 — 로그인 정보는 여기 오지 않고, 고치는 자리는 목적지에 있다 */}
+      {/*
+        원문 §21 의 마지막 줄이다 — 고치는 자리는 목적지에 있다. 로그인 정보가 이 칸에 내려오지 않는 규칙은
+        서버가 지킨다(SELECT 에 넣지 않는다 · erd V9) — 원문 칸에 없는 경고 상자는 달지 않는다(g2 21-3).
+      */}
       <OpenAll href="/zoom">줌 계정 관리</OpenAll>
     </>
   );

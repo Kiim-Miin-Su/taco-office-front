@@ -74,8 +74,42 @@ describe('§75 결재 흐름', () => {
     expect(within(tiles).getAllByText(/대표 보고|기획 결재|강사 요청|변경 요청|자료 요청/).map((node) => node.textContent))
       .toEqual(['대표 보고', '기획 결재', '강사 요청', '변경 요청', '자료 요청']);
     expect(view.getByText(/지금 4건 대기 · 되돌아온 것 1건/)).toBeTruthy();
+    // 절 머리는 원문 낱말 그대로 — 「되돌아온 것 1건 · 고쳐서 다시 올려주세요」 · 「기다리는 것 4건」 (g2 75-4)
     expect(view.getAllByRole('heading', { level: 3 }).map((node) => node.textContent))
-      .toEqual(['되돌아온 것1', '기다리는 것4', '내가 올린 것']);
+      .toEqual(['되돌아온 것1건 · 고쳐서 다시 올려주세요', '기다리는 것4건', '내가 올린 것1건']);
+  });
+
+  /* g2 대조 75-4 · 75-5 — 되돌아온 것은 붉은 머리, 「내가 올린 것」은 줄이 있을 때만 선다 */
+  it('되돌아온 것 머리는 붉고, 내가 올린 것이 없으면 그 절이 없다', () => {
+    const view = render(<ApprovalFlowDialog open flow={{ ...flow, mine: [] }} onClose={vi.fn()} />);
+    expect(view.getByText('되돌아온 것').className).toContain('text-red');
+    expect(view.queryByText('내가 올린 것')).toBeNull();
+  });
+
+  /* g2 대조 75-3 — 타일은 큰 숫자(종류 색) → 종류 이름 → 받는 이, 건수가 있는 타일은 종류 색 테두리·옅은 바탕 */
+  it('타일은 숫자 → 이름 → 받는 이 차례이고, 건수가 있으면 종류 색 테두리를 두른다', () => {
+    const view = render(<ApprovalFlowDialog open flow={flow} onClose={vi.fn()} />);
+    const tiles = within(view.getByLabelText('결재 종류별 대기 건수'));
+    const req = tiles.getByText('강사 요청').parentElement!;
+    expect([...req.children].map((c) => c.textContent)).toEqual(['2', '강사 요청', '실장에게']);
+    expect(req.className).toContain('border-amber/50');
+    expect(req.firstElementChild!.className).toContain('text-amber');
+    const rpt = tiles.getByText('대표 보고').parentElement!;
+    expect(rpt.className).not.toContain('/50');
+  });
+
+  /* g2 대조 75-2 · 공용 × — 줄마다 종류 색 세로 띠, 머리 오른쪽 × 는 창을 닫는다 */
+  it('줄은 종류 색 세로 띠를 두르고, 머리 × 로도 닫힌다', () => {
+    const close = vi.fn();
+    const view = render(<ApprovalFlowDialog open flow={flow} onClose={close} />);
+    const req = view.getByRole('link', { name: '강사 요청 원본 열기' });
+    expect(req.className).toContain('border-l-4');
+    expect(req.className).toContain('border-l-amber');
+    // 배지도 같은 종류 색이다 — 되돌아온 줄의 배지도 붉게 바꾸지 않는다(줄 바탕이 말한다)
+    expect(within(view.getByRole('link', { name: '자습 관리 프로그램 정규화 원본 열기' })).getByText('기획 결재').className)
+      .toContain('bg-violet');
+    fireEvent.click(view.getByRole('button', { name: '창 닫기' }));
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('반려 사유·발신자→수신자·원본 deep link만 제공하고 승인/반려 동작은 만들지 않는다', () => {
@@ -92,6 +126,20 @@ describe('§75 결재 흐름', () => {
     expect(view.queryByRole('button', { name: '반려' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '닫기' }));
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  /* g2 대조 75-2 — 원문 줄은 한 줄이다: 배지 · 굵은 제목 · 회색 부제 … 오른쪽 「보낸 이 → 받는 이」 · 날짜 · › */
+  it('§75 줄은 한 줄 모양이다 — 경로는 부제와 붙지 않고 오른쪽에 따로 서며 끝에 이동 표시가 있다', () => {
+    const view = render(<ApprovalFlowDialog open flow={flow} onClose={vi.fn()} />);
+    const link = view.getByRole('link', { name: '자습 관리 프로그램 정규화 원본 열기' });
+    const route = within(link).getByText('김범준 → 대표');
+    expect(route.className).toContain('font-bold');
+    expect(within(link).getByText('마감 08-19')).toBeTruthy();
+    // 옛 두 줄 모양 「김범준 → 대표 · 마감 08-19」 으로 이어 붙이지 않는다
+    expect(within(link).queryByText(/김범준 → 대표 · 마감/)).toBeNull();
+    // 배지·제목·경로·날짜가 한 줄(같은 부모)에 있다
+    expect(route.parentElement).toBe(within(link).getByText('자습 관리 프로그램 정규화').parentElement);
+    expect(link.querySelector('svg')).not.toBeNull();
   });
 
   it('닫혀 있으면 결재 데이터가 DOM에 없다', () => {

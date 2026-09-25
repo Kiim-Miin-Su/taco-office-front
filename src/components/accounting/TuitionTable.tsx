@@ -241,6 +241,11 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
             >
               {carryingId === r.studentId ? '넘기는 중…' : '이월 처리'}
             </button>
+          ) : r.carryBlockedReason ? (
+            // 넘길 것은 있는데 서버가 막은 줄 — 왜 막혔는지 서버 문장을 그대로 둔다 (PB-04 · 쓰기의 409 와 같은 함수)
+            <span title={r.carryBlockedReason} aria-label={r.carryBlockedReason}>
+              <Chip tone="warning">이월 막힘</Chip>
+            </span>
           ) : null}
           <button
             type="button"
@@ -290,8 +295,10 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
               label={data?.deductedCount ? `결강 · 휴강 (차감 ${data.deductedCount})` : '결강 · 휴강'}
               value={n(data?.canceledCount)} tone="warning"
             />
-            <HeadBox label="지금까지 금액" value={won(data?.doneAmount)} />
-            <HeadBox label="다음 달로 넘길 돈" value={won(data?.carryAmount)} tone="warning" />
+            {/* 아직 응답이 없으면 「—」다 — 「가려짐」은 **권한이 없어서 서버가 안 줬다**는 뜻이라
+                불러오는 중에 쓰면 거짓말이 된다 (54-01 · 같은 페이지 머리 `Head` 와 같은 규칙) */}
+            <HeadBox label="지금까지 금액" value={won(data?.doneAmount, data ? {} : { empty: '—' })} />
+            <HeadBox label="다음 달로 넘길 돈" value={won(data?.carryAmount, data ? {} : { empty: '—' })} tone="warning" />
           </div>
           {/* 상단 「이월 N회 — 이 달 청구에서 빠집니다」 (C-35) — 없으면 줄 자체가 없다 */}
           {data && data.carriedInCount > 0 ? (
@@ -337,7 +344,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
               </ul>
             )}
             <p className="mt-4 border-t border-line pt-3 text-[11px] text-fg-subtle">
-              이 줄이 곧 청구서의 줄입니다 — 원문 §54 의 「청구서 생성 시 이 계산 결과를 씁니다」.
+              이 줄이 곧 청구서의 줄입니다 — 청구서를 만들 때 이 계산 결과를 그대로 씁니다.
               「지금까지」는 이 중 이미 한 수업만 센 값이고, 결강은 「넘길 돈」으로 따로 섭니다.
             </p>
           </div>

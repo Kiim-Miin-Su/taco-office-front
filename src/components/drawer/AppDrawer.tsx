@@ -12,19 +12,22 @@
  * 배지에는 3건인데 목록에는 2건인 상태가 생긴다.
  *
  * 껍데기는 `ui/Overlay` 의 `Drawer` 를 그대로 쓴다. 서랍을 새로 그리지 않는다 —
- * 수업 상세(§12)와 같은 폭·같은 닫기·같은 Esc 여야 한다.
+ * 수업 상세(§12)와 같은 닫기·같은 Esc 여야 한다. **자리와 폭만 원문 서랍의 것**이다(`docked` ·
+ * 머리줄 아래 · 레일 왼쪽 · 폭 ≈468px — g2 대조 C-1). 수업 상세는 예전처럼 화면 위 모달이다.
+ * 머리는 원문 서랍 그대로 **어두운 바 + 흰 제목 + ×** 이고 부제가 없다(g2 대조 C-4 — 건수는 레일 배지가 말한다).
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Drawer, Chip, Banner } from '@/components/ui';
-import { useDrawer, useDrawerWrite, useMeta, useZoom } from '@/api/queries';
+import { Drawer, Chip, Banner, Button, ConflictGuard, Dialog } from '@/components/ui';
+import { useDrawer, useDrawerWrite, useMeta, useOccurrences, useZoom } from '@/api/queries';
 import { ApiError, apiMessage } from '@/api/client';
 import { browserLog } from '@/lib/browser-log';
 import { useSession } from '@/store/useSession';
+import { useRailPresent } from '@/components/shell/WorkspaceRail';
 import type { ChangeReqResult } from '@/api/types';
 import {
-  ApprovalsPane, changeReqBody, ChangeReqForm, ChangeReqsPane, EMPTY_DRAFT, KindsPane, MembersPane,
-  NotisPane, TodosPane, ZoomPane, type ChangeReqDraft, type TodoBox,
+  ApprovalsPane, changeReqBody, ChangeReqForm, changeReqReady, ChangeReqsPane, KindsPane, MembersPane,
+  newChangeReqDraft, NotisPane, TodosPane, ZoomPane, type ChangeReqDraft, type TodoBox,
 } from './panes';
 
 /**
@@ -37,6 +40,10 @@ import {
  * `title` 은 **창의 제목**이다. 전에는 어느 칸을 열든 제목이 「서랍」이었다 — 컷은 칸마다
  * 제목이 다르다(승인 대기함 · 알림 · 구성원 · 시간대 …). 「서랍」은 이 창이 무엇인지가 아니라
  * 이 창이 **어떻게 생겼는지**를 말하는 이름이다.
+ *
+ * **「변경 요청」은 한 칸이다** — 원문 레일의 「변경 요청」은 §20 「변경 요청 · 이력」을 열고, §19 넣기는
+ * 그 칸 머리의 「+ 변경 요청」이 여는 **가운데 창**이다(g2 대조 19-1 · 20-1 · 20-2). 넣기를 따로 칸으로
+ * 두던 동안 레일은 넣기 폼을 열고 이력은 서랍 안 탭으로만 닿았다.
  */
 const PANES = [
   { key: 'approvals', label: '승인 대기함', title: '승인 대기함' },
@@ -44,8 +51,7 @@ const PANES = [
   { key: 'notis', label: '알림', title: '알림' },
   { key: 'members', label: '구성원', title: '구성원 · 시간대' },
   { key: 'kinds', label: '프로그램', title: '프로그램 · 과목' },
-  { key: 'chreqNew', label: '변경 요청', title: '변경 요청' },
-  { key: 'chreqs', label: '이력', title: '변경 요청 · 이력' },
+  { key: 'chreqs', label: '변경 요청', title: '변경 요청 · 이력' },
   { key: 'zoom', label: '줌 계정', title: '줌 계정' },
 ] as const;
 export type DrawerPane = (typeof PANES)[number]['key'];
@@ -58,7 +64,10 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   onPaneChange: (pane: DrawerPane) => void;
 }) {
   const [box, setBox] = useState<TodoBox>('in');
-  const [draft, setDraft] = useState<ChangeReqDraft>(EMPTY_DRAFT);
+  // 초안은 닫았다 열어도 남는다 — 창을 닫는 것은 넣기를 그만두는 것이 아니다
+  const [draft, setDraft] = useState<ChangeReqDraft>(() => newChangeReqDraft());
+  /** §19 창이 열려 있는가 — §20 칸의 「+ 변경 요청」이 연다 */
+  const [creating, setCreating] = useState(false);
   const [conflicts, setConflicts] = useState<ChangeReqResult['conflicts']>([]);
   const [sent, setSent] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -70,9 +79,17 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const previousPane = useRef<DrawerPane>(pane);
 
   const meId = useSession((s) => s.me?.id ?? null);
+  /* 원문 서랍 안에는 칸 전환 줄이 없다 — 레일이 그 일을 한다(g2 대조 C-3). 레일이 없는 화면에서만 줄을 남긴다 */
+  const railed = useRailPresent();
   // 닫혀 있으면 부르지 않는다 — 모든 화면이 서랍을 들고 있으므로 열 때만 읽는다
   const { data, isLoading, isError, refetch } = useDrawer(open, notiWindow);
-  const { data: meta } = useMeta(open && pane === 'chreqNew');
+  const { data: meta } = useMeta(open && creating);
+  /*
+   * §19 「어느 일정」 — 고른 날의 일정을 **시간표와 같은 질의**로 받는다(새 경로를 만들지 않는다).
+   * 창이 열려 있고 날짜가 온전할 때만 부른다 — 날짜 칸을 치는 도중의 조각으로는 부르지 않는다.
+   */
+  const dayOk = /^\d{4}-\d{2}-\d{2}$/.test(draft.day);
+  const dayOccurrences = useOccurrences({ from: draft.day, to: draft.day }, open && creating && dayOk);
   /*
    * §21 격자는 서랍 payload 에 없다 — **칸을 열 때만** 부른다.
    * 여덟 칸에 얹으면 §21 을 안 여는 사람도 매번 점유 질의를 치른다.
@@ -120,41 +137,47 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
         body: changeReqBody(draft),
       }) as ChangeReqResult;
       setConflicts(res.conflicts);
-      if (res.conflicts.length === 0) { setSent(true); setDraft(EMPTY_DRAFT); }
+      // 넣었으면 창을 닫고 칸에 알린다 — 새 초안은 다시 오늘로 열린다
+      if (res.conflicts.length === 0) { setSent(true); setDraft(newChangeReqDraft()); setCreating(false); }
     } catch (error) {
       setSubmitError(apiMessage(error));
     }
   }
 
+  function openCreate() {
+    setSent(false); setSubmitError(null); setConflicts([]);
+    setCreating(true);
+  }
+
   const count = data?.approvals.inboxCount ?? 0;
   const unread = data?.notis.filter((n) => !n.read).length ?? 0;
-  // 시간대는 사람의 이름으로 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18)
-  const tzName = data ? (data.tzGroups.find((g) => g.tz === data.tz)?.name ?? data.tz) : '';
 
   return (
+    /* 탭 02 서랍은 머리줄 아래 · 레일 왼쪽 칸에 붙는다 — 자리는 셸이 준다(`docked` · 원문 폭 ≈468px · g2 대조 C-1) */
     <Drawer
-      open={open} onClose={onClose} width={560}
+      open={open} onClose={onClose} width={468} docked headerTone="dark"
       title={PANES.find((p) => p.key === pane)?.title ?? '서랍'}
-      sub={data ? `결재 ${count}건 · 안 읽은 알림 ${unread}건 · 모든 시각 ${tzName}` : undefined}
     >
-      <nav aria-label="서랍 메뉴" className="mb-4 flex flex-wrap gap-1 border-b border-line pb-2">
-        {PANES.map((p) => {
-          const badge = p.key === 'approvals' ? count : p.key === 'notis' ? unread : 0;
-          return (
-            <button
-              key={p.key} type="button" onClick={() => onPaneChange(p.key)} aria-pressed={pane === p.key}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors ${
-                pane === p.key ? 'bg-primary text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
-            >
-              {p.label}
-              {badge > 0 ? (
-                <span className={`rounded-full px-1.5 text-[10px] ${
-                  pane === p.key ? 'bg-white/25' : 'bg-red text-white'}`}>{badge}</span>
-              ) : null}
-            </button>
-          );
-        })}
-      </nav>
+      {railed ? null : (
+        <nav aria-label="서랍 메뉴" className="mb-4 flex flex-wrap gap-1 border-b border-line pb-2">
+          {PANES.map((p) => {
+            const badge = p.key === 'approvals' ? count : p.key === 'notis' ? unread : 0;
+            return (
+              <button
+                key={p.key} type="button" onClick={() => onPaneChange(p.key)} aria-pressed={pane === p.key}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors ${
+                  pane === p.key ? 'bg-primary text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
+              >
+                {p.label}
+                {badge > 0 ? (
+                  <span className={`rounded-full px-1.5 text-[10px] ${
+                    pane === p.key ? 'bg-white/25' : 'bg-red text-white'}`}>{badge}</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {isLoading ? <p className="py-10 text-center text-[12px] text-fg-subtle">읽는 중…</p> : null}
       {isError ? <Banner tone="danger">서랍을 읽지 못했습니다. 잠시 뒤 다시 열어 주세요.</Banner> : null}
@@ -203,20 +226,44 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
               canAddMember={data.canAddMember} canWage={data.canWage} />
           ) : null}
           {pane === 'kinds' ? <KindsPane kinds={data.kinds} /> : null}
-          {pane === 'chreqNew' ? (
-            <ChangeReqForm
-              draft={draft} onDraft={(d) => {
-                setDraft(d); setConflicts([]); setSent(false); setSubmitError(null);
-              }}
-              onSubmit={() => void submitChangeReq()}
-              conflicts={conflicts} busy={write.isPending} sent={sent} error={submitError}
-              staff={meta?.staff ?? []} rooms={meta?.rooms ?? []} zaccs={meta?.zaccs ?? []}
-            />
+          {pane === 'chreqs' ? (
+            <>
+              {sent ? (
+                <div className="mb-3">
+                  <ConflictGuard result="ok" message="요청을 넣었습니다 — 승인은 그 화면에서 이뤄집니다" />
+                </div>
+              ) : null}
+              <ChangeReqsPane rows={data.changeReqs} onCreate={openCreate} />
+            </>
           ) : null}
-          {pane === 'chreqs' ? <ChangeReqsPane rows={data.changeReqs} /> : null}
           {pane === 'zoom' ? <ZoomPane rows={data.zoomAccounts} board={zoom.data} loading={zoom.isLoading} /> : null}
         </>
       ) : null}
+
+      {/* 원문 §19 — 가운데 창. 공용 Dialog 를 그대로 쓴다(스크림·Esc·초점 복귀가 한 벌이다) */}
+      <Dialog
+        open={open && creating} onClose={() => setCreating(false)} title="변경 요청" width={640} closeX
+        sub={<>겹치면 넣을 수 없습니다 · 반영하면 <b className="text-fg">이력</b>에 남습니다</>}
+        footer={(
+          <>
+            <Button onClick={() => setCreating(false)}>취소</Button>
+            <Button variant="primary" disabled={!changeReqReady(draft) || write.isPending} onClick={() => void submitChangeReq()}>
+              {write.isPending ? '보내는 중…' : '요청 넣기'}
+            </Button>
+          </>
+        )}
+      >
+        <ChangeReqForm
+          draft={draft} onDraft={(d) => {
+            setDraft(d); setConflicts([]); setSent(false); setSubmitError(null);
+          }}
+          conflicts={conflicts} error={submitError}
+          occurrences={dayOk ? dayOccurrences.data?.items : undefined}
+          occurrencesLoading={dayOk && dayOccurrences.isLoading}
+          staff={meta?.staff ?? []} rooms={meta?.rooms ?? []} zaccs={meta?.zaccs ?? []}
+          subs={meta?.subs ?? []} kinds={meta?.kinds ?? []}
+        />
+      </Dialog>
     </Drawer>
   );
 }

@@ -34,10 +34,17 @@ export default {
         },
         bg: v('bg'), card: v('card'), inset: v('inset'),
         line: { DEFAULT: v('line'), 2: v('line-2') },
-        fg: { DEFAULT: v('fg'), 2: v('fg-2'), subtle: v('fg-subtle') },
+        /*
+         * `fg` 도 투명도 수식을 탄다 — 공용 Dialog·Drawer 스크림(`bg-fg/30`·`bg-fg/25`)이 이것을 쓴다.
+         * `v('fg')` 로 두면 Tailwind 가 `/N` 을 붙일 수 없어 **클래스 자체를 만들지 않았고**
+         * 스크림이 `rgba(0,0,0,0)` — 모달 뒤가 투명했다 (g2 대조 C-6 · 실측). 값·이름은 그대로다.
+         */
+        fg: { DEFAULT: withAlpha('fg'), 2: v('fg-2'), subtle: v('fg-subtle') },
         primary: withAlpha('primary'),
         blue: withAlpha('blue'), red: withAlpha('red'), green: withAlpha('green'),
         amber: withAlpha('amber'), violet: withAlpha('violet'),
+        /** 청록 · 주황 · 분홍 — 원문 단계·분류·영역 색(값은 tokens.css · 대비 교정) */
+        teal: withAlpha('teal'), orange: withAlpha('orange'), pink: withAlpha('pink'),
         /** 수업 종류 8종 — 명세서 v2 §85 */
         kind: {
           'class': v('kind-class'),

@@ -35,7 +35,7 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
     <span className="flex justify-end gap-1">
       {invoice.canDeliver ? (
         <Button size="sm" variant="ghost" disabled={act.isPending}
-          title="학부모께 보냈다고 표시합니다 — §53 ③"
+          title="학부모께 보냈다고 표시합니다"
           onClick={() => act.mutate({ kind: 'deliver', id: invoice.id }, { onError: (e) => setErr(apiMessage(e)) })}>
           전달
         </Button>

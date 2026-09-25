@@ -5,12 +5,19 @@
  */
 
 import type { ChangeReqCreate } from '@/api/types';
-import { lessonTimeIssue } from '@/lib/calendar';
+import { lessonTimeIssue, todayKst } from '@/lib/calendar';
 
 export type ChreqType = ChangeReqCreate['reqType'];
 
 export interface ChangeReqDraft {
   reqType: ChreqType;
+  /**
+   * §19 「어느 날」 — **고르는 날**이다(그날의 일정 목록을 여는 열쇠). 저장 계약이 아니다.
+   * 보내는 날짜는 아래 `onDate`(규칙이 찍은 원래 날 = EXC 키)이고, 둘은 옮긴 회차에서 갈린다 —
+   * 9/25 로 옮겨진 9/24 회차를 9/25 목록에서 고르면 보내는 값은 9/24 다 (g2 대조 19-2).
+   */
+  day: string;
+  /** 「어느 일정」에서 고른 회차 — 사용자가 직접 치지 않는다(서버 `OccurrenceDto` 의 두 키 그대로) */
   serId: string;
   onDate: string;
   startMin: string;
@@ -24,9 +31,25 @@ export interface ChangeReqDraft {
 }
 
 export const EMPTY_DRAFT: ChangeReqDraft = {
-  reqType: 'time_move', serId: '', onDate: '', startMin: '', endMin: '', teacherId: '',
+  reqType: 'time_move', day: '', serId: '', onDate: '', startMin: '', endMin: '', teacherId: '',
   resourceTarget: 'room', roomId: '', zaccId: '', reason: '', applyAll: false,
 };
+
+/** 새 초안 — 「어느 날」은 **오늘(KST)** 로 열린다 (원문 §19 · g2 대조 19-8) */
+export function newChangeReqDraft(day: string = todayKst()): ChangeReqDraft {
+  return { ...EMPTY_DRAFT, day };
+}
+
+/**
+ * 「어느 일정」 선택 값 — 회차를 가리키는 두 키(`serId`·`onDate`)를 한 문자열로 묶는다.
+ * 목록에는 **그려지는 날**로 걸린 회차가 오지만 값은 **원래 날(EXC 키)** 이라 옮긴 회차도 제 회차를 가리킨다.
+ */
+export const occurrenceTargetValue = (serId: number | string, onDate: string): string => `${serId}|${onDate}`;
+
+export function parseOccurrenceTarget(value: string): { serId: string; onDate: string } {
+  const [serId = '', onDate = ''] = value.split('|');
+  return { serId, onDate };
+}
 
 /** 생성된 oneOf 타입으로만 본문을 만든다. 종류와 무관한 필드는 이 경계를 넘지 않는다. */
 export function changeReqBody(draft: ChangeReqDraft): ChangeReqCreate {

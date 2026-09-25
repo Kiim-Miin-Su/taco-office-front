@@ -15,12 +15,12 @@
  */
 'use client';
 import { useState } from 'react';
-import { Banner, Button, Chip, Input, Label, Panel, Tabs } from '@/components/ui';
+import { Banner, Button, Chip, Input, Label, Panel, Segmented, cn } from '@/components/ui';
 import { SearchField } from '@/components/ui/SearchField';
 import { apiMessage } from '@/api/client';
 import { useAddBookVersion, useBookHistory, useUseBookVersion } from '@/api/queries';
 import type { Book, BookHistoryQuery } from '@/api/types';
-import { todayKst } from '@/lib/calendar';
+import { longDateLabel, todayKst } from '@/lib/calendar';
 import { fileSelectionIssue, fileUploadBody } from '@/lib/file-upload';
 
 type BookHistoryAction = NonNullable<BookHistoryQuery['action']>;
@@ -39,6 +39,37 @@ const BOOK_HISTORY_ACTIONS = [
 function isBookHistoryAction(value: string): value is BookHistoryAction {
   return BOOK_HISTORY_ACTIONS.some((action) => action === value);
 }
+
+/**
+ * 원문 §40 — 행동 칩·줄 라벨의 **기호**와 줄 왼쪽 띠의 **갈래 색**(초록 배부 · 보라 요청 · 주황 교체 · 파랑 안내).
+ * 낱말(actionLabel)은 서버가 주고 여기는 모양만 정한다 (D-R18). 모르는 행동은 기호 없이 파랑 띠.
+ */
+type HistoryGroup = 'book' | 'request' | 'swap' | 'guide';
+const ACTION_LOOK: Record<string, { symbol: string; group: HistoryGroup }> = {
+  book_issue: { symbol: '＋', group: 'book' },
+  book_upload: { symbol: '↑', group: 'book' },
+  book_drop: { symbol: '－', group: 'book' },
+  book_swap: { symbol: '⇄', group: 'swap' },
+  teacher_req: { symbol: '✉', group: 'request' },
+  teacher_swap: { symbol: '⇄', group: 'swap' },
+  guide_write: { symbol: '✎', group: 'guide' },
+  guide_send: { symbol: '→', group: 'guide' },
+  guide_ack: { symbol: '✓', group: 'guide' },
+};
+const GROUP_STRIPE: Record<HistoryGroup, string> = {
+  book: 'border-green', request: 'border-violet', swap: 'border-amber', guide: 'border-blue',
+};
+const GROUP_TEXT: Record<HistoryGroup, string> = {
+  book: 'text-green', request: 'text-violet', swap: 'text-amber', guide: 'text-blue',
+};
+const actionLook = (key: string) => ACTION_LOOK[key] ?? { symbol: '', group: 'guide' as const };
+const withSymbol = (key: string, label: string) => {
+  const symbol = actionLook(key).symbol;
+  return symbol ? `${symbol} ${label}` : label;
+};
+
+/** 활동 추이 막대 한 칸의 최대 높이(px) — 칸(h-24 · 96px)에서 날짜 글자 자리를 뺀 것 */
+const TREND_BAR_MAX = 72;
 
 /** 판 배지 — ⇧ 는 「더 나중 판이 있다」는 서버 판정 하나만 본다 */
 export function BookVersionBadge({ book }: { book: Book }) {
@@ -164,16 +195,22 @@ export function BookHistory() {
     else d.setUTCDate(d.getUTCDate() + n * (span === 'week' ? 7 : 1));
     setAnchor(d.toISOString().slice(0, 10));
   };
+  /*
+   * 활동 추이 — **가장 최근 14일**을 오래된 날 → 최근 순으로 그린다 (원본 §40 · P0).
+   * 서버 byDay 는 이력 줄 순서(최신 먼저)라 끝에서 자르면 오늘이 빠지고 순서가 뒤집혔다.
+   * 받은 순서에 기대지 않도록 날짜 키로 줄 세운 뒤 뒤 14일을 쓴다. 제목 일수도 이 배열 길이다.
+   */
+  const trend = [...(q.data?.byDay ?? [])].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)).slice(-14);
+  // 막대 높이는 그린 14일 중 가장 많은 날에 맞춘다 — 건수 × 고정 px 는 7건부터 칸을 뚫고 나갔다 (§40)
+  const trendMax = Math.max(1, ...trend.map((day) => day.count));
   const periodLabel = span === 'month' ? `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월` : anchor;
-  const dayLabel = (day: string) => {
-    const date = new Date(`${day}T00:00:00Z`);
-    return `${day.slice(2, 4)}년 ${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일 ${['일', '월', '화', '수', '목', '금', '토'][date.getUTCDay()]}요일`;
-  };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Tabs
+        {/* 원문 §40 기간 토글은 알약 — 공용 Segmented (g4 §40-5) */}
+        <Segmented
+          ariaLabel="기간"
           options={[
             { value: 'day', label: '일간' },
             { value: 'week', label: '주간' },
@@ -218,7 +255,17 @@ export function BookHistory() {
           <SearchField label="교재 이력 검색" onQueryChange={setSearch} placeholder="학생 · 강사 · 교재" />
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5 rounded-lg bg-inset p-2">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-inset p-2">
+        {/* 상위 두 갈래 — 수는 서버 bookCount · guideCount 그대로 (g4 §40-3) */}
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-fg">
+          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-green" />
+          {`교재 ${q.data?.bookCount ?? 0}`}
+        </span>
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-fg">
+          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-blue" />
+          {`수업 안내 ${q.data?.guideCount ?? 0}`}
+        </span>
+        <span aria-hidden className="mx-1 h-4 w-px bg-line" />
         <button type="button" onClick={() => setChip(null)}>
           <Chip tone={chip === null ? 'info' : 'neutral'} styleKind={chip === null ? 'solid' : 'soft'}>
             전체
@@ -233,7 +280,7 @@ export function BookHistory() {
             }}
           >
             <Chip tone={chip === action.key ? 'info' : 'neutral'} styleKind={chip === action.key ? 'solid' : 'soft'}>
-              {action.label} {action.count}
+              {`${withSymbol(action.key, action.label)} ${action.count}`}
             </Chip>
           </button>
         ))}
@@ -252,7 +299,7 @@ export function BookHistory() {
                     type="button"
                     aria-expanded={!closedDays.has(day)}
                     aria-controls={`book-history-${day}`}
-                    aria-label={`${dayLabel(day)} 이력 ${closedDays.has(day) ? '펼치기' : '접기'}`}
+                    aria-label={`${longDateLabel(day)} 이력 ${closedDays.has(day) ? '펼치기' : '접기'}`}
                     className="mb-1 flex w-full items-center gap-2 border-b border-line pb-1 text-left text-[12px] font-bold"
                     onClick={() =>
                       setClosedDays((old) => {
@@ -263,11 +310,12 @@ export function BookHistory() {
                       })
                     }
                   >
-                    <span>{dayLabel(day)}</span>
+                    <span>{longDateLabel(day)}</span>
                     <small>{dayRows.length}건</small>
-                    {day === todayKst() ? <Chip size="compact">오늘</Chip> : null}
-                    <span className="ml-auto" aria-hidden>
-                      {closedDays.has(day) ? '▸' : '▾'}
+                    {/* 원문 §40 — 「오늘」 배지는 날짜 머리 오른쪽 끝 (g4 §40-5) */}
+                    <span className="ml-auto flex items-center gap-2">
+                      {day === todayKst() ? <Chip size="compact">오늘</Chip> : null}
+                      <span aria-hidden>{closedDays.has(day) ? '▸' : '▾'}</span>
                     </span>
                   </button>
                   {closedDays.has(day) ? null : (
@@ -275,11 +323,16 @@ export function BookHistory() {
                       {dayRows.map((row) => (
                         <div
                           key={row.id}
-                          className="grid grid-cols-[48px_88px_minmax(180px,1fr)_110px_minmax(120px,1fr)_90px_80px] items-center gap-2 border-l-4 border-blue px-2 py-2 text-[11px]"
+                          data-history-group={actionLook(row.action).group}
+                          className={cn(
+                            'grid grid-cols-[48px_104px_minmax(180px,1fr)_110px_minmax(120px,1fr)_90px_80px] items-center gap-2 border-l-4 px-2 py-2 text-[11px]',
+                            GROUP_STRIPE[actionLook(row.action).group],
+                          )}
                         >
                           <span className="font-bold text-fg-subtle">{row.at.slice(11, 16)}</span>
-                          <b className="text-blue">{row.actionLabel}</b>
-                          <span className="font-bold text-fg">{row.subject ?? '—'}</span>
+                          <b className={GROUP_TEXT[actionLook(row.action).group]}>{withSymbol(row.action, row.actionLabel)}</b>
+                          {/* 대상이 지워진 줄은 서버가 「지워진 배부 #23」이라 적는다 — 흐리게 (g4 §40-2) */}
+                          <span className={row.refMissing ? 'italic text-fg-subtle' : 'font-bold text-fg'}>{row.subject ?? '—'}</span>
                           <span>{row.code ? <Chip size="compact">{row.code}</Chip> : '—'}</span>
                           <span className="truncate text-fg-subtle" title={row.memo ?? undefined}>
                             {row.memo ?? '—'}
@@ -296,13 +349,13 @@ export function BookHistory() {
           )}
         </Panel>
         <aside className="space-y-3">
-          <Panel title={`활동 추이 · ${q.data?.byDay.length ?? 0}일`}>
+          <Panel title={`활동 추이 · ${trend.length}일`}>
             <div className="flex h-24 items-end gap-1">
-              {(q.data?.byDay ?? []).slice(-14).map((day) => (
+              {trend.map((day) => (
                 <div key={day.key} className="flex min-w-2 flex-1 flex-col items-center justify-end gap-1">
                   <div
                     className="w-full rounded-t bg-primary"
-                    style={{ height: `${Math.max(10, day.count * 14)}px` }}
+                    style={{ height: `${Math.max(4, Math.round((day.count / trendMax) * TREND_BAR_MAX))}px` }}
                     title={`${day.label} ${day.count}건`}
                   />
                   <small>{Number(day.key.slice(8))}</small>

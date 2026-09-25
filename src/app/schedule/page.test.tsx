@@ -12,7 +12,7 @@ import type { Meta, Occurrence } from '@/api/types';
 import { KO_DOW, dowOf, monthGrid } from '@/lib/calendar';
 
 const mocks = vi.hoisted(() => ({
-  occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(),
+  occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(), drawerWrite: vi.fn(), drawer: vi.fn(),
   download: vi.fn(), conflicts: vi.fn(), draft: vi.fn(),
   permissions: { canAdminPage: true, canCrudAll: true } as Record<string, boolean>,
   drag: null as DndContextProps | null,
@@ -48,7 +48,9 @@ vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate: mocks.write }),
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
   useMeta: mocks.meta,
-  useDrawer: () => ({ data: { approvals: { count: 0 }, notis: [] } }),
+  useDrawer: mocks.drawer,
+  // §11 To-Do 띠의 「+ 주기」 — 서랍과 같은 쓰기 훅이다
+  useDrawerWrite: () => ({ mutate: mocks.drawerWrite, isPending: false }),
   fetchConflicts: mocks.conflicts,
 }));
 vi.mock('@/lib/png-export', () => ({ downloadElementPng: mocks.download }));
@@ -57,7 +59,7 @@ import SchedulePage from './page';
 
 const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true, extra: false }],
-  subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [],
+  subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
   students: [{ id: 1, name: '선택 학생', grade: 'G10' }, { id: 2, name: '다른 학생' }],
   staff: [
     { id: 11, name: '선택 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },
@@ -81,8 +83,11 @@ beforeEach(() => {
   mocks.meta.mockReturnValue({ data: meta });
   mocks.download.mockResolvedValue(undefined);
   mocks.conflicts.mockResolvedValue([]);
+  mocks.drawer.mockReturnValue({ data: { approvals: { count: 0 }, notis: [], todos: [] } });
+  mocks.drawerWrite.mockReset();
   mocks.permissions.canAdminPage = true;
   mocks.permissions.canCrudAll = true;
+  mocks.permissions.canMoney = false;
 });
 
 it('변경 요청 deep link는 기존 chreqs 서랍 진입을 식별한다', () => {
@@ -153,7 +158,8 @@ describe('§07~§11 공용 도구줄', () => {
     expect(view.getByRole('button', { name: /다른 수업/ })).toBeTruthy();
     expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-01', to: '2026-09-01' });
 
-    fireEvent.click(view.getByRole('button', { name: '전체' }));
+    // [전체 · 현장 · 온라인] 의 「전체」 — 대상 축에도 「전체」가 있어 무리 안에서 누른다
+    fireEvent.click(within(view.getByRole('group', { name: '수업 방식' })).getByRole('button', { name: '전체' }));
     expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
     expect(view.getByRole('button', { name: /다른 수업/ })).toBeTruthy();
     expect(mocks.occurrences.mock.calls.every(([params]) => (
@@ -243,6 +249,62 @@ describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
+/**
+ * 원문 §10·§11 본문 — 「일정 추가 시 학생(강사)이 자동으로 채워집니다」.
+ * 새 일정 창은 초안을 받기만 한다. 누구를 넣을지는 **고른 개인표**가 정한다.
+ */
+describe('개인표에서 여는 새 일정 (§10·§11)', () => {
+  it.each([
+    ['학생별', /^선택 학생/, { studentIds: [1] }],
+    ['선생님별', /^선택 강사/, { teacherId: 11 }],
+  ])('%s 개인표의 빈 칸은 그 사람을 미리 넣은 초안을 연다', (viewName, personName, person) => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: viewName }));
+    fireEvent.click(view.getByRole('button', { name: personName }));
+    fireEvent.click(view.getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-03', startMin: 810, endMin: 870, roomId: null, ...person });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('개인표 빈 칸 드래그도 같은 사람을 넣는다 — 클릭과 드래그가 다른 초안을 만들지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    const rect = (top: number) => ({ top, height: 28, left: 0, right: 120, width: 120, bottom: top + 28 });
+    const create = {
+      active: { id: 'create-test', data: { current: { type: 'create', date: '2026-09-02', startMin: 600 } },
+        rect: { current: { initial: rect(200), translated: rect(284) } } },
+      over: { id: 'week-slot-test', disabled: false, rect: rect(284),
+        data: { current: { type: 'weekSlot', date: '2026-09-02', slotMin: 630 } } },
+      activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: 84 },
+    } as unknown as DragEndEvent;
+    act(() => mocks.drag!.onDragStart?.({ active: create.active, activatorEvent: create.activatorEvent }));
+    act(() => mocks.drag!.onDragEnd?.(create));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-02', startMin: 600, endMin: 660, roomId: null, teacherId: 11 });
+  });
+
+  it('전체 보기의 빈 칸은 사람을 넣지 않는다 — 고른 사람이 없는 표에서 지어내지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    fireEvent.click(view.getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-03', startMin: 810, endMin: 870, roomId: null });
+  });
+});
+
+describe('화면에 내부 코드를 적지 않는다', () => {
+  it('스케줄 머리에 개발 메모가 없고, 개인 도구줄의 설명에도 결정 번호가 없다', () => {
+    const view = render(<SchedulePage />);
+    expect(view.queryByText(/bounding range/)).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    const code = /D-R\d|N-\d{2}|§\d/;
+    expect(code.test(view.container.textContent ?? '')).toBe(false);
+    const titles = Array.from(view.container.querySelectorAll('[title]')).map((n) => n.getAttribute('title') ?? '');
+    expect(titles.filter((t) => code.test(t))).toEqual([]);
+  });
+});
+
 describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
   it.each(['주간', '월간'])('%s 날짜 클릭은 해당 날짜 일간으로 전환한다', (viewName) => {
     const view = render(<SchedulePage />);
@@ -250,7 +312,9 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
     fireEvent.click(view.getByRole('button', { name: '2026-09-02 (수) 날짜 선택' }));
 
     expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-02', to: '2026-09-02' });
-    expect(view.getByText('시각')).toBeTruthy();
+    // 일간 격자 — 원문 §07 시간 열 머리 「한국 시간」, 주간 격자는 없다
+    expect(view.getByText('한국 시간')).toBeTruthy();
+    expect(view.queryByRole('region', { name: '주간 시간표' })).toBeNull();
     expect(view.queryByRole('button', { name: '2026-09-02 (수) 날짜 선택' })).toBeNull();
     expect(mocks.write).not.toHaveBeenCalled();
   });
@@ -270,7 +334,7 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
     expect(within(left).getByText('2026년 9월')).toBeTruthy();
     expect(within(left).getByRole('button', { name: '2026-09-01 (화) 날짜 선택' })).toBeTruthy();
     expect(within(right).getByText('10/5 (월)')).toBeTruthy();
-    expect(within(right).getByText('시각')).toBeTruthy();
+    expect(within(right).getByText('한국 시간')).toBeTruthy();
     expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-10-05' });
     expect(mocks.write).not.toHaveBeenCalled();
   });
@@ -287,7 +351,8 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
     expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
     expect(view.queryByRole('button', { name: /다른 수업/ })).toBeNull();
     expect(view.getByRole('button', { name: '2026-09-02 (수) 날짜 선택' })).toBeTruthy();
-    expect(view.queryByText('시각')).toBeNull();
+    // 개인표는 일간으로 넘어가지 않고 주간 격자 그대로다
+    expect(view.getByRole('region', { name: '주간 시간표' })).toBeTruthy();
     expect(view.queryByText('사람을 고르세요')).toBeNull();
     expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-09-06' });
     expect(mocks.write).not.toHaveBeenCalled();
@@ -393,20 +458,32 @@ describe('개인 표의 기간 축 (§10·§11)', () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
-  it('원본에 있으나 여는 화면이 없는 진입 넷은 빈칸이 아니라 이유를 단 비활성 단추다', () => {
+  it('진입 넷 — 「안내」·「정산」은 있는 화면으로 가고(정산은 금액 권한일 때만), 여는 화면이 원본에 없는 둘은 이유를 단 비활성 단추다', () => {
+    mocks.permissions.canMoney = true;
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: '선생님별' }));
     fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
 
-    for (const label of ['가능 시간', '안내', '정산', '메모']) {
+    for (const label of ['가능 시간', '메모']) {
       const button = view.getByRole('button', { name: label });
       expect(button.hasAttribute('disabled')).toBe(true);
       expect(button.getAttribute('title')).toBeTruthy();
     }
+    expect(view.getByRole('link', { name: '안내' }).getAttribute('href')).toBe('/guides');
+    expect(view.getByRole('link', { name: '정산' }).getAttribute('href')).toBe('/accounting?tab=payout');
     // 학생별에는 원본에도 넷이 없다 — 모양을 맞추려고 같은 단추를 세우지 않는다
     fireEvent.click(view.getByRole('button', { name: '학생별' }));
     fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
-    expect(view.queryByRole('button', { name: '정산' })).toBeNull();
+    expect(view.queryByRole('link', { name: '정산' })).toBeNull();
+    cleanup();
+
+    // 금액을 못 보면 「정산」 자체가 서지 않는다 (D-R39 · 서버 플래그)
+    mocks.permissions.canMoney = false;
+    const noMoney = render(<SchedulePage />);
+    fireEvent.click(noMoney.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(noMoney.getByRole('button', { name: /^선택 강사/ }));
+    expect(noMoney.queryByRole('link', { name: '정산' })).toBeNull();
+    expect(noMoney.getByRole('link', { name: '안내' })).toBeTruthy();
   });
 
   it('개인 표의 기간을 바꿔도 고른 사람은 그대로다 — 축이 둘이라 서로를 지우지 않는다', () => {
@@ -720,8 +797,9 @@ describe('월간 상단 집계와 날짜 칸이 같은 것을 센다 (v2 §09 ·
   };
   const cellCount = (view: ReturnType<typeof render>, date: string): number => {
     const head = view.getByRole('button', { name: `${date} (${KO_DOW[dowOf(date)]}) 날짜 선택` }).parentElement!;
-    const badge = within(head).queryByText(/건$/);
-    return badge ? Number(badge.textContent!.replace('건', '')) : 0;
+    // 칸 머리 숫자는 원문 §09 처럼 숫자만 — 「N건」은 title 이다
+    const badge = within(head).queryByTitle(/건$/);
+    return badge ? Number(badge.textContent) : 0;
   };
 
   it('이 달 칸 건수 합 = 상단 「일정 N건」 — 흐린 앞뒤 달 칸은 그려지되 세지 않는다', () => {
@@ -731,9 +809,10 @@ describe('월간 상단 집계와 날짜 칸이 같은 것을 센다 (v2 §09 ·
     const sum = mine.reduce((total, d) => total + cellCount(view, d), 0);
 
     expect(sum).toBe(month.length);
-    expect(view.getByTitle(/이 달 1일~말일 기준/).textContent).toBe(`일정 ${sum}건`);
-    // 머리에 적힌 수도 같아야 한다 — 같은 「9월」 옆에 두 수가 붙으면 그것이 원문의 어긋남이다
-    expect(view.getByTitle(/아래 표의 「일정 N건」과 같은 수/).textContent!.trim()).toBe(`${sum}건`);
+    // 대상 줄 한 곳이 「2026년 9월 · 일정 N건」을 말한다 — 날짜·건수를 두 번 적던 줄을 하나로 모았다(원문 §07 대상 줄)
+    const target = within(view.getByRole('group', { name: '대상' }));
+    expect(target.getByTitle(/이 달 1일~말일 기준/).textContent).toBe(`일정 ${sum}건`);
+    expect(target.getByText('2026년 9월')).toBeTruthy();
 
     // 앞뒤 달 칸은 화면에 남아 있다 — 숨겨서 수를 맞춘 것이 아니다
     expect(cellCount(view, '2026-08-31')).toBe(2);
@@ -758,4 +837,181 @@ describe('월간 상단 집계와 날짜 칸이 같은 것을 센다 (v2 §09 ·
     expect(shown).toHaveLength(3);
     expect(cell.getByRole('button', { name: `+${month.filter((o) => o.date === '2026-09-01').length - shown.length}건 더` })).toBeTruthy();
   });
+});
+
+/**
+ * 원문 §07 도구줄 · 대상 줄 — 보기 축 둘([일간·주간·월간] + [전체·학생별·선생님별]) · 날짜 칸 · [일정 · 리포트] ·
+ * 「+ 빈 시간 찾기」 · 대상 줄 하나 · 블록 정원 점. 전부 이미 읽은 회차와 코드표로만 그린다(추가 GET 0).
+ */
+describe('§07 도구줄과 대상 줄 (wave 3)', () => {
+  it('대상 줄은 하나다 — 「대상 · 전체 · 전체 기준」과 오른쪽 기간 요약, 단일 표에는 「● 단일 표」 머리가 없다', () => {
+    const view = render(<SchedulePage />);
+    const target = within(view.getByRole('group', { name: '대상' }));
+    expect(target.getByText('전체')).toBeTruthy();
+    expect(target.getByText('전체 기준')).toBeTruthy();
+    expect(target.getByText('9/1 (화)')).toBeTruthy();
+    expect(target.getByTitle(/이 기간 전부/).textContent).toBe('일정 2건');
+    expect(view.queryByText(/단일 표/)).toBeNull();
+    // 요약 줄은 한 곳에만 선다 — 날짜를 세 번 적던 자리
+    expect(view.getAllByTitle(/현장 \+ 온라인/)).toHaveLength(1);
+
+    fireEvent.click(view.getByRole('button', { name: '온라인' }));
+    expect(target.getByText('필터 1개')).toBeTruthy();
+  });
+
+  it('기간 축과 대상 축은 따로 고른다 — 학생별을 고르면 대상 줄이 「학생별 · 이름」이 되고 요약은 전체 기준 그대로다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(within(view.getByRole('group', { name: '스케줄 대상' })).getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
+    const target = within(view.getByRole('group', { name: '대상' }));
+    expect(target.getByText('학생별 · 선택 학생')).toBeTruthy();
+    // 원문 §10 — 사람을 골라도 대상 줄 요약은 전체 기준(「일정 54건 …」), 그 사람의 수는 개인 머리가 말한다
+    expect(target.getByTitle(/이 기간 전부/).textContent).toBe('일정 2건');
+    expect(within(view.getByRole('group', { name: '스케줄 기간' })).getByRole('button', { name: '주간' }).getAttribute('aria-pressed')).toBe('true');
+
+    // 기간 축의 「월간」은 개인표의 기간을 바꾼다 — 대상(학생별)과 고른 사람은 그대로
+    fireEvent.click(within(view.getByRole('group', { name: '스케줄 기간' })).getByRole('button', { name: '월간' }));
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-10-04' });
+    expect(target.getByText('학생별 · 선택 학생')).toBeTruthy();
+
+    // 대상 「전체」로 돌아오면 지금 기간(월간)의 전체 표다
+    fireEvent.click(within(view.getByRole('group', { name: '스케줄 대상' })).getByRole('button', { name: '전체' }));
+    expect(target.getByText('전체')).toBeTruthy();
+    expect(view.getByText('2026년 9월', { selector: 'span' })).toBeTruthy();
+  });
+
+  it('도구줄 날짜 칸은 보기를 그대로 두고 그 날짜로 간다 — 주간이면 그 주, ‹ › 오늘도 같은 줄에 있다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    fireEvent.change(view.getByLabelText('날짜'), { target: { value: '2026-09-10' } });
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-07', to: '2026-09-13' });
+    expect(view.getByRole('region', { name: '주간 시간표' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '다음 기간' }));
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-14', to: '2026-09-20' });
+    fireEvent.click(view.getByRole('button', { name: '오늘' }));
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-09-06' });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('[일정 · 리포트] 의 「리포트」는 블록을 리포트 상태색으로 그리고 범례도 리포트 낱말로 바꾼다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '리포트' }));
+    const block = view.getByRole('button', { name: /선택된 수업/ });
+    expect(block.style.getPropertyValue('--event-color')).toBe('');
+    expect(block.className).toContain('bg-blue/10');
+    const legend = within(view.getByRole('group', { name: '시간표 범례' }));
+    expect(legend.getByText('색 = 리포트')).toBeTruthy();
+    expect(legend.getByText('미작성')).toBeTruthy();
+  });
+
+  it('블록 오른쪽 위 정원 점 — 코드표 정원(4) 중 그날 명단만큼 찬다', () => {
+    const view = render(<SchedulePage />);
+    const block = view.getByRole('button', { name: /선택된 수업/ });
+    const dots = block.querySelector('[data-cap-dots]')!;
+    expect(dots.querySelectorAll('.bg-current')).toHaveLength(1);
+    expect(dots.querySelectorAll('.border-current')).toHaveLength(3);
+    expect(block.getAttribute('title')).toContain('정원 1/4명');
+  });
+
+  it('「+ 빈 시간 찾기」는 일간 강의실 칸 중 수업이 걸치지 않은 칸만 칠하고, 다른 보기에서는 누를 수 없다', () => {
+    mocks.meta.mockReturnValue({ data: { ...meta, rooms: [{ id: 1, name: '1호', branch: '본원' }] } });
+    mocks.occurrences.mockReturnValue({ data: { items: [{ ...items[0], roomId: 1, roomName: '1호' }] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    const free = view.getByRole('button', { name: '빈 시간 찾기' });
+    expect(view.container.querySelector('[data-free]')).toBeNull();
+    fireEvent.click(free);
+    expect(free.getAttribute('aria-pressed')).toBe('true');
+    expect(view.getByRole('button', { name: '2026-09-01 09:00 강의실 1 빈 시간 선택' }).hasAttribute('data-free')).toBe(true);
+    // 11:00~12:00 수업이 걸친 칸은 비지 않았다
+    expect(view.getByRole('button', { name: '2026-09-01 11:30 강의실 1 빈 시간 선택' }).hasAttribute('data-free')).toBe(false);
+    // 온라인 · 미지정 열은 강의실이 아니라 칠하지 않는다
+    expect(view.getByRole('button', { name: '2026-09-01 09:00 강의실 미지정 빈 시간 선택' }).hasAttribute('data-free')).toBe(false);
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    expect((view.getByRole('button', { name: '빈 시간 찾기' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+});
+
+describe('§10·§11 개인표 목록 카드 · 개인 머리 · 합계 · To-Do 띠 (wave 3)', () => {
+  it('학생 목록은 어두운 머리 「학생 N명 · 눌러서 바뀝니다」, 학년순이고 줄마다 학년 · 종류 칩 · 「N회 · N.Nh」', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const list = within(view.getByRole('region', { name: '학생 목록' }));
+    expect(list.getByText('학생 2명')).toBeTruthy();
+    expect(list.getByText('눌러서 바뀝니다')).toBeTruthy();
+    const rows = list.getAllByRole('button');
+    // G10 이 있는 학생이 학년 모르는 학생보다 앞이다 (원문 §10 학년순)
+    expect(rows[0].textContent).toContain('선택 학생');
+    expect(rows[0].textContent).toContain('G10');
+    expect(rows[0].textContent).toContain('수업 1');
+    expect(rows[0].textContent).toContain('1회 · 1.0h');
+  });
+
+  it('개인 머리 — 이름 · 학년 칩 · 「수업 N · 시간 N.N」 · 크게 · PNG, 주간 격자는 어두운 머리와 바닥 「합계」 줄', async () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
+    const table = view.container.querySelector<HTMLElement>('[data-person-table]')!;
+    const text = (table.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('수업 1 · 시간 1.0');
+    expect(within(table).getByRole('button', { name: '크게' })).toBeTruthy();
+    expect(within(table).getByRole('row', { name: '합계' })).toBeTruthy();
+    // 개인표 블록 세 줄 — 과목 / 시간대 / (학생별이면) 강사
+    expect(within(table).getByRole('button', { name: /선택된 수업/ }).textContent).toContain('11:00 –12:00');
+    await act(async () => fireEvent.click(within(table).getByRole('button', { name: '개인 표를 PNG로 저장' })));
+    expect(mocks.download).toHaveBeenCalledWith(table, '2026-09-01-student-1-schedule.png');
+  });
+
+  it('선생님별 — 종류별 칩 「수업 1건 · 1.0h」, 미제출 리포트는 목록 줄에 빨간 「리포트 N」', () => {
+    const late = { ...items[0], ended: true, repState: 'none' as const, written: false };
+    mocks.occurrences.mockReturnValue({ data: { items: [late, items[1]] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    const row = view.getByRole('button', { name: /^선택 강사/ });
+    expect(row.textContent).toContain('리포트 1');
+    fireEvent.click(row);
+    expect(view.getByText('수업 1건 · 1.0h')).toBeTruthy();
+  });
+
+  it('To-Do 띠는 서랍이 읽은 할 일 중 그 강사가 이 기간에 받은 것만 그리고, 「+ 주기」는 받는 사람을 그 강사로 채운 창을 연다', () => {
+    mocks.drawer.mockReturnValue({ data: { approvals: { count: 0 }, notis: [], todos: [
+      { id: 1, title: '교재 확인', toId: 11, dueOn: '2026-09-02', done: false, src: 'manual', srcLabel: '직접', overdueDays: 0 },
+      { id: 2, title: '다른 강사 일', toId: 22, dueOn: '2026-09-02', done: false, src: 'manual', srcLabel: '직접', overdueDays: 0 },
+      { id: 3, title: '다음 달 일', toId: 11, dueOn: '2026-10-20', done: false, src: 'manual', srcLabel: '직접', overdueDays: 0 },
+    ] } });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    const strip = within(view.getByRole('group', { name: '받은 할 일' }));
+    expect(strip.getByText('To-Do Tasks')).toBeTruthy();
+    expect(strip.getByText('교재 확인 · 09-02')).toBeTruthy();
+    expect(strip.queryByText(/다른 강사 일/)).toBeNull();
+    expect(strip.queryByText(/다음 달 일/)).toBeNull();
+
+    fireEvent.click(strip.getByRole('button', { name: '+ 주기' }));
+    const dialog = within(view.getByRole('dialog', { name: '할 일 만들기' }));
+    expect((dialog.getByLabelText('담당자') as HTMLSelectElement).value).toBe('11');
+    fireEvent.change(dialog.getByLabelText('할 일'), { target: { value: '모의고사 채점' } });
+    fireEvent.click(dialog.getByRole('button', { name: '만들기' }));
+    expect(mocks.drawerWrite).toHaveBeenCalledWith(
+      { kind: 'todoCreate', body: { title: '모의고사 채점', toId: 11, dueOn: '2026-09-01' } },
+      expect.any(Object),
+    );
+  });
+
+  it('받은 일이 없으면 「이 기간에 받은 일이 없습니다」라 적는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    expect(within(view.getByRole('group', { name: '받은 할 일' })).getByText('이 기간에 받은 일이 없습니다')).toBeTruthy();
+  });
+});
+
+it('학생별로 들어오면 목록 첫 사람(학년순)이 골라진 채 표가 보인다 — 빈 「사람을 고르세요」 화면에서 멈추지 않는다 (원문 §10)', () => {
+  const view = render(<SchedulePage />);
+  fireEvent.click(view.getByRole('button', { name: '학생별' }));
+  expect(view.queryByText('사람을 고르세요')).toBeNull();
+  expect(within(view.getByRole('group', { name: '대상' })).getByText('학생별 · 선택 학생')).toBeTruthy();
+  expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
+  expect(view.queryByRole('button', { name: /다른 수업/ })).toBeNull();
 });

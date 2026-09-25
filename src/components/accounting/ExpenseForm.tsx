@@ -115,7 +115,7 @@ export function ExpenseCreateButton({ categories, onDone }: ExpenseCreateButtonP
             <Input id={`${id}-purpose`} value={purpose} maxLength={300} onChange={(e) => setPurpose(e.target.value)} disabled={pending} placeholder="예: 화이트보드 마커" />
           </div>
           <div>
-            <Label htmlFor={`${id}-receipt`} hint="없으면 승인되지 않습니다 (A-4)">영수증</Label>
+            <Label htmlFor={`${id}-receipt`} hint="없으면 승인되지 않습니다">영수증</Label>
             <input
               id={`${id}-receipt`} type="file" accept="image/*,.pdf" disabled={pending}
               className="block w-full text-[12px] text-fg-2 file:mr-2 file:rounded-md file:border file:border-line file:bg-card file:px-2 file:py-1 file:text-[12px]"
@@ -123,8 +123,8 @@ export function ExpenseCreateButton({ categories, onDone }: ExpenseCreateButtonP
             />
           </div>
           <p className="text-[11px] text-fg-subtle">
-            올리면 <b>심사 대기</b>로 들어갑니다 — 확정 금액은 대표가 심사에서 넣고, 신청 금액은 그 칸의 안내일 뿐입니다 (A-1).
-            본인이 올린 신청은 본인이 심사할 수 없습니다 (A-5).
+            올리면 <b>심사 대기</b>로 들어갑니다 — 확정 금액은 대표가 심사에서 넣고, 신청 금액은 그 칸의 안내일 뿐입니다.
+            본인이 올린 신청은 본인이 심사할 수 없습니다.
           </p>
           {err ? <Banner tone="danger">{err}</Banner> : null}
         </div>

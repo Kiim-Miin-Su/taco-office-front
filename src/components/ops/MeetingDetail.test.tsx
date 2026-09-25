@@ -3,19 +3,22 @@
  * 책임/재사용: 실제 MeetingDetail 을 쓰고 질의·쓰기 훅만 어댑터로 갈아 끼운다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { MeetingDetail as MeetingDetailDto, StaffBrief } from '@/api/types';
 
-const { state, save, assign } = vi.hoisted(() => ({
+const { state, save, assign, todo } = vi.hoisted(() => ({
   state: { data: undefined as MeetingDetailDto | undefined, isLoading: false, isError: false, error: null },
   save: vi.fn(),
   assign: vi.fn(),
+  todo: vi.fn(),
 }));
 vi.mock('@/api/queries', () => ({
   useMeetingDetail: () => state,
   useWriteMinutes: () => ({ mutate: save, isPending: false, isError: false, error: null }),
   useAssignMeetingTask: () => ({ mutate: assign, isPending: false, isError: false, error: null }),
+  // ③ 할 일 체크는 서랍·운영 할 일과 같은 쓰기다 (w5)
+  useDrawerWrite: () => ({ mutate: todo, isPending: false, isError: false, error: null }),
 }));
 
 const { MeetingDetail } = await import('./MeetingDetail');
@@ -26,6 +29,8 @@ const staff: StaffBrief[] = [
 
 const base: MeetingDetailDto = {
   id: 4, mtType: 'general', mtTypeLabel: '일반 회의', title: '주간 운영 회의', onDate: '2026-08-20',
+  // w5 · 66-2 — 이어진 회차의 시각·자리 (§63 줄과 같은 값)
+  startMin: 1110, endMin: 1170, placeLabel: '6호',
   attendees: [
     { staffId: 2, name: '김민수', title: '관리자', state: 'waiting', stateLabel: '응답 대기' },
     { staffId: 3, name: '김범준', title: null, state: 'in', stateLabel: '참석' },
@@ -122,4 +127,57 @@ it('사전 자료가 없으면 빈 상태를 보인다', () => {
   const v = setup({ ...base, preFiles: [] });
   fireEvent.click(v.getByRole('button', { name: /① 사전 자료/ }));
   expect(v.getByText('사전 자료가 없습니다')).toBeTruthy();
+});
+
+/* ── 원문 §66 — 가운데 큰 창 (66-1) ─────────────────────────────────── */
+
+it('회의 상세는 오른쪽 서랍이 아니라 가운데 큰 창이다 — 머리 × 와 원문 §66 바닥 「닫기」 (66-1 · w5 재대조)', () => {
+  const v = setup(base);
+  // 머리는 회의 **종류**다 — 원문 §66 「일반 회의」 (66-2)
+  const dialog = v.getByRole('dialog', { name: '일반 회의' });
+  expect(dialog.tagName).toBe('DIV');
+  expect(dialog.style.maxWidth).toBe('1480px');
+  // 닫는 자리 둘 — 머리의 × 와, 원문 §66 컷 바닥 「닫기」(§65 컷에는 없고 §66 컷에는 있다 · D-R44)
+  const closes = within(dialog).getAllByRole('button', { name: '닫기' });
+  expect(closes.map((b) => b.textContent)).toEqual(['×', '닫기']);
+  // 바닥 줄 — 일정 보기 · 닫기 · 속기록 저장
+  expect(within(dialog).getByRole('button', { name: '속기록 저장' })).toBeTruthy();
+  expect(within(dialog).getByRole('link', { name: '일정 보기' })).toBeTruthy();
+});
+
+/* ── w5 · 원문 §66 재대조 (66-2 · 66-4 · 66-5 · 66-6 · ③ 체크박스) ───────────── */
+
+it('머리 = 종류 + 날짜 칩, 부제 = 시각 · 참석자 · 자리 — 시각·자리는 서버 값이다 (66-2)', () => {
+  const v = setup(base);
+  expect(v.getByText('8월 20일 목요일')).toBeTruthy();
+  expect(v.getByText('주간 운영 회의 · 18:30–19:30 · 김민수, 김범준, 정은채 · 6호')).toBeTruthy();
+});
+
+it('옛 회의(이어진 회차 없음)는 시각·자리를 지어내지 않고 부제에서 뺀다 (N-25)', () => {
+  const v = setup({ ...base, title: null, startMin: null, endMin: null, placeLabel: null });
+  expect(v.getByText('김민수, 김범준, 정은채')).toBeTruthy();
+});
+
+it('참석 줄에는 직함이 없고 이름 바로 뒤에 상태 칩이 선다 (66-6)', () => {
+  const v = setup(base);
+  expect(v.queryByText('관리자')).toBeNull();
+  const name = v.getByText('김민수');
+  expect(name.nextElementSibling?.textContent).toBe('응답 대기');
+});
+
+it('「속기록 *」 필수 표시 · 「일정 보기」는 그 날의 시간표로 간다 (66-4 · 66-5)', () => {
+  const v = setup(base);
+  expect(v.getByText('*')).toBeTruthy();
+  expect(v.getByRole('link', { name: '일정 보기' }).getAttribute('href')).toBe('/schedule?date=2026-08-20');
+});
+
+it('③ 할 일 줄은 체크박스다 — 누르면 할 일 완료 경로(서랍과 같은 쓰기)로 보낸다 (1차 물결 남김)', async () => {
+  const v = setup(base);
+  fireEvent.click(v.getByRole('button', { name: /③ 할 일/ }));
+  const open = v.getByRole('checkbox', { name: '단가 시뮬레이션 완료' }) as HTMLInputElement;
+  expect(open.checked).toBe(false);
+  expect((v.getByRole('checkbox', { name: '끝낸 것 완료' }) as HTMLInputElement).checked).toBe(true);
+  expect(v.queryByText('☐')).toBeNull();
+  fireEvent.click(open);
+  await waitFor(() => expect(todo).toHaveBeenCalledWith({ kind: 'todo', id: 9, done: true }, expect.anything()));
 });

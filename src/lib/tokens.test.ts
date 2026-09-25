@@ -16,7 +16,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Button, type ButtonVariant } from '@/components/ui/Button';
-import { Chip, type ChipStyle, type Tone } from '@/components/ui/Chip';
+import { Chip, type ChipStyle, type ChipTone } from '@/components/ui/Chip';
 import { Tabs } from '@/components/ui/Segmented';
 import { KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, subjectColor, subVar, type CalendarCodeLookup } from './tokens';
 
@@ -59,7 +59,7 @@ const classNames = (markup: string) => {
 };
 const renderedContrast = (markup: string, colors: Colors, surface: number[], hover = false) => {
   const classes = classNames(markup);
-  const foreground = classes.find((name) => /^text-(white|fg(?:-2|-subtle)?|primary|blue|red|green|amber|violet)$/.test(name));
+  const foreground = classes.find((name) => /^text-(white|fg(?:-2|-subtle)?|primary|blue|red|green|amber|violet|teal|orange|pink)$/.test(name));
   if (!foreground) throw new Error('측정할 글자색 없음');
   const hoverBackground = hover ? classes.find((name) => name.startsWith('hover:bg-'))?.slice(6) : undefined;
   const background = hoverBackground ?? classes.find((name) => name.startsWith('bg-'));
@@ -88,8 +88,9 @@ const surfaces = (colors: Colors): Array<[string, number[]]> => [
   ['blue/5 on bg', composite(rgb(colors, 'blue'), rgb(colors, 'bg'), 0.05)],
 ];
 const buttonVariants: ButtonVariant[] = ['primary', 'dark', 'secondary', 'danger', 'success', 'ghost'];
-const chipTones: Tone[] = ['neutral', 'info', 'success', 'warning', 'danger', 'purple'];
-const chipStyles: ChipStyle[] = ['outline', 'soft', 'solid'];
+// 청록·주황(원문 단계·분류 색)도 같은 4.5:1 경계를 지난다 — 점 모양은 바탕 없이 글자만이라 표준 바탕에서 잰다
+const chipTones: ChipTone[] = ['neutral', 'info', 'success', 'warning', 'danger', 'purple', 'teal', 'orange'];
+const chipStyles: ChipStyle[] = ['outline', 'soft', 'solid', 'dot'];
 
 describe('공용 Button/Chip 작은 글자 대비 — 표준 바탕과 5% 알림 바탕', () => {
   it('측정식의 흑백 기준과 4.50 반올림 오판을 검증한다', () => {
@@ -142,6 +143,15 @@ describe('관리자 §85 색상 계열·접근성 교정과 강사 테마 경계
     fg: '#2A2320', 'fg-subtle': '#615650', line: '#E3D9D3', bg: '#F6F3F1',
   }))('기본 --%s는 최신 접근성 교정값 %s다', (name, color) => {
     expect(declarations(root)[name]).toBe(color);
+  });
+
+  it('청록·주황·분홍은 컷 색상 계열을 명도만 낮춘 한 벌이다 — 수업 종류 색을 빌리지 않는다', () => {
+    expect(declarations(root)).toMatchObject({ teal: '#066A82', orange: '#A83F09', pink: '#B61E62' });
+    // 옅은 10% 바탕(칩 soft · 머리 칸 채움)에서도 작은 글자 4.5:1 — 분홍은 칩 톤이 아니라 따로 잰다
+    const colors = declarations(root);
+    for (const [, surface] of surfaces(colors)) {
+      expect(contrast(rgb(colors, 'pink'), composite(rgb(colors, 'pink'), surface, 0.1))).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('원본에 별도 값이 없는 중간 단계는 의미 토큰을 재사용한다', () => {
@@ -228,7 +238,7 @@ describe('Tailwind 는 읽기만 한다', () => {
   });
 
   it('상태 색 CSS 변수에 Tailwind 투명도가 적용된다', () => {
-    ['blue', 'red', 'green', 'amber', 'violet'].forEach((name) =>
+    ['blue', 'red', 'green', 'amber', 'violet', 'teal', 'orange', 'pink'].forEach((name) =>
       expect(tw).toContain(`withAlpha('${name}')`),
     );
     expect(tw).toContain('rgb(from ${v(name)} r g b / <alpha-value>)');

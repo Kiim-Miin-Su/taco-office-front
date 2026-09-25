@@ -14,9 +14,9 @@
  * 없다고 줄이 사라지면 화면이 「이 학원은 진단고사를 안 한다」고 말하는 셈이 된다.
  *
  * ── 빛깔 ─────────────────────────────────────────────────────────────────
- * 컷의 점은 분홍 · 청록 · 주황이고 **우리 아홉 토큰에 그 셋이 없다**(§85). 값을 새로 적으면
- * 토큰이 두 벌이 되므로(D-R41) 뜻이 가장 가까운 토큰에 맞췄다 — 컨설팅은 보라(토큰 설명이
- * 「컨설팅 · GPA」다) · 진단고사는 초록 · 응시료는 주황. **값은 여전히 토큰에서만 온다.**
+ * 컷의 점은 분홍 · 청록 · 주황이고 §55 분류 칩의 색 사각형과 **같은 빛깔**이다(57-02).
+ * 그래서 두 화면이 `category-tone.ts` 한 벌을 쓴다 — 컨설팅 분홍 · 진단고사 청록 · 응시료 주황 계열.
+ * 전에는 기본 아홉 토큰 안에서 보라 · 초록 · 황토로 골라 두어 §55 와 색이 갈렸다. **값은 여전히 토큰에서만 온다.**
  *
  * ── 「일별 · 주별 · 월별」 ────────────────────────────────────────────────
  * 대표 결정 2026-09-13 (N-40): 「**일/주/월 + 유저 선택 시 날짜별 → 서브 그룹**」.
@@ -29,6 +29,7 @@ import { useState } from 'react';
 import type { OtherIncome as OtherIncomeData, OtherIncomeRow } from '@/api/types';
 import { Banner, Chip, Panel, Segmented, cn } from '@/components/ui';
 import { won } from '@/lib/money';
+import { categoryTone } from './category-tone';
 
 export interface OtherIncomeProps {
   data?: OtherIncomeData;
@@ -45,17 +46,10 @@ const SPANS = [
   { value: 'month', label: '월별' },
 ];
 
-/** 종류마다의 빛깔 — 값이 아니라 **토큰 이름**이다 (위 주석) */
-const TONE: Record<string, { bar: string; dot: string }> = {
-  consulting: { bar: 'bg-violet', dot: 'bg-violet' },
-  diag_intake: { bar: 'bg-green', dot: 'bg-green' },
-  exam_fee: { bar: 'bg-amber', dot: 'bg-amber' },
-};
-const FALLBACK = { bar: 'bg-line-2', dot: 'bg-fg-subtle' };
-
 function Row({ row }: { row: OtherIncomeRow }) {
   const [open, setOpen] = useState(false);
-  const tone = TONE[row.key] ?? FALLBACK;
+  // 종류마다의 빛깔 — §55 분류 칩과 같은 한 벌 (위 주석). 띠와 점이 같은 색이다
+  const tone = { bar: categoryTone(row.key), dot: categoryTone(row.key) };
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-card">
       <button

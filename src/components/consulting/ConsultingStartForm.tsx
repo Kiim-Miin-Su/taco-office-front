@@ -7,9 +7,13 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import type { ConsultingCreate, Meta } from '@/api/types';
+import type { components } from '@/api/schema';
 import { apiMessage } from '@/api/client';
-import { Banner, Button, Input, Label, Segmented, Select } from '@/components/ui';
+import { Banner, Button, Input, Label, Select, cn } from '@/components/ui';
 import { CONSULTING_SHARES, CONSULTING_TYPES } from '@/lib/consulting';
+import { won } from '@/lib/money';
+
+type ShareWord = components['schemas']['ConsultingShareWordDto'];
 
 type Requester = ConsultingCreate['requester'];
 type Share = ConsultingCreate['share'];
@@ -23,20 +27,36 @@ const REQUESTERS: Array<{ value: Requester; label: string }> = [
  * 공개 범위 고르개 — **「비공개」는 대표만 고를 수 있다**(§76 · S4).
  * 서버가 `canSetPrivate` 로 말하고 화면은 그 값으로 칸을 뺀다. 화면이 역할을 다시 보지 않는다(D-R39).
  */
-function shareOptions(canSetPrivate: boolean): Array<{ value: Share; label: string }> {
+function shareOptions(canSetPrivate: boolean, words?: readonly ShareWord[]): Array<{ value: Share; label: string; meaning: string | null }> {
   return (Object.entries(CONSULTING_SHARES) as Array<[Share, { label: string }]>)
     .filter(([value]) => value !== 'private' || canSetPrivate)
-    .map(([value, item]) => ({ value, label: item.label }));
+    // 이름·뜻은 서버 낱말이 있으면 그것(D-R18) — 없을 때만 예전 표의 이름
+    .map(([value, item]) => {
+      const w = words?.find((x) => x.key === value);
+      return { value, label: w?.label ?? item.label, meaning: w?.meaning ?? null };
+    });
+}
+
+/** 칩 단추 — 종류 칩과 같은 모양(원본 §29 「누가 요청」 · 「누가 볼 수 있나」). 고른 것의 채움 색만 자리마다 다르다 */
+function ChoiceChip({ on, onClick, onClass, children }: { on: boolean; onClick: () => void; onClass: string; children: string }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick}
+      className={cn('rounded-lg border px-3 py-1.5 text-[12px] font-bold transition-colors', on ? onClass : 'border-line bg-card text-fg hover:border-fg-subtle')}>
+      {children}
+    </button>
+  );
 }
 
 function toggleId(values: number[], id: number): number[] {
   return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
 
-export function ConsultingStartForm({ meta, canSetPrivate, pending, error, onCancel, onSubmit }: {
+export function ConsultingStartForm({ meta, canSetPrivate, shareWords, pending, error, onCancel, onSubmit }: {
   meta: Meta;
   /** 서버 `ConsultingListDto.canSetPrivate` — 「비공개」 칸이 서는가 (§76 대표 전용 · S4) */
   canSetPrivate: boolean;
+  /** 서버 `ConsultingListDto.shares` — 공개 범위 이름과 뜻 한 줄(29-06) */
+  shareWords?: readonly ShareWord[];
   pending: boolean;
   error?: unknown;
   onCancel: () => void;
@@ -131,10 +151,15 @@ export function ConsultingStartForm({ meta, canSetPrivate, pending, error, onCan
             </div>
           </div>
         </fieldset>
-        <div>
-          <Label>누가 요청 *</Label>
-          <Segmented className="w-full" options={REQUESTERS} value={requester} onChange={setRequester} />
-        </div>
+        {/* 원본 §29 「누가 요청」은 필수 표시 없는 칩 둘이다 — 고른 것은 강조 테두리 (29-03) */}
+        <fieldset>
+          <legend className="mb-1 text-[11px] font-bold text-fg-subtle">누가 요청</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {REQUESTERS.map((r) => (
+              <ChoiceChip key={r.value} on={requester === r.value} onClick={() => setRequester(r.value)} onClass="border-primary bg-primary/10 text-primary">{r.label}</ChoiceChip>
+            ))}
+          </div>
+        </fieldset>
         <div>
           <Label htmlFor="consulting-owner">담당 *</Label>
           <Select id="consulting-owner" value={ownerId} onChange={(event) => setOwnerId(Number(event.currentTarget.value))} required>
@@ -144,16 +169,25 @@ export function ConsultingStartForm({ meta, canSetPrivate, pending, error, onCan
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 원본 §29 — 금액 · 회차 · 시작이 한 줄, 종료는 다음 줄이고 라벨 오른쪽에 빨간 「꼭」 (29-04) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div><Label htmlFor="consulting-amount">금액 *</Label><Input id="consulting-amount" inputMode="numeric" min={1} step={1} type="number" value={amount} onChange={(event) => setAmount(event.currentTarget.value)} required /></div>
         <div><Label htmlFor="consulting-sessions">회차 *</Label><Input id="consulting-sessions" inputMode="numeric" min={1} step={1} type="number" value={sessions} onChange={(event) => setSessions(event.currentTarget.value)} required /></div>
         <div><Label htmlFor="consulting-start">시작 *</Label><Input id="consulting-start" type="date" value={startOn} onChange={(event) => setStartOn(event.currentTarget.value)} required /></div>
-        <div><Label htmlFor="consulting-end">종료 *</Label><Input id="consulting-end" type="date" min={startOn || undefined} value={endOn} onChange={(event) => setEndOn(event.currentTarget.value)} required /></div>
+        <div><Label htmlFor="consulting-end" hint={<b className="text-red">꼭</b>}>종료 *</Label><Input id="consulting-end" type="date" min={startOn || undefined} value={endOn} onChange={(event) => setEndOn(event.currentTarget.value)} required /></div>
       </div>
 
       <fieldset>
         <legend className="mb-2 text-[12px] font-bold text-fg">누가 볼 수 있나 *</legend>
-        <Segmented className="max-w-full flex-wrap" options={shareOptions(canSetPrivate)} value={share} onChange={setShare} />
+        {/* 고른 칩은 초록 채움 · 아래에 그 뜻 한 줄(서버 낱말 · 29-06) */}
+        <div className="flex flex-wrap gap-1.5">
+          {shareOptions(canSetPrivate, shareWords).map((o) => (
+            <ChoiceChip key={o.value} on={share === o.value} onClick={() => setShare(o.value)} onClass="border-green bg-green text-white">{o.label}</ChoiceChip>
+          ))}
+        </div>
+        {shareOptions(canSetPrivate, shareWords).find((o) => o.value === share)?.meaning ? (
+          <p className="mt-1.5 text-[11.5px] text-fg-2">{shareOptions(canSetPrivate, shareWords).find((o) => o.value === share)?.meaning}</p>
+        ) : null}
         {share === 'picked' ? (
           <div className="mt-3 flex flex-wrap gap-1.5 rounded-lg border border-line p-2">
             {owners.map((staff) => {
@@ -165,12 +199,19 @@ export function ConsultingStartForm({ meta, canSetPrivate, pending, error, onCan
         ) : null}
       </fieldset>
 
-      <Banner tone="neutral">
-        시작하면 계약서 → 피드백 → 전달 → 서명 → 수납 순으로 진행합니다. 유형별 기본 항목과 현재 단계는 서버가 정합니다.
-      </Banner>
+      {/* 원본 §29 「시작하면」 초록 상자 세 줄 (29-07) — 금액은 입력한 값 그대로 */}
+      <section aria-label="시작하면" className="rounded-lg border border-green/30 bg-green/5 p-3">
+        <h3 className="mb-1.5 text-[12.5px] font-bold text-green">시작하면</h3>
+        <ul className="list-disc space-y-1 pl-4 text-[12px] text-fg">
+          <li>계약 단계로 들어갑니다 · 계약서 → 피드백 → 전달 → 서명 → 수납</li>
+          <li>{Number(amount) > 0 ? `회계에 ${won(Number(amount))}으로 잡힙니다` : '금액을 넣으면 회계에 잡힙니다'}</li>
+          <li>회차를 넣으면 스케줄에 컨설팅으로 들어갑니다</li>
+        </ul>
+      </section>
       {issue ? <Banner tone="danger">{issue}</Banner> : null}
       {error ? <Banner tone="danger">{apiMessage(error)}</Banner> : null}
-      <div className="flex justify-end gap-2 border-t border-line pt-4">
+      {/* 바닥 — 「취소」 왼쪽 · 「시작하기」 오른쪽 (29-08) */}
+      <div className="flex justify-between gap-2 border-t border-line pt-4">
         <Button onClick={onCancel}>취소</Button>
         <Button data-dialog-autofocus variant="primary" type="submit" disabled={pending}>{pending ? '시작 중…' : '시작하기'}</Button>
       </div>

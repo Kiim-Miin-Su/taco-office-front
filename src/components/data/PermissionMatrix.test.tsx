@@ -31,3 +31,14 @@ it('인증 정보가 없으면 모든 기능을 잠그고 강사 출결을 읽�
   expect(view.queryByText('✓ 가능')).toBeNull();
   expect(view.getByText(/자기 수업 출결을 조회만/)).toBeTruthy();
 });
+
+/* g2 대조 76-2 — 원문 「무엇인가 · 누가 · 지금」 은 가운데 정렬, 「누가」 칩은 색 채움이다 (칩 **낱말**은 의도적 차이 — 권한 깃발 이름) */
+it('무엇인가 · 누가 · 지금은 가운데 정렬이고 누가 칩은 색을 채운다', () => {
+  const view = render(<PermissionMatrix me={manager} />);
+  const heads = view.getAllByRole('columnheader');
+  expect(heads.map((h) => h.className.includes('text-center'))).toEqual([false, true, true, true]);
+  const row = view.getByText('입금 처리').closest('tr')!;
+  const cells = within(row).getAllByRole('cell');
+  expect(cells.slice(1).every((c) => c.className.includes('text-center'))).toBe(true);
+  expect(within(row).getByText('매니저 이상').className).toContain('text-white');
+});

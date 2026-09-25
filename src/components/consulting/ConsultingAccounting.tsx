@@ -24,6 +24,9 @@ import {
 import { CONSULTING_STAGE_BY_KEY, consultingTypeLabel } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
 
+/** 단계 글자색 — 점 색과 같은 토큰(계약 파랑 · 진행 보라 · 종료 초록) */
+const STAGE_TEXT: Record<string, string> = { info: 'text-blue', purple: 'text-violet', success: 'text-green', neutral: 'text-fg-2' };
+
 export interface ConsultingAccountingProps {
   data?: ConsAccounting;
   loading?: boolean;
@@ -67,8 +70,15 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
     },
     {
       key: 'st', head: '단계', width: 80,
-      // 낱말은 서버가 만든다 (D-R18) — 색만 토큰에서 고른다 (D-R41)
-      cell: (r) => <Chip tone={CONSULTING_STAGE_BY_KEY[r.stage]?.tone ?? 'neutral'}>{r.stageLabel}</Chip>,
+      // 낱말은 서버가 만든다 (D-R18) — 색만 토큰에서 고른다 (D-R41). 원본 §28 은 알약이 아니라 **점 + 색 글자**다 (28-03)
+      cell: (r) => {
+        const look = CONSULTING_STAGE_BY_KEY[r.stage];
+        return (
+          <span className={`inline-flex items-center gap-1.5 text-[12px] font-bold ${STAGE_TEXT[look?.tone ?? 'neutral'] ?? 'text-fg-2'}`}>
+            <span aria-hidden className={`h-2 w-2 rounded-sm ${look?.markerClass ?? 'bg-line-2'}`} />{r.stageLabel}
+          </span>
+        );
+      },
     },
     {
       key: 'a', head: '계약', width: 110, align: 'right',
@@ -79,10 +89,11 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
     { key: 'p', head: '받음', width: 110, align: 'right', cell: (r) => won(r.paid) },
     {
       key: 'd', head: '남음', width: 110, align: 'right',
-      cell: (r) => <span className="font-bold text-amber">{won(r.due)}</span>,
+      // 원본 §28 「남음」은 빨강 글자다 (28-04)
+      cell: (r) => <span className="font-bold text-red">{won(r.due)}</span>,
     },
     {
-      key: 'h', head: '납부 기록',
+      key: 'h', head: '납부 기록', align: 'center',
       cell: (r) => (r.payments.length === 0
         ? <span className="text-fg-subtle">—</span>
         : (
@@ -123,10 +134,11 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="계약 금액" value={won(data?.totalAmount)} />
         <StatCard label="받은 돈" value={won(data?.totalPaid)} tone="success" />
-        <StatCard label="남은 돈" value={won(data?.totalDue)} tone="warning" note="서버가 뺀 값입니다" />
+        <StatCard label="남은 돈" value={won(data?.totalDue)} tone="warning" />
       </div>
 
-      <Panel title="계약별 수납">
+      {/* 원본 §28 은 타일 바로 아래 제목 없는 표다 (28-02) */}
+      <Panel>
         <Table
           columns={cols}
           rows={rows}

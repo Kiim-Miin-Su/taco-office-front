@@ -41,8 +41,9 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function setup({ delivered = false, canReceive = false, focusPackId = null }: {
+function setup({ delivered = false, canReceive = false, focusPackId = null, deliveredAt = null, receivedAt = null }: {
   delivered?: boolean; canReceive?: boolean; focusPackId?: number | null;
+  deliveredAt?: string | null; receivedAt?: string | null;
 } = {}) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
@@ -63,6 +64,10 @@ function setup({ delivered = false, canReceive = false, focusPackId = null }: {
                 title: 'SAT 9월 대비',
                 memo: '반드시 확인',
                 effectiveOn: '2026-09-20',
+                deliveredAt,
+                receivedAt,
+                deliveredByName: deliveredAt ? '강민지' : null,
+                receivedByName: receivedAt ? '김범준' : null,
                 coordinatorId: 3,
                 coordinatorName: '김범준',
                 students: [{ id: 10, name: '고은성', grade: 'G12' }],
@@ -73,7 +78,7 @@ function setup({ delivered = false, canReceive = false, focusPackId = null }: {
               },
             ],
             types: [{ key: 'exam', label: '시험 대비 자료', count: 1 }],
-            coordinators: [{ key: '3', label: '김범준', count: 1 }],
+            coordinators: [{ key: '3', label: '김범준', count: 1, unreceived: delivered && !receivedAt ? 1 : 0 }],
           }
         : config.url === '/books'
           ? {
@@ -182,4 +187,23 @@ it('수령 확인은 서버가 지정 코디네이터로 판정한 사용자에�
 
   const coordinator = setup({ delivered: true, canReceive: true });
   await waitFor(() => expect(coordinator.getByRole('button', { name: 'SAT 9월 대비 수령 확인' })).toBeTruthy());
+});
+
+it('전달·수령 시각은 ISO 원문이 아니라 KST 날짜·시각으로 적는다 (§41)', async () => {
+  const view = setup({ delivered: true, deliveredAt: '2026-09-17T19:00:00+09:00', receivedAt: '2026-09-18T01:20:00Z' });
+  await waitFor(() => expect(view.getByText('SAT 9월 대비')).toBeTruthy());
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('전달 2026-09-17 19:00');
+  expect(text).toContain('수령 2026-09-18 10:20');
+  expect(text).not.toContain('T19:00:00');
+  expect(text).not.toContain('+09:00');
+});
+
+/** §41-2 · §41-5 — 전달 뒤에 전달한 사람, 코디네이터 레일에 미확인 수 (원문 「Sophia 2건 미확인 1」) */
+it('전달한 사람 이름과 코디네이터별 미확인 수를 서버 값 그대로 적는다 (§41)', async () => {
+  const view = setup({ delivered: true, deliveredAt: '2026-09-17T19:00:00+09:00' });
+  await waitFor(() => expect(view.getByText('SAT 9월 대비')).toBeTruthy());
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('전달 2026-09-17 19:00 · 강민지');
+  expect(view.getByText('미확인 1')).toBeTruthy();
 });

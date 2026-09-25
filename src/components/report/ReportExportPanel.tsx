@@ -10,13 +10,22 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ReportDetail } from '@/api/types';
 import { copyReportText, downloadReportPng, reportExportContent } from '@/lib/report-export';
+import { subjectColor } from '@/lib/tokens';
+
+/** 코드표 없이 부른다 — 알려진 21과목은 토큰 색, 모르는 과목은 기본 파랑(ReportPreview) */
+const NO_SUB_CODES = new Map<string, never>();
 import { Banner, Button, Label, Select } from '../ui';
 import { ReportDeliveryHistory } from './ReportDeliveryHistory';
 import { ReportPreview } from './ReportForm';
 
 type ExportMessage = { tone: 'success' | 'danger'; text: string };
 
-export function ReportExportPanel({ detail, initialStudentId }: { detail: ReportDetail; initialStudentId?: number }) {
+export function ReportExportPanel({ detail, initialStudentId, showHistory = true }: {
+  detail: ReportDetail;
+  initialStudentId?: number;
+  /** §50 「리포트 전문」 창은 학부모 문서와 단추만 싣는다 — 내보내기 이력은 상세 서랍에서 본다 */
+  showHistory?: boolean;
+}) {
   const initial = detail.exportFiles.some((file) => file.studentId === initialStudentId)
     ? initialStudentId!
     : detail.exportFiles[0]?.studentId ?? 0;
@@ -85,14 +94,16 @@ export function ReportExportPanel({ detail, initialStudentId }: { detail: Report
         </div>
       ) : null}
 
-      <ReportPreview ref={previewRef} {...selected.content} />
+      {/* 과목색은 공용 subjectColor — 알려진 과목은 코드표 없이도 과목색 토큰을 쓴다 */}
+      <ReportPreview ref={previewRef} {...selected.content} teacherName={detail.teacherName}
+        accent={subjectColor(detail.subKey, NO_SUB_CODES)} />
 
       {message ? <Banner tone={message.tone}><span aria-live="polite">{message.text}</span></Banner> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={busy !== null} onClick={() => void copyText()}>글자로 복사</Button>
         <Button variant="primary" disabled={busy !== null} onClick={() => void savePng()}>PNG로 저장</Button>
       </div>
-      {detail.canDeliver ? <ReportDeliveryHistory repId={detail.id} compact /> : null}
+      {showHistory && detail.canDeliver ? <ReportDeliveryHistory repId={detail.id} compact /> : null}
     </section>
   );
 }

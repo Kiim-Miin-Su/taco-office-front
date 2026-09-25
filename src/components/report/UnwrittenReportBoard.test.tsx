@@ -13,8 +13,8 @@ const data: Unwritten = {
   total: 3,
   penaltyTotal: 0,
   byTeacher: [
-    { teacherId: 7, teacherName: 'Sophia', count: 2, oldestDate: '2026-08-01', over1h: 2, over4h: 1, penalty: 0 },
-    { teacherId: 9, teacherName: 'KJ', count: 1, oldestDate: '2026-09-01', over1h: 1, over4h: 0, penalty: 0 },
+    { teacherId: 7, teacherName: 'Sophia', roleLabel: '강사', title: '코디네이터', count: 2, oldestDate: '2026-08-01', over1h: 2, over4h: 1, penalty: 0 },
+    { teacherId: 9, teacherName: 'KJ', roleLabel: '매니저', title: null, count: 1, oldestDate: '2026-09-01', over1h: 1, over4h: 0, penalty: 0 },
   ],
   items: [
     { id: 1, serId: 101, date: '2026-08-02', onDate: '2026-08-01', startMin: 600, endMin: 660, subKey: 'vocab', kindKey: 'class', teacherId: 7, teacherName: 'Sophia', state: 'none', written: false, students: [{ id: 1, name: '이담흔', deliver: true }], minutesSinceEnd: 2880, penalty: 0 },
@@ -32,6 +32,7 @@ const renderBoard = (onRemind = vi.fn()) => render(
     reminderPending={false}
     reminderMessage={null}
     subjectName={(key) => ({ vocab: 'Vocabulary', gpa: 'GPA 관리' })[key ?? ''] ?? '—'}
+    subjectColorOf={(key) => (key === 'vocab' ? 'rgb(111, 143, 82)' : null)}
     onRemind={onRemind}
   />,
 );
@@ -42,6 +43,10 @@ describe('UnwrittenReportBoard', () => {
     expect(view.getByText('안 쓴 것 2건')).toBeTruthy();
     expect(view.getByText('미작성')).toBeTruthy();
     expect(view.getByText('반려')).toBeTruthy();
+    // §47 상태 칸 = 점 + 색 글자 · 미작성 빨강 · 반려 주황 (47-06)
+    expect(view.getByText('반려').className).toContain('text-orange');
+    expect(view.getByText('미작성').className).toContain('text-red');
+    expect(view.getByText('반려').className).not.toContain('rounded-full');
     fireEvent.click(view.getByRole('button', { name: /KJ/ }));
     expect(view.getByText('안 쓴 것 1건')).toBeTruthy();
     expect(view.queryByText('이담흔')).toBeNull();
@@ -61,10 +66,47 @@ describe('UnwrittenReportBoard', () => {
       .toBe('/schedule?serId=101&onDate=2026-08-01&date=2026-08-02');
   });
 
+  it('고른 강사 줄은 밝은 바탕 + 왼쪽 막대, 건수는 채운 한 색 배지라 읽힌다 (§47)', () => {
+    const view = renderBoard();
+    const picked = view.getByRole('button', { name: /Sophia/ });
+    const other = view.getByRole('button', { name: /KJ/ });
+    expect(picked.getAttribute('aria-pressed')).toBe('true');
+    // 짙은 바탕(bg-header) 위 붉은 글자 배지는 건수가 안 보였다
+    expect(picked.className).not.toContain('bg-header');
+    expect(picked.className).toContain('bg-inset');
+    expect(picked.className).toContain('border-l-primary');
+    expect(other.className).not.toContain('border-l-primary');
+    // 건수 배지는 강사마다 한 색(붉은 바탕 흰 글자) — 건수에 따라 색이 갈리지 않는다
+    for (const row of [picked, other]) {
+      const badge = [...row.querySelectorAll('span')].find((span) => /^\d+$/.test(span.textContent ?? ''));
+      expect(badge?.className).toContain('bg-red');
+      expect(badge?.className).toContain('text-white');
+    }
+  });
+
   it('경과 분은 표시만 일수로 바꾸며 음수는 오늘로 제한한다', () => {
     expect(reportElapsedDays(2880)).toBe('2일');
     expect(reportElapsedDays(-10)).toBe('오늘');
     expect(reportElapsedAgo(2880)).toBe('2일 전');
     expect(reportElapsedAgo(-10)).toBe('오늘');
+  });
+
+  /**
+   * g5 §47-03 · §47-04 · §47-05 · §47-07 · §47-08 — 날짜 「8월 2일 일요일」(연도 없이), 과목 앞 과목색 점 + 과목색 글자,
+   * 지난 날 「2일」, 오른쪽 머리 「Sophia 강사 · 코디네이터 안 쓴 것 2건」(역할 낱말은 서버 roleLabel), 마지막 열 머리 비움.
+   */
+  it('날짜·과목색·지난 날·역할 낱말이 원문 모양이고 역할은 서버가 준 것을 쓴다 (§47)', () => {
+    const view = renderBoard();
+    expect(view.getByText('8월 2일 일요일')).toBeTruthy();
+    const subject = view.getAllByText('Vocabulary')[0];
+    expect((subject as HTMLElement).style.color).toBe('rgb(111, 143, 82)');
+    expect(subject.parentElement?.querySelector('[data-subject-dot]')).not.toBeNull();
+    expect(view.getByText('2일')).toBeTruthy();
+    expect(view.queryByText('2일 전')).toBeNull();
+    expect(view.getByText('Sophia 강사 · 코디네이터')).toBeTruthy();
+    expect(view.queryByRole('columnheader', { name: '일정' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: /KJ/ }));
+    // 고정 문자열 「· 강사」가 아니다 — 매니저를 고르면 매니저
+    expect(view.getByText('KJ 매니저')).toBeTruthy();
   });
 });

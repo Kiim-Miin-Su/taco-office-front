@@ -7,21 +7,28 @@
 'use client';
 import Link from 'next/link';
 import type { ApprovalFlow, ApprovalFlowItem } from '@/api/types';
-import { Button, Chip, Dialog, Panel } from '@/components/ui';
-import { ApprovalRowContent } from './ApprovalRowContent';
+import { Button, cn, Dialog } from '@/components/ui';
+import { ApprovalRowContent, approvalFlowKindTone, TONE_MARK } from './ApprovalRowContent';
 
-function FlowSection({ id, title, rows, count, onNavigate }: {
+/**
+ * 절 하나 — 원문 §75 의 머리는 「되돌아온 것(붉게) 1건 · 고쳐서 다시 올려주세요」 · 「기다리는 것 4건」이다(g2 대조 75-4).
+ * 건수는 서버가 센 값을 받는다 — 화면이 줄을 다시 세지 않는다(내가 올린 것은 줄 수가 곧 그 절의 전부다).
+ */
+function FlowSection({ id, title, rows, count, hint, danger = false, onNavigate }: {
   id: 'back' | 'waiting' | 'mine';
   title: string;
   rows: ApprovalFlowItem[];
+  count: number;
+  /** 건수 뒤에 붙는 한 줄 — 건수가 있을 때만 */
+  hint?: string;
+  danger?: boolean;
   onNavigate: () => void;
-  count?: number;
 }) {
   return (
     <section aria-labelledby={`approval-flow-${id}`}>
-      <h3 id={`approval-flow-${id}`} className="mb-2 flex items-center gap-2 text-[12px] font-bold text-fg">
-        {title}
-        {count !== undefined ? <Chip tone={count > 0 ? 'info' : 'neutral'}>{count}</Chip> : null}
+      <h3 id={`approval-flow-${id}`} className="mb-2 flex items-baseline gap-2 text-[13px] font-bold">
+        <span className={danger ? 'text-red' : 'text-fg'}>{title}</span>
+        <span className="text-[11.5px] text-fg-subtle">{count}건{count > 0 && hint ? ` · ${hint}` : ''}</span>
       </h3>
       {rows.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
@@ -31,13 +38,16 @@ function FlowSection({ id, title, rows, count, onNavigate }: {
                 href={row.go}
                 onClick={onNavigate}
                 aria-label={`${row.title} 원본 열기`}
-                className={`block rounded-lg border p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue ${
+                className={cn(
+                  // 원문 줄은 왼쪽에 **종류 색 세로 띠**가 있고, 되돌아온 줄은 분홍 바탕이다 (g2 75-2)
+                  'block rounded-lg border border-l-4 p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue',
+                  TONE_MARK[approvalFlowKindTone(row.kind)].bar,
                   row.state === 'back'
                     ? 'border-red/25 bg-red/5 hover:border-red/50'
-                    : 'border-line bg-card hover:border-blue hover:bg-blue/5'
-                }`}
+                    : 'border-line bg-card hover:border-blue hover:bg-blue/5',
+                )}
               >
-                <ApprovalRowContent row={row} />
+                <ApprovalRowContent row={row} variant="flow" />
               </Link>
             </li>
           ))}
@@ -57,27 +67,38 @@ export function ApprovalFlowDialog({ open, flow, onClose }: {
       open={open}
       onClose={onClose}
       title="결재 흐름"
+      // 원문 §75 머리 — 제목 + 부제 + 오른쪽 × (공용 Dialog 머리)
+      sub={`대표와 관리자 사이를 오가는 것을 한 곳에서 봅니다 · 지금 ${flow.total}건 대기 · 되돌아온 것 ${flow.backCount}건`}
+      closeX
       width={640}
       footer={<Button onClick={onClose}>닫기</Button>}
     >
-      <p className="text-[11px] text-fg-subtle">
-        대표와 관리자 사이를 오가는 것을 한 곳에서 봅니다 · 지금 {flow.total}건 대기 · 되돌아온 것 {flow.backCount}건
-      </p>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="결재 종류별 대기 건수">
-        {flow.tiles.map((tile) => (
-          <Panel key={tile.kind} className="!p-3">
-            <p className="text-[11px] font-bold text-fg">{tile.kindLabel}</p>
-            <p className="mt-0.5 text-[10px] text-fg-subtle">{tile.toLabel}</p>
-            <strong className="mt-2 block text-[22px] leading-none text-fg">{tile.count}</strong>
-          </Panel>
-        ))}
+      {/*
+        타일 — 원문은 **큰 숫자(종류 색) → 종류 이름 → 받는 이** 차례이고, 건수가 있는 타일만 종류 색 테두리·옅은 바탕이다(g2 75-3).
+        수는 서버가 센 tile.count 그대로다.
+      */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="결재 종류별 대기 건수">
+        {flow.tiles.map((tile) => {
+          const mark = TONE_MARK[approvalFlowKindTone(tile.kind)];
+          const live = tile.count > 0;
+          return (
+            <div key={tile.kind} className={cn('rounded-xl border p-3', live ? mark.frame : 'border-line bg-inset')}>
+              <strong className={cn('block text-[22px] leading-none', live ? mark.text : 'text-fg-subtle')}>{tile.count}</strong>
+              <p className="mt-2 text-[11.5px] font-bold text-fg">{tile.kindLabel}</p>
+              <p className="mt-0.5 text-[10px] text-fg-subtle">{tile.toLabel}</p>
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-4 flex max-h-[55dvh] flex-col gap-5 overflow-y-auto pr-1">
-        <FlowSection id="back" title="되돌아온 것" rows={flow.back} count={flow.backCount} onNavigate={onClose} />
+        <FlowSection id="back" title="되돌아온 것" rows={flow.back} count={flow.backCount} hint="고쳐서 다시 올려주세요"
+          danger onNavigate={onClose} />
         <FlowSection id="waiting" title="기다리는 것" rows={flow.waiting} count={flow.total} onNavigate={onClose} />
-        <FlowSection id="mine" title="내가 올린 것" rows={flow.mine} onNavigate={onClose} />
+        {/* 원문 §75 에는 「내가 올린 것」 절이 없다 — 올린 것이 있을 때만 세운다(g2 75-5 · 비어 있으면 없음이 유리) */}
+        {flow.mine.length > 0 ? (
+          <FlowSection id="mine" title="내가 올린 것" rows={flow.mine} count={flow.mine.length} onNavigate={onClose} />
+        ) : null}
       </div>
     </Dialog>
   );

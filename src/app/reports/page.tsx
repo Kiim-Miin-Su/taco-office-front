@@ -14,6 +14,7 @@ import { Banner, Button, PageHeader, TabCards, Tabs } from '@/components/ui';
 import { ReportDetailDrawer, type ReportSelection } from '@/components/report/ReportDetailDrawer';
 import { ReportDeliveryHistory } from '@/components/report/ReportDeliveryHistory';
 import { ReportDeliveryQueue } from '@/components/report/ReportDeliveryQueue';
+import { ReportFullTextDialog } from '@/components/report/ReportFullTextDialog';
 import { ReportWeeklyTrackingBoundary } from '@/components/report/ReportWeeklyTrackingBoundary';
 import { TeacherReportList } from '@/components/report/TeacherReportList';
 import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
@@ -22,6 +23,8 @@ import {
   useMeta, useReportDelivery, useReportDeliveryHistory, useReportReminder, useReports, useUnwritten,
 } from '@/api/queries';
 import { ApiError } from '@/api/client';
+import type { ReportDetail } from '@/api/types';
+import { subjectColor } from '@/lib/tokens';
 import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
 
@@ -61,6 +64,8 @@ function ManagementReports() {
   const [section, setSection] = useState<ManagementSection>(querySection);
   const [selected, setSelected] = useState<ReportSelection | null>(null);
   const [approvalSelected, setApprovalSelected] = useState<ReportSelection | null>(null);
+  // §50 「리포트 전문」 창 — 어제 보내기 큐가 가진 같은 스냅숏을 그대로 싣는다
+  const [fullText, setFullText] = useState<{ report: ReportDetail; studentId: number } | null>(null);
   const [reminderMessage, setReminderMessage] = useState<ReminderMessage>(null);
   // 응답 유무를 알 수 없는 transport 실패는 같은 요청키로 재시도해 NOTI 중복을 막는다.
   const reminderRequestKeys = useRef(new Map<string, string>());
@@ -68,7 +73,8 @@ function ManagementReports() {
   const unwritten = useUnwritten(undefined, !reviewMode);
   // 머리 배지와 본문이 같은 Query key를 구독한다. 하위 컴포넌트가 다시 불러도 네트워크 요청은 한 벌이다.
   const delivery = useReportDelivery(undefined, !reviewMode);
-  const history = useReportDeliveryHistory({}, !reviewMode);
+  // 「보낸 내역」 본문이 주별 묶음으로 여는 같은 key 를 머리도 구독한다 — 요청은 한 벌이다
+  const history = useReportDeliveryHistory({ span: 'week' }, !reviewMode);
   const approval = useReports({ state: 'wait' }, reviewMode);
   const reminder = useReportReminder();
 
@@ -76,6 +82,7 @@ function ManagementReports() {
     setSection(querySection);
     setSelected(!reviewMode && requestedSerId && requestedOnDate ? { serId: requestedSerId, onDate: requestedOnDate } : null);
     setApprovalSelected(null);
+    setFullText(null);
   }, [querySection, requestedOnDate, requestedSerId, reviewMode]);
 
   // §14 서랍의 원본 행 이동. 응답에 실제로 있는 회차만 열어 stale URL을 무시한다.
@@ -89,10 +96,16 @@ function ManagementReports() {
     const names = new Map((meta.data?.subs ?? []).map((subject) => [subject.key, subject.name]));
     return (key?: string | null) => (key ? names.get(key) ?? key : '—');
   }, [meta.data]);
+  // §47 과목색 — 공용 subjectColor 한 곳 (g5 47-04)
+  const subjectColorOf = useMemo(() => {
+    const codes = new Map((meta.data?.subs ?? []).map((subject) => [subject.key, subject]));
+    return (key?: string | null) => subjectColor(key, codes);
+  }, [meta.data]);
 
   const selectSection = (next: ManagementSection) => {
     setSection(next);
     setSelected(null);
+    setFullText(null);
     setReminderMessage(null);
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'unwritten') params.delete('section'); else params.set('section', next);
@@ -134,14 +147,16 @@ function ManagementReports() {
       {reviewMode ? (
         <PageHeader
           title="리포트 승인 대기"
-          sub="§14 승인 서랍에서 선택한 원본을 검토합니다."
+          sub="승인 서랍에서 고른 리포트를 검토합니다."
           right={<Button variant="secondary" onClick={leaveApproval}>안 쓴 리포트로 돌아가기</Button>}
         />
       ) : (
-        <PageHeader
-          title="리포트"
-          sub="안 쓴 것 받기 · 어제 것 보내기 · 주간 묶음 만들기"
-          right={(
+        // 원문 §47 — 탭 카드 넷이 제목 블록 **바로 오른쪽**(교재·안내 화면과 같은 배치 · g5 47-02)
+        <div className="mb-4 flex flex-wrap items-start gap-4">
+          <div className="min-w-[220px]">
+            <h1 className="text-[20px] font-bold text-fg">리포트</h1>
+            <p className="mt-1 text-[12px] text-fg-subtle">안 쓴 것 받기 · 어제 것 보내기 · 주간 묶음 만들기</p>
+          </div>
           <TabCards<ManagementSection>
             label="리포트 업무"
             value={section}
@@ -150,11 +165,11 @@ function ManagementReports() {
               { value: 'unwritten', label: '안 쓴 리포트', sub: `${unwritten.data?.total ?? 0}건`, badge: unwritten.data?.total },
               { value: 'delivery', label: '어제 보내기', sub: `${delivery.data?.remaining ?? 0}명 남음`, badge: delivery.data?.remaining },
               { value: 'weekly', label: '주간 트래킹', sub: '상세 기준 미확정' },
-              { value: 'history', label: '보낸 내역', sub: `${history.data?.total ?? 0}건`, badge: history.data?.total },
+              // 원문 「보낸 내역」 탭 카드에는 배지가 없다 — 할 일이 아니라 기록이다 (g5 48-06)
+              { value: 'history', label: '보낸 내역', sub: `${history.data?.total ?? 0}건` },
             ]}
           />
-          )}
-        />
+        </div>
       )}
 
       {reviewMode ? (
@@ -170,10 +185,19 @@ function ManagementReports() {
           reminderPending={reminder.isPending}
           reminderMessage={reminderMessage}
           subjectName={subjectName}
+          subjectColorOf={subjectColorOf}
           onRemind={(teacherId) => void remind(teacherId)}
         />
       ) : section === 'delivery' ? (
-        <ReportDeliveryQueue onOpenReport={(report, studentId) => setSelected({ ...report, studentId })} />
+        <ReportDeliveryQueue
+          subjectColorOf={subjectColorOf}
+          onOpenReport={(report, studentId) => {
+            // 내보낼 수 있는(승인된) 리포트는 원본 §50 의 전문 창으로, 아직 아닌 것은 검토할 수 있게 상세 서랍으로 — 둘은 동시에 열리지 않는다
+            const exportable = report.canExport && report.exportFiles.length > 0;
+            setFullText(exportable ? { report, studentId } : null);
+            setSelected(exportable ? null : { ...report, studentId });
+          }}
+        />
       ) : section === 'weekly' ? (
         <ReportWeeklyTrackingBoundary />
       ) : (
@@ -183,6 +207,11 @@ function ManagementReports() {
       <ReportDetailDrawer
         selection={reviewMode ? approvalSelected : selected}
         onClose={() => { setSelected(null); setApprovalSelected(null); }}
+      />
+      <ReportFullTextDialog
+        report={!reviewMode && section === 'delivery' ? (fullText?.report ?? null) : null}
+        studentId={fullText?.studentId}
+        onClose={() => setFullText(null)}
       />
     </>
   );

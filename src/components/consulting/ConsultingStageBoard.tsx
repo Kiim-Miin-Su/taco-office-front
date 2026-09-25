@@ -39,7 +39,7 @@ function MoneyPair({ item }: { item: Consulting }) {
 function StudentTitle({ item }: { item: Consulting }) {
   return (
     <div className="flex items-start justify-between gap-2">
-      <span className="text-left text-[12px] font-bold text-fg">
+      <span className="text-left text-[14px] font-bold text-fg">
         {item.studentNames.join(' · ') || '학생 미지정'}
       </span>
       {!item.canOpen ? <Chip tone="neutral">잠김</Chip> : null}
@@ -56,13 +56,16 @@ function ConsultingCard({ item }: { item: Consulting }) {
 
   return (
     <>
-      <StudentTitle item={item} />
-      {/* 갈래 · 계약 단계 · 공개 범위 — 원본 §26 카드의 칩 셋. 낱말은 전부 서버가 준다 */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      {/*
+        원본 §26 카드 순서 (26-06) — 칩 줄 → 이름(크게) → 요청자 · 담당 → 막대 → 금액쌍 · N일 지남.
+        칩 (26-07): 계약 카드만 계약 단계 칩이 있고, 공개 칩은 **제한된 범위일 때만** 선다(전체 공개는 칩 없음). 낱말은 전부 서버가 준다
+      */}
+      <div className="mb-1 flex flex-wrap items-center gap-1">
         <Chip>{item.typeLabel}</Chip>
-        {item.contractStepLabel ? <Chip tone="neutral">{item.contractStepLabel}</Chip> : null}
-        <Chip tone="warning">{item.shareLabel}</Chip>
+        {item.stage === 'contract' && item.contractStepLabel ? <Chip tone="neutral">{item.contractStepLabel}</Chip> : null}
+        {item.share !== 'all' ? <Chip tone="warning">{item.shareLabel}</Chip> : null}
       </div>
+      <StudentTitle item={item} />
 
       {/* 「어머니 · 김범준」 — 요청자와 담당. 둘 다 없으면 줄이 서지 않는다 */}
       {item.requesterLabel || item.ownerName ? (
@@ -73,35 +76,42 @@ function ConsultingCard({ item }: { item: Consulting }) {
 
       {item.stage === 'contract' ? (
         <div className="mt-3">
+          {/* 계약 카드는 막대만 — 원본에 「계약 n/5」 글이 없다 (26-09) */}
           <ConsultingProgress
             segmented
             value={step}
             max={CONSULTING_CONTRACT_STEPS.length}
             label={`계약 ${step}/${CONSULTING_CONTRACT_STEPS.length}`}
           />
-          <p className={step === CONSULTING_CONTRACT_STEPS.length ? 'mt-1.5 text-[10px] font-bold text-green' : 'mt-1.5 text-[10px] font-bold text-amber'}>
-            계약 {step}/{CONSULTING_CONTRACT_STEPS.length}
-          </p>
         </div>
       ) : (
         <div className="mt-3">
-          <ConsultingProgress
-            value={item.stage === 'done' ? 1 : completedSessions}
-            max={item.stage === 'done' ? 1 : totalSessions}
-            complete={item.stage === 'done'}
-            label={item.stage === 'done'
-              ? '컨설팅 종료'
-              : item.canOpen
-                ? `회차 ${completedSessions} / 약정 ${totalSessions || '미정'}회`
-                : '회차 기록 잠김'}
-          />
-          <p className="mt-1.5 text-[10px] text-fg-subtle">
-            {item.stage === 'done'
-              ? `${item.endOn ?? '종료일 미정'} · 종료`
-              : item.canOpen
-                ? `회차 ${completedSessions} / 약정 ${totalSessions || '미정'}회${plannedSessions > 0 ? ` · 잡힌 날짜 ${plannedSessions}` : ''}`
-                : '회차 기록 잠김'}
-          </p>
+          {/* 진행 카드는 막대 왼쪽에 보라 글자 「2/6회」 (26-09) — 수는 서버가 센 「한 회차」다 */}
+          <div className="flex items-center gap-2">
+            {item.stage === 'running' && item.canOpen ? (
+              <b className="shrink-0 text-[11px] text-violet">{completedSessions}/{totalSessions || '—'}회</b>
+            ) : null}
+            <div className="min-w-0 grow">
+              <ConsultingProgress
+                value={item.stage === 'done' ? 1 : completedSessions}
+                max={item.stage === 'done' ? 1 : totalSessions}
+                complete={item.stage === 'done'}
+                label={item.stage === 'done'
+                  ? '컨설팅 종료'
+                  : item.canOpen
+                    ? `회차 ${completedSessions} / 약정 ${totalSessions || '미정'}회`
+                    : '회차 기록 잠김'}
+              />
+            </div>
+          </div>
+          {/* 원본에는 없는 줄이라 **말할 것이 있을 때만** 선다 — 끝난 날 · 잠김 · 앞으로 잡아 둔 날짜(기록 ≠ 완료 · N-18) */}
+          {item.stage === 'done' ? (
+            <p className="mt-1.5 text-[10px] text-fg-subtle">{item.endOn ?? '종료일 미정'} · 종료</p>
+          ) : !item.canOpen ? (
+            <p className="mt-1.5 text-[10px] text-fg-subtle">회차 기록 잠김</p>
+          ) : plannedSessions > 0 ? (
+            <p className="mt-1.5 text-[10px] text-fg-subtle">잡힌 날짜 {plannedSessions}</p>
+          ) : null}
         </div>
       )}
 
@@ -133,6 +143,9 @@ export function ConsultingStageBoard({ items, stages, loading = false, onOpen }:
     <div className="overflow-x-auto pb-1">
       <Board
         numbered
+        // 원문 §26 칸 머리: 윗선 단계색 · 번호 원 단계색 채움 · 오른쪽 큰 단계색 건수(26-05)
+        accent
+        countStyle="big"
         className="min-w-[780px]"
         columns={columns}
         itemKey={(item) => item.id}
