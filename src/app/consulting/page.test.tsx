@@ -97,6 +97,19 @@ describe('§26 조회 계약 통합', () => {
     expect(tab.parentElement?.querySelector('[aria-hidden]')?.textContent).toBe('2');
   });
 
+  it('「학생별 · N명」은 탭을 열기 전에도 선다 — 목록 응답의 서버 수(studentCount)다 (26-03)', () => {
+    query.data = { items: [item], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE, studentCount: 2 };
+    const view = render(<ConsultingPage />);
+    expect(view.getByRole('tab', { name: /학생별/ }).textContent).toContain('2명');
+  });
+
+  it('이력 표의 종류는 서버 낱말(typeLabel)이다 — 화면이 종류 표를 들지 않는다 (29-02)', () => {
+    query.data = { items: [{ ...item, stage: 'done', consType: 'transfer', typeLabel: '편입 · 전학' }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
+    const view = render(<ConsultingPage />);
+    fireEvent.click(view.getByRole('tab', { name: /이력/ }));
+    expect(view.getByText('편입 · 전학')).toBeTruthy();
+  });
+
   it('탭 카드는 제목과 같은 줄(머리 가운데 자리)에 선다 (26-01)', () => {
     query.data = { items: [item], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
     const view = render(<ConsultingPage />);

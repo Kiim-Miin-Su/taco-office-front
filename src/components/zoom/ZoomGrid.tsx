@@ -12,6 +12,10 @@
  *
  * 칸의 뜻은 **서버가 센 `busy`** 다. 화면은 0 인지 아닌지만 본다 — 겹침 판정도 정원도 여기서 하지 않는다
  * (D-R37 · D-R39). 색은 토큰에서 꺼낸다 (D-R41).
+ *
+ * 모양은 원문 §21 격자다(g2 21-1) — 빈 칸은 **연초록 바탕 + 초록 테두리**(「쓸 수 있다」), 찬 칸은
+ * `--red` 그대로의 짙은 붉은 칸(원문 #8E4A45 = 우리 `--red`), **지금 시각 머리만 붉은 글자**,
+ * 왼쪽 위 머리 칸은 글자가 없다. 그 칸의 「계정」은 열 이름이라 보조기기에는 남긴다(`sr-only`).
  */
 import type { ZoomBoard } from '@/api/types';
 
@@ -27,12 +31,14 @@ export function ZoomGrid({ board, compact = false }: { board: ZoomBoard; compact
       <table className={compact ? 'text-[11px]' : 'text-[12px]'}>
         <thead>
           <tr>
-            <th className="px-2 py-1 text-left font-bold">계정</th>
+            <th className="px-2 py-1 text-left font-bold">
+              <span className="sr-only">계정</span>
+            </th>
             {board.rows[0].slots.map((s) => (
               <th
                 key={s.hour}
                 className={`${compact ? 'w-7' : 'w-9'} px-0 py-1 text-center font-normal ${
-                  s.hour === board.nowHour ? 'font-bold text-fg' : 'text-fg-subtle'
+                  s.hour === board.nowHour ? 'font-bold text-red' : 'text-fg-subtle'
                 }`}
               >
                 {hh(s.hour)}
@@ -46,10 +52,10 @@ export function ZoomGrid({ board, compact = false }: { board: ZoomBoard; compact
               <td className="whitespace-nowrap px-2 py-1 font-bold">{r.label}</td>
               {r.slots.map((s) => (
                 <td key={s.hour} className="px-0.5 py-1">
-                  {/* 빈 칸은 「쓸 수 있다」는 뜻이다 — 원문의 연초록. 찬 칸은 붉다 (D-R41) */}
+                  {/* 빈 칸은 「쓸 수 있다」는 뜻이다 — 원문의 연초록 바탕 + 초록 테두리. 찬 칸은 짙은 붉은 칸 (D-R41) */}
                   <div
                     className={`${cell} rounded ${
-                      s.busy > 0 ? 'bg-red/70' : 'border border-green/30 bg-green/15'
+                      s.busy > 0 ? 'bg-red' : 'border border-green/30 bg-green/5'
                     }`}
                     title={`${hh(s.hour)}시 · ${s.busy}건`}
                   />

@@ -25,8 +25,9 @@ import { won } from '@/lib/money';
 const OPEN_STATES = new Set(['sent', 'unpaid', 'partial']);
 
 /** 수단은 생성 타입이 정본이다 — 화면에서 문자열을 새로 만들지 않는다 */
-type PayMethod = NonNullable<PaymentCreate['method']>;
-const METHOD_LABEL: Record<PayMethod, string> = { transfer: '계좌', cash: '현금' };
+export type PayMethod = NonNullable<PaymentCreate['method']>;
+/** 수단 낱말 — 청구서에 붙이는 입금과 「+ 결제 등록」이 같은 표를 쓴다 */
+export const METHOD_LABEL: Record<PayMethod, string> = { transfer: '계좌', cash: '현금' };
 
 export function PaymentRecorder({ invoices, payments }: { invoices: Invoice[]; payments: Payment[] }) {
   const open = invoices.filter((i) => OPEN_STATES.has(i.state));

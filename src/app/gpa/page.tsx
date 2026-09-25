@@ -88,7 +88,8 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
   const create = useCreateGpaUse();
   const setState = useSetGpaUseState();
   const remove = useDeleteGpaUse();
-  const [form, setForm] = useState({ studentId: '', svcKey: 'hw', onDate: '', startMin: '', noteUrl: '' });
+  // lesson = 「수업 연결」로 고른 회차의 열쇠 `${serId}|${onDate}` — 한 수업이 사이클 안에 여러 번 놓이므로 날짜까지 잇는다
+  const [form, setForm] = useState({ studentId: '', svcKey: 'hw', onDate: '', startMin: '', noteUrl: '', lesson: '' });
   const [armedId, setArmedId] = useState<number | null>(null);
 
   if (!d.cycle) {
@@ -106,6 +107,14 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
   const uses = picked ? d.uses.filter((u) => u.studentId === picked.studentId) : [];
   let running = picked ? picked.alloc : 0;
 
+  /*
+   * 기록 창 「수업 연결」 — 서버가 준 이 사이클의 GPA 회차 중 **고른 학생이 그날 명단에 든 것**만(qa-w3 관찰 · wave 5).
+   * 고르면 날짜·시작은 그 회차가 정한다 — 따로 고치면 기록과 회차가 갈려 회차 내역의 끝 시각이 거짓이 된다.
+   */
+  const lessonKey = (l: { serId: number; onDate: string }) => `${l.serId}|${l.onDate}`;
+  const lessonsFor = form.studentId === '' ? [] : d.lessons.filter((l) => l.studentIds.includes(Number(form.studentId)));
+  const linked = lessonsFor.find((l) => lessonKey(l) === form.lesson) ?? null;
+
   const submit = () => {
     if (!form.studentId || !form.onDate || create.isPending) return;
     create.mutate({
@@ -115,7 +124,8 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
       onDate: form.onDate,
       ...(form.startMin === '' ? {} : { startMin: (() => { const [h, m] = form.startMin.split(':').map(Number); return h * 60 + (m || 0); })() }),
       ...(form.noteUrl.trim() ? { noteUrl: form.noteUrl.trim() } : {}),
-    }, { onSuccess: () => setForm((f) => ({ ...f, onDate: '', startMin: '', noteUrl: '' })) });
+      ...(linked ? { serId: linked.serId } : {}),
+    }, { onSuccess: () => setForm((f) => ({ ...f, onDate: '', startMin: '', noteUrl: '', lesson: '' })) });
   };
 
   /**
@@ -199,11 +209,12 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
             className="rounded-md px-2 py-1 text-[14px] text-fg-2 hover:bg-inset disabled:opacity-30"
             onClick={() => { setAnchor(addD(cy.to, 1)); setPickedId(null); }}>›</button>
         </div>
-        <StatCard label="배정" value={`${d.totalAlloc}p`} />
-        <StatCard label="사용" value={`${d.totalUsed}p`} note="승인" tone="warning" />
-        <StatCard label="승인 대기" value={`${d.totalWait}p`} tone="warning" />
-        <StatCard label="잔여" value={`${d.totalRemain}p`} tone={d.totalRemain < 0 ? 'danger' : 'success'} note="배정 − 사용 − 대기" />
-        <StatCard label="진행" value={`${d.totalUses}회`} note="승인 대기 포함" />
+        {/* 원본 §82 머리 칸은 숫자가 위 · 라벨이 아래다(「56p / 배정」 · 86-7) — 선택 학생 미니 지표는 라벨이 위로 남는다 */}
+        <StatCard valueFirst label="배정" value={`${d.totalAlloc}p`} />
+        <StatCard valueFirst label="사용" value={`${d.totalUsed}p`} note="승인" tone="warning" />
+        <StatCard valueFirst label="승인 대기" value={`${d.totalWait}p`} tone="warning" />
+        <StatCard valueFirst label="잔여" value={`${d.totalRemain}p`} tone={d.totalRemain < 0 ? 'danger' : 'success'} note="배정 − 사용 − 대기" />
+        <StatCard valueFirst label="진행" value={`${d.totalUses}회`} note="승인 대기 포함" />
       </div>
 
       {/*
@@ -259,7 +270,7 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
         <Panel
           className="mt-4"
           title={`${picked.name} · 소비 타임라인`}
-          sub={`${picked.coordName ? `담당 ${picked.coordName} · ` : ''}대기(점선)는 잔여에서 이미 빠져 있습니다 — 승인은 확정 표시입니다`}
+          sub={`${picked.coordName ? `담당 ${picked.coordName} · ` : ''}줄의 「남음」은 승인된 것만 뺍니다 — 대기(점선)는 승인되면 빠집니다`}
         >
           {/*
             원본 §82 선택 학생 머리의 미니 지표 넷 (82-6) — 배정 · 쓴 것 · 대기 · 남은 것.
@@ -279,7 +290,12 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
             : (
               <ol className="flex flex-col gap-1.5" aria-label={`${picked.name} 소비 타임라인`}>
                 {uses.map((u) => {
-                  running -= u.points;
+                  /*
+                   * 원본 §82 줄 「−1p · 10p 남음」(배정 10p · 쓴 것 0p · 대기 1p) — **대기 줄은 아직 깎지 않는다**. 슬라이드 글
+                   * 「잔여 막대를 그립니다. 대기는 점선」: 대기는 점선으로만 말하고 승인되면 그때 빠진다(82-7 · D-R44).
+                   * 머리의 「남은 것」(배정 − 쓴 것 − 대기)은 서버 값이다 — 이 줄은 순서대로 쌓인 확정분만 본다.
+                   */
+                  if (u.state === 'ok') running -= u.points;
                   const svc = d.services.find((s) => s.key === u.svcKey);
                   // 막대는 이 기록 뒤 **남은 비율**이다(원본 §82 타임라인 줄의 막대) — 넘기면 비고 붉게 말한다
                   const left = picked.alloc > 0 ? Math.max(0, Math.min(1, running / picked.alloc)) : 0;
@@ -350,9 +366,26 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
           <div className="flex flex-wrap items-end gap-2.5 text-[12.5px]">
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-fg-subtle">학생</span>
-              <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })} className="rounded border border-line bg-card px-2 py-1.5 text-fg">
+              {/* 학생을 바꾸면 연결을 푼다 — 앞 학생의 회차는 이 학생의 회차가 아니다 */}
+              <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value, lesson: '' })} className="rounded border border-line bg-card px-2 py-1.5 text-fg">
                 <option value="">선택</option>
                 {d.students.map((s) => <option key={s.studentId} value={s.studentId}>{s.name}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-fg-subtle">수업 연결 (선택)</span>
+              <select
+                value={form.lesson}
+                onChange={(e) => {
+                  const l = lessonsFor.find((x) => lessonKey(x) === e.target.value) ?? null;
+                  setForm({ ...form, lesson: e.target.value, ...(l ? { onDate: l.onDate, startMin: hm(l.startMin) } : {}) });
+                }}
+                className="rounded border border-line bg-card px-2 py-1.5 text-fg"
+              >
+                <option value="">연결 안 함</option>
+                {lessonsFor.map((l) => (
+                  <option key={lessonKey(l)} value={lessonKey(l)}>{`${mmdd(l.onDate)} ${hm(l.startMin)}–${hm(l.endMin)} ${l.name}`}</option>
+                ))}
               </select>
             </label>
             <label className="flex flex-col gap-1">
@@ -363,11 +396,11 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-fg-subtle">날짜 (사이클 안)</span>
-              <input type="date" value={form.onDate} min={cy.from} max={cy.to} onChange={(e) => setForm({ ...form, onDate: e.target.value })} className="rounded border border-line bg-card px-2 py-1.5 text-fg" />
+              <input type="date" value={form.onDate} min={cy.from} max={cy.to} disabled={linked !== null} onChange={(e) => setForm({ ...form, onDate: e.target.value })} className="rounded border border-line bg-card px-2 py-1.5 text-fg disabled:opacity-60" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-fg-subtle">시작 (선택)</span>
-              <input type="time" value={form.startMin} onChange={(e) => setForm({ ...form, startMin: e.target.value })} className="rounded border border-line bg-card px-2 py-1.5 text-fg" />
+              <input type="time" value={form.startMin} disabled={linked !== null} onChange={(e) => setForm({ ...form, startMin: e.target.value })} className="rounded border border-line bg-card px-2 py-1.5 text-fg disabled:opacity-60" />
             </label>
             <label className="flex min-w-[180px] grow flex-col gap-1">
               <span className="text-[11px] text-fg-subtle">기록지 URL (선택)</span>

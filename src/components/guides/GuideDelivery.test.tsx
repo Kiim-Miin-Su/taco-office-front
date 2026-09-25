@@ -21,7 +21,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/guides', useRouter: () 
 const me: Me = { id: 1, name: '관리자', role: 'admin', roleLabel: '관리자', title: null,
   canAdminPage: true, canCrudAll: true, canSeeProfit: false, canCrudAttendance: true,
   canMoney: false, canWage: false, canApprove: true, canHide: true, canGpaPack: true };
-const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', state: 'ready', pending: true,
+const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'ready', pending: true,
   studentName: '학생', teacherName: '강사', serTitle: '수업', body: '저장한 안내', dueOn: null, eventOn: '2026-09-24',
   sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00', sentAt: null, acknowledgedAt: null,
   overdueDays: 0, siblingCount: 0, canSend: true, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null };

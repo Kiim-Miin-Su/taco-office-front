@@ -24,7 +24,7 @@ const AUTO_BODY = '[첫 수업 안내]\n학생 고은설\n학년 G9\n강사 Soph
 
 const guide: Guide = {
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
-  id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', state: 'draft', pending: true, studentName: '고은설',
+  id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'draft', pending: true, studentName: '고은설',
   teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20', eventOn: '2026-09-20',
   sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0,
   siblingCount: 2,
@@ -235,6 +235,51 @@ it('보낸 회차는 「강사 보냄」이 되고 다시 누를 수 없다 (F-6
     </QueryClientProvider>,
   );
   expect((view.getByRole('button', { name: '강사 보냄' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+/* ── wave 6 §43-6 매번 머리 「강사 N명 한 번에」 ─────────────────────────── */
+
+it('「강사 N명 한 번에」의 N 은 서버 zoomBatch 그대로이고, 누르면 입력 없이 한 번 부른 뒤 결과를 서버 이유로 적는다 (§43-6)', async () => {
+  useSession.getState().signIn('fixture', me);
+  adapter((c) => (c.method === 'post' ? {
+    sent: [
+      { serId: 8, onDate: '2026-09-19', startMin: 600, teacherId: 2, teacherName: 'Sophia', studentNames: '고은설', code: null, reason: null },
+      { serId: 9, onDate: '2026-09-19', startMin: 660, teacherId: 2, teacherName: 'Sophia', studentNames: '이하린', code: null, reason: null },
+    ],
+    skipped: [
+      { serId: 11, onDate: '2026-09-19', startMin: 780, teacherId: null, teacherName: null, studentNames: '강라율', code: 'ZOOM_NOTICE_NO_TEACHER', reason: '강사가 아직 정해지지 않았습니다' },
+    ],
+    teacherCount: 1, parentNotices: 2,
+  } : []));
+  const view = render(
+    <QueryClientProvider client={client()}>
+      <GuidesTodo data={guides({ zoomBatch: { teacherCount: 9, lessonCount: 12, canSend: true, blockedReason: null } })} />
+    </QueryClientProvider>,
+  );
+  const batch = view.getByRole('button', { name: '강사 9명 한 번에' });
+  fireEvent.click(batch);
+  const banner = await view.findByTestId('zoom-batch-result');
+  expect(calls.filter((c) => c.method === 'post').map((c) => [c.url, c.body])).toEqual([['/guides/zoom-notice/batch', {}]]);
+  expect(banner.textContent).toContain('강사 1명에게 줌 안내 2건을 남겼습니다');
+  expect(banner.textContent).toContain('건너뜀 1건');
+  expect(within(banner).getByText(/13:00 강라율 · 강사 미정 — 강사가 아직 정해지지 않았습니다/)).toBeTruthy();
+});
+
+it('보낼 회차가 없으면 「강사 0명 한 번에」가 잠기고 서버 이유를 적는다 · 옛 응답(zoomBatch 없음)이면 단추가 서지 않는다 (§43-6)', () => {
+  useSession.getState().signIn('fixture', me);
+  adapter(() => []);
+  const view = render(
+    <QueryClientProvider client={client()}>
+      <GuidesTodo data={guides({ zoomBatch: { teacherCount: 0, lessonCount: 0, canSend: false, blockedReason: '오늘 강사 안내를 모두 보냈습니다' } })} />
+    </QueryClientProvider>,
+  );
+  const batch = view.getByRole('button', { name: '강사 0명 한 번에' }) as HTMLButtonElement;
+  expect(batch.disabled).toBe(true);
+  expect(batch.title).toBe('오늘 강사 안내를 모두 보냈습니다');
+  expect(view.getByText('오늘 강사 안내를 모두 보냈습니다')).toBeTruthy();
+  cleanup();
+  const legacy = render(<QueryClientProvider client={client()}><GuidesTodo data={guides()} /></QueryClientProvider>);
+  expect(legacy.queryByRole('button', { name: /한 번에$/ })).toBeNull();
 });
 
 /* ── S3-b §43 회차별 계정 배정 ──────────────────────────────────────────── */

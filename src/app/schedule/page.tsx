@@ -31,7 +31,7 @@ import { CheckSquare, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose,
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, LinkButton, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
 import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
-import { DayGrid, MonthGrid, WeekGrid, type DropData } from '@/components/cal/Grids';
+import { DayGrid, MonthGrid, WeekGrid, type DropData, type UnavBand } from '@/components/cal/Grids';
 import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import {
   activeFilterCount, filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar, SCHEDULE_VIEWS,
@@ -41,12 +41,17 @@ import { SessionEditor, type SessionDraft } from '@/components/cal/SessionEditor
 import { eventColorStyle, type DragData } from '@/components/cal/EventBlock';
 import eventStyles from '@/components/cal/EventBlock.module.css';
 import { Legend } from '@/components/cal/Legend';
+import { StudentBookChip } from '@/components/cal/StudentBookChip';
 import { PeriodSummaryBar } from '@/components/cal/PeriodSummaryBar';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
-import { fetchConflicts, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleWrite } from '@/api/queries';
+import {
+  fetchConflicts, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleHolidays, useScheduleSeriesCounts,
+  useScheduleUnavailable, useScheduleWrite,
+} from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
-import { useCan } from '@/store/useSession';
+import { useCan, useSession } from '@/store/useSession';
+import { canAccessAppRoute } from '@/components/shell/navigation';
 import {
   boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
@@ -60,10 +65,10 @@ import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
 /**
  * 원본 §11 개인 도구줄의 진입 단추 넷 [가능 시간 · 안내 · 정산 · 메모].
  * 「안내」·「정산」은 이미 있는 화면으로 간다(§43 수업 안내 · §57 강사료 정산 — 정산은 금액이라 회계 권한일 때만 선다).
- * 「가능 시간」·「메모」는 **여는 화면이 원본에 없다** — 지어내지 않고(D-R44) 못 누르는 이유를 적어 둔다.
+ * 「가능 시간」은 강사가 적어 둔 불가 시간을 **이 표에 겹쳐 본다**(원문 §11 데이터 「UNAV(불가 시간)」 · G37 관리자 읽기).
+ * 「메모」는 **무엇을 어디에 남길지 원본에 없다**(N-36·N-57) — 지어내지 않고 못 누르는 이유를 적어 둔다.
  */
 const PERSON_BLOCKED: Array<{ label: string; why: string }> = [
-  { label: '가능 시간', why: '강사가 적어 둔 불가 시간을 이 표에 겹쳐 보는 자리입니다 — 관리 화면에서 읽는 길이 아직 없습니다' },
   { label: '메모', why: '이 강사에 대한 메모 자리입니다 — 무엇을 어디에 남길지 아직 정해지지 않았습니다' },
 ];
 
@@ -290,12 +295,17 @@ function AdminSchedulePage() {
   const hz = useHorizon();
   const write = useScheduleWrite();
   const canEdit = useCan('canCrudAll');
+  /* 사이드바 [관리] 는 §18 에 들어갈 수 있을 때만 — 직접 URL 과 같은 내비 규칙(D-R39) */
+  const sessionMe = useSession((st) => st.me);
+  const canOpenPrograms = canAccessAppRoute('/programs', sessionMe);
   /* ── 워크스페이스 셸 (U1 · 원본§07) — 접힘은 전역 store 하나, 배지는 셸과 같은 조회를 공유한다 ── */
   const sidebarOpen = useWorkspace((w) => w.sidebarOpen);
   const railOpen = useWorkspace((w) => w.railOpen);
   const toggleSidebar = useWorkspace((w) => w.toggleSidebar);
   const toggleRail = useWorkspace((w) => w.toggleRail);
   const drawerData = useDrawer(true).data;
+  /* §07 사이드바 「프로그램」·「과목」 수 — 기간과 무관한 일정 원본 수를 서버가 센다. 펼쳤을 때만 읽는다(기본 접힘) */
+  const seriesCounts = useScheduleSeriesCounts(sidebarOpen);
 
   /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
   const [dragging, setDragging] = useState<Occurrence | null>(null);
@@ -309,12 +319,12 @@ function AdminSchedulePage() {
   const [pasteAsk, setPasteAsk] = useState<PendingPaste | null>(null);
   const [moveAsk, setMoveAsk] = useState<PendingMoveMany | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  /** 서버가 서명한 직전 쓰기 한 건만 메모리에 둔다. 새 쓰기가 성공하면 이전 토큰을 교체한다. */
+  /** 서버가 서명한 쓰기 토큰을 셸 store 에 쌓는다 — 되돌리기는 뒤에서부터 한 단계씩 (g1 S5). */
   /*
    * 되돌릴 직전 작업은 **셸이 갖는다** — 원본 §16 상단바에 「되돌리기」가 있어서다 (N-138 · C99).
    * 여기서 갖고 있으면 상단바와 이 화면의 띠가 서로 다른 말을 한다.
    */
-  const setUndo = useWorkspace((w) => w.setUndo);
+  const pushUndo = useWorkspace((w) => w.pushUndo);
   const undoLast = useUndoLast();
   const [notice, setNotice] = useState<string | null>(null);
   /**
@@ -328,6 +338,11 @@ function AdminSchedulePage() {
   const exportRef = useRef<HTMLDivElement>(null);
   /** 원문 §07 「+ 빈 시간 찾기」 — 일간 표에서 강의실마다 수업이 없는 칸을 칠한다(화면 표시만 · 이미 읽은 회차로 센다) */
   const [freeOn, setFreeOn] = useState(false);
+  /**
+   * 원문 §07 사이드바 · §11 진입 「가능 시간」 — 강사가 적어 둔 불가 시간을 표에 겹쳐 본다(G37 · 관리자 읽기).
+   * 한 사람의 표(선생님별 · 구성원 필터)에만 띠를 깐다 — 여러 강사의 띠를 한 칸에 겹치면 누구의 불가인지 읽히지 않는다.
+   */
+  const [unavOn, setUnavOn] = useState(false);
   /** 원문 §11 To-Do 띠의 「+ 주기」 — 받는 사람 기본값이 그 강사인 할 일 창(서랍·운영과 같은 창 · C96) */
   const [todoFor, setTodoFor] = useState<number | null>(null);
   const todoWrite = useDrawerWrite();
@@ -354,7 +369,8 @@ function AdminSchedulePage() {
     const rows = typed?.unavailable ?? [];
     setUnavail(unavailableLines(rows));
     if (typed?.undoToken) {
-      setUndo({ token: typed.undoToken, label: undoLabel });
+      // 여러 단계(g1 S5) — 맨 뒤에 쌓는다. 만료는 서버 값을 그대로(목록이 지난 단계를 뺀다)
+      pushUndo({ token: typed.undoToken, label: undoLabel, expiresAt: typed.undoExpiresAt ?? null });
       // 라벨은 「새 일정」·「수업 삭제」처럼 **한 일의 이름**이라 「…을 저장했습니다」로 이으면
       // 삭제까지 「저장」이 된다. 이름을 그대로 앞에 놓고 되돌리는 길만 잇는다.
       setNotice(`${undoLabel} — 10분 안에 Ctrl/⌘+Z 로 되돌릴 수 있습니다.`);
@@ -614,6 +630,22 @@ function AdminSchedulePage() {
   // ② 표가 둘이어도 **bounding range 하나**만 읽는다. split/filter 전환은 GET 0회다 (§4 · §6.1-2).
   const range = useMemo(() => boundingRange(s.panes), [s.panes]);
   const q = useOccurrences({ from: range.from, to: range.to });
+  // 원문 §09 「광복절」·「광복절 대체」 칩 · §10 요일 머리 — 서버 표(HOLIDAY)를 같은 범위로 한 번 읽어 날짜로 찾는다
+  const holidayQuery = useScheduleHolidays(range);
+  const holidaysOf = useMemo(() => {
+    const byDay = new Map<string, string[]>();
+    for (const h of holidayQuery.data?.items ?? []) byDay.set(h.date, [...(byDay.get(h.date) ?? []), h.name]);
+    return (date: string) => byDay.get(date);
+  }, [holidayQuery.data]);
+  // 「가능 시간」을 켰을 때만 읽는다 — 막는 자료가 아니라 겹쳐 보는 자료다(저장 판정은 서버 쓰기의 경고가 한다)
+  const unavQuery = useScheduleUnavailable(range, unavOn);
+  const unavRows = useMemo(() => (unavOn ? unavQuery.data?.items ?? [] : []), [unavOn, unavQuery.data]);
+  /** 그 사람의 그날 불가 띠 — 띠의 title 은 누가 · 몇 시 · 사유 */
+  const unavFor = (teacherId: number | null) => (teacherId === null || !unavOn ? undefined : (date: string): UnavBand[] =>
+    unavRows.filter((r) => r.teacherId === teacherId && r.date === date).map((r) => ({
+      startMin: r.startMin, endMin: r.endMin,
+      label: `강사 불가 · ${r.teacherName} ${hhmm(r.startMin)}–${hhmm(r.endMin)} · ${r.reason}`,
+    })));
 
   const all = useMemo(() => q.data?.items ?? [], [q.data]);
   const filteredAll = useMemo(() => filterScheduleOccurrences(all, s.filters), [all, s.filters]);
@@ -795,9 +827,16 @@ function AdminSchedulePage() {
     const mine = (id: number) => pane.view === 'student'
       ? paneAll.filter((o) => o.students.some((x) => x.id === id && !x.droppedOnce))
       : paneAll.filter((o) => o.teacherId === id);
+    /*
+     * 원문 §11 목록 대상은 「선생님」 — 수업을 맡는 사람이다(g1 §11 #7). 역할 낱말을 견주지 않고(D-R39)
+     * 서버 플래그로 가른다: 관리 화면 권한이 없는 사람(강사)은 늘 서고, 관리 화면 사람은 이 기간 맡은 회차가 있을 때만 선다.
+     * 지금 고른 사람은 목록에서 빼지 않는다(표가 「사람을 고르세요」로 바뀌지 않게).
+     */
     const peopleSource = pane.view === 'student'
       ? (meta.data?.students ?? []).map((x) => ({ id: x.id, name: x.name, sub: x.grade ?? '' }))
-      : (meta.data?.staff ?? []).map((x) => ({ id: x.id, name: x.name, sub: x.title ?? '' }));
+      : (meta.data?.staff ?? [])
+        .filter((x) => !x.canAdminPage || x.id === pane.personId || paneAll.some((o) => o.teacherId === x.id))
+        .map((x) => ({ id: x.id, name: x.name, sub: x.title ?? '' }));
     const people = peopleSource.map((person) => {
       const list = mine(person.id);
       // 시수 산식은 기간 집계와 **같은 함수**다 — 두 곳에서 따로 세면 칩과 상단 줄이 갈린다 (D-R11).
@@ -832,7 +871,7 @@ function AdminSchedulePage() {
       ? `${pane.date.slice(0, 4)}년 ${+pane.date.slice(5, 7)}월`
       : shown === 'day' ? label(pane.date) : `${label(paneRange.from)} – ${label(paneRange.to)}`;
     const outOfHorizon = !!hz.data && (paneRange.from < hz.data.from || paneRange.to > hz.data.to);
-    return { pane, shown, range: paneRange, items, columns, people, grid, head, summary, baseSummary, axisLabel, outOfHorizon };
+    return { pane, shown, range: paneRange, summaryRange, items, columns, people, grid, head, summary, baseSummary, axisLabel, outOfHorizon };
   }), [filteredAll, hz.data, meta.data, s.panes]);
 
   const activeModel = paneModels[s.focused] ?? paneModels[0];
@@ -921,18 +960,22 @@ function AdminSchedulePage() {
     // [일정 · 리포트] — 「리포트」면 과목색을 주지 않아 블록이 리포트 상태색(STATUS_LOOK)을 그린다
     const blockColor = s.filters.display === 'report' ? undefined : colorOf;
     const chosen = people.find((p) => p.id === pane.personId);
+    // 「가능 시간」 띠를 깔 한 사람 — 선생님별 표의 그 강사, 아니면 도구줄 구성원 필터
+    const unavTeacher = pane.view === 'teacher' ? pane.personId : pane.view === 'student' ? null : s.filters.teacherId;
+    const unavOf = unavFor(unavTeacher);
 
     const grids = shown === 'day' ? (
       <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
         columnOf={(occurrence) => occurrence.roomId ?? null}
         subName={subName} kindName={kindName} zaccLabel={zaccLabel} capOf={capOf} person={person} colorOf={blockColor}
-        showFree={freeOn && !isPerson}
+        showFree={freeOn && !isPerson} unavOf={unavOf}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onSelect={select} selected={selectedSet} interactive={canEdit}
         cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
         onAddAt={(date, startMin, roomId) => chooseSlot(pane, date, startMin, 'room', roomId)} />
     ) : shown === 'month' ? (
       <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} kindName={kindName} colorOf={blockColor} interactive={canEdit}
+        holidaysOf={holidaysOf}
         onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onPickDate={(date) => go({ t: 'date', d: date })}
@@ -940,6 +983,7 @@ function AdminSchedulePage() {
     ) : (
       <WeekGrid date={pane.date} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
+        holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
         onSelect={select} selected={selectedSet} cursor={s.cursor}
         onAddAt={canEdit ? (date, startMin) => chooseSlot(pane, date, startMin) : undefined}
@@ -1010,6 +1054,34 @@ function AdminSchedulePage() {
           </div>
         ) : null}
 
+        {/*
+          「가능 시간」을 켰는데 한 사람을 고르지 않은 전체 표 — 여러 강사의 띠를 한 칸에 겹치면 누구의 불가인지 읽히지 않아
+          띠 대신 이 기간의 불가 줄을 적는다(같은 서버 응답 · 기간 안의 것만).
+        */}
+        {unavOn && !isPerson && unavTeacher === null ? (
+          <div className="mb-2" data-unav-list>
+            <Banner tone="info">
+              {(() => {
+                // 「이 기간」은 위 요약과 같은 기간이다 — 월간 격자의 앞뒤 달 칸(읽기 범위)까지 세면 그 달보다 많아진다 (QA 0926 B2)
+                const rows = unavRows.filter((r) => r.date >= model.summaryRange.from && r.date <= model.summaryRange.to);
+                if (unavQuery.isLoading) return '강사 불가 시간을 읽는 중…';
+                if (!rows.length) return '이 기간에 강사가 불가로 적어 둔 시간이 없습니다.';
+                return (
+                  <>
+                    이 기간 강사 불가 <b>{rows.length}건</b> — 구성원 필터나 선생님별 표로 한 사람을 고르면 표에 겹쳐 보입니다.
+                    <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
+                      {rows.slice(0, 12).map((r) => (
+                        <li key={r.id}>{r.teacherName} · {label(r.date)} {hhmm(r.startMin)}–{hhmm(r.endMin)} · {r.reason}</li>
+                      ))}
+                      {rows.length > 12 ? <li>외 {rows.length - 12}건</li> : null}
+                    </ul>
+                  </>
+                );
+              })()}
+            </Banner>
+          </div>
+        ) : null}
+
         {isPerson ? (
           <div className="grid gap-3 xl:grid-cols-[300px_1fr]">
             {/* 원문 §10·§11 목록 카드 — 어두운 머리 「학생 20명 · 눌러서 바뀝니다」, 줄마다 이름 · 학년/직함 · 종류별 칩 · 「N회 · N.Nh」 */}
@@ -1056,6 +1128,8 @@ function AdminSchedulePage() {
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-3">
                   <span className="text-[17px] font-bold text-fg">{chosen?.name}</span>
                   {chosen?.sub ? <Chip styleKind="solid">{chosen.sub}</Chip> : null}
+                  {/* 원문 §10 「홍채원 [K] 교재 없음」 — 낱말·판정은 서버(ISSUE 배부 완료) */}
+                  {pane.view === 'student' ? <StudentBookChip studentId={pane.personId} /> : null}
                   <span className="text-[12px] text-fg-2"
                     title="이 기간 · 취소 제외. 정산 시수는 회계 탭에서 월 단위로 확정됩니다">
                     수업 <b className="text-fg">{summary.total - summary.canceled}</b> · 시간 <b className="text-fg">{summary.hours.toFixed(1)}</b>
@@ -1066,12 +1140,14 @@ function AdminSchedulePage() {
                       onChange={(value) => go({ t: 'personPeriod', v: value })} />
                     {pane.view === 'teacher' ? (
                       <>
-                        {PERSON_BLOCKED.slice(0, 1).map((entry) => (
-                          <Button key={entry.label} size="sm" disabled title={entry.why}>{entry.label}</Button>
-                        ))}
+                        <Button size="sm" variant={unavOn ? 'primary' : undefined} aria-pressed={unavOn}
+                          onClick={() => setUnavOn((v) => !v)}
+                          title={unavOn ? '강사 불가 시간 겹쳐 보기를 끕니다' : '강사가 적어 둔 불가 시간을 이 표에 겹쳐 봅니다'}>
+                          가능 시간
+                        </Button>
                         <LinkButton size="sm" href="/guides" title="수업 안내로 갑니다">안내</LinkButton>
                         {canMoney ? <LinkButton size="sm" href="/accounting?tab=payout" title="강사료 정산 탭으로 갑니다">정산</LinkButton> : null}
-                        {PERSON_BLOCKED.slice(1).map((entry) => (
+                        {PERSON_BLOCKED.map((entry) => (
                           <Button key={entry.label} size="sm" disabled title={entry.why}>{entry.label}</Button>
                         ))}
                       </>
@@ -1164,7 +1240,7 @@ function AdminSchedulePage() {
         sidePanel={sidebarOpen ? ({ openDrawer }) => (
           <ScheduleSidebar
             meta={meta.data}
-            items={filteredAll}
+            counts={seriesCounts.data}
             canEdit={canEdit}
             splitOn={s.panes.length === 2}
             onCreate={() => setDraft({
@@ -1172,6 +1248,11 @@ function AdminSchedulePage() {
             })}
             onHistory={() => openDrawer('chreqs')}
             onSplit={() => go({ t: 'split' })}
+            availabilityOn={unavOn}
+            onAvailability={() => setUnavOn((v) => !v)}
+            onClearKind={() => go({ t: 'filters', value: { ...s.filters, kindKey: null } })}
+            onClearSub={() => go({ t: 'filters', value: { ...s.filters, subKey: null } })}
+            canOpenPrograms={canOpenPrograms}
           />
         ) : undefined}
         rightPanel={railOpen ? ({ openDrawer, activePane }) => (
@@ -1286,7 +1367,9 @@ function AdminSchedulePage() {
           {s.panes.length === 2 ? renderPane(paneModels[1], 1) : null}
         </div>
 
-        <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} display={s.filters.display} />
+        <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} display={s.filters.display}
+          unavOn={unavOn && (activeModel.pane.view === 'teacher' ? activeModel.pane.personId !== null
+            : activeModel.pane.view !== 'student' && s.filters.teacherId !== null)} />
         </div>
 
         <ClipboardBar

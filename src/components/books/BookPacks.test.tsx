@@ -3,7 +3,7 @@
  * 책임/재사용: 실제 컴포넌트와 Query hook을 쓰고 HTTP/PNG 경계만 fixture로 교체한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -71,7 +71,7 @@ function setup({ delivered = false, canReceive = false, focusPackId = null, deli
                 coordinatorId: 3,
                 coordinatorName: '김범준',
                 students: [{ id: 10, name: '고은성', grade: 'G12' }],
-                books: [{ id: 4, code: 'SAT', title: 'SAT Reading', versId: 3, seFileId: 1, teFileId: 2 }],
+                books: [{ id: 4, code: 'SAT', title: 'SAT Reading', level: 'Practice', versId: 3, seFileId: 1, teFileId: 2 }],
                 canDeliver: true,
                 canReceive,
                 deliveryBlockers: [],
@@ -206,4 +206,32 @@ it('전달한 사람 이름과 코디네이터별 미확인 수를 서버 값 �
   const text = view.container.textContent ?? '';
   expect(text).toContain('전달 2026-09-17 19:00 · 강민지');
   expect(view.getByText('미확인 1')).toBeTruthy();
+});
+
+/**
+ * g4 §41-3 — 원문 카드: 머리 「● 시험 대비 자료」(종류색 점) + 제목, 오른쪽 「● 전달 완료 Sophia」(상태 + 코디네이터),
+ * 학생 칩 「이유찬 G9」, 교재 줄 = 레벨 글자 사각 + 제목 + SE/TE + 코드, 메모는 💬 연보라 상자, 단추는 같은 폭.
+ */
+it('자료 카드는 종류 점 · 상태와 코디네이터 · 학생 칩 · 레벨 사각 · 메모 상자 · 같은 폭 단추로 선다 (§41-3)', async () => {
+  const view = setup({ delivered: true, deliveredAt: '2026-09-17T19:00:00+09:00' });
+  await waitFor(() => expect(view.getByText('SAT 9월 대비')).toBeTruthy());
+  const card = view.getByTestId('book-pack-card');
+  const head = card.querySelector('[data-pack-head]') as HTMLElement;
+  expect(head.querySelector('[data-pack-type="exam"]')?.textContent).toContain('시험 대비 자료');
+  expect(head.textContent).toContain('SAT 9월 대비');
+  expect(head.textContent).toContain('전달 완료');
+  expect(head.textContent).toContain('김범준');
+  const students = card.querySelectorAll('[data-pack-student]');
+  expect(students.length).toBe(1);
+  expect(students[0]?.textContent).toContain('고은성');
+  expect(students[0]?.textContent).toContain('G12');
+  expect(card.querySelector('[data-level-marker]')?.textContent).toBe('P');
+  // 교재 줄의 SE/TE 는 원문처럼 작은 배지 — 누르면 내려받고 이름에 교재를 붙인다 (§41-3 · wave 6)
+  expect(within(card).getByRole('button', { name: 'SAT Reading SE 내려받기' }).textContent).toBe('SE');
+  expect(within(card).getByRole('button', { name: 'SAT Reading TE 내려받기' }).textContent).toBe('TE');
+  expect(within(card).queryByRole('button', { name: 'SE 열기' })).toBeNull();
+  const memo = card.querySelector('[data-pack-memo]') as HTMLElement;
+  expect(memo.textContent).toContain('💬');
+  expect(memo.textContent).toContain('반드시 확인');
+  expect((card.querySelector('[data-pack-actions]') as HTMLElement).className).toContain('auto-cols-fr');
 });

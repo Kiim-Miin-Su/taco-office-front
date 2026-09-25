@@ -78,6 +78,8 @@ export function useScheduleLeadAppts(): UseMutationResult<LeadApptScheduleResult
       void qc.invalidateQueries({ queryKey: family.ops });
       void qc.invalidateQueries({ queryKey: family.occurrences });
       void qc.invalidateQueries({ queryKey: family.horizon });
+      // 상담 일정이 시간표 회차(SER)가 된다 — §07 사이드바의 일정 원본 수도
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
     },
   });
 }

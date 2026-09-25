@@ -47,4 +47,21 @@ describe('Board — 칸 윗선 단계색 · 칸 바탕 · 구분선 · 이름 �
     const count = within(enrolled).getByText('2', { selector: 'span.text-\\[20px\\]' });
     expect(count.className).toContain('text-green');
   });
+
+  it('ink 칸은 윗선·번호 원·큰 건수가 검정이고, cardClassName 이 카드 모양을 바꾼다 — 주지 않으면 지금 모양(§52 윗선 · x5)', () => {
+    const v = render(
+      <Board columns={[{ ...columns[0], ink: true }, columns[1]]} numbered accent countStyle="big" itemKey={(i) => i.id}
+        renderCard={(i) => i.name} cardClassName={(i) => (i.id === 1 ? 'flex items-center' : undefined)} />,
+    );
+    const hold = col(v.container, 'hold');
+    expect(hold.className).toContain('border-t-fg');
+    expect(hold.className).not.toContain('border-t-red');
+    expect(within(hold).getByText('1', { selector: 'span.h-5' }).className).toContain('bg-fg');
+    expect(within(hold).getByText('1', { selector: 'span.text-\\[20px\\]' }).className).toContain('text-fg');
+    expect(within(hold).getByText('정하윤').className).toBe('flex items-center');
+    // undefined 를 돌려준 카드와 ink 가 없는 칸은 기본 그대로다
+    const enrolled = col(v.container, 'enrolled');
+    expect(enrolled.className).toContain('border-t-green');
+    expect(within(enrolled).getByText('박시온').className).toBe('rounded-lg border border-line bg-card p-2.5');
+  });
 });

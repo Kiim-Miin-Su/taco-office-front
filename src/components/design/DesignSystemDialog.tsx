@@ -21,7 +21,7 @@
  * 확인창용 `Dialog` 는 머리 「×」도 본문 스크롤도 없어서 바닥 「닫기」를 달고 본문 안에서 따로 스크롤하고 있었다.
  */
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import usage from '@/lib/component-usage.json';
 import {
   CONTRAST_ADJUSTED, GALLERY, TOKEN_COLORS, TOKEN_LAYOUT, TOKEN_SIZES,
@@ -58,8 +58,7 @@ function download(name: string, text: string, type: string) {
  *
  * 바꾸는 곳은 문서 뿌리의 CSS 변수 **하나**다(`--primary` …). 화면의 모든 색·투명도 수식이 그 변수에서
  * 나오므로(tailwind `withAlpha` 가 `rgb(from var(--x) …)` 다) 창을 닫으면 온 화면이 바뀐 값으로 보인다.
- * 값의 정본은 계속 `styles/tokens.css` 다 — **저장하지 않는다.** 어디에 저장할지는 정해지지 않았다
- * (브라우저 한정인지, 모두에게인지 — 결정 대기). 그래서 새로 고치면 처음 값으로 돌아가고, 「처음으로」가 바로 되돌린다.
+ * 값의 정본은 계속 `styles/tokens.css` 다 — 여기서 바꾼 것은 **그 위에 덧씌운 변경분**이고 「처음으로」가 걷어 낸다.
  */
 function setToken(key: string, value: string | null) {
   if (typeof document === 'undefined') return;
@@ -71,6 +70,40 @@ function setToken(key: string, value: string | null) {
 const asHex = (v: string): string | null => (/^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null);
 /** 크기 토큰은 `12px` 모양일 때만 숫자로 바꾼다 */
 const asPx = (v: string): number | null => (/^\d+px$/.test(v) ? Number(v.slice(0, -2)) : null);
+
+/*
+ * 저장 — 원문 §85 슬라이드 글이 저장처를 말한다(N-78 · D-R44): 「컬러 피커·슬라이더로 즉시 반영. **localStorage에 저장.**」 ·
+ * 데이터 「UISET(변경분만)」 · 규칙 「변경한 값만 저장합니다. '처음으로'는 UISET를 비웁니다.」
+ * 그래서 이 브라우저에 **바꾼 칸만** 남기고, 셸이 이 창을 늘 붙여 두므로(닫힌 채) 새로 고쳐도 다시 씌운다.
+ * 모두에게 적용하는 저장(서버)은 원문에 없다 — 만들지 않는다. 저장소가 막힌 브라우저에서는 조용히 이 화면에만 남는다.
+ */
+const UISET_KEY = 'taco.design.uiset';
+/** 아는 토큰 칸 — 저장분에 모르는 칸이 끼어 있으면 뿌리에 적지 않는다 */
+const TOKEN_KEYS = new Set(ALL_TOKENS.flat().map((r) => r.key));
+/** 저장분 한 칸이 쓸 만한가 — 아는 칸이고 값이 색(#rrggbb) 또는 px 모양일 때만. 손으로 고친 저장분이 CSS 를 흘리지 않게 */
+const usable = (key: string, value: unknown): value is string =>
+  TOKEN_KEYS.has(key) && typeof value === 'string' && (asHex(value) !== null || asPx(value) !== null);
+
+function readUiset(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(UISET_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([k, v]) => usable(k, v))) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function writeUiset(next: Record<string, string>) {
+  try {
+    if (Object.keys(next).length === 0) window.localStorage.removeItem(UISET_KEY);
+    else window.localStorage.setItem(UISET_KEY, JSON.stringify(next));
+  } catch {
+    /* 저장소가 막힌 브라우저 — 이 화면에만 남는다 */
+  }
+}
 
 type Edit = (key: string, value: string) => void;
 
@@ -132,8 +165,11 @@ function SizeRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit:
   );
 }
 
-/** 갤러리 카드 한 장 — 제목 · 한 줄 · 「N회 씀」 · 실물 본보기 */
-function Part({ k, children }: { k: string; children: React.ReactNode }) {
+/**
+ * 갤러리 카드 한 장 — 제목 · 한 줄 · 「N회 씀」 · 실물 본보기.
+ * `uncounted` — 원본 §86 컷이 「N회 씀」을 적지 않은 카드(표시 마크 · 요약 카드 · 주별 칸 · 86-6). 컷 그대로 두지 않는다.
+ */
+function Part({ k, uncounted = false, children }: { k: string; uncounted?: boolean; children: React.ReactNode }) {
   const row = GALLERY.find((g) => g.key === k)!;
   const n = (usage.counts as Record<string, number>)[k];
   return (
@@ -141,9 +177,11 @@ function Part({ k, children }: { k: string; children: React.ReactNode }) {
       <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
         <h3 className="text-[13.5px] font-bold">{row.name}</h3>
         <p className="min-w-0 grow truncate text-[11.5px] text-fg-subtle">{row.sub}</p>
-        <span className="shrink-0 rounded-md bg-inset px-2 py-1 text-[11px] font-bold text-fg-subtle">
-          {n}회 씀
-        </span>
+        {uncounted ? null : (
+          <span className="shrink-0 rounded-md bg-inset px-2 py-1 text-[11px] font-bold text-fg-subtle">
+            {n}회 씀
+          </span>
+        )}
       </header>
       <div className="p-4">{children}</div>
     </section>
@@ -178,11 +216,24 @@ const SAMPLE_COLS: Array<Column<(typeof SAMPLE_ROWS)[number]>> = [
 export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
   const [pane, setPane] = useState<Pane>('color');
   const [sample, setSample] = useState('하루만');
-  /** 이 창에서 바꾼 값 — 화면에만 있다(저장하지 않는다 · 85-2). 키 → 새 값 */
+  /** 이 창에서 바꾼 값 — 변경분만(UISET · 85-2 · N-78). 키 → 새 값 */
   const [edited, setEdited] = useState<Record<string, string>>({});
+  /*
+   * 셸이 이 창을 **닫힌 채로 늘 붙여 둔다** — 붙는 순간 저장분을 뿌리에 다시 씌운다(새로 고쳐도 바꾼 모양이 선다).
+   * 읽기는 붙은 뒤에만 한다 — 서버 그림과 첫 그림이 갈리지 않게.
+   */
+  useEffect(() => {
+    const saved = readUiset();
+    for (const [key, value] of Object.entries(saved)) setToken(key, value);
+    setEdited(saved);
+  }, []);
   const valueOf = (key: string) => edited[key] ?? cssVarValue(key);
-  const edit: Edit = (key, value) => { setToken(key, value); setEdited((prev) => ({ ...prev, [key]: value })); };
-  const reset = () => { for (const key of Object.keys(edited)) setToken(key, null); setEdited({}); };
+  const edit: Edit = (key, value) => {
+    setToken(key, value);
+    setEdited((prev) => { const next = { ...prev, [key]: value }; writeUiset(next); return next; });
+  };
+  // 「처음으로」는 UISET 를 비운다 — 뿌리에 적은 값을 지우면 tokens.css 값이 다시 선다
+  const reset = () => { for (const key of Object.keys(edited)) setToken(key, null); writeUiset({}); setEdited({}); };
   const editedCount = Object.keys(edited).length;
   const counts = useMemo(
     () => ({ color: TOKEN_COLORS.length, size: TOKEN_SIZES.length + TOKEN_LAYOUT.length, parts: GALLERY.length }),
@@ -199,7 +250,7 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
           {/* 바꾼 것이 있을 때만 선다 — 쉬는 모양은 원문 컷 그대로다 */}
           {editedCount > 0 ? (
             <>
-              <span className="text-[11.5px] text-fg-subtle">바꾼 것 {editedCount} · 이 화면에만 · 저장하지 않습니다</span>
+              <span className="text-[11.5px] text-fg-subtle">바꾼 것 {editedCount} · 이 브라우저에 저장됨</span>
               <Button size="sm" onClick={reset}>처음으로</Button>
             </>
           ) : null}
@@ -277,7 +328,8 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
                   <Chip tone="purple" styleKind="dot">컨설팅</Chip>
                 </div>
               </Part>
-              <Part k="mark">
+              {/* 원본 §86 컷의 이 카드에는 「N회 씀」이 없다 (86-6) */}
+              <Part k="mark" uncounted>
                 {/* 원본 §86 견본은 **세 상태와 그 뜻**이다 — 「✓ 교재 · ! 안내 · – 해당 없음」 (86-3).
                     글리프는 현황판이 쓰는 그 부품(`BoardMarks` 기호 모양)을 그대로 쓴다 */}
                 <div className="flex flex-wrap items-center gap-4">
@@ -313,12 +365,13 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
                   </div>
                 </div>
               </Part>
-              <Part k="stat">
+              <Part k="stat" uncounted>
                 <div className="grid grid-cols-3 gap-2">
-                  {/* 원본 §86 요약 카드 견본은 초록 · 분홍 옅은 바탕이다(공용 `fill`). 숫자 위/라벨 아래 모양은 확인 필요(86-7) */}
-                  <StatCard label="다 됐음" value="6/49" tone="success" fill />
-                  <StatCard label="교재 안 됨" value="42" tone="danger" fill />
-                  <StatCard label="휴강" value="0" />
+                  {/* 원본 §86 요약 카드 견본 — 초록 · 분홍 옅은 바탕(공용 `fill`) · **숫자 위 · 라벨 아래**(`valueFirst` · 86-7) ·
+                      「6/49」의 분모는 작게. 「N회 씀」은 컷에 없다(86-6) */}
+                  <StatCard label="다 됐음" value={<>6<small className="text-[15px]">/49</small></>} tone="success" fill valueFirst />
+                  <StatCard label="교재 안 됨" value="42" tone="danger" fill valueFirst />
+                  <StatCard label="휴강" value="0" valueFirst />
                 </div>
               </Part>
               <Part k="banner">
@@ -334,7 +387,7 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
                   <p className="p-3 text-[12px] text-fg-subtle">패널 안에 들어가는 내용입니다.</p>
                 </Panel>
               </Part>
-              <Part k="board">
+              <Part k="board" uncounted>
                 <Board
                   columns={[
                     { key: 'mon', label: '월', tone: 'info', items: [{ id: 1, t: 'MAP Reading' }] },

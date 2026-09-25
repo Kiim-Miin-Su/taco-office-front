@@ -75,3 +75,15 @@
     transparent 2px 6px
   );
 }
+
+/* 원문 §07 범례 「강사 불가」 · §11 「가능 시간」(G37) — 강사가 불가로 적은 시각을 격자에 까는 빗금 띠.
+   격자(Grids.tsx UnavBands)와 범례(Legend.tsx)가 같은 클래스를 쓴다 — 두 벌이면 범례가 거짓이 된다. */
+.unavBand {
+  border-top: 1px solid color-mix(in srgb, var(--orange) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--orange) 55%, transparent);
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--orange) 16%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}

@@ -13,6 +13,7 @@ import { InvoiceActions } from './InvoiceActions';
 const base: Invoice = {
   id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', yearMonth: '2026-08',
   title: '2026년 8월 수업료 청구', amount: 250000, paidAmount: 0, state: 'draft', stateLabel: '작성 중',
+  invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
   sentAt: null, canDeliver: true, canVoid: true, voidBlockedReason: null, voidReason: null, lines: [],
 };

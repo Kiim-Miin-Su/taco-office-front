@@ -106,9 +106,35 @@ function setup(books: (base: Record<string, unknown>) => Record<string, unknown>
 it('과목·레벨·학년 3축 필터를 서버 값으로 구성한다', async () => {
   const view = setup();
   await waitFor(() => expect(view.getByText('SAT Reading')).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '과목 SAT 1' }));
+  fireEvent.click(within(view.getByRole('group', { name: '과목 필터' })).getByRole('button', { name: 'SAT 1' }));
   expect(view.queryByRole('heading', { name: 'Writing' })).toBeNull();
   expect(view.getByText('SAT Reading')).toBeTruthy();
+});
+
+/**
+ * 원본 §39 — 연초록 필터 판이 **경고 띠 위**에 있고, 1줄 = 과목 칩 + 레벨 칩, 2줄 = 학년 칩이다. 칩 앞에 색 점, 뒤에 건수(g4 §39-2).
+ * 과목 점은 공용 과목색, 레벨 점은 카드 띠와 같은 F/P/M 색이다 — 확정 레벨이 아닌 서버 원문 레벨에는 점을 짓지 않는다.
+ */
+it('필터 판은 경고 띠 위에 두 줄로 서고 칩마다 색 점과 건수가 붙는다 (§39-2)', async () => {
+  const view = setup((base) => ({ ...base, levelCounts: [{ key: 'Foundation', label: 'Foundation', count: 1 }, { key: 'SAT', label: 'SAT', count: 1 }],
+    gradeCounts: [{ key: 'G11', label: 'G11', count: 1 }, { key: 'G12', label: 'G12', count: 1 }] }));
+  await waitFor(() => expect(view.getByText('SAT Reading')).toBeTruthy());
+  const filters = view.getByTestId('shelf-filters');
+  const band = view.getByText('TE 없는 교재 1종');
+  // 문서 차례 — 필터 판이 경고 띠보다 앞선다
+  expect(filters.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const rows = filters.querySelectorAll('[data-filter-row]');
+  expect(rows.length).toBe(2);
+  expect(within(rows[0] as HTMLElement).getByRole('group', { name: '과목 필터' })).toBeTruthy();
+  expect(within(rows[0] as HTMLElement).getByRole('group', { name: '레벨 필터' })).toBeTruthy();
+  expect(within(rows[1] as HTMLElement).getByRole('group', { name: '학년 필터' })).toBeTruthy();
+  const subjectChip = within(view.getByRole('group', { name: '과목 필터' })).getByRole('button', { name: 'SAT 1' });
+  expect(subjectChip.querySelector('[data-chip-dot]')).toBeTruthy();
+  const foundation = within(view.getByRole('group', { name: '레벨 필터' })).getByRole('button', { name: 'Foundation 1' });
+  expect((foundation.querySelector('[data-chip-dot]') as HTMLElement).style.backgroundColor).toBe('var(--red)');
+  // 확정 레벨이 아닌 원문 레벨(SAT)에는 점을 짓지 않는다
+  expect(within(view.getByRole('group', { name: '레벨 필터' })).getByRole('button', { name: 'SAT 1' }).querySelector('[data-chip-dot]')).toBeNull();
+  expect(within(view.getByRole('group', { name: '학년 필터' })).getByRole('button', { name: 'G12 1' })).toBeTruthy();
 });
 
 it('원본 F/P/M 색은 확정 레벨에만 적용하고 다른 서버 레벨은 원문을 보존한다', async () => {
@@ -170,6 +196,24 @@ it('교재 생성에서 비운 선택 정보는 기존처럼 생략한다', asyn
   fireEvent.click(view.getByRole('button', { name: '저장' }));
   await waitFor(() => expect(mutation.url).toBe('/books'));
   expect(mutation.body).toEqual({ code: 'NEW', title: '신규 교재' });
+});
+
+/*
+ * §39-5 (wave 6) — 원문 카드 아래 줄은 「코드 · 작은 SE · TE 배지」다(누르면 내려받기). 배지 이름에 교재를 붙여
+ * 스무 권의 「SE」가 한 이름이 되지 않게 하고, 파일이 없으면 누를 수 없는 「TE 없음」으로 남는다.
+ */
+it('카드 아래 줄은 코드와 작은 「SE」「TE」 배지다 — 이름에 교재를 붙이고 없는 파일은 누를 수 없다 (§39-5)', async () => {
+  const view = setup();
+  const se = await view.findByRole('button', { name: 'SAT Reading SE 내려받기' });
+  expect(se.textContent).toBe('SE');
+  expect(view.getByRole('button', { name: 'SAT Reading TE 내려받기' }).textContent).toBe('TE');
+  const line = se.closest('[data-book-file-line]') as HTMLElement;
+  expect(line.querySelector('[data-book-code]')?.textContent).toBe('SAT');
+  const writing = view.getByRole('heading', { name: 'Writing', level: 4 }).closest('article') as HTMLElement;
+  expect(within(writing).queryByRole('button', { name: /Writing (SE|TE) 내려받기/ })).toBeNull();
+  expect(within(writing).getByText('TE 없음')).toBeTruthy();
+  // 옛 「SE 열기」 단추 모양은 카드에 없다 (공용 단추의 기본 모양은 계약서 화면이 그대로 쓴다)
+  expect(view.queryByRole('button', { name: 'SE 열기' })).toBeNull();
 });
 
 it('넓은 화면은 원본처럼 한 줄 다섯 권이며 카드 작업 이름에 교재를 붙인다', async () => {

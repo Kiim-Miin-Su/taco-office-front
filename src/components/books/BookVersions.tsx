@@ -75,24 +75,26 @@ const TREND_BAR_MAX = 72;
 export function BookVersionBadge({ book }: { book: Book }) {
   const use = useUseBookVersion();
   if (!book.edition) return <span className="text-[11px] text-fg-subtle">판 없음</span>;
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Chip size="compact" tone={book.hasNewer ? 'warning' : 'neutral'}>
-        {book.edition}
-      </Chip>
-      {book.hasNewer && book.latestVersId ? (
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={use.isPending}
-          title={`${book.latestEdition ?? ''} 로 바꿉니다`}
-          onClick={() => use.mutate(book.latestVersId as number)}
-        >
-          ⇧ {book.latestEdition}
-        </Button>
-      ) : null}
-    </span>
-  );
+  // 원본 §39 카드 — 지금 판 칩이 곧 바꾸기 단추 「v2026.03 ⇧」 하나다(g4 §39-5). ⇧ 는 서버 hasNewer 하나만 본다
+  if (book.hasNewer && book.latestVersId) {
+    const label = `${book.edition} — ${book.latestEdition ?? '가장 나중 판'} 로 바꿉니다`;
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        disabled={use.isPending}
+        className="rounded-full disabled:opacity-50"
+        onClick={() => use.mutate(book.latestVersId as number)}
+      >
+        <Chip size="compact" tone="warning" styleKind="solid">
+          <span>{book.edition}</span>
+          <span aria-hidden className="ml-1">⇧</span>
+        </Chip>
+      </button>
+    );
+  }
+  return <Chip size="compact" tone="neutral">{book.edition}</Chip>;
 }
 
 /** §39 「+ 판 올리기」 */

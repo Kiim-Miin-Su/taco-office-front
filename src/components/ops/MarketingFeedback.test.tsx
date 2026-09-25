@@ -56,8 +56,31 @@ it('칩과 머리의 숫자는 서버가 준 값 그대로다 — 답이 있어�
 it('낱말은 서버가 만든 것을 쓴다 — 코드값이 화면으로 새지 않는다 (D-R18)', () => {
   const view = setup([needsFix]);
   expect(view.getByText('네이버')).toBeTruthy();
-  expect(view.getByText('블로그 글 · 담당 담당')).toBeTruthy();
+  // 카드 머리는 한 줄이다(원문 §60 · x5 60-3) — 「항목 · 담당」 둘째 줄은 없다. 담당은 답 블록의 이름이 말한다
+  expect(view.queryByText('블로그 글 · 담당 담당')).toBeNull();
   expect(view.queryByText(/needs_fix|comment|reply/)).toBeNull();
+});
+
+it('글 블록은 이름 + 본문 · 시각은 답에만 · 고치기는 바닥 단추 줄에서 제 글만 (x5 · 60-4 · 60-5 · 60-8)', () => {
+  const fixed: MfbThread = {
+    ...needsFix, mktId: 9, state: 'fixed', stateLabel: '고쳤습니다', at: '2026-08-20T21:15:00+09:00',
+    posts: [
+      { id: 91, kind: 'comment', kindLabel: '대표 코멘트', body: '키워드를 앞에', byId: 1, byName: '김민선', at: '2026-08-20T21:15:00+09:00' },
+      { id: 92, kind: 'reply', kindLabel: '담당자 답변', body: '바꿨습니다', byId: 2, byName: '홍지승', at: '2026-08-21T09:30:00+09:00' },
+    ],
+  };
+  const view = setup([fixed], { viewerId: 1 });
+  // 시각은 답에만 — 코멘트 시각(08-20 21:15)은 카드 머리에만 한 번
+  expect(view.getByText('08-21 09:30')).toBeTruthy();
+  expect(view.getAllByText('08-20 21:15')).toHaveLength(1);
+  // 「대표 코멘트」·「담당자 답변」 낱말은 글자로 서지 않는다 — 색이 대신하고 읽는 사람에게는 aria-label 로 남는다
+  expect(view.queryByText('대표 코멘트')).toBeNull();
+  expect(view.getByLabelText('담당자 답변')).toBeTruthy();
+  // 보는 사람(1 = 대표)은 제 코멘트만 고친다 — 남의 답에는 단추가 없다
+  expect(view.getByRole('button', { name: '코멘트 고치기' })).toBeTruthy();
+  expect(view.queryByRole('button', { name: '답 고치기' })).toBeNull();
+  // 카드 왼쪽 굵은 상태 띠 — 고쳤습니다 초록
+  expect(view.getByText('키워드를 앞에').closest('[class*="border-l-4"]')?.className).toContain('border-l-green');
 });
 
 it('대표가 아니면 「+ 코멘트 남기기」가 없다 — 서버도 CEO_ONLY 로 막는다', () => {

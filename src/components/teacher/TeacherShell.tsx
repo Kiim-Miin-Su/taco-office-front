@@ -14,10 +14,11 @@
 'use client';
 import { useId, useState, type ReactNode } from 'react';
 import type { Me } from '@/api/types';
-import { useUnwritten } from '@/api/queries';
+import { useTeacherShell, useUnwritten } from '@/api/queries';
 import { adminNavItemsFor, mostSpecificNavItem } from '@/components/shell/navigation';
 import { TeacherHeader } from './TeacherHeader';
 import { TeacherMenuPanel } from './TeacherMenuPanel';
+import { TeacherNotiDrawer } from './TeacherNotiDrawer';
 
 export function TeacherShell({ pathname, me, onLogout, children }: {
   pathname: string | null;
@@ -42,6 +43,9 @@ export function TeacherShell({ pathname, me, onLogout, children }: {
   const title = items.find((item) => item.href === activeHref)?.label ?? '';
   // 리포트 칸의 숫자는 본인 미작성 수(서버가 본인으로 고정) — 패널이 보일 때만 부른다
   const unwritten = useUnwritten(undefined, open).data;
+  // 머리줄 시간대·시급·🔔 — 강사 본인 한 번 읽기(GET /teacher/shell). 관리 화면 사용자는 부르지 않는다(서버도 403)
+  const shell = useTeacherShell(Boolean(me) && !me?.canAdminPage).data;
+  const [notiOpen, setNotiOpen] = useState(false);
 
   function close(returnFocus: boolean) {
     setOpenOn(null);
@@ -54,17 +58,22 @@ export function TeacherShell({ pathname, me, onLogout, children }: {
       {open ? (
         <TeacherMenuPanel
           id={menuId} items={items} activeHref={activeHref} me={me}
+          tzLabel={shell?.tzLabel} wageRate={shell?.wageRate}
           badges={{ reports: unwritten?.total ?? 0 }}
           onClose={() => close(true)} onNavigate={() => close(false)}
         />
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col">
         <TeacherHeader
-          title={title} name={me?.name} menuOpen={open} menuId={menuId} toggleId={toggleId}
+          title={title} name={me?.name} roleLabel={me ? me.title || me.roleLabel : null}
+          tzLabel={shell?.tzLabel} wageRate={shell?.wageRate}
+          unread={shell?.unread ?? 0} notiOpen={notiOpen} onOpenNotis={shell ? () => setNotiOpen(true) : undefined}
+          menuOpen={open} menuId={menuId} toggleId={toggleId}
           onToggleMenu={() => (open ? close(false) : setOpenOn(here))} onLogout={onLogout}
         />
         {children}
       </div>
+      <TeacherNotiDrawer open={notiOpen} onClose={() => setNotiOpen(false)} shell={shell} me={me} />
     </div>
   );
 }

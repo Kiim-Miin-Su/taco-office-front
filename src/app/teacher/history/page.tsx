@@ -13,12 +13,13 @@
 import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Button, Chip, PageHeader, Panel, QueryState, type Tone } from '@/components/ui';
+import { Button, Chip, Panel, QueryState, type Tone } from '@/components/ui';
 import { useMeta, useTeacherHistory } from '@/api/queries';
 import type { TeacherHistoryLesson } from '@/api/types';
 import { won } from '@/lib/money';
 import { LATE_TONE, REP, dowOf, hm, hours } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
+import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { useLessonName } from '@/components/teacher/lesson-name';
 
 const addMonth = (ym: string, n: number): string => {
@@ -151,7 +152,7 @@ export default function TeacherHistoryPage() {
             const ymLabel = `${Number(d.month.slice(0, 4))}년 ${Number(d.month.slice(5, 7))}월`;
             return (
               <>
-                <PageHeader
+                <ScreenHeader
                   title="수업 히스토리"
                   sub={`${ymLabel} · 종료 ${d.stats.doneCount}건 · 리포트 완료 ${d.stats.writtenCount} · 미작성 ${d.stats.unwrittenCount}`}
                 />

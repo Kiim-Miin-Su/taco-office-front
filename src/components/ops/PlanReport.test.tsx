@@ -47,6 +47,8 @@ const base: PlanDetail = {
   dueOn: '2026-08-25', dueState: 'proposed', dueStateLabel: '기한 제안',
   dueApprovedByName: null, overdueDays: 4,
   canDecideDue: true, canReview: false, reviewBlockedReason: '기한부터 승인하세요',
+  // x5 · 65-7 — 보완 요청은 기한 승인을 기다리지 않는다(원문 규칙이 막는 것은 최종 승인뿐)
+  canRework: true, reworkBlockedReason: null,
   // S6 — 올라간 기획은 고칠 수 없고 옮길 곳도 없다(다음 칸은 대표의 결재가 정한다)
   reworkReason: null, canEdit: false,
   editBlockedReason: '대표 확인을 기다리는 중입니다 — 보완 요청을 받은 뒤에 고칠 수 있습니다',
@@ -58,8 +60,9 @@ const base: PlanDetail = {
 /** 작성 중 — 담당이 적고 올리는 쪽의 화면 (S6) */
 const drafting: PlanDetail = {
   ...base, stage: 'draft', stageLabel: '작성 중', research: null,
-  dueState: 'approved', dueStateLabel: '기한 승인됨', canDecideDue: false,
+  dueState: 'approved', dueStateLabel: '기한 승인', canDecideDue: false,
   canReview: false, reviewBlockedReason: '아직 검토 요청이 올라오지 않았습니다',
+  canRework: false, reworkBlockedReason: '아직 검토 요청이 올라오지 않았습니다',
   canEdit: true, editBlockedReason: null, nextStages: [{ key: 'review', label: '검토 요청' }],
 };
 
@@ -91,7 +94,7 @@ it('기한 승인·반려를 서버에 그대로 보낸다', async () => {
 
 it('기한이 승인되면 최종 승인이 열리고 누가 승인했는지 남는다', () => {
   const v = setup({
-    ...base, dueState: 'approved', dueStateLabel: '기한 승인됨', dueApprovedByName: '김민선',
+    ...base, dueState: 'approved', dueStateLabel: '기한 승인', dueApprovedByName: '김민선',
     canDecideDue: false, canReview: true, reviewBlockedReason: null,
   });
   const btn = v.getByRole('button', { name: '최종 승인' }) as HTMLButtonElement;
@@ -101,7 +104,7 @@ it('기한이 승인되면 최종 승인이 열리고 누가 승인했는지 남
 });
 
 it('보완 요청은 사유를 적기 전에는 보내지 않는다', async () => {
-  const v = setup({ ...base, dueState: 'approved', dueStateLabel: '기한 승인됨', canReview: true, reviewBlockedReason: null });
+  const v = setup({ ...base, dueState: 'approved', dueStateLabel: '기한 승인', canReview: true, reviewBlockedReason: null });
   fireEvent.click(v.getByRole('button', { name: '보완 요청' }));
   const send = v.getByRole('button', { name: '보완 요청 보내기' }) as HTMLButtonElement;
   expect(send.disabled).toBe(true);
@@ -192,7 +195,7 @@ it('보완 요청 사유가 화면에 뜬다 — 그동안 log 에만 있어 담
 it('막힌 이유가 단추의 이름이다 — 한 자리에서 두 말이 나지 않는다 (S6 에서 고쳤다)', () => {
   // 기한은 이미 승인됐는데 대표가 아니다 — 전에는 단추가 「기한부터 승인하세요」라 거짓말했다
   const v = setup({
-    ...base, dueState: 'approved', dueStateLabel: '기한 승인됨', canDecideDue: false,
+    ...base, dueState: 'approved', dueStateLabel: '기한 승인', canDecideDue: false,
     reviewBlockedReason: '기획 결재는 대표만 합니다',
   });
   const btn = v.getByRole('button', { name: '기획 결재는 대표만 합니다' }) as HTMLButtonElement;
@@ -263,4 +266,27 @@ it('「+ 대표 지시」는 서버가 열 때만 서고, 같은 「할 일 만�
   await waitFor(() => expect(addTask).toHaveBeenCalledWith(
     expect.objectContaining({ id: 3, title: '검색광고 키워드 재조정', toId: 8 }),
   ));
+});
+
+/* ── x5 · 65-7 「보완 요청」은 기한 승인을 기다리지 않는다 ─────────────────── */
+
+it('기한 승인 전에도 「보완 요청」은 선다 — 막히는 것은 최종 승인뿐이다 (65-7)', async () => {
+  const v = setup(base);
+  const finalBtn = v.getByRole('button', { name: '기한부터 승인하세요' }) as HTMLButtonElement;
+  expect(finalBtn.disabled).toBe(true);
+  const rework = v.getByRole('button', { name: '보완 요청' }) as HTMLButtonElement;
+  expect(rework.disabled).toBe(false);
+  fireEvent.click(rework);
+  fireEvent.change(v.getByLabelText('보완 요청 사유 (필수)'), { target: { value: '예산 근거를 더해 주세요' } });
+  fireEvent.click(v.getByRole('button', { name: '보완 요청 보내기' }));
+  await waitFor(() => expect(review).toHaveBeenCalledWith(
+    { id: 3, decision: 'rework', reason: '예산 근거를 더해 주세요' }, expect.anything(),
+  ));
+});
+
+it('「보완 요청」이 닫힌 이유는 서버의 문장이다 — 화면이 역할·단계를 다시 조합하지 않는다 (65-7)', () => {
+  const v = setup({ ...base, canRework: false, reworkBlockedReason: '기획 결재는 대표만 합니다' });
+  const rework = v.getByRole('button', { name: '보완 요청' }) as HTMLButtonElement;
+  expect(rework.disabled).toBe(true);
+  expect(rework.getAttribute('title')).toBe('기획 결재는 대표만 합니다');
 });

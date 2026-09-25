@@ -40,6 +40,11 @@ export interface BoardColumn<T> {
   fill?: boolean;
   /** 이 칸 앞에 세로 구분선(§23 「보류」|「등록」 — 깔때기 안과 결과를 가른다) — 기본 끔 */
   divideBefore?: boolean;
+  /**
+   * 칸 윗선·번호 원·큰 건수를 **글자색(검정)**으로 — 원문 §52 넷째 칸 「입금 기록」 (x5 · 52-01).
+   * 칩 톤에는 검정이 없다(`neutral` 은 회색 — §52 첫 칸). 기본 끔 = `tone` 그대로.
+   */
+  ink?: boolean;
   items: T[];
 }
 
@@ -58,13 +63,18 @@ export interface BoardProps<T> {
   /** 건수 모양 — `chip`(기본 · 오른쪽 칩) · `inline`(이름 바로 옆 톤 색 숫자 · §23) · `big`(오른쪽 큰 톤 색 숫자 · §26 · C-9) */
   countStyle?: 'chip' | 'inline' | 'big';
   renderCard: (item: T) => ReactNode;
+  /**
+   * 카드 한 장의 **겉모양**을 바꿀 클래스 — 원문 §61·§67 의 기한 지난 카드는 분홍 바탕 + 붉은 테두리다 (x5 · C-9).
+   * 판정은 부르는 쪽(서버 값)이 한다 — 보드는 무엇이 「지난」 것인지 모른다. 기본 없음 = 지금 모양.
+   */
+  cardClassName?: (item: T) => string | undefined;
   itemKey: (item: T) => string | number;
   empty?: string;
   className?: string;
 }
 
 export function Board<T>({
-  columns, renderCard, itemKey, numbered = false, accent = false, countStyle = 'chip', empty = '없습니다', className,
+  columns, renderCard, cardClassName, itemKey, numbered = false, accent = false, countStyle = 'chip', empty = '없습니다', className,
 }: BoardProps<T>) {
   return (
     <div
@@ -78,7 +88,7 @@ export function Board<T>({
           className={cn(
             'rounded-xl border border-line p-2.5',
             c.fill ? FILL[c.tone ?? 'neutral'] : 'bg-inset',
-            accent ? cn('border-t-[3px]', ACCENT[c.tone ?? 'neutral']) : '',
+            accent ? cn('border-t-[3px]', c.ink ? 'border-t-fg' : ACCENT[c.tone ?? 'neutral']) : '',
             // 구분선은 칸 사이 틈(gap-3 = 12px)의 가운데에 선다 — 칸 너비를 먹지 않는다
             c.divideBefore ? "relative before:absolute before:-left-[7px] before:top-0 before:h-full before:w-0.5 before:rounded-full before:bg-line before:content-['']" : '',
           )}
@@ -88,7 +98,9 @@ export function Board<T>({
               <span className="flex min-w-0 items-center gap-1.5">
                 {/* 번호는 **자리**를 말한다 — 컷의 ①②③ 은 왼쪽에서 오른쪽으로 올리는 순서다 */}
                 {numbered ? (
-                  <Chip size="compact" tone={c.tone ?? 'neutral'} styleKind={accent ? 'solid' : 'soft'}>{i + 1}</Chip>
+                  c.ink && accent
+                    ? <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fg px-1.5 text-[10px] font-bold text-card">{i + 1}</span>
+                    : <Chip size="compact" tone={c.tone ?? 'neutral'} styleKind={accent ? 'solid' : 'soft'}>{i + 1}</Chip>
                 ) : null}
                 <span className="truncate text-[12px] font-bold text-fg">{c.label}</span>
                 {countStyle === 'inline' ? (
@@ -98,7 +110,7 @@ export function Board<T>({
               {/* 건수는 **서버가 센 값이 있으면 그것**을 쓴다 — 없을 때만 배열을 센다 (D-R37) */}
               {countStyle === 'chip' ? <Chip tone={c.tone ?? 'neutral'}>{c.items.length}</Chip> : null}
               {countStyle === 'big' ? (
-                <span className={cn('shrink-0 text-[20px] font-bold leading-none', COUNT_TEXT[c.tone ?? 'neutral'])}>{c.items.length}</span>
+                <span className={cn('shrink-0 text-[20px] font-bold leading-none', c.ink ? 'text-fg' : COUNT_TEXT[c.tone ?? 'neutral'])}>{c.items.length}</span>
               ) : null}
             </div>
             {c.sub ? <p className="mt-0.5 text-[10.5px] text-fg-subtle">{c.sub}</p> : null}
@@ -109,7 +121,7 @@ export function Board<T>({
               <p className="px-1 py-4 text-center text-[11px] text-fg-subtle">{empty}</p>
             ) : (
               c.items.map((it) => (
-                <article key={itemKey(it)} className="rounded-lg border border-line bg-card p-2.5">
+                <article key={itemKey(it)} className={cardClassName?.(it) ?? 'rounded-lg border border-line bg-card p-2.5'}>
                   {renderCard(it)}
                 </article>
               ))

@@ -40,7 +40,8 @@ const report = (id: number, studentId: number, studentName: string): ReportDetai
 
 const first = report(11, 21, '학생A');
 const second = report(12, 22, '학생B');
-const blocked = report(13, 23, '학생C');
+// 미승인(검토 대기) 수업 — 서버가 내보내기 descriptor 를 주지 않는다
+const blocked: ReportDetail = { ...report(13, 23, '학생C'), state: 'wait', canExport: false, exportFiles: [] };
 
 const queue: Queue = {
   onDate: '2026-09-04', total: 3, remaining: 2, blocked: 1,
@@ -71,8 +72,9 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} />);
 
     expect((view.getByRole('checkbox', { name: /학생C/ }) as HTMLInputElement).disabled).toBe(true);
-    fireEvent.click(view.getByRole('button', { name: '전체 선택' }));
-    fireEvent.click(view.getByRole('button', { name: '2명 보내기' }));
+    // 원문 §49 오른쪽 한 단추 「9명 전부 완료」 — 아무도 고르지 않았으면 보낼 수 있는(서버 canSend) 학생 전부다 (g5 49-02)
+    expect(view.queryByRole('button', { name: '전체 선택' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '2명 전부 완료' }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
     expect(mutateAsync.mock.calls[0]?.[0]).toMatchObject({
@@ -91,7 +93,8 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     const onOpenReport = vi.fn();
     const view = render(<ReportDeliveryQueue onOpenReport={onOpenReport} />);
     fireEvent.click(view.getByRole('checkbox', { name: /학생A/ }));
-    expect((view.getByRole('button', { name: '1명 보내기' }) as HTMLButtonElement).disabled).toBe(false);
+    // 고르면 한 단추가 고른 학생만 보낸다(원문 동작 「개별 완료」)
+    expect((view.getByRole('button', { name: '1명 완료' }) as HTMLButtonElement).disabled).toBe(false);
 
     const incoming: ReportDetail = { ...report(14, 21, '학생A'), state: 'none', written: false,
       canExport: false, canDeliver: false, exportFiles: [] };
@@ -104,28 +107,41 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     const checkbox = view.getByRole('checkbox', { name: /학생A/ }) as HTMLInputElement;
     expect(checkbox.disabled).toBe(true);
     expect(checkbox.checked).toBe(false);
-    const send = view.getByRole('button', { name: '0명 보내기' }) as HTMLButtonElement;
+    // 고른 학생이 막혔다고 고르지 않은 학생을 대신 보내지 않는다 — 단추는 0명으로 잠긴다
+    const send = view.getByRole('button', { name: '0명 완료' }) as HTMLButtonElement;
     expect(send.disabled).toBe(true);
     fireEvent.click(send);
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(reportExport.renderReportPng).not.toHaveBeenCalled();
   });
 
-  it('학생 카드에서 전문을 열면 선택 학생 ID를 함께 넘긴다', () => {
-    const shared = {
-      ...first,
-      students: [first.students[0], second.students[0]],
-      exportFiles: [first.exportFiles[0], second.exportFiles[0]],
-    };
-    vi.mocked(queries.useReportDelivery).mockReturnValue({
-      data: { ...queue, students: [{ ...queue.students[1], reports: [shared] }] },
-      isLoading: false,
-      isError: false,
-    } as never);
+  /**
+   * 원문 §49 — 「전문 보기 ›」는 **학생 카드에 한 번**이고(동작 「학생 카드 → 전문 보기」), 수업 줄은 읽는 줄이다(g5 49-05 · 50-01).
+   * 아직 내보낼 수 없는(미승인) 수업 줄만 검토 서랍을 여는 단추로 남는다.
+   */
+  it('전문 보기는 학생 카드에 한 번이고 그 학생의 하루 묶음을 넘긴다 · 미승인 줄만 검토로 연다', () => {
     const onOpenReport = vi.fn();
-    const view = render(<ReportDeliveryQueue onOpenReport={onOpenReport} />);
-    fireEvent.click(view.getByRole('button', { name: /전문 보기/ }));
-    expect(onOpenReport).toHaveBeenCalledWith(shared, 22);
+    const onOpenStudent = vi.fn();
+    const view = render(<ReportDeliveryQueue onOpenReport={onOpenReport} onOpenStudent={onOpenStudent} />);
+    const card = view.getByRole('checkbox', { name: /학생A/ }).closest('article') as HTMLElement;
+    const links = [...card.querySelectorAll('button')].filter((button) => /전문 보기/.test(button.textContent ?? ''));
+    expect(links.length).toBe(1);
+    fireEvent.click(links[0]!);
+    expect(onOpenStudent).toHaveBeenCalledWith(queue.students[0]);
+    // 승인된 수업 줄은 단추가 아니다
+    expect(card.querySelectorAll('[data-report-line] button, button[data-report-line]').length).toBe(0);
+
+    const blockedCard = view.getByRole('checkbox', { name: /학생C/ }).closest('article') as HTMLElement;
+    expect([...blockedCard.querySelectorAll('button')].some((button) => /전문 보기/.test(button.textContent ?? ''))).toBe(false);
+    fireEvent.click(blockedCard.querySelector('button[data-report-line]') as HTMLButtonElement);
+    expect(onOpenReport).toHaveBeenCalledWith(blocked, 23);
+  });
+
+  it('머리 오른쪽은 「학생 N명」 한 줄과 한 단추다 (§49 · g5 49-02)', () => {
+    const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} />);
+    expect(view.getByText('학생 3명')).toBeTruthy();
+    expect(view.queryByText(/보낼 수 있음/)).toBeNull();
+    expect(view.getAllByRole('button').filter((button) => /완료$/.test(button.textContent ?? '')).length).toBe(1);
   });
 
   /**
@@ -151,7 +167,7 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
     const card = view.getByRole('checkbox', { name: /학생A/ }).closest('article') as HTMLElement;
     expect(card.textContent).toContain('고2');
     expect(card.textContent).toContain('1건');
-    const line = card.querySelector('button') as HTMLButtonElement;
+    const line = card.querySelector('[data-report-line]') as HTMLElement;
     expect(line.style.borderLeftColor).toBe('rgb(86, 119, 165)');
     expect(line.textContent).toContain('16:00');
   });

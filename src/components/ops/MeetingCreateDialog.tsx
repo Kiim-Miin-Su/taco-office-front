@@ -92,7 +92,8 @@ export function MeetingCreateButton({ mtTypes, can, onDone }: MeetingCreateButto
   if (!can) return null;
   return (
     <>
-      <Button type="button" size="sm" onClick={() => setOpen(true)}>+ 회의 잡기</Button>
+      {/* 원문 §63 속 갈래 줄 오른쪽 끝의 갈색 주 단추 (x5 · C-7) */}
+      <Button type="button" variant="primary" onClick={() => setOpen(true)}>+ 회의 잡기</Button>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}

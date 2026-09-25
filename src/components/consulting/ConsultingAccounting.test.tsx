@@ -21,13 +21,13 @@ const base: Dto = {
   totalAmount: 1700000, totalPaid: 400000, totalDue: 1300000,
   items: [
     {
-      id: 1, studentName: '민제인', consType: 'essay', stage: 'contract', stageLabel: '계약',
+      id: 1, studentName: '민제인', consType: 'essay', typeLabel: '에세이 지도', stage: 'contract', stageLabel: '계약',
       amount: 900000, paid: 0, due: 900000, payments: [], invId: null, canInvoice: false,
       // 계약 단계라 서명본 전 — 서버가 납부를 막는다 (S5)
       canAddPayment: false, payBlockedReason: '서명본 등록 뒤 수납할 수 있습니다',
     },
     {
-      id: 2, studentName: '고은성', consType: 'admissions', stage: 'running', stageLabel: '진행',
+      id: 2, studentName: '고은성', consType: 'visa', typeLabel: '비자 · 서류', stage: 'running', stageLabel: '진행',
       amount: 800000, paid: 400000, due: 400000,
       payments: [{ id: 7, amount: 400000, paidOn: '2026-07-12', memo: '계약금', byName: '김민수' }],
       invId: null, canInvoice: true, canAddPayment: true, payBlockedReason: null,
@@ -54,6 +54,11 @@ it('서버의 합계가 줄과 안 맞아도 화면은 서버 값을 그린다 �
   d.totalDue = 999; // 서버가 이렇게 줬다면 그건 서버에서 볼 일이다
   const v = render(<ConsultingAccounting data={d} />);
   expect(card(v, '남은 돈')).toBe('999원');
+});
+
+it('종류 이름도 서버 낱말(typeLabel)이다 — 가운뎃점 앞뒤를 띄운 원본 그대로 (29-02)', () => {
+  const v = render(<ConsultingAccounting data={clone()} />);
+  expect(v.getByText('비자 · 서류')).toBeTruthy();
 });
 
 it('단계 낱말도 서버가 준 것을 쓴다 — 코드값이 새지 않는다 (D-R18)', () => {

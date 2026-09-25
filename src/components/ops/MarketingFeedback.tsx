@@ -13,6 +13,10 @@
  *
  * 원문 §60 의 「보류」 단추는 만들지 않았다 — 누른 뒤 카드가 어떤 칩을 다는지 원문이
  * 보여 주지 않는다. 없는 상태를 지어내는 대신 결정 요청으로 올렸다 (N-29).
+ *
+ * **x5 (잔여 물결 · g6 60-3~60-8)** — 카드 머리는 한 줄(상태 · 채널 · 제목 ··· 시각), 글 블록은 이름(대표 주황 · 담당 초록) +
+ * 본문이고 **시각은 답에만**, 고치기 단추는 **바닥 단추 줄**로(자기 코멘트는 「코멘트 고치기」 · 자기 답은 「답 고치기」),
+ * 머리 띠는 두 줄 · 「+ 코멘트 남기기」·「고친 것 알리기」는 갈색 주 단추, 카드 왼쪽 굵은 상태 띠(고쳤습니다 초록 · 확인 필요 빨강).
  */
 'use client';
 import { useState } from 'react';
@@ -27,23 +31,19 @@ const STATE_TONE: Record<string, 'success' | 'danger'> = { fixed: 'success', nee
 /** `2026-08-20T21:15:00+09:00` → `08-20 21:15`. 시각을 만드는 곳은 서버이고 여기서는 자르기만 한다 */
 const shortAt = (at: string): string => `${at.slice(5, 10)} ${at.slice(11, 16)}`;
 
-function PostBlock({ post, onEdit }: { post: MfbPost; onEdit?: () => void }) {
+/**
+ * 글 블록 — 원문 §60: 이름(대표 코멘트 주황 · 담당 답 초록) + 본문. 「대표 코멘트」/「담당자 답변」 낱말은 색이 대신하고
+ * (낱말은 읽는 사람을 위해 `aria-label` 로 남긴다), **시각은 답에만** 적는다 — 코멘트 시각은 카드 머리 시각과 같다 (60-4).
+ */
+function PostBlock({ post }: { post: MfbPost }) {
   const isComment = post.kind === 'comment';
   return (
-    <div className={`border-l-2 px-3 py-2 ${isComment ? 'border-amber bg-amber/10' : 'border-green bg-green/10'}`}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className={`text-[11px] font-bold ${isComment ? 'text-amber' : 'text-green'}`}>
-          {post.byName ?? '—'}
-        </span>
-        <span className="text-[10.5px] text-fg-subtle">{post.kindLabel}</span>
-      </div>
+    <div aria-label={post.kindLabel} className={`border-l-2 px-3 py-2 ${isComment ? 'border-orange bg-orange/5' : 'border-green bg-green/5'}`}>
+      <span className={`text-[11px] font-bold ${isComment ? 'text-orange' : 'text-green'}`}>
+        {post.byName ?? '—'}
+      </span>
       <p className="mt-1 whitespace-pre-wrap text-[12.5px] text-fg">{post.body}</p>
-      <div className="mt-1 flex items-center justify-between">
-        <span className="text-[10.5px] italic text-fg-subtle">{shortAt(post.at)}</span>
-        {onEdit ? (
-          <button type="button" className="text-[11px] text-fg-subtle underline" onClick={onEdit}>답 고치기</button>
-        ) : null}
-      </div>
+      {isComment ? null : <span className="mt-1 block text-[10.5px] italic text-fg-subtle">{shortAt(post.at)}</span>}
     </div>
   );
 }
@@ -76,17 +76,17 @@ export function MarketingFeedback({
 
   return (
     <>
-      {/* 원문 §60 머리 띠 — 숫자와 문장은 규칙 그대로다 */}
+      {/* 원문 §60 머리 띠 — 두 줄(굵은 「고쳐야 할 것 N건」 + 설명) · 오른쪽 갈색 주 단추 (60-6). 숫자와 문장은 규칙 그대로다 */}
       <Banner tone={needsFix > 0 ? 'danger' : 'neutral'} className="mb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>
-            <b>고쳐야 할 것 {needsFix}건</b>
-            <span className="ml-2 text-[12px] text-fg-2">
+          <span className="flex flex-col gap-0.5">
+            <b className="text-[14px]">고쳐야 할 것 {needsFix}건</b>
+            <span className="text-[12px] text-fg-2">
               대표가 코멘트를 남기면 <b>관리자 전원</b>에게 알림이 갑니다
             </span>
           </span>
           {canComment ? (
-            <Button size="sm" onClick={() => { close(); setOpenComment(true); }}>+ 코멘트 남기기</Button>
+            <Button variant="primary" onClick={() => { close(); setOpenComment(true); }}>+ 코멘트 남기기</Button>
           ) : null}
         </div>
       </Banner>
@@ -126,29 +126,29 @@ export function MarketingFeedback({
           const lastComment = [...t.posts].reverse().find((p) => p.kind === 'comment');
           const answering = replyMkt === t.mktId;
           const editingHere = editing && t.posts.some((p) => p.id === editing.id) ? editing : null;
+          // 고치는 것은 **자기 글**뿐이다(서버 NOT_AUTHOR) — 코멘트와 답은 이름이 다른 단추다 (60-5)
+          const mine = (kind: string) => (viewerId === null ? undefined
+            : [...t.posts].reverse().find((p) => p.kind === kind && p.byId === viewerId));
+          const myComment = mine('comment');
+          const myReply = mine('reply');
+          const startEdit = (p: MfbPost) => { close(); setEditing(p); setDraft(p.body); };
           return (
             <Panel
               key={t.mktId}
+              /* 카드 왼쪽 굵은 상태 띠 — 고쳤습니다 초록 · 확인 필요 빨강 (60-8) */
+              className={`border-l-4 ${t.state === 'fixed' ? 'border-l-green' : 'border-l-red'}`}
+              /* 머리는 한 줄 — 상태 · 채널 · 제목 ··· 시각 (60-3). 담당은 답 블록의 이름이 말한다 */
               title={(
                 <span className="flex flex-wrap items-center gap-2">
                   <Chip tone={STATE_TONE[t.state] ?? 'neutral'} styleKind="solid">{t.stateLabel}</Chip>
-                  <Chip tone="info">{t.channelLabel}</Chip>
+                  <Chip tone="info" styleKind="solid">{t.channelLabel}</Chip>
                   <span className="font-bold">{t.name}</span>
                 </span>
               )}
-              sub={`${t.itemLabel}${t.byName ? ` · 담당 ${t.byName}` : ' · 담당 없음'}`}
               right={<span className="text-[11px] text-fg-subtle">{shortAt(t.at)}</span>}
             >
               <div className="flex flex-col gap-2">
-                {t.posts.map((p) => (
-                  <PostBlock
-                    key={p.id}
-                    post={p}
-                    onEdit={viewerId !== null && p.byId === viewerId
-                      ? () => { close(); setEditing(p); setDraft(p.body); }
-                      : undefined}
-                  />
-                ))}
+                {t.posts.map((p) => <PostBlock key={p.id} post={p} />)}
                 {t.state === 'needs_fix' ? (
                   <div className="rounded bg-bg-2 px-3 py-2 text-[12px] text-fg-subtle">아직 답이 없습니다</div>
                 ) : null}
@@ -156,7 +156,7 @@ export function MarketingFeedback({
 
               {editingHere ? (
                 <div className="mt-3">
-                  <Label htmlFor="mfb-edit">답 고치기</Label>
+                  <Label htmlFor="mfb-edit">{editingHere.kind === 'comment' ? '코멘트 고치기' : '답 고치기'}</Label>
                   <Textarea id="mfb-edit" rows={3} maxLength={1000} value={draft}
                     onChange={(e) => setDraft(e.target.value)} />
                   {edit.isError ? <Banner tone="danger" className="mt-2">{apiMessage(edit.error)}</Banner> : null}
@@ -189,15 +189,22 @@ export function MarketingFeedback({
                 </div>
               ) : null}
 
+              {/* 바닥 단추 줄 — 「URL · 답 고치기」 / 「URL · 고친 것 알리기(주 단추)」 (60-5 · 60-6). 「보류」는 N-29 결정 전이라 없다 */}
               <div className="mt-3 flex flex-wrap gap-2">
                 {t.url ? (
                   <a href={t.url} target="_blank" rel="noreferrer">
                     <Button size="sm" variant="secondary">URL</Button>
                   </a>
                 ) : null}
+                {myComment && !editingHere ? (
+                  <Button size="sm" variant="secondary" onClick={() => startEdit(myComment)}>코멘트 고치기</Button>
+                ) : null}
+                {myReply && !editingHere ? (
+                  <Button size="sm" variant="secondary" onClick={() => startEdit(myReply)}>답 고치기</Button>
+                ) : null}
                 {/* 답은 담당자만 쓴다 — 서버도 같은 판정으로 막는다 (NOT_OWNER) */}
                 {t.canReply && lastComment && t.state === 'needs_fix' && !answering ? (
-                  <Button size="sm" onClick={() => { close(); setReplyMkt(t.mktId); setDraft(''); }}>
+                  <Button size="sm" variant="primary" onClick={() => { close(); setReplyMkt(t.mktId); setDraft(''); }}>
                     고친 것 알리기
                   </Button>
                 ) : null}

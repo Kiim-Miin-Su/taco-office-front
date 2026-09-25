@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: consulting.ts — CONSULTING_TYPES, CONSULTING_STAGES, ConsultingStageFilterValue, ConsultingStageCounts, consultingStageView 등 (util)
+ * 목적: consulting.ts — CONSULTING_STAGES, ConsultingStageFilterValue, ConsultingStageCounts, consultingStageView 등 (util)
  * 책임/재사용: 현재 lib 계층의 순수 계산/표시 방어를 우선 재사용한다. UI·네트워크·DB 부수효과와 서버 업무 권위를 섞지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -7,19 +7,11 @@
 import type { Consulting } from '@/api/types';
 import type { Tone } from '@/components/ui';
 
-/** §29 원문 종류 10종 — 이름은 원문 그대로, 코드 대응은 D-R44(원문 기반)로 확정. 모르는 코드는 원문 보존. */
-export const CONSULTING_TYPES: Readonly<Record<string, string>> = {
-  admissions: '국제학교 지원',
-  boarding: '미국 보딩스쿨',
-  transfer: '편입·전학',
-  essay: '에세이 지도',
-  interview: '인터뷰 대비',
-  exam: '입학시험 대비',
-  roadmap: '연간 로드맵',
-  college: '대학 지원',
-  portfolio: '포트폴리오',
-  visa: '비자·서류',
-};
+/*
+ * §29 종류 10종의 이름표는 여기 두지 않는다 — 서버 `consulting.rules.ts` 한 벌이다.
+ * 한동안 같은 표를 여기서도 들고 있다가 가운뎃점 띄어쓰기(「편입 · 전학」)가 서버와 갈렸다(29-02).
+ * 화면은 목록 응답의 `types`(고르개) · 줄마다의 `typeLabel` 만 읽는다 (D-R18).
+ */
 
 export const CONSULTING_STAGES = [
   { key: 'contract', label: '계약', tone: 'info', markerClass: 'bg-blue' },
@@ -54,10 +46,6 @@ export const CONSULTING_SHARES: Readonly<Record<string, { label: string; tone: T
  * §29 의 설명 줄도 「계약서 → 피드백 → 전달 → 서명 → 수납」이라 같은 낱말을 쓴다.
  */
 export const CONSULTING_CONTRACT_STEPS = ['계약서 준비', '피드백', '전달', '서명', '수납'] as const;
-
-export function consultingTypeLabel(value: string): string {
-  return CONSULTING_TYPES[value] ?? value;
-}
 
 /** DB 방어가 적용되기 전에도 비정상 단계가 UI 너비를 깨지 않게 표시 경계에서 제한한다. */
 export function consultingContractStep(value: number | null | undefined): number {

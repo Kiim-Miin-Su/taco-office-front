@@ -42,6 +42,9 @@ const response: Ops = {
 };
 const clients: QueryClient[] = [];
 function setup(viewer = me, selectMarketing = true) {
+  /* 마케팅 갈래로 **바로 연다**(`?tab=mkt`). 할 일에서 눌러 옮기면 §59 의 주간 띠(x5 · C-5) 때문에 요청이 하나 더 는다 —
+     이 파일의 금액·캐시 시험은 요청 수를 세므로 첫 화면을 마케팅으로 둔다 */
+  if (selectMarketing && !nav.search) nav.search = 'tab=mkt';
   useSession.setState({ me: viewer, ready: true });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -49,7 +52,6 @@ function setup(viewer = me, selectMarketing = true) {
   const view = render(<QueryClientProvider client={client}>
     <Profiler id="ops" onRender={commits}><OpsPage /></Profiler>
   </QueryClientProvider>);
-  if (selectMarketing) fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
   return { ...view, client, commits };
 }
 function expectHidden(view: ReturnType<typeof setup>) {
@@ -105,8 +107,13 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
     expect(view.getByText('123,400원')).toBeTruthy();
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일/ }));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
-    expect(get.mock.calls).toEqual([['/ops', { params: {} }]]);
+    // §59 는 주간 띠, §64 는 띠가 없다(x5 · C-5) — 두 키를 한 번씩만 받고, 돌아오면 캐시가 답한다
+    const params = get.mock.calls.map((c) => (c[1] as { params: Record<string, string> }).params);
+    expect(params).toHaveLength(2);
+    expect(params[0].from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(params[1]).toEqual({});
   });
 
   /**
@@ -164,7 +171,9 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일 2건/ })).toBeTruthy());
     // 동그라미 · 담당 칩 줄 · 머리 칸은 열린 둘이다. 끝난 하나는 별도 상태 카드로 옮긴다.
     expect(view.getByRole('button', { name: '전체 2' })).toBeTruthy();
-    expect(view.getByText('열린 할 일').parentElement?.textContent).toContain('2');
+    // 원문에 없는 머리 칸 「열린 할 일」은 걷었다(x5 · C-2) — 같은 수를 속 갈래 카드가 말한다
+    expect(view.queryByText('열린 할 일')).toBeNull();
+    expect(within(view.getByRole('tablist', { name: '할 일 상태' })).getByRole('tab', { name: '할 일 2건' })).toBeTruthy();
     expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(2);
     fireEvent.click(within(view.getByRole('tablist', { name: '할 일 상태' })).getByRole('tab', { name: '끝난 것 1건' }));
     expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(1);
@@ -309,7 +318,7 @@ it('참석은 **이름 칩**으로 서고 상태(세 값)가 색이다 — 원�
     data: {
       ...response,
       meetings: [
-        { id: 1, mtType: 'plan', mtTypeLabel: '기획 회의', title: '주간 기획', onDate: '2026-08-20',
+        { id: 1, mtType: 'plan', mtTypeLabel: '기획 회의', mtTypeShort: '기획', title: '주간 기획', onDate: '2026-08-20',
           attendees: 2, confirmed: 1, waiting: 1, hasMinutes: false, serId: null, startMin: null, endMin: null, placeLabel: null,
           upcoming: false,
           attendeeList: [
@@ -363,7 +372,7 @@ it('§61 카드 — 「과제 N/M」·기한 낱말·기한 상태 칩은 서버
       taskDone: 1, taskTotal: 3, dueLabel: '4일 지남', dueStateLabel: '기한 제안' },
     { id: 9, title: 'SE/TE 공개 범위 확대', stage: 'done', stageLabel: '완료', goal: null, ask: null,
       dueOn: '2026-08-11', ownerName: '김범준', overdueDays: 0, dueState: 'approved', reworkCount: 0,
-      taskDone: 2, taskTotal: 2, dueLabel: null, dueStateLabel: '기한 승인됨' },
+      taskDone: 2, taskTotal: 2, dueLabel: null, dueStateLabel: '기한 승인' },
   ] } });
   const view = setup(me, false);
   await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획 2건/ })).toBeTruthy());
@@ -375,7 +384,7 @@ it('§61 카드 — 「과제 N/M」·기한 낱말·기한 상태 칩은 서버
   expect(late.className).toContain('text-red');
   expect(view.getByText('08-25')).toBeTruthy();
   expect(view.getByText('기한 제안')).toBeTruthy();
-  expect(view.getByText('기한 승인됨')).toBeTruthy();
+  expect(view.getByText('기한 승인')).toBeTruthy();
   // 속 갈래도 카드형이고 동그라미는 같은 수(서버 planPending)다
   expect(within(view.getByRole('tablist', { name: '기획 보기' })).getByRole('tab', { name: /^단계 보드 2건/ })).toBeTruthy();
   // C-9 — 칸 머리 윗선 단계색 · 오른쪽 큰 단계색 건수(검토 요청 호박 · 완료 초록)

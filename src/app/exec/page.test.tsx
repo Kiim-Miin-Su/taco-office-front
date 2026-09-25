@@ -30,26 +30,49 @@ type Tile = Area['tiles'][number];
 const t = (key: string, label: string, value: number | null, unit: '원' | '건', sub: string | null = null, alert = false): Tile =>
   ({ key, label, value, unit, sub, alert, display: null });
 
-/** 원본 §69(2026-08-21) 컷의 카드 여섯 — 문장과 타일은 서버가 짓는다(여기서는 응답 모양 그대로 둔다) */
+type Item = Area['items'][number];
+const it8 = (n: number): Item[] => Array.from({ length: n }, (_, i) => (
+  { key: `lesson-${i}`, title: `08-21 ${16 + (i % 4)}:00 수업 ${i + 1}`, sub: '교재 · 안내', go: '/board' }));
+
+/**
+ * 원본 §69(2026-08-21) 컷의 카드 여섯 — 문장과 타일은 서버가 짓는다(여기서는 응답 모양 그대로 둔다).
+ * 펼칠 줄 머리(`itemsLabel`)도 컷 글자 그대로다 — 마케팅은 0 건이라 줄이 없고, 수업은 배지 17 · 줄 8건(N-67).
+ */
 const areas: Area[] = [
   { key: 'money', label: '회계', review: '납부 기한이 지난 청구서 수', count: 2, go: '/accounting',
     headline: '못 받은 돈 ₩8,550,000 · 그중 2건은 기한이 지났습니다',
-    tiles: [t('in', '오늘 입금', 0, '원', '0건'), t('unpaid', '못 받은 돈', 8_550_000, '원', '5건', true), t('overdue', '기한 지남', 2, '건', '₩3,000,000', true)] },
+    tiles: [t('in', '오늘 입금', 0, '원', '0건'), t('unpaid', '못 받은 돈', 8_550_000, '원', '5건', true), t('overdue', '기한 지남', 2, '건', '₩3,000,000', true)],
+    itemsLabel: '기한 지난 청구서 2건',
+    items: [
+      { key: 'inv-1', title: '고은설 · 8월 수업료', sub: '₩1,500,000 · 기한 08-10 · 11일 지남', go: '/accounting?tab=inv' },
+      { key: 'inv-2', title: '민제인 · 8월 수업료', sub: '₩1,500,000 · 기한 08-14 · 7일 지남', go: '/accounting?tab=inv' },
+    ] },
   { key: 'mkt', label: '마케팅', review: '없음 (정보성)', count: 0, go: '/ops',
     headline: '오늘 올린 것이 없습니다',
-    tiles: [t('posts', '올린 것', 0, '건', '—', true), t('feedback', '대표 피드백', 0, '건', '없음')] },
+    tiles: [t('posts', '올린 것', 0, '건', '—', true), t('feedback', '대표 피드백', 0, '건', '없음')],
+    itemsLabel: null, items: [] },
   { key: 'ops', label: '운영', review: '결재 대기 + 기한 지난 할 일', count: 1, go: '/ops',
     headline: '기획 1건이 대표 결재를 기다립니다',
-    tiles: [t('waiting', '결재 대기', 1, '건', '확인 필요', true), t('running', '진행 중 기획', 2, '건', '오늘 회의 1건'), t('todos', '안 끝난 할 일', 3, '건')] },
+    tiles: [t('waiting', '결재 대기', 1, '건', '확인 필요', true), t('running', '진행 중 기획', 2, '건', '오늘 회의 1건'), t('todos', '안 끝난 할 일', 3, '건')],
+    itemsLabel: '결재 대기 · 기한 지난 할 일 1건',
+    items: [{ key: 'plan-3', title: '봄 설명회 기획', sub: '결재 대기', go: '/ops?tab=plan&plan=3' }] },
   { key: 'consulting', label: '컨설팅', review: '수납 전이라 진행이 잠긴 계약', count: 1, go: '/consulting',
     headline: '1건이 수납 전이라 진행이 잠겨 있습니다',
-    tiles: [t('paid', '받은 돈', 400_000, '원', '계약 ₩1,700,000'), t('due', '남은 돈', 1_300_000, '원', '다음 회차 08-24', true)] },
+    tiles: [t('paid', '받은 돈', 400_000, '원', '계약 ₩1,700,000'), t('due', '남은 돈', 1_300_000, '원', '다음 회차 08-24', true)],
+    itemsLabel: '수납 전이라 잠긴 컨설팅 1건',
+    items: [{ key: 'cons-1', title: '강라율 · 에세이', sub: '계약 2/5단계 · 수납 전', go: '/consulting' }] },
   { key: 'complaint', label: '컴플레인', review: '아직 안 끝난 건', count: 2, go: '/ops',
     headline: '2건이 아직 안 끝났습니다',
-    tiles: [t('received', '오늘 접수', 0, '건', '—'), t('open', '안 끝난 것', 2, '건', null, true)] },
+    tiles: [t('received', '오늘 접수', 0, '건', '—'), t('open', '안 끝난 것', 2, '건', null, true)],
+    itemsLabel: '안 끝난 컴플레인 2건',
+    items: [
+      { key: 'cpl-1', title: '양찬욱 · 수업', sub: '접수 · 접수 08-18', go: '/ops?tab=complaint' },
+      { key: 'cpl-2', title: '고은설 · 수업', sub: '대응 중 · 접수 08-20', go: '/ops?tab=complaint' },
+    ] },
   { key: 'lesson', label: '수업', review: '교재·안내·줌·리포트가 덜 된 수업', count: 17, go: '/board',
     headline: '수업 20건 중 17건 준비 덜 됨',
-    tiles: [t('lessons', '오늘 수업', 20, '건', '휴강 없음'), t('missing', '준비 안 됨', 17, '건', '교재 · 안내 · 줌', true)] },
+    tiles: [t('lessons', '오늘 수업', 20, '건', '휴강 없음'), t('missing', '준비 안 됨', 17, '건', '교재 · 안내 · 줌', true)],
+    itemsLabel: '준비가 덜 된 수업 8건', items: it8(8) },
 ];
 
 type Head = Exec['head'][number];
@@ -181,6 +204,44 @@ it('카드 한 장에 한 줄 요약 · 타일 · 메모 칸이 함께 선다 �
   expect(within(money).getByRole('textbox', { name: '회계 메모' })).toBeTruthy();
   const lesson = view.getByRole('region', { name: '수업' });
   expect(lesson.textContent).toContain('교재 · 안내 · 줌');
+});
+
+/**
+ * **N-67 · K-111** — 원본 §69~§71 카드마다 「기한 지난 청구서 2건 펼치기 ▾」. 줄은 서버가 준 것 그대로(배지와 같은 판정 ·
+ * 여덟에서 끊음)이고, 줄을 누르면 그 원본 화면으로 **이동만** 한다(D-R27). 줄이 없는 카드에는 펼칠 줄 자체가 없다.
+ */
+it('⭐ 카드의 펼칠 줄 — 머리를 누르면 줄이 서고, 줄을 누르면 원본 화면으로 간다 · 줄 없는 카드엔 없다 (N-67 · K-111)', async () => {
+  const view = setup();
+  const money = await view.findByRole('region', { name: '회계' });
+  const toggle = within(money).getByRole('button', { name: /기한 지난 청구서 2건 펼치기/ });
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(within(money).queryByText('고은설 · 8월 수업료')).toBeNull();
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  const rows = within(money).getByRole('list', { name: '기한 지난 청구서 2건' });
+  // 끝의 「›」는 이동을 뜻하는 글리프(보조기기에는 숨김)다
+  expect(within(rows).getAllByRole('listitem').map((li) => li.textContent))
+    .toEqual(['고은설 · 8월 수업료₩1,500,000 · 기한 08-10 · 11일 지남›', '민제인 · 8월 수업료₩1,500,000 · 기한 08-14 · 7일 지남›']);
+  fireEvent.click(within(rows).getByRole('button', { name: /고은설 · 8월 수업료/ }));
+  expect(nav.push).toHaveBeenCalledWith('/accounting?tab=inv');
+  // 원본 §69 마케팅 카드에는 펼칠 줄이 없다 — 올린 것이 0 건이다
+  expect(within(view.getByRole('region', { name: '마케팅' })).queryByRole('button', { name: /펼치기/ })).toBeNull();
+  // 수업은 배지 17 인데 줄 머리는 「8건」이다 — 서버 낱말 그대로
+  expect(within(view.getByRole('region', { name: '수업' })).getByRole('button', { name: /준비가 덜 된 수업 8건 펼치기/ })).toBeTruthy();
+});
+
+it('주간 머리 셋은 지난주와 견준 낱말을 값 아래에 적는다 — 서버 note 그대로 (§70 · N-66 주간 · K-107)', async () => {
+  const view = setupWrite({
+    periodKind: 'week', sheetTitle: '주간 업무 보고', periodLabel: '08월 17일 ~ 08월 23일',
+    head: [
+      h('revenue', '이번 주 입금', 0, '원', true, { note: '지난주 ▼ 100%' }), h('leads', '신규 문의', 5, '건', false, { note: '지난주 ▲ 25%' }),
+      h('posts', '마케팅 게시', 4, '건', false, { note: '지난주 신규' }), h('prep', '수업 준비', 6, '건', false, { total: 49, note: '다 된 것' }),
+    ],
+  });
+  const sheet = await view.findByRole('region', { name: '주간 업무 보고' });
+  for (const w of ['이번 주 입금₩0지난주 ▼ 100%', '신규 문의5건지난주 ▲ 25%', '마케팅 게시4건지난주 신규', '수업 준비6/49다 된 것']) {
+    expect(sheet.textContent).toContain(w);
+  }
 });
 
 it('타일 값이 null 이면 「가려짐」이다 — 서버가 금액을 안 준 것이지 0 원이 아니다 (D-R39)', async () => {
@@ -412,11 +473,11 @@ it('월간 퍼널은 서버 줄·비율 그대로이고 부제가 도달 기록 
   const view = setupWrite({
     monthly: {
       leads: 15, lost: 0, lostRows: [], funnelSince: '2026-09-18',
+      // 원본 §71 컷의 네 줄 그대로 — 「유입 → 1차 → 2차·진단 → 등록」(71-5 · 서버 낱말)
       funnel: [
         { key: 'inflow', label: '유입', count: 15, pct: 100 },
         { key: 'first', label: '1차 상담', count: 15, pct: 100 },
-        { key: 'wait2nd', label: '2차 대기', count: 9, pct: 60 },
-        { key: 'second', label: '2차 상담', count: 8, pct: 53 },
+        { key: 'second', label: '2차 · 진단', count: 8, pct: 53 },
         { key: 'enrolled', label: '등록', count: 2, pct: 13 },
       ],
     },
@@ -425,7 +486,7 @@ it('월간 퍼널은 서버 줄·비율 그대로이고 부제가 도달 기록 
   const list = await view.findByRole('list', { name: '상담 퍼널' });
   expect(view.container.textContent).toContain('상담 퍼널 유입에서 등록까지');
   expect(within(list).getAllByRole('listitem').map((li) => li.textContent))
-    .toEqual(['유입15', '1차 상담15100%', '2차 대기960%', '2차 상담853%', '등록213%']);
+    .toEqual(['유입15', '1차 상담15100%', '2차 · 진단853%', '등록213%']);
   expect(view.container.textContent).toContain('도달 기록은 2026-09-18 부터 — 그 전 건은 지금 단계로만 셉니다');
 });
 

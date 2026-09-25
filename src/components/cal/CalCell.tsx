@@ -55,12 +55,14 @@ export interface CalCellProps {
   droppable?: boolean;
   /** 칸 안의 블록을 잡을 수 있는가 */
   draggable?: boolean;
+  /** 그날의 공휴일 이름 — 원문 §09 「광복절」·「광복절 대체」 칩 (서버 표 HOLIDAY) */
+  holidays?: readonly string[];
   children?: ReactNode;
 }
 
 export function CalCell({
   date, head, items, subName, kindName, colorOf, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
-  droppable, draggable, children,
+  droppable, draggable, holidays, children,
 }: CalCellProps) {
   const instanceId = useId();
   const drop = useDroppable({
@@ -105,6 +107,11 @@ export function CalCell({
               {head}{isToday ? <span className="ml-1">오늘</span> : null}
             </span>
           )}
+          {/* 원문 §09 날짜 옆 공휴일 이름 칩 — 이름은 서버 표 그대로(대체공휴일 「광복절 대체」) */}
+          {holidays?.map((name) => (
+            <span key={name} data-holiday={name} title={name}
+              className="min-w-0 truncate rounded bg-red/10 px-1 text-[10px] font-bold text-red">{name}</span>
+          ))}
           {/* 빈 날짜에는 수를 적지 않는다 — 원문 §09 의 빈 칸에는 「0건」이 없고, 있는 칸도 숫자만 적는다(「8」) */}
           {items.length > 0 ? <span className="ml-auto" title={`${items.length}건`}>{items.length}</span> : null}
         </div>

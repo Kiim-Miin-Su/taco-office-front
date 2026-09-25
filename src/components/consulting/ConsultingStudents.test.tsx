@@ -13,7 +13,7 @@ const students: ConsStudent[] = [
   {
     studentId: 5, name: '고은성', grade: 'G12', caseCount: 1, amount: 800000, paid: 400000,
     cases: [{
-      id: 1, consType: 'admissions', stage: 'running', stageLabel: '진행',
+      id: 1, consType: 'admissions', typeLabel: '국제학교 지원', stage: 'running', stageLabel: '진행',
       createdOn: '2026-07-12', endOn: '2026-10-10', ownerName: '김범준',
       sessionsLogged: 2, sessionsDone: 2, sessions: 6, itemsDone: 4, itemsTotal: 7,
       amount: 800000, paid: 400000,
@@ -26,7 +26,7 @@ const students: ConsStudent[] = [
   {
     studentId: 6, name: '민제인', grade: 'G10', caseCount: 1, amount: 900000, paid: 0,
     cases: [{
-      id: 2, consType: 'essay', stage: 'contract', stageLabel: '계약',
+      id: 2, consType: 'transfer', typeLabel: '편입 · 전학', stage: 'contract', stageLabel: '계약',
       createdOn: '2026-08-02', endOn: null, ownerName: null,
       sessionsLogged: 0, sessionsDone: 0, sessions: null, itemsDone: 0, itemsTotal: 0,
       amount: 900000, paid: 0, items: [],
@@ -36,6 +36,12 @@ const students: ConsStudent[] = [
 const clone = (): ConsStudent[] => JSON.parse(JSON.stringify(students)) as ConsStudent[];
 
 afterEach(cleanup);
+
+it('종류 이름은 서버 낱말(typeLabel)이다 — 화면이 종류 표를 들지 않는다 (29-02)', () => {
+  const view = render(<ConsultingStudents items={clone()} onOpen={() => undefined} />);
+  fireEvent.click(view.getByRole('button', { name: /민제인/ }));
+  expect(view.getAllByText(/편입 · 전학/).length).toBeGreaterThan(0);
+});
 
 it('건수는 서버가 준 caseCount 다 — 배열 길이를 다시 세지 않는다 (D-R37)', () => {
   const d = clone();

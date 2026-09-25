@@ -22,15 +22,17 @@ export interface LeadTouchLogProps {
   lead: Lead;
   kinds: IntakeWord[];
   onDone?: (row: Lead) => void;
+  /** 「+ 기록」 칸을 열어 둔 채 시작한다 — 카드의 「사후 관리」 단추가 이 칸으로 데려온다(23-14 · wave 6). 기본은 닫힘 */
+  defaultAdding?: boolean;
 }
 
 /** 접촉 시각 「MM-DD HH:MM」 — §24 실패 카드의 최근 접촉 줄도 같은 모양을 쓴다 */
 export const touchAtLabel = (iso: string) => iso.replace('T', ' ').slice(5, 16);
 
-export function LeadTouchLog({ lead, kinds, onDone }: LeadTouchLogProps) {
+export function LeadTouchLog({ lead, kinds, onDone, defaultAdding = false }: LeadTouchLogProps) {
   const id = useId();
   const write = useAddLeadTouch();
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(defaultAdding);
   const [kind, setKind] = useState<LeadTouchWrite['kind'] | ''>('');
   const [note, setNote] = useState('');
   const [nextOn, setNextOn] = useState('');

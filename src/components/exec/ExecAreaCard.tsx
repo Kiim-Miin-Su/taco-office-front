@@ -12,9 +12,10 @@
  *
  * **세는 일은 하나도 하지 않는다.** 배지 · 한 줄 요약 · 타일의 이름·값·부제·붉은 칸은 전부 서버가 준다
  * (`lib/exec-areas` · D-R18 · D-R37). 금액을 못 보는 사람에게는 서버가 값을 null 로 주고 문장에서도 뺀다(D-R39).
- * 펼칠 줄(「기한 지난 청구서 2건 펼치기 ▾」)은 없다 — 결정 대기다. 영역 담당 이름도 없다 — 적을 칸이 저장소에 없다.
+ * 펼칠 줄(「기한 지난 청구서 2건 펼치기 ▾」 · N-67 · K-111)도 서버가 머리 낱말과 줄을 준다 — 화면은 여닫고 이동만 한다.
+ * 영역 담당 이름은 없다 — 적을 칸이 저장소에 없다(N-81 결정 대기).
  */
-import type { ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { ExecArea } from '@/api/types';
 import { Chip, Textarea } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
@@ -53,16 +54,21 @@ function tileValue(t: Tile): string {
   return t.value === null ? MASKED : `${t.value}건`;
 }
 
-export function ExecAreaCard({ area, memo, onMemoChange, memoDisabled, onGo, className }: {
+export function ExecAreaCard({ area, memo, onMemoChange, memoDisabled, onGo, onOpenItem, className }: {
   area: ExecArea;
   memo: string;
   onMemoChange: (next: string) => void;
   memoDisabled: boolean;
   onGo: () => void;
+  /** 펼친 줄 하나를 누르면 — 그 줄의 원본 화면(`go`)으로 이동만 한다 (D-R27) */
+  onOpenItem: (go: string) => void;
   className?: string;
 }): ReactNode {
   const color = AREA_COLOR[area.key] ?? { dot: 'bg-fg-subtle', border: 'border-line' };
   const headId = `exec-area-${area.key}`;
+  const listId = useId();
+  // 원본 컷은 닫힌 채다(「펼치기 ▾」) — 여닫음은 이 카드만의 화면 상태다
+  const [open, setOpen] = useState(false);
   return (
     <section aria-labelledby={headId} className={cn('flex flex-col overflow-hidden rounded-xl border bg-card', color.border, className)}>
       <header className="flex items-center gap-2 bg-inset px-3.5 py-2">
@@ -102,6 +108,41 @@ export function ExecAreaCard({ area, memo, onMemoChange, memoDisabled, onGo, cla
           ))}
         </ul>
       </div>
+
+      {/*
+       * 원본 §69~§71 의 펼칠 줄 — 타일 아래 옅은 띠 「기한 지난 청구서 2건 펼치기 ▾」(N-67 · K-111).
+       * 머리 낱말과 줄은 서버가 준다(배지와 같은 판정 · 여덟에서 끊음). 줄이 없으면 띠 자체가 없다(원본 §69 마케팅).
+       */}
+      {area.itemsLabel ? (
+        <div className="border-t border-line bg-inset/60">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={() => setOpen((v) => !v)}
+            className="flex w-full items-center gap-1 px-3.5 py-2 text-left text-[12px] font-bold text-fg hover:bg-inset"
+          >
+            {area.itemsLabel} {open ? '접기' : '펼치기'} <span aria-hidden>{open ? '▴' : '▾'}</span>
+          </button>
+          {open ? (
+            <ul id={listId} aria-label={area.itemsLabel} className="flex flex-col gap-1 px-3.5 pb-2.5">
+              {area.items.map((it) => (
+                <li key={it.key}>
+                  <button
+                    type="button"
+                    onClick={() => onOpenItem(it.go)}
+                    className="flex w-full items-center gap-2 rounded-md border border-line bg-card px-2.5 py-1.5 text-left hover:border-primary/50"
+                  >
+                    <span className="min-w-0 grow truncate text-[12px] font-bold text-fg">{it.title}</span>
+                    {it.sub ? <span className="shrink-0 text-[11px] text-fg-subtle">{it.sub}</span> : null}
+                    <span aria-hidden className="shrink-0 text-fg-subtle">›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-auto border-t border-line px-3.5 py-2.5">
         <Textarea

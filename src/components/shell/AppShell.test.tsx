@@ -24,6 +24,11 @@ vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
   useUnwritten: mocks.unwritten,
   useScheduleWrite: mocks.scheduleWrite,
+  // 강사 머리줄(GET /teacher/shell) — 이 파일은 셸 조립만 본다. 머리줄 값·알림은 TeacherShell.test 가 본다
+  useTeacherShell: () => ({ data: undefined }),
+  useTeacherNotiRead: () => ({ mutate: vi.fn(), isPending: false }),
+  // 머리줄 「검색」·「보는 법」 창의 코드표 — 창이 열릴 때만 읽는다(여기서는 빈 코드표)
+  useMeta: (enabled: boolean) => ({ data: enabled ? { students: [], kinds: [], subs: [] } : undefined }),
 }));
 vi.mock('@/components/drawer/AppDrawer', () => ({
   AppDrawer: ({ open, pane, onPaneChange, onClose }: {
@@ -64,7 +69,7 @@ beforeEach(() => {
   } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 } });
   mocks.scheduleWrite.mockReturnValue({ mutate: vi.fn(), isPending: false });
-  useWorkspace.setState({ undo: null });
+  useWorkspace.setState({ undoStack: [] });
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
 });
 afterEach(() => {
@@ -186,6 +191,41 @@ describe('원본 관리자 공용 셸', () => {
     fireEvent.click(view.getByRole('button', { name: '전체 화면' }));
     await waitFor(() => expect(view.getByText(/이 브라우저에서 전체 화면을 열 수 없습니다/)).toBeTruthy());
     expect(view.queryByRole('button', { name: '전체 화면 종료' })).toBeNull();
+  });
+});
+
+describe('원문 머리줄 차례 — 검색 ⌘K · 전체 화면 · 디자인 · 보는 법 | 승인 대기 · 사용자 · 권한 (g1 S1·S2)', () => {
+  it('단추 차례가 §07 컷과 같다', () => {
+    const view = shell();
+    const header = view.getByRole('banner');
+    const names = within(header).getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent?.replace(/\s+/g, ' ').trim())
+      .filter((name) => ['검색', '전체 화면', '디자인', '보는 법', '승인 대기 4', '권한'].includes(name ?? ''));
+    expect(names).toEqual(['검색', '전체 화면', '디자인', '보는 법', '승인 대기 4', '권한']);
+  });
+
+  it('「검색」 단추와 ⌘K·Ctrl+K 가 같은 창을 열고, 「보는 법」은 범례 창을 연다', () => {
+    const view = shell();
+    fireEvent.click(within(view.getByRole('banner')).getByRole('button', { name: /검색/ }));
+    expect(view.getByRole('dialog', { name: '검색' })).toBeTruthy();
+    cleanup();
+    const again = shell();
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    expect(again.getByRole('dialog', { name: '검색' })).toBeTruthy();
+    cleanup();
+    const third = shell();
+    fireEvent.keyDown(window, { key: 'K', metaKey: true });
+    expect(third.getByRole('dialog', { name: '검색' })).toBeTruthy();
+    fireEvent.click(within(third.getByRole('banner')).getByRole('button', { name: /보는 법/ }));
+    const guide = third.getByRole('dialog', { name: '보는 법' });
+    expect(within(guide).getByRole('group', { name: '시간표 범례' })).toBeTruthy();
+  });
+
+  it('강사에게는 검색 단축키가 창을 열지 않는다(강사 머리줄에는 검색이 없다)', () => {
+    useSession.setState({ me: { ...me, canAdminPage: false }, ready: true });
+    const view = shell();
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    expect(view.queryByRole('dialog', { name: '검색' })).toBeNull();
   });
 });
 

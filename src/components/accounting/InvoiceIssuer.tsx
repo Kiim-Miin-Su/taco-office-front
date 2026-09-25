@@ -34,8 +34,23 @@ function thisMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function InvoiceIssuer() {
-  const [open, setOpen] = useState(false);
+export interface InvoiceIssuerProps {
+  /**
+   * 발행 칸이 열렸는가 — 페이지가 쥐면 탭 줄 오른쪽 「+ 청구서」(원문 §52~§57 공통 · x5 C-03)가 어느 탭에서든 연다.
+   * 주지 않으면 지금처럼 이 부품이 스스로 쥔다.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function InvoiceIssuer({ open: openProp, onOpenChange }: InvoiceIssuerProps = {}) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(open) : next;
+    if (onOpenChange) onOpenChange(value);
+    else setOpenState(value);
+  };
   // 학생 목록은 **폼을 열 때만** 읽는다 — 청구서를 안 내는 사람에게까지 코드표를 받아 올 이유가 없다
   const meta = useMeta(open);
   const issue = useIssueInvoice();

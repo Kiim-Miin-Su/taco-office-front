@@ -26,6 +26,9 @@ import { todayKst } from '@/lib/calendar';
  */
 const HEAD_TONE: readonly StatTone[] = ['neutral', 'warning', 'teal', 'danger', 'purple', 'success'];
 
+/** 진도율 카드 왼쪽 띠 — 서가 카드 띠(bookLevelPresentation.bandClass)와 같은 색. 확정 레벨이 아니면 선 색 */
+const LEVEL_BORDER: Readonly<Record<string, string>> = { 'bg-red': 'border-l-red', 'bg-amber': 'border-l-amber', 'bg-green': 'border-l-green' };
+
 export function BookTracking({
   createRequest = 0,
   showCreateAction = true,
@@ -345,36 +348,62 @@ export function BookTracking({
               <h3 className="mb-2 text-[13px] font-bold">
                 교재별 진도율 <span className="font-normal text-fg-subtle">{d.books.length}종 · 숙제 페이지 기준</span>
               </h3>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {d.books.map((book) => (
-                  <Panel key={book.libId} title={book.title} sub={`${book.studentCount}명`}>
-                    <div className="h-2 overflow-hidden rounded bg-inset">
-                      <div className="h-full bg-green" style={{ width: `${book.averagePercent ?? 0}%` }} />
-                    </div>
-                    <div className="mt-2 flex justify-between text-[12px]">
-                      <span>
-                        {book.minPercent ?? '—'}–{book.maxPercent ?? '—'}%
-                      </span>
-                      <span>{book.pages ?? '—'}쪽</span>
-                      <b>{book.averagePercent == null ? '진도 미입력' : `${book.averagePercent}%`}</b>
-                    </div>
-                    <div className="mt-2 space-y-1 border-t border-line pt-2">
-                      {book.students.map((student) => (
-                        <div
-                          key={student.studentId}
-                          className="grid grid-cols-[1fr_2fr_44px_36px] items-center gap-2 text-[11px]"
-                        >
-                          <b>{student.name}</b>
-                          <div className="h-1.5 rounded bg-inset">
-                            <div className="h-full rounded bg-green" style={{ width: `${student.percent ?? 0}%` }} />
-                          </div>
-                          <b>{student.percent == null ? '—' : `${student.percent}%`}</b>
-                          <span>{student.elapsedDays == null ? '—' : `${student.elapsedDays}일`}</span>
+              {/*
+                원본 §38 「교재별 진도율」 카드(g4 §38-7) — 제목줄 = 레벨 배지 + 제목 + 오른쪽 「N명」, 막대 오른쪽 큰 %,
+                막대 위 평균 표시선, 레벨색 왼쪽 띠, 넓은 화면 3열. 평균·범위·학생별 % 는 서버 값 그대로다(D-R37).
+              */}
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {d.books.map((book) => {
+                  const level = bookLevelPresentation(book.level);
+                  return (
+                    <article key={book.libId} data-testid="book-progress-card"
+                      className={`rounded-xl border border-l-4 border-line bg-card p-4 ${LEVEL_BORDER[level.bandClass] ?? 'border-l-line'}`}>
+                      <header className="flex items-center gap-2">
+                        {book.level ? (
+                          <span data-level-marker title={level.label}
+                            className={`inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-[12px] font-black text-white ${level.bandClass}`}>
+                            {level.marker}
+                          </span>
+                        ) : null}
+                        <h4 className="min-w-0 flex-1 text-[14px] font-bold text-fg">{book.title}</h4>
+                        <span className="shrink-0 text-[12px] font-bold text-fg-subtle">{`${book.studentCount}명`}</span>
+                      </header>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="relative h-2 flex-1 rounded bg-inset">
+                          <div className="h-full rounded bg-green" style={{ width: `${book.averagePercent ?? 0}%` }} />
+                          {book.averagePercent == null ? null : (
+                            <span data-average-mark aria-hidden className="absolute -top-1 h-4 w-0.5 -translate-x-1/2 rounded bg-fg"
+                              style={{ left: `${book.averagePercent}%` }} />
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </Panel>
-                ))}
+                        <b data-progress-average className="w-14 shrink-0 text-right text-[20px] text-green">
+                          {book.averagePercent == null ? '—' : `${book.averagePercent}%`}
+                        </b>
+                      </div>
+                      <div className="mt-1 flex justify-between text-[12px] text-fg-subtle">
+                        <span>
+                          {book.averagePercent == null ? '진도 미입력' : `${book.minPercent ?? '—'}–${book.maxPercent ?? '—'}%`}
+                        </span>
+                        <span>{book.pages ?? '—'}쪽</span>
+                      </div>
+                      <div className="mt-2 space-y-1 border-t border-line pt-2">
+                        {book.students.map((student) => (
+                          <div
+                            key={student.studentId}
+                            className="grid grid-cols-[1fr_2fr_44px_36px] items-center gap-2 text-[11px]"
+                          >
+                            <b>{student.name}</b>
+                            <div className="h-1.5 rounded bg-inset">
+                              <div className="h-full rounded bg-green" style={{ width: `${student.percent ?? 0}%` }} />
+                            </div>
+                            <b>{student.percent == null ? '—' : `${student.percent}%`}</b>
+                            <span>{student.elapsedDays == null ? '—' : `${student.elapsedDays}일`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </section>
           </>

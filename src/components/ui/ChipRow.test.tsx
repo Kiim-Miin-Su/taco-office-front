@@ -35,4 +35,15 @@ describe('ChipRow · ChipButton — 칩 앞 색 점(§34 과목 · §14·§16 �
     fireEvent.click(v.getByRole('button', { name: 'GPA' }));
     expect(onChange).toHaveBeenCalledWith('gpa');
   });
+
+  it('pressedTone="ink" 면 눌린 칩만 진한 채움 안에 이름이 서고, 기본은 지금 모양 그대로다 (§63 종류 칩 · x5)', () => {
+    const options = [{ value: 'plan', label: '기획' }, { value: 'dev', label: '개발' }];
+    const ink = render(<ChipRow ariaLabel="종류" value="plan" onChange={() => undefined} options={options} pressedTone="ink" />);
+    expect(ink.getByRole('button', { name: '기획' }).querySelector('[data-chip-pressed="ink"]')).not.toBeNull();
+    expect(ink.getByRole('button', { name: '개발' }).querySelector('[data-chip-pressed]')).toBeNull();
+    expect(ink.getByRole('button', { name: '기획' }).getAttribute('aria-pressed')).toBe('true');
+    cleanup();
+    const plain = render(<ChipRow ariaLabel="종류" value="plan" onChange={() => undefined} options={options} />);
+    expect(plain.container.querySelector('[data-chip-pressed]')).toBeNull();
+  });
 });

@@ -308,10 +308,13 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
           ) : null}
         </div>
 
+        {/* 넘길 돈이 있는 줄은 서버가 위로 모았고(차례) 여기서는 옅게 칠한다 — 원문 §54 (x5 · 54-02).
+            판정은 서버의 carryPending 이다 — 금액은 권한이 없으면 null 이라 화면이 금액으로 가르지 않는다 */}
         <Table
           columns={cols}
           rows={rows}
           rowKey={(r) => r.studentId}
+          rowClassName={(r) => (r.carryPending ? 'bg-amber/5' : undefined)}
           empty={loading ? '불러오는 중…' : '이번 달 수업이 있는 학생이 없습니다'}
         />
       </Panel>

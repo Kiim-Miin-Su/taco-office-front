@@ -63,7 +63,8 @@ function ConsultingCard({ item }: { item: Consulting }) {
       <div className="mb-1 flex flex-wrap items-center gap-1">
         <Chip>{item.typeLabel}</Chip>
         {item.stage === 'contract' && item.contractStepLabel ? <Chip tone="neutral">{item.contractStepLabel}</Chip> : null}
-        {item.share !== 'all' ? <Chip tone="warning">{item.shareLabel}</Chip> : null}
+        {/* 공개 칩 낱말은 원본의 짧은 말 「수납만」(26-08) — 서버가 준다 */}
+        {item.share !== 'all' ? <Chip tone="warning">{item.shareChipLabel}</Chip> : null}
       </div>
       <StudentTitle item={item} />
 
@@ -119,12 +120,17 @@ function ConsultingCard({ item }: { item: Consulting }) {
         원본 §26 카드의 바닥 줄 — 왼쪽에 금액쌍, 오른쪽에 「60일 지남」.
         지난 날은 **서버가 센 값**이다 (D-R37) — 화면이 날짜를 빼면 오늘이 언제인지부터 갈린다.
       */}
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5">
-        <MoneyPair item={item} />
-        <span className={item.stage === 'done' ? 'ml-auto text-[10.5px] text-fg-subtle' : 'ml-auto text-[10.5px] font-bold text-fg-2'}>
-          {item.ageDays}일 지남
-        </span>
-      </div>
+      {/* 시작 전 · 시작일 미정이면 서버가 null 을 준다 — 「0일 지남」을 적지 않는다(26-10). 둘 다 없으면 줄이 서지 않는다 */}
+      {item.amount != null || item.paidAmount != null || item.ageDays != null ? (
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5">
+          <MoneyPair item={item} />
+          {item.ageDays != null ? (
+            <span className={item.stage === 'done' ? 'ml-auto text-[10.5px] text-fg-subtle' : 'ml-auto text-[10.5px] font-bold text-fg-2'}>
+              {item.ageDays}일 지남
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </>
   );
 }

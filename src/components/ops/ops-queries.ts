@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: ops-queries.ts — useAddPlanTask (hook)
+ * 목적: ops-queries.ts — useAddPlanTask, useCreateMarketing (hook)
  * 책임/재사용: 운영 화면 전용 쓰기 훅. 공용 Axios(`api`)·생성 타입·`family.ops` 무효화를 그대로 쓰고 서버 판정을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -18,6 +18,8 @@ import type { components } from '@/api/schema';
 
 type PlanDetail = components['schemas']['PlanDetailDto'];
 type PlanTaskCreate = components['schemas']['PlanTaskCreateDto'];
+type MarketingRow = components['schemas']['MarketingDto'];
+type MarketingCreate = components['schemas']['MarketingCreateDto'];
 
 /**
  * §65 「+ 대표 지시」 (w5 · g6 65-4) — 과제(TODO) 한 줄 · 담당 알림 · 감사 줄이 서버에서 한 트랜잭션이다.
@@ -30,6 +32,21 @@ export function useAddPlanTask(): UseMutationResult<PlanDetail, unknown, { id: n
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<PlanDetail>(`/ops/plans/${id}/tasks`, body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
+  });
+}
+
+/**
+ * §59 「+ 오늘 한 것」 (x5 · g6 59-3) — 활동 한 줄 · 감사 줄이 서버에서 한 트랜잭션이다.
+ *
+ * 응답은 `GET /ops` 의 marketing 줄과 **같은 모양**이지만 화면이 목록에 끼워 넣지 않는다 —
+ * 필터 띠의 수·범례·「N건 M일 진행」이 전부 서버 수라, 끼우면 그 수들과 목록이 갈린다 (D-R37).
+ * 성공하면 `family.ops` 를 버려 목록과 수를 함께 다시 읽는다.
+ */
+export function useCreateMarketing(): UseMutationResult<MarketingRow, unknown, MarketingCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<MarketingRow>('/ops/marketing', body)).data,
     onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
   });
 }

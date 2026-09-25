@@ -44,6 +44,11 @@ const board: GpaBoard = {
     { studentId: 1, name: '고은성', grade: null, coordName: null, alloc: 12, used: 0, wait: 0, remain: 12, over: false, svcs: [] },
   ],
   uses: [],
+  // 기록 창 「수업 연결」 줄 — 이 사이클 창 안의 GPA 회차와 그날 명단(서버가 준다 · wave 5)
+  lessons: [
+    { serId: 15, onDate: '2026-08-21', startMin: 1080, endMin: 1125, name: 'GPA 케어', studentIds: [2, 4] },
+    { serId: 16, onDate: '2026-08-22', startMin: 1140, endMin: 1200, name: 'GPA 자습', studentIds: [3] },
+  ],
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -325,9 +330,10 @@ it.each([
   ['원문502자/trim후500자', ` ${url500} `, url500],
   ['빈 문자열', '', undefined],
   ['trim-empty', ' \t\n ', undefined],
-] as const)('S3-c URL 입력 %s: 기존 trim/생략 payload와 입력5개를 보존한다', async (_name, raw, expected) => {
+] as const)('S3-c URL 입력 %s: 기존 trim/생략 payload와 입력(5 + 수업 연결)을 보존한다', async (_name, raw, expected) => {
   const w = await setupUseWrite();
-  expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(5);
+  // 입력은 여섯이다 — 다섯(S3-c) + 「수업 연결」(qa-w3 관찰 · wave 5). 회차를 고르지 않으면 payload 에 serId 가 없다
+  expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(6);
   expect(w.fields.url.hasAttribute('maxlength')).toBe(false); // raw 제한으로 trim 후500 허용을 줄이지 않는다.
   w.fill(raw);
   w.submit();
@@ -378,5 +384,58 @@ it('S3-c 성공은 날짜/시각/URL만 비우고 새 GET의 기록지 있음을
   expect(w.fields.student.value).toBe('1');
   expect(w.fields.service.value).toBe('prj');
   expect(w.view.getByText('기록지 있음').closest('a')).toBeNull();
-  expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(5);
+  // 다섯(S3-c) + 「수업 연결」(wave 5)
+  expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(6);
+});
+
+/*
+ * 원본 §82 타임라인 줄 「08-21 18:00 · 숙제 지원 [대기] · −1p · 10p 남음」 — 배정 10p · 쓴 것 0p · 대기 1p 인 학생의
+ * 대기 줄이 「10p 남음」이다. 슬라이드 글 「대기는 점선」: 대기는 아직 깎이지 않은 줄이고, 승인되면 그때 빠진다(82-7 · D-R44).
+ * 머리의 「남은 것 9p」(배정 − 쓴 것 − 대기)는 서버 값 그대로다 — 둘은 다른 질문에 답한다.
+ */
+it('타임라인의 대기 줄은 아직 깎지 않는다 — 원본 「−1p · 10p 남음」 · 승인 줄만 잔여에서 빠진다 (82-7)', async () => {
+  const use = (id: number, state: 'wait' | 'ok', onDate: string) => ({
+    id, studentId: 2, svcKey: 'hw', points: 1, onDate, startMin: 1080, endMin: 1125, serId: 15,
+    coordName: 'Kim', noteUrl: null, state, approvedByName: null, approvedOn: null, canApprove: true,
+  });
+  const view = setup({ uses: [use(21, 'wait', '2026-08-21'), use(22, 'ok', '2026-08-22')] });
+  await waitFor(() => expect(view.container.textContent).toContain('56p'));
+  fireEvent.click(view.getByRole('button', { name: /^강라울/ }));
+  const list = await view.findByRole('list', { name: '강라울 소비 타임라인' });
+  const rows = within(list).getAllByRole('listitem');
+  expect(rows[0].textContent).toContain('−1p10p 남음');
+  expect(rows[1].textContent).toContain('−1p9p 남음');
+});
+
+/*
+ * qa-w3 관찰 「GPA 기록 창에 수업 연결 칸이 없다」 — 서버는 `serId` 를 받는데 화면이 보낼 줄이 없어, 회차 내역의 끝 시각이
+ * 화면에서 만든 기록에는 한 번도 서지 않았다. 고른 학생이 든 GPA 회차만 보이고, 고르면 날짜·시작이 그 회차로 채워진다.
+ */
+it('기록 창의 「수업 연결」 — 고른 학생의 GPA 회차만 보이고, 고르면 날짜·시작이 채워져 serId 와 함께 간다', async () => {
+  const w = await setupUseWrite();
+  const link = within(w.panel).getByLabelText('수업 연결 (선택)') as HTMLSelectElement;
+  fireEvent.change(w.fields.student, { target: { value: '2' } });
+  expect([...link.options].map((o) => o.textContent)).toEqual(['연결 안 함', '08-21 18:00–18:45 GPA 케어']);
+  fireEvent.change(link, { target: { value: '15|2026-08-21' } });
+  expect(w.fields.date.value).toBe('2026-08-21');
+  expect(w.fields.start.value).toBe('18:00');
+  // 날짜·시작은 회차가 정한다 — 따로 고치면 회차와 기록이 갈린다
+  expect(w.fields.date.disabled).toBe(true);
+  expect(w.fields.start.disabled).toBe(true);
+  w.submit();
+  await waitFor(() => expect(w.posts).toHaveLength(1));
+  expect(w.posts[0]).toEqual({ cycleId: 3, studentId: 2, svcKey: 'hw', onDate: '2026-08-21', startMin: 1080, serId: 15 });
+  // 다른 학생을 고르면 그 학생의 회차가 아니므로 연결이 풀린다
+  fireEvent.change(w.fields.student, { target: { value: '3' } });
+  expect(link.value).toBe('');
+});
+
+/* 원본 §82 머리 다섯 칸은 **숫자가 위 · 라벨이 아래**다(「56p / 배정」 · 86-7 · 공용 `StatCard` 의 `valueFirst`). 선택 학생 미니 지표는 라벨이 위다(82-6 시험). */
+it('머리 다섯 칸은 숫자가 위 · 라벨이 아래다 — 원본 §82 「56p / 배정」 (86-7)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.container.textContent).toContain('56p'));
+  for (const [label, value] of [['배정', '56p'], ['사용', '32p'], ['승인 대기', '3p'], ['잔여', '21p'], ['진행', '18회']]) {
+    const el = [...view.container.querySelectorAll('div')].find((d) => d.textContent === label && d.previousElementSibling?.textContent === value);
+    expect(el, label).toBeTruthy();
+  }
 });

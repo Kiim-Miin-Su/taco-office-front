@@ -21,6 +21,7 @@ import { useId, useMemo, useState } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CalCell } from './CalCell';
 import { EventBlock, blockDetailLines, type DragData } from './EventBlock';
+import blockStyles from './EventBlock.module.css';
 import { cn } from '../ui/cn';
 import {
   HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, nowMinKst, occurrenceKey, overlapClusters, periodSummary, timeRange,
@@ -62,6 +63,30 @@ export interface GridProps {
   onPickDate?: (date: string) => void;
   /** 잡아서 옮길 수 있는가 — 권한(canCrudAll)을 페이지가 여기로 내린다 */
   interactive?: boolean;
+  /** 그날의 공휴일 이름 — 원문 §09 월간 칸 칩 · §10 요일 머리 (서버 표 HOLIDAY · 페이지가 lookup 한 벌로 내린다) */
+  holidaysOf?: (date: string) => readonly string[] | undefined;
+  /**
+   * 그날 겹쳐 볼 강사 불가 시간 — 원문 §07·§11 「가능 시간」(G37 · 관리자 읽기). 주면 시간 비례 격자가
+   * 빗금 띠를 깔고, 일간 「빈 시간 찾기」는 그 시각을 빈 칸으로 치지 않는다. 막는 자료가 아니다(저장은 서버가 판정).
+   */
+  unavOf?: (date: string) => readonly UnavBand[] | undefined;
+}
+
+/** 격자에 까는 강사 불가 한 띠 — `label` 은 띠의 `title`(누가 · 몇 시 · 사유)이다 */
+export interface UnavBand { startMin: number; endMin: number; label: string }
+
+/** 불가 띠 한 칸 — 블록 아래·슬롯 위에 깔고 누르기는 통과시킨다(빈 칸 클릭·드롭을 막지 않는다) */
+function UnavBands({ bands, px }: { bands: readonly UnavBand[] | undefined; px: (m: number) => number }) {
+  if (!bands?.length) return null;
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {bands.map((b) => (
+        <div key={`${b.startMin}-${b.endMin}-${b.label}`} data-unav={b.label} title={b.label} aria-label={b.label}
+          className={cn('absolute inset-x-0', blockStyles.unavBand)}
+          style={{ top: px(b.startMin), height: Math.max(4, px(b.endMin) - px(b.startMin)) }} />
+      ))}
+    </div>
+  );
 }
 
 export interface WeekGridProps extends GridProps {
@@ -101,7 +126,7 @@ export interface DayGridProps extends GridProps {
   cursor?: { date: string; startMin: number; colAxis: ColAxis; colId: number | null } | null;
   /**
    * 원문 §07 「+ 빈 시간 찾기」 — 그 열(강의실)에 취소 아닌 수업이 걸치지 않은 30분 칸을 칠한다.
-   * 이미 읽은 회차로만 센다(새 요청 0) · 강사 불가 시간은 관리 화면이 읽는 길이 없어 보지 않는다.
+   * 이미 읽은 회차로 센다 · 「가능 시간」을 켜 `unavOf` 가 오면 강사 불가 시각도 빈 칸에서 뺀다(G37).
    */
   showFree?: boolean;
 }
@@ -185,7 +210,7 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, interactive }: {
 
 export function DayGrid({
   date, items, columns, columnOf, colAxis, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onAddAt, cursor, interactive,
-  showFree = false,
+  showFree = false, unavOf,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
   const { from, to } = timeRange(today);
@@ -212,6 +237,9 @@ export function DayGrid({
   const now = nowMinKst();
   const showNow = date === todayKst() && now >= from && now <= to;
   const px = (m: number) => ((m - from) / 60) * HOUR_PX;
+  // 「가능 시간」을 켜 두면 강사가 불가로 적은 시각은 빈 시간이 아니다 (원문 §07 · G37)
+  const bands = unavOf?.(date);
+  const unavAt = (m: number) => Boolean(bands?.some((b) => b.startMin < m + SLOT_MIN && b.endMin > m));
 
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-card" onClick={() => setOpenCluster(null)}>
@@ -247,9 +275,10 @@ export function DayGrid({
                   <Slot key={m} date={date} colAxis={colAxis} colId={c.id} slotMin={m}
                         hourLine={(m + SLOT_MIN) % 60 === 0}
                         active={cursor?.date === date && cursor.startMin === m && cursor.colAxis === colAxis && cursor.colId === c.id}
-                        free={showFree && c.id !== null && !mine.some((o) => !o.canceled && o.startMin < m + SLOT_MIN && o.endMin > m)}
+                        free={showFree && c.id !== null && !unavAt(m) && !mine.some((o) => !o.canceled && o.startMin < m + SLOT_MIN && o.endMin > m)}
                         onAddAt={interactive ? onAddAt : undefined} />
                 ))}
+                <UnavBands bands={bands} px={px} />
 
                 {/* ② 블록 층 — 시간 비례로 얹는다. 겹침 묶음은 첫 건 + 「+N」 (§4.5) */}
                 {clusters.map((cl) => {
@@ -317,7 +346,7 @@ export function DayGrid({
 
 export function WeekGrid({
   date, items, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, cursor,
-  dark = false, totals = false,
+  dark = false, totals = false, holidaysOf, unavOf,
 }: WeekGridProps) {
   const days = weekDays(date);
   const map = useMemo(() => byDate(items), [items]);
@@ -374,6 +403,11 @@ export function WeekGrid({
                     </div>
                   </>
                 )}
+                {/* 원문 §10 요일 머리 아래 「광복절 대체」 — 이름은 서버 표 그대로 */}
+                {holidaysOf?.(d)?.map((name) => (
+                  <div key={name} data-holiday={name} title={name}
+                    className={cn('truncate text-[10px] font-bold', dark ? 'text-red-300' : 'text-red')}>{name}</div>
+                ))}
               </button>
             );
           })}
@@ -381,12 +415,19 @@ export function WeekGrid({
 
         <div className="relative grid" style={{ gridTemplateColumns: '56px repeat(7, minmax(112px, 1fr))' }}>
           <div className="relative border-r border-line bg-card" style={{ height }}>
-            {slots.filter((m) => m % 60 === 0).map((m) => (
+            {slots.filter((m) => m % 60 === 0).map((m) => (dark ? (
+              /* 원문 §10·§11 개인표 눈금 — 큰 「12」 아래 작은 「13」: 그 한 시간 칸이 몇 시에서 몇 시까지인가 */
+              <div key={m} data-hour-tick={m} className="absolute inset-x-0 pt-1.5 text-center leading-none"
+                   style={{ top: px(m) }}>
+                <div data-hour-start className="text-[15px] font-bold text-fg">{hhmm(m).slice(0, 2)}</div>
+                <div data-hour-end className="mt-0.5 text-[10px] font-bold text-fg-subtle">{hhmm(m + 60).slice(0, 2)}</div>
+              </div>
+            ) : (
               <div key={m} className="absolute inset-x-0 px-1.5 pt-1 text-[11px] font-bold text-fg-subtle"
                    style={{ top: px(m) }}>
                 {hhmm(m)}
               </div>
-            ))}
+            )))}
           </div>
 
           {days.map((d) => {
@@ -401,6 +442,7 @@ export function WeekGrid({
                       onAddAt={interactive ? onAddAt : undefined} interactive={interactive} />
                   ))}
                 </div>
+                <UnavBands bands={unavOf?.(d)} px={px} />
                 <div className="pointer-events-none absolute inset-0">
                   {clusters.flatMap((cluster) => cluster.map((o, lane) => {
                     // 명세의 겹친 수업은 감추지 않고 같은 시간대 안에서 평행 미리보기한다.
@@ -473,7 +515,7 @@ export function WeekGrid({
 /* ── §9 월간 — 달력 · 최대 3건 ───────────────────────────────────────── */
 
 export function MonthGrid({
-  date, items, grid, subName, kindName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive,
+  date, items, grid, subName, kindName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive, holidaysOf,
 }: GridProps & { grid: string[] }) {
   const map = byDate(items);
   const mon = date.slice(0, 7);
@@ -494,7 +536,7 @@ export function MonthGrid({
                    subName={subName} kindName={kindName} colorOf={colorOf} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
                    active={cursorDate === d}
                    onAdd={onAdd} onPickDate={onPickDate} onMore={onPickDate}
-                   muted={d.slice(0, 7) !== mon} compact
+                   muted={d.slice(0, 7) !== mon} compact holidays={holidaysOf?.(d)}
                    droppable={interactive} draggable={interactive} />
         ))}
       </div>

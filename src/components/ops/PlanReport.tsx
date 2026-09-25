@@ -186,9 +186,12 @@ export function PlanReport({ planId, staff, onClose }: {
           ) : null}
         </span>
       ) : null}
+      {/* 「보완 요청」은 **제 문**을 본다 — 원문 규칙이 막는 것은 최종 승인뿐이라 기한 승인 전에도 선다 (65-7 · x5).
+          열리는지와 막힌 이유는 서버의 canRework · reworkBlockedReason 이다 (D-R39) */}
       <Button
         variant="secondary"
-        disabled={!d.canReview || review.isPending || (armed === 'rework' && reason.trim() === '')}
+        title={d.reworkBlockedReason ?? undefined}
+        disabled={!d.canRework || review.isPending || (armed === 'rework' && reason.trim() === '')}
         onClick={() => {
           if (armed === 'rework') {
             review.mutate({ id: d.id, decision: 'rework', reason: reason.trim() },

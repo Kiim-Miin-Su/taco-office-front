@@ -405,6 +405,7 @@ export default function ExecPage() {
                     memoDisabled={!canWrite || !writable}
                     onMemoChange={(next) => setDraft((prev) => ({ ...prev, [a.key]: next }))}
                     onGo={() => router.push(a.go)}
+                    onOpenItem={(go) => router.push(go)}
                   />
                 ))}
               </div>

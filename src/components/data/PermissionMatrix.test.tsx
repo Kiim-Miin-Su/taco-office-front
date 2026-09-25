@@ -42,3 +42,16 @@ it('무엇인가 · 누가 · 지금은 가운데 정렬이고 누가 칩은 색
   expect(cells.slice(1).every((c) => c.className.includes('text-center'))).toBe(true);
   expect(within(row).getByText('매니저 이상').className).toContain('text-white');
 });
+
+/* g2 대조 76-4 — 원문 부제 「지금 대표 화면입니다 · 대표 전용 12가지 · …까지 2가지」 의 모양(D-R44).
+   등급별 수는 지금 권한 모형(매니저에게도 모든 권한 · 사람별 예외)과 맞지 않아 이 계정의 가능/잠김 수를 잇는다.
+   역할 이름은 서버 낱말(`Me.roleLabel`)이다 — 화면이 역할 코드를 번역하지 않는다 */
+it('부제는 「지금 {역할} 화면입니다 · N가지 가능 / M가지 잠김」 이다', () => {
+  const view = render(<PermissionMatrix me={manager} />);
+  const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+  // 매니저 픽스처: 입금 처리 · 청구서 · 마케팅 코멘트(canCrudAll) 셋만 가능
+  expect(text).toContain('지금 매니저 화면입니다 · 3가지 가능 / 11가지 잠김');
+  expect(text).not.toContain('교수실장');
+  const none = render(<PermissionMatrix me={null} />);
+  expect((none.container.textContent ?? '').replace(/\s+/g, ' ')).toContain('로그인 정보가 없습니다 · 0가지 가능 / 14가지 잠김');
+});

@@ -54,19 +54,20 @@ const ops = (over: Partial<Ops> = {}): Ops => ({
   ...OPS_HEAD_FIXTURE,
   intakeHead: INTAKE_HEAD_FIXTURE,
   meetings: [
-    { id: 11, mtType: 'plan', mtTypeLabel: '기획 회의', title: '겨울 특강', onDate: '2026-09-18',
+    { id: 11, mtType: 'plan', mtTypeLabel: '기획 회의', mtTypeShort: '기획', title: '겨울 특강', onDate: '2026-09-18',
       attendees: 5, confirmed: 1, hasMinutes: false, serId: 900, startMin: 660, endMin: 720,
       placeLabel: '1호', waiting: 4, upcoming: true,
       attendeeList: [{ staffId: 4, name: '김민선', title: null, state: 'in', stateLabel: '참석' }] },
-    { id: 12, mtType: 'general', mtTypeLabel: '일반 회의', title: '옛 회의', onDate: '2026-09-15',
+    { id: 12, mtType: 'general', mtTypeLabel: '일반 회의', mtTypeShort: '일반', title: '옛 회의', onDate: '2026-09-15',
       attendees: 2, confirmed: 2, hasMinutes: true, serId: null, startMin: null, endMin: null,
       placeLabel: null, waiting: 0, upcoming: false, attendeeList: [] },
   ],
   // 「32건」이라 적혀 있으면 화면은 32 를 그린다 — 줄 수(2)를 세지 않는다
+  // 칩 줄의 낱말은 서버의 **짧은 이름**이다 (x5 · 63-7)
   mtTypeCounts: [
-    { key: 'plan', label: '기획 회의', count: 32 },
-    { key: 'consulting', label: '컨설팅 회의', count: 0 },
-    { key: 'general', label: '일반 회의', count: 7 },
+    { key: 'plan', label: '기획', count: 32 },
+    { key: 'consulting', label: '컨설팅', count: 0 },
+    { key: 'general', label: '일반', count: 7 },
   ],
   mtTypes: [{ key: 'plan', label: '기획 회의' }, { key: 'general', label: '일반 회의' }],
   canCreateMeeting: true,
@@ -96,7 +97,8 @@ describe('S2-b — §64 상태·날짜·기한 입력', () => {
     expect(status(view).getByRole('tab', { name: '끝난 것 1건' })).toBeTruthy();
     expect(view.queryByText('끝낸 자료')).toBeNull();
     const sections = view.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(sections).toEqual(['9/23 (수)1건', '9/24 (목)1건', '기한 없음1건']);
+    // 원문 §64 날짜 묶음 머리 — 긴 날짜 + 건수 (x5 · 64-1 · 공용 longDateLabel)
+    expect(sections).toEqual(['26년 9월 23일 수요일1건', '26년 9월 24일 목요일1건', '기한 없음1건']);
     expect(view.getByText('수업')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '김재훈 · #7 1' }));
     expect(view.getByText('다음 자료')).toBeTruthy();
@@ -250,15 +252,21 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
 
     const chips = await waitFor(() => view.getByRole('group', { name: '회의 종류' }));
-    // 줄은 둘인데 칩은 32·0·7 이라고 적는다 — 서버가 센 수가 화면의 수다
-    expect(within(chips).getByRole('button', { name: '기획 회의 32' })).toBeTruthy();
-    expect(within(chips).getByRole('button', { name: '일반 회의 7' })).toBeTruthy();
+    // 원문 §63 칩 줄은 **짧은 이름 · 색 점 · 건수 없음**이다 (x5 · 63-7) — 수는 속 갈래 카드 「N회」가 서버 수로 말한다
+    expect(within(chips).getByRole('button', { name: '기획' })).toBeTruthy();
+    expect(within(chips).getByRole('button', { name: '일반' })).toBeTruthy();
     // 0건 갈래도 선다 — 칩 줄은 **어휘**이지 데이터가 아니다 (C66)
-    expect(within(chips).getByRole('button', { name: '컨설팅 회의 0' })).toBeTruthy();
+    expect(within(chips).getByRole('button', { name: '컨설팅' })).toBeTruthy();
+    expect(chips.querySelectorAll('[data-chip-dot]')).toHaveLength(3);
+    // 줄은 둘인데 「회의 목록 39회」 — 서버가 센 수가 화면의 수다 (D-R37)
+    expect(within(view.getByRole('tablist', { name: '회의 보기' })).getByRole('tab', { name: /^회의 목록 39회/ })).toBeTruthy();
   });
 
   it('기간 낱말은 서버가 만든다 — 화면이 「2026년 9월」을 짓지 않는다 (D-R18)', async () => {
     const view = setup(ops({ range: { from: '2026-09-01', to: '2026-09-30', label: '2026년 9월' } }));
+    // 기간 띠는 원문이 두는 갈래에만 선다 — §67 은 월별이 기본이라 「‹ 2026년 9월 ›」가 선다 (x5 · C-5 · 67-3)
+    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ })).toBeTruthy());
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
     await waitFor(() => expect(view.getByText('2026년 9월')).toBeTruthy());
   });
 
@@ -266,16 +274,22 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     const view = setup(ops());
     await waitFor(() => expect(opsCalls(view.get)).toHaveLength(1));
     expect(opsCalls(view.get)[0]).toEqual({});
+    // §63 은 「전체」가 기본이라 갈래를 옮겨도 같은 키다 — 요청이 늘지 않는다 (x5 · C-5)
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
+    await waitFor(() => expect(view.getByRole('button', { name: '월간' })).toBeTruthy());
+    expect(opsCalls(view.get)).toHaveLength(1);
 
-    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    fireEvent.click(within(view.getByRole('group', { name: '기간' })).getByRole('button', { name: '월간' }));
     await waitFor(() => expect(opsCalls(view.get)).toHaveLength(2));
     const month = opsCalls(view.get)[1];
     expect(month.from).toMatch(/^\d{4}-\d{2}-01$/);
     expect(month.to?.slice(0, 7)).toBe(month.from?.slice(0, 7));
 
     // 이미 받아 둔 기간으로 돌아가면 캐시가 답한다
-    fireEvent.click(view.getByRole('button', { name: '전체' }));
-    await waitFor(() => expect(view.getByRole('button', { name: '전체' }).getAttribute('aria-pressed')).toBe('true'));
+    // 「전체」는 기간 띠와 종류 칩 줄 두 곳에 있다 — 기간 띠 안의 것을 누른다
+    const band = () => within(view.getByRole('group', { name: '기간' }));
+    fireEvent.click(band().getByRole('button', { name: '전체' }));
+    await waitFor(() => expect(band().getByRole('button', { name: '전체' }).getAttribute('aria-pressed')).toBe('true'));
     expect(opsCalls(view.get)).toHaveLength(2);
   });
 
@@ -287,9 +301,13 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
 
     const chips = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
+    // §67 은 월별이 기본이다(x5 · 67-3) — 그 달로 한 번, 갈래를 고르면 그 달 + 갈래로 한 번 더
+    expect(opsCalls(view.get)).toHaveLength(2);
+    const month = opsCalls(view.get)[1];
+    expect(month.from).toMatch(/^\d{4}-\d{2}-01$/);
     fireEvent.click(within(chips).getByRole('button', { name: '수업 3' }));
-    await waitFor(() => expect(opsCalls(view.get)).toHaveLength(2));
-    expect(opsCalls(view.get)[1]).toEqual({ area: 'teaching' });
+    await waitFor(() => expect(opsCalls(view.get)).toHaveLength(3));
+    expect(opsCalls(view.get)[2]).toEqual({ ...month, area: 'teaching' });
   });
 
   /*
@@ -306,7 +324,7 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     const chips = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
     expect(within(chips).getByRole('button', { name: '전체 4' })).toBeTruthy();
     fireEvent.click(within(chips).getByRole('button', { name: '수업 3' }));
-    await waitFor(() => expect(opsCalls(view.get)).toHaveLength(2));
+    await waitFor(() => expect(opsCalls(view.get)).toHaveLength(3));
     // 새 갈래의 응답이 오면 칩 줄이 다시 선다 — 「전체」는 여전히 서버 갈래 건수의 합이다
     const again = await waitFor(() => view.getByRole('group', { name: '컴플레인 갈래' }));
     expect(within(again).getByRole('button', { name: '전체 4' })).toBeTruthy();
@@ -319,7 +337,7 @@ describe('C96 — 기간과 갈래로 좁히기 (N-46 ② · J-102)', () => {
     await waitFor(() => expect(view.getByText('겨울 특강')).toBeTruthy());
 
     const chips = view.getByRole('group', { name: '회의 종류' });
-    fireEvent.click(within(chips).getByRole('button', { name: '일반 회의 7' }));
+    fireEvent.click(within(chips).getByRole('button', { name: '일반' }));
     await waitFor(() => expect(view.queryByText('겨울 특강')).toBeNull());
     expect(view.getByText('옛 회의')).toBeTruthy();
     expect(opsCalls(view.get)).toHaveLength(1);
@@ -352,7 +370,7 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
     const view = setup(ops());
     const post = vi.spyOn(api, 'post').mockResolvedValue({
       data: {
-        meeting: { id: 99, mtType: 'plan', mtTypeLabel: '기획 회의', title: '새 회의', onDate: '2026-10-01',
+        meeting: { id: 99, mtType: 'plan', mtTypeLabel: '기획 회의', mtTypeShort: '기획', title: '새 회의', onDate: '2026-10-01',
           attendees: 2, confirmed: 0, hasMinutes: false, serId: 901, startMin: 660, endMin: 720,
           placeLabel: '온라인 TN', waiting: 2, upcoming: true, attendeeList: [] },
         attendees: 2, unavailable: [],
@@ -486,16 +504,18 @@ describe('w5 — §63 회의 줄 · 머리 · 속 갈래', () => {
 
   it('§59 「회의 속기록」은 마케팅 회의만 거른 §63 줄이다 (59-6)', async () => {
     const view = setup(ops({ meetings: [
-      { id: 21, mtType: 'marketing', mtTypeLabel: '마케팅 회의', title: '릴스 점검', onDate: '2026-09-15',
+      { id: 21, mtType: 'marketing', mtTypeLabel: '마케팅 회의', mtTypeShort: '마케팅', title: '릴스 점검', onDate: '2026-09-15',
         attendees: 0, confirmed: 0, hasMinutes: true, serId: null, startMin: null, endMin: null,
         placeLabel: null, waiting: 0, upcoming: false, attendeeList: [] },
-      { id: 22, mtType: 'plan', mtTypeLabel: '기획 회의', title: '기획 점검', onDate: '2026-09-16',
+      { id: 22, mtType: 'plan', mtTypeLabel: '기획 회의', mtTypeShort: '기획', title: '기획 점검', onDate: '2026-09-16',
         attendees: 0, confirmed: 0, hasMinutes: true, serId: null, startMin: null, endMin: null,
         placeLabel: null, waiting: 0, upcoming: false, attendeeList: [] },
     ] }));
     await waitFor(() => expect(top(view).getByRole('tab', { name: /^마케팅/ })).toBeTruthy());
     fireEvent.click(top(view).getByRole('tab', { name: /^마케팅/ }));
-    fireEvent.click(within(view.getByRole('tablist', { name: '마케팅 보기' })).getByRole('tab', { name: /^회의 속기록/ }));
+    // §59 는 주간이 기본이라 그 주로 한 번 받는다(x5 · C-5) — 받은 뒤 속 갈래를 고른다
+    const mkt = await waitFor(() => view.getByRole('tablist', { name: '마케팅 보기' }));
+    fireEvent.click(within(mkt).getByRole('tab', { name: /^회의 속기록/ }));
     expect(view.getByText('릴스 점검')).toBeTruthy();
     expect(view.queryByText('기획 점검')).toBeNull();
   });

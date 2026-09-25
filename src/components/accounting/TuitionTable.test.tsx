@@ -290,3 +290,21 @@ it('내역 창 설명은 사람의 말이다 — 절 번호를 적지 않는다'
   expect(text).toContain('이 줄이 곧 청구서의 줄입니다');
   expect(text).not.toMatch(/§\s?\d/);
 });
+
+/*
+ * 원문 §54 는 넘길 돈이 있는 줄을 **위에 모으고 옅게 칠한다** (x5 · 54-02).
+ * 차례는 서버가 정하고, 칠할지는 서버의 `carryPending` 하나로 정한다 — 금액 권한이 없으면
+ * `carryAmount` 가 null 이라 화면이 금액으로 가르면 대표 밖의 사람에게는 줄이 사라진다.
+ */
+it('넘길 돈이 남은 줄(서버 carryPending)만 옅게 칠하고, 받은 차례 그대로 그린다 — 금액을 못 봐도 같다 (54-02)', () => {
+  const data = clone();
+  data.canSeeAmounts = false;
+  data.items[0].carryAmount = null;
+  data.items[0].carryPending = true;
+  data.items[1].carryPending = false;
+  const v = render(<TuitionTable data={data} />);
+  const rows = v.getAllByRole('row').slice(1);
+  expect(rows.map((r) => (r.textContent ?? '').includes('이하린') ? '이하린' : '김태린')).toEqual(['이하린', '김태린']);
+  expect(rows[0].className).toContain('bg-amber/5');
+  expect(rows[1].className).not.toContain('bg-amber/5');
+});

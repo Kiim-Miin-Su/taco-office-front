@@ -19,9 +19,12 @@
  * 띠 · 재연락 · 사유 분류의 낱말과 날짜 셈은 전부 서버가 준 것이다(D-R18 · D-R37) — 화면은 날짜를 빼지 않는다.
  * 카드의 배치안 한 줄 · 2차/진단 일정 줄(「미생성」) · 보류 재확인 날짜와 §24 「당시 배치안」(23-15 · 23-16 · 24-07)도 서버 값 그대로 그리고,
  * 적는 곳은 상세 서랍의 「2차 · 진단 일정」·「배치안」 두 칸이다.
+ * wave 5: 등록 카드의 사후 관리 줄(청구서 · 교재 · 안내 · 23-18) — 서버 `aftercare` 그대로. 등록률 산식(23-19)은 서버 한 곳이다.
+ * wave 6: 등록 카드의 「등록 수업」 한 줄(23-11 · 서버 `lessons`) · 카드 단계별 단추 줄(23-14 · 서버 `cardActions`) — 카드는 몸통 단추와
+ * 단추 줄이 **형제**다(단추 안에 단추 없음). 입력이 필요한 단추는 상세 서랍의 그 칸을 열어 초점을 옮긴다(`drawerFocus`).
  */
 'use client';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
@@ -40,6 +43,7 @@ import { LeadDiagSection, diagScoresLabel } from '@/components/intake/LeadDiagSe
 import { IntakeChannelBadge } from '@/components/intake/IntakeChannelBadge';
 import { LeadPlanSection, leadPlanSummary } from '@/components/intake/LeadPlanSection';
 import { LeadApptSection, leadApptLine } from '@/components/intake/LeadApptSection';
+import { LeadCardActions, type LeadCardFocus } from '@/components/intake/LeadCardActions';
 import { won } from '@/lib/money';
 import { useCan } from '@/store/useSession';
 
@@ -211,15 +215,33 @@ export default function IntakePage() {
   // 등록 확정 창 (C91 · A-05) — 열려 있는 동안만 코드표·교재를 읽는다
   const [enrolling, setEnrolling] = useState(false);
   const [enrolled, setEnrolled] = useState<string | null>(null);
+  /** 카드 단추가 연 서랍의 칸 (23-14) — 실패의 중단 지점 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계. 서랍을 닫거나 다른 건을 고르면 비운다 */
+  const [drawerFocus, setDrawerFocus] = useState<LeadCardFocus | null>(null);
   const fail = useFailLead();
   const resume = useResumeLead();
   const selected = leads.find((l) => l.id === selectedId) ?? null;
 
   const pick = (l: Lead) => {
     setSelectedId((cur) => (cur === l.id ? null : l.id));
-    setStopAt(''); setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null);
+    setStopAt(''); setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
     fail.reset(); resume.reset();
   };
+  /** 카드 단추가 서랍을 연다 (23-14) — 이미 열린 건이면 닫지 않고 그 칸으로만 옮긴다 */
+  const openLead = (l: Lead, focus: LeadCardFocus) => {
+    if (selectedId !== l.id) pick(l);
+    setDrawerFocus(focus);
+  };
+  // 서랍이 그려진 뒤 그 칸으로 초점을 옮긴다 — 실패는 중단 지점 고르기, 되살리기는 단계 고르기, 일정은 그 칸 머리
+  useEffect(() => {
+    const target = drawerFocus === 'fail' ? 'lead-stop-at' : drawerFocus === 'resume' ? 'lead-resume-to' : drawerFocus === 'appt' ? 'lead-drawer-appt' : null;
+    if (!target || selectedId === null) return;
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(target);
+      el?.scrollIntoView?.({ block: 'center' });
+      el?.focus();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [drawerFocus, selectedId]);
   /** 「바로 수업 등록」(24-07) — 그 건을 고르고(되살리지 않고) 곧장 등록 확정 창을 연다 */
   const enrollNow = (l: Lead) => {
     if (selectedId !== l.id) pick(l);
@@ -432,15 +454,19 @@ export default function IntakePage() {
             countStyle="inline"
             itemKey={(l) => l.id}
             renderCard={(l) => (
+              // 카드 한 장 = 몸통 단추(누르면 상세 서랍) + 단계별 단추 줄(23-14) — 둘은 형제다. 단추 안에 단추를 두지 않는다(접근성)
+              <div
+                className={cn(
+                  '-m-2.5 rounded-lg p-2.5',
+                  l.stageDue ? DUE_CARD[l.stageDue.tone] : '',
+                  selectedId === l.id ? 'outline outline-2 outline-blue' : '',
+                )}
+              >
               <button
                 type="button"
                 aria-pressed={selectedId === l.id}
                 onClick={() => pick(l)}
-                className={cn(
-                  '-m-2.5 block w-[calc(100%+1.25rem)] rounded-lg p-2.5 text-left',
-                  l.stageDue ? DUE_CARD[l.stageDue.tone] : '',
-                  selectedId === l.id ? 'outline outline-2 outline-blue' : '',
-                )}
+                className="block w-full text-left"
               >
                 {/* 이름 · 학년 칩 · 오른쪽 위 유입 경로 배지 (23-10 · 23-13) — 접수 경과 「N일」은 원문에 없어 뺐다 */}
                 <div className="flex items-start justify-between gap-2">
@@ -456,8 +482,15 @@ export default function IntakePage() {
                   <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] italic text-fg-2">{l.reason}</p>
                 ) : null}
                 {/* 배치안 한 줄 (23-16) — 원본 「SAT Reading 주2 · Rebecca」. 낱말은 서버의 줄 label 을 잇는다 */}
-                {l.stage !== 'failed' && l.plan?.length ? (
+                {l.stage !== 'failed' && l.stage !== 'enrolled' && l.plan?.length ? (
                   <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] font-bold text-fg-2">{leadPlanSummary(l.plan)}</p>
+                ) : null}
+                {/* 등록 카드의 「등록 수업」 한 줄 (23-11) — 원본 「모의수업 A 주1 · KJ」. 그 학생의 지금 명단을 서버가 낱말로 만든다(배치안과 같은 모양) ·
+                    등록 건에만 선다. 1차 카드의 「원하는 것」은 여전히 싣지 않는다(접촉 원장 글이라 연락처가 섞일 수 있다 · wave 3 판단 유지) */}
+                {l.lessons?.length ? (
+                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] font-bold text-fg-2">
+                    <span className="sr-only">등록 수업: </span><span>{l.lessons.join(' · ')}</span>
+                  </p>
                 ) : null}
                 {/* 2차 · 진단 일정 (23-15) — 시간표에 아직 없으면 「미생성」. 판정은 서버의 scheduled */}
                 {l.appts?.length ? (
@@ -467,6 +500,18 @@ export default function IntakePage() {
                         <span className="w-6 shrink-0 font-bold">{a.kindLabel}</span>
                         <span className="min-w-0 grow truncate">{leadApptLine(a)}</span>
                         {a.scheduled ? null : <Chip tone="danger" styleKind="solid" size="compact">미생성</Chip>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {/* 등록 카드의 사후 관리 줄 (23-18) — 원본 §23 「청구서 없음 · 교재 없음 · 안내 없음」. 그 학생의 원장을 서버가 읽어 낱말까지 준다.
+                    됨은 초록 · 아직은 회색. 해피콜 · 월간 상담 줄은 적을 원장·규칙이 없어 서버가 싣지 않는다(지어내지 않는다) */}
+                {l.aftercare?.length ? (
+                  <ul aria-label={`${l.name} 사후 관리`} className="mt-1 flex flex-col gap-0.5">
+                    {l.aftercare.map((a) => (
+                      <li key={a.key} className={cn('flex items-center gap-2 rounded px-1.5 py-0.5 text-[10px]', a.done ? 'bg-green/10 text-green' : 'bg-inset text-fg-2')}>
+                        <span className="w-9 shrink-0 font-bold">{a.label}</span>
+                        <span className="min-w-0 grow truncate">{a.value}</span>
                       </li>
                     ))}
                   </ul>
@@ -494,6 +539,9 @@ export default function IntakePage() {
                   </div>
                 ) : null}
               </button>
+              {/* 단계별 단추 줄 (23-14) — 서는 단추 · 낱말 · 도착 단계는 서버 `cardActions` 그대로. 입력이 필요한 단추는 서랍의 그 칸을 연다 */}
+              <LeadCardActions lead={l} onOpen={(focus) => openLead(l, focus)} onEnroll={() => enrollNow(l)} onDone={setNotice} />
+              </div>
             )}
           />
         ) : view === 'followup' ? (
@@ -619,7 +667,9 @@ export default function IntakePage() {
             {/* 접촉 원장 (C90 · N-44) — 끝난 건에도 적는다 (사후 관리) */}
             <div className="mb-3">
               <LeadTouchLog
-                key={selected.id}
+                // 카드의 「사후 관리」(23-14)가 열었으면 「+ 기록」 칸을 연 채로 다시 세운다
+                key={`${selected.id}-${drawerFocus === 'touch' ? 'add' : 'view'}`}
+                defaultAdding={drawerFocus === 'touch'}
                 lead={selected}
                 kinds={head?.touchKinds ?? []}
                 onDone={(row) => setNotice(row.nextLabel ? `기록했습니다 — ${row.nextLabel}` : '기록했습니다')}
@@ -630,7 +680,8 @@ export default function IntakePage() {
               <LeadDiagSection key={selected.id} lead={selected} onDone={() => setNotice('진단 점수를 기록했습니다')} />
             </div>
             {/* 2차 · 진단 일정 · 「스케줄에 N건 만들기」 (23-15) · 배치안 · 보류 「연장 +2일」 (23-16) — 깔때기 안에서만 적는다(서버도 409) */}
-            <div className="mb-3">
+            {/* 카드의 「2차 · 진단 잡기」(23-14)가 초점을 옮기는 자리 */}
+            <div className="mb-3" id="lead-drawer-appt" tabIndex={-1}>
               <LeadApptSection key={selected.id} lead={selected} kinds={head?.apptKinds ?? []}
                 editable={activeStages.some((s) => s.key === selected.stage)} onDone={setNotice} />
             </div>

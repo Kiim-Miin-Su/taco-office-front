@@ -1,14 +1,14 @@
 /** @file-guide
  * 목적: 개발명세서 v2 §43의 안내 할 일(한 번 안내와 매번 회차 안내)을 표시한다.
- * 책임/재사용: 서버 집계·capability를 소비한다. 부모는 회차 키만, 같은 파일의 배정 Dialog는 선택·요청 잠금만 소유하며 공용 UI/훅을 재사용한다. 안내 본문은 GuideWriter에 위임하고 GUIDE 발송은 canSend·동기 동작 잠금으로 보호한다. 회차 학부모 안내는 GuardianSendDialog(보호자 선택 발송)에 위임한다.
+ * 책임/재사용: 서버 집계·capability를 소비한다. 부모는 회차 키만, 같은 파일의 배정 Dialog는 선택·요청 잠금만 소유하며 공용 UI/훅을 재사용한다. 안내 본문은 GuideWriter에 위임하고 GUIDE 발송은 canSend·동기 동작 잠금으로 보호한다. 회차 학부모 안내는 GuardianSendDialog(보호자 선택 발송)에 위임한다. 매번 머리 「강사 N명 한 번에」는 서버 zoomBatch(N·막힌 이유)와 일괄 결과(건너뛴 줄의 서버 이유)를 그대로 적는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import type { Guide, GuideMissing, Guides, PerLessonNotice } from '@/api/types';
-import { useAssignZoom, useCreateGuideDraft, useMeta, useSendGuide, useSendZoomNotice } from '@/api/queries';
+import type { Guide, GuideMissing, Guides, PerLessonNotice, ZoomNoticeBatchResult } from '@/api/types';
+import { useAssignZoom, useCreateGuideDraft, useMeta, useSendGuide, useSendZoomNotice, useSendZoomNoticeBatch } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
@@ -106,6 +106,32 @@ function ZoomAssignmentDialog({ target, caption, initialZaccId, onClose }: {
       ) : null}
       {assign.isError ? <Banner tone="danger" className="mt-3">{apiMessage(assign.error)}</Banner> : null}
     </Dialog>
+  );
+}
+
+/**
+ * 「강사 N명 한 번에」의 결과 띠 (wave 6 §43-6) — 몇 명에게 몇 건이 나갔는지와 건너뛴 회차의 **서버 이유**를 그대로 적는다.
+ * 줄마다 제 트랜잭션이라 일부만 나갈 수 있다 — 건너뛴 줄을 숨기면 「다 보냈다」로 읽힌다.
+ */
+function ZoomBatchResultBanner({ result }: { result: ZoomNoticeBatchResult }) {
+  const head = result.sent.length > 0
+    ? `강사 ${result.teacherCount}명에게 줌 안내 ${result.sent.length}건을 남겼습니다.`
+    : '새로 보낸 줌 안내가 없습니다.';
+  return (
+    <Banner tone={result.sent.length > 0 ? 'success' : 'warning'} className="mb-2">
+      <div data-testid="zoom-batch-result" role="status">
+        <p>{head}{result.skipped.length > 0 ? ` 건너뜀 ${result.skipped.length}건` : ''}</p>
+        {result.skipped.length > 0 ? (
+          <ul className="mt-1 space-y-0.5 text-[12px]">
+            {result.skipped.map((row) => (
+              <li key={`${row.serId}:${row.onDate}`}>
+                {`${hm(row.startMin)} ${row.studentNames} · ${row.teacherName ?? '강사 미정'} — ${row.reason ?? '보내지 못했습니다'}`}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </Banner>
   );
 }
 
@@ -356,6 +382,28 @@ export function GuidesTodo({ data }: { data: Guides }) {
   ];
   // 매번 머리 오른쪽 「처리할 것 N」 — 서버 기록 플래그 둘 중 하나라도 비어 있는 회차 (g4 §43-11)
   const perLessonTodo = data.perLesson.filter((lesson) => !lesson.parentDeliveryRecorded || !lesson.teacherDeliveryRecorded).length;
+  /*
+   * 원문 §43 매번 머리 오른쪽 「강사 9명 한 번에」 (wave 6 §43-6). N·누를 수 있는지·막힌 이유는 서버 zoomBatch 그대로다 —
+   * 화면이 perLesson 을 다시 세면 단추의 N 과 서버가 실제로 고르는 회차가 갈린다(D-R37 · D-R39). 옛 응답(칸 없음)이면 서지 않는다.
+   */
+  const zoomBatch = data.zoomBatch;
+  const batch = useSendZoomNoticeBatch();
+  const batchAction = zoomBatch ? (
+    <>
+      {!zoomBatch.canSend && zoomBatch.blockedReason ? (
+        <span className="max-w-xs text-right text-[11px] text-fg-subtle">{zoomBatch.blockedReason}</span>
+      ) : null}
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={!zoomBatch.canSend || batch.isPending}
+        title={zoomBatch.blockedReason ?? `오늘 온라인 수업 ${zoomBatch.lessonCount}건의 줌 안내를 강사 ${zoomBatch.teacherCount}명에게 한 번에 남깁니다`}
+        onClick={() => { if (!batch.isPending) batch.mutate(); }}
+      >
+        {batch.isPending ? '보내는 중…' : `강사 ${zoomBatch.teacherCount}명 한 번에`}
+      </Button>
+    </>
+  ) : null;
 
   return (
     <div className="space-y-4">
@@ -416,7 +464,10 @@ export function GuidesTodo({ data }: { data: Guides }) {
           </Banner>
         ) : null}
         {/* 원문 매번 머리 「26년 8월 21일 금요일 · 온라인 14건 · 오늘」 — 공용 긴 날짜 (g4 §43-11) */}
-        <Panel className="mt-2" title={<span id="guide-each-title">{`${longDateLabel(todayKst())} · 온라인 ${data.perLesson.length}건 · 오늘`}</span>}>
+        <Panel className="mt-2" title={<span id="guide-each-title">{`${longDateLabel(todayKst())} · 온라인 ${data.perLesson.length}건 · 오늘`}</span>}
+          right={batchAction}>
+          {batch.data ? <ZoomBatchResultBanner result={batch.data} /> : null}
+          {batch.isError ? <Banner tone="danger" className="mb-2">{apiMessage(batch.error)}</Banner> : null}
           {data.perLesson.length === 0 ? (
             <p className="py-8 text-center text-[12px] text-fg-subtle">오늘 처리할 온라인 회차 안내가 없습니다.</p>
           ) : (

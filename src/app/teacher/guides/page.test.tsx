@@ -21,7 +21,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/teacher/guides', useRou
 const teacher: Me = { id: 2, name: '강사A', role: 'teacher', roleLabel: '강사', title: null,
   canAdminPage: false, canCrudAll: false, canSeeProfit: false, canCrudAttendance: true,
   canMoney: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false };
-const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', state: 'sent', pending: false,
+const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'sent', pending: false,
   studentName: '수신 학생', teacherName: '강사A', serTitle: '수신 수업', body: '<img src=x onerror=alert(1)>\nhttps://example.test/'+ 'a'.repeat(400),
   dueOn: null, eventOn: '2026-09-24', sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00',
   sentAt: '2026-09-24T10:00:00+09:00', acknowledgedAt: null, overdueDays: 0, siblingCount: 0,
@@ -67,9 +67,9 @@ function setup(options: { search?: string; weeklyError?: boolean; receivedError?
 it.each([false, true])('현재 주 학생 자료 오류=%s와 독립해 수신 본문을 먼저 표시하고 명시 확인한다', async (weeklyError) => {
   const { view, calls } = setup({ weeklyError, search: 'guideId=5' });
   const button = await view.findByRole('button', { name: '확인했습니다' });
-  const title = view.getByRole('heading', { name: '수업 안내', level: 1 });
-  const inbox = view.getByRole('heading', { name: '받은 안내', level: 2 });
-  expect(title.compareDocumentPosition(inbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // 화면 이름 「수업 안내」는 강사 셸 머리줄 한 곳 — 본문에 같은 h1 을 다시 세우지 않는다 (wave 6 · ScreenHeader)
+  expect(view.queryByRole('heading', { name: '수업 안내', level: 1 })).toBeNull();
+  expect(view.getByRole('heading', { name: '받은 안내', level: 2 })).toBeTruthy();
   const paragraph = view.getByText(/<img src=x/);
   expect(paragraph.textContent).toBe(initial.body);
   expect(paragraph.className).toContain('break-words'); expect(view.container.querySelector('img')).toBeNull();

@@ -24,11 +24,16 @@ export interface TableProps<T> {
   rows: T[];
   rowKey: (row: T, index: number) => string | number;
   onRowClick?: (row: T) => void;
+  /**
+   * 줄 하나의 **바탕**을 바꿀 클래스 — 원문 §54 넘길 돈 줄(옅은 바탕) · §62 기한 지난 줄(분홍) · §53 「자세히 ›」로 온 줄 강조 (x5).
+   * 판정은 부르는 쪽(서버 값)이 한다. 기본 없음 = 지금 모양.
+   */
+  rowClassName?: (row: T, index: number) => string | undefined;
   empty?: ReactNode;
   className?: string;
 }
 
-export function Table<T>({ columns, rows, rowKey, onRowClick, empty, className }: TableProps<T>) {
+export function Table<T>({ columns, rows, rowKey, onRowClick, rowClassName, empty, className }: TableProps<T>) {
   return (
     <div className={cn('overflow-hidden rounded-xl border border-line bg-card', className)}>
       <table className="w-full border-collapse text-[12px]">
@@ -60,7 +65,7 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, empty, className }
               <tr
                 key={rowKey(r, i)}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
-                className={cn('border-b border-line last:border-0', onRowClick && 'cursor-pointer hover:bg-inset')}
+                className={cn('border-b border-line last:border-0', onRowClick && 'cursor-pointer hover:bg-inset', rowClassName?.(r, i))}
               >
                 {columns.map((c) => (
                   <td

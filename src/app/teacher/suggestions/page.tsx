@@ -14,11 +14,12 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { ApiError } from '@/api/client';
-import { Button, Chip, PageHeader, Panel, QueryState, type Tone } from '@/components/ui';
+import { Button, Chip, Panel, QueryState, type Tone } from '@/components/ui';
 import { useCreateTeacherSuggestion, useTeacherSuggestions } from '@/api/queries';
 import type { TeacherSuggestion, TeacherSuggestionCreate } from '@/api/types';
 import { md } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
+import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 
 /** D-11 분류 4종 — 라벨·부제는 덱 §33 그대로 */
 const CATS = [
@@ -97,7 +98,7 @@ export default function TeacherSuggestionsPage() {
             const spent = !d.canPost;
             return (
               <>
-                <PageHeader title="건의 사항" sub={`${Number(d.yearMonth.slice(5, 7))}월 사용 ${d.used}/${d.limit} · 내가 보낸 건의 ${d.items.length}건`} />
+                <ScreenHeader title="건의 사항" sub={`${Number(d.yearMonth.slice(5, 7))}월 사용 ${d.used}/${d.limit} · 내가 보낸 건의 ${d.items.length}건`} />
                 <div className="mt-3 flex flex-col gap-4 lg:flex-row">
                   <div className="w-full shrink-0 lg:w-[480px]">
                     <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${spent ? 'border-red/50 bg-red/5' : 'border-line bg-inset'}`}>

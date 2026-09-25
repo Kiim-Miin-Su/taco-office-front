@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: useUndoLast.ts — 직전 일정 쓰기를 되돌리는 단 하나의 자리 (N-138)
+ * 목적: useUndoLast.ts — 일정 쓰기를 한 단계·여러 단계 되돌리는 단 하나의 자리 (N-138 · g1 S5)
  * 책임/재사용: 공용 store 와 기존 useScheduleWrite 만 쓴다. 서버 판정을 화면에서 다시 하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -13,40 +13,58 @@
  * 토큰은 `useWorkspace` 가 갖는다(셸 상태다 · 그 파일의 주석 참조). 여기서는 **읽고 쓰기만** 한다.
  * 되돌릴 수 있는지도 store 한 곳이 답한다 — 화면이 「마지막 작업이 삭제였나」를 다시 따지지 않는다.
  */
-import { useWorkspace } from '@/store/useWorkspace';
+import { liveUndoSteps, useWorkspace, type WorkspaceUndo } from '@/store/useWorkspace';
 import { useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 
+type UndoDone = { onDone?: () => void; onFail?: (message: string) => void };
+
 export interface UndoLast {
   canUndo: boolean;
-  /** 「무엇을」 되돌리는지 — 없으면 null */
+  /** 「무엇을」 되돌리는지 — 가장 최근 단계 · 없으면 null */
   label: string | null;
+  /** 되돌릴 수 있는 단계 — **가장 최근이 앞** (원문 셸 「⟲ 되돌리기 ▾」 목록 · g1 S5) */
+  steps: WorkspaceUndo[];
   pending: boolean;
   /**
+   * 가장 최근 한 단계.
    * @param done 성공/실패를 부르는 쪽이 이어 받는다 (스케줄 화면은 선택·클립보드·커서를 비운다).
    *   실패해도 토큰은 버린다 — 만료·stale 둘 다 **다시 눌러도 같은 답**이고, 남겨 두면
    *   단추가 살아 있는 채로 계속 실패한다.
    */
-  undo: (done?: { onDone?: () => void; onFail?: (message: string) => void }) => void;
+  undo: (done?: UndoDone) => void;
+  /**
+   * 최근 `count` 단계를 **뒤에서부터 차례로** — 하나가 막히면 거기서 멈추고 그 단계만 버린다.
+   * 서버가 단계마다 「발급 직후와 지금이 같은가」를 다시 보므로 화면은 순서만 지킨다.
+   */
+  undoTo: (count: number, done?: UndoDone) => void;
 }
 
 export function useUndoLast(): UndoLast {
-  const undoState = useWorkspace((w) => w.undo);
-  const setUndo = useWorkspace((w) => w.setUndo);
+  const stack = useWorkspace((w) => w.undoStack);
+  const dropUndo = useWorkspace((w) => w.dropUndo);
   const write = useScheduleWrite();
+  const steps = liveUndoSteps(stack).reverse();
+
+  // 한 단계씩 — 앞 단계가 성공해야 다음 단계를 보낸다 (동시에 보내면 서로의 stale 판정을 흔든다)
+  const run = (queue: WorkspaceUndo[], done?: UndoDone) => {
+    const [head, ...rest] = queue;
+    if (!head) { done?.onDone?.(); return; }
+    write.mutate(
+      { kind: 'undo', body: { token: head.token } },
+      {
+        onError: (error) => { dropUndo(head.token); done?.onFail?.(apiMessage(error)); },
+        onSuccess: () => { dropUndo(head.token); run(rest, done); },
+      },
+    );
+  };
+
   return {
-    canUndo: undoState !== null,
-    label: undoState?.label ?? null,
+    canUndo: steps.length > 0,
+    label: steps[0]?.label ?? null,
+    steps,
     pending: write.isPending,
-    undo: (done) => {
-      if (!undoState) return;
-      write.mutate(
-        { kind: 'undo', body: { token: undoState.token } },
-        {
-          onError: (error) => { setUndo(null); done?.onFail?.(apiMessage(error)); },
-          onSuccess: () => { setUndo(null); done?.onDone?.(); },
-        },
-      );
-    },
+    undo: (done) => { if (steps.length) run(steps.slice(0, 1), done); },
+    undoTo: (count, done) => { if (steps.length) run(steps.slice(0, Math.max(1, count)), done); },
   };
 }

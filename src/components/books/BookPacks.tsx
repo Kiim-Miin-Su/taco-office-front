@@ -19,6 +19,7 @@ import {
 import type { BookPack, BookPackWrite } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { Banner, Button, Checkbox, Chip, Input, Label, Panel, QueryState, Select, Textarea } from '@/components/ui';
+import { bookLevelPresentation } from '@/lib/book-presentation';
 import { kstDateTime } from '@/lib/calendar';
 import { downloadElementPng } from '@/lib/png-export';
 
@@ -156,6 +157,9 @@ function BookPackAnchor({ packId, focused, children }: { packId: number; focused
   );
 }
 
+/** 전달 종류 점 색 — 원문 §41 시험 대비 자료 빨강 · 자습 자료 청록(오른쪽 「전달 종류」 레일과 같은 색) */
+const PACK_TYPE_TONE: Readonly<Record<string, 'danger' | 'teal'>> = { exam: 'danger', self: 'teal' };
+
 function BookPackCard({
   pack,
   onDeliver,
@@ -186,34 +190,65 @@ function BookPackCard({
     }
   };
 
+  const stateTone = pack.state === 'received' ? 'success' : pack.state === 'delivered' ? 'info' : 'warning';
   return (
-    <Panel
-      title={pack.title}
-      right={
-        <Chip tone={pack.state === 'received' ? 'success' : pack.state === 'delivered' ? 'info' : 'warning'}>
-          {pack.stateLabel}
-        </Chip>
-      }
-    >
+    <article data-testid="book-pack-card" className="rounded-xl border border-line bg-card p-4">
       <div ref={noteRef} className="space-y-2 bg-card text-[12px]">
-        <p>
-          <b>{pack.packTypeLabel}</b> · {pack.students.map((student) => `${student.name} ${student.grade ?? ''}`).join(' · ')}
-        </p>
-        <div className="rounded-lg bg-inset p-2">
-          {pack.books.map((book) => (
-            <div key={book.id} className="flex flex-wrap items-center gap-1">
-              <b>{book.title}</b>
-              <FileDownloadButton id={book.seFileId} label="SE" />
-              <FileDownloadButton id={book.teFileId} label="TE" />
-              <span className="text-fg-subtle">{book.code}</span>
-            </div>
+        {/* 원문 §41 카드 머리 — 「● 시험 대비 자료」(종류색 점) + 제목, 오른쪽 「● 전달 완료 Sophia」(상태 + 코디네이터) (g4 §41-3) */}
+        <header data-pack-head className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span data-pack-type={pack.packType}>
+              <Chip styleKind="dot" tone={PACK_TYPE_TONE[pack.packType] ?? 'neutral'}>{pack.packTypeLabel}</Chip>
+            </span>
+            <h3 className="min-w-0 text-[15px] font-bold text-fg">{pack.title}</h3>
+          </div>
+          <span className="inline-flex items-center gap-1.5">
+            <Chip styleKind="dot" tone={stateTone}>{pack.stateLabel}</Chip>
+            <b className="text-[12px] text-violet">{pack.coordinatorName ?? '코디네이터 미정'}</b>
+          </span>
+        </header>
+        {/* 학생 칩 「이유찬 G9」 */}
+        <div className="flex flex-wrap gap-1.5">
+          {pack.students.map((student) => (
+            <span key={student.id} data-pack-student>
+              <Chip>
+                <b>{student.name}</b>
+                {student.grade ? <span className="ml-1 text-fg-subtle">{student.grade}</span> : null}
+              </Chip>
+            </span>
           ))}
         </div>
-        {pack.memo ? <p>{pack.memo}</p> : null}
+        {/* 교재 줄 = 레벨 글자 사각 + 제목 + SE/TE + 코드 (원문 §41 · 레벨 색은 서가 띠와 같은 bookLevelPresentation) */}
+        <div className="space-y-1 rounded-lg bg-inset p-2">
+          {pack.books.map((book) => {
+            const level = bookLevelPresentation(book.level);
+            return (
+              <div key={book.id} className="flex flex-wrap items-center gap-1.5">
+                {book.level ? (
+                  <span data-level-marker title={level.label}
+                    className={`inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[11px] font-black text-white ${level.bandClass}`}>
+                    {level.marker}
+                  </span>
+                ) : null}
+                <b className="min-w-0 flex-1">{book.title}</b>
+                {/* 원문 §41 교재 줄의 작은 SE/TE 배지 — 누르면 내려받기 (g4 §41-3 · wave 6) */}
+                <FileDownloadButton id={book.seFileId} label="SE" variant="badge" itemTitle={book.title} />
+                <FileDownloadButton id={book.teFileId} label="TE" variant="badge" tone="violet" itemTitle={book.title} />
+                <span className="font-mono text-[10.5px] text-fg-subtle">{book.code}</span>
+              </div>
+            );
+          })}
+        </div>
+        {/* 메모는 💬 연보라 상자 (원문 §41) */}
+        {pack.memo ? (
+          <p data-pack-memo className="rounded-lg bg-violet/10 px-3 py-2 text-fg">
+            <span aria-hidden className="mr-1">💬</span>{pack.memo}
+          </p>
+        ) : null}
         {/* 전달·수령은 서버가 ISO 시각으로 준다 — 원문 §41 처럼 KST 날짜·시각으로 읽게 공용 포맷을 쓴다 */}
         <p className="text-fg-subtle">
-          {/* 전달 뒤에 전달한 사람 — 원문 「전달 2026-08-20 · 김범준」 (g4 §41-2) */}
-          코디네이터 {pack.coordinatorName ?? '—'} · 전달 {kstDateTime(pack.deliveredAt) ?? '—'}
+          {/* 전달 뒤에 전달한 사람 — 원문 「전달 2026-08-20 · 김범준 · 적용 2026-08-28」 (g4 §41-2) */}
+          전달 {kstDateTime(pack.deliveredAt) ?? '—'}
           {pack.deliveredByName ? ` · ${pack.deliveredByName}` : ''} · 적용{' '}
           {pack.effectiveOn ?? '—'} · 수령 {kstDateTime(pack.receivedAt) ?? '—'}
         </p>
@@ -233,7 +268,8 @@ function BookPackCard({
           전달 전 확인: {pack.deliveryBlockers.join(' · ')}
         </Banner>
       ) : null}
-      <div className="mt-2 flex gap-2">
+      {/* 단추는 같은 폭 (원문 §41 — 「열기·수정 · 전달문 PNG · 수령 확인」) */}
+      <div data-pack-actions className="mt-2 grid auto-cols-fr grid-flow-col gap-2">
         {pack.state !== 'received' ? (
           <Button
             size="sm"
@@ -293,7 +329,7 @@ function BookPackCard({
           ) : null}
         </div>
       ) : null}
-    </Panel>
+    </article>
   );
 }
 

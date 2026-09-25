@@ -24,6 +24,15 @@ export function GuideReasonChip({ reason }: { reason: Guide['reason'] }) {
   return <Chip tone={reason === 'teacher_change' ? 'purple' : 'info'}>{REASON_LABEL[reason]}</Chip>;
 }
 
+/**
+ * 작성된 안내의 **종류** 칩 — 원문 §44 머리 「● 포괄 안내」(g4 §44-4). 낱말은 서버 `kindLabel`(원문 §45 kind full/quick) 그대로이고
+ * 모양은 점 + 색 글자다. 서버가 종류를 주지 않은 옛 응답이면 사유 칩으로 선다 — 화면이 사유 → 종류 표를 다시 적지 않는다(D-R18).
+ */
+export function GuideKindChip({ guide }: { guide: Pick<Guide, 'reason' | 'kindLabel'> }) {
+  if (!guide.kindLabel) return <GuideReasonChip reason={guide.reason} />;
+  return <Chip styleKind="dot" tone={guide.reason === 'teacher_change' ? 'purple' : 'info'}>{guide.kindLabel}</Chip>;
+}
+
 export function GuideStateChip({ state, count }: { state: Guide['state']; count?: number }) {
   const view = STATE_VIEW[state];
   // count 는 §45 날짜 머리의 상태 합계 — 「발송 대기 1」 (서버 줄을 그대로 묶어 센 수)

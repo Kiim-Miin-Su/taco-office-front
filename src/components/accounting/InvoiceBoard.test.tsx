@@ -3,8 +3,8 @@
  * 책임/재사용: 실제 InvoiceBoard 를 쓰고 props 로만 상태를 준다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, render, within } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import type { InvBoard } from '@/api/types';
 import { InvoiceBoard } from './InvoiceBoard';
 
@@ -74,17 +74,31 @@ it('칸 합계도 서버 값이다 — 화면이 카드를 더하지 않는다 (
   expect(colOf(v, '입금 기록').getByText('5,400,000원')).toBeTruthy();
 });
 
-it('「N% 냄」은 서버가 낸 비율이다 — 화면이 받은 돈 ÷ 청구액을 다시 하지 않는다', () => {
+/*
+ * 원문 §52 카드는 **한 줄**이다 — 이름 · 학년 칩(+ 연체 칩) · 「자세히 ›」 (x5 · 52-02 · D-R44).
+ * 금액·종류·「N% 냄」은 칸 머리 합계와 청구서 탭 줄이 말한다 — 「자세히 ›」가 그 줄로 간다 (52-03).
+ */
+it('카드는 한 줄 — 이름 · 학년 · 「자세히 ›」가 그 청구서 줄로 보낸다 (52-02 · 52-03)', () => {
   const d = clone();
-  d.columns[3].cards[0].paidPercent = 73;   // 1,100,000 / 2,200,000 은 50% 다
-  const v = render(<InvoiceBoard data={d} />);
-  expect(v.getByText('73% 냄')).toBeTruthy();
-  expect(v.queryByText('50% 냄')).toBeNull();
+  d.columns[3].cards[0].paidPercent = 73;
+  const onOpen = vi.fn();
+  const v = render(<InvoiceBoard data={d} onOpenInvoice={onOpen} />);
+  expect(v.queryByText('73% 냄')).toBeNull();
+  const col = colOf(v, '입금 기록');
+  fireEvent.click(col.getByRole('button', { name: /청구서 자세히$/ }));
+  expect(onOpen).toHaveBeenCalledWith(d.columns[3].cards[0].invId);
 });
 
-it('기한이 지나면 「연체」, 아니면 서버가 지은 한 마디를 적는다', () => {
+it('윗선·채운 번호·큰 건수 — 넷째 「입금 기록」은 검정이다 (§52 윗선 · x5)', () => {
   const v = render(<InvoiceBoard data={clone()} />);
-  expect(colOf(v, '입금 기록').getByText('D-16')).toBeTruthy();
+  const record = v.container.querySelector('[data-board-column="record"]') as HTMLElement;
+  expect(record.className).toContain('border-t-fg');
+  const sent = v.container.querySelector('[data-board-column="sent"]') as HTMLElement;
+  expect(sent.className).toContain('border-t-blue');
+});
+
+it('기한이 지나면 「연체」 칩이 선다 — 판정은 서버의 overdueDays', () => {
+  const v = render(<InvoiceBoard data={clone()} />);
   expect(v.queryByText('연체')).toBeNull();
 
   cleanup();

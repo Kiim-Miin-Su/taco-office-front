@@ -10,10 +10,12 @@ import { useDndContext, type DndContextProps, type DragEndEvent } from '@dnd-kit
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Meta, Occurrence } from '@/api/types';
 import { KO_DOW, dowOf, monthGrid } from '@/lib/calendar';
+import { useWorkspace } from '@/store/useWorkspace';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(), drawerWrite: vi.fn(), drawer: vi.fn(),
-  download: vi.fn(), conflicts: vi.fn(), draft: vi.fn(),
+  download: vi.fn(), conflicts: vi.fn(), draft: vi.fn(), holidays: vi.fn(), unav: vi.fn(),
+  seriesCounts: vi.fn(), studentBooks: vi.fn(),
   permissions: { canAdminPage: true, canCrudAll: true } as Record<string, boolean>,
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
@@ -31,10 +33,21 @@ function DndProbe() {
   mocks.context = useDndContext();
   return null;
 }
-vi.mock('@/store/useSession', () => ({ useCan: (key: string) => mocks.permissions[key] ?? false }));
-vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry }: {
+vi.mock('@/store/useSession', () => ({
+  useCan: (key: string) => mocks.permissions[key] ?? false,
+  // 사이드바 [관리] 판정(canAccessAppRoute)만 읽는다 — 셸은 목이라 사이드바가 그려지지 않는다
+  useSession: (select: (s: { me: null }) => unknown) => select({ me: null }),
+}));
+// 셸은 목이지만 사이드 패널은 그린다 — 전체 표의 「가능 시간」 단추는 사이드바에만 있다(기본 접힘이면 그리지 않는다)
+vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry, sidePanel }: {
   children: ReactNode; drawerEntry?: { pane: string; identity: string } | null;
-}) => <div data-drawer-entry={drawerEntry ? `${drawerEntry.pane}:${drawerEntry.identity}` : undefined}>{children}</div> }));
+  sidePanel?: (api: { openDrawer: () => void }) => ReactNode;
+}) => (
+  <div data-drawer-entry={drawerEntry ? `${drawerEntry.pane}:${drawerEntry.identity}` : undefined}>
+    {sidePanel ? sidePanel({ openDrawer: () => undefined }) : null}
+    {children}
+  </div>
+) }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/cal/SessionEditor', () => ({ SessionEditor: ({ draft }: { draft: unknown }) => {
   mocks.draft(draft); return null;
@@ -52,6 +65,12 @@ vi.mock('@/api/queries', () => ({
   // §11 To-Do 띠의 「+ 주기」 — 서랍과 같은 쓰기 훅이다
   useDrawerWrite: () => ({ mutate: mocks.drawerWrite, isPending: false }),
   fetchConflicts: mocks.conflicts,
+  // 공휴일 이름표 · 강사 불가 시간(관리자 읽기) — 서버 표에서 읽는다 (wave5 · §09 #2 · G37)
+  useScheduleHolidays: mocks.holidays,
+  useScheduleUnavailable: mocks.unav,
+  // §07 사이드바 일정 원본 수 · §10 개인 머리 「교재 없음」 — 서버가 센다 (wave 6)
+  useScheduleSeriesCounts: mocks.seriesCounts,
+  useStudentBooks: mocks.studentBooks,
 }));
 vi.mock('@/lib/png-export', () => ({ downloadElementPng: mocks.download }));
 
@@ -83,6 +102,10 @@ beforeEach(() => {
   mocks.meta.mockReturnValue({ data: meta });
   mocks.download.mockResolvedValue(undefined);
   mocks.conflicts.mockResolvedValue([]);
+  mocks.holidays.mockReturnValue({ data: { items: [] } });
+  mocks.unav.mockReturnValue({ data: { items: [] }, isLoading: false });
+  mocks.seriesCounts.mockReturnValue({ data: undefined });
+  mocks.studentBooks.mockReturnValue({ data: undefined });
   mocks.drawer.mockReturnValue({ data: { approvals: { count: 0 }, notis: [], todos: [] } });
   mocks.drawerWrite.mockReset();
   mocks.permissions.canAdminPage = true;
@@ -440,6 +463,109 @@ describe('키보드 길 — 복사·잘라내기·붙여넣기·취소 (§5.2)',
   });
 });
 
+describe('「가능 시간」 · 공휴일 (원문 §07·§11 UNAV · §09·§10 공휴일 · wave5)', () => {
+  it('선생님별 표에서 「가능 시간」을 켜면 그때만 불가 시간을 읽고, 그 강사의 띠만 깔며 범례에 「강사 불가」가 선다', () => {
+    mocks.unav.mockReturnValue({ data: { items: [
+      { id: 1, teacherId: 11, teacherName: '선택 강사', date: '2026-09-02', startMin: 840, endMin: 960, reason: '병원' },
+      { id: 2, teacherId: 22, teacherName: '다른 강사', date: '2026-09-02', startMin: 600, endMin: 660, reason: '출장' },
+    ] }, isLoading: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    expect(mocks.unav).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-09-06' }, false);
+    expect(view.container.querySelectorAll('[data-unav]').length).toBe(0);
+
+    const toggle = view.getByRole('button', { name: '가능 시간' });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(mocks.unav).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-09-06' }, true);
+    const bands = Array.from(view.container.querySelectorAll('[data-unav]'));
+    expect(bands.map((b) => b.getAttribute('title'))).toEqual(['강사 불가 · 선택 강사 14:00–16:00 · 병원']);
+    expect(view.container.querySelector('[data-legend-unav]')).toBeTruthy();
+  });
+
+  it('전체 월간의 「이 기간 강사 불가 N건」은 그 달만 센다 — 격자 앞뒤 달 칸의 불가는 빼고 요약과 같은 기간 (QA 0926 B2)', () => {
+    mocks.unav.mockReturnValue({ data: { items: [
+      { id: 1, teacherId: 11, teacherName: '선택 강사', date: '2026-08-31', startMin: 840, endMin: 960, reason: '앞 달' },
+      { id: 2, teacherId: 11, teacherName: '선택 강사', date: '2026-09-15', startMin: 840, endMin: 960, reason: '이 달' },
+      { id: 3, teacherId: 22, teacherName: '다른 강사', date: '2026-10-04', startMin: 600, endMin: 660, reason: '뒤 달' },
+    ] }, isLoading: false });
+    useWorkspace.setState({ sidebarOpen: true });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    fireEvent.click(view.getByRole('button', { name: '가능 시간' }));
+    // 읽기는 격자 전체(앞뒤 달 칸 포함) — 세기만 그 달로 자른다
+    expect(mocks.unav).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-10-04' }, true);
+    const banner = view.container.querySelector('[data-unav-list]') as HTMLElement;
+    expect(banner.textContent).toContain('이 기간 강사 불가 1건');
+    expect(banner.textContent).toContain('이 달');
+    expect(banner.textContent).not.toContain('앞 달');
+    expect(banner.textContent).not.toContain('뒤 달');
+    useWorkspace.setState({ sidebarOpen: false });
+  });
+
+  it('공휴일은 서버 표를 같은 범위로 읽어 월간 칸에 이름을 적는다', () => {
+    mocks.holidays.mockReturnValue({ data: { items: [{ date: '2026-09-24', name: '추석 연휴' }, { date: '2026-09-25', name: '추석' }] } });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    expect(mocks.holidays).toHaveBeenLastCalledWith({ from: '2026-08-31', to: '2026-10-04' });
+    expect(Array.from(view.container.querySelectorAll('[data-holiday]')).map((n) => n.textContent)).toEqual(['추석 연휴', '추석']);
+  });
+});
+
+describe('서버가 센 수만 그린다 (wave 6 · §07 #19 · §10 #5)', () => {
+  it('사이드바 일정 원본 수는 사이드바를 펼쳤을 때만 읽는다 — 기본 접힘이면 부르지 않는다', () => {
+    useWorkspace.setState({ sidebarOpen: false });
+    const view = render(<SchedulePage />);
+    expect(mocks.seriesCounts).toHaveBeenLastCalledWith(false);
+    view.unmount();
+    useWorkspace.setState({ sidebarOpen: true });
+    render(<SchedulePage />);
+    expect(mocks.seriesCounts).toHaveBeenLastCalledWith(true);
+    useWorkspace.setState({ sidebarOpen: false });
+  });
+
+  it('학생별 개인 머리에 서버 낱말 「교재 없음」을 적고, 교재가 있으면(null) 아무것도 적지 않는다', () => {
+    nav.search = 'studentId=1';
+    mocks.studentBooks.mockReturnValue({ data: { studentId: 1, bookCount: 0, label: '교재 없음' } });
+    const view = render(<SchedulePage />);
+    expect(mocks.studentBooks).toHaveBeenLastCalledWith(1);
+    const head = view.container.querySelector('[data-person-table]') as HTMLElement;
+    expect(head.querySelector('[data-student-books]')?.textContent).toBe('교재 없음');
+    view.unmount();
+
+    mocks.studentBooks.mockReturnValue({ data: { studentId: 1, bookCount: 2, label: null } });
+    const again = render(<SchedulePage />);
+    expect(again.container.querySelector('[data-student-books]')).toBeNull();
+  });
+
+  it('선생님별 머리에는 교재 칩이 없다 — 학생 교재를 묻지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    expect(mocks.studentBooks).not.toHaveBeenCalled();
+    expect(view.container.querySelector('[data-student-books]')).toBeNull();
+  });
+});
+
+describe('선생님 목록 = 수업을 맡는 사람 (원문 §11 #7)', () => {
+  it('관리 화면 권한이 있는 사람은 이 기간 맡은 수업이 있을 때만 목록에 선다 — 역할 낱말을 견주지 않고 서버 플래그로 가른다', () => {
+    mocks.meta.mockReturnValue({ data: { ...meta, staff: [
+      ...meta.staff,
+      { id: 33, name: '수업 없는 원장', role: 'ceo', canAdminPage: true, canGpaPack: true },
+      { id: 44, name: '수업하는 매니저', role: 'manager', canAdminPage: true, canGpaPack: false },
+    ] } });
+    mocks.occurrences.mockReturnValue({ data: { items: [...items, { ...items[1], serId: 3, teacherId: 44, title: '매니저 수업' }] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    expect(view.queryByRole('button', { name: /^수업 없는 원장/ })).toBeNull();
+    expect(view.getByRole('button', { name: /^수업하는 매니저/ })).toBeTruthy();
+    expect(view.getByRole('button', { name: /^선택 강사/ })).toBeTruthy();
+    expect(view.getByRole('button', { name: /^다른 강사/ })).toBeTruthy();
+    expect(view.getByText('선생님 3명')).toBeTruthy();
+  });
+});
+
 describe('개인 표의 기간 축 (§10·§11)', () => {
   it('사람을 고르면 개인 도구줄이 서고, 기본은 주간이며 일간·월간으로 바꾸면 조회 범위가 따라간다', () => {
     const view = render(<SchedulePage />);
@@ -464,11 +590,11 @@ describe('개인 표의 기간 축 (§10·§11)', () => {
     fireEvent.click(view.getByRole('button', { name: '선생님별' }));
     fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
 
-    for (const label of ['가능 시간', '메모']) {
-      const button = view.getByRole('button', { name: label });
-      expect(button.hasAttribute('disabled')).toBe(true);
-      expect(button.getAttribute('title')).toBeTruthy();
-    }
+    // 「가능 시간」은 이제 강사 불가 시간 겹쳐 보기다(G37) — 「메모」만 여는 화면이 원본에 없어 잠겨 있다
+    expect(view.getByRole('button', { name: '가능 시간' }).hasAttribute('disabled')).toBe(false);
+    const memo = view.getByRole('button', { name: '메모' });
+    expect(memo.hasAttribute('disabled')).toBe(true);
+    expect(memo.getAttribute('title')).toBeTruthy();
     expect(view.getByRole('link', { name: '안내' }).getAttribute('href')).toBe('/guides');
     expect(view.getByRole('link', { name: '정산' }).getAttribute('href')).toBe('/accounting?tab=payout');
     // 학생별에는 원본에도 넷이 없다 — 모양을 맞추려고 같은 단추를 세우지 않는다

@@ -28,7 +28,6 @@ import {
   CONSULTING_SHARES,
   CONSULTING_STAGE_BY_KEY,
   consultingContractStep,
-  consultingTypeLabel,
   consultingStageView,
   type ConsultingStageFilterValue,
 } from '@/lib/consulting';
@@ -50,8 +49,9 @@ export default function ConsultingPage() {
   const [view, setView] = useState<View>('board');
   /** §28 회계는 canMoney capability가 있을 때만 탭과 요청을 함께 연다. */
   const money = useConsAccounting(canMoney);
-  // §27 은 그 탭을 열 때만 부른다 — 탭 머리의 「N명」도 이 질의가 센 값이라 열기 전에는 비워 둔다
+  // §27 은 그 탭을 열 때만 부른다. 탭 머리의 「N명」은 목록 응답이 같은 셈으로 준다(studentCount · 26-03) — 열기 전에도 선다
   const students = useConsStudents(view === 'students');
+  const studentCount = students.data?.items.length ?? d?.studentCount;
   const [openId, setOpenId] = useState<number | null>(null);
   const [startOpen, setStartOpen] = useState(false);
   const meta = useMeta(startOpen);
@@ -69,7 +69,8 @@ export default function ConsultingPage() {
     : openSummary?.id ?? (create.data?.id === openId ? create.data.id : null);
 
   const cols: Array<Column<Consulting>> = [
-    { key: 't', head: '종류', width: 80, cell: (r) => <Chip tone="purple">{consultingTypeLabel(r.consType)}</Chip> },
+    // 종류 이름은 서버 낱말이다 — 화면이 종류 표를 들지 않는다 (29-02 · D-R18)
+    { key: 't', head: '종류', width: 80, cell: (r) => <Chip tone="purple">{r.typeLabel}</Chip> },
     { key: 's', head: '학생', cell: (r) => <span className="font-bold">{r.studentNames.join(' · ') || '—'}</span> },
     {
       key: 'st', head: '단계', width: 90,
@@ -122,8 +123,8 @@ export default function ConsultingPage() {
               options={[
                 // 동그라미는 **열린 건**(계약 + 진행)이다 — 원본 §26 「2」 = 계약 1 + 진행 1 (26-04)
                 { value: 'board', label: '단계 보드', sub: `${stageView.counts.all}건`, badge: stageView.counts.contract + stageView.counts.running },
-                // 학생 수는 §27 질의가 센 값이다 — 목록의 이름을 모아 세지 않는다 (D-R37)
-                { value: 'students', label: '학생별', sub: students.data ? `${students.data.items.length}명` : undefined },
+                // 학생 수는 서버가 센 값이다(§27 질의 · 없으면 목록의 studentCount — 같은 셈) — 이름을 모아 세지 않는다 (D-R37 · 26-03)
+                { value: 'students', label: '학생별', sub: studentCount != null ? `${studentCount}명` : undefined },
                 { value: 'history', label: '이력', sub: `${stageView.counts.done}건 끝남` },
                 // 「남음」도 서버가 뺀 값이다. 아직 없으면 자리를 비운다
                 ...(canMoney ? [{ value: 'money' as const, label: '회계', sub: money.data ? `${won(money.data.totalDue)} 남음` : undefined }] : []),
@@ -193,6 +194,9 @@ export default function ConsultingPage() {
                 meta={data}
                 canSetPrivate={d?.canSetPrivate ?? false}
                 shareWords={d?.shares}
+                // 종류 10 · 요청자 둘 — 서버 낱말 그대로(29-02)
+                typeWords={d?.types}
+                requesterWords={d?.requesters}
                 pending={create.isPending}
                 error={create.error}
                 onCancel={() => setStartOpen(false)}

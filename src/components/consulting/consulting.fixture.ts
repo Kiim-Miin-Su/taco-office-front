@@ -47,6 +47,7 @@ export const consultingItem = (overrides: Partial<Consulting> = {}): Consulting 
   stageLabel: '계약',
   typeLabel: '국제학교 지원',
   shareLabel: '전체 공개',
+  shareChipLabel: '전체 공개',
   contractStepLabel: '전달',
   requesterLabel: '어머니',
   ageDays: 60,

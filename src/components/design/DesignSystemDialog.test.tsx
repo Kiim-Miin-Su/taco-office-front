@@ -9,7 +9,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import usage from '@/lib/component-usage.json';
 import { DesignSystemDialog } from './DesignSystemDialog';
 
-afterEach(cleanup);
+// 바꾼 토큰은 브라우저 저장소에 남는다(§85 · N-78) — 시험끼리 새지 않게 비운다
+afterEach(() => { cleanup(); try { window.localStorage.clear(); } catch { /* 저장소가 없는 환경 */ } });
 
 const open = () => render(<DesignSystemDialog open onClose={vi.fn()} />);
 
@@ -133,9 +134,9 @@ it('창의 설명 문구에 절 번호·결정 코드를 적지 않는다', () =
 
 /*
  * 85-2 — 부제 「색과 크기를 바꾸면 화면 전체가 바로 바뀝니다」가 **참이어야 한다.**
- * 바꾸는 곳은 문서 뿌리의 CSS 변수 하나이고, 저장하지 않는다(저장처는 결정 대기) — 「처음으로」가 되돌린다.
+ * 바꾸는 곳은 문서 뿌리의 CSS 변수 하나이고, 바꾼 것만 이 브라우저에 저장한다(원문 §85 「localStorage에 저장」) — 「처음으로」가 되돌린다.
  */
-it('견본에서 색을 고르면 문서 뿌리의 변수가 바뀌고, 「처음으로」가 되돌린다 — 저장하지 않는다 (85-2)', () => {
+it('견본에서 색을 고르면 문서 뿌리의 변수가 바뀌고, 「처음으로」가 되돌린다 (85-2)', () => {
   const root = document.documentElement;
   root.style.setProperty('--primary', '#83624D');
   try {
@@ -148,7 +149,7 @@ it('견본에서 색을 고르면 문서 뿌리의 변수가 바뀌고, 「처�
     fireEvent.change(pick, { target: { value: '#112233' } });
     expect(root.style.getPropertyValue('--primary')).toBe('#112233');
     expect(v.getByText('#112233')).toBeTruthy();
-    expect(v.getByText(/이 화면에만 · 저장하지 않습니다/)).toBeTruthy();
+    expect(v.getByText(/바꾼 것 1 · 이 브라우저에 저장됨/)).toBeTruthy();
     fireEvent.click(v.getByRole('button', { name: '처음으로' }));
     // 되돌리면 뿌리에 적은 값을 지운다 — 값의 정본은 tokens.css 다
     expect(root.style.getPropertyValue('--primary')).toBe('');
@@ -173,4 +174,77 @@ it('크기도 바꾼다 — 「12px」 모양의 값만 숫자 칸이 된다 (85
   } finally {
     root.style.removeProperty('--r-md');
   }
+});
+
+/*
+ * N-78 · 원문 §85 슬라이드 글 — 「컬러 피커·슬라이더로 즉시 반영. **localStorage에 저장.**」 · 데이터 「UISET(변경분만)」 ·
+ * 규칙 「변경한 값만 저장합니다. '처음으로'는 UISET를 비웁니다.」 — 저장처는 원문이 말한다(D-R44). 값의 정본은 tokens.css 그대로다.
+ */
+it('바꾼 값만 이 브라우저에 저장되고 다시 열면 그대로 선다 — 「처음으로」가 저장분을 비운다 (85-2 · N-78)', () => {
+  const root = document.documentElement;
+  root.style.setProperty('--primary', '#83624D');
+  try {
+    const v = open();
+    fireEvent.change(v.getByLabelText('기본 색 바꾸기'), { target: { value: '#112233' } });
+    expect(JSON.parse(window.localStorage.getItem('taco.design.uiset') ?? '{}')).toEqual({ primary: '#112233' });
+    cleanup();
+    // 새로 고친 셈 — 뿌리에 적힌 값이 사라지고 창은 닫힌 채 셸에 다시 붙는다
+    root.style.removeProperty('--primary');
+    render(<DesignSystemDialog open={false} onClose={vi.fn()} />);
+    expect(root.style.getPropertyValue('--primary')).toBe('#112233');
+    cleanup();
+    const again = open();
+    expect(again.getByText(/바꾼 것 1 · 이 브라우저에 저장됨/)).toBeTruthy();
+    fireEvent.click(again.getByRole('button', { name: '처음으로' }));
+    expect(window.localStorage.getItem('taco.design.uiset')).toBeNull();
+    expect(root.style.getPropertyValue('--primary')).toBe('');
+  } finally {
+    root.style.removeProperty('--primary');
+  }
+});
+
+it('저장분이 깨졌거나 모르는 칸·모양이면 쓰지 않는다 — 아는 토큰의 색·px 값만 뿌리에 적는다', () => {
+  const root = document.documentElement;
+  try {
+    window.localStorage.setItem('taco.design.uiset', JSON.stringify({ primary: 'red; background: url(x)', nope: '#000000', 'r-md': '20px' }));
+    render(<DesignSystemDialog open={false} onClose={vi.fn()} />);
+    expect(root.style.getPropertyValue('--primary')).toBe('');
+    expect(root.style.getPropertyValue('--nope')).toBe('');
+    expect(root.style.getPropertyValue('--r-md')).toBe('20px');
+    cleanup();
+    root.style.removeProperty('--r-md');
+    window.localStorage.setItem('taco.design.uiset', '{깨진');
+    expect(() => render(<DesignSystemDialog open={false} onClose={vi.fn()} />)).not.toThrow();
+  } finally {
+    root.style.removeProperty('--r-md');
+  }
+});
+
+/*
+ * 원본 §86 컷 — 「N회 씀」은 표시 마크 · 요약 카드 · 주별 칸 세 장에는 **없다**(86-6 · D-R44). 나머지 일곱 장에는 있고,
+ * 컷에서 잘린 둘(서랍 · 대화상자 / 갈래)은 우리가 채운 것이라 센 값을 그대로 둔다.
+ */
+it('「N회 씀」은 원본 컷대로 — 표시 마크 · 요약 카드 · 주별 칸에는 없다 (86-6)', () => {
+  const v = open();
+  fireEvent.click(v.getByRole('button', { name: /컴포넌트/ }));
+  // 카드 머리는 h3 이다 — 「구역 제목」 견본 안의 패널 제목(h2)과 헷갈리지 않게 층을 짚는다
+  const card = (name: string) => v.getByRole('heading', { name, level: 3 }).closest('section')!;
+  for (const name of ['표시 마크', '요약 카드', '주별 칸']) expect(card(name).textContent, name).not.toMatch(/\d+회 씀/);
+  for (const name of ['버튼', '상태 배지', '입력칸', '입력 묶음', '알림 상자', '표', '구역 제목']) {
+    expect(card(name).textContent, name).toMatch(/\d+회 씀/);
+  }
+});
+
+/*
+ * 원본 §86 요약 카드 견본 — **숫자가 위, 라벨이 아래**이고 「6/49」의 분모는 작다(86-7). §82 머리 다섯 칸(「56p / 배정」)도 같은
+ * 모양이다. §69~§71 머리와 §82 선택 학생 미니 지표는 라벨이 위다 — 컷마다 그 모양을 따른다(공용 `StatCard` 의 `valueFirst`).
+ */
+it('요약 카드 견본은 숫자가 위 · 라벨이 아래이고 분모가 작다 (86-7)', () => {
+  const v = open();
+  fireEvent.click(v.getByRole('button', { name: /컴포넌트/ }));
+  const sample = v.getByRole('heading', { name: '요약 카드', level: 3 }).closest('section')!;
+  const done = within(sample).getByText('다 됐음');
+  // 라벨 칸 바로 앞 형제가 값 칸이다 — 숫자가 위
+  expect(done.previousElementSibling?.textContent).toBe('6/49');
+  expect(done.previousElementSibling?.querySelector('small')?.textContent).toBe('/49');
 });

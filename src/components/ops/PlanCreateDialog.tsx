@@ -63,7 +63,8 @@ export function PlanCreateButton({ can, onDone }: PlanCreateButtonProps) {
   if (!can) return null;
   return (
     <>
-      <Button type="button" size="sm" onClick={() => setOpen(true)}>+ 기획 올리기</Button>
+      {/* 원문 §61 속 갈래 줄 오른쪽 끝의 갈색 주 단추 (x5 · C-7) */}
+      <Button type="button" variant="primary" onClick={() => setOpen(true)}>+ 기획 올리기</Button>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}

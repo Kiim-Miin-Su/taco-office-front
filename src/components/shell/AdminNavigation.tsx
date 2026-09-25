@@ -18,17 +18,16 @@ function AdminNavLink({
   item,
   activeHref,
   badges,
-  canAdminPage,
 }: {
   item: AdminNavItem;
   activeHref: string | undefined;
   badges: AdminNavBadges;
-  canAdminPage: boolean;
 }) {
   // 켜지는 탭은 가장 좁게 맞는 항목 하나 — 하위 화면에서 상위 탭까지 켜지지 않게
   const active = item.href === activeHref;
   const count = adminNavBadgeFor(item, 'top', badges);
-  const activeColor = canAdminPage ? 'bg-header-active text-white' : 'bg-blue text-white';
+  // 활성 색은 하나다 — 예전 강사용 파랑(bg-blue)은 강사가 TeacherShell(☰ 메뉴 패널)로 옮긴 뒤 닿지 않아 걷었다
+  const activeColor = 'bg-header-active text-white';
 
   return (
     <Link
@@ -62,7 +61,7 @@ export function AdminTopNavigation({
   return (
     <nav aria-label="주 메뉴" className="order-last flex min-w-0 basis-full items-center gap-0.5 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto">
       {adminNavItemsFor('top', me).map((item) => (
-        <AdminNavLink key={item.href} item={item} activeHref={activeHref} badges={badges} canAdminPage={Boolean(me?.canAdminPage)} />
+        <AdminNavLink key={item.href} item={item} activeHref={activeHref} badges={badges} />
       ))}
     </nav>
   );

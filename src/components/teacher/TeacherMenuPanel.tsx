@@ -32,7 +32,7 @@ const ICON: Record<PersonalNavIcon, LucideIcon> = {
 const FOCUSABLE = 'a[href], button:not([disabled])';
 
 export function TeacherMenuPanel({
-  id, items, activeHref, badges, me, onClose, onNavigate,
+  id, items, activeHref, badges, me, tzLabel, wageRate, onClose, onNavigate,
 }: {
   id: string;
   items: readonly AdminNavItem[];
@@ -40,6 +40,10 @@ export function TeacherMenuPanel({
   activeHref: string | undefined;
   badges: Readonly<Partial<Record<AdminNavBadge, number>>>;
   me: Me | null;
+  /** 사용자 칸 「시간대」 — 서버가 지은 「Seoul · UTC+9」(GET /teacher/shell). 없으면 줄을 그리지 않는다 */
+  tzLabel?: string | null;
+  /** 사용자 칸 「시급」 — 오늘 적용 본인 시급. null 이면 줄을 그리지 않는다 */
+  wageRate?: number | null;
   /** 닫고 포커스를 ☰ 로 돌려준다 (Escape · 「메뉴 닫기」 · 스크림) */
   onClose: () => void;
   /** 메뉴를 눌러 이동할 때 — 같은 경로를 다시 눌러도 닫힌다 */
@@ -87,8 +91,9 @@ export function TeacherMenuPanel({
           메뉴 닫기 <span aria-hidden>×</span>
         </Button>
         <div className="flex flex-col gap-2 px-3 py-4">
-          {/* UI/Wordmark Context=Menu — 로고는 Logo.tsx 한 자리에서만 그린다 (크기 29 → 글자 18px) */}
-          <Logo size={29} withMark={false} className="h-[27px]" />
+          {/* UI/Wordmark Context=Menu — 로고는 Logo.tsx 한 자리에서만 그린다 (크기 29 → 글자 18px).
+              강사 덱·Figma 는 브랜드색 「TACO ERP」 아래 「TN Academy」 한 줄이다 */}
+          <Logo size={29} withMark={false} tone="primary" org="TN Academy" />
           {items.map((item) => {
             const active = item.href === activeHref;
             const Icon = item.personalIcon ? ICON[item.personalIcon] : null;
@@ -111,11 +116,38 @@ export function TeacherMenuPanel({
               </Link>
             );
           })}
-          {/* 역할 낱말도 서버가 만든다 — 화면이 제 표를 들면 관리자 서랍과 여기가 갈린다 */}
-          {me ? (
-            <p className="text-[13px] font-medium leading-5 text-fg-subtle">{me.name} · {me.title || me.roleLabel}</p>
-          ) : null}
         </div>
+        {/*
+          사용자 칸 — 강사 덱 메뉴 맨 아래 「범준 김범준 / 강사 · 마이 페이지 › / 시간대 Seoul UTC+9 / 시급 45,000원」.
+          역할 낱말도 서버가 만든다 — 화면이 제 표를 들면 관리자 서랍과 여기가 갈린다.
+          「마이 페이지」 화면은 강사 화면 7개에 없다 — 내 설정(시간대·시급 변경 요청)이 있는 홈 「내 설정」으로 간다 (D-R44).
+        */}
+        {me ? (
+          <div data-teacher-user="" className="mt-auto flex flex-col gap-2 border-t border-line px-3 py-3 text-[12px]">
+            <div className="flex items-center gap-2">
+              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-inset text-[11px] font-bold text-primary">
+                {me.name.slice(-2)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-bold leading-5 text-fg">{me.name}</p>
+                <p className="leading-4 text-fg-subtle">
+                  {me.title || me.roleLabel} ·{' '}
+                  <Link href="/teacher#my-settings" onClick={onNavigate} className="font-medium text-fg-subtle underline-offset-2 hover:underline">
+                    마이 페이지 <span aria-hidden>›</span>
+                  </Link>
+                </p>
+              </div>
+            </div>
+            {tzLabel || (wageRate !== null && wageRate !== undefined) ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-fg-subtle">
+                {tzLabel ? <><dt>시간대</dt><dd className="font-bold text-fg">{tzLabel}</dd></> : null}
+                {wageRate !== null && wageRate !== undefined
+                  ? <><dt>시급</dt><dd className="font-bold text-fg">{wageRate.toLocaleString('ko-KR')}원</dd></>
+                  : null}
+              </dl>
+            ) : null}
+          </div>
+        ) : null}
       </nav>
     </div>
   );

@@ -21,7 +21,7 @@ import type { ConsAccounting, ConsAccountRow } from '@/api/types';
 import {
   Banner, Button, Chip, Column, Drawer, Input, Label, Panel, StatCard, Table,
 } from '@/components/ui';
-import { CONSULTING_STAGE_BY_KEY, consultingTypeLabel } from '@/lib/consulting';
+import { CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
 
 /** 단계 글자색 — 점 색과 같은 토큰(계약 파랑 · 진행 보라 · 종료 초록) */
@@ -66,7 +66,8 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
     { key: 's', head: '학생', cell: (r) => <span className="font-bold">{r.studentName || '—'}</span> },
     {
       key: 't', head: '종류', width: 130,
-      cell: (r) => <Chip tone="purple">{consultingTypeLabel(r.consType)}</Chip>,
+      // 종류 이름은 서버 낱말이다 (29-02 · D-R18)
+      cell: (r) => <Chip tone="purple">{r.typeLabel}</Chip>,
     },
     {
       key: 'st', head: '단계', width: 80,
@@ -196,7 +197,7 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
       <Drawer
         open={open !== null}
         onClose={() => { setOpenId(null); toInvoice.reset(); }}
-        title={open ? `${open.studentName || '학생 미지정'} — ${consultingTypeLabel(open.consType)}` : ''}
+        title={open ? `${open.studentName || '학생 미지정'} — ${open.typeLabel}` : ''}
         sub={open ? `${open.stageLabel} · 계약 ${won(open.amount)} · 받음 ${won(open.paid)} · 남음 ${won(open.due)}` : undefined}
         footer={
           open ? (

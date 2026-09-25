@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Occurrence } from '@/api/types';
 import { monthGrid } from '@/lib/calendar';
-import { MonthGrid, WeekGrid } from './Grids';
+import { DayGrid, MonthGrid, WeekGrid } from './Grids';
 
 afterEach(cleanup);
 
@@ -171,6 +171,19 @@ describe('주간 머리 모양 · 개인표 합계 줄 (원문 §08 · §10)', (
     expect(dark.getByRole('button', { name: '2026-09-01 (화) 날짜 선택' }).parentElement!.className).toContain('bg-fg');
   });
 
+  it('개인표(dark) 시간 눈금은 원문 §10·§11 모양 — 큰 「12」 아래 작은 「13」(그 시간이 끝나는 시) · 전체 주간은 「12:00」 그대로', () => {
+    const items = [occurrence(1)];
+    const dark = render(<WeekGrid date="2026-09-01" items={items} dark />);
+    const tick = dark.container.querySelector('[data-hour-tick="720"]') as HTMLElement;
+    expect(tick.querySelector('[data-hour-start]')?.textContent).toBe('12');
+    expect(tick.querySelector('[data-hour-end]')?.textContent).toBe('13');
+    expect(dark.queryByText('12:00')).toBeNull();
+    cleanup();
+    const light = render(<WeekGrid date="2026-09-01" items={items} />);
+    expect(light.getByText('12:00')).toBeTruthy();
+    expect(light.container.querySelector('[data-hour-end]')).toBeNull();
+  });
+
   it('합계 줄은 요일마다 「회 / 시간」을 기간 집계와 같은 함수로 세고, 취소는 빼며 없는 날은 「—」다', () => {
     const items = [occurrence(1), occurrence(2), { ...occurrence(3), canceled: true }];
     const view = render(<WeekGrid date="2026-09-01" items={items} totals />);
@@ -182,5 +195,42 @@ describe('주간 머리 모양 · 개인표 합계 줄 (원문 §08 · §10)', (
     cleanup();
     const none = render(<WeekGrid date="2026-09-01" items={items} />);
     expect(none.queryByRole('row', { name: '합계' })).toBeNull();
+  });
+});
+
+/* ── 원문 §09 공휴일 칩 · §10 요일 머리 · §07/§11 「가능 시간」 띠 (wave5 · G37) ─────────────── */
+
+describe('공휴일 칩과 강사 불가 띠', () => {
+  const holidaysOf = (date: string) => (date === '2026-08-17' ? ['광복절 대체'] : date === '2026-08-15' ? ['광복절'] : undefined);
+
+  it('월간 칸은 날짜 옆에 서버가 준 공휴일 이름을 그대로 적는다', () => {
+    const view = render(<MonthGrid date="2026-08-01" grid={monthGrid('2026-08-01')} items={[]} holidaysOf={holidaysOf} onPickDate={vi.fn()} />);
+    const cell = view.getByRole('button', { name: '2026-08-17 (월) 날짜 선택' }).parentElement!;
+    expect(within(cell).getByText('광복절 대체').getAttribute('data-holiday')).toBe('광복절 대체');
+    expect(view.container.querySelectorAll('[data-holiday]').length).toBe(2);
+  });
+
+  it('주간 요일 머리 아래에 공휴일, 그날 열에는 강사 불가 띠 — 띠는 누르기를 막지 않는다', () => {
+    const unavOf = (date: string) => (date === '2026-08-17'
+      ? [{ startMin: 840, endMin: 960, label: '강사 불가 · 김재훈 14:00–16:00 · 병원' }] : undefined);
+    const view = render(<WeekGrid date="2026-08-17" items={[]} holidaysOf={holidaysOf} unavOf={unavOf} dark />);
+    const head = view.getByRole('button', { name: '2026-08-17 (월) 날짜 선택' });
+    expect(within(head).getByText('광복절 대체')).toBeTruthy();
+    const band = view.container.querySelector('[data-week-date="2026-08-17"] [data-unav]') as HTMLElement;
+    expect(band.getAttribute('title')).toBe('강사 불가 · 김재훈 14:00–16:00 · 병원');
+    expect((band.parentElement as HTMLElement).className).toContain('pointer-events-none');
+    expect(view.container.querySelectorAll('[data-unav]').length).toBe(1);
+  });
+
+  it('일간 「빈 시간 찾기」는 가능 시간을 켰을 때 강사 불가 시각을 빈 칸으로 치지 않는다', () => {
+    const common = { date: '2026-09-01', items: [], columns: [{ id: 1, name: '1호' }], columnOf: () => 1, colAxis: 'room' as const, showFree: true };
+    const free = (c: HTMLElement) => c.querySelectorAll('[data-free]').length;
+    const plain = render(<DayGrid {...common} />);
+    const before = free(plain.container);
+    cleanup();
+    const withUnav = render(<DayGrid {...common} unavOf={() => [{ startMin: 600, endMin: 720, label: '강사 불가 · 김재훈' }]} />);
+    // 10:00–12:00 두 시간 = 30분 칸 넷이 빈 시간에서 빠진다
+    expect(free(withUnav.container)).toBe(before - 4);
+    expect(withUnav.container.querySelectorAll('[data-unav]').length).toBe(1);
   });
 });

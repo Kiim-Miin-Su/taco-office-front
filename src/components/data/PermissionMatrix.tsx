@@ -41,9 +41,16 @@ export function PermissionMatrix({ me }: { me: Me | null }) {
       </span>
     ) },
   ];
+  /*
+   * 원문 §76 부제는 「지금 대표 화면입니다 · 대표 전용 12가지 · …까지 2가지」다(g2 76-4 · D-R44).
+   * 앞말(누구의 화면인가)은 서버 낱말 `roleLabel` 로 그대로 따르고, 등급별 수는 지금 권한 모형
+   * (대표 결정 2026-09-21 「매니저에게도 모든 권한」 + 사람별 예외)과 맞지 않아 **이 계정의 가능/잠김 수**를 잇는다.
+   * 수 부분의 「N가지 가능 / M가지 잠김」 모양은 예전 그대로 둔다 — 권한 QA 스크립트(qa-l-perm)가 그 글을 읽는다.
+   */
+  const who = me ? `지금 ${me.roleLabel} 화면입니다` : '로그인 정보가 없습니다';
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[12px] text-fg-subtle">{me?.name} · {possible}가지 가능 / {ROWS.length - possible}가지 잠김</p>
+      <p className="text-[12px] text-fg-subtle">{who} · {possible}가지 가능 / {ROWS.length - possible}가지 잠김</p>
       <Table columns={columns} rows={ROWS} rowKey={(row) => row.feature} />
       <p className="text-[11px] text-fg-subtle">
         현재 계정의 권한입니다. 개인별 권한과 컨설팅 공개 범위에 따라 실제 접근 범위가 달라질 수 있습니다.

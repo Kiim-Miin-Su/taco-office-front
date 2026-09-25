@@ -25,10 +25,19 @@ export interface LogoProps {
   withMark?: boolean;
   /** 어두운 바탕 위인지 — 상단 바가 어둡다 */
   onDark?: boolean;
+  /**
+   * 이름 아래 작은 조직 줄 — 강사 덱·Figma `UI/Wordmark` Context=Menu 의 「TN Academy」.
+   * 없으면(기본) 한 줄 그대로다.
+   */
+  org?: string;
+  /** 이름 글자색 — 'primary' 는 강사 메뉴 패널의 브랜드색 wordmark(Context=Menu). 기본은 지금 그대로(fg / 어두운 바탕이면 흰색) */
+  tone?: 'default' | 'primary';
   className?: string;
 }
 
-export function Logo({ size = 22, withName = true, withMark = true, onDark = false, className }: LogoProps) {
+export function Logo({
+  size = 22, withName = true, withMark = true, onDark = false, org, tone = 'default', className,
+}: LogoProps) {
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-2', className)}>
       {withMark ? <Image
@@ -40,14 +49,23 @@ export function Logo({ size = 22, withName = true, withMark = true, onDark = fal
         // 마크는 화면 폭이 바뀌어도 비율이 흔들리면 안 된다
         style={{ width: size, height: size }}
       /> : null}
-      {withName ? (
-        <span
-          className={cn('font-bold tracking-tight', onDark ? 'text-white' : 'text-fg')}
-          style={{ fontSize: Math.round(size * 0.62) }}
-        >
-          TACO ERP
-        </span>
-      ) : null}
+      {withName ? (() => {
+        const name = (
+          <span
+            className={cn('font-bold tracking-tight', onDark ? 'text-white' : tone === 'primary' ? 'text-primary' : 'text-fg')}
+            style={{ fontSize: Math.round(size * 0.62) }}
+          >
+            TACO ERP
+          </span>
+        );
+        // 조직 줄이 없으면 예전 DOM 그대로(한 span) — 기존 소비처의 모양·시험이 바뀌지 않는다
+        return org ? (
+          <span className="flex flex-col">
+            {name}
+            <span className={cn('text-[11px] font-medium leading-4', onDark ? 'text-line-2' : 'text-fg-subtle')}>{org}</span>
+          </span>
+        ) : name;
+      })() : null}
     </span>
   );
 }

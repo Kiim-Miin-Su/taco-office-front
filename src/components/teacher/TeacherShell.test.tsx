@@ -19,13 +19,32 @@ vi.mock('next/link', () => ({
 }));
 
 const unwritten = vi.hoisted(() => ({ calls: [] as boolean[], total: 5 }));
+// 머리줄 서버 값(GET /teacher/shell) — 시간대 표기·시급·내 알림은 서버가 짓는다. 화면은 그리기만 한다
+const shellQ = vi.hoisted(() => ({
+  calls: [] as boolean[],
+  read: vi.fn(),
+  data: {
+    timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 45000, unread: 1, notiWindowDays: 30,
+    notis: [
+      { id: 11, title: '리포트 반려', body: '9/24 MAP Reading 리포트가 반려되었습니다', link: '/reports?serId=3', read: false, at: '2026-09-25T10:05:00+09:00', categoryLabel: '리포트', fromName: null },
+      { id: 12, title: null, body: '구성원 권한이 바뀌었습니다', link: '/permissions', read: true, at: '2026-09-24T09:00:00+09:00', categoryLabel: '시스템', fromName: '김민선' },
+    ],
+  },
+}));
 vi.mock('@/api/queries', () => ({
   // 강사 본인 미작성 수(서버가 본인으로 고정) — 패널이 열려 있을 때만 부른다
   useUnwritten: (_teacherId: unknown, enabled: boolean) => {
     unwritten.calls.push(enabled);
     return { data: enabled ? { total: unwritten.total } : undefined };
   },
+  useTeacherShell: (enabled: boolean) => {
+    shellQ.calls.push(enabled);
+    return { data: enabled ? shellQ.data : undefined };
+  },
+  useTeacherNotiRead: () => ({ mutate: shellQ.read, isPending: false }),
 }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 const teacher: Me = {
   id: 7, name: '김재훈', role: 'teacher', roleLabel: '강사', title: null, canAdminPage: false, canCrudAll: false,
@@ -42,7 +61,7 @@ function shell(pathname: string | null = '/teacher', onLogout = vi.fn()) {
   return { view, onLogout, toggle: () => view.getByRole('button', { name: '메뉴' }) };
 }
 
-beforeEach(() => { unwritten.calls.length = 0; unwritten.total = 5; });
+beforeEach(() => { unwritten.calls.length = 0; unwritten.total = 5; shellQ.calls.length = 0; });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('Teacher/Header — ☰ · 현재 메뉴 이름 · 내 이름 · 로그아웃 (Figma 7686:22061)', () => {
@@ -52,6 +71,8 @@ describe('Teacher/Header — ☰ · 현재 메뉴 이름 · 내 이름 · 로그
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
     expect(view.queryByRole('navigation', { name: '주 메뉴' })).toBeNull();
     expect(within(header).getByText('불가 시간')).toBeTruthy();
+    // 화면 이름은 머리줄 한 곳 — 문서의 제목(h1)이 여기다. 본문은 같은 낱말의 h1 을 다시 세우지 않는다(ScreenHeader)
+    expect(within(header).getByRole('heading', { level: 1, name: '불가 시간' })).toBeTruthy();
     expect(within(header).getByText('김재훈')).toBeTruthy();
     expect(within(header).getByRole('button', { name: '로그아웃' })).toBeTruthy();
     // 관리자 머리줄의 도구·업무 탭은 강사 머리줄에 없다
@@ -81,7 +102,8 @@ describe('Menu panel — 강사 메뉴 7개 (Figma Teacher/Navigation 7681:21765
     const nav = view.getByRole('navigation', { name: '주 메뉴' });
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
     expect(toggle().getAttribute('aria-controls')).toBe(nav.id);
-    const links = within(nav).getAllByRole('link');
+    // 메뉴 7칸만 센다 — 맨 아래 사용자 칸의 「마이 페이지 ›」는 메뉴 항목이 아니다
+    const links = within(nav).getAllByRole('link').filter((link) => !link.closest('[data-teacher-user]'));
     const expected = adminNavItemsFor('sidebar', teacher);
     expect(links).toHaveLength(7);
     expect(links.map((link) => link.getAttribute('href'))).toEqual(expected.map((item) => item.href));
@@ -122,7 +144,9 @@ describe('Menu panel — 강사 메뉴 7개 (Figma Teacher/Navigation 7681:21765
   it('사용자 칸은 서버가 내려준 이름·역할 낱말을 쓴다', () => {
     const { view, toggle } = shell('/teacher');
     fireEvent.click(toggle());
-    expect(within(view.getByRole('navigation', { name: '주 메뉴' })).getByText('김재훈 · 강사')).toBeTruthy();
+    const user = view.getByRole('navigation', { name: '주 메뉴' }).querySelector('[data-teacher-user]') as HTMLElement;
+    expect(within(user).getByText('김재훈')).toBeTruthy();
+    expect(within(user).getByText(/^강사 ·/)).toBeTruthy();
   });
 });
 
@@ -211,3 +235,51 @@ describe('포커스·닫기 — 키보드로 열고 닫을 수 있다', () => {
     expect(view.queryByRole('navigation', { name: '주 메뉴' })).toBeNull();
   });
 });
+
+describe('강사 덱 머리줄 오른쪽 — 시간대 · 시급 · 이름·역할 · 로그아웃 · 🔔 (서버 값만)', () => {
+  it('시간대·시급 칸은 GET /teacher/shell 이 지은 값이고, 🔔 에는 안 읽은 수가 선다', () => {
+    const { view } = shell('/teacher');
+    const header = view.getByRole('banner');
+    expect(shellQ.calls.every(Boolean)).toBe(true);
+    expect(within(header).getByText('Seoul · UTC+9')).toBeTruthy();
+    expect(within(header).getByText(/45,000원\/시간/)).toBeTruthy();
+    expect(within(header).getByText(/· 강사/)).toBeTruthy();
+    const bell = within(header).getByRole('button', { name: '알림 · 안 읽음 1건' });
+    expect(within(bell).getByText('1')).toBeTruthy();
+    // 덱의 「관리자 화면 미리보기」는 강사에게 남기지 않는다(AGENT.md §B)
+    expect(within(header).queryByText(/미리보기/)).toBeNull();
+  });
+
+  it('🔔 는 내게 온 알림 목록을 연다 — 누르면 읽음, 강사에게 열린 경로면 그리로 간다', () => {
+    const { view } = shell('/teacher');
+    fireEvent.click(view.getByRole('button', { name: '알림 · 안 읽음 1건' }));
+    const dialog = view.getByRole('dialog', { name: '알림' });
+    expect(within(dialog).getByText('최근 30일 · 안 읽음 1건')).toBeTruthy();
+    fireEvent.click(within(dialog).getByText('9/24 MAP Reading 리포트가 반려되었습니다'));
+    expect(shellQ.read).toHaveBeenCalledWith({ id: 11 });
+    expect(router.push).toHaveBeenCalledWith('/reports?serId=3');
+  });
+
+  it('관리 화면을 가리키는 알림은 이동하지 않는다 · 이미 읽은 줄은 다시 쓰지 않는다 · 모두 읽음', () => {
+    const { view } = shell('/teacher');
+    fireEvent.click(view.getByRole('button', { name: '알림 · 안 읽음 1건' }));
+    const dialog = view.getByRole('dialog', { name: '알림' });
+    fireEvent.click(within(dialog).getByText('구성원 권한이 바뀌었습니다'));
+    expect(shellQ.read).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: '모두 읽음으로 표시' }));
+    expect(shellQ.read).toHaveBeenCalledWith({ all: true });
+  });
+
+  it('메뉴 사용자 칸 — 이름 · 역할 · 마이 페이지(홈 내 설정) · 시간대 · 시급, 로고는 TN Academy 줄과 함께', () => {
+    const { view, toggle } = shell('/teacher/history');
+    fireEvent.click(toggle());
+    const nav = view.getByRole('navigation', { name: '주 메뉴' });
+    expect(within(nav).getByText('TN Academy')).toBeTruthy();
+    const my = within(nav).getByRole('link', { name: /마이 페이지/ });
+    expect(my.getAttribute('href')).toBe('/teacher#my-settings');
+    expect(within(nav).getByText('시간대').nextElementSibling?.textContent).toBe('Seoul · UTC+9');
+    expect(within(nav).getByText('시급').nextElementSibling?.textContent).toBe('45,000원');
+  });
+});
+

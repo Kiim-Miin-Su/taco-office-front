@@ -13,11 +13,13 @@ import SchedulePage from '@/app/schedule/page';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), meta: vi.fn(), unwritten: vi.fn(), drawer: vi.fn(),
-  horizon: vi.fn(), scheduleWrite: vi.fn(),
+  horizon: vi.fn(), scheduleWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(),
 }));
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences, useMeta: mocks.meta, useUnwritten: mocks.unwritten, useDrawer: mocks.drawer,
   useHorizon: mocks.horizon, useScheduleWrite: mocks.scheduleWrite,
+  // 공휴일 이름표(GET /schedule/holidays)·머리줄 서버 값(GET /teacher/shell) — 둘 다 서버 표에서 온다
+  useScheduleHolidays: mocks.holidays, useTeacherShell: mocks.shell,
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -54,21 +56,82 @@ beforeEach(() => {
   } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 }, isLoading: false, isError: false, refetch: vi.fn() });
   mocks.drawer.mockReturnValue({ data: { approvals: { mine: [] }, changeReqs: [] }, isLoading: false, isError: false });
+  mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [] } });
+  mocks.shell.mockReturnValue({ data: { timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 45000, notis: [], unread: 0, notiWindowDays: 30 } });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); vi.restoreAllMocks(); });
+
+describe('강사 캘린더 — 덱 slide 11·12 대조 (wave 6)', () => {
+  it('다가오는 수업은 날짜로 묶이고 묶음 머리에 「N일 뒤 · N건」과 공휴일 이름표가 선다', () => {
+    mocks.occurrences.mockReturnValue({ data: { items: [
+      occurrence(3, '2026-09-09', 720),
+      occurrence(4, '2026-09-09', 900),
+      occurrence(5, '2026-09-10', 600),
+    ] }, isLoading: false, isError: false });
+    mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [{ date: '2026-09-09', name: '추석' }] } });
+    const view = render(<TeacherSchedule />);
+    // 공휴일은 서버 표에서 — 조회 범위는 목록과 같은 오늘~7일 뒤
+    expect(mocks.holidays).toHaveBeenCalledWith({ from: '2026-09-07', to: '2026-09-14' }, true);
+    const upcoming = within(view.getByRole('region', { name: '다가오는 수업' }));
+    const groups = upcoming.getAllByRole('group');
+    expect(groups).toHaveLength(2);
+    expect(groups[0].getAttribute('aria-label')).toContain('9월 9일');
+    expect(within(groups[0]).getByText('2일 뒤')).toBeTruthy();
+    expect(within(groups[0]).getByText('2건')).toBeTruthy();
+    expect(within(groups[0]).getByText('추석')).toBeTruthy();
+    expect(within(groups[0]).getAllByRole('button')).toHaveLength(2);
+    expect(within(groups[1]).queryByText('추석')).toBeNull();
+  });
+
+  it('오늘이 공휴일이면 오늘 스케줄 머리에 이름표가 선다', () => {
+    mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [{ date: '2026-09-07', name: '임시 공휴일' }] } });
+    const view = render(<TeacherSchedule />);
+    expect(within(view.getByRole('region', { name: '오늘 전체 스케줄' })).getByText('임시 공휴일')).toBeTruthy();
+  });
+
+  it('안 쓴 리포트가 있으면 덱의 빨간 띠 — 수는 서버 미작성 건수, 「빨간 수업 보러가기」는 리포트로 간다', () => {
+    const view = render(<TeacherSchedule />);
+    const alert = view.getByRole('link', { name: '빨간 수업 보러가기' });
+    expect(alert.getAttribute('href')).toBe('/reports');
+    expect(view.container.textContent).toContain('리포트를 안 쓴 수업이 2건 있습니다');
+    mocks.unwritten.mockReturnValue({ data: { total: 0 }, isLoading: false, isError: false, refetch: vi.fn() });
+    view.rerender(<TeacherSchedule />);
+    expect(view.queryByRole('link', { name: '빨간 수업 보러가기' })).toBeNull();
+  });
+
+  it('오른쪽 「색이 뜻하는 것」은 줄 배지와 같은 낱말을 쓴다', () => {
+    const view = render(<TeacherSchedule />);
+    const legend = within(view.getByRole('complementary', { name: '내 수업 할 일' }));
+    expect(legend.getByText('리포트 미작성')).toBeTruthy();
+    expect(legend.getByText('수업 예정')).toBeTruthy();
+    expect(legend.getByText('취소된 수업 · 리포트 대상 아님')).toBeTruthy();
+  });
+
+  it('hero 시각의 기준 낱말은 강사 본인 시간대(서버 tzLabel)다 — 서울을 글자로 박지 않는다', () => {
+    mocks.shell.mockReturnValue({ data: { timezone: 'America/New_York', tzLabel: 'New York · UTC-4', wageRate: null, notis: [], unread: 0, notiWindowDays: 30 } });
+    const view = render(<TeacherSchedule />);
+    expect(view.container.textContent).toContain('New York · UTC-4 기준');
+    expect(view.container.textContent).not.toContain('KST');
+    // 2026-09-07T00:00Z 는 뉴욕 9/6 20:00
+    expect(view.container.querySelector('[data-teacher-clock]')?.textContent).toContain('20:00');
+  });
+});
 
 describe('강사 캘린더 기본 오늘 목록', () => {
   it('강사 정책(리포트 지각 차감)이 화면 최상단 — 제목보다 위에 선다 (대표 결정 2026-09-25)', () => {
     const view = render(<TeacherSchedule />);
     const note = view.getByRole('note', { name: '리포트 지각 제출 차감' });
     expect(note.textContent).toContain('1시간 지각 시5,000원 차감');
-    const heading = view.getByRole('heading', { name: '캘린더' });
-    expect(note.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 띠 다음이 곧 본문(hero) — 화면 이름은 셸 머리줄 한 곳이라 본문에 같은 h1 이 없다 (wave 6)
+    const hero = view.container.querySelector('[data-teacher-hero]');
+    expect(hero).not.toBeNull();
+    expect(note.compareDocumentPosition(hero as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(view.queryByRole('heading', { level: 1 })).toBeNull();
   });
 
   it('캘린더 route가 강사에게 관리자 격자·일정 쓰기 hook을 mount하지 않는다', () => {
     const view = render(<SchedulePage />);
-    expect(view.getByRole('heading', { name: '캘린더', level: 1 })).toBeTruthy();
+    expect(view.queryByRole('heading', { level: 1 })).toBeNull();
     expect(view.getByRole('region', { name: '오늘 전체 스케줄' })).toBeTruthy();
     expect(mocks.horizon).not.toHaveBeenCalled();
     expect(mocks.scheduleWrite).not.toHaveBeenCalled();
@@ -94,7 +157,8 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(today.getByText('2층 강의실')).toBeTruthy();
     expect(today.getByText('수업 예정')).toBeTruthy();
     expect(today.getByText('리포트 미작성')).toBeTruthy();
-    expect(view.getByText('오늘 수업 2건 · 시수 2.0시간')).toBeTruthy();
+    // hero 는 홈과 같은 부품·같은 표기(정각이면 정수) — 덱 「오늘 수업 3건 · 시수 5.5시간」
+    expect(view.getByText('오늘 수업 2건 · 시수 2시간')).toBeTruthy();
     expect(view.queryByText('주간')).toBeNull();
     expect(view.queryByText('새 일정')).toBeNull();
   });

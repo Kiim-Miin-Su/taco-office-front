@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import type { ConsStudent, ConsStudentCase } from '@/api/types';
 import { Button, Chip, Panel, cn } from '@/components/ui';
 import { ConsultingProgress } from '@/components/consulting/ConsultingProgress';
-import { CONSULTING_STAGE_BY_KEY, consultingTypeLabel } from '@/lib/consulting';
+import { CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
 
 export interface ConsultingStudentsProps {
@@ -39,7 +39,7 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
   return (
     <article className="rounded-xl border border-line border-l-[3px] border-l-blue bg-card p-4">
       <header className="mb-3 flex flex-wrap items-center gap-2">
-        <Chip tone="info">{consultingTypeLabel(c.consType)}</Chip>
+        <Chip tone="info">{c.typeLabel}</Chip>
         <Chip tone={tone}>{c.stageLabel}</Chip>
         {/* 기간의 앞은 **계약 시작일**(cons.start_on)이다 — 건이 생긴 날(createdOn)이 아니다 (27-05). 시작일이 없는 옛 건만 생긴 날로 적고 그렇다고 말한다 */}
         <span className="text-[12.5px] font-bold" title={c.startOn ? undefined : '시작일이 없어 건이 생긴 날을 적었습니다'}>
@@ -155,7 +155,7 @@ export function ConsultingStudents({ items, loading, onOpen }: ConsultingStudent
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {s.cases.map((c) => (
                       <Chip key={c.id} tone="purple">
-                        {consultingTypeLabel(c.consType)} · {c.stageLabel}
+                        {c.typeLabel} · {c.stageLabel}
                       </Chip>
                     ))}
                   </div>

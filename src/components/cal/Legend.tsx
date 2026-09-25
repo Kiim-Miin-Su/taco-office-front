@@ -9,8 +9,8 @@
  * 관리자 v2 §07~11·§89: 과목색과 온라인 점선/사선을 설명한다.
  *
  * 원문 §07 바닥 「보는 법」 줄 — 색 · 현장/온라인 · 학생 결강/학원 취소/휴원 · 정원·여석(●●○) · 리포트 · 「셀에 마우스를 올리면 …」 · [접기].
- * **블록이 실제로 그리는 것만** 적는다 — 원문의 「강사 불가」 칸과 [연강] 은 블록이 그리지 않아(강사 불가는
- * 관리 화면이 읽는 경로가 없고, 연강은 원문에 판정 규칙이 없다) 적으면 거짓 범례가 된다.
+ * **격자가 실제로 그리는 것만** 적는다 — 원문의 「강사 불가」는 「가능 시간」을 켰을 때 격자가 빗금 띠를 깔 때만
+ * 적는다(G37 · 관리자 읽기 `GET /schedule/unavailable`). [연강] 은 원문에 판정 규칙이 없어 그리지 않으니 적지 않는다.
  * [일정 · 리포트] 가 「리포트」면 색 줄이 리포트 상태(`STATUS_LABEL`)로 바뀐다 — 블록과 같은 표를 읽는다.
  */
 'use client';
@@ -22,13 +22,15 @@ import { cn } from '../ui/cn';
 import { STATUS_LABEL, STATUS_LOOK, eventColorStyle } from './EventBlock';
 import styles from './EventBlock.module.css';
 
-export function Legend({ items, colorOf, subName, kindName, display = 'schedule' }: {
+export function Legend({ items, colorOf, subName, kindName, display = 'schedule', unavOn = false }: {
   items: readonly Occurrence[];
   colorOf: CalendarColorOf;
   subName?: (occ: Occurrence) => string | undefined;
   kindName?: (occ: Occurrence) => string | undefined;
   /** 블록 색이 말하는 것 — 도구줄 [일정 · 리포트] */
   display?: 'schedule' | 'report';
+  /** 「가능 시간」을 켜 격자가 강사 불가 띠를 깔고 있는가 — 그때만 「강사 불가」를 적는다 */
+  unavOn?: boolean;
 }) {
   // 원문 [접기] — 한 화면의 보기 설정이라 이 칸이 갖는다(서버·다른 화면과 나누지 않는다)
   const [folded, setFolded] = useState(false);
@@ -74,6 +76,8 @@ export function Legend({ items, colorOf, subName, kindName, display = 'schedule'
             <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] ${styles.cancelStudent}`}>학생 결강</span>
             <span className={`rounded border px-1.5 py-0.5 text-[10px] ${styles.cancelAcademy}`}>학원 취소</span>
             <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] ${styles.paused}`}>휴원</span>
+            {/* 격자의 불가 띠와 같은 클래스 — 「가능 시간」을 켰을 때만 격자가 그리므로 그때만 적는다 */}
+            {unavOn ? <span data-legend-unav className={`rounded px-1.5 py-0.5 text-[10px] ${styles.unavBand}`}>강사 불가</span> : null}
           </div>
           {/* 블록 오른쪽 위 점 — 찬 점은 그날 명단, 빈 점은 남은 자리 (원문 「●●○ 정원 · 여석」) */}
           <div className="flex items-center gap-1.5">

@@ -9,13 +9,15 @@ import { apiMessage } from '@/api/client';
 import { useBooks, useCreateBook, useMeta, usePatchBook } from '@/api/queries';
 import type { Book } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
-import { Banner, Button, Chip, Input, Label, Panel, QueryState, Select, cn } from '@/components/ui';
+import { Banner, Button, Chip, ChipRow, Input, Label, Panel, QueryState, Select, cn } from '@/components/ui';
 import { bookLevelPresentation } from '@/lib/book-presentation';
 import { subjectColor } from '@/lib/tokens';
 import { BookVersionAdder, BookVersionBadge } from './BookVersions';
 
 type Form = { code: string; title: string; subKey: string; level: string; grade: string; pages: string };
 const EMPTY: Form = { code: '', title: '', subKey: '', level: '', grade: '', pages: '' };
+/** 레벨 칩 점 — 카드 띠(bookLevelPresentation.bandClass)와 같은 토큰. 확정 레벨이 아닌 원문 레벨에는 점을 짓지 않는다 */
+const LEVEL_DOT: Readonly<Record<string, string>> = { 'bg-red': 'var(--red)', 'bg-amber': 'var(--amber)', 'bg-green': 'var(--green)' };
 
 export function BookShelf({
   createRequest = 0,
@@ -48,6 +50,12 @@ export function BookShelf({
     [q.data, subject, level, grade],
   );
   const subjectCodes = useMemo(() => new Map((meta.data?.subs ?? []).map((item) => [item.key, item])), [meta.data?.subs]);
+  // 과목 칩의 점 — 서버 bySub 는 이름으로 오므로 같은 응답의 교재에서 이름 → 과목 키를 찾아 공용 과목색을 쓴다
+  const subjectKeyByName = useMemo(
+    () => new Map((q.data?.items ?? []).flatMap((b) => (b.subName && b.subKey ? [[b.subName, b.subKey] as const] : []))),
+    [q.data?.items],
+  );
+  const subjectDot = (name: string) => subjectColor(subjectKeyByName.get(name), subjectCodes) ?? undefined;
   const groups = useMemo(() => {
     const grouped = new Map<string, { subKey: string | null; name: string; items: Book[] }>();
     for (const book of rows) {
@@ -105,6 +113,58 @@ export function BookShelf({
   const noTeBooks = (q.data?.items ?? []).filter((b) => b.teFileId == null);
   return (
     <div className="space-y-3">
+      {/*
+        원본 §39 — 연초록 필터 판이 **경고 띠 위**에 있고 1줄 = 과목 + 레벨, 2줄 = 학년이다(g4 §39-2).
+        칩 앞 색 점(과목 = 공용 과목색 · 레벨 = 카드 띠와 같은 F/P/M 색), 뒤에 서버가 센 건수 — 화면은 세지 않는다(D-R37).
+      */}
+      <section data-testid="shelf-filters" aria-label="서가 필터" className="space-y-2 rounded-xl border border-green/20 bg-green/5 p-3 text-[12px]">
+        <div data-filter-row className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <b className="w-10 text-fg-subtle">과목</b>
+            <ChipRow
+              ariaLabel="과목 필터"
+              value={subject}
+              onChange={setSubject}
+              options={Object.entries(q.data?.bySub ?? {}).map(([label, count]) => ({
+                value: label, label, count, dot: subjectDot(label),
+              }))}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <b className="w-10 text-fg-subtle">레벨</b>
+            <ChipRow
+              ariaLabel="레벨 필터"
+              value={level}
+              onChange={setLevel}
+              options={(q.data?.levelCounts ?? (q.data?.levels ?? []).map((label) => ({ key: label, label, count: 0 }))).map((o) => ({
+                value: o.label, label: o.label, count: o.count, dot: LEVEL_DOT[bookLevelPresentation(o.label).bandClass],
+              }))}
+            />
+          </div>
+          {showCreateAction ? (
+            <Button
+              className="ml-auto"
+              onClick={() => {
+                setEditing(null);
+                setForm(EMPTY);
+              }}
+            >
+              + 교재
+            </Button>
+          ) : null}
+        </div>
+        <div data-filter-row className="flex flex-wrap items-center gap-1.5">
+          <b className="w-10 text-fg-subtle">학년</b>
+          <ChipRow
+            ariaLabel="학년 필터"
+            value={grade}
+            onChange={setGrade}
+            options={(q.data?.gradeCounts ?? (q.data?.grades ?? []).map((label) => ({ key: label, label, count: 0 }))).map((o) => ({
+              value: o.label, label: o.label, count: o.count,
+            }))}
+          />
+        </div>
+      </section>
       {q.data && q.data.newerCount > 0 ? (
         <Banner tone="warning">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -129,42 +189,6 @@ export function BookShelf({
           </div>
         </Banner>
       ) : null}
-      <Panel
-        title="서가 필터"
-        right={
-          showCreateAction ? (
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setForm(EMPTY);
-              }}
-            >
-              + 교재
-            </Button>
-          ) : undefined
-        }
-      >
-        <div className="space-y-2 text-[12px]">
-          <Filter
-            label="과목"
-            value={subject}
-            options={Object.entries(q.data?.bySub ?? {}).map(([label, count]) => ({ label, count }))}
-            onChange={setSubject}
-          />
-          <Filter
-            label="레벨"
-            value={level}
-            options={q.data?.levelCounts ?? (q.data?.levels ?? []).map((label) => ({ key: label, label, count: 0 }))}
-            onChange={setLevel}
-          />
-          <Filter
-            label="학년"
-            value={grade}
-            options={q.data?.gradeCounts ?? (q.data?.grades ?? []).map((label) => ({ key: label, label, count: 0 }))}
-            onChange={setGrade}
-          />
-        </div>
-      </Panel>
       {form ? (
         <Panel title={editing ? `교재 수정 — ${editing.title}` : '교재 등록'}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -274,20 +298,25 @@ export function BookShelf({
                               <div className="mt-2">
                                 <BookVersionBadge book={b} />
                               </div>
-                              <div className="mt-2 flex flex-wrap items-center gap-1">
-                                <FileDownloadButton id={b.seFileId} label="SE" />
-                                <FileDownloadButton id={b.teFileId} label="TE" />
+                              {/* 원문 §39 카드 아래 줄 — 왼쪽 코드 · 오른쪽 작은 SE/TE 배지(누르면 내려받기) (g4 §39-5 · wave 6) */}
+                              <div data-book-file-line className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-line pt-2">
+                                <span data-book-code className="font-mono text-[10.5px] text-fg-subtle">{b.code}</span>
+                                <span className="inline-flex items-center gap-1">
+                                  <FileDownloadButton id={b.seFileId} label="SE" variant="badge" itemTitle={b.title} />
+                                  <FileDownloadButton id={b.teFileId} label="TE" variant="badge" tone="violet" itemTitle={b.title} />
+                                </span>
                               </div>
-                              <p className="mt-2 text-[10px] text-fg-subtle">{b.code}</p>
                             </div>
                             <div className="flex w-12 flex-col border-l border-line">
                               <button
                                 type="button"
                                 aria-label={`${b.title} 편집`}
                                 className="flex flex-1 items-center justify-center text-[11px] font-bold hover:bg-inset"
+                                title="교재 정보 고치기"
                                 onClick={() => openEdit(b)}
                               >
-                                편집
+                                {/* 원본 §39 카드 오른쪽 ✎ (g4 §39-5) — 이름은 aria-label 이 말한다 */}
+                                <span aria-hidden className="text-[15px]">✎</span>
                               </button>
                               <button
                                 type="button"
@@ -309,42 +338,6 @@ export function BookShelf({
           </div>
         )}
       </QueryState>
-    </div>
-  );
-}
-
-function Filter({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ label: string; count: number }>;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <b className="w-10 text-fg-subtle">{label}</b>
-      <button type="button" aria-label={`${label} 전체`} onClick={() => onChange('')}>
-        <Chip tone={!value ? 'info' : 'neutral'} styleKind={!value ? 'solid' : 'soft'}>
-          전체
-        </Chip>
-      </button>
-      {options.map((option) => (
-        <button
-          type="button"
-          aria-label={`${label} ${option.label}${option.count > 0 ? ` ${option.count}` : ''}`}
-          key={option.label}
-          onClick={() => onChange(option.label)}
-        >
-          <Chip tone={value === option.label ? 'info' : 'neutral'} styleKind={value === option.label ? 'solid' : 'soft'}>
-            {option.label}
-            {option.count > 0 ? ` ${option.count}` : ''}
-          </Chip>
-        </button>
-      ))}
     </div>
   );
 }

@@ -109,11 +109,12 @@ describe('§23 카드 (23-10 · 23-12 · 23-13)', () => {
     expect(within(card).getByRole('img', { name: '유입 경로 소개' }).textContent).toBe('R');
     expect(within(card).getByText('2차 일정 + 진단고사 잡기')).toBeTruthy();
     expect(within(card).getByText('오늘').parentElement?.className).toContain('bg-amber');
-    expect(card.className).toContain('bg-amber/10');
+    // 카드 바탕은 카드 한 장(몸통 단추 + 단추 줄을 감싼 자리)에 칠한다 — wave 6(23-14)에서 몸통 단추와 단추 줄이 형제가 됐다
+    expect(card.parentElement?.className).toContain('bg-amber/10');
     expect(within(card).queryByText('1일')).toBeNull();
     const late = view.getByText('정하윤').closest('button')!;
     expect(within(late).getByText('1일 지남').parentElement?.className).toContain('bg-red');
-    expect(late.className).toContain('bg-red/5');
+    expect(late.parentElement?.className).toContain('bg-red/5');
   });
 });
 

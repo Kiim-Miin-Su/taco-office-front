@@ -16,7 +16,7 @@ import { useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, PageHeader, Panel, QueryState } from '@/components/ui';
+import { Banner, Button, Chip, Panel, QueryState } from '@/components/ui';
 import { useAcknowledgeGuide, useReceivedGuides, useTeacherGuides } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { positiveQueryId } from '@/lib/url-state';
@@ -27,6 +27,7 @@ import { hm, md } from '@/components/teacher/format';
 import { DiagnosticForm } from '@/components/teacher/DiagnosticForm';
 import { GuideDiagnosticSummary } from '@/components/guides/GuideDiagnosticSummary';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
+import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { useLessonName } from '@/components/teacher/lesson-name';
 
 const addDays = (iso: string, n: number): string => {
@@ -188,7 +189,8 @@ export default function TeacherGuidesPage() {
       <AppShell>
         {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
         <TeacherPolicyBar screen="guides" className="mb-3" />
-        <PageHeader title="수업 안내" />
+        {/* 화면 이름은 셸 머리줄이 말한다 — 강사 표면에서 같은 h1 을 두 번 세우지 않는다 */}
+        <ScreenHeader title="수업 안내" />
         <ReceivedGuidesSection />
         {/* 빈 주에도 주 내비는 살아 있어야 한다 — QA C28: isEmpty 로 좌측 레일까지 삼키면
             materialization horizon 밖 주에서 과거 주로 돌아갈 길이 없다. 빈 목록은 레일 안에서 말한다. */}

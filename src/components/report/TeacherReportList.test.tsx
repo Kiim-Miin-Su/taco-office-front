@@ -27,3 +27,19 @@ it('모바일 카드와 웹 표가 같은 리포트를 열고 같은 상태를 �
   fireEvent.click(desktopAction);
   expect(onOpen).toHaveBeenCalledTimes(2);
 });
+
+it('grouped — 덱 slide 18 목록처럼 날짜 묶음 머리 「9월 14일 (월) · 2건」 아래에 시각 · 학생 · 과목 · 상태 줄이 선다', () => {
+  const onOpen = vi.fn();
+  const second: ReportRow = { ...row, id: 2, serId: 12, startMin: 900, endMin: 960, state: 'rej', students: [{ id: 2, name: '학생B', deliver: true }] };
+  const other: ReportRow = { ...row, id: 3, serId: 13, date: '2026-09-12', onDate: '2026-09-12' };
+  const view = render(<TeacherReportList rows={[row, second, other]} subjectName={() => 'Writing'} onOpen={onOpen} grouped />);
+  const groups = view.getAllByRole('group');
+  expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['9월 14일 (월) · 2건', '9월 12일 (토) · 1건']);
+  // 표·모바일 카드 두 벌이 아니라 한 목록 — 같은 줄이 한 번만 선다
+  expect(view.queryByRole('table')).toBeNull();
+  expect(view.getAllByText('학생A')).toHaveLength(2);
+  const rowButton = view.getByRole('button', { name: /10:00 학생B|15:00 학생B/ });
+  fireEvent.click(rowButton);
+  expect(onOpen).toHaveBeenCalledWith(second);
+  expect(view.getByText('반려')).toBeTruthy();
+});

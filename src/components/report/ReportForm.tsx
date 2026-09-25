@@ -163,15 +163,16 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
 export type ReportPreviewProps = ReportExportContent & {
   teacherName?: string | null;
   accent?: string | null;
+  /** 「리포트 전문」 창처럼 문서만 싣는 자리 — 바깥 패널 머리(「학부모가 받는 화면」) 없이 문서 한 장만 그린다 (원문 §50) */
+  bare?: boolean;
 };
 
 export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(function ReportPreview(
-  { studentName, grade, date, subject, timeLabel, fields, body, teacherName, accent },
+  { studentName, grade, date, subject, timeLabel, fields, body, teacherName, accent, bare = false },
   ref,
 ) {
   const color = accent ?? 'var(--blue)';
-  return (
-    <Panel title="학부모가 받는 화면" sub="칸도 순서도 바뀌지 않습니다.">
+  const sheet = (
       <div ref={ref} data-testid="report-document" className="overflow-hidden rounded-lg border border-line-2 bg-card">
         {/* 원문 §50 머리 — 흰 바탕 · 이름(크게) + 학년 · 오른쪽 「TN ACADEMY」 · 아래 굵은 선 (g5 50-03) */}
         <header className="flex items-end justify-between gap-3 border-b-2 border-fg bg-card px-4 pb-2.5 pt-3">
@@ -202,6 +203,6 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
           </div>
         </div>
       </div>
-    </Panel>
   );
+  return bare ? sheet : <Panel title="학부모가 받는 화면" sub="칸도 순서도 바뀌지 않습니다.">{sheet}</Panel>;
 });

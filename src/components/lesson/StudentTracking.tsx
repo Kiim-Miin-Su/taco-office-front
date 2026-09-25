@@ -49,8 +49,9 @@ function ReportRow({ r }: { r: TrackedReport }) {
         <span className="text-[11px] font-bold text-fg">{r.onDate.slice(5)}</span>
         <span className="text-[11px] text-fg-2">{r.subjectName ?? '—'}</span>
         <span className="text-[11px] text-fg-subtle">{r.teacherName ?? '—'}</span>
-        {/* 낱말도 판정도 서버가 준 것이다 — 화면이 제출 시각을 다시 견주지 않는다 (D-R32) */}
-        <Chip className="ml-auto" tone={r.onTime ? 'neutral' : 'warning'}>{r.onTimeLabel}</Chip>
+        {/* 낱말도 판정도 서버가 준 것이다 — 화면이 제출 시각을 다시 견주지 않는다 (D-R32).
+            원문 §79 #6 — 칩이 아니라 글자색: 「정시」 초록 · 「지연」 호박 */}
+        <span className={`ml-auto text-[11px] font-bold ${r.onTime ? 'text-green' : 'text-amber'}`}>{r.onTimeLabel}</span>
       </div>
       {r.excerpt ? <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-fg-2">{r.excerpt}</p> : null}
       {r.homework ? <p className="mt-1 text-[10.5px] text-fg-subtle">숙제 {r.homework}</p> : null}
@@ -104,7 +105,8 @@ function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
           {canEdit ? (
             <Button size="sm" variant="ghost" onClick={() => setDialog('guardians')}>보호자</Button>
           ) : null}
-          <Link href={`/schedule?studentId=${s.id}`}><Button size="sm" variant="ghost">시간표</Button></Link>
+          {/* 원문 §79 #6 — 「시간표」는 강조 테두리 */}
+          <Link href={`/schedule?studentId=${s.id}`}><Button size="sm" variant="ghost" className="border border-primary text-primary">시간표</Button></Link>
           <Link href={`/board?studentId=${s.id}`}><Button size="sm" variant="ghost">학생 보드</Button></Link>
         </span>
       )}
@@ -169,7 +171,7 @@ export function StudentTracking({ serId, onDate }: { serId: number; onDate: stri
   return (
     <section aria-label="학생 트래킹">
       <h3 className="mb-2 text-[12px] font-bold text-fg">
-        학생 트래킹 <span className="ml-1 font-normal text-fg-subtle">최신 리포트 · 교재 · 출결</span>
+        학생 트래킹 <span className="ml-1 font-normal text-fg-subtle">최신 리포트 · 교재 진도 · 변경</span>
       </h3>
 
       {q.isLoading ? <Banner tone="neutral">불러오는 중…</Banner> : null}

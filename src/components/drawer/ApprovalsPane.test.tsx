@@ -112,8 +112,8 @@ it('§14 카드는 요청자 이름을 먼저, 날짜는 연도까지, 바라는
   expect(box.tagName).toBe('P');
   // 이름과 바라는 것이 한 줄로 이어 붙지 않는다(옛 「이다현 · 42,000원…」 한 줄)
   expect(within(card).queryByText(/이다현 · 42,000/)).toBeNull();
-  // 배지는 분류의 색이다 — 시급 변경은 붉은 결 (g2 14-8 · 분류 → 결 대응은 ApprovalRowContent 한 곳)
-  expect(within(card).getByText('시급 변경').className).toContain('bg-red');
+  // 배지는 분류의 색이다 — 시급 변경은 원문 분홍(#DB2777 → 토큰 pink) (g2 14-8 · 분류 → 결 대응은 ApprovalRowContent 한 곳)
+  expect(within(card).getByText('시급 변경').className).toContain('bg-pink');
 });
 
 it('서버가 거절하면 그 말을 그대로 띄운다', () => {
@@ -184,7 +184,8 @@ it('§14 카드는 올린 사람의 사유를 분류 색 세로 띠로 인용한
   const [first, second] = view.getAllByRole('listitem');
   const quote = within(first!).getByText('근속 2년차입니다');
   expect(quote.className).toContain('border-l-2');
-  expect(quote.className).toContain('border-l-red');
+  // 띠는 분류의 색이다 — 시급 변경은 원문 분홍 (14-8)
+  expect(quote.className).toContain('border-l-pink');
   expect(second!.querySelector('.border-l-2')).toBeNull();
 });
 
@@ -205,8 +206,20 @@ it('분류 칩 앞에 같은 색 점이 서고 「전체」에는 점이 없다'
   const group = view.getByRole('group', { name: '승인 요청 분류' });
   const dot = (name: string) => within(group).getByRole('button', { name }).querySelector('span[aria-hidden]');
   expect(dot('전체 1')).toBeNull();
-  expect(dot('시급 변경 1')?.className).toContain('bg-red');
+  // 원문 §14 칩 점 일곱 색(픽셀): 스케줄 #2563EB · 교재 #D97706 · 시간대 #0891B2 · 시급 #DB2777 · 건의/GPA #7C3AED · 빠진 것 #DC2626
+  expect(dot('시급 변경 1')?.className).toContain('bg-pink');
   expect(dot('스케줄 변경 0')?.className).toContain('bg-blue');
+  expect(dot('시간대 변경 0')?.className).toContain('bg-teal');
+  expect(dot('교재 변경 0')?.className).toContain('bg-amber');
+  expect(dot('빠진 것 0')?.className).toContain('bg-red');
+});
+
+/* 시간대 변경 카드도 같은 색 — 배지(채움) · 사유 띠가 한 결이다 */
+it('시간대 변경 배지와 사유 띠는 청록이다 (14-8)', () => {
+  const { view } = panel([row({ reqType: 'tz_change', category: 'tz_change', categoryLabel: '시간대 변경', reason: '현지 학교 일정' })]);
+  const card = view.getAllByRole('listitem')[0]!;
+  expect(within(card).getByText('시간대 변경').className).toContain('bg-teal');
+  expect(within(card).getByText('현지 학교 일정').className).toContain('border-l-teal');
 });
 
 /* g2 대조 14-10 — 「반려」는 흰 바탕에 붉은 글자, 「승인」은 갈색 채움 */

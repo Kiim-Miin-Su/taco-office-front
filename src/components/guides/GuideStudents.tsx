@@ -18,7 +18,7 @@ import { cn } from '@/components/ui/cn';
 import { downloadElementPng } from '@/lib/png-export';
 import { GuideDiagnosticSummary, GuideScoreCards } from './GuideDiagnosticSummary';
 import { GuideBody, GuideNote, GuideTimeline } from './GuideReadout';
-import { GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
+import { GuideKindChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 import { GuardianSendDialog } from '@/components/guardians/GuardianSendDialog';
 
@@ -115,7 +115,8 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
       <div data-testid="guide-student-card" className="overflow-hidden rounded-xl border border-l-[4px] border-line border-l-blue bg-card">
       <div ref={guideRef} className="bg-card p-4">
         <header className="flex flex-wrap items-center gap-2 border-b border-line pb-3">
-          <GuideReasonChip reason={guide.reason} />
+          {/* 원문 §44 머리 「● 포괄 안내」 — 작성된 안내의 종류(서버 kindLabel · g4 §44-4) */}
+          <GuideKindChip guide={guide} />
           <h2 className="text-[20px] font-bold">{student.studentName}</h2>
           {student.grade ? <Chip>{student.grade}</Chip> : null}
           <GuideStateChip state={guide.state} />

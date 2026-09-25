@@ -10,18 +10,16 @@ import type { ConsultingCreate, Meta } from '@/api/types';
 import type { components } from '@/api/schema';
 import { apiMessage } from '@/api/client';
 import { Banner, Button, Input, Label, Select, cn } from '@/components/ui';
-import { CONSULTING_SHARES, CONSULTING_TYPES } from '@/lib/consulting';
+import { CONSULTING_SHARES } from '@/lib/consulting';
+import { todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
 
 type ShareWord = components['schemas']['ConsultingShareWordDto'];
+/** 서버 `ConsultingListDto.types · requesters` 한 줄 — 종류·요청자 낱말은 서버 표 한 벌이다(29-02 · D-R18) */
+type Word = components['schemas']['ConsultingWordDto'];
 
 type Requester = ConsultingCreate['requester'];
 type Share = ConsultingCreate['share'];
-
-const REQUESTERS: Array<{ value: Requester; label: string }> = [
-  { value: 'mother', label: '어머니' },
-  { value: 'father', label: '아버지' },
-];
 
 /**
  * 공개 범위 고르개 — **「비공개」는 대표만 고를 수 있다**(§76 · S4).
@@ -51,8 +49,12 @@ function toggleId(values: number[], id: number): number[] {
   return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
 
-export function ConsultingStartForm({ meta, canSetPrivate, shareWords, pending, error, onCancel, onSubmit }: {
+export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords = [], requesterWords = [], pending, error, onCancel, onSubmit }: {
   meta: Meta;
+  /** 서버 `ConsultingListDto.types` — 「어떤 컨설팅」 칩 10(원본 차례 · 「편입 · 전학」 29-02) */
+  typeWords?: readonly Word[];
+  /** 서버 `ConsultingListDto.requesters` — 「누가 요청」 칩 둘 */
+  requesterWords?: readonly Word[];
   /** 서버 `ConsultingListDto.canSetPrivate` — 「비공개」 칸이 서는가 (§76 대표 전용 · S4) */
   canSetPrivate: boolean;
   /** 서버 `ConsultingListDto.shares` — 공개 범위 이름과 뜻 한 줄(29-06) */
@@ -69,7 +71,8 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, pending, 
   const [ownerId, setOwnerId] = useState(owners[0]?.id ?? 0);
   const [amount, setAmount] = useState('');
   const [sessions, setSessions] = useState('');
-  const [startOn, setStartOn] = useState('');
+  // 시작일은 오늘(KST)로 채워 연다 — 원본 §29 의 「08/21/2026」이 컷의 오늘이다(29-05 · D-R44). 종료는 사람이 정한다(「꼭」)
+  const [startOn, setStartOn] = useState(() => todayKst());
   const [endOn, setEndOn] = useState('');
   const [share, setShare] = useState<Share>('all');
   const [pickedStaffIds, setPickedStaffIds] = useState<number[]>([]);
@@ -113,7 +116,7 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, pending, 
       <fieldset>
         <legend className="mb-2 text-[12px] font-bold text-fg">어떤 컨설팅 *</legend>
         <div className="flex flex-wrap gap-2">
-          {(Object.entries(CONSULTING_TYPES) as Array<[ConsultingCreate['consType'], string]>).map(([value, label]) => (
+          {typeWords.map(({ key, label }) => ({ value: key as ConsultingCreate['consType'], label })).map(({ value, label }) => (
             <button
               key={value}
               type="button"
@@ -155,8 +158,8 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, pending, 
         <fieldset>
           <legend className="mb-1 text-[11px] font-bold text-fg-subtle">누가 요청</legend>
           <div className="flex flex-wrap gap-1.5">
-            {REQUESTERS.map((r) => (
-              <ChoiceChip key={r.value} on={requester === r.value} onClick={() => setRequester(r.value)} onClass="border-primary bg-primary/10 text-primary">{r.label}</ChoiceChip>
+            {requesterWords.map((r) => (
+              <ChoiceChip key={r.key} on={requester === r.key} onClick={() => setRequester(r.key as Requester)} onClass="border-primary bg-primary/10 text-primary">{r.label}</ChoiceChip>
             ))}
           </div>
         </fieldset>

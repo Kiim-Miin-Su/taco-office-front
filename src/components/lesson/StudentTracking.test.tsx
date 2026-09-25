@@ -59,6 +59,13 @@ it('정원 · 단가 칩 줄은 여기서 다시 그리지 않는다 — 원문 
   expect(v.queryByText(/수업당/)).toBeNull();
 });
 
+it('원문 §12 #10 · §79 #6 — 부제 「최신 리포트 · 교재 진도 · 변경」, 「정시」 초록 · 「지연」 호박 글자, 「시간표」 강조 테두리', () => {
+  const v = setup(base);
+  expect(v.getByText('최신 리포트 · 교재 진도 · 변경')).toBeTruthy();
+  expect(v.getByText('정시').className).toContain('text-green');
+  expect(v.getByRole('button', { name: '시간표' }).className).toContain('border-primary');
+});
+
 it('「정시 / 지연」 낱말도 서버가 준 것이다 — 제출 시각을 화면에서 견주지 않는다', () => {
   const v = setup(base);
   expect(v.getByText('정시')).toBeTruthy();

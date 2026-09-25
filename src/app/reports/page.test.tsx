@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { act, fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
 import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
@@ -69,7 +69,10 @@ describe('리포트 역할별 화면', () => {
 
   it('강사는 전체 추적·독촉·발송 탭 없이 자기 작성 목록만 본다', () => {
     const view = render(<ReportsPage />);
-    expect(view.getByRole('button', { name: '작성할 것 2' })).toBeTruthy();
+    // 덱 slide 18 의 두 목록 이름 — 「아직 안 쓴 리포트 N」(서버 미작성 수) · 「작성한 리포트」
+    expect(view.getByRole('button', { name: '아직 안 쓴 리포트 2' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '작성한 리포트' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '반려됨' })).toBeTruthy();
     expect(view.queryByRole('tab', { name: /어제 보내기/ })).toBeNull();
     expect(view.queryByText('강사별 조치 보드')).toBeNull();
     expect(mocks.deliveryQuery).not.toHaveBeenCalled();
@@ -81,8 +84,31 @@ describe('리포트 역할별 화면', () => {
     const note = view.getByRole('note', { name: '리포트 지각 제출 차감' });
     expect(note.textContent).toContain('1시간 지각 시5,000원 차감');
     expect(note.textContent).toContain('4시간 이후10,000원 차감');
-    const heading = view.getByRole('heading', { name: '리포트' });
-    expect(note.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 화면 이름 「리포트」는 셸 머리줄 한 곳 — 강사 본문에는 같은 h1 이 없고 부제만 띠 아래에 선다 (wave 6)
+    expect(view.queryByRole('heading', { level: 1 })).toBeNull();
+    const sub = view.getByText('내 수업 리포트를 확인하고 작성합니다.');
+    expect(note.compareDocumentPosition(sub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('강사 「작성한 리포트」는 서버 상태 필터(승인 대기·승인)로 읽어 날짜 묶음으로 그린다', () => {
+    mocks.reports.mockImplementation((params: { state?: string }) => ({
+      data: { items: params.state === 'wait'
+        ? [{ id: 2, serId: 12, date: '2026-09-15', onDate: '2026-09-15', startMin: 840, endMin: 900, subKey: 'writing', kindKey: 'class', state: 'wait', written: true, students: [{ id: 2, name: '양찬욱', deliver: true }], minutesSinceEnd: 10, penalty: 0 }]
+        : params.state === 'ok'
+          ? [{ id: 1, serId: 11, date: '2026-09-14', onDate: '2026-09-14', startMin: 600, endMin: 660, subKey: 'writing', kindKey: 'class', state: 'ok', written: true, students: [{ id: 1, name: '임채윤', deliver: true }], minutesSinceEnd: 10, penalty: 0 }]
+          : [] },
+      isLoading: false, isError: false,
+    }));
+    const view = render(<ReportsPage />);
+    fireEvent.click(view.getByRole('button', { name: '작성한 리포트' }));
+    // 두 상태를 각각 서버가 걸러 준다 — 화면이 상태를 다시 판정하지 않는다
+    expect(mocks.reports).toHaveBeenCalledWith({ state: 'wait' }, true);
+    expect(mocks.reports).toHaveBeenCalledWith({ state: 'ok' }, true);
+    // 탭 줄도 group 이다 — 목록 안의 날짜 묶음만 본다
+    const groups = within(view.getByLabelText('내 리포트 목록')).getAllByRole('group');
+    // 새 날짜가 먼저 — 덱 「작성한 리포트」 목록 차례
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['9월 15일 (화) · 1건', '9월 14일 (월) · 1건']);
+    expect(view.getByText('양찬욱')).toBeTruthy();
   });
 
   it('관리 화면에는 강사 정책 띠를 그리지 않는다', () => {
@@ -132,7 +158,7 @@ describe('리포트 역할별 화면', () => {
     mocks.permissions.canCrudAll = false;
     view.rerender(<ReportsPage />);
     expect(view.queryByText('주간 기준 미확정')).toBeNull();
-    expect(view.getByRole('button', { name: '작성할 것 2' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '아직 안 쓴 리포트 2' })).toBeTruthy();
   });
 
   it('§14 승인 서랍 deep link는 4탭과 섞지 않고 전건 검토 큐로 연다', () => {
@@ -155,20 +181,23 @@ describe('리포트 역할별 화면', () => {
    * §50 — 어제 보내기의 「전문 보기」는 가운데 모달 「리포트 전문」(미리보기+내보내기)이다.
    * 작성·검토 서랍은 강사 캘린더와 승인 큐 몫이다. 아직 내보낼 수 없는(미승인) 리포트는 서랍으로 열어 검토한다.
    */
-  it('어제 보내기에서 내보낼 수 있는 리포트의 전문 보기는 서랍이 아니라 전문 창으로 연다 (§50)', () => {
+  it('어제 보내기의 학생 카드 「전문 보기」는 그 학생의 하루 묶음을 전문 창으로 연다 · 미승인 줄은 서랍 (§49 · §50)', () => {
     nav.search = 'section=delivery';
     mocks.permissions.canCrudAll = true;
     render(<ReportsPage />);
-    const queue = mocks.deliveryView.mock.calls.at(-1)?.[0] as { onOpenReport: (report: unknown, studentId: number) => void };
-    const report = { id: 11, serId: 111, onDate: '2026-09-24', canExport: true, exportFiles: [{ studentId: 21 }] };
-    act(() => queue.onOpenReport(report, 21));
-    expect(mocks.fullText.mock.calls.at(-1)?.[0]).toMatchObject({ report, studentId: 21 });
+    const queue = mocks.deliveryView.mock.calls.at(-1)?.[0] as {
+      onOpenReport: (report: unknown, studentId: number) => void;
+      onOpenStudent: (group: unknown) => void;
+    };
+    const group = { student: { id: 21, name: '이담흔' }, reports: [{ id: 11, serId: 111, onDate: '2026-09-24', canExport: true }] };
+    act(() => queue.onOpenStudent(group));
+    expect(mocks.fullText.mock.calls.at(-1)?.[0]).toMatchObject({ group });
     // 서랍 상세 조회는 열리지 않는다
     expect(mocks.detail).not.toHaveBeenCalledWith(111, '2026-09-24');
 
     act(() => queue.onOpenReport({ id: 12, serId: 112, onDate: '2026-09-24', canExport: false, exportFiles: [] }, 22));
     expect(mocks.detail).toHaveBeenLastCalledWith(112, '2026-09-24');
-    expect(mocks.fullText.mock.calls.at(-1)?.[0]).toMatchObject({ report: null });
+    expect(mocks.fullText.mock.calls.at(-1)?.[0]).toMatchObject({ group: null });
   });
 
   it('승인 예외만 있는 강사는 승인 큐만 열고 관리 화면을 열지 않는다', () => {

@@ -380,7 +380,7 @@ export function ConsultingContractWorkflow({ consId, summary, onClose, onOpenAcc
       title={detail ? `${detail.studentNames.join(' · ') || '학생 미정'} 컨설팅` : '컨설팅 계약'}
       head={detail ? <><Chip tone="purple">{detail.consTypeLabel}</Chip><Chip tone={stageView?.tone ?? 'info'}>{stageView?.label ?? detail.stage}</Chip></> : null}
       sub={detail
-        ? `${requester} · 담당 ${detail.ownerName ?? '미정'} · ${detail.startOn ?? '시작 미정'} ~ ${detail.endOn ?? '종료 미정'}${summary ? ` · ${summary.ageDays}일 지남` : ''}`
+        ? `${requester} · 담당 ${detail.ownerName ?? '미정'} · ${detail.startOn ?? '시작 미정'} ~ ${detail.endOn ?? '종료 미정'}${summary?.ageDays != null ? ` · ${summary.ageDays}일 지남` : ''}`
         : '계약서 → 피드백 → 전달 → 서명 → 수납'}
     >
       <QueryState query={query}>{(item) => <WorkflowContent detail={item} summary={summary} onClose={onClose} onOpenAccounting={onOpenAccounting} />}</QueryState>

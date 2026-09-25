@@ -11,7 +11,7 @@
  */
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Home, Maximize, Minimize, Palette, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CircleHelp, Home, Maximize, Minimize, Palette, Search, ShieldCheck } from 'lucide-react';
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
@@ -31,10 +31,11 @@ export type DrawerEntry = { pane: DrawerPane; identity: string };
 type PanelSlot = ReactNode | ((api: WorkspacePanelApi) => ReactNode);
 import { Banner, Button, Dialog, Logo, cn } from '@/components/ui';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
-import { objectParticle } from '@/lib/calendar';
 import { TeacherShell } from '@/components/teacher/TeacherShell';
 import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
-import { useUndoLast } from './useUndoLast';
+import { ShellGuide } from './ShellGuide';
+import { ShellSearch } from './ShellSearch';
+import { UndoControl } from './UndoControl';
 import styles from './AppShell.module.css';
 
 export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool, onToday, drawerEntry, flush = false }: {
@@ -65,14 +66,28 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [permissions, setPermissions] = useState(false);
   /** §85·§86 — 원문에서 이것은 라우트가 아니라 머리의 「디자인」이 여는 창이다 (C60) */
   const [design, setDesign] = useState(false);
+  /* 원문 머리줄 「검색 ⌘K」·「보는 법」(g1 S1·S2) — 둘 다 창이고 라우트가 아니다 */
+  const [search, setSearch] = useState(false);
+  const [guide, setGuide] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
-  // 되돌리기는 상단바에도 있고(원본 §16) 스케줄 화면의 띠에도 있다 — 둘 다 같은 훅을 쓴다 (N-138)
-  const undoLast = useUndoLast();
   const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
   const panelApi: WorkspacePanelApi = { openDrawer, activePane: drawer ? drawerPane : null };
   const side = typeof sidePanel === 'function' ? sidePanel(panelApi) : sidePanel;
   const right = typeof rightPanel === 'function' ? rightPanel(panelApi) : rightPanel;
+
+  useEffect(() => {
+    // ⌘K / Ctrl+K — 원문 단추의 글자 그대로. 관리 화면에서만(강사 머리줄에는 검색이 없다)
+    if (!isAdmin) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearch(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isAdmin]);
 
   useEffect(() => {
     const sync = () => setFullScreen(Boolean(document.fullscreenElement));
@@ -125,44 +140,55 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
             <button type="button" onClick={() => router.back()} className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
               <ArrowLeft size={14} aria-hidden />뒤로
             </button>
-            {/*
-              원본 §16 컷의 상단바 세 번째 단추다 — 되돌릴 것이 없으면 **흐리게** 그려져 있다.
-              그래서 조건부로 사라지지 않고 **늘 서 있고** 못 누를 때는 이유를 `title` 이 말한다.
-              컷의 「⌄」는 눌렀을 때가 컷에 없어 만들지 않는다 (D-R44 — 없는 메뉴를 짓지 않는다).
-            */}
-            <button type="button" onClick={() => undoLast.undo({ onFail: setScreenError })}
-              disabled={!undoLast.canUndo || undoLast.pending}
-              title={undoLast.canUndo ? `${undoLast.label}${objectParticle(undoLast.label ?? '')} 되돌립니다 · Ctrl/⌘+Z` : '되돌릴 최근 일정 작업이 없습니다'}
-              className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2 disabled:opacity-40">
-              <RotateCcw size={14} aria-hidden />되돌리기
-            </button>
+            {/* 원본 §16 상단바 세 번째 단추 「⟲ 되돌리기 ▾」 — 여러 단계 목록까지 한 파일(UndoControl)에 모았다 (g1 S5) */}
+            <UndoControl onFail={setScreenError} />
           </div>
           <AdminTopNavigation pathname={path} badges={badges} me={me} />
+          {/*
+            원문 머리줄 차례: 검색 ⌘K · 전체 화면 · 디자인 · 보는 법 | 승인 대기 · 사용자 · 권한 (g1 S1·S2 · §07 컷).
+            원문은 1920 폭이다 — 글자를 다 적으면 1536 이하에서 업무 탭 10개(521px)가 가려진다(QA 0926 B-1 · 1440 에서 313px).
+            그래서 1680 미만에서는 도구 단추를 아이콘만 두고(이름은 aria-label · title 로 남긴다) 탭 자리를 먼저 준다.
+          */}
+          <button type="button" onClick={() => setSearch(true)} aria-haspopup="dialog" aria-label="검색" aria-keyshortcuts="Meta+K Control+K" title="검색 (⌘K)"
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+            <Search size={14} aria-hidden /><span className="hidden min-[1680px]:inline">검색</span>
+            <kbd aria-hidden className="ml-1 hidden rounded border border-header-tool-line px-1 text-[10px] font-medium min-[1680px]:inline">⌘K</kbd>
+          </button>
           <button type="button" onClick={() => void toggleFullScreen()} aria-label={fullScreen ? '전체 화면 종료' : '전체 화면'}
+            title={fullScreen ? '전체 화면 종료' : '전체 화면'}
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
             {fullScreen ? <Minimize size={14} aria-hidden /> : <Maximize size={14} aria-hidden />}
-            <span className="hidden xl:inline">{fullScreen ? '전체 화면 종료' : '전체 화면'}</span>
+            <span className="hidden min-[1680px]:inline">{fullScreen ? '전체 화면 종료' : '전체 화면'}</span>
+          </button>
+          <button type="button" onClick={() => setDesign(true)} aria-label="디자인" title="디자인"
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+            <Palette size={14} aria-hidden /><span className="hidden min-[1680px]:inline">디자인</span>
+          </button>
+          <button type="button" onClick={() => setGuide(true)} aria-haspopup="dialog" aria-label="보는 법" title="보는 법"
+            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
+            <CircleHelp size={14} aria-hidden /><span className="hidden min-[1680px]:inline">보는 법</span>
           </button>
           {canViewApprovalFlow ? <button type="button" onClick={() => setApprovalFlow(true)} aria-haspopup="dialog"
+            aria-label={`승인 대기 ${approvalCount}`} title={`승인 대기 ${approvalCount}`}
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white">
-            {/* 원문 머리 단추는 「● 승인 대기 N」이다(g2 75-1). 글자는 어두운 바탕 대비 때문에 흰색 그대로 둔다(tokens.test) */}
-            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber ring-1 ring-white/60" />승인 대기 <span className="rounded bg-white/15 px-1.5">{approvalCount}</span>
+            {/* 원문 머리 단추는 「● 승인 대기 N」이다(g2 75-1). 글자는 어두운 바탕 대비 때문에 흰색 그대로 둔다(tokens.test).
+                1536 미만에서는 「● N」만 — 업무 탭 자리를 먼저 준다(QA 0926 B-1 · 스케줄은 머리 양끝에 패널 단추 둘이 더 선다 B-1r) */}
+            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber ring-1 ring-white/60" /><span aria-hidden className="hidden min-[1536px]:inline">승인 대기 </span><span aria-hidden className="rounded bg-white/15 px-1.5">{approvalCount}</span>
           </button> : null}
           <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정"
+              title={me ? `${me.name} · ${me.title || me.roleLabel}` : undefined}>
               <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span>
-              <span>{me?.name}</span>
+              {/* 1680 미만은 이름 대신 동그라미 첫 두 글자 · 1440 미만은 역할 칩도 접는다(마우스를 올리면 title 로 둘 다) —
+                  업무 탭 자리를 먼저 준다(QA 0926 B-1 · B-1r) */}
+              <span className="hidden min-[1680px]:inline">{me?.name}</span>
               {/* 역할의 낱말도 서버가 만든다 — 화면이 제 표를 들면 서랍 §17 과 여기가 갈린다 (D-R18) */}
-              {me ? <span className="rounded bg-header-tool px-1.5 py-0.5 text-[10px]">{me.title || me.roleLabel}</span> : null}
+              {me ? <span className="hidden rounded bg-header-tool px-1.5 py-0.5 text-[10px] min-[1440px]:inline">{me.title || me.roleLabel}</span> : null}
             </summary>
             <div className="absolute right-0 top-full z-30 mt-1 min-w-28 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
               <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>
             </div>
           </details>
-          <button type="button" onClick={() => setDesign(true)}
-            className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
-            <Palette size={14} aria-hidden /><span className="hidden xl:inline">디자인</span>
-          </button>
           <button type="button" onClick={() => setPermissions(true)}
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
             <ShieldCheck size={14} aria-hidden />권한
@@ -200,6 +226,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         <ApprovalFlowDialog open={approvalFlow} flow={drawerData.approvalFlow} onClose={() => setApprovalFlow(false)} />
       ) : null}
       <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
+      {isAdmin ? <ShellSearch open={search} onClose={() => setSearch(false)} me={me} /> : null}
+      {isAdmin ? <ShellGuide open={guide} onClose={() => setGuide(false)} /> : null}
       {/* 원문 §76 창 = 폭 640(§75 와 같다) · 머리 오른쪽 × (76-3) */}
       <Dialog open={isAdmin && permissions} onClose={() => setPermissions(false)} title="권한" width={640} closeX
         footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>

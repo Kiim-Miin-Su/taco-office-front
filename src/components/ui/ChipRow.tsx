@@ -27,8 +27,14 @@ function ChipDot({ color }: { color: string }) {
   return <span data-chip-dot aria-hidden className="mr-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
 }
 
+/**
+ * 눌린 칩의 모양 — `info`(파란 채움 · 지금 모양) · `ink`(진한 글자색 채움 — 원문 §63·§64·§67 「전체 3」 · x5 · C-8).
+ * 기본은 `info` 다. 칩 톤에는 진한 채움이 없어 이 한 자리에서만 그린다.
+ */
+export type ChipPressedTone = 'info' | 'ink';
+
 export function ChipButton({
-  pressed, disabled, onClick, children, tone = 'neutral', dot, title, className,
+  pressed, disabled, onClick, children, tone = 'neutral', dot, title, className, pressedTone = 'info',
 }: {
   pressed: boolean;
   disabled?: boolean;
@@ -39,6 +45,8 @@ export function ChipButton({
   dot?: string;
   title?: string;
   className?: string;
+  /** 눌린 모양 — 기본 `info` */
+  pressedTone?: ChipPressedTone;
 }) {
   return (
     <button
@@ -49,7 +57,13 @@ export function ChipButton({
       onClick={onClick}
       className={cn('rounded-full disabled:opacity-50', pressed ? 'ring-2 ring-primary ring-offset-1 ring-offset-bg' : '', className)}
     >
-      <Chip tone={pressed ? 'info' : tone} styleKind={pressed ? 'solid' : 'outline'}>{dot ? <ChipDot color={dot} /> : null}{children}</Chip>
+      {pressed && pressedTone === 'ink' ? (
+        <span data-chip-pressed="ink" className="inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full bg-fg px-2 text-[11px] font-bold text-card">
+          {dot ? <ChipDot color={dot} /> : null}{children}
+        </span>
+      ) : (
+        <Chip tone={pressed ? 'info' : tone} styleKind={pressed ? 'solid' : 'outline'}>{dot ? <ChipDot color={dot} /> : null}{children}</Chip>
+      )}
     </button>
   );
 }
@@ -67,7 +81,7 @@ export interface ChipOption<T extends string> {
  * 하나만 고르는 칩 줄. `value` 가 `''` 면 「전체」가 눌린 것이다.
  */
 export function ChipRow<T extends string>({
-  ariaLabel, options, value, onChange, allLabel = '전체', allCount, disabled = false, className,
+  ariaLabel, options, value, onChange, allLabel = '전체', allCount, disabled = false, className, pressedTone = 'info',
 }: {
   ariaLabel: string;
   options: ReadonlyArray<ChipOption<T>>;
@@ -77,14 +91,16 @@ export function ChipRow<T extends string>({
   allCount?: number;
   disabled?: boolean;
   className?: string;
+  /** 눌린 칩 모양 — 기본 `info`(지금 모양) · `ink` = 원문 §63·§64·§67 의 진한 채움 */
+  pressedTone?: ChipPressedTone;
 }) {
   return (
     <div role="group" aria-label={ariaLabel} className={cn('flex flex-wrap items-center gap-1.5', className)}>
-      <ChipButton pressed={value === ''} disabled={disabled} onClick={() => onChange('')}>
+      <ChipButton pressed={value === ''} disabled={disabled} pressedTone={pressedTone} onClick={() => onChange('')}>
         {allLabel}{allCount === undefined ? '' : ` ${allCount}`}
       </ChipButton>
       {options.map((o) => (
-        <ChipButton key={o.value} pressed={value === o.value} disabled={disabled} dot={o.dot}
+        <ChipButton key={o.value} pressed={value === o.value} disabled={disabled} dot={o.dot} pressedTone={pressedTone}
           onClick={() => onChange(value === o.value ? '' : o.value)}>
           {o.label}{o.count === undefined ? '' : ` ${o.count}`}
         </ChipButton>

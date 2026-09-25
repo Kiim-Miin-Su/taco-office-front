@@ -7,7 +7,8 @@
 /**
  * §67 「+ 접수」 (C93 · 테스트 시나리오 J-96 「수업 진도 불만 접수」 · J-98 기한 · N-46 ①).
  *
- * 화면이 보내는 것은 **갈래 · 학생 · 내용 · 담당 · 기한 · 심각도**뿐이고 상태는 보내지 않는다 — 접수는 언제나 「접수」 칸이다(서버).
+ * 화면이 보내는 것은 **갈래 · 학생 · 내용 · 담당 · 기한 · 심각도 · 누가 알렸나**뿐이고 상태는 보내지 않는다 — 접수는 언제나 「접수」 칸이다(서버).
+ * 「누가 알렸나」(67-5 · wave 6)는 원본 §67 카드의 「고은설 어머니」 — 낱말은 서버의 `cplRequesters`, 비우면 보내지 않는다(모름).
  * 갈래·심각도 낱말은 `GET /ops` 의 `cplAreas`·`cplSeverities`(D-R18), 학생·담당은 `GET /meta` — 창을 열 때만 읽는다.
  */
 'use client';
@@ -20,10 +21,12 @@ import type { Complaint, ComplaintCreate, CplWord } from '@/api/types';
 export interface ComplaintCreateButtonProps {
   areas: CplWord[];
   severities: CplWord[];
+  /** 누가 알렸나 — 서버 낱말(`GET /ops.cplRequesters` · 어머니 · 아버지). 비어 있으면 칸이 서지 않는다 */
+  requesters?: CplWord[];
   onDone?: (row: Complaint) => void;
 }
 
-export function ComplaintCreateButton({ areas, severities, onDone }: ComplaintCreateButtonProps) {
+export function ComplaintCreateButton({ areas, severities, requesters = [], onDone }: ComplaintCreateButtonProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const meta = useMeta(open);
@@ -34,11 +37,12 @@ export function ComplaintCreateButton({ areas, severities, onDone }: ComplaintCr
   const [ownerId, setOwnerId] = useState('');
   const [dueOn, setDueOn] = useState('');
   const [severity, setSeverity] = useState<NonNullable<ComplaintCreate['severity']> | ''>('');
+  const [requester, setRequester] = useState<NonNullable<ComplaintCreate['requester']> | ''>('');
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setArea(''); setStudentId(''); setBody(''); setOwnerId(''); setDueOn(''); setSeverity(''); setErr(null);
+    setArea(''); setStudentId(''); setBody(''); setOwnerId(''); setDueOn(''); setSeverity(''); setRequester(''); setErr(null);
   }, [open]);
 
   const pending = write.isPending;
@@ -52,6 +56,7 @@ export function ComplaintCreateButton({ areas, severities, onDone }: ComplaintCr
       ...(ownerId ? { ownerId: Number(ownerId) } : {}),
       ...(dueOn ? { dueOn } : {}),
       ...(severity ? { severity } : {}),
+      ...(requester ? { requester } : {}),
     };
     setErr(null);
     write.mutate(payload, {
@@ -62,7 +67,8 @@ export function ComplaintCreateButton({ areas, severities, onDone }: ComplaintCr
 
   return (
     <>
-      <Button type="button" size="sm" onClick={() => setOpen(true)}>+ 접수</Button>
+      {/* 원문 §67 속 갈래 줄 오른쪽 끝의 갈색 주 단추 (x5 · C-7) */}
+      <Button type="button" variant="primary" onClick={() => setOpen(true)}>+ 접수</Button>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -92,6 +98,14 @@ export function ComplaintCreateButton({ areas, severities, onDone }: ComplaintCr
               </Select>
             </div>
           </div>
+          {requesters.length ? (
+            <div>
+              <Label>누가 알렸나</Label>
+              {/* 원본 §67 카드 「고은설 어머니」 — 낱말은 서버의 둘이다. 모르면 「모름」(보내지 않는다 · 카드에 안 선다) */}
+              <Segmented<NonNullable<ComplaintCreate['requester']> | ''> ariaLabel="누가 알렸나" value={requester} disabled={pending} onChange={setRequester}
+                options={[{ value: '', label: '모름' }, ...requesters.map((r) => ({ value: r.key as NonNullable<ComplaintCreate['requester']>, label: r.label }))]} />
+            </div>
+          ) : null}
           <div>
             <Label htmlFor={`${id}-body`}>내용</Label>
             <Textarea id={`${id}-body`} value={body} maxLength={1000} onChange={(e) => setBody(e.target.value)} disabled={pending} placeholder="무엇을 말씀하셨는지 그대로" />

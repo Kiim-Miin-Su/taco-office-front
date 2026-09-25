@@ -88,6 +88,7 @@ function setup() {
               {
                 libId: 4,
                 title: 'SAT Reading',
+                level: 'Master',
                 studentCount: 1,
                 minPercent: 20,
                 maxPercent: 20,
@@ -198,4 +199,22 @@ it('머리 칸은 자리별 색 윗줄이고 0 인 칸은 흐리며 「정상」
   expect(headBox('정상').className).toContain('bg-green/10');
   expect(headBox('정상').className).toContain('border-t-green');
   expect(headBox('정상').className).not.toContain('border-t-green/40');
+});
+
+/**
+ * g4 §38-7 — 원문 「교재별 진도율」 카드: 제목줄 = 레벨 배지 + 제목 + 오른쪽 「1명」, 막대 오른쪽 큰 %,
+ * 막대 위 평균 표시선, 레벨색 왼쪽 띠, 넓은 화면 3열. 수는 서버 값 그대로(평균·범위·학생별).
+ */
+it('교재별 진도율 카드는 레벨 배지 · 오른쪽 인원 · 큰 % · 평균 표시선 · 레벨색 띠다 (§38-7)', async () => {
+  const view = setup();
+  const card = await view.findByTestId('book-progress-card');
+  expect(card.className).toContain('border-l-4');
+  expect(card.className).toContain('border-l-green');
+  const head = card.querySelector('header') as HTMLElement;
+  expect(head.querySelector('[data-level-marker]')?.textContent).toBe('M');
+  expect(head.textContent).toContain('SAT Reading');
+  expect(head.textContent).toContain('1명');
+  expect(card.querySelector('[data-progress-average]')?.textContent).toBe('20%');
+  expect((card.querySelector('[data-average-mark]') as HTMLElement).style.left).toBe('20%');
+  expect(card.parentElement?.className).toContain('xl:grid-cols-3');
 });

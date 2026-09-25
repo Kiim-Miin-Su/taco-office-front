@@ -130,6 +130,20 @@ it('⇧ 를 누르면 가장 나중 판으로 간다 — 지금 쓰는 판이 �
   expect(patched).toBe('/books/versions/12/use'); // 11 이 아니다
 });
 
+/**
+ * 원본 §39 카드 — **지금 판 칩이 곧 바꾸기 단추**다(「v2026.03 ⇧」 하나 · g4 §39-5). 칩과 단추가 따로 서지 않는다.
+ * 누르면 가장 나중 판으로 가고, 그 판 이름은 단추 이름이 말한다.
+ */
+it('더 나중 판이 있으면 지금 판 칩 하나가 ⇧ 단추다 (§39-5)', () => {
+  const view = wrap(<BookVersionBadge book={base} />);
+  const button = view.getByRole('button', { name: /v2026\.08/ });
+  expect(button.textContent).toContain('v2026.03');
+  expect(button.textContent).toContain('⇧');
+  // 지금 판 낱말은 단추 안 한 번뿐이다 — 옆에 따로 선 칩이 없다
+  expect(view.getAllByText('v2026.03')).toHaveLength(1);
+  expect(view.getByText('v2026.03').closest('button')).toBe(button);
+});
+
 it('판이 없으면 「판 없음」이고 ⇧ 도 없다', () => {
   const view = wrap(
     <BookVersionBadge

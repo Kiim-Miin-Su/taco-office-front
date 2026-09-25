@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -39,6 +39,7 @@ function student(studentId: number, name: string): GuideStudent {
     studentId,
     teacherId: 3,
     reason: 'new',
+    kindLabel: '포괄 안내',
     state: 'ready',
     pending: true,
     studentName: name,
@@ -288,4 +289,32 @@ it('지도 방향·관리자 코멘트가 없으면 두 상자에 「적지 않�
   await view.findByText('강라율 서버 최신 안내');
   expect(view.getByRole('region', { name: '지도 방향' }).textContent).toContain('적지 않음');
   expect(view.getByRole('region', { name: '관리자 코멘트 · 강사만' }).textContent).toContain('적지 않음');
+});
+
+/**
+ * g4 §44-4 — 원문 §44 머리 칩은 「● 포괄 안내」(작성된 안내의 **종류**)다. 낱말은 서버 kindLabel 그대로(원문 §45 kind full/quick),
+ * 모양은 점 + 색 글자. 서버가 모르는 사유라 종류가 null 이면(kindLabel 은 필수 nullable · wave 6) 사유 칩(첫 수업)으로 선다.
+ */
+it('머리 칩은 서버가 준 안내 종류 낱말을 점 모양으로 적는다 (§44-4)', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [student(1, '강라율')] } });
+  useSession.getState().signIn('fixture', me);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><GuideStudents /></QueryClientProvider>);
+  const card = await view.findByTestId('guide-student-card');
+  const head = card.querySelector('header') as HTMLElement;
+  const chip = within(head).getByText('포괄 안내');
+  // 점 모양 칩 = 점(장식) + 색 글자, 바탕 없음
+  expect(chip.querySelector('span[aria-hidden]')).toBeTruthy();
+  expect(within(head).queryByText('첫 수업')).toBeNull();
+
+  cleanup();
+  // 서버가 종류를 모르면(null) 사유 칩 그대로
+  const legacy = student(1, '강라율');
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [{ ...legacy, latestGuide: { ...legacy.latestGuide!, kindLabel: null } }] } });
+  const client2 = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client2);
+  const again = render(<QueryClientProvider client={client2}><GuideStudents /></QueryClientProvider>);
+  const head2 = (await again.findByTestId('guide-student-card')).querySelector('header') as HTMLElement;
+  expect(within(head2).getByText('첫 수업')).toBeTruthy();
 });

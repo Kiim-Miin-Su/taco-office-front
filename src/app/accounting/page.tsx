@@ -12,12 +12,12 @@
  * 사람별 예외(STAFF.can_money)로 열린 사람에게만 값이 채워진다.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { queryEnum, queryYearMonth } from '@/lib/url-state';
+import { positiveQueryId, queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
+import { Banner, Button, Chip, Column, PageHeader, StatCard, Table, Tabs } from '@/components/ui';
 import { useAccounting, useCarryTuition, useInvBoard, useMonthClose, useOtherIncome, usePayoutSheet, useRateBook, useTuition } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
@@ -67,11 +67,12 @@ const STATE_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'd
 const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'pay', 'out', 'payout', 'rates'] as const;
 type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
-/** 지난달 'YYYY-MM' — §57 시트가 처음 여는 달. 확정할 수 있는 달은 끝난 달이라 지난달부터 보인다 (C94-b) */
-function prevMonth(today = todayKst()): string {
-  const y = Number(today.slice(0, 4));
-  const m = Number(today.slice(5, 7));
-  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+/**
+ * 이번 달 'YYYY-MM' — 강사료 시트가 처음 여는 달. 원문 §56 은 **진행 중인 달**(8월 · 오늘 08-21)을 센다 (x5 · 56-4 · D-R44).
+ * 「지급 확정」은 끝난 달에만 서므로(서버 canConfirm) 이번 달에는 단추가 서지 않는다 — 지난달은 달 칸에서 고른다.
+ */
+function thisMonth(today = todayKst()): string {
+  return today.slice(0, 7);
 }
 
 export default function AccountingPage() {
@@ -84,7 +85,12 @@ export default function AccountingPage() {
   const searchParams = useSearchParams();
   const queryTab = queryEnum(searchParams.get('tab'), ACCOUNTING_TABS);
   const queryMonth = queryTab === 'tuition' ? queryYearMonth(searchParams.get('month')) : null;
+  // §52 카드의 「자세히 ›」가 여는 청구서 줄 — `?tab=inv&invId=` 로도 온다 (x5 · 52-03). 형식만 보고 줄은 표가 찾는다
+  const queryInvId = queryTab === 'inv' ? positiveQueryId(searchParams.get('invId')) : null;
   const [tab, setTab] = useState<AccountingTab>(queryTab ?? 'inv');
+  const [focusInvId, setFocusInvId] = useState<number | null>(queryInvId);
+  // 탭 줄 오른쪽 「+ 청구서」가 어느 탭에서든 발행 칸을 연다 (x5 · C-03) — 칸은 청구서 탭 안에 있다
+  const [issuerOpen, setIssuerOpen] = useState(false);
   const q = useAccounting();
   // §54 는 다른 질의다 — 그 탭을 열 때만 부른다 (달을 안 주면 서버가 이번 달로 정한다)
   const tuition = useTuition(queryMonth ?? undefined, tab === 'tuition');
@@ -99,13 +105,19 @@ export default function AccountingPage() {
   // §52 도 다른 질의다 — 그 탭을 열 때만 부른다 (C69)
   const invBoard = useInvBoard(tab === 'board');
   // §57 강사료 시트도 다른 질의다 — 그 탭을 열 때만 부른다. 달은 화면이 고르고 서버가 센다 (C94-b)
-  const [payoutMonth, setPayoutMonth] = useState(prevMonth);
+  const [payoutMonth, setPayoutMonth] = useState(thisMonth);
   const payoutMonthOk = /^\d{4}-(0[1-9]|1[0-2])$/.test(payoutMonth);
   const payoutSheet = usePayoutSheet(payoutMonth, tab === 'payout' && payoutMonthOk);
   // 단가표도 다른 질의다 — 그 탭을 열 때만 부른다 (C94-d)
   const rateBook = useRateBook(tab === 'rates');
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
+
+  /* 「자세히 ›」로 온 줄을 화면 가운데로 — 표가 그리고 난 뒤 그 줄을 찾는다(없으면 조용히 둔다) */
+  useEffect(() => {
+    if (tab !== 'inv' || focusInvId === null || !q.data) return;
+    document.querySelector('.inv-focus')?.scrollIntoView?.({ block: 'center' });
+  }, [tab, focusInvId, q.data]);
 
   const invCols: Array<Column<Invoice>> = [
     {
@@ -119,6 +131,8 @@ export default function AccountingPage() {
       ),
     },
     { key: 'ym', head: '청구월', width: 90, cell: (r) => r.yearMonth },
+    // 원문 §53 카드마다의 「수업료 청구」·「컨설팅비 청구」 칩 — 낱말은 보드 카드와 같은 서버 invTypeLabel (x5 · 53-02)
+    { key: 'ty', head: '종류', width: 120, cell: (r) => <Chip tone="purple">{r.invTypeLabel}</Chip> },
     { key: 'ti', head: '내역', cell: (r) => r.lines.map((l) => l.label).join(' + ') || r.title },
     { key: 'am', head: '금액', width: 120, align: 'right', cell: (r) => <Won v={r.amount} bold /> },
     { key: 'pd', head: '수납', width: 120, align: 'right', cell: (r) => <Won v={r.paidAmount} /> },
@@ -184,16 +198,20 @@ export default function AccountingPage() {
           「남은 돈」의 색만 부호를 따른다 — 원문 표본은 음수(빨강) 한 가지뿐이라 양수는 공백이고,
           그 자리에서 빨강은 사실이 아니다 (D-R44).
         */}
+        {/* 원문 머리 여섯 칸 = 낮은 카드 · **윗변 색 줄**(파랑 · 초록 · 주황 · 빨강 · 빨강) · 「손봐야 할 것」 분홍 바탕 (x5 · C-05).
+            공용 StatCard 의 accent·fill 을 쓴다 — 값·등식은 그대로 서버의 것이다 */}
         <div className="mb-4 grid grid-cols-6 gap-3">
-          <StatCard label="보낸 청구서" value={<Head v={s?.sent} loaded={!!s} />} tone="info" />
-          <StatCard label="받은 돈" value={<Head v={s?.collected} loaded={!!s} />} tone="success" />
-          <StatCard label="못 받은 돈" value={<Head v={s?.unpaid} loaded={!!s} />} tone="warning" />
-          <StatCard label="기한 지남" value={<Head v={s?.overdue} loaded={!!s} />} tone="danger" />
-          <StatCard label="남은 돈" value={<Head v={s?.net} loaded={!!s} />} tone={wonTone(s?.net)} />
+          <StatCard className="py-3" accent="info" label="보낸 청구서" value={<Head v={s?.sent} loaded={!!s} />} tone="info" />
+          <StatCard className="py-3" accent="success" label="받은 돈" value={<Head v={s?.collected} loaded={!!s} />} tone="success" />
+          <StatCard className="py-3" accent="orange" label="못 받은 돈" value={<Head v={s?.unpaid} loaded={!!s} />} tone="orange" />
+          <StatCard className="py-3" accent="danger" label="기한 지남" value={<Head v={s?.overdue} loaded={!!s} />} tone="danger" />
+          <StatCard className="py-3" accent="danger" label="남은 돈" value={<Head v={s?.net} loaded={!!s} />} tone={wonTone(s?.net)} />
           <StatCard
+            className="py-3"
             label="손봐야 할 것"
             value={s ? `${s.todo}건` : '—'}
             note="납부 기한이 지난 청구서"
+            fill={!!s && s.todo > 0}
             tone={s && s.todo > 0 ? 'danger' : 'neutral'}
           />
         </div>
@@ -205,8 +223,9 @@ export default function AccountingPage() {
           </Banner>
         ) : null}
 
+        {/* 탭 줄 오른쪽 「+ 청구서」 — 원문 §52~§57 여섯 컷 공통 (x5 · C-03). 「시급 비공개 · 컨설팅 비공개」는 결정 대기(G45) */}
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <Tabs
-          className="mb-3"
           value={tab}
           onChange={setTab}
           options={[
@@ -221,17 +240,22 @@ export default function AccountingPage() {
             { value: 'rates', label: '단가표' },
           ]}
         />
+        <Button size="sm" variant="secondary" onClick={() => { setTab('inv'); setIssuerOpen(true); }}>+ 청구서</Button>
+        </div>
 
         {q.isLoading ? (
           <Banner tone="neutral">불러오는 중…</Banner>
         ) : q.isError ? (
           <Banner tone="danger">회계는 매니저 이상만 볼 수 있습니다. 또는 서버에 닿지 못했습니다.</Banner>
         ) : tab === 'board' ? (
-          <InvoiceBoard data={invBoard.data} loading={invBoard.isLoading} />
+          <InvoiceBoard data={invBoard.data} loading={invBoard.isLoading}
+            onOpenInvoice={(invId) => { setFocusInvId(invId); setTab('inv'); }} />
         ) : tab === 'inv' ? (
           <>
-            <InvoiceIssuer />
-            <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id} />
+            <InvoiceIssuer open={issuerOpen} onOpenChange={setIssuerOpen} />
+            {/* 「자세히 ›」로 온 줄은 옅게 칠한다 (x5 · 52-03) — 원문에 없는 상세 창 대신 그 줄로 간다 */}
+            <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id}
+              rowClassName={(r) => (r.id === focusInvId ? 'inv-focus bg-amber/10' : undefined)} />
           </>
         ) : tab === 'other' ? (
           <OtherIncome

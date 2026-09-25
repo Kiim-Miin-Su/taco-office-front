@@ -96,3 +96,21 @@ it('점유를 아직 못 받았으면 격자 자리를 비워 둔다 — 빈 격
   expect(view.container.querySelector('table')).toBeNull();
   expect((view.container.textContent ?? '')).toContain('점유를 세는 중입니다');
 });
+
+/* g2 대조 21-1 — 원문 §21 격자: 빈 칸은 연초록 바탕 + 초록 테두리 · 찬 칸은 짙은 붉은 칸 · 지금 시각 머리는 빨강 ·
+   왼쪽 위 머리 글자는 보이지 않는다(보조기기에는 「계정」 열 이름이 남는다) */
+it('격자 칸과 머리는 원문 색이다 — 지금 시각만 붉고, 왼쪽 위 머리는 화면에서 숨는다 (21-1)', () => {
+  const view = render(<ZoomPane rows={rows} board={board} />);
+  const heads = [...view.container.querySelectorAll('th')];
+  expect(heads[0].textContent).toBe('계정');
+  expect(heads[0].querySelector('.sr-only')?.textContent).toBe('계정');
+  const now = heads.find((h) => h.textContent === '12')!;
+  expect(now.className).toContain('text-red');
+  expect(heads.find((h) => h.textContent === '13')!.className).not.toContain('text-red');
+  const cells = [...view.container.querySelectorAll('td div[title]')];
+  const busy = cells.find((c) => c.getAttribute('title') === '20시 · 1건')!;
+  expect(busy.className.split(/\s+/)).toContain('bg-red');
+  const free = cells.find((c) => c.getAttribute('title') === '08시 · 0건')!;
+  expect(free.className).toContain('bg-green/5');
+  expect(free.className).toContain('border-green/30');
+});

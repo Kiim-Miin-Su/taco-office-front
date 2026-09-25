@@ -76,14 +76,14 @@ describe('AdminNavigation', () => {
     expect(view.container.querySelector('a[href="/accounting"]')).toBeNull();
   });
 
-  it('강사 캘린더 탭은 같은 schedule 경로를 쓰며 활성 파랑을 유지한다', () => {
+  it('강사 표시 이름(캘린더)도 같은 schedule 경로 · 같은 활성 색 — 강사 전용 파랑은 없다(강사는 TeacherShell 을 쓴다)', () => {
     const view = render(<AdminTopNavigation pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{}} />);
     const active = view.getByRole('link', { name: '캘린더' });
     expect(active.getAttribute('href')).toBe('/schedule');
     expect(active.getAttribute('aria-current')).toBe('page');
-    expect(active.classList.contains('bg-blue')).toBe(true);
+    expect(active.classList.contains('bg-blue')).toBe(false);
     expect(active.classList.contains('text-white')).toBe(true);
-    expect(active.classList.contains('bg-header-active')).toBe(false);
+    expect(active.classList.contains('bg-header-active')).toBe(true);
     expect(view.queryByRole('link', { name: '스케줄' })).toBeNull();
     expect(view.getAllByRole('link').map((link) => link.textContent)).toEqual([
       '홈', '캘린더', '불가 시간', '리포트', '수업 안내', '수업 히스토리', '건의 사항',
@@ -96,10 +96,10 @@ describe('AdminNavigation', () => {
     expect(current.map((link) => link.textContent)).toEqual(['불가 시간']);
   });
 
-  it('최종 canAdminPage 플래그가 바뀌면 같은 메뉴의 활성 색과 라벨을 갱신한다', () => {
+  it('최종 canAdminPage 플래그가 바뀌면 같은 메뉴의 라벨을 갱신한다 — 활성 색은 하나다', () => {
     const view = render(<AdminTopNavigation pathname="/schedule" me={me} badges={{ reports: 3 }} />);
     view.rerender(<AdminTopNavigation pathname="/schedule" me={{ ...me, canAdminPage: false }} badges={{ reports: 3 }} />);
-    expect(view.getByRole('link', { name: '캘린더' }).classList.contains('bg-blue')).toBe(true);
+    expect(view.getByRole('link', { name: '캘린더' }).classList.contains('bg-header-active')).toBe(true);
     expect(view.getByRole('link', { name: '리포트 3' })).toBeTruthy();
     view.rerender(<AdminTopNavigation pathname="/schedule" me={me} badges={{ reports: 3 }} />);
     expect(view.getByRole('link', { name: '스케줄' }).classList.contains('bg-header-active')).toBe(true);

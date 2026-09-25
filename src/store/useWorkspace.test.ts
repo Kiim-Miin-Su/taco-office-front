@@ -11,9 +11,11 @@ describe('워크스페이스 접힘 상태 — 단일 소유자', () => {
     useWorkspace.setState({ sidebarOpen: false, railOpen: true });
   });
 
-  it('기본값은 Figma Prototype State와 같다 — 좌측 접힘, 우측 rail 열림', () => {
-    expect(useWorkspace.getState().sidebarOpen).toBe(false);
-    expect(useWorkspace.getState().railOpen).toBe(true);
+  it('기본값은 좌측 사이드바 접힘 · 우측 rail 열림 — 사용자 지시 「사이드바는 기본 접힘」(AGENT §B)이 원문 컷의 펼친 모습보다 우선한다', () => {
+    // beforeEach 가 덮은 값이 아니라 store 가 처음 만든 값을 본다
+    expect(useWorkspace.getInitialState().sidebarOpen).toBe(false);
+    expect(useWorkspace.getInitialState().railOpen).toBe(true);
+    expect(useWorkspace.getInitialState().undoStack).toEqual([]);
   });
 
   it('toggleSidebar는 좌측만, toggleRail은 우측만 뒤집는다', () => {

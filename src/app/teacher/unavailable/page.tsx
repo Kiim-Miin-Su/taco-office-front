@@ -15,11 +15,12 @@ import { useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { ApiError } from '@/api/client';
-import { Banner, Button, PageHeader, Panel, QueryState } from '@/components/ui';
+import { Banner, Button, Panel, QueryState } from '@/components/ui';
 import { useCreateTeacherUnav, useDeleteTeacherUnav, useTeacherUnav } from '@/api/queries';
 import type { TeacherUnav, TeacherUnavBlock } from '@/api/types';
 import { dowOf, hm } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
+import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 
 const H0 = 8;                     // 격자 첫 시간 (원본 §15)
 const H1 = 23;                    // 격자 끝
@@ -112,7 +113,7 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
 
   return (
     <div onMouseUp={onUp} onMouseLeave={onUp}>
-      <PageHeader
+      <ScreenHeader
         title="불가 시간"
         sub={`입사일 기준 ${d.cycle.index}번째 2주 · ${mdDow(d.cycle.from)} – ${mdDow(d.cycle.to)}`}
       />

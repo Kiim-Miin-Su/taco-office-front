@@ -94,14 +94,20 @@ describe('§26 카드와 칸 (C86-e)', () => {
     expect(within(col('running')).getByText('2', { selector: 'span.h-5' }).className).toContain('bg-violet text-white');
   });
 
-  it('칩 셋·요청자·담당·지난 날이 **서버가 준 낱말과 수** 그대로다', () => {
+  it('칩 셋·요청자·담당·지난 날이 **서버가 준 낱말과 수** 그대로다 — 공개 칩은 원본의 짧은 낱말 「수납만」(26-08)', () => {
     const text = board({
-      typeLabel: '에세이 지도', contractStepLabel: '피드백', share: 'money_only', shareLabel: '수납만 공개',
+      typeLabel: '에세이 지도', contractStepLabel: '피드백', share: 'money_only', shareLabel: '수납만 공개', shareChipLabel: '수납만',
       requesterLabel: '어머니', ownerName: '김범준', ageDays: 60,
     }).container.textContent ?? '';
-    for (const w of ['에세이 지도', '피드백', '수납만 공개', '어머니 · 김범준', '60일 지남']) {
+    for (const w of ['에세이 지도', '피드백', '수납만', '어머니 · 김범준', '60일 지남']) {
       expect(text).toContain(w);
     }
+    expect(text).not.toContain('수납만 공개');
+  });
+
+  it('시작 전·시작일 미정이면 「N일 지남」 칸이 서지 않는다 — 「0일 지남」을 적지 않는다 (26-10 · qa-w3)', () => {
+    const text = board({ ageDays: null }).container.textContent ?? '';
+    expect(text).not.toContain('일 지남');
   });
 
   it('금액쌍은 받은 돈 / 계약 금액이고 **못 보면 줄이 아예 없다** (D-R39)', () => {

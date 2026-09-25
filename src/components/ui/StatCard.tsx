@@ -53,10 +53,17 @@ export interface StatCardProps {
   accent?: StatTone;
   /** 0 인 칸 흐림 — 윗줄은 옅게, 숫자는 흐린 글자 */
   dim?: boolean;
+  /**
+   * 숫자를 위에, 라벨을 아래에 — 원문 §82 머리(「56p / 배정」) · §86 요약 카드 견본(86-7).
+   * 기본 끔 = 라벨이 위(§69~§71 머리 · §82 선택 학생 미니 지표). 컷마다 그 모양을 따른다.
+   */
+  valueFirst?: boolean;
   className?: string;
 }
 
-export function StatCard({ label, value, note, tone = 'neutral', fill = false, accent, dim = false, className }: StatCardProps) {
+export function StatCard({ label, value, note, tone = 'neutral', fill = false, accent, dim = false, valueFirst = false, className }: StatCardProps) {
+  const labelEl = <div className={cn('text-[11px] font-bold text-fg-subtle', valueFirst && 'mt-1')}>{label}</div>;
+  const valueEl = <div className={cn(!valueFirst && 'mt-1', 'text-[26px] font-bold leading-tight', dim ? 'text-fg-subtle' : VALUE[tone])}>{value}</div>;
   return (
     <div
       className={cn(
@@ -66,8 +73,7 @@ export function StatCard({ label, value, note, tone = 'neutral', fill = false, a
         className,
       )}
     >
-      <div className="text-[11px] font-bold text-fg-subtle">{label}</div>
-      <div className={cn('mt-1 text-[26px] font-bold leading-tight', dim ? 'text-fg-subtle' : VALUE[tone])}>{value}</div>
+      {valueFirst ? <>{valueEl}{labelEl}</> : <>{labelEl}{valueEl}</>}
       {note ? <div className="mt-1 text-[11px] text-fg-subtle">{note}</div> : null}
     </div>
   );

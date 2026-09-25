@@ -18,18 +18,19 @@ import { ReportFullTextDialog } from '@/components/report/ReportFullTextDialog';
 import { ReportWeeklyTrackingBoundary } from '@/components/report/ReportWeeklyTrackingBoundary';
 import { TeacherReportList } from '@/components/report/TeacherReportList';
 import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
+import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { UnwrittenReportBoard } from '@/components/report/UnwrittenReportBoard';
 import {
   useMeta, useReportDelivery, useReportDeliveryHistory, useReportReminder, useReports, useUnwritten,
 } from '@/api/queries';
 import { ApiError } from '@/api/client';
-import type { ReportDetail } from '@/api/types';
+import type { ReportDeliveryStudent } from '@/api/types';
 import { subjectColor } from '@/lib/tokens';
 import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
 
 type ManagementSection = 'unwritten' | 'delivery' | 'weekly' | 'history';
-type TeacherSection = 'list' | 'returned' | 'approval';
+type TeacherSection = 'list' | 'written' | 'returned' | 'approval';
 type ReminderMessage = { tone: 'success' | 'danger'; text: string } | null;
 
 function managementSection(value: string | null, allowed: boolean): ManagementSection {
@@ -64,8 +65,8 @@ function ManagementReports() {
   const [section, setSection] = useState<ManagementSection>(querySection);
   const [selected, setSelected] = useState<ReportSelection | null>(null);
   const [approvalSelected, setApprovalSelected] = useState<ReportSelection | null>(null);
-  // §50 「리포트 전문」 창 — 어제 보내기 큐가 가진 같은 스냅숏을 그대로 싣는다
-  const [fullText, setFullText] = useState<{ report: ReportDetail; studentId: number } | null>(null);
+  // §50 「리포트 전문」 창 — 어제 보내기 학생 카드의 하루 묶음(큐가 가진 같은 스냅숏)을 그대로 싣는다
+  const [fullText, setFullText] = useState<ReportDeliveryStudent | null>(null);
   const [reminderMessage, setReminderMessage] = useState<ReminderMessage>(null);
   // 응답 유무를 알 수 없는 transport 실패는 같은 요청키로 재시도해 NOTI 중복을 막는다.
   const reminderRequestKeys = useRef(new Map<string, string>());
@@ -191,11 +192,14 @@ function ManagementReports() {
       ) : section === 'delivery' ? (
         <ReportDeliveryQueue
           subjectColorOf={subjectColorOf}
+          // 학생 카드 「전문 보기」는 원본 §50 의 전문 창(그 학생의 하루 묶음), 미승인 줄은 검토 서랍 — 둘은 동시에 열리지 않는다
+          onOpenStudent={(group) => {
+            setSelected(null);
+            setFullText(group);
+          }}
           onOpenReport={(report, studentId) => {
-            // 내보낼 수 있는(승인된) 리포트는 원본 §50 의 전문 창으로, 아직 아닌 것은 검토할 수 있게 상세 서랍으로 — 둘은 동시에 열리지 않는다
-            const exportable = report.canExport && report.exportFiles.length > 0;
-            setFullText(exportable ? { report, studentId } : null);
-            setSelected(exportable ? null : { ...report, studentId });
+            setFullText(null);
+            setSelected({ ...report, studentId });
           }}
         />
       ) : section === 'weekly' ? (
@@ -209,8 +213,8 @@ function ManagementReports() {
         onClose={() => { setSelected(null); setApprovalSelected(null); }}
       />
       <ReportFullTextDialog
-        report={!reviewMode && section === 'delivery' ? (fullText?.report ?? null) : null}
-        studentId={fullText?.studentId}
+        group={!reviewMode && section === 'delivery' ? fullText : null}
+        subjectColorOf={subjectColorOf}
         onClose={() => setFullText(null)}
       />
     </>
@@ -227,6 +231,9 @@ function TeacherReports({ requestedSerId, requestedOnDate }: {
   const canApprove = useCan('canApprove');
   const activeTab = tab === 'approval' && !canApprove ? 'list' : tab;
   const unwritten = useUnwritten();
+  // 덱 slide 18 「작성한 리포트」 — 승인 대기·승인 두 상태를 서버가 각각 걸러 준다(화면이 상태를 다시 판정하지 않는다)
+  const waiting = useReports({ state: 'wait' }, activeTab === 'written');
+  const approved = useReports({ state: 'ok' }, activeTab === 'written');
   const returned = useReports({ state: 'rej' }, activeTab === 'returned');
   const approval = useReports({ state: 'wait' }, canApprove && activeTab === 'approval');
   const meta = useMeta();
@@ -239,11 +246,19 @@ function TeacherReports({ requestedSerId, requestedOnDate }: {
     setSelected(requestedSerId && requestedOnDate ? { serId: requestedSerId, onDate: requestedOnDate } : null);
   }, [requestedOnDate, requestedSerId]);
 
+  // 작성한 리포트 — 새 수업 먼저(덱 목록 차례). 두 서버 목록을 합칠 뿐 거르지 않는다
+  const written = useMemo(() => [...(waiting.data?.items ?? []), ...(approved.data?.items ?? [])]
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.startMin ?? -1) - (a.startMin ?? -1)), [waiting.data, approved.data]);
   const rows = activeTab === 'returned'
     ? returned.data?.items ?? []
-    : activeTab === 'approval' ? approval.data?.items ?? [] : unwritten.data?.items ?? [];
-  const loading = activeTab === 'returned' ? returned.isLoading : activeTab === 'approval' ? approval.isLoading : unwritten.isLoading;
-  const error = activeTab === 'returned' ? returned.isError : activeTab === 'approval' ? approval.isError : unwritten.isError;
+    : activeTab === 'written' ? written
+      : activeTab === 'approval' ? approval.data?.items ?? [] : unwritten.data?.items ?? [];
+  const loading = activeTab === 'returned' ? returned.isLoading
+    : activeTab === 'written' ? waiting.isLoading || approved.isLoading
+      : activeTab === 'approval' ? approval.isLoading : unwritten.isLoading;
+  const error = activeTab === 'returned' ? returned.isError
+    : activeTab === 'written' ? waiting.isError || approved.isError
+      : activeTab === 'approval' ? approval.isError : unwritten.isError;
   // 권한이 회수되면 effect를 기다리지 않고 열린 타인 리포트를 즉시 감춘다.
   const visibleSelected = activeTab === tab ? selected : null;
 
@@ -251,20 +266,23 @@ function TeacherReports({ requestedSerId, requestedOnDate }: {
     <>
       {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 그린다 */}
       <LateReportPolicy className="mb-3" />
-      <PageHeader title="리포트" sub="내 수업 리포트를 확인하고 작성합니다." />
+      {/* 화면 이름 「리포트」는 강사 셸 머리줄 한 곳 — 관리 화면 셸(승인 예외 등)에서는 h1 이 그대로 선다 */}
+      <ScreenHeader title="리포트" sub="내 수업 리포트를 확인하고 작성합니다." />
       <Tabs<TeacherSection>
         className="mb-3"
         value={activeTab}
         onChange={(value) => { setTab(value); setSelected(null); }}
         options={[
-          { value: 'list', label: `작성할 것 ${unwritten.data?.total ?? 0}` },
+          // 덱 slide 18 두 목록의 이름 — 「아직 안 쓴 리포트 N」 수는 서버 미작성 합계
+          { value: 'list', label: `아직 안 쓴 리포트 ${unwritten.data?.total ?? 0}` },
+          { value: 'written', label: '작성한 리포트' },
           { value: 'returned', label: '반려됨' },
           ...(canApprove ? [{ value: 'approval' as const, label: '승인 대기' }] : []),
         ]}
       />
       {loading ? <Banner tone="neutral">리포트를 불러오는 중…</Banner>
         : error ? <Banner tone="danger">리포트를 불러오지 못했습니다.</Banner>
-          : <TeacherReportList rows={rows} subjectName={subjectName} onOpen={(row) => setSelected(row)} />}
+          : <TeacherReportList rows={rows} subjectName={subjectName} onOpen={(row) => setSelected(row)} grouped />}
       <ReportDetailDrawer selection={visibleSelected} onClose={() => setSelected(null)} />
     </>
   );

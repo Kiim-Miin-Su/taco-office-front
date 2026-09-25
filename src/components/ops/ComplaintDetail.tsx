@@ -7,7 +7,8 @@
 /**
  * §67 카드 처리 창 (C93 · 테스트 시나리오 J-101 「마무리 처리」 · J-97 「강사 교체 요구」 · J-98 기한).
  *
- * 담당 · 단계 · 조치 · 결과 · 기한 · 심각도를 **바뀐 칸만** 보낸다. 「대응은 담당이 있어야」「마무리는 결과가 있어야」는 서버가 409 로 말하고
+ * 담당 · 단계 · 조치 · 결과 · 기한 · 심각도 · 누가 알렸나(67-5 · wave 6)를 **바뀐 칸만** 보낸다. 결과 건의 마무리 날짜(67-6)는 보여 주기만 한다 —
+ * 「결과」로 옮기는 순간 서버가 찍는 값이라 받는 칸이 아니다. 「대응은 담당이 있어야」「마무리는 결과가 있어야」는 서버가 409 로 말하고
  * 화면은 그 문장을 그대로 띄운다 — 단계 이름·한 줄·심각도 낱말은 전부 `GET /ops` 의 것이다(D-R18). 「강사 교체」는 마법사를, 「수강 종료 · 환불」은 C94-c 창을 연다(둘 다 부모가 소유 · J-97 · J-99).
  */
 'use client';
@@ -21,6 +22,8 @@ export interface ComplaintDetailProps {
   complaint: Complaint | null;
   stages: Array<{ key: string; label: string; sub: string }>;
   severities: CplWord[];
+  /** 누가 알렸나 — 서버 낱말(`GET /ops.cplRequesters`). 비어 있으면 칸이 서지 않는다 */
+  requesters?: CplWord[];
   onClose: () => void;
   /** 「강사 교체」 — 부모가 마법사를 연다 (컴플레인·학생을 미리 채운다) */
   onTeacherChange?: (c: Complaint) => void;
@@ -28,7 +31,7 @@ export interface ComplaintDetailProps {
   onWithdraw?: (c: Complaint) => void;
 }
 
-export function ComplaintDetail({ complaint, stages, severities, onClose, onTeacherChange, onWithdraw }: ComplaintDetailProps) {
+export function ComplaintDetail({ complaint, stages, severities, requesters = [], onClose, onTeacherChange, onWithdraw }: ComplaintDetailProps) {
   const id = useId();
   const open = complaint !== null;
   const meta = useMeta(open);
@@ -39,12 +42,14 @@ export function ComplaintDetail({ complaint, stages, severities, onClose, onTeac
   const [result, setResult] = useState('');
   const [dueOn, setDueOn] = useState('');
   const [severity, setSeverity] = useState<NonNullable<ComplaintPatch['severity']> | ''>('');
+  const [requester, setRequester] = useState<NonNullable<ComplaintPatch['requester']> | ''>('');
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!complaint) return;
     setStage(complaint.stage as NonNullable<ComplaintPatch['stage']>); setOwnerId(complaint.ownerId ? String(complaint.ownerId) : ''); setAction(complaint.action ?? '');
-    setResult(complaint.result ?? ''); setDueOn(complaint.dueOn ?? ''); setSeverity((complaint.severity ?? '') as NonNullable<ComplaintPatch['severity']> | ''); setErr(null);
+    setResult(complaint.result ?? ''); setDueOn(complaint.dueOn ?? ''); setSeverity((complaint.severity ?? '') as NonNullable<ComplaintPatch['severity']> | '');
+    setRequester((complaint.requester ?? '') as NonNullable<ComplaintPatch['requester']> | ''); setErr(null);
   }, [complaint]);
 
   if (!complaint) return null;
@@ -60,6 +65,7 @@ export function ComplaintDetail({ complaint, stages, severities, onClose, onTeac
     if (result.trim() !== (complaint.result ?? '')) out.result = result.trim() || null;
     if ((dueOn || null) !== (complaint.dueOn ?? null)) out.dueOn = dueOn || null;
     if ((severity || null) !== (complaint.severity ?? null)) out.severity = severity || null;
+    if ((requester || null) !== (complaint.requester ?? null)) out.requester = requester || null;
     return out;
   };
   const changes = diff();
@@ -103,6 +109,8 @@ export function ComplaintDetail({ complaint, stages, severities, onClose, onTeac
           {complaint.teacherChanged ? <Chip tone="info">강사 교체됨</Chip> : null}
           <span className="text-fg-subtle">{complaint.createdAt} 접수 · {complaint.ageDays}일 지남</span>
           {complaint.overdueDays > 0 ? <Chip tone="danger">기한 {complaint.overdueDays}일 지남</Chip> : null}
+          {/* 결과 건의 마무리 날짜 (67-6) — 서버가 「결과」로 옮긴 순간 찍은 날. 옛 결과 건은 모른다고 적는다 */}
+          {complaint.stage === 'closed' ? <span className="font-bold text-fg-2">마무리 {complaint.closedOn ?? '날짜 기록 없음'}</span> : null}
         </div>
         <p className="rounded-lg border border-line bg-inset p-3 text-[12px] leading-relaxed text-fg">{complaint.body}</p>
 
@@ -132,6 +140,15 @@ export function ComplaintDetail({ complaint, stages, severities, onClose, onTeac
             </Select>
           </div>
         </div>
+        {requesters.length ? (
+          <div className="w-52">
+            <Label htmlFor={`${id}-req`}>누가 알렸나</Label>
+            <Select id={`${id}-req`} value={requester} onChange={(e) => setRequester(e.target.value as NonNullable<ComplaintPatch['requester']> | '')} disabled={pending}>
+              <option value="">모름</option>
+              {requesters.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            </Select>
+          </div>
+        ) : null}
         <div>
           <Label htmlFor={`${id}-action`} hint="「대응」 칸에 적힙니다">조치</Label>
           <Textarea id={`${id}-action`} value={action} maxLength={1000} onChange={(e) => setAction(e.target.value)} disabled={pending} className="min-h-[64px]" />
