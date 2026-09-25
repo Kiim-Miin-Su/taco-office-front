@@ -14,8 +14,8 @@
  * 「D-7 / 21일 연체」 낱말까지 전부 서버(`GET /accounting/cashflow`)가 낸다. 화면이 고르는 것은 기간과 분류뿐이다.
  * 기간 낱말(「2026년 8월」)도 서버의 것이다 (D-R18).
  *
- * 컷의 「+ 결제 등록」(청구서 없이 들어온 돈)은 **만들지 않았다** — 청구서 없는 입금 경로가 결정 대기다.
- * 없는 단추를 세우면 눌러도 저장되지 않는 입력이 된다.
+ * 컷의 「+ 결제 등록」은 **청구서 없이 들어온 돈**을 적는 자리다(A-D1 ② · 2026-08-25 확정 「청구서 발행 + 매니저 직접 입력」) —
+ * `ManualPaymentButton` 이 `POST /accounting/payments/manual` 로 보낸다. 청구서가 있는 입금은 「입금 기록」 탭에서 붙인다.
  */
 'use client';
 import { useState } from 'react';
@@ -25,6 +25,7 @@ import { KO_DOW, addDays, dowOf, step, summaryBoundsOf, todayKst } from '@/lib/c
 import { won } from '@/lib/money';
 import { useCashflow, type Cashflow, type CashflowDay } from './accounting-queries';
 import { categoryTone } from './category-tone';
+import { ManualPaymentButton } from './ManualPaymentForm';
 
 type Period = 'day' | 'week' | 'month' | 'all';
 const PERIODS: Array<{ value: Period; label: string }> = [
@@ -185,6 +186,8 @@ export function PaymentFlow() {
               <span className="flex flex-col"><b className="text-[15px] text-primary">{won(d.expected)}</b>예정</span>
             </div>
           ) : null}
+          {/* 원문 §55 — 요약 오른쪽 끝의 주 단추 */}
+          <div className={d ? undefined : 'ml-auto'}><ManualPaymentButton /></div>
         </div>
 
         {d ? (

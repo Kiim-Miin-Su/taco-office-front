@@ -174,3 +174,10 @@ it('금액을 못 보면 요약은 「가려짐」이고 달력 칸은 건수로
   expect(flat(view.getByRole('region', { name: '분류별' }))).not.toContain('%');
   expect(flat(view.getByRole('region', { name: '분류별' }))).toContain('—');
 });
+
+it('요약 옆에 「+ 결제 등록」이 선다 — 청구서 없이 들어온 돈(A-D1 ②)을 적는 자리', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getByRole('group', { name: '기간 요약' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '+ 결제 등록' }));
+  expect(await view.findByRole('dialog', { name: '결제 등록' })).toBeTruthy();
+});
