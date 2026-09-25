@@ -24,6 +24,9 @@ export type Me = S['MeDto'];
 
 /** 강사 홈 — GET /teacher/home (강사 전용, 서버가 본인 고정) */
 export type TeacherHome = S['TeacherHomeDto'];
+/** 강사 머리줄 — GET /teacher/shell (시간대·시급·내 알림 · 강사 전용) */
+export type TeacherShell = S['TeacherShellDto'];
+export type TeacherNoti = S['TeacherNotiDto'];
 export type TeacherHistory = S['TeacherHistoryDto'];
 export type TeacherGuides = S['TeacherGuidesDto'];
 export type TeacherUnav = S['TeacherUnavDto'];
@@ -107,6 +110,8 @@ export type InvoiceIssue = S['InvoiceIssueDto'];
 export type Payment = S['PaymentDto'];
 /** 입금 한 줄 등록 — 분납은 줄을 늘린다 (A-D2 · C36-a) */
 export type PaymentCreate = S['PaymentCreateDto'];
+/** §55 「+ 결제 등록」 — 청구서 없이 들어온 돈 (A-D1 ②) */
+export type ManualPaymentCreate = S['ManualPaymentCreateDto'];
 /** 나간 돈 §56 — 부대비용·법인카드 (A-D3·A-D5 · C36-b) */
 export type Expense = S['ExpenseDto'];
 export type ExpenseTotal = S['ExpenseTotalDto'];
@@ -230,6 +235,16 @@ export type ExecReportWriteResult = S['ExecReportWriteResultDto'];
 export type ExecAreaMemo = S['ExecAreaMemoDto'];
 /** 저장은 됐지만 강사가 불가로 적어 둔 시간에 걸쳤다 — 막지 않고 알린다 (§15·§16) */
 export type UnavWarn = S['UnavWarnDto'];
+/** 공휴일 이름표 — 원문 §09 월간 칸 칩 · §10 요일 머리 (서버 표 HOLIDAY) */
+export type Holiday = S['HolidayDto'];
+export type HolidayList = S['HolidayListDto'];
+/** 강사 불가 시간(관리자 읽기) — 「가능 시간」 겹쳐 보기 · 빈 시간 찾기 (G37) */
+export type ScheduleUnav = S['ScheduleUnavRowDto'];
+export type ScheduleUnavList = S['ScheduleUnavListDto'];
+/** §07 사이드바 「프로그램」·「과목」 수 — 기간과 무관한 일정 원본(SER) 수 · 묶음 합까지 서버가 센다 */
+export type ScheduleSeriesCounts = S['ScheduleSeriesCountsDto'];
+/** §10 개인 머리 「교재 없음」 — 배부 완료 교재 수와 낱말(서버) */
+export type ScheduleStudentBooks = S['ScheduleStudentBooksDto'];
 export type RosterResult = S['RosterResultDto'];
 export type Horizon = S['HorizonDto'];
 /** 'this' | 'future' | 'all' — 화면이 문자열을 다시 적지 않게 DTO 에서 가져온다 */
@@ -345,6 +360,10 @@ export type GuideFact = S['GuideFactDto'];
 export type GuideCopyResult = S['GuideCopyResultDto'];
 export type ZoomNoticeWrite = S['ZoomNoticeWriteDto'];
 export type ZoomNoticeResult = S['ZoomNoticeResultDto'];
+/** wave 6 §43-6 — 「강사 N명 한 번에」 일괄 줌 안내 (N·막힌 이유·결과 줄은 서버가 준다) */
+export type ZoomNoticeBatchInfo = S['ZoomNoticeBatchInfoDto'];
+export type ZoomNoticeBatchResult = S['ZoomNoticeBatchResultDto'];
+export type ZoomNoticeBatchRow = S['ZoomNoticeBatchRowDto'];
 export type PerLessonNotice = S['PerLessonNoticeDto'];
 
 /** 수업 현황판 — 저장하지 않는다. 매번 계산된 값이 내려온다 (D-R4) */
@@ -375,11 +394,20 @@ export type RepState = Occurrence['repState'];
 export type LoginBody = S['LoginDto'];
 export type LoginResult = S['LoginResultDto'];
 export type RefreshResult = S['RefreshResultDto'];
+/** W8 첫 설정 — 안내(규칙 · 채널 낱말은 서버) · 코드 받기 · 마치기(응답은 LoginResult 와 같다) */
+export type OnboardingInfo = S['OnboardingInfoDto'];
+export type OnboardingChannel = S['OnboardingChannelDto'];
+export type OnboardingCodeRequest = S['OnboardingCodeRequestDto'];
+export type OnboardingCodeResult = S['OnboardingCodeResultDto'];
+export type OnboardingComplete = S['OnboardingCompleteDto'];
 
-/** 권한 플래그 이름 — 화면이 조건을 적을 때 오타가 나지 않게 */
-export type PermName = {
+/**
+ * 권한 플래그 이름 — 화면이 조건을 적을 때 오타가 나지 않게.
+ * 선택 칸(`mustChangeCredentials?` · W8)은 매핑에서 `undefined` 로 떨어진다 — 그것을 걷어 권한 이름만 남긴다(첫 설정 잠금은 권한이 아니다).
+ */
+export type PermName = NonNullable<{
   [K in keyof Me]: Me[K] extends boolean ? K : never;
-}[keyof Me];
+}[keyof Me]>;
 
 /** 서랍 — §14~§21 여덟 칸이 한 응답으로 온다 */
 export type Drawer = S['DrawerDto'];
@@ -396,6 +424,10 @@ export type Noti = S['NotiDto'];
 export type Member = S['MemberDto'];
 /** C97 — §17 「+ 구성원」 · 시급 이력 · 직접 수정 (D-41 · D-48 · I-8). 소급 없음·같은 날 한 줄은 서버 판정 */
 export type StaffCreate = S['StaffCreateDto'];
+/** W8 — §17 사용자 표 CRUD. 만들기 응답은 만든 줄 + 넘겨줄 정보(아이디 · 초기 비밀번호 — 서버가 이 응답에만 싣는다) */
+export type StaffCreated = S['StaffCreatedDto'];
+export type StaffHandover = S['StaffHandoverDto'];
+export type StaffPatch = S['StaffPatchDto'];
 export type WageRow = S['WageRowDto'];
 export type WageHistory = S['WageHistoryDto'];
 export type WageWrite = S['WageWriteDto'];

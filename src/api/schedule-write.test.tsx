@@ -47,9 +47,9 @@ it.each(['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'])('%s404는 낙
   expect(set).toHaveBeenCalledWith(key, original);
   await waitFor(() => expect(client.getQueryData<OccurrenceList>(key)?.items).toHaveLength(0));
   expect(get).toHaveBeenCalledOnce();
-  // 명단이 바뀌면 §79 카드의 정원·단가·학생 목록도 달라진다 — 네 번째가 그것이다 (C55)
+  // 명단이 바뀌면 §79 카드의 정원·단가·학생 목록도 달라진다 — `tracking` 이 그것이다 (C55) · 일정 원본 수(§07 사이드바)도 함께 (w6-1)
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'],
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'series-counts'], ['schedule', 'tracking'],
   ]);
 });
 
@@ -80,9 +80,9 @@ it('정상 저장도 같은 네 key만 갱신하고 mutation 결과를 그대로
     await expect(view.result.current.mutateAsync({ kind: 'patch', serId: 1,
       body: { scope: 'this', onDate: range.from, startMin: 610 } })).resolves.toEqual(data);
   });
-  // 명단이 바뀌면 §79 카드의 정원·단가·학생 목록도 달라진다 — 네 번째가 그것이다 (C55)
+  // 명단이 바뀌면 §79 카드의 정원·단가·학생 목록도 달라진다 — `tracking` 이 그것이다 (C55) · 일정 원본 수(§07 사이드바)도 함께 (w6-1)
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'],
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'series-counts'], ['schedule', 'tracking'],
   ]);
 });
 
@@ -95,7 +95,7 @@ it('명단 추가는 서랍도 다시 읽는다 — 수신함에 세 줄이 남�
       body: { op: 'add', onDate: range.from, studentId: 4 } });
   });
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'], ['drawer'],
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'series-counts'], ['schedule', 'tracking'], ['drawer'],
   ]);
 });
 
@@ -108,7 +108,7 @@ it('되돌리기는 삭제와 같은 갈래를 버린다 — 차감·이월이 �
   });
   // §54 가 옛 수를 들고 있으면 한 화면에 두 답이 생긴다
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'tracking'], ['accounting'], ['drawer'],
+    ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'series-counts'], ['schedule', 'tracking'], ['accounting'], ['drawer'],
   ]);
 });
 
@@ -156,7 +156,7 @@ it.each(['different fields', 'same field', 'different occurrences'])(
     expect(items[mode === 'different occurrences' ? 1 : 0][mode === 'different fields' ? 'endMin' : 'startMin']).toBe(mode === 'different fields' ? 680 : 620);
     expect(invalidate).not.toHaveBeenCalled();
     await act(async () => { b.resolve(saved); await pb; });
-    expect(invalidate).toHaveBeenCalledTimes(4);
+    expect(invalidate).toHaveBeenCalledTimes(5);
   },
 );
 
@@ -260,7 +260,7 @@ it('낙관하지 않는 명단 성공도 진행 중 이동과 묶고 마지막�
   await act(async () => { roster.resolve(saved); await pb; });
   expect(invalidate).not.toHaveBeenCalled();
   await act(async () => { move.reject(failure); await pa; });
-  expect(invalidate).toHaveBeenCalledTimes(4);
+  expect(invalidate).toHaveBeenCalledTimes(5);
 });
 
 it('다중 이동 실패는 같은 묶음의 취소 낙관값만 보존한다', async () => {

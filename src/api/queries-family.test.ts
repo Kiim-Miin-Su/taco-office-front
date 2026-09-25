@@ -126,6 +126,11 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   drawer: qk.drawer(),
   guideHistory: qk.guideHistory({ span: 'month', anchor: '2026-09-01' }),
   tracking: qk.tracking(3, '2026-09-11'),
+  // 공휴일 이름표 · 강사 불가 시간(관리자 읽기) — 기간이 키에 든다 (wave5 · §09 #2 · G37)
+  holidays: qk.holidays('2026-08-01', '2026-08-31'),
+  scheduleUnav: qk.scheduleUnav('2026-08-01', '2026-08-31'),
+  // §10 개인 머리 「교재 없음」 — 교재 갈래 안에 산다(배부 쓰기가 family.books 를 버린다)
+  studentBooks: qk.studentBooks(4),
   // §65 보고서 키는 `ops` 갈래 안에 산다 — 기획 결재가 운영 목록을 함께 바꾸기 때문이다 (C56)
   plan: qk.plan(3),
   meeting: qk.meeting(4),
@@ -149,6 +154,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.rateBook,
   qk.ops,
   qk.teacherHome,
+  // 강사 머리줄(시간대·시급·내 알림) — 읽음 처리가 이 갈래만 다시 읽는다
+  qk.teacherShell,
   qk.receivedGuides,
   qk.guides,
   qk.guideStudents,
@@ -166,6 +173,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.invBoard,
   // 보낼 수 있는 채널 — 보호자 갈래 안에 산다 (DQ3)
   qk.guardianChannels,
+  // §07 사이드바 일정 원본 수 — 기간이 없는 상수 키 · 스케줄 쓰기가 family.seriesCounts 로 버린다
+  qk.seriesCounts,
 ];
 
 describe('갈래 앞자락', () => {

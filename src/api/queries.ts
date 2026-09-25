@@ -90,6 +90,7 @@ import type {
   GuideTemplateWrite,
   ZoomNoticeResult,
   ZoomNoticeWrite,
+  ZoomNoticeBatchResult,
   Horizon,
   InvBoard,
   Invoice,
@@ -103,7 +104,7 @@ import type {
   StudentWithdraw,
   WithdrawResult,
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
-  Member, StaffCreate, WageHistory, WageRow, WageWrite,
+  Member, StaffCreate, StaffCreated, StaffHandover, StaffPatch, WageHistory, WageRow, WageWrite,
   LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult,
   KindCreate,
   KindPatch,
@@ -114,6 +115,10 @@ import type {
   LeadStageMove,
   LeadTouchWrite,
   LessonTracking,
+  HolidayList,
+  ScheduleUnavList,
+  ScheduleSeriesCounts,
+  ScheduleStudentBooks,
   MeetingCreate,
   MeetingCreateResult,
   MeetingDetail,
@@ -125,6 +130,7 @@ import type {
   OccurrenceCreate,
   OccurrenceDelete,
   OccurrenceList,
+  OnboardingInfo,
   OccurrenceMove,
   OccurrencePaste,
   OccurrencePatch,
@@ -132,6 +138,8 @@ import type {
   OkResult,
   Ops,
   OtherIncome,
+  ManualPaymentCreate,
+  Payment,
   PaymentCreate,
   PlanCreate,
   PlanCreateResult,
@@ -166,6 +174,7 @@ import type {
   TeacherGuides,
   TeacherHistory,
   TeacherHome,
+  TeacherShell,
   TeacherSettingReqCreate,
   TeacherSettingRequest,
   TeacherSuggestion,
@@ -231,6 +240,8 @@ export const qk = {
   /* 알림 범위가 키에 들어간다 — 「예전 것도 보기」가 캐시를 갈아 끼워야 하기 때문이다 (N-7 · D-16) */
   drawer: (notiWindow: 'month' | 'all' = 'month') => ['drawer', notiWindow] as const,
   teacherHome: ['teacher', 'home'] as const,
+  /* 강사 머리줄(시간대·시급·내 알림) — 강사 전용 · 서버가 본인 고정 */
+  teacherShell: ['teacher', 'shell'] as const,
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
   receivedGuides: ['teacher', 'received-guides'] as const,
@@ -245,6 +256,17 @@ export const qk = {
   meeting: (id: number) => ['ops', 'meeting', id] as const,
   /** §79 수강 학생 — 창을 열 때만 도는 질의. 갈래 전체를 버릴 때는 `family.tracking` (C55) */
   tracking: (serId: number, onDate: string) => ['schedule', 'tracking', serId, onDate] as const,
+  /** 공휴일 이름표 — 원문 §09 월간 칸 칩 · §10 요일 머리. 표시 전용이라 쓰기가 버리지 않는다 */
+  holidays: (from: string, to: string) => ['schedule', 'holidays', from, to] as const,
+  /** 강사 불가 시간(관리자 읽기) — 원문 §07·§11 데이터 줄의 UNAV · 「가능 시간」 겹쳐 보기(G37) */
+  scheduleUnav: (from: string, to: string) => ['schedule', 'unavailable', from, to] as const,
+  /**
+   * §07 사이드바 일정 원본 수 — 기간과 무관하다(키에 기간이 없다). 스케줄 쓰기가 `family.seriesCounts` 로 버린다.
+   * `['schedule','occurrences']` 밑에 두지 않는다 — 그 앞자락은 낙관 반영이 회차 목록 모양으로 고쳐 쓴다.
+   */
+  seriesCounts: ['schedule', 'series-counts'] as const,
+  /** §10 개인 머리 「교재 없음」 — 교재 갈래 안에 산다: 배부 쓰기가 `family.books` 를 버리면 이 칩도 다시 온다 */
+  studentBooks: (studentId: number) => ['books', 'student', studentId] as const,
   /** 학생의 보호자 (DQ3) — 창을 열 때만 도는 질의. 갈래 전체는 `family.guardians` */
   guardians: (studentId: number) => ['guardians', 'student', studentId] as const,
   /** 지금 보낼 수 있는 채널 — 서버 설정이 정한다 (DQ3) */
@@ -283,6 +305,7 @@ export const family = {
   ops: ['ops'] as const,
   drawer: ['drawer'] as const,
   teacherHome: ['teacher', 'home'] as const,
+  teacherShell: ['teacher', 'shell'] as const,
   teacherHistory: ['teacher', 'history'] as const,
   teacherGuides: ['teacher', 'guides'] as const,
   receivedGuides: ['teacher', 'received-guides'] as const,
@@ -293,6 +316,9 @@ export const family = {
   books: ['books'] as const,
   consulting: ['consulting'] as const,
   tracking: ['schedule', 'tracking'] as const,
+  holidays: ['schedule', 'holidays'] as const,
+  scheduleUnav: ['schedule', 'unavailable'] as const,
+  seriesCounts: ['schedule', 'series-counts'] as const,
   guardians: ['guardians'] as const,
 };
 
@@ -368,6 +394,59 @@ export function useOccurrences(p: OccParams, enabled = true): UseQueryResult<Occ
     queryFn: async () => (await api.get<OccurrenceList>('/schedule/occurrences', { params: p })).data,
     enabled,
     staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * 공휴일 이름표 — 원문 §09 월간 칸 「광복절」·「광복절 대체」 칩 · §10 요일 머리 (g1 §09 #2 · §10 #8).
+ * 서버 표(HOLIDAY)에서 읽는다 — 화면이 공휴일 사본을 들지 않는다. 날짜의 사실이라 오래 둔다.
+ */
+export function useScheduleHolidays(range: { from: string; to: string }, enabled = true): UseQueryResult<HolidayList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.holidays(range.from, range.to), viewerId),
+    queryFn: async () => (await api.get<HolidayList>('/schedule/holidays', { params: range })).data,
+    enabled,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+/**
+ * 강사 불가 시간 — **관리자 읽기** (원문 §07·§11 데이터 줄의 UNAV · G37). 「가능 시간」을 켰을 때만 부른다.
+ * 막는 자료가 아니라 겹쳐 보는 자료다 — 저장 판정은 서버 쓰기의 경고(`unavailable`)가 그대로 한다.
+ */
+export function useScheduleUnavailable(range: { from: string; to: string }, enabled: boolean): UseQueryResult<ScheduleUnavList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.scheduleUnav(range.from, range.to), viewerId),
+    queryFn: async () => (await api.get<ScheduleUnavList>('/schedule/unavailable', { params: range })).data,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * §07 좌측 사이드바 「프로그램」·「과목」 수 — **보는 기간과 무관한 일정 원본(SER) 수** (D-R44).
+ * 묶음 수·합계까지 서버가 센다 — 화면은 그리기만 한다. 사이드바를 펼쳤을 때만 부른다(기본 접힘).
+ */
+export function useScheduleSeriesCounts(enabled: boolean): UseQueryResult<ScheduleSeriesCounts> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.seriesCounts, viewerId),
+    queryFn: async () => (await api.get<ScheduleSeriesCounts>('/schedule/series-counts')).data,
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** §10 학생별 개인 머리 「교재 없음」 — 배부 완료 교재 수와 낱말은 서버가 준다(§79·§12 와 같은 판정) */
+export function useStudentBooks(studentId: number | null, enabled = true): UseQueryResult<ScheduleStudentBooks> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.studentBooks(studentId ?? 0), viewerId),
+    queryFn: async () => (await api.get<ScheduleStudentBooks>(`/schedule/students/${studentId}/books`)).data,
+    enabled: enabled && studentId !== null,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -590,6 +669,18 @@ export function useCreatePayment(): UseMutationResult<Invoice, unknown, PaymentC
   const invalidate = useAccountingInvalidate();
   return useMutation({
     mutationFn: async (w) => (await api.post<Invoice>('/accounting/payments', w)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * §55 「+ 결제 등록」 — 청구서 없이 들어온 돈 (A-D1 ② 매니저 직접 입력).
+ * 분류(「기타」)·누가 넣었는지는 서버가 정한다 — 화면은 학생·금액·입금일·수단·사유만 보낸다.
+ */
+export function useCreateManualPayment(): UseMutationResult<Payment, unknown, ManualPaymentCreate> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (w) => (await api.post<Payment>('/accounting/payments/manual', w)).data,
     onSettled: invalidate,
   });
 }
@@ -1046,6 +1137,21 @@ export function useSendZoomNotice(): UseMutationResult<ZoomNoticeResult, unknown
   });
 }
 
+/**
+ * §43 매번 머리 「강사 N명 한 번에」 (wave 6 §43-6) — 입력 없이 부른다. 보낼 회차·건너뛸 까닭은 서버가 정하고,
+ * 결과가 어떻든(일부만 나갔어도) 단건과 같은 갈래를 버려 목록·§12 준비 줄이 서버 사실로 다시 선다.
+ */
+export function useSendZoomNoticeBatch(): UseMutationResult<ZoomNoticeBatchResult, unknown, void> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await api.post<ZoomNoticeBatchResult>('/guides/zoom-notice/batch', {})).data,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.guides });
+      void qc.invalidateQueries({ queryKey: family.tracking });
+    },
+  });
+}
+
 /** GUIDE 전이만 갱신한다. 현재 학생의 교재·진단과 수신 안내는 별도 권한/캐시다. */
 function useGuideDeliveryInvalidate() {
   const qc = useQueryClient();
@@ -1156,6 +1262,36 @@ export function useTeacherHome(): UseQueryResult<TeacherHome> {
     queryKey: sessionQueryKey(qk.teacherHome, viewerId),
     queryFn: async () => (await api.get<TeacherHome>('/teacher/home')).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * 강사 머리줄 — 시간대 · 오늘 시급 · **내게 온** 알림 (GET /teacher/shell · 강사 전용, 서버가 본인 고정).
+ * 관리 화면 사용자는 부르지 않는다(서버도 403) — 강사에게는 관리자 서랍(GET /drawer)을 부르지 않는 것과 짝이다 (D-R39).
+ */
+export function useTeacherShell(enabled = true): UseQueryResult<TeacherShell> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherShell, viewerId),
+    queryFn: async () => (await api.get<TeacherShell>('/teacher/shell')).data,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * 강사 알림 읽음 — 서랍 §16 의 **본인 한정** 경로(`to_id = 나` 인 줄만 바뀐다)를 그대로 쓰고 머리줄만 다시 읽는다.
+ * 새 쓰기 경로를 만들지 않는다. 낙관 갱신 없이 서버 값으로 배지를 다시 그린다(숫자가 서버보다 앞서지 않게).
+ */
+export function useTeacherNotiRead(): UseMutationResult<OkResult, unknown, { id: number } | { all: true }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (w) => ('all' in w
+      ? (await api.patch<OkResult>('/drawer/notis/read-all')).data
+      : (await api.patch<OkResult>(`/drawer/notis/${w.id}/read`)).data),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.teacherShell });
+    },
   });
 }
 
@@ -1450,6 +1586,8 @@ export function useScheduleWrite(): UseMutationResult<
     void qc.invalidateQueries({ queryKey: family.occurrences });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.horizon });
+    // 만들기·붙여넣기·「향후」 가르기·삭제는 일정 원본 수(§07 사이드바)를 바꾼다
+    void qc.invalidateQueries({ queryKey: family.seriesCounts });
     // 명단을 고치면 §79 카드의 정원·단가·학생 목록이 함께 달라진다 (C55)
     void qc.invalidateQueries({ queryKey: family.tracking });
     // 명단에 넣으면 수신함에 세 줄이 남는다 — 서랍의 배지·목록이 같이 달라진다 (M-124 · C99)
@@ -1666,6 +1804,8 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
       // 반영하면 **시간표가 바뀐다** — 달력·현황판·강사 홈을 함께 다시 읽는다 (§20)
       if (w.kind === 'chreqReview') {
         void qc.invalidateQueries({ queryKey: family.occurrences });
+        // 반영이 규칙을 가르거나 끝낼 수 있다 — §07 사이드바의 일정 원본 수도 다시 읽는다
+        void qc.invalidateQueries({ queryKey: family.seriesCounts });
         void qc.invalidateQueries({ queryKey: family.board });
         void qc.invalidateQueries({ queryKey: family.exec });
         void qc.invalidateQueries({ queryKey: family.teacherHome });
@@ -1680,15 +1820,63 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
  * §17 「+ 구성원」 (C97 · D-41) — 강사·매니저 계정 한 사람. 비밀번호는 보내기만 하고 응답에는 없다(해시만 남는다).
  * 서랍(구성원 칸)과 `/meta`(담당·강사 고르기)가 새 사람을 알아야 한다 — 둘 다 버린다.
  */
-export function useCreateMember(): UseMutationResult<Member, unknown, StaffCreate> {
+export function useCreateMember(): UseMutationResult<StaffCreated, unknown, StaffCreate> {
   const qc = useQueryClient();
   const viewerId = useViewerId();
   return useMutation({
-    mutationFn: async (body) => (await api.post<Member>('/drawer/staff', body)).data,
+    // 응답에 넘겨줄 정보(아이디 · 초기 비밀번호)가 실린다 — 캐시에는 넣지 않고 창이 한 번 보여 준다 (W8)
+    mutationFn: async (body) => (await api.post<StaffCreated>('/drawer/staff', body)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.drawer });
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
     },
+  });
+}
+
+/* ── W8 §17 사용자 표 CRUD — 줄 단추(수정 · 비밀번호 초기화 · 사용 중지 · 삭제). 서랍과 /meta(담당·강사 고르기)가 같이 바뀐다 ── */
+
+function useInvalidateMembers() {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.drawer });
+    void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
+  };
+}
+
+/** 「수정」 — 바뀐 칸만 보낸다. 대표·관리자 줄 · 자기 역할은 서버가 403 으로 막는다 */
+export function useUpdateMember(): UseMutationResult<Member, unknown, { id: number; body: StaffPatch }> {
+  const done = useInvalidateMembers();
+  return useMutation({
+    mutationFn: async ({ id, body }) => (await api.patch<Member>(`/drawer/staff/${id}`, body)).data,
+    onSuccess: done,
+  });
+}
+
+/** 「비밀번호 초기화」 — 응답은 넘겨줄 정보. 캐시에 넣지 않는다 */
+export function useResetMemberPassword(): UseMutationResult<StaffHandover, unknown, number> {
+  const done = useInvalidateMembers();
+  return useMutation({
+    mutationFn: async (id) => (await api.post<StaffHandover>(`/drawer/staff/${id}/password-reset`, {})).data,
+    onSuccess: done,
+  });
+}
+
+/** 「사용 중지」·「다시 사용」 */
+export function useSetMemberActive(): UseMutationResult<Member, unknown, { id: number; active: boolean }> {
+  const done = useInvalidateMembers();
+  return useMutation({
+    mutationFn: async ({ id, active }) => (await api.patch<Member>(`/drawer/staff/${id}/active`, { active })).data,
+    onSuccess: done,
+  });
+}
+
+/** 「삭제」 — 기록이 있는 계정은 서버가 409 로 막는다(사용 중지 안내 문장) */
+export function useDeleteMember(): UseMutationResult<OkResult, unknown, number> {
+  const done = useInvalidateMembers();
+  return useMutation({
+    mutationFn: async (id) => (await api.delete<OkResult>(`/drawer/staff/${id}`)).data,
+    onSuccess: done,
   });
 }
 
@@ -1801,6 +1989,8 @@ function useConsultingSessionInvalidate(): () => void {
     void qc.invalidateQueries({ queryKey: family.consulting });
     void qc.invalidateQueries({ queryKey: family.occurrences });
     void qc.invalidateQueries({ queryKey: family.horizon });
+    // 회차를 잡으면 새 ONCE 규칙(SER)이 선다 — §07 사이드바의 일정 원본 수도
+    void qc.invalidateQueries({ queryKey: family.seriesCounts });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.drawer });
     void qc.invalidateQueries({ queryKey: family.teacherHome });
@@ -2021,6 +2211,8 @@ export function useEnrollLead(): UseMutationResult<EnrollResult, unknown, { id: 
       if (w.kind !== 'enroll') return;
       void qc.invalidateQueries({ queryKey: family.ops });
       void qc.invalidateQueries({ queryKey: family.occurrences });
+      // 등록 확정은 수업 규칙(SER)을 만든다 — §07 사이드바의 일정 원본 수도
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
       void qc.invalidateQueries({ queryKey: family.accounting });
       void qc.invalidateQueries({ queryKey: family.books });
       void qc.invalidateQueries({ queryKey: family.guides });
@@ -2056,6 +2248,8 @@ export function useCreateMeeting(): UseMutationResult<MeetingCreateResult, unkno
     onSettled: () => {
       void invalidate();
       void qc.invalidateQueries({ queryKey: family.occurrences });
+      // 회의를 잡으면 시간표에 회차(SER)가 선다 — §07 사이드바의 일정 원본 수도
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
       void qc.invalidateQueries({ queryKey: family.horizon });
       void qc.invalidateQueries({ queryKey: family.drawer });
     },
@@ -2104,6 +2298,8 @@ export function useTeacherChange(): UseMutationResult<TeacherChangeResult, unkno
       void qc.invalidateQueries({ queryKey: family.ops });
       void qc.invalidateQueries({ queryKey: family.occurrences });
       void qc.invalidateQueries({ queryKey: family.horizon });
+      // 「그 날 이후」 교체는 규칙을 가른다(D-R16) — §07 사이드바의 일정 원본 수도
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
       void qc.invalidateQueries({ queryKey: family.guides });
       void qc.invalidateQueries({ queryKey: family.board });
       void qc.invalidateQueries({ queryKey: family.drawer });
@@ -2529,5 +2725,18 @@ export function useAddLeadDiag(): UseMutationResult<LeadDiagList, unknown, { id:
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<LeadDiagList>(`/ops/leads/${id}/diag`, body)).data,
     onSettled: () => { void qc.invalidateQueries({ queryKey: family.ops }); },
+  });
+}
+
+/* ══ 계정 첫 설정 (W8 · 대표 지시 2026-09-26) ═══════════════════════════════════════
+   규칙 문장 · 채널 이름 · 못 보내는 까닭은 서버가 준다. 코드 받기 · 마치기는 로그인처럼 화면이 직접 부른다
+   (마치면 세션이 통째로 바뀌어 캐시를 비우므로 여기서 무효화할 것이 없다). */
+
+export function useOnboardingInfo(enabled = true): UseQueryResult<OnboardingInfo> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(['auth', 'onboarding'] as const, viewerId),
+    queryFn: async () => (await api.get<OnboardingInfo>('/auth/onboarding')).data,
+    enabled,
   });
 }
