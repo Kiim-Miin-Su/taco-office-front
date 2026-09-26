@@ -18,14 +18,14 @@ import type {
  * 비밀번호 찾기 (N-101 · 대표 결정 2026-09-26 「로그인 화면의 비밀번호 찾기 — 등록된 이메일과 휴대폰 코드를 **둘 다** 확인해야
  * 새 비밀번호를 정한다 · 옛 세션은 끊는다 · 모든 역할」).
  *
- * 로그인처럼 셸 없이 홀로 서는 로그인 전 화면이다. 코드는 **그 아이디에 등록 · 확인된** 이메일과 휴대폰으로만 가고,
+ * 로그인처럼 셸 없이 홀로 서는 로그인 전 화면이다. 아이디는 형식이 자유다(W10). 코드는 **그 아이디에 등록 · 확인된** 이메일과 휴대폰으로만 가고,
  * 화면은 받는 곳을 묻지 않는다. 서버는 계정이 있는지 알려 주지 않으므로(코드 받기는 늘 같은 문장) 화면도 서버 문장을 그대로 적는다.
  * 규칙 문장 · 채널 이름 · 못 보내는 까닭 · 거절 문장은 서버가 준다. 코드 받기 줄은 첫 설정과 같은 부품이다(components/account).
  * 마치면 로그인하지 않는다 — 새 비밀번호로 다시 로그인한다(첫 설정이 남은 계정은 그 뒤 첫 설정으로 간다).
  */
 export default function PasswordResetPage() {
   const info = usePasswordResetInfo();
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [emailCode, setEmailCode] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
   const [password, setPassword] = useState('');
@@ -41,7 +41,7 @@ export default function PasswordResetPage() {
     setBusy(channel);
     setErr(null);
     try {
-      const body: PasswordResetCodeRequest = { email, channel };
+      const body: PasswordResetCodeRequest = { loginId, channel };
       const { data } = await api.post<PasswordResetCodeResult>('/auth/password-reset/codes', body);
       setSent((prev) => ({ ...prev, [channel]: data }));
       resend.start(channel, data.resendAfterSeconds);
@@ -59,7 +59,7 @@ export default function PasswordResetPage() {
     if (password !== confirm) { setErr({ at: 'complete', text: '새 비밀번호와 확인이 다릅니다' }); return; }
     setBusy('complete');
     try {
-      const body: PasswordResetComplete = { email, emailCode, phoneCode, password };
+      const body: PasswordResetComplete = { loginId, emailCode, phoneCode, password };
       await api.post('/auth/password-reset/complete', body);
       setDone(true);
     } catch (e2) {
@@ -75,7 +75,7 @@ export default function PasswordResetPage() {
     return (
       <CodeRequestButton
         spec={data.channels.find((c) => c.channel === channel)} left={resend.left(channel)} busy={busy === channel}
-        disabled={busy !== null || !email.trim()} onSend={() => void sendCode(channel)}
+        disabled={busy !== null || !loginId.trim()} onSend={() => void sendCode(channel)}
         error={err?.at === channel ? err.text : null} note={result?.message} devCode={result?.devCode}
       />
     );
@@ -109,10 +109,10 @@ export default function PasswordResetPage() {
           {(data) => (
             <>
               <div className="mt-5">
-                <Label htmlFor="pr-email">아이디(이메일)</Label>
+                <Label htmlFor="pr-login">아이디</Label>
                 <Input
-                  id="pr-email" type="email" value={email} autoComplete="username" inputMode="email"
-                  onChange={(e) => setEmail(e.currentTarget.value)}
+                  id="pr-login" value={loginId} autoComplete="username" autoCapitalize="none" spellCheck={false}
+                  onChange={(e) => setLoginId(e.currentTarget.value)}
                 />
               </div>
 

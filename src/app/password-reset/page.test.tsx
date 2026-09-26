@@ -64,8 +64,8 @@ describe('비밀번호 찾기 화면', () => {
     expect(sms.hasAttribute('disabled')).toBe(true);
     // 입력 칸은 아이디 · 두 코드 · 새 비밀번호 둘 — 받는 곳(주소 · 번호) 칸이 없다
     expect([...view.container.querySelectorAll('input')].map((i) => i.id))
-      .toEqual(['pr-email', 'pr-email-code', 'pr-phone-code', 'pr-pw', 'pr-pw2']);
-    type(view, '아이디(이메일)', 'kim@tnacademy.kr');
+      .toEqual(['pr-login', 'pr-email-code', 'pr-phone-code', 'pr-pw', 'pr-pw2']);
+    type(view, '아이디', 'kim@tnacademy.kr');
     expect(email.hasAttribute('disabled')).toBe(false);
     expect(sms.hasAttribute('disabled')).toBe(false);
     expect(view.getByRole('link', { name: '로그인으로 돌아가기' }).getAttribute('href')).toBe('/login');
@@ -79,13 +79,13 @@ describe('비밀번호 찾기 화면', () => {
     });
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '아이디(이메일)', 'Kim@tnacademy.kr');
+    type(view, '아이디', 'Kim@tnacademy.kr');
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     await waitFor(() => expect(view.getByText(SENT_EMAIL)).toBeTruthy());
-    expect(h.post).toHaveBeenCalledWith('/auth/password-reset/codes', { email: 'Kim@tnacademy.kr', channel: 'email' });
+    expect(h.post).toHaveBeenCalledWith('/auth/password-reset/codes', { loginId: 'Kim@tnacademy.kr', channel: 'email' });
     expect(view.getByRole('button', { name: /다시 받기 \(\d+초\)/ }).hasAttribute('disabled')).toBe(true);
     fireEvent.click(view.getByRole('button', { name: '문자로 코드 받기' }));
-    await waitFor(() => expect(h.post).toHaveBeenCalledWith('/auth/password-reset/codes', { email: 'Kim@tnacademy.kr', channel: 'sms' }));
+    await waitFor(() => expect(h.post).toHaveBeenCalledWith('/auth/password-reset/codes', { loginId: 'Kim@tnacademy.kr', channel: 'sms' }));
     expect(view.queryByText(/개발용 코드/)).toBeNull();
 
     type(view, '이메일 인증 코드', '111111');
@@ -95,7 +95,7 @@ describe('비밀번호 찾기 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '새 비밀번호로 바꾸기' }));
     await waitFor(() => expect(view.getByText(/비밀번호를 바꿨습니다/)).toBeTruthy());
     expect(h.post).toHaveBeenCalledWith('/auth/password-reset/complete', {
-      email: 'Kim@tnacademy.kr', emailCode: '111111', phoneCode: '222222', password: 'Recovered-77',
+      loginId: 'Kim@tnacademy.kr', emailCode: '111111', phoneCode: '222222', password: 'Recovered-77',
     });
     expect(view.getByRole('link', { name: '로그인으로' }).getAttribute('href')).toBe('/login');
     // 바꾼 뒤에는 입력 칸이 남지 않는다
@@ -109,7 +109,7 @@ describe('비밀번호 찾기 화면', () => {
     });
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '아이디', 'kim@tnacademy.kr');
     const sms = view.getByRole('button', { name: '문자로 코드 받기' });
     fireEvent.click(sms);
     const alert = await view.findByRole('alert');
@@ -143,7 +143,7 @@ describe('비밀번호 찾기 화면', () => {
       channels: [info.channels[0], { channel: 'sms', label: '문자', ready: false, notReadyReason: '인증 코드 비밀 값(AUTH_CODE_SECRET)이 서버에 없어 코드를 보내지 못합니다' }],
     });
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '아이디', 'kim@tnacademy.kr');
     expect(view.getByRole('button', { name: '문자로 코드 받기' }).hasAttribute('disabled')).toBe(true);
     expect(view.getByText('인증 코드 비밀 값(AUTH_CODE_SECRET)이 서버에 없어 코드를 보내지 못합니다')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));

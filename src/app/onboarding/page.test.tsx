@@ -38,7 +38,7 @@ import { ApiError } from '@/api/client';
 
 const RULE = '비밀번호는 8자 이상 · 영문과 숫자를 함께 · 초기 비밀번호와 지금 비밀번호는 쓸 수 없습니다';
 const info: OnboardingInfo = {
-  required: true, loginId: 'teacher-new@tnacademy.kr', phoneMasked: null, passwordRule: RULE,
+  required: true, loginId: '새강사_01', emailMasked: null, phoneMasked: null, passwordRule: RULE,
   codeTtlMinutes: 10, resendAfterSeconds: 60,
   channels: [
     { channel: 'email', label: '메일', ready: true, notReadyReason: null },
@@ -74,10 +74,22 @@ describe('첫 설정 화면', () => {
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
     expect(h.get).toHaveBeenCalledWith('/auth/onboarding');
-    expect(view.getByText('처음 로그인하셨습니다 — 아이디(이메일)와 비밀번호를 바꾸고 휴대폰·이메일을 확인해야 쓸 수 있습니다')).toBeTruthy();
+    expect(view.getByText('처음 로그인하셨습니다 — 휴대폰·이메일을 확인하고 새 비밀번호를 정해야 쓸 수 있습니다')).toBeTruthy();
     expect(view.getByRole('button', { name: '메일로 코드 받기' })).toBeTruthy();
     expect(view.getByRole('button', { name: '문자로 코드 받기' })).toBeTruthy();
-    expect(view.getByText(/teacher-new@tnacademy\.kr/)).toBeTruthy();
+    // 아이디는 매니저가 정한 그대로다(W10) — 여기서 바꾸지 않는다
+    expect(view.getByText('아이디 새강사_01 — 바뀌지 않습니다')).toBeTruthy();
+    // 이메일 칸은 연락 · 인증용이다 — 아이디 칸이 아니다(비밀번호 관리자는 숨은 아이디 칸을 쓴다)
+    const email = view.getByLabelText('이메일') as HTMLInputElement;
+    expect(email.getAttribute('autocomplete')).toBe('email');
+    const hiddenId = view.container.querySelector('input[autocomplete="username"]') as HTMLInputElement;
+    expect(hiddenId.value).toBe('새강사_01');
+    expect(hiddenId.hidden).toBe(true);
+  });
+
+  it('등록된 이메일이 있으면 가린 모양을 알려 준다 (W10)', async () => {
+    const view = mount({ ...info, emailMasked: 'ki***@tnacademy.kr' });
+    await waitFor(() => expect(view.getByText('등록된 주소 ki***@tnacademy.kr')).toBeTruthy());
   });
 
   it('코드 두 개를 받고 마치면 새 세션으로 바꾸고 캐시를 비운 뒤 일정으로 간다', async () => {
@@ -90,7 +102,7 @@ describe('첫 설정 화면', () => {
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
 
-    type(view, '새 아이디(이메일)', 'Kim.New@tnacademy.kr');
+    type(view, '이메일', 'Kim.New@tnacademy.kr');
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     await waitFor(() => expect(view.getByText(/ki\*\*\*@tnacademy\.kr/)).toBeTruthy());
     expect(h.post).toHaveBeenCalledWith('/auth/onboarding/codes', { channel: 'email', target: 'Kim.New@tnacademy.kr' });
@@ -133,7 +145,7 @@ describe('첫 설정 화면', () => {
     await waitFor(() => expect(view.getByText(/\+1 \*\*\*\*0123/)).toBeTruthy());
     expect(h.post).toHaveBeenCalledWith('/auth/onboarding/codes', { channel: 'sms', target: '+1 (415) 555-0123' });
 
-    type(view, '새 아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '이메일', 'kim@tnacademy.kr');
     type(view, '이메일 인증 코드', '111111');
     type(view, '휴대폰 인증 코드', '222222');
     type(view, '새 비밀번호', 'Brand-new-77');
@@ -149,7 +161,7 @@ describe('첫 설정 화면', () => {
     });
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '새 아이디(이메일)', 'taken@tnacademy.kr');
+    type(view, '이메일', 'taken@tnacademy.kr');
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     await waitFor(() => expect(view.getByText('이미 다른 계정이 쓰는 이메일입니다 — 다른 주소를 적어 주세요')).toBeTruthy());
 
@@ -171,7 +183,7 @@ describe('첫 설정 화면', () => {
     });
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '새 아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '이메일', 'kim@tnacademy.kr');
     const button = view.getByRole('button', { name: '메일로 코드 받기' });
     fireEvent.click(button);
     const alert = await view.findByRole('alert');
@@ -199,7 +211,7 @@ describe('첫 설정 화면', () => {
     h.post.mockResolvedValueOnce(sent('email', { devCode: '482913' }));
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '새 아이디(이메일)', 'dev@tnacademy.kr');
+    type(view, '이메일', 'dev@tnacademy.kr');
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     await waitFor(() => expect(view.getByText('개발용 코드: 482913')).toBeTruthy());
   });
@@ -208,7 +220,7 @@ describe('첫 설정 화면', () => {
     h.post.mockResolvedValueOnce(sent('email', { resendAfterSeconds: 2 }));
     const view = mount();
     await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
-    type(view, '새 아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '이메일', 'kim@tnacademy.kr');
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     const waiting = await view.findByRole('button', { name: /다시 받기 \(\d초\)/ });
     expect(waiting.hasAttribute('disabled')).toBe(true);
@@ -228,7 +240,7 @@ describe('첫 설정 화면', () => {
     expect(view.getByText('문자 발송 설정이 없어 보내지 못합니다')).toBeTruthy();
     // 받을 곳을 적기 전에는 잠겨 있고, 적으면 준비된 채널만 열린다
     expect(view.getByRole('button', { name: '메일로 코드 받기' }).hasAttribute('disabled')).toBe(true);
-    type(view, '새 아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '이메일', 'kim@tnacademy.kr');
     type(view, '휴대폰', '01012345678');
     expect(view.getByRole('button', { name: '메일로 코드 받기' }).hasAttribute('disabled')).toBe(false);
     expect(view.getByRole('button', { name: '문자로 코드 받기' }).hasAttribute('disabled')).toBe(true);

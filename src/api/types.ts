@@ -431,10 +431,12 @@ export type Noti = S['NotiDto'];
 export type Member = S['MemberDto'];
 /** C97 — §17 「+ 구성원」 · 시급 이력 · 직접 수정 (D-41 · D-48 · I-8). 소급 없음·같은 날 한 줄은 서버 판정 */
 export type StaffCreate = S['StaffCreateDto'];
-/** W8 — §17 사용자 표 CRUD. 만들기 응답은 만든 줄 + 넘겨줄 정보(아이디 · 초기 비밀번호 — 서버가 이 응답에만 싣는다) */
-export type StaffCreated = S['StaffCreatedDto'];
-export type StaffHandover = S['StaffHandoverDto'];
+/**
+ * W8 · W10 — §17 사용자 표 CRUD. 아이디 · 임시 비밀번호는 매니저가 적는다(W10). 만들기 · 초기화 응답은 그 줄(Member)이고
+ * 비밀번호는 어느 응답에도 없다 — 넘겨줄 비밀번호는 적은 창만 안다.
+ */
 export type StaffPatch = S['StaffPatchDto'];
+export type StaffPasswordReset = S['StaffPasswordResetDto'];
 export type WageRow = S['WageRowDto'];
 export type WageHistory = S['WageHistoryDto'];
 export type WageWrite = S['WageWriteDto'];

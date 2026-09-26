@@ -18,19 +18,19 @@ import { PASSWORD_RESET_PATH, fallbackRouteFor } from '@/components/shell/naviga
 
 /**
  * 시험용 계정 칩 — 2026-09-26 대표 결정이 2026-09-23 「운영·개발 모두 표시」를 대신한다(W8).
- *   ① 시험할 때는 칩을 누르면 아이디(이메일)와 비밀번호가 **둘 다** 채워진다.
+ *   ① 시험할 때는 칩을 누르면 아이디와 비밀번호가 **둘 다** 채워진다(시험 계정의 아이디는 옛 계정처럼 이메일 모양이다).
  *   ② 운영에서는 칩을 **그리지 않는다** — 두 칸만 남는다.
  *   ③ 시험 기간에는 운영 사이트도 빌드 환경 값(Vercel `NEXT_PUBLIC_TEST_LOGIN=on`)으로 시험 모드를 켠다.
  *      켜 둔 동안 시험 비밀번호가 그 번들에 실린다 — **운영 전환 전에 반드시 끈다**(번들 검사가 끈 빌드에서 막는다).
  * 표시는 공용 역할 어휘를 재사용하고, 실제 권한은 서버의 LoginResult만 믿는다.
  * 직원 전체 목록을 요청하거나 추가 공개하지 않는다.
  */
-const LOGIN_ACCOUNTS: ReadonlyArray<{ email: string; role: RoleKey }> = [
-  { email: 'ceo@tnacademy.kr', role: 'ceo' },
-  { email: 'admin@tnacademy.kr', role: 'admin' },
-  { email: 'head@tnacademy.kr', role: 'manager' },
-  { email: 'coord@tnacademy.kr', role: 'manager' },
-  { email: 't02@tnacademy.kr', role: 'teacher' },
+const LOGIN_ACCOUNTS: ReadonlyArray<{ loginId: string; role: RoleKey }> = [
+  { loginId: 'ceo@tnacademy.kr', role: 'ceo' },
+  { loginId: 'admin@tnacademy.kr', role: 'admin' },
+  { loginId: 'head@tnacademy.kr', role: 'manager' },
+  { loginId: 'coord@tnacademy.kr', role: 'manager' },
+  { loginId: 't02@tnacademy.kr', role: 'teacher' },
 ];
 
 /** 시험 모드 — 개발 빌드는 늘, 운영 빌드는 빌드 환경 값으로만 켠다. Next 가 빌드 때 두 값을 접는다 */
@@ -51,7 +51,7 @@ export default function LoginPage() {
   const queryClient = useQueryClient();
   const signIn = useSession((s) => s.signIn);
   // 운영 빌드는 시험 모드여도 두 칸을 비워 두고 칩으로만 채운다. 개발 자동 채움은 유지한다.
-  const [email, setEmail] = useState(process.env.NODE_ENV === 'production' ? '' : LOGIN_ACCOUNTS[0].email);
+  const [loginId, setLoginId] = useState(process.env.NODE_ENV === 'production' ? '' : LOGIN_ACCOUNTS[0].loginId);
   const [password, setPassword] = useState(process.env.NODE_ENV === 'production' ? '' : TEST_PASSWORD);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,7 +61,8 @@ export default function LoginPage() {
     setBusy(true);
     setErr(null);
     try {
-      const body: LoginBody = { email, password };
+      // 아이디는 형식이 자유이고 대소문자를 가리지 않는다 — 판정은 서버 한 곳이다 (W10)
+      const body: LoginBody = { loginId, password };
       // LoginResultDto가 토큰과 권한 플래그를 원자적으로 돌려준다. 성공 직후 /auth/me를
       // 다시 부르면 같은 계약을 두 응답에서 조합하게 되고 로그인 왕복도 하나 늘어난다.
       const { data } = await api.post<LoginResult>('/auth/login', body);
@@ -84,10 +85,10 @@ export default function LoginPage() {
 
         {/* 폼 요소는 ui/Field 를 쓴다 — 손으로 그리면 포커스 링과 잠김 표시가 여기만 따로 논다 */}
         <div className="mt-5">
-          <Label htmlFor="email">이메일</Label>
+          <Label htmlFor="login-id">아이디</Label>
           <Input
-            id="email" type="email" value={email} autoComplete="username"
-            onChange={(e) => setEmail(e.currentTarget.value)}
+            id="login-id" value={loginId} autoComplete="username" autoCapitalize="none" spellCheck={false}
+            onChange={(e) => setLoginId(e.currentTarget.value)}
           />
         </div>
 
@@ -113,14 +114,14 @@ export default function LoginPage() {
             <div className="mt-2 flex flex-wrap gap-1.5">
               {LOGIN_ACCOUNTS.map((d) => (
                 <Button
-                  key={d.email} size="sm" variant="ghost"
+                  key={d.loginId} size="sm" variant="ghost"
                   onClick={() => {
-                    setEmail(d.email);
+                    setLoginId(d.loginId);
                     // 빌드에 시험 비밀번호가 없으면 사람이 적어 둔 비밀번호를 지우지 않는다
                     if (TEST_PASSWORD) setPassword(TEST_PASSWORD);
                   }}
                 >
-                  <span>{d.email}</span>
+                  <span>{d.loginId}</span>
                   <span className="ml-1 text-[10px] font-bold text-blue">
                     · {ROLE_BY_KEY.get(d.role)?.label}
                   </span>

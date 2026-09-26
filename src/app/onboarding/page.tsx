@@ -20,6 +20,8 @@ import type { LoginResult, OnboardingCodeRequest, OnboardingCodeResult, Onboardi
 /**
  * 계정 첫 설정 (W8 · 대표 지시 2026-09-26) — 「첫 로그인 시 아이디 및 비밀번호 강제 변경 · phone · email 인증 필수
  * (변경 안 하면 홈 페이지 접속 불가, 자동 리다이렉션)」.
+ * W10 — 아이디는 매니저가 만들 때 정하고(형식 자유) 여기서는 **바꾸지 않는다**. 첫 설정은 「휴대폰 · 이메일 확인 + 새 비밀번호」다
+ * (대표 지시 2026-09-26 「초기 설정 시 주요 인증 및 비번 재설정」). 이메일은 연락 · 인증용이다.
  *
  * 로그인처럼 셸 없이 홀로 선다 — 첫 설정 전에는 다른 화면 · API 가 전부 닫혀 있어(RouteAccess · 서버 403) 메뉴를 그릴 까닭이 없다.
  * 강사도 쓰는 화면이라 휴대폰(393×852)부터 맞추고 넓은 화면에서는 가운데 카드로 둔다.
@@ -117,18 +119,20 @@ export default function OnboardingPage() {
         <Logo size={30} />
         <h1 className="mt-3 text-[17px] font-bold text-fg">첫 설정</h1>
         <p className="mt-1 text-[13px] leading-relaxed text-fg-2">
-          처음 로그인하셨습니다 — 아이디(이메일)와 비밀번호를 바꾸고 휴대폰·이메일을 확인해야 쓸 수 있습니다
+          처음 로그인하셨습니다 — 휴대폰·이메일을 확인하고 새 비밀번호를 정해야 쓸 수 있습니다
         </p>
 
         <QueryState query={info}>
           {(data) => (
             <>
-              <p className="mt-2 text-[11px] text-fg-subtle">지금 아이디 {data.loginId}</p>
+              <p className="mt-2 text-[11px] text-fg-subtle">아이디 {data.loginId} — 바뀌지 않습니다</p>
+              {/* 비밀번호 관리자가 새 비밀번호를 이 아이디에 붙여 저장하게 — 보이지 않는 읽기 전용 칸 */}
+              <input type="text" name="username" autoComplete="username" value={data.loginId} readOnly hidden />
 
               <div className="mt-5">
-                <Label htmlFor="ob-email" hint="받은 코드로 확인한 주소가 새 아이디가 됩니다">새 아이디(이메일)</Label>
+                <Label htmlFor="ob-email" hint={data.emailMasked ? `등록된 주소 ${data.emailMasked}` : undefined}>이메일</Label>
                 <Input
-                  id="ob-email" type="email" value={email} autoComplete="username" inputMode="email"
+                  id="ob-email" type="email" value={email} autoComplete="email" inputMode="email"
                   onChange={(e) => setEmail(e.currentTarget.value)}
                 />
                 {codeRow(data, 'email', email)}

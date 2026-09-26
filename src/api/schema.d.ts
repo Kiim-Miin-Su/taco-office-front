@@ -30,7 +30,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 로그인 — Access 는 본문, Refresh 는 httpOnly 쿠키 */
+        /** 로그인 — 아이디(형식 자유 · 대소문자 무시) · Access 는 본문, Refresh 는 httpOnly 쿠키 (W10) */
         post: operations["AuthController_login"];
         delete?: never;
         options?: never;
@@ -100,7 +100,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 첫 설정 안내 — 해야 하는지 · 지금 아이디 · 비밀번호 규칙 · 코드 채널
+         * 첫 설정 안내 — 해야 하는지 · 아이디(바꾸지 않는다) · 등록된 이메일 · 휴대폰(가린 모양) · 비밀번호 규칙 · 코드 채널
          * @description 낱말(채널 이름 · 못 보내는 까닭 · 비밀번호 규칙)은 서버가 준다. 첫 설정이 필요 없는 계정은 required=false.
          */
         get: operations["OnboardingController_info"];
@@ -122,7 +122,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 인증 코드 받기 — 새 아이디(이메일) 또는 휴대폰으로 6자리
+         * 인증 코드 받기 — 확인할 이메일 또는 휴대폰으로 6자리
          * @description 코드와 받는 곳 원문은 저장하지 않는다(HMAC · 가린 모양만). 10분 유효 · 같은 채널 60초 간격 · 한 시간 5번 · 하루 10번(계정 · 채널마다 · 비밀번호 찾기와 같은 예산 · N-105). 휴대폰은 해외 번호도 받는다(`+국가번호 번호` · N-103).
          */
         post: operations["OnboardingController_codes"];
@@ -142,7 +142,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 첫 설정 마치기 — 새 아이디(이메일) · 새 비밀번호 · 휴대폰과 두 코드를 한 번에
+         * 첫 설정 마치기 — 확인한 이메일 · 휴대폰과 두 코드 · 새 비밀번호를 한 번에(아이디는 그대로)
          * @description 성공하면 로그인과 같다: Access 는 본문, Refresh 는 httpOnly 쿠키. 그 전에 발급된 이 계정의 토큰은 모두 401 이 된다.
          */
         post: operations["OnboardingController_complete"];
@@ -3256,8 +3256,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 「+ 구성원」 — 강사·매니저 계정을 만든다 (C97 · D-41 · W8)
-         * @description 이름 · 이메일(유일 · 로그인 아이디) · 역할 둘 · 직함 · 시간대(tzg) · 휴대폰(숫자만) · 입사일 · 기본 시급(적으면 같은 트랜잭션에 WAGE 한 줄 · 소급 없음). **비밀번호는 받지 않는다** — 서버가 초기 비밀번호로 만들고 첫 설정(아이디·비밀번호 변경 · 휴대폰·이메일 확인)을 건다. 응답에 넘겨줄 정보(loginId · initialPassword)가 이때만 실린다. 대표·관리자 계정은 이 길로 만들지 않는다.
+         * 「+ 구성원」 — 강사·매니저 계정을 만든다 (C97 · D-41 · W8 · W10)
+         * @description 이름 · 아이디(형식 자유 · 띄어쓰기 없음 · 대소문자 무시 유일) · 임시 비밀번호 · 이메일(선택 · 유일) · 역할 둘 · 직함 · 시간대(tzg) · 휴대폰 · 입사일 · 기본 시급(적으면 같은 트랜잭션에 WAGE 한 줄 · 소급 없음). **아이디와 임시 비밀번호는 매니저가 정한다**(W10) — 비밀번호는 해시로만 저장하고 응답 · 기록에 싣지 않는다. 첫 설정(휴대폰 · 이메일 확인 · 새 비밀번호)을 건다. 대표·관리자 계정은 이 길로 만들지 않는다.
          */
         post: operations["DrawerController_createStaff"];
         delete?: never;
@@ -3284,8 +3284,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * §17 「수정」 — 강사·매니저 줄의 이름 · 이메일 · 휴대폰 · 직함 · 시간대 · 역할 · 입사일 (W8)
-         * @description 보낸 칸만 바꾼다. 대표·관리자 줄은 403 STAFF_PROTECTED, 자기 역할은 403 SELF_ROLE. 이메일을 바꾸면 이메일 확인이, 휴대폰을 바꾸면 휴대폰 확인이 풀린다. 시급은 「시급 수정」에서만.
+         * §17 「수정」 — 강사·매니저 줄의 이름 · 아이디 · 이메일 · 휴대폰 · 직함 · 시간대 · 역할 · 입사일 (W8 · W10)
+         * @description 보낸 칸만 바꾼다. 대표·관리자 줄은 403 STAFF_PROTECTED, 자기 역할은 403 SELF_ROLE. 이메일을 바꾸거나 비우면 이메일 확인이, 휴대폰을 바꾸면 휴대폰 확인이 풀리고 첫 설정을 다시 건다(N-104). 아이디는 연락처가 아니라서 바꿔도 첫 설정은 그대로다(W10). 시급은 「시급 수정」에서만.
          */
         patch: operations["DrawerController_updateStaff"];
         trace?: never;
@@ -3300,8 +3300,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * §17 「비밀번호 초기화」 — 초기 비밀번호로 되돌리고 첫 설정을 다시 건다 (W8)
-         * @description 자기 것은 403 SELF_RESET(첫 설정 흐름으로 바꾼다), 대표·관리자 줄은 403 STAFF_PROTECTED. 그 계정의 이전 로그인은 끊긴다(credentials_changed_at). 응답은 넘겨줄 정보 — 기록(log)에는 비밀번호가 없다.
+         * §17 「비밀번호 초기화」 — 매니저가 적은 임시 비밀번호로 바꾸고 첫 설정을 다시 건다 (W8 · W10)
+         * @description 자기 것은 403 SELF_RESET(첫 설정 흐름으로 바꾼다), 대표·관리자 줄은 403 STAFF_PROTECTED. 그 계정의 이전 로그인은 끊긴다(credentials_changed_at). 응답은 그 줄(MemberDto) — 비밀번호는 응답 · 기록(log) 어디에도 없다.
          */
         post: operations["DrawerController_resetStaffPassword"];
         delete?: never;
@@ -3661,10 +3661,15 @@ export interface components {
         };
         LoginDto: {
             /**
-             * Format: email
-             * @example kim@tnacademy.kr
+             * @description 로그인 아이디 — 형식 자유 · 대소문자 무시
+             * @example kim.teacher
              */
-            email: string;
+            loginId: string;
+            /**
+             * @deprecated
+             * @description 옛 화면 호환 — loginId 와 같은 뜻(W10 이전 화면이 보낸다). 새 코드는 쓰지 않는다
+             */
+            email?: string;
             /** @example ******** */
             password: string;
         };
@@ -3690,7 +3695,7 @@ export interface components {
             canApprove: boolean;
             canHide: boolean;
             canGpaPack: boolean;
-            /** @description 첫 설정(아이디=이메일 · 비밀번호 · 휴대폰 · 이메일 인증)을 끝내야 하는가 — 서버는 늘 채운다 */
+            /** @description 첫 설정(휴대폰 · 이메일 인증 · 새 비밀번호)을 끝내야 하는가 — 서버는 늘 채운다 */
             mustChangeCredentials?: boolean;
         };
         LoginResultDto: {
@@ -3726,8 +3731,10 @@ export interface components {
         OnboardingInfoDto: {
             /** @description 이 계정이 첫 설정을 해야 하는가 — false 면 화면은 일정으로 보낸다 */
             required: boolean;
-            /** @description 지금 로그인 아이디(이메일) */
+            /** @description 로그인 아이디 — 매니저가 정한 그대로(첫 설정은 바꾸지 않는다 · W10) */
             loginId: string;
+            /** @description 지금 등록된 이메일(가린 모양) — 매니저가 비워 두고 만들었으면 null */
+            emailMasked: string | null;
             /** @description 지금 등록된 휴대폰(가린 모양) — 없으면 null */
             phoneMasked: string | null;
             /** @description 비밀번호 규칙 문장 — 화면은 이 문장을 그대로 적는다 */
@@ -3742,7 +3749,7 @@ export interface components {
         };
         OnboardingCodeRequestDto: {
             /**
-             * @description email = 새 아이디(이메일)로 · sms = 휴대폰으로
+             * @description email = 확인할 이메일로 · sms = 확인할 휴대폰으로
              * @enum {string}
              */
             channel: "email" | "sms";
@@ -3769,7 +3776,7 @@ export interface components {
         };
         OnboardingCompleteDto: {
             /**
-             * @description 새 로그인 아이디(이메일) — 코드를 받은 주소
+             * @description 확인한 이메일 — 코드를 받은 주소. 연락 · 비밀번호 찾기에 쓴다(아이디가 아니다 · W10)
              * @example kim@tnacademy.kr
              */
             email: string;
@@ -3806,10 +3813,15 @@ export interface components {
         };
         PasswordResetCodeRequestDto: {
             /**
-             * @description 로그인 아이디(이메일) — 코드는 이 계정에 **등록 · 확인된** 이메일 · 휴대폰으로만 간다
-             * @example kim@tnacademy.kr
+             * @description 로그인 아이디(형식 자유 · 대소문자 무시) — 코드는 이 계정에 **등록 · 확인된** 이메일 · 휴대폰으로만 간다
+             * @example kim.teacher
              */
-            email: string;
+            loginId: string;
+            /**
+             * @deprecated
+             * @description 옛 화면 호환 — loginId 와 같은 뜻(W10 이전 화면이 보낸다)
+             */
+            email?: string;
             /**
              * @description email = 등록된 이메일로 · sms = 등록된 휴대폰으로
              * @enum {string}
@@ -3833,10 +3845,15 @@ export interface components {
         };
         PasswordResetCompleteDto: {
             /**
-             * @description 로그인 아이디(이메일) — 코드를 받은 계정
-             * @example kim@tnacademy.kr
+             * @description 로그인 아이디 — 코드를 받은 계정
+             * @example kim.teacher
              */
-            email: string;
+            loginId: string;
+            /**
+             * @deprecated
+             * @description 옛 화면 호환 — loginId 와 같은 뜻(W10 이전 화면이 보낸다)
+             */
+            email?: string;
             /**
              * @description 등록된 이메일로 받은 코드
              * @example 123456
@@ -9361,7 +9378,10 @@ export interface components {
         MemberDto: {
             id: number;
             name: string;
-            email: string;
+            /** @description 로그인 아이디 — 형식 자유(띄어쓰기만 없음) · 대소문자 무시 유일 (W10) */
+            loginId: string;
+            /** @description 이메일 — 연락 · 인증용(W10 부터 아이디가 아니다). 만들 때 비워 둘 수 있어 null 일 수 있다 */
+            email: string | null;
             /** @enum {string} */
             role: "teacher" | "manager" | "admin" | "ceo";
             /** @description 직함은 권한이 아니다 (D-R39) */
@@ -9374,7 +9394,7 @@ export interface components {
             wageFrom?: string | null;
             /** @description 시급 줄을 둘 수 있는 사람인가 — 활성 강사 · canWage 아니면 false (C97 · D-R39) */
             wageable?: boolean;
-            /** @description 첫 설정(아이디·비밀번호 변경 · 휴대폰·이메일 확인)을 아직 안 끝낸 계정 — 화면의 「첫 설정 전」 칩 */
+            /** @description 첫 설정(휴대폰 · 이메일 확인 · 새 비밀번호)을 아직 안 끝낸 계정 — 화면의 「첫 설정 전」 칩 */
             mustChangeCredentials?: boolean;
             /** @description 휴대폰(한국은 숫자만 · 해외는 +국가번호…) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
             phone?: string | null;
@@ -9497,14 +9517,28 @@ export interface components {
             canWage: boolean;
             /** @description §17 구성원 만들기 · 수정의 휴대폰 국가번호 목록 — 첫 설정과 같은 표(N-103) */
             phoneCountries: components["schemas"]["PhoneCountryDto"][];
+            /** @description §17 구성원 만들기 · 수정의 아이디 규칙 문장 — 화면은 그대로 적는다(W10 · D-R18) */
+            loginIdRule: string;
+            /** @description §17 구성원 만들기 · 비밀번호 초기화의 임시 비밀번호 규칙 문장 — 화면은 그대로 적는다(W10 · D-R18) */
+            tempPasswordRule: string;
         };
         StaffCreateDto: {
             name: string;
             /**
-             * Format: email
-             * @description 로그인 아이디 — 유일
+             * @description 로그인 아이디 — 형식 자유 · 띄어쓰기 없음 · 대소문자 무시 유일(W10). 규칙 문장은 서랍의 loginIdRule
+             * @example kim.teacher
              */
-            email: string;
+            loginId: string;
+            /**
+             * @description 임시 비밀번호 — 매니저가 정해 넘겨준다(W10). 규칙은 서랍의 tempPasswordRule(첫 설정과 같은 규칙). 응답 · 기록에는 싣지 않는다
+             * @example ********
+             */
+            password: string;
+            /**
+             * Format: email
+             * @description 이메일 — 선택(W10). 적으면 모양과 유일(대소문자 무시)을 본다. 첫 설정 때 본인이 적고 코드로 확인한다
+             */
+            email?: string | null;
             /**
              * @description 강사 · 매니저 — 대표·관리자는 만들지 않는다
              * @enum {string}
@@ -9521,50 +9555,15 @@ export interface components {
             /** @description 기본 시급(원/시간) — 적으면 입사일(또는 오늘)부터의 WAGE 한 줄이 같은 트랜잭션에 선다 · 소급 없음 */
             wageRate?: number | null;
         };
-        StaffCreatedDto: {
-            id: number;
-            name: string;
-            email: string;
-            /** @enum {string} */
-            role: "teacher" | "manager" | "admin" | "ceo";
-            /** @description 직함은 권한이 아니다 (D-R39) */
-            title?: string | null;
-            tz?: string | null;
-            active: boolean;
-            /** @description 오늘 붙는 기본 시급(원/시간) — canWage 아니면 null · 시급 줄이 없으면 null */
-            wageRate?: number | null;
-            /** @description 그 시급의 적용 시작일 YYYY-MM-DD */
-            wageFrom?: string | null;
-            /** @description 시급 줄을 둘 수 있는 사람인가 — 활성 강사 · canWage 아니면 false (C97 · D-R39) */
-            wageable?: boolean;
-            /** @description 첫 설정(아이디·비밀번호 변경 · 휴대폰·이메일 확인)을 아직 안 끝낸 계정 — 화면의 「첫 설정 전」 칩 */
-            mustChangeCredentials?: boolean;
-            /** @description 휴대폰(한국은 숫자만 · 해외는 +국가번호…) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
-            phone?: string | null;
-            /** @description 입사일 YYYY-MM-DD — 「수정」 창의 처음 값. 옛 계정은 null 일 수 있다 */
-            hiredOn?: string | null;
-            /** @description 「수정」 — 보는 이가 매니저 이상이고 이 줄이 강사·매니저일 때만 (대표·관리자 줄은 이 길로 못 고친다) */
-            canEdit?: boolean;
-            /** @description 수정 창에서 역할을 바꿀 수 있는가 — canEdit 이고 **자기 줄이 아닐 때만** (자기 역할은 못 바꾼다) */
-            canChangeRole?: boolean;
-            /** @description 「비밀번호 초기화」 — canEdit 이고 자기 줄이 아닐 때만 (자기 것은 첫 설정 흐름으로 바꾼다) */
-            canResetPassword?: boolean;
-            /** @description 「사용 중지」·「다시 사용」 — canEdit 이고 자기 줄이 아닐 때만 */
-            canToggleActive?: boolean;
-            /** @description 「삭제」 — canEdit 이고 자기 줄이 아닐 때만. 기록이 있으면 서버가 409 로 막는다(사용 중지로 막는다) */
-            canDelete?: boolean;
-            /** @description 로그인 아이디 — 이메일 */
-            loginId: string;
-            /** @description 초기 비밀번호 — 이 응답에만 실린다 */
-            initialPassword: string;
-        };
         StaffPatchDto: {
             name?: string;
+            /** @description 로그인 아이디 — 형식 자유 · 띄어쓰기 없음 · 대소문자 무시 유일(W10). 연락처가 아니라서 바꿔도 확인 · 첫 설정은 그대로다 — 다음 로그인부터 새 아이디로 들어온다 */
+            loginId?: string;
             /**
              * Format: email
-             * @description 로그인 아이디 — 유일(대소문자 무시). 바꾸면 이메일 확인이 풀리고 그 사람은 다음 요청부터 첫 설정을 다시 한다(N-104)
+             * @description 이메일 — 연락 · 인증용 · 유일(대소문자 무시). null · 빈 글이면 비운다. 바꾸거나 비우면 이메일 확인이 풀리고 그 사람은 다음 요청부터 첫 설정을 다시 한다(N-104 · W10)
              */
-            email?: string;
+            email?: string | null;
             /** @description 휴대폰 — 한국 번호는 숫자만 · 해외 번호는 `+국가번호 번호`(N-103). null·빈 글이면 비운다. 바꾸면 휴대폰 확인이 풀리고 그 사람은 다음 요청부터 첫 설정을 다시 한다(N-104) */
             phone?: string | null;
             /** @description 직함 — 권한과 무관 (D-R39). null·빈 글이면 비운다 */
@@ -9582,11 +9581,12 @@ export interface components {
              */
             hiredOn?: string;
         };
-        StaffHandoverDto: {
-            /** @description 로그인 아이디 — 이메일 */
-            loginId: string;
-            /** @description 초기 비밀번호 — 서버 상수(운영 값). 첫 로그인 때 반드시 바꾼다 */
-            initialPassword: string;
+        StaffPasswordResetDto: {
+            /**
+             * @description 임시 비밀번호 — 규칙은 서랍의 tempPasswordRule. 응답 · 기록에는 싣지 않는다
+             * @example ********
+             */
+            password: string;
         };
         StaffActiveDto: {
             /** @description false = 사용 중지 · true = 다시 사용 */
@@ -9976,7 +9976,7 @@ export interface operations {
                     "application/json": components["schemas"]["LoginResultDto"];
                 };
             };
-            /** @description BAD_REQUEST: 이메일·비밀번호 최소8자·추가 키 검증 실패. */
+            /** @description BAD_REQUEST: 아이디 없음·비밀번호 최소8자·추가 키 검증 실패. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10607,7 +10607,7 @@ export interface operations {
                     "application/json": components["schemas"]["PasswordResetCodeResultDto"];
                 };
             };
-            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL */
+            /** @description BAD_REQUEST(입력 모양) · INVALID_LOGIN_ID(빈 아이디 · 띄어쓰기 · 120자 넘음 — 계정과 무관한 모양 거절) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10692,7 +10692,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description BAD_REQUEST(입력 모양) · PASSWORD_RULE(규칙 문장 그대로) */
+            /** @description BAD_REQUEST(입력 모양) · PASSWORD_RULE(규칙 문장 그대로) · INVALID_LOGIN_ID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -23872,10 +23872,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StaffCreatedDto"];
+                    "application/json": components["schemas"]["MemberDto"];
                 };
             };
-            /** @description BAD_REQUEST(허용 밖 필드 — password 포함) | STAFF_PHONE_INVALID */
+            /** @description BAD_REQUEST(형식 · 허용 밖 필드) | LOGIN_ID_RULE | PASSWORD_RULE | STAFF_PHONE_INVALID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -23909,7 +23909,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code STAFF_EMAIL_TAKEN | TZ_UNKNOWN | WAGE_SAME_DAY */
+            /** @description code STAFF_LOGIN_ID_TAKEN | STAFF_EMAIL_TAKEN | TZ_UNKNOWN | WAGE_SAME_DAY */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -24025,7 +24025,7 @@ export interface operations {
                     "application/json": components["schemas"]["MemberDto"];
                 };
             };
-            /** @description BAD_REQUEST(형식 · 허용 밖 필드 · 역할 ceo/admin) | STAFF_PHONE_INVALID */
+            /** @description BAD_REQUEST(형식 · 허용 밖 필드 · 역할 ceo/admin) | LOGIN_ID_RULE | STAFF_PHONE_INVALID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -24061,7 +24061,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description STAFF_EMAIL_TAKEN | TZ_UNKNOWN | EMPTY_PATCH */
+            /** @description STAFF_LOGIN_ID_TAKEN | STAFF_EMAIL_TAKEN | TZ_UNKNOWN | EMPTY_PATCH */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -24090,17 +24090,21 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPasswordResetDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StaffHandoverDto"];
+                    "application/json": components["schemas"]["MemberDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description BAD_REQUEST(형식 · 허용 밖 필드) | PASSWORD_RULE */
             400: {
                 headers: {
                     [name: string]: unknown;

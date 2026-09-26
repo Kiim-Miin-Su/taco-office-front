@@ -67,9 +67,9 @@ describe('LoginPage — 생성 로그인 계약', () => {
   it('운영 빌드(시험 모드 꺼짐)는 계정 칩을 그리지 않고 두 칸을 비워 둔다', async () => {
     const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: '' });
     const view = render(<ProductionLoginPage />);
-    expect((view.getByLabelText('이메일') as HTMLInputElement).value).toBe('');
+    expect((view.getByLabelText('아이디') as HTMLInputElement).value).toBe('');
     expect((view.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('');
-    for (const [email] of ACCOUNTS) expect(view.queryByText(email)).toBeNull();
+    for (const [loginId] of ACCOUNTS) expect(view.queryByText(loginId)).toBeNull();
     expect(view.queryByText(/시험용 계정/)).toBeNull();
     expect(view.container.querySelectorAll('input, select, textarea')).toHaveLength(2);
     expect(view.getAllByRole('button').map((b) => b.textContent)).toEqual(['들어가기']);
@@ -81,14 +81,14 @@ describe('LoginPage — 생성 로그인 계약', () => {
     });
     const onRender = vi.fn();
     const view = render(<Profiler id="login-test-mode" onRender={onRender}><TestModePage /></Profiler>);
-    const emailInput = view.getByLabelText('이메일') as HTMLInputElement;
+    const idInput = view.getByLabelText('아이디') as HTMLInputElement;
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
-    expect(emailInput.value).toBe('');
+    expect(idInput.value).toBe('');
     expect(passwordInput.value).toBe('');
-    for (const [email, role] of ACCOUNTS) {
+    for (const [loginId, role] of ACCOUNTS) {
       onRender.mockClear();
-      fireEvent.click(view.getByRole('button', { name: `${email} · ${role}` }));
-      expect(emailInput.value).toBe(email);
+      fireEvent.click(view.getByRole('button', { name: `${loginId} · ${role}` }));
+      expect(idInput.value).toBe(loginId);
       expect(passwordInput.value).toBe('qa-build-pass-1');
       // 두 칸을 한 번에 — 폼 update 1회
       expect(onRender).toHaveBeenCalledOnce();
@@ -105,27 +105,27 @@ describe('LoginPage — 생성 로그인 계약', () => {
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
     fireEvent.change(passwordInput, { target: { value: 'typed-by-user' } });
     fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr · 매니저' }));
-    expect((view.getByLabelText('이메일') as HTMLInputElement).value).toBe('coord@tnacademy.kr');
+    expect((view.getByLabelText('아이디') as HTMLInputElement).value).toBe('coord@tnacademy.kr');
     expect(passwordInput.value).toBe('typed-by-user');
   });
 
   // 운영 시드 비밀번호의 실제 번들 부재는 build 뒤 bundle-secret-check가 별도로 검사한다.
   it('개발 빌드에서는 기존 두 칸 자동 채움을 유지하고 칩이 아이디와 비밀번호를 함께 채운다', () => {
     const view = render(<LoginPage />);
-    const emailInput = view.getByLabelText('이메일') as HTMLInputElement;
+    const idInput = view.getByLabelText('아이디') as HTMLInputElement;
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
-    expect(emailInput.value).toBe('ceo@tnacademy.kr');
+    expect(idInput.value).toBe('ceo@tnacademy.kr');
     expect(passwordInput.value).toBe('taco1234!');
     expect(view.getByText('시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다')).toBeTruthy();
     fireEvent.change(passwordInput, { target: { value: '' } });
     fireEvent.click(view.getByRole('button', { name: 't02@tnacademy.kr · 강사' }));
-    expect(emailInput.value).toBe('t02@tnacademy.kr');
+    expect(idInput.value).toBe('t02@tnacademy.kr');
     expect(passwordInput.value).toBe('taco1234!');
     // 조건은 빌드 때 접히는 형태여야 한다 — 런타임 변수로 빼면 문자열이 번들에 남는다
     expect(process.env.NODE_ENV).not.toBe('production');
   });
 
-  it('5개 이메일 바로 채우기는 공용 역할 이름을 보이고 실제 권한은 서버가 반환한 사용자를 그대로 저장한다', async () => {
+  it('5개 아이디 바로 채우기는 공용 역할 이름을 보이고 실제 권한은 서버가 반환한 사용자를 그대로 저장한다', async () => {
     const serverResult: LoginResult = {
       ...result,
       user: { ...result.user, id: 4, name: '강민지', role: 'manager', roleLabel: '매니저', title: '매니저',
@@ -133,24 +133,24 @@ describe('LoginPage — 생성 로그인 계약', () => {
     };
     post.mockResolvedValueOnce({ data: serverResult });
     const view = render(<LoginPage />);
-    for (const [email, role] of ACCOUNTS) {
-      expect(view.getByRole('button', { name: `${email} · ${role}` })).toBeTruthy();
+    for (const [loginId, role] of ACCOUNTS) {
+      expect(view.getByRole('button', { name: `${loginId} · ${role}` })).toBeTruthy();
     }
     expect(view.queryByText(/이다현|김민선|김민수|김범준|강민지|김재훈/)).toBeNull();
     fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr · 매니저' }));
     expect(signIn).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
     await waitFor(() => expect(signIn).toHaveBeenCalledWith(serverResult.accessToken, serverResult.user));
-    expect(post).toHaveBeenCalledWith('/auth/login', { email: 'coord@tnacademy.kr', password: 'taco1234!' });
+    expect(post).toHaveBeenCalledWith('/auth/login', { loginId: 'coord@tnacademy.kr', password: 'taco1234!' });
   });
 
-  it('입력은 2개를 유지하고 이메일 한 타는 폼 update 1회·요청 0회다', () => {
+  it('입력은 2개를 유지하고 아이디 한 타는 폼 update 1회·요청 0회다', () => {
     const onRender = vi.fn();
     const view = render(<Profiler id="login" onRender={onRender}><LoginPage /></Profiler>);
     expect(view.container.querySelectorAll('input, select, textarea')).toHaveLength(2);
     onRender.mockClear();
 
-    fireEvent.change(view.getByLabelText('이메일'), { target: { value: 'qa@tnacademy.kr' } });
+    fireEvent.change(view.getByLabelText('아이디'), { target: { value: 'qa@tnacademy.kr' } });
 
     expect(onRender).toHaveBeenCalledOnce();
     expect(onRender.mock.calls[0][1]).toBe('update');
@@ -189,11 +189,23 @@ describe('LoginPage — 생성 로그인 계약', () => {
     expect(clear).toHaveBeenCalledOnce();
     expect(clear.mock.invocationCallOrder[0]).toBeLessThan(signIn.mock.invocationCallOrder[0]);
     expect(post).toHaveBeenCalledWith('/auth/login', {
-      email: 'ceo@tnacademy.kr',
+      loginId: 'ceo@tnacademy.kr',
       password: 'taco1234!',
     });
     expect(get).not.toHaveBeenCalled();
     expect(replace).toHaveBeenCalledWith('/schedule');
+  });
+
+  // W10 (대표 지시 2026-09-26 「아이디 형식은 자유」) — 화면은 모양을 가르지 않고 적은 글을 그대로 보낸다(판정은 서버)
+  it('아이디 칸은 이메일 칸이 아니다 — 한글 · 기호 아이디를 그대로 보내고 브라우저 이메일 검사를 걸지 않는다', async () => {
+    post.mockResolvedValueOnce({ data: result });
+    const view = render(<LoginPage />);
+    const idInput = view.getByLabelText('아이디') as HTMLInputElement;
+    expect(idInput.type).toBe('text');
+    expect(idInput.getAttribute('autocomplete')).toBe('username');
+    fireEvent.change(idInput, { target: { value: '김선생.Kim#1' } });
+    fireEvent.click(view.getByRole('button', { name: '들어가기' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/auth/login', { loginId: '김선생.Kim#1', password: 'taco1234!' }));
   });
 
   // N-101 (대표 결정 2026-09-26) — 운영 빌드에도 늘 선다(시험 모드와 무관)

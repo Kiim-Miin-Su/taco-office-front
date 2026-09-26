@@ -21,7 +21,7 @@ const tzGroups: TzGroup[] = [
 ];
 
 const who = (id: number, name: string, role: Member['role'], tz: string, extra: Partial<Member> = {}): Member =>
-  ({ id, name, email: `${id}@t.kr`, role, title: null, tz, active: true, ...extra });
+  ({ id, name, loginId: `u${id}`, email: `${id}@t.kr`, role, title: null, tz, active: true, ...extra });
 
 const groups: MemberGroup[] = [
   {

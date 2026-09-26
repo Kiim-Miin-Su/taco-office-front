@@ -223,7 +223,8 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
           ) : null}
           {pane === 'members' ? (
             <MembersPane groups={data.memberGroups} tzGroups={data.tzGroups} tz={data.tz}
-              canAddMember={data.canAddMember} canWage={data.canWage} phoneCountries={data.phoneCountries} />
+              canAddMember={data.canAddMember} canWage={data.canWage} phoneCountries={data.phoneCountries}
+              loginIdRule={data.loginIdRule} tempPasswordRule={data.tempPasswordRule} />
           ) : null}
           {pane === 'kinds' ? <KindsPane kinds={data.kinds} /> : null}
           {pane === 'chreqs' ? (

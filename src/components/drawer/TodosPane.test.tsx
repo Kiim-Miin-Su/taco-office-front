@@ -41,8 +41,8 @@ function setup() {
   const props: Parameters<typeof TodosPane>[0] = {
     todos,
     members: [
-      { id: 1, name: '김민선', email: 'ceo@tnacademy.kr', role: 'ceo', active: true },
-      { id: 2, name: '김민수', email: 'admin@tnacademy.kr', role: 'admin', active: true },
+      { id: 1, name: '김민선', loginId: 'ceo@tnacademy.kr', email: 'ceo@tnacademy.kr', role: 'ceo', active: true },
+      { id: 2, name: '김민수', loginId: 'admin@tnacademy.kr', email: 'admin@tnacademy.kr', role: 'admin', active: true },
     ],
     meId: 1, box: 'all', onBox: vi.fn(), onToggle: vi.fn(), onCreate: vi.fn(), onClear: vi.fn(), busy: false,
   };

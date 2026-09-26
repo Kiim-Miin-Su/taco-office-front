@@ -15,7 +15,9 @@ import { MembersPane } from './panes';
 /**
  * W8 — §17 사용자 표 CRUD (대표 지시 2026-09-26 「매니저 이상급부터 user table CRUD」).
  * 단추가 서는지는 줄마다 서버 플래그뿐이다(canEdit · canChangeRole · canResetPassword · canToggleActive · canDelete) —
- * 화면은 role 을 보지 않는다 (D-R39). 넘겨줄 정보(아이디 · 초기 비밀번호)는 서버 응답에서만 온다.
+ * 화면은 role 을 보지 않는다 (D-R39).
+ * W10 — 아이디는 형식 자유이고 「수정」에서 고친다(첫 설정은 걸지 않는다) · 초기화는 매니저가 임시 비밀번호를 적는다.
+ * 넘겨줄 정보의 아이디는 서버 응답(그 줄)에서, 비밀번호는 적은 값에서 온다 — 응답에는 비밀번호가 없다.
  */
 const tzGroups: TzGroup[] = [
   { id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' },
@@ -24,7 +26,7 @@ const tzGroups: TzGroup[] = [
 const ALL = { canEdit: true, canChangeRole: true, canResetPassword: true, canToggleActive: true, canDelete: true };
 const NONE = { canEdit: false, canChangeRole: false, canResetPassword: false, canToggleActive: false, canDelete: false };
 const who = (id: number, name: string, role: Member['role'], extra: Partial<Member> = {}): Member => ({
-  id, name, email: `m${id}@t.kr`, role, title: null, tz: 'Asia/Seoul', active: true, wageRate: null, wageFrom: null, wageable: false,
+  id, name, loginId: `m${id}@t.kr`, email: `m${id}@t.kr`, role, title: null, tz: 'Asia/Seoul', active: true, wageRate: null, wageFrom: null, wageable: false,
   mustChangeCredentials: false, phone: null, hiredOn: '2026-03-02', ...NONE, ...extra,
 });
 const managerView: MemberGroup[] = [
@@ -80,7 +82,7 @@ describe('§17 사용자 표 CRUD (W8)', () => {
     expect(buttons(row(view, '김재훈'))).toEqual([]);
   });
 
-  it('「수정」은 바뀐 칸만 보내고(이메일은 서버처럼 소문자 비교) · 바뀐 것이 없으면 저장이 잠기며 · 되면 서랍과 /meta 가 다시 읽힌다', async () => {
+  it('「수정」은 바뀐 칸만 보내고(이메일은 서버처럼 소문자 비교 · 아이디는 적은 모양 그대로) · 바뀐 것이 없으면 저장이 잠기며 · 되면 서랍과 /meta 가 다시 읽힌다', async () => {
     const { view, client } = paint();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: who(7, '김재훈', 'manager') } as never);
@@ -89,9 +91,16 @@ describe('§17 사용자 표 CRUD (W8)', () => {
     const save = within(dialog).getByRole('button', { name: '저장' }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     expect((within(dialog).getByLabelText('휴대폰') as HTMLInputElement).value).toBe('01033334444');
-    // 대소문자만 바꾼 이메일은 바뀐 것이 아니다
-    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: ' M7@T.KR ' } });
+    expect((within(dialog).getByLabelText('아이디') as HTMLInputElement).value).toBe('m7@t.kr');
+    // 대소문자만 바꾼 이메일은 바뀐 것이 아니다 · 앞뒤 공백만 붙인 아이디도 바뀐 것이 아니다
+    fireEvent.change(within(dialog).getByLabelText('이메일 (선택)'), { target: { value: ' M7@T.KR ' } });
+    fireEvent.change(within(dialog).getByLabelText('아이디'), { target: { value: ' m7@t.kr ' } });
     expect(save.disabled).toBe(true);
+    // 아이디를 비우면 저장할 수 없다
+    fireEvent.change(within(dialog).getByLabelText('아이디'), { target: { value: '  ' } });
+    fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: '실장' } });
+    expect(save.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('아이디'), { target: { value: 'm7@t.kr' } });
     fireEvent.click(within(within(dialog).getByRole('group', { name: '역할' })).getByRole('button', { name: '매니저' }));
     fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: ' 실장 ' } });
     fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '' } });
@@ -105,53 +114,75 @@ describe('§17 사용자 표 CRUD (W8)', () => {
 
   it('자기 줄의 「수정」에는 역할 칸이 없고, 서버 거절 문장은 창 안에 남는다', async () => {
     const { view } = paint();
-    vi.spyOn(api, 'patch').mockRejectedValue({ response: { status: 409, data: { code: 'STAFF_EMAIL_TAKEN', message: '그 이메일로 이미 구성원이 있습니다' } } });
+    vi.spyOn(api, 'patch').mockRejectedValue({ response: { status: 409, data: { code: 'STAFF_EMAIL_TAKEN', message: '그 이메일은 다른 구성원이 쓰고 있습니다 — 이메일은 한 사람에 하나입니다' } } });
     fireEvent.click(within(row(view, '김범준')).getByRole('button', { name: '수정' }));
     const dialog = view.getByRole('dialog');
     expect(within(dialog).queryByRole('group', { name: '역할' })).toBeNull();
-    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'm7@t.kr' } });
+    fireEvent.change(within(dialog).getByLabelText('이메일 (선택)'), { target: { value: 'm7@t.kr' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
-    await waitFor(() => expect(within(dialog).getByText('그 이메일로 이미 구성원이 있습니다')).toBeTruthy());
+    await waitFor(() => expect(within(dialog).getByText('그 이메일은 다른 구성원이 쓰고 있습니다 — 이메일은 한 사람에 하나입니다')).toBeTruthy());
     expect(view.getByRole('dialog')).toBeTruthy();
   });
 
-  it('「비밀번호 초기화」는 창에서 한 번 더 누르고, 되면 서버가 준 넘겨줄 정보를 보인다 · 복사가 막힌 브라우저에서도 깨지지 않는다', async () => {
+  it('「비밀번호 초기화」는 매니저가 임시 비밀번호를 적고 한 번 더 누르며, 되면 아이디(응답)와 적은 비밀번호를 보인다 · 복사가 막힌 브라우저에서도 깨지지 않는다 (W10)', async () => {
     const { view } = paint();
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { loginId: 'm7@t.kr', initialPassword: 'server-initial-7' } } as never);
+    // 응답은 그 줄뿐이다 — 비밀번호는 없다
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: who(7, '김재훈', 'teacher', { loginId: 'Kim.T7', mustChangeCredentials: true }) } as never);
     vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
     fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '비밀번호 초기화' }));
     const dialog = view.getByRole('dialog');
-    // 첫 단계는 확인뿐 — 아직 아무것도 보내지 않았다
+    // 첫 단계 — 아직 아무것도 보내지 않았고, 임시 비밀번호를 적어야 단추가 선다
     expect(post).not.toHaveBeenCalled();
     expect(dialog.textContent).toContain('지금 로그인된 곳은 끊기고');
-    fireEvent.click(within(dialog).getByRole('button', { name: '초기화' }));
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/drawer/staff/7/password-reset', {}));
+    const reset = within(dialog).getByRole('button', { name: '초기화' }) as HTMLButtonElement;
+    expect(reset.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('임시 비밀번호'), { target: { value: 'Reset-pass-7' } });
+    expect(reset.disabled).toBe(false);
+    fireEvent.click(reset);
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/drawer/staff/7/password-reset', { password: 'Reset-pass-7' }));
     const box = await within(dialog).findByRole('region', { name: '넘겨줄 정보' });
-    expect(box.textContent).toContain('m7@t.kr');
-    expect(box.textContent).toContain('server-initial-7');
+    expect(box.textContent).toContain('Kim.T7');
+    expect(box.textContent).toContain('Reset-pass-7');
     fireEvent.click(within(box).getByRole('button', { name: '복사' }));
     await waitFor(() => expect(within(box).getByRole('status').textContent).toContain('직접 옮겨 적어 주세요'));
   });
 
-  it('복사할 수 있으면 아이디와 초기 비밀번호를 함께 복사한다', async () => {
+  it('초기화의 규칙 거절은 서버 문장 그대로 창 안에 남고 넘겨줄 정보는 서지 않는다 · 닫았다 열면 적은 값이 없다', async () => {
     const { view } = paint();
-    vi.spyOn(api, 'post').mockResolvedValue({ data: { loginId: 'm7@t.kr', initialPassword: 'server-initial-7' } } as never);
+    vi.spyOn(api, 'post').mockRejectedValue({ response: { status: 400, data: { code: 'PASSWORD_RULE', message: '비밀번호에 영문과 숫자를 함께 넣어 주세요' } } });
+    fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '비밀번호 초기화' }));
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('임시 비밀번호'), { target: { value: 'onlyletters' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '초기화' }));
+    await waitFor(() => expect(within(dialog).getByText('비밀번호에 영문과 숫자를 함께 넣어 주세요')).toBeTruthy());
+    expect(within(dialog).queryByRole('region', { name: '넘겨줄 정보' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소 (Esc)' }));
+    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '비밀번호 초기화' }));
+    expect((within(view.getByRole('dialog')).getByLabelText('임시 비밀번호') as HTMLInputElement).value).toBe('');
+  });
+
+  it('복사할 수 있으면 아이디와 임시 비밀번호를 함께 복사한다', async () => {
+    const { view } = paint();
+    vi.spyOn(api, 'post').mockResolvedValue({ data: who(7, '김재훈', 'teacher') } as never);
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '비밀번호 초기화' }));
+    fireEvent.change(within(view.getByRole('dialog')).getByLabelText('임시 비밀번호'), { target: { value: 'Reset-pass-7' } });
     fireEvent.click(within(view.getByRole('dialog')).getByRole('button', { name: '초기화' }));
     const box = await within(view.getByRole('dialog')).findByRole('region', { name: '넘겨줄 정보' });
     fireEvent.click(within(box).getByRole('button', { name: '복사' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('아이디 m7@t.kr\n초기 비밀번호 server-initial-7'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('아이디 m7@t.kr\n임시 비밀번호 Reset-pass-7'));
     await waitFor(() => expect(within(box).getByRole('status').textContent).toBe('복사했습니다'));
   });
 
   // N-104 (대표 결정 2026-09-26 「첫 설정 다시 걸기」) — 저장 전에 창이 먼저 말한다 · 판정은 서버가 한다
-  it('이메일 · 휴대폰을 바꾸면 「첫 설정을 다시 해야 한다」를 저장 전에 보이고 · 다른 칸만 바꾸면 보이지 않는다', async () => {
+  it('이메일 · 휴대폰을 바꾸면 「첫 설정을 다시 해야 한다」를 저장 전에 보이고 · 다른 칸만 바꾸면 보이지 않는다 · 아이디는 따로 알린다(W10)', async () => {
     const { view } = paint();
     fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '수정' }));
     const dialog = view.getByRole('dialog');
-    const notice = () => within(dialog).queryByText(/첫 설정\(새 아이디 · 휴대폰 확인 · 새 비밀번호\)을 다시 해야 합니다/);
+    const notice = () => within(dialog).queryByText(/첫 설정\(휴대폰 · 이메일 확인 · 새 비밀번호\)을 다시 해야 합니다/);
+    const idNotice = () => within(dialog).queryByText(/다음 로그인부터 새 아이디로 들어옵니다/);
     expect(notice()).toBeNull();
     fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: '실장' } });
     expect(notice()).toBeNull();
@@ -162,7 +193,14 @@ describe('§17 사용자 표 CRUD (W8)', () => {
     expect(notice()?.textContent).toContain('김재훈 님은');
     fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '01033334444' } });
     expect(notice()).toBeNull();
-    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'new7@t.kr' } });
+    // 아이디는 연락처가 아니다 — 첫 설정 안내는 없고 새 아이디를 알리라는 안내만 선다
+    fireEvent.change(within(dialog).getByLabelText('아이디'), { target: { value: '김재훈7' } });
+    expect(notice()).toBeNull();
+    expect(idNotice()?.textContent).toContain('김재훈 님은');
+    fireEvent.change(within(dialog).getByLabelText('이메일 (선택)'), { target: { value: 'new7@t.kr' } });
+    expect(notice()).toBeTruthy();
+    // 이메일을 비워도 연락처가 바뀐 것이다
+    fireEvent.change(within(dialog).getByLabelText('이메일 (선택)'), { target: { value: '' } });
     expect(notice()).toBeTruthy();
   });
 
@@ -191,11 +229,12 @@ describe('§17 사용자 표 CRUD (W8)', () => {
 
   it('「+ 구성원」도 같은 국가번호 칸을 쓴다 — 해외 번호는 「+국가번호 번호」로 보낸다', async () => {
     const { view } = paint(managerView, COUNTRIES);
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { ...who(99, '새 사람', 'teacher'), loginId: 'n@t.kr', initialPassword: 'server-initial' } } as never);
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { ...who(99, '새 사람', 'teacher'), loginId: 'new99' } } as never);
     fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: '새 사람' } });
-    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'n@t.kr' } });
+    fireEvent.change(within(dialog).getByLabelText('아이디'), { target: { value: 'new99' } });
+    fireEvent.change(within(dialog).getByLabelText('임시 비밀번호'), { target: { value: 'Temp-pass-99' } });
     fireEvent.change(within(dialog).getByRole('combobox', { name: '국가번호' }), { target: { value: '1' } });
     fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '415 555 0123' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '만들기' }));

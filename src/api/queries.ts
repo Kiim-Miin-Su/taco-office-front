@@ -104,7 +104,7 @@ import type {
   StudentWithdraw,
   WithdrawResult,
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
-  Member, StaffCreate, StaffCreated, StaffHandover, StaffPatch, WageHistory, WageRow, WageWrite,
+  Member, StaffCreate, StaffPasswordReset, StaffPatch, WageHistory, WageRow, WageWrite,
   LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult,
   KindCreate,
   KindPatch,
@@ -1818,15 +1818,15 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
 }
 
 /**
- * §17 「+ 구성원」 (C97 · D-41) — 강사·매니저 계정 한 사람. 비밀번호는 보내기만 하고 응답에는 없다(해시만 남는다).
+ * §17 「+ 구성원」 (C97 · D-41 · W10) — 강사·매니저 계정 한 사람. 아이디 · 임시 비밀번호는 매니저가 적고,
+ * 비밀번호는 보내기만 하고 응답에는 없다(해시만 남는다). 응답은 만든 줄이다.
  * 서랍(구성원 칸)과 `/meta`(담당·강사 고르기)가 새 사람을 알아야 한다 — 둘 다 버린다.
  */
-export function useCreateMember(): UseMutationResult<StaffCreated, unknown, StaffCreate> {
+export function useCreateMember(): UseMutationResult<Member, unknown, StaffCreate> {
   const qc = useQueryClient();
   const viewerId = useViewerId();
   return useMutation({
-    // 응답에 넘겨줄 정보(아이디 · 초기 비밀번호)가 실린다 — 캐시에는 넣지 않고 창이 한 번 보여 준다 (W8)
-    mutationFn: async (body) => (await api.post<StaffCreated>('/drawer/staff', body)).data,
+    mutationFn: async (body) => (await api.post<Member>('/drawer/staff', body)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.drawer });
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
@@ -1854,11 +1854,11 @@ export function useUpdateMember(): UseMutationResult<Member, unknown, { id: numb
   });
 }
 
-/** 「비밀번호 초기화」 — 응답은 넘겨줄 정보. 캐시에 넣지 않는다 */
-export function useResetMemberPassword(): UseMutationResult<StaffHandover, unknown, number> {
+/** 「비밀번호 초기화」 — 매니저가 적은 임시 비밀번호로 바꾼다(W10). 응답은 그 줄이고 비밀번호는 없다 */
+export function useResetMemberPassword(): UseMutationResult<Member, unknown, { id: number; body: StaffPasswordReset }> {
   const done = useInvalidateMembers();
   return useMutation({
-    mutationFn: async (id) => (await api.post<StaffHandover>(`/drawer/staff/${id}/password-reset`, {})).data,
+    mutationFn: async ({ id, body }) => (await api.post<Member>(`/drawer/staff/${id}/password-reset`, body)).data,
     onSuccess: done,
   });
 }
