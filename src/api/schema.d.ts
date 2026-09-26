@@ -123,7 +123,7 @@ export interface paths {
         put?: never;
         /**
          * 인증 코드 받기 — 새 아이디(이메일) 또는 휴대폰으로 6자리
-         * @description 코드와 받는 곳 원문은 저장하지 않는다(HMAC · 가린 모양만). 10분 유효 · 같은 채널 60초 간격 · 한 시간 5번.
+         * @description 코드와 받는 곳 원문은 저장하지 않는다(HMAC · 가린 모양만). 10분 유효 · 같은 채널 60초 간격 · 한 시간 5번 · 하루 10번(계정 · 채널마다 · 비밀번호 찾기와 같은 예산 · N-105). 휴대폰은 해외 번호도 받는다(`+국가번호 번호` · N-103).
          */
         post: operations["OnboardingController_codes"];
         delete?: never;
@@ -146,6 +146,66 @@ export interface paths {
          * @description 성공하면 로그인과 같다: Access 는 본문, Refresh 는 httpOnly 쿠키. 그 전에 발급된 이 계정의 토큰은 모두 401 이 된다.
          */
         post: operations["OnboardingController_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 비밀번호 찾기 안내 — 비밀번호 규칙 · 코드 유효 시간 · 코드 채널
+         * @description 낱말(채널 이름 · 못 보내는 까닭 · 비밀번호 규칙)은 서버가 준다. 계정과 무관한 안내만 싣는다.
+         */
+        get: operations["PasswordResetController_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset/codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 코드 받기 — 그 아이디에 등록 · 확인된 이메일 또는 휴대폰으로 6자리
+         * @description 계정이 없거나 · 확인되지 않았거나 · 한도(60초 · 한 시간 5번 · 하루 10번)에 걸렸거나 · 보내지 못해도 **같은 201** 이다(계정 여부를 알려 주지 않는다). 코드와 받는 곳 원문은 저장하지 않는다.
+         */
+        post: operations["PasswordResetController_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 새 비밀번호 정하기 — 아이디 · 두 코드(이메일 · 휴대폰) · 새 비밀번호를 한 번에
+         * @description 성공하면 본문 없음 — 새 비밀번호로 다시 로그인한다. 그 전에 발급된 이 계정의 토큰은 모두 401 이 된다(옛 세션을 끊는다). 첫 설정 상태는 바꾸지 않는다.
+         */
+        post: operations["PasswordResetController_complete"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3651,6 +3711,18 @@ export interface components {
             /** @description 보낼 수 없는 까닭 — ready=false 일 때만 */
             notReadyReason: string | null;
         };
+        PhoneCountryDto: {
+            /**
+             * @description 국가번호 — + 없이 숫자만
+             * @example 82
+             */
+            code: string;
+            /**
+             * @description 나라 이름
+             * @example 대한민국
+             */
+            label: string;
+        };
         OnboardingInfoDto: {
             /** @description 이 계정이 첫 설정을 해야 하는가 — false 면 화면은 일정으로 보낸다 */
             required: boolean;
@@ -3665,6 +3737,8 @@ export interface components {
             /** @description 같은 채널로 다시 받기까지 기다릴 초 */
             resendAfterSeconds: number;
             channels: components["schemas"]["OnboardingChannelDto"][];
+            /** @description 휴대폰 국가번호 목록 — 첫 줄이 대한민국(기본값) */
+            phoneCountries: components["schemas"]["PhoneCountryDto"][];
         };
         OnboardingCodeRequestDto: {
             /**
@@ -3705,7 +3779,7 @@ export interface components {
              */
             password: string;
             /**
-             * @description 휴대폰 번호 — 코드를 받은 번호
+             * @description 휴대폰 번호 — 코드를 받은 번호. 해외 번호는 `+국가번호 번호`(N-103 · 나라는 phoneCountries)
              * @example 010-1234-5678
              */
             phone: string;
@@ -3719,6 +3793,65 @@ export interface components {
              * @example 123456
              */
             phoneCode: string;
+        };
+        PasswordResetInfoDto: {
+            /** @description 비밀번호 규칙 문장 — 화면은 이 문장을 그대로 적는다(첫 설정과 같은 문장) */
+            passwordRule: string;
+            /** @description 코드 유효 시간(분) */
+            codeTtlMinutes: number;
+            /** @description 같은 채널로 다시 받기까지 기다릴 초 */
+            resendAfterSeconds: number;
+            /** @description 코드 채널 — 낱말 · 못 보내는 까닭은 서버가 준다(첫 설정과 같은 표) */
+            channels: components["schemas"]["OnboardingChannelDto"][];
+        };
+        PasswordResetCodeRequestDto: {
+            /**
+             * @description 로그인 아이디(이메일) — 코드는 이 계정에 **등록 · 확인된** 이메일 · 휴대폰으로만 간다
+             * @example kim@tnacademy.kr
+             */
+            email: string;
+            /**
+             * @description email = 등록된 이메일로 · sms = 등록된 휴대폰으로
+             * @enum {string}
+             */
+            channel: "email" | "sms";
+        };
+        PasswordResetCodeResultDto: {
+            /** @enum {string} */
+            channel: "email" | "sms";
+            /** @description 안내 문장 — 계정이 있든 없든 같다(보낸 곳 · 계정 여부를 싣지 않는다). 화면은 이 문장을 그대로 적는다 */
+            message: string;
+            /**
+             * Format: date-time
+             * @description 보냈다면 코드가 만료되는 시각
+             */
+            expiresAt: string;
+            /** @description 같은 채널로 다시 받기까지 기다릴 초 */
+            resendAfterSeconds: number;
+            /** @description 개발용 — 운영이 아니고 서버의 AUTH_CODE_DEV_ECHO=on 이며 발송 설정이 없고 코드를 실제로 만들었을 때만 실린다. 운영 응답에는 절대 없다 */
+            devCode?: string;
+        };
+        PasswordResetCompleteDto: {
+            /**
+             * @description 로그인 아이디(이메일) — 코드를 받은 계정
+             * @example kim@tnacademy.kr
+             */
+            email: string;
+            /**
+             * @description 등록된 이메일로 받은 코드
+             * @example 123456
+             */
+            emailCode: string;
+            /**
+             * @description 등록된 휴대폰으로 받은 코드
+             * @example 123456
+             */
+            phoneCode: string;
+            /**
+             * @description 새 비밀번호 — 규칙은 GET /auth/password-reset 의 passwordRule
+             * @example ********
+             */
+            password: string;
         };
         KindDto: {
             key: string;
@@ -9243,7 +9376,7 @@ export interface components {
             wageable?: boolean;
             /** @description 첫 설정(아이디·비밀번호 변경 · 휴대폰·이메일 확인)을 아직 안 끝낸 계정 — 화면의 「첫 설정 전」 칩 */
             mustChangeCredentials?: boolean;
-            /** @description 휴대폰(숫자만) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
+            /** @description 휴대폰(한국은 숫자만 · 해외는 +국가번호…) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
             phone?: string | null;
             /** @description 입사일 YYYY-MM-DD — 「수정」 창의 처음 값. 옛 계정은 null 일 수 있다 */
             hiredOn?: string | null;
@@ -9362,6 +9495,8 @@ export interface components {
             canAddMember: boolean;
             /** @description 시급을 보고 고칠 수 있는가 — canWage. false 면 members.wageRate 는 전부 null (C97) */
             canWage: boolean;
+            /** @description §17 구성원 만들기 · 수정의 휴대폰 국가번호 목록 — 첫 설정과 같은 표(N-103) */
+            phoneCountries: components["schemas"]["PhoneCountryDto"][];
         };
         StaffCreateDto: {
             name: string;
@@ -9379,7 +9514,7 @@ export interface components {
             title?: string | null;
             /** @description 시간대 — 시간대 그룹(tzg)에 있는 값만. 비우면 Asia/Seoul */
             tz?: string | null;
-            /** @description 휴대폰 — 숫자만 남겨 저장한다(한국 휴대폰만 · 아니면 400) */
+            /** @description 휴대폰 — 한국 번호는 숫자만 남겨 저장, 해외 번호는 `+국가번호 번호`(N-103 · 나라는 phoneCountries). 모양이 아니면 400 */
             phone?: string | null;
             /** @description 입사일 YYYY-MM-DD — 비우면 오늘. 불가 시간 2주 회차의 기산점 */
             hiredOn?: string | null;
@@ -9404,7 +9539,7 @@ export interface components {
             wageable?: boolean;
             /** @description 첫 설정(아이디·비밀번호 변경 · 휴대폰·이메일 확인)을 아직 안 끝낸 계정 — 화면의 「첫 설정 전」 칩 */
             mustChangeCredentials?: boolean;
-            /** @description 휴대폰(숫자만) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
+            /** @description 휴대폰(한국은 숫자만 · 해외는 +국가번호…) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
             phone?: string | null;
             /** @description 입사일 YYYY-MM-DD — 「수정」 창의 처음 값. 옛 계정은 null 일 수 있다 */
             hiredOn?: string | null;
@@ -9427,10 +9562,10 @@ export interface components {
             name?: string;
             /**
              * Format: email
-             * @description 로그인 아이디 — 유일(대소문자 무시). 바꾸면 이메일 확인이 풀린다
+             * @description 로그인 아이디 — 유일(대소문자 무시). 바꾸면 이메일 확인이 풀리고 그 사람은 다음 요청부터 첫 설정을 다시 한다(N-104)
              */
             email?: string;
-            /** @description 휴대폰 — 숫자만 남겨 저장(한국 휴대폰만 · 아니면 400). null·빈 글이면 비운다. 바꾸면 휴대폰 확인이 풀린다 */
+            /** @description 휴대폰 — 한국 번호는 숫자만 · 해외 번호는 `+국가번호 번호`(N-103). null·빈 글이면 비운다. 바꾸면 휴대폰 확인이 풀리고 그 사람은 다음 요청부터 첫 설정을 다시 한다(N-104) */
             phone?: string | null;
             /** @description 직함 — 권한과 무관 (D-R39). null·빈 글이면 비운다 */
             title?: string | null;
@@ -10209,7 +10344,7 @@ export interface operations {
                     "application/json": components["schemas"]["OnboardingCodeResultDto"];
                 };
             };
-            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL · INVALID_PHONE */
+            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL · INVALID_PHONE(목록 밖 나라 포함) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10254,7 +10389,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description CODE_TOO_SOON(60초 안) · CODE_LIMIT(한 시간 5번) */
+            /** @description CODE_TOO_SOON(60초 안) · CODE_DAILY_LIMIT(하루 10번 · N-105) · CODE_LIMIT(한 시간 5번) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -10281,7 +10416,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description SENDER_NOT_CONFIGURED — 발송 설정 없음 · 코드 줄을 만들지 않는다 */
+            /** @description SENDER_NOT_CONFIGURED(발송 설정 없음) · AUTH_CODE_SECRET_MISSING(운영에 코드 비밀 값 없음 · N-105) — 코드 줄을 만들지 않는다 */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -10360,6 +10495,259 @@ export interface operations {
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description AUTH_CODE_SECRET_MISSING — 운영에 코드 비밀 값이 없어 코드를 확인할 수 없다(N-105) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    PasswordResetController_info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetInfoDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    PasswordResetController_codes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetCodeRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetCodeResultDto"];
+                };
+            };
+            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description SENDER_NOT_CONFIGURED(발송 설정 없음) · AUTH_CODE_SECRET_MISSING(운영에 코드 비밀 값 없음 · N-105) — 계정과 무관한 서버 상태 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    PasswordResetController_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetCompleteDto"];
+            };
+        };
+        responses: {
+            /** @description 비밀번호를 바꿨다. 응답 본문 없음. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description BAD_REQUEST(입력 모양) · PASSWORD_RULE(규칙 문장 그대로) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description RESET_CODE_INVALID(계정 · 코드 문제를 가르지 않는 한 문장 · 틀린 횟수는 남는다) · SAME_AS_CURRENT(두 코드를 확인한 뒤에만) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description SENDER_NOT_CONFIGURED(발송 설정 없음) · AUTH_CODE_SECRET_MISSING(운영에 코드 비밀 값 없음 · N-105) — 계정과 무관한 서버 상태 */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

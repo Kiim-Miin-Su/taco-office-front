@@ -5,7 +5,7 @@
  */
 
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api, apiMessage } from '@/api/client';
@@ -13,6 +13,8 @@ import { clearSessionQueries } from '@/api/session-cache';
 import { useOnboardingInfo } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo, QueryState } from '@/components/ui';
+import { CodeRequestButton, useResendCountdown, type CodeChannel } from '@/components/account/CodeRequest';
+import { PhoneInput, composePhone, type PhoneValue } from '@/components/account/PhoneInput';
 import type { LoginResult, OnboardingCodeRequest, OnboardingCodeResult, OnboardingComplete, OnboardingInfo } from '@/api/types';
 
 /**
@@ -21,9 +23,10 @@ import type { LoginResult, OnboardingCodeRequest, OnboardingCodeResult, Onboardi
  *
  * 로그인처럼 셸 없이 홀로 선다 — 첫 설정 전에는 다른 화면 · API 가 전부 닫혀 있어(RouteAccess · 서버 403) 메뉴를 그릴 까닭이 없다.
  * 강사도 쓰는 화면이라 휴대폰(393×852)부터 맞추고 넓은 화면에서는 가운데 카드로 둔다.
- * 규칙 문장 · 채널 이름 · 못 보내는 까닭 · 거절 문장은 서버가 준다 — 화면이 규칙을 따로 적지 않는다.
+ * 규칙 문장 · 채널 이름 · 못 보내는 까닭 · 거절 문장 · 휴대폰 국가번호 목록(N-103)은 서버가 준다 — 화면이 규칙을 따로 적지 않는다.
+ * 코드 받기 줄과 국가번호 칸은 비밀번호 찾기(N-101)와 같은 부품이다(components/account).
  */
-type Channel = OnboardingCodeRequest['channel'];
+type Channel = CodeChannel;
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -33,29 +36,23 @@ export default function OnboardingPage() {
   const info = useOnboardingInfo();
 
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  /** 국가번호 + 번호 — 국가번호가 비어 있으면 서버 목록의 첫 줄(국내)이다 */
+  const [phone, setPhone] = useState<PhoneValue>({ country: '', local: '' });
   const [emailCode, setEmailCode] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [sent, setSent] = useState<Partial<Record<Channel, OnboardingCodeResult>>>({});
-  /** 채널별로 다시 받을 수 있는 시각(ms) — 서버가 준 resendAfterSeconds 로 센다 */
-  const [resendAt, setResendAt] = useState<Partial<Record<Channel, number>>>({});
-  const [now, setNow] = useState(() => Date.now());
+  /** 채널별 다시 받기 초읽기 — 서버가 준 resendAfterSeconds 로 센다 */
+  const resend = useResendCountdown();
   /*
    * 거절 문장은 **누른 자리 옆**에 선다 — 코드 받기의 거절은 그 채널 단추 바로 아래, 마치기의 거절은 마치기 단추 위.
    * 폼 맨 아래 띠 하나만 두면 393px 휴대폰에서 「코드 받기」를 눌렀을 때 화면 밖이라 아무 일도 없던 것처럼 보인다(QA 0926 UX-1).
    */
   const [err, setErr] = useState<{ at: Channel | 'complete'; text: string } | null>(null);
   const [busy, setBusy] = useState<Channel | 'complete' | 'logout' | null>(null);
-
-  // 초읽기가 남아 있을 때만 1초마다 다시 그린다 — 다 끝나면 타이머를 둔 채 두지 않는다
-  const counting = Object.values(resendAt).some((at) => (at ?? 0) > now);
-  useEffect(() => {
-    if (!counting) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, [counting]);
+  const countries = info.data?.phoneCountries ?? [];
+  const phoneText = composePhone(phone, countries);
 
   async function sendCode(channel: Channel, target: string) {
     setBusy(channel);
@@ -64,9 +61,7 @@ export default function OnboardingPage() {
       const body: OnboardingCodeRequest = { channel, target };
       const { data } = await api.post<OnboardingCodeResult>('/auth/onboarding/codes', body);
       setSent((prev) => ({ ...prev, [channel]: data }));
-      const at = Date.now();
-      setNow(at);
-      setResendAt((prev) => ({ ...prev, [channel]: at + data.resendAfterSeconds * 1_000 }));
+      resend.start(channel, data.resendAfterSeconds);
     } catch (e) {
       setErr({ at: channel, text: apiMessage(e) });
     } finally {
@@ -81,7 +76,7 @@ export default function OnboardingPage() {
     if (password !== confirm) { setErr({ at: 'complete', text: '새 비밀번호와 확인이 다릅니다' }); return; }
     setBusy('complete');
     try {
-      const body: OnboardingComplete = { email, password, phone, emailCode, phoneCode };
+      const body: OnboardingComplete = { email, password, phone: phoneText, emailCode, phoneCode };
       const { data } = await api.post<LoginResult>('/auth/onboarding/complete', body);
       // 로그인과 같은 순서 — 옛 세션의 캐시를 버리고 새 토큰 · 새 Me 로 연다(옛 토큰은 서버가 이미 끊었다)
       clearSessionQueries(queryClient);
@@ -102,36 +97,17 @@ export default function OnboardingPage() {
     router.replace('/login');
   }
 
-  /**
-   * 채널 하나의 「코드 받기」 줄 — 준비 안 됨은 서버 까닭, 보낸 뒤에는 가린 받는 곳 · 개발용 코드 · 초읽기.
-   * 컴포넌트가 아니라 그리는 함수다(렌더마다 새 컴포넌트 형이 생기면 입력 중에 단추가 다시 mount 된다).
-   */
+  /** 채널 하나의 「코드 받기」 줄 — 준비 안 됨은 서버 까닭, 보낸 뒤에는 가린 받는 곳 · 개발용 코드 · 초읽기(공용 부품) */
   function codeRow(data: OnboardingInfo, channel: Channel, target: string) {
-    const spec = data.channels.find((c) => c.channel === channel);
     const result = sent[channel];
-    const left = Math.max(0, Math.ceil(((resendAt[channel] ?? 0) - now) / 1_000));
-    const label = left > 0 ? `다시 받기 (${left}초)` : `${spec?.label ?? ''}로 코드 받기`;
     return (
-      <div className="mt-2">
-        <Button
-          size="sm" className="w-full sm:w-auto"
-          disabled={!spec?.ready || left > 0 || busy !== null || !target.trim()}
-          onClick={() => void sendCode(channel, target)}
-        >
-          {busy === channel ? '보내는 중…' : label}
-        </Button>
-        {err?.at === channel ? <p role="alert" className="mt-1 text-[12px] font-bold text-red">{err.text}</p> : null}
-        {spec && !spec.ready && spec.notReadyReason ? (
-          <p className="mt-1 text-[11px] font-bold text-red">{spec.notReadyReason}</p>
-        ) : null}
-        {result ? (
-          <p className="mt-1 text-[11px] text-fg-subtle">
-            보낸 곳 {result.targetMasked} · {data.codeTtlMinutes}분 안에 적어 주세요
-          </p>
-        ) : null}
-        {/* 서버가 개발용 되돌려 주기를 켰을 때만 온다(운영 응답에는 없다) */}
-        {result?.devCode ? <p className="mt-1 text-[11px] font-bold text-fg">개발용 코드: {result.devCode}</p> : null}
-      </div>
+      <CodeRequestButton
+        spec={data.channels.find((c) => c.channel === channel)} left={resend.left(channel)} busy={busy === channel}
+        disabled={busy !== null || !target.trim()} onSend={() => void sendCode(channel, target)}
+        error={err?.at === channel ? err.text : null}
+        note={result ? `보낸 곳 ${result.targetMasked} · ${data.codeTtlMinutes}분 안에 적어 주세요` : null}
+        devCode={result?.devCode}
+      />
     );
   }
 
@@ -167,11 +143,9 @@ export default function OnboardingPage() {
 
               <div className="mt-5">
                 <Label htmlFor="ob-phone" hint={data.phoneMasked ? `등록된 번호 ${data.phoneMasked}` : undefined}>휴대폰</Label>
-                <Input
-                  id="ob-phone" type="tel" value={phone} autoComplete="tel" inputMode="tel"
-                  onChange={(e) => setPhone(e.currentTarget.value)}
-                />
-                {codeRow(data, 'sms', phone)}
+                {/* 해외 번호는 국가번호를 고른다(N-103) — 나라 목록은 서버가 준다 */}
+                <PhoneInput id="ob-phone" countries={data.phoneCountries} value={phone} onChange={setPhone} />
+                {codeRow(data, 'sms', phoneText)}
                 <div className="mt-2">
                   <Label htmlFor="ob-phone-code">휴대폰 인증 코드</Label>
                   <Input

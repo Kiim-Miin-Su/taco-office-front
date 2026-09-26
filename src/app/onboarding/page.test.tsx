@@ -44,6 +44,8 @@ const info: OnboardingInfo = {
     { channel: 'email', label: '메일', ready: true, notReadyReason: null },
     { channel: 'sms', label: '문자', ready: true, notReadyReason: null },
   ],
+  // 서버 목록 — 첫 줄이 국내(N-103)
+  phoneCountries: [{ code: '82', label: '대한민국' }, { code: '1', label: '미국 · 캐나다' }],
 };
 const user: Me = {
   id: 9, name: '새강사', role: 'teacher', roleLabel: '강사', title: null, canAdminPage: false, canCrudAll: false,
@@ -111,6 +113,33 @@ describe('첫 설정 화면', () => {
     expect(h.clear).toHaveBeenCalledOnce();
     expect(h.clear.mock.invocationCallOrder[0]).toBeLessThan(h.signIn.mock.invocationCallOrder[0]);
     expect(h.replace).toHaveBeenCalledWith('/schedule');
+  });
+
+  it('해외 번호는 국가번호를 골라 「+국가번호 번호」로 보낸다 — 나라 이름은 서버 목록 그대로 · 기본은 첫 줄(국내) (N-103)', async () => {
+    const result: LoginResult = { accessToken: 'new-access', user };
+    h.post.mockImplementation(async (url: string, body: { channel?: string }) => {
+      if (url === '/auth/onboarding/codes') return sent(body.channel as 'email' | 'sms', body.channel === 'sms' ? { targetMasked: '+1 ****0123' } : {});
+      if (url === '/auth/onboarding/complete') return { data: result };
+      throw new Error(url);
+    });
+    const view = mount();
+    await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
+    const country = view.getByRole('combobox', { name: '국가번호' }) as HTMLSelectElement;
+    expect(country.value).toBe('82');
+    expect([...country.options].map((o) => o.textContent)).toEqual(['+82 대한민국', '+1 미국 · 캐나다']);
+    fireEvent.change(country, { target: { value: '1' } });
+    type(view, '휴대폰', '(415) 555-0123');
+    fireEvent.click(view.getByRole('button', { name: '문자로 코드 받기' }));
+    await waitFor(() => expect(view.getByText(/\+1 \*\*\*\*0123/)).toBeTruthy());
+    expect(h.post).toHaveBeenCalledWith('/auth/onboarding/codes', { channel: 'sms', target: '+1 (415) 555-0123' });
+
+    type(view, '새 아이디(이메일)', 'kim@tnacademy.kr');
+    type(view, '이메일 인증 코드', '111111');
+    type(view, '휴대폰 인증 코드', '222222');
+    type(view, '새 비밀번호', 'Brand-new-77');
+    type(view, '새 비밀번호 확인', 'Brand-new-77');
+    fireEvent.click(view.getByRole('button', { name: '설정 마치기' }));
+    await waitFor(() => expect(h.post).toHaveBeenCalledWith('/auth/onboarding/complete', expect.objectContaining({ phone: '+1 (415) 555-0123' })));
   });
 
   it('서버 거절 문장을 그대로 보이고 세션을 바꾸지 않는다', async () => {

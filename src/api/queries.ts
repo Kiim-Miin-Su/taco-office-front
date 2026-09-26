@@ -131,6 +131,7 @@ import type {
   OccurrenceDelete,
   OccurrenceList,
   OnboardingInfo,
+  PasswordResetInfo,
   OccurrenceMove,
   OccurrencePaste,
   OccurrencePatch,
@@ -2738,5 +2739,16 @@ export function useOnboardingInfo(enabled = true): UseQueryResult<OnboardingInfo
     queryKey: sessionQueryKey(['auth', 'onboarding'] as const, viewerId),
     queryFn: async () => (await api.get<OnboardingInfo>('/auth/onboarding')).data,
     enabled,
+  });
+}
+
+/* ══ 비밀번호 찾기 (N-101 · 대표 결정 2026-09-26) ═══════════════════════════════════
+   로그인 전 화면이 읽는 안내(규칙 문장 · 코드 시간 · 채널 낱말) — 계정과 무관하다. 코드 받기 · 마치기는 첫 설정처럼 화면이 직접 부른다. */
+
+export function usePasswordResetInfo(): UseQueryResult<PasswordResetInfo> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(['auth', 'password-reset'] as const, viewerId),
+    queryFn: async () => (await api.get<PasswordResetInfo>('/auth/password-reset')).data,
   });
 }
