@@ -114,6 +114,17 @@ it('학생 칸·시작일·배치안 줄만 보낸다 — 미리 본 뒤에야 �
   expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ preview: false, studentId: 99 }));
 });
 
+it('회차 칸의 너비는 감싼 칸이 정한다 — Input 에 w-16 을 겹쳐 주면 공용 w-full 이 이겨 옆 「교재」 칸이 눌려 이름이 잘린다(QA 0926)', async () => {
+  const { view } = setup();
+  const dialog = await view.findByRole('dialog');
+  const sessions = within(dialog).getByLabelText('수업 1 회차');
+  expect(sessions.className.split(/\s+/).filter((c) => /^w-/.test(c))).toEqual(['w-full']);
+  expect(sessions.parentElement?.className.split(/\s+/)).toEqual(expect.arrayContaining(['w-16', 'shrink-0']));
+  // 교재 칸은 줄의 나머지를 쓴다
+  const book = within(dialog).getByLabelText('수업 1 교재');
+  expect(book.parentElement?.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1']));
+});
+
 it('겹치면 서버가 거절한 문장을 그대로 보이고 누구와 부딪혔는지 한 번 묻는다 · 동명이인이면 「다른 사람」 체크가 열린다 (A-06 · N-137)', async () => {
   let code = 'RESOURCE_CONFLICT';
   const { view } = setup(() => ({ status: 409, data: code === 'RESOURCE_CONFLICT'

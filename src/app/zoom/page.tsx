@@ -144,9 +144,13 @@ export default function ZoomAccountsPage() {
           <StatCard label="기준일" value={board?.onDate ?? '—'} note="KST" />
         </div>
 
-        <div className="mb-3 flex items-center gap-2">
+        {/* 너비는 감싼 칸이 정한다 — 공용 Input 은 늘 `w-full` 이고 `cn` 은 같은 속성의 클래스를 합치지 않아 Input 에 `w-44` 를 겹쳐 주면
+            빌드 CSS 뒤쪽의 `w-full` 이 이긴다(1280 에서 날짜 칸이 1,036px 로 줄을 다 먹었다 · QA 0926). 좁은 폭에서는 줄이 접혀 「기준일」이 눌리지 않는다 */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <Label htmlFor="zoom-date">기준일</Label>
-          <Input id="zoom-date" type="date" value={onDate ?? board?.onDate ?? ''} onChange={(e) => setOnDate(e.target.value || undefined)} className="w-44" />
+          <div className="w-44">
+            <Input id="zoom-date" type="date" value={onDate ?? board?.onDate ?? ''} onChange={(e) => setOnDate(e.target.value || undefined)} />
+          </div>
           <Button size="sm" variant="secondary" onClick={() => setOnDate(undefined)}>오늘</Button>
           <span className="grow" />
           <Button disabled={pending} onClick={() => editor === 'create' ? closeEditor() : openEditor()}>{editor === 'create' ? '닫기' : '+ 계정 추가'}</Button>

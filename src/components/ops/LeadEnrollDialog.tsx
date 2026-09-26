@@ -289,16 +289,21 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 ))}
                 {field('회차 · 교재', (
                   <div className="flex gap-1">
-                    <Input aria-label={`수업 ${i + 1} 회차`} type="number" min={1} value={l.sessions} onChange={(e) => patch(l.key, { sessions: e.target.value })} disabled={pending} placeholder="회차" className="w-16" />
-                    <Select aria-label={`수업 ${i + 1} 교재`} value={l.libId} onChange={(e) => patch(l.key, { libId: e.target.value })} disabled={pending}>
-                      {i === 0 && diagBook ? (
-                        <>
-                          <option value="">상담에서 고른 교재 — {diagBook.title}</option>
-                          <option value="none">교재 미정</option>
-                        </>
-                      ) : <option value="">교재 미정</option>}
-                      {(books.data?.items ?? []).filter((b) => !l.subKey || !b.subKey || b.subKey === l.subKey).map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-                    </Select>
+                    {/* 너비는 감싼 칸이 정한다 — Input 에 `w-16` 을 겹쳐 주면 공용 `w-full` 이 이겨 두 칸이 반씩 나뉘고 교재 이름이 잘렸다(QA 0926) */}
+                    <div className="w-16 shrink-0">
+                      <Input aria-label={`수업 ${i + 1} 회차`} type="number" min={1} value={l.sessions} onChange={(e) => patch(l.key, { sessions: e.target.value })} disabled={pending} placeholder="회차" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <Select aria-label={`수업 ${i + 1} 교재`} value={l.libId} onChange={(e) => patch(l.key, { libId: e.target.value })} disabled={pending}>
+                        {i === 0 && diagBook ? (
+                          <>
+                            <option value="">상담에서 고른 교재 — {diagBook.title}</option>
+                            <option value="none">교재 미정</option>
+                          </>
+                        ) : <option value="">교재 미정</option>}
+                        {(books.data?.items ?? []).filter((b) => !l.subKey || !b.subKey || b.subKey === l.subKey).map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+                      </Select>
+                    </div>
                   </div>
                 ), '미정이면 배정 알림')}
               </div>

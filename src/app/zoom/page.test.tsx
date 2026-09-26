@@ -67,6 +67,16 @@ it('머리 숫자는 서버가 센 값을 그대로 쓴다 — 화면이 다시 
   expect(text).toContain('2026-08-21');
 });
 
+it('「기준일」 칸의 너비는 감싼 칸이 정한다 — Input 에 너비 클래스를 겹쳐 주면 공용 w-full 이 이겨 칸이 줄을 다 먹는다(QA 0926)', async () => {
+  const view = setup();
+  const input = await waitFor(() => { const el = view.container.querySelector<HTMLInputElement>('#zoom-date'); expect(el).toBeTruthy(); return el!; });
+  // 공용 Input 의 너비 클래스는 w-full 하나뿐이어야 한다 — 겹쳐 준 w-44 는 빌드 CSS 에서 w-full 에 진다(cn 은 같은 속성을 합치지 않는다)
+  expect(input.className.split(/\s+/).filter((c) => /^w-/.test(c))).toEqual(['w-full']);
+  expect(input.parentElement?.className.split(/\s+/)).toEqual(expect.arrayContaining(['w-44']));
+  // 좁은 폭에서는 줄이 접힌다 — 「기준일」 글자가 세로로 눌리지 않게(393 실측)
+  expect(input.parentElement?.parentElement?.className.split(/\s+/)).toEqual(expect.arrayContaining(['flex', 'flex-wrap']));
+});
+
 it('비밀은 **저장돼 있는가**만 말한다 — 값은 어디에도 없다', async () => {
   const view = setup();
   await waitFor(() => expect(view.getByText('a@tn.kr')).toBeTruthy());
