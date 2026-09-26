@@ -11,10 +11,10 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
 import { useSession } from '@/store/useSession';
-import { Banner, Button, Input, Label, Logo } from '@/components/ui';
+import { Banner, Button, Input, Label, LinkButton, Logo } from '@/components/ui';
 import type { LoginBody, LoginResult } from '@/api/types';
 import { ROLES, type RoleKey } from '@/lib/roles';
-import { fallbackRouteFor } from '@/components/shell/navigation';
+import { PASSWORD_RESET_PATH, fallbackRouteFor } from '@/components/shell/navigation';
 
 /**
  * 시험용 계정 칩 — 2026-09-26 대표 결정이 2026-09-23 「운영·개발 모두 표시」를 대신한다(W8).
@@ -104,6 +104,8 @@ export default function LoginPage() {
         <Button type="submit" variant="primary" disabled={busy} className="mt-4 w-full">
           {busy ? '들어가는 중…' : '들어가기'}
         </Button>
+        {/* 비밀번호 찾기 (N-101 · 대표 결정 2026-09-26) — 등록된 이메일 · 휴대폰 코드를 둘 다 확인한다 */}
+        <LinkButton href={PASSWORD_RESET_PATH} variant="ghost" size="sm" className="mt-2 w-full">비밀번호를 잊으셨나요?</LinkButton>
 
         {TEST_LOGIN ? (
           <div className="mt-5 border-t border-line pt-4">

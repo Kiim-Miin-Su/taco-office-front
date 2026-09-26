@@ -196,6 +196,14 @@ describe('LoginPage — 생성 로그인 계약', () => {
     expect(replace).toHaveBeenCalledWith('/schedule');
   });
 
+  // N-101 (대표 결정 2026-09-26) — 운영 빌드에도 늘 선다(시험 모드와 무관)
+  it('「비밀번호를 잊으셨나요?」는 비밀번호 찾기로 가는 링크다 — 운영 빌드에도 서고 단추가 아니다', async () => {
+    const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: '' });
+    const view = render(<ProductionLoginPage />);
+    expect(view.getByRole('link', { name: '비밀번호를 잊으셨나요?' }).getAttribute('href')).toBe('/password-reset');
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('첫 설정이 필요한 계정은 로그인 뒤 일정이 아니라 첫 설정으로 간다', async () => {
     post.mockResolvedValueOnce({ data: { ...result, user: { ...result.user, mustChangeCredentials: true } } });
     const view = render(<LoginPage />);

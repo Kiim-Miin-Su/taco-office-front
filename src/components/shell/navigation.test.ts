@@ -7,8 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Me } from '@/api/types';
 import {
-  ADMIN_NAV_ITEMS, ONBOARDING_PATH, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, fallbackRouteFor, isAdminNavActive,
-  mostSpecificNavItem,
+  ADMIN_NAV_ITEMS, ONBOARDING_PATH, PASSWORD_RESET_PATH, adminNavBadgeFor, adminNavItemsFor, canAccessAppRoute, fallbackRouteFor,
+  isAdminNavActive, mostSpecificNavItem,
 } from './navigation';
 
 const ceo: Me = {
@@ -119,6 +119,14 @@ describe('첫 설정 잠금 — 한 규칙으로 돌려보낸다', () => {
     }
     expect(canAccessAppRoute('/schedule', done)).toBe(true);
     expect(canAccessAppRoute('/ops', done)).toBe(true);
+  });
+
+  // N-101 (대표 결정 2026-09-26) — 비밀번호 찾기는 로그인 전 화면이다(서버 세 API 도 공개)
+  it('비밀번호 찾기는 로그아웃 · 첫 설정 전 · 끝난 계정 모두에게 열린다 — 앞자락만 같은 경로는 열리지 않는다', () => {
+    expect(PASSWORD_RESET_PATH).toBe('/password-reset');
+    for (const me of [null, locked, done, teacher]) expect(canAccessAppRoute('/password-reset', me)).toBe(true);
+    expect(canAccessAppRoute('/password-reset/x', null)).toBe(false);
+    expect(canAccessAppRoute('/password-resets', null)).toBe(false);
   });
 
   it('로그아웃 상태는 첫 설정 화면도 닫고 로그인으로 보낸다', () => {

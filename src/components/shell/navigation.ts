@@ -96,9 +96,16 @@ export function adminNavItemsFor(surface: AdminNavSurface, me: Me | null): reado
  */
 export const ONBOARDING_PATH = '/onboarding';
 
+/**
+ * 로그인 전에도 열리는 경로 — 로그인 · 비밀번호 찾기(N-101 · 대표 결정 2026-09-26).
+ * 비밀번호 찾기의 세 API 도 서버에서 공개(@Public)다. 첫 설정 전 계정도 열 수 있다(찾아도 첫 설정은 그대로 남는다).
+ */
+export const PASSWORD_RESET_PATH = '/password-reset';
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/login', PASSWORD_RESET_PATH]);
+
 /** 메뉴와 직접 URL 진입이 같은 규칙을 사용한다. 미등록 업무 경로는 기본 거절한다. */
 export function canAccessAppRoute(pathname: string | null, me: Me | null): boolean {
-  if (pathname === '/login') return true;
+  if (pathname !== null && PUBLIC_PATHS.has(pathname)) return true;
   if (!me || !pathname) return false;
   // 첫 설정 전에는 첫 설정 화면만 · 필요 없는 계정에게 첫 설정 화면은 닫는다 — 서버도 같은 계정의 다른 API 를 403 으로 막는다
   if (me.mustChangeCredentials) return pathname === ONBOARDING_PATH;
