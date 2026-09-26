@@ -9,7 +9,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Member, MemberGroup, TzGroup } from '@/api/types';
+import type { Member, MemberGroup, PhoneCountry, TzGroup } from '@/api/types';
 import { MembersPane } from './panes';
 
 /**
@@ -41,12 +41,20 @@ const managerView: MemberGroup[] = [
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function paint(groups: MemberGroup[] = managerView) {
+function paint(groups: MemberGroup[] = managerView, phoneCountries?: PhoneCountry[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
   clients.push(client);
   const wrap = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  return { client, view: render(<MembersPane groups={groups} tzGroups={tzGroups} tz="Asia/Seoul" canAddMember />, { wrapper: wrap }) };
+  return {
+    client,
+    view: render(
+      <MembersPane groups={groups} tzGroups={tzGroups} tz="Asia/Seoul" canAddMember phoneCountries={phoneCountries} />,
+      { wrapper: wrap },
+    ),
+  };
 }
+/** 서버 목록 — 첫 줄이 국내(N-103) */
+const COUNTRIES: PhoneCountry[] = [{ code: '82', label: '대한민국' }, { code: '1', label: '미국 · 캐나다' }];
 const row = (view: ReturnType<typeof render>, name: string) =>
   [...view.container.querySelectorAll('li')].find((li) => li.textContent?.startsWith(name))!;
 const buttons = (li: HTMLElement) => within(li).queryAllByRole('button').map((b) => b.textContent);
@@ -136,6 +144,62 @@ describe('§17 사용자 표 CRUD (W8)', () => {
     fireEvent.click(within(box).getByRole('button', { name: '복사' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('아이디 m7@t.kr\n초기 비밀번호 server-initial-7'));
     await waitFor(() => expect(within(box).getByRole('status').textContent).toBe('복사했습니다'));
+  });
+
+  // N-104 (대표 결정 2026-09-26 「첫 설정 다시 걸기」) — 저장 전에 창이 먼저 말한다 · 판정은 서버가 한다
+  it('이메일 · 휴대폰을 바꾸면 「첫 설정을 다시 해야 한다」를 저장 전에 보이고 · 다른 칸만 바꾸면 보이지 않는다', async () => {
+    const { view } = paint();
+    fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '수정' }));
+    const dialog = view.getByRole('dialog');
+    const notice = () => within(dialog).queryByText(/첫 설정\(새 아이디 · 휴대폰 확인 · 새 비밀번호\)을 다시 해야 합니다/);
+    expect(notice()).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: '실장' } });
+    expect(notice()).toBeNull();
+    // 모양만 바꾼 번호(하이픈)는 바뀐 것이 아니다
+    fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '010-3333-4444' } });
+    expect(notice()).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '010-3333-5555' } });
+    expect(notice()?.textContent).toContain('김재훈 님은');
+    fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '01033334444' } });
+    expect(notice()).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'new7@t.kr' } });
+    expect(notice()).toBeTruthy();
+  });
+
+  it('해외 번호 (N-103) — 저장된 +번호는 나라와 번호로 되짚어 보이고 · 손대지 않으면 보내지 않으며 · 나라를 바꾸면 「+국가번호 번호」로 보낸다', async () => {
+    const abroad: MemberGroup[] = [{ role: 'teacher', label: '강사', count: 1, members: [who(7, '김재훈', 'teacher', { ...ALL, phone: '+14155550123' })] }];
+    const { view } = paint(abroad, COUNTRIES);
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: who(7, '김재훈', 'teacher') } as never);
+    fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '수정' }));
+    const dialog = view.getByRole('dialog');
+    const country = within(dialog).getByRole('combobox', { name: '국가번호' }) as HTMLSelectElement;
+    expect(country.value).toBe('1');
+    expect((within(dialog).getByLabelText('휴대폰') as HTMLInputElement).value).toBe('4155550123');
+    // 직함만 바꾸면 휴대폰은 보내지 않는다(+1 4155550123 과 +14155550123 은 같은 번호)
+    fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: '영어' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(patch).toHaveBeenCalledWith('/drawer/staff/7', { title: '영어' }));
+    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+
+    fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '수정' }));
+    const again = view.getByRole('dialog');
+    fireEvent.change(within(again).getByRole('combobox', { name: '국가번호' }), { target: { value: '82' } });
+    fireEvent.change(within(again).getByLabelText('휴대폰'), { target: { value: '010-2222-3333' } });
+    fireEvent.click(within(again).getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(patch).toHaveBeenLastCalledWith('/drawer/staff/7', { phone: '010-2222-3333' }));
+  });
+
+  it('「+ 구성원」도 같은 국가번호 칸을 쓴다 — 해외 번호는 「+국가번호 번호」로 보낸다', async () => {
+    const { view } = paint(managerView, COUNTRIES);
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { ...who(99, '새 사람', 'teacher'), loginId: 'n@t.kr', initialPassword: 'server-initial' } } as never);
+    fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: '새 사람' } });
+    fireEvent.change(within(dialog).getByLabelText('이메일'), { target: { value: 'n@t.kr' } });
+    fireEvent.change(within(dialog).getByRole('combobox', { name: '국가번호' }), { target: { value: '1' } });
+    fireEvent.change(within(dialog).getByLabelText('휴대폰'), { target: { value: '415 555 0123' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '만들기' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/drawer/staff', expect.objectContaining({ phone: '+1 415 555 0123' })));
   });
 
   it('「사용 중지」·「다시 사용」은 확인 뒤 active 한 칸만 보낸다', async () => {

@@ -17,9 +17,10 @@
 'use client';
 import { useEffect, useId, useState } from 'react';
 import { Banner, Button, Dialog, Input, Label, Segmented, Select } from '../ui';
+import { PhoneInput, composePhone, type PhoneValue } from '../account/PhoneInput';
 import { apiMessage } from '@/api/client';
 import { useCreateMember } from '@/api/queries';
-import type { Member, StaffCreate, StaffCreated, TzGroup } from '@/api/types';
+import type { Member, PhoneCountry, StaffCreate, StaffCreated, TzGroup } from '@/api/types';
 import { ROLES } from '@/lib/roles';
 import { todayKst } from '@/lib/calendar';
 import { MemberHandoverBox } from './MemberRowActions';
@@ -38,10 +39,14 @@ export interface MemberCreateButtonProps {
    * 구성원을 만드는 것과 시급을 정하는 것은 **다른 권한**이라, 없으면 시급 칸만 사라지고 만들기는 그대로다.
    */
   canWage: boolean;
+  /** 휴대폰 국가번호 목록 — 서버 `DrawerDto.phoneCountries`(N-103 · 첫 줄이 국내). 없으면 번호 칸만 선다 */
+  phoneCountries?: PhoneCountry[];
   onDone?: (row: Member) => void;
 }
 
-export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCreateButtonProps) {
+const NO_COUNTRIES: PhoneCountry[] = [];
+
+export function MemberCreateButton({ tzGroups, tz, canWage, phoneCountries = NO_COUNTRIES, onDone }: MemberCreateButtonProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const write = useCreateMember();
@@ -50,7 +55,7 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
   const [role, setRole] = useState<StaffCreate['role']>('teacher');
   const [title, setTitle] = useState('');
   const [memberTz, setMemberTz] = useState(tz);
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState<PhoneValue>({ country: '', local: '' });
   const [hiredOn, setHiredOn] = useState(todayKst());
   const [wageRate, setWageRate] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -60,10 +65,11 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
   useEffect(() => {
     if (!open) return;
     setName(''); setEmail(''); setRole('teacher'); setTitle(''); setMemberTz(tz);
-    setPhone(''); setHiredOn(todayKst()); setWageRate(''); setErr(null); setMade(null);
+    setPhone({ country: '', local: '' }); setHiredOn(todayKst()); setWageRate(''); setErr(null); setMade(null);
   }, [open, tz]);
 
   const pending = write.isPending;
+  const phoneText = composePhone(phone, phoneCountries);
   const rate = wageRate.trim() === '' ? null : Number(wageRate);
   const rateOk = rate === null || (Number.isInteger(rate) && rate >= 1000);
   // 최종 판정은 서버 DTO 다 — 비밀번호는 서버가 정한다(W8)
@@ -75,7 +81,8 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
       name: name.trim(), email: email.trim(), role, hiredOn,
       ...(title.trim() ? { title: title.trim() } : {}),
       ...(memberTz ? { tz: memberTz } : {}),
-      ...(phone.trim() ? { phone: phone.trim() } : {}),
+      // 국내는 적은 그대로 · 해외는 「+국가번호 번호」(N-103) — 모양 판정은 서버가 한다
+      ...(phoneText ? { phone: phoneText } : {}),
       // 칸이 없으면 값도 없다 — 권한이 꺼진 뒤 남은 초안이 조용히 실려 403 이 되는 일을 막는다
       ...(canWage && rate !== null ? { wageRate: rate } : {}),
     };
@@ -134,17 +141,17 @@ export function MemberCreateButton({ tzGroups, tz, canWage, onDone }: MemberCrea
             <Label htmlFor={`${id}-email`} hint="로그인 아이디 · 유일">이메일</Label>
             <Input id={`${id}-email`} type="email" value={email} maxLength={120} onChange={(e) => setEmail(e.target.value)} disabled={pending} autoComplete="off" />
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div>
+            <Label htmlFor={`${id}-phone`} hint="첫 설정 때 확인합니다 · 해외 번호는 국가번호를 고릅니다">휴대폰</Label>
+            <PhoneInput id={`${id}-phone`} countries={phoneCountries} value={phone} onChange={setPhone} disabled={pending} />
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <Label htmlFor={`${id}-tz`}>시간대</Label>
               {/* 낱말은 서랍의 시간대 그룹 그대로다 — 표에 없는 값은 서버가 409 로 막는다 */}
               <Select id={`${id}-tz`} value={memberTz} onChange={(e) => setMemberTz(e.target.value)} disabled={pending}>
                 {tzGroups.map((g) => <option key={g.id} value={g.tz}>{g.name}</option>)}
               </Select>
-            </div>
-            <div>
-              <Label htmlFor={`${id}-phone`} hint="휴대폰 · 첫 설정 때 확인합니다">휴대폰</Label>
-              <Input id={`${id}-phone`} value={phone} maxLength={20} inputMode="tel" onChange={(e) => setPhone(e.target.value)} disabled={pending} />
             </div>
             <div>
               <Label htmlFor={`${id}-hired`} hint="불가 시간 2주 회차의 기산점">입사일</Label>

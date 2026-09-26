@@ -25,7 +25,7 @@ import {
 } from '@/components/approval/ApprovalRowContent';
 import type {
   ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo, DrawerTodoCreate,
-  Kind, KindRow, MemberGroup, Noti, Occurrence, Room, StaffBrief, Sub, TzGroup, Zacc, ZoomAccount, ZoomBoard,
+  Kind, KindRow, MemberGroup, Noti, Occurrence, PhoneCountry, Room, StaffBrief, Sub, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
 import {
   addDays, conflictLines, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, parseHm, step, todayKst, weekDays,
@@ -668,12 +668,14 @@ function useMinuteTick(): number {
  * 컷의 둘째 문장 「여기서 바꾼 시간대는 각자의 화면에만 적용됩니다」는 **적지 않는다** —
  * 이 서랍에는 바꾸는 자리가 없고, 그 문장은 없는 단추를 있다고 말한다 (C68 에서 되돌린 것과 같은 자리).
  */
-export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWage = false }: {
+export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWage = false, phoneCountries }: {
   groups: MemberGroup[]; tzGroups: TzGroup[]; tz: string;
   /** 「+ 구성원」이 서는가 — 서버 `DrawerDto.canAddMember` (C97 · D-R39: 화면은 role 을 보지 않는다) */
   canAddMember?: boolean;
   /** 시급 줄·「시급 수정」이 서는가 — 서버 `DrawerDto.canWage`. 어느 줄에 서는지는 `member.wageable` 이 가른다 */
   canWage?: boolean;
+  /** 구성원 만들기 · 수정의 휴대폰 국가번호 목록 — 서버 `DrawerDto.phoneCountries` (N-103) */
+  phoneCountries?: PhoneCountry[];
 }) {
   const now = useMinuteTick();
   /*
@@ -699,7 +701,7 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
       {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
       {canAddMember ? (
         <div className="mb-3 flex justify-end">
-          <MemberCreateButton tzGroups={tzGroups} tz={tz} canWage={canWage} />
+          <MemberCreateButton tzGroups={tzGroups} tz={tz} canWage={canWage} phoneCountries={phoneCountries} />
         </div>
       ) : null}
 
@@ -737,7 +739,7 @@ export function MembersPane({ groups, tzGroups, tz, canAddMember = false, canWag
                 ) : null}
                 <span className="ml-auto text-[12px] tabular-nums text-fg-2">{localHhmm(m.tz ?? tz, now)}</span>
                 {/* 수정 · 비밀번호 초기화 · 사용 중지 · 삭제 — 서는지는 줄마다 서버 플래그가 가른다 (W8 · D-R39) */}
-                <MemberRowActions member={m} tzGroups={tzGroups} tz={tz} />
+                <MemberRowActions member={m} tzGroups={tzGroups} tz={tz} phoneCountries={phoneCountries} />
               </li>
             ))}
           </ul>
