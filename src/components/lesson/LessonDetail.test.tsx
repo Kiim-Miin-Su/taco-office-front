@@ -19,17 +19,24 @@ vi.mock('@/api/queries', () => ({
   useScheduleWrite: () => ({ mutate, isPending: false }),
   // 「일정 수정」 창이 409 뒤 한 번 묻는 겹침 설명 — 이 파일은 계약만 본다
   fetchConflicts: vi.fn(async () => []),
+  fetchConflictPreview: vi.fn(async () => ({ conflicts: [], freeLine: null })),
   useAttendanceWrite: () => ({ mutate: vi.fn(), isPending: false }),
   // §79 학생 트래킹은 창을 열 때만 도는 별도 질의다 — 이 파일은 명단 계약만 본다 (C55)
   useLessonTracking: () => tracking,
   useStudentPause: () => ({ mutate: vi.fn(), isPending: false }),
   useWithdrawStudent: () => ({ mutate: vi.fn(), isPending: false }),
+  // §79 학생 카드의 인수인계 메모 더하기(N-36 ②) — 이 파일은 명단 계약만 본다
+  useAddTrackingNote: () => ({ mutate: vi.fn(), isPending: false }),
+  // 바닥 「+ 할 일」(W11 · N-71) — 서랍과 같은 쓰기. 이 파일은 명단 계약만 본다
+  useDrawerWrite: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('@/store/useSession', () => ({
   useCan: (name: string) => name === 'canAdminPage' ? permissions.canAdminPage : permissions.canEdit,
+  useSession: (pick: (s: { me: null }) => unknown) => pick({ me: null }),
 }));
 
 import { LessonDetail } from './LessonDetail';
+import { MASKED } from '@/lib/money';
 
 const occurrence: Occurrence = {
   serId: 3,
@@ -71,6 +78,7 @@ const result: RosterResult = {
   overrideCount: 0,
   needGuide: ['신규학생'],
   needBook: ['신규학생'],
+  studentOverlaps: [],
 };
 
 describe('LessonDetail 명단 결과', () => {
@@ -308,7 +316,7 @@ describe('LessonDetail 명단 결과', () => {
       { kind: 'roster', serId: 3, body: { op: 'add', onDate: '2026-09-03', studentId: 2 } },
       expect.any(Object),
     );
-    expect(view.getByText('명단을 반영했습니다 · 2/4명 · 1인 45,000원(2인 구간) · 수업당 90,000원')).toBeTruthy();
+    expect(view.getByText('명단을 반영했습니다 · 2/4명 · 1인 ₩45,000(2인 구간) · 수업당 ₩90,000')).toBeTruthy();
     expect(view.getByText('수업 안내가 필요합니다')).toBeTruthy();
     expect(view.getByText('교재 배부 확인이 필요합니다')).toBeTruthy();
   });
@@ -370,7 +378,7 @@ describe('§79 명단 줄의 교재 · 안내 칩', () => {
         id: s.id, name: s.name, grade: s.grade ?? null, droppedOnce: s.droppedOnce, paused: false, ended: false,
         bookCount: i === 0 ? 2 : 0, progressAverage: null, progressKnownBooks: 0,
         guided: i === 0, attendDone: 0, attendTotal: 0,
-        unpaid: null, reports: [],
+        unpaid: null, reports: [], notes: [], noteCount: 0,
       })),
     };
     const v = render(<LessonDetail occ={occurrence} onClose={() => {}} />);
@@ -579,7 +587,7 @@ describe('§12·§79 큰 창 두 칸', () => {
     // 칩 줄은 명단 머리에 있다 — 오른쪽 트래킹 칸에는 없다 (같은 질의 · 한 곳에만 그린다)
     const panel = row.parentElement as HTMLElement;
     expect(within(panel).getByText('정원 4명 · 3명 더 넣을 수 있습니다')).toBeTruthy();
-    expect(within(panel).getByText('1인 45,000원 · 수업당 45,000원')).toBeTruthy();
+    expect(within(panel).getByText('1인 ₩45,000 · 수업당 ₩45,000')).toBeTruthy();
     expect(within(panel).getByRole('button', { name: '이 회차만 빼기' })).toBeTruthy();
     const track = view.getByRole('region', { name: '학생 트래킹' });
     expect(within(track).queryByText(/정원 4명/)).toBeNull();
@@ -593,10 +601,10 @@ describe('§12·§79 큰 창 두 칸', () => {
     expect(view.getByRole('button', { name: '이 회차만 빼기' })).toBeTruthy();
   });
 
-  it('금액을 못 보면 단가 칩이 「가려짐」이고, 단가표가 없으면 그 사실을 적는다 (D-R39)', () => {
+  it('금액을 못 보면 단가 칩이 숨긴 금액 낱말(「비공개」)이고, 단가표가 없으면 그 사실을 적는다 (D-R39)', () => {
     tracking.data = trackingOf({ canSeeAmounts: false, unitPrice: null, total: null });
     const hidden = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
-    expect(hidden.getByText('1인 가려짐 · 수업당 가려짐')).toBeTruthy();
+    expect(hidden.getByText(`1인 ${MASKED} · 수업당 ${MASKED}`)).toBeTruthy();
     hidden.unmount();
     tracking.data = trackingOf({ priced: false, unitPrice: null, total: null });
     const none = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
@@ -625,3 +633,136 @@ describe('§12·§79 큰 창 두 칸', () => {
     expect(view.queryByRole('button', { name: '일정 수정' })).toBeNull();
   });
 });
+
+/**
+ * W11 — 회차 방식 전환(N-56) · 회차 메모(N-57) · 명단 넣기 학생 겹침 알림(N-58) · 출결 취소 ≠ 휴강(N-48).
+ * 저장은 전부 기존 `useScheduleWrite` 의 patch · roster 하나다. 판정 · 문장은 서버 것이다.
+ */
+describe('W11 수업 상세 — 방식 · 메모 · 겹침 알림 · 출결 안내', () => {
+  const meta = {
+    staff: [{ id: 7, name: '강사' }], rooms: [{ id: 1, name: '강의실 1' }], zaccs: [{ id: 5, label: 'TN Zoom 1' }],
+    kinds: [], cancelReasons: [], cancelTreats: [],
+  } as unknown as Meta;
+
+  beforeEach(() => {
+    mutate.mockReset();
+    permissions.canEdit = true;
+    permissions.canAdminPage = true;
+    tracking.data = undefined;
+  });
+
+  it('방식 토글은 그 방식이 골라진 「일정 수정」 창을 연다 — 온라인이면 강의실은 보내지 않고 고른 줌 계정만 싣는다', async () => {
+    const written = {
+      effScope: 'this', projected: 1, serIds: [3], unavailable: [], studentOverlaps: [], undoToken: 'u1',
+      log: ['2026-09-03 회차만 바꿨습니다', '온라인 수업으로 바꿨습니다', '강의실을 비웠습니다', '줌 계정을 배정했습니다'],
+    };
+    mutate.mockImplementationOnce((_write, options) => options.onSuccess(written));
+    const onWritten = vi.fn();
+    const view = render(<LessonDetail occ={occurrence} meta={meta} onWritten={onWritten} onClose={() => undefined} />);
+    const toggle = within(view.getByRole('group', { name: '이 회차 수업 방식' }));
+    expect(toggle.getByRole('button', { name: '현장' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(toggle.getByRole('button', { name: '온라인' }));
+
+    const dialog = view.getByRole('dialog', { name: /^일정 수정/ });
+    expect(within(within(dialog).getByRole('group', { name: '수업 방식' })).getByRole('button', { name: '온라인' })
+      .getAttribute('aria-pressed')).toBe('true');
+    expect((within(dialog).getByLabelText('강의실') as HTMLSelectElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('줌 계정'), { target: { value: '5' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+    fireEvent.click(await view.findByRole('button', { name: /이번만/ }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      { kind: 'patch', serId: 3, body: { mode: 'online', zaccId: 5, scope: 'this', onDate: '2026-09-03' } },
+      expect.any(Object),
+    );
+    // 함께 바뀐 것은 서버 문장 그대로 부르는 쪽에 넘긴다
+    expect(onWritten).toHaveBeenCalledWith(written, '방식 전환', written.log);
+  });
+
+  it('회차 메모는 그 회차 줄로 보이고, 메모만 고치면 범위를 묻지 않고 「이번만」으로 보낸다 (N-57)', async () => {
+    const written = { effScope: 'this', log: ['회차 메모를 적었습니다'], projected: 1, serIds: [3], unavailable: [], studentOverlaps: [] };
+    mutate.mockImplementationOnce((_write, options) => options.onSuccess(written));
+    const onWritten = vi.fn();
+    const withMemo = { ...occurrence, memo: '모의고사 오답 리뷰 우선' };
+    const view = render(<LessonDetail occ={withMemo} meta={meta} onWritten={onWritten} onClose={() => undefined} />);
+    expect(view.container.querySelector('[data-occ-memo]')!.textContent).toContain('모의고사 오답 리뷰 우선');
+
+    fireEvent.click(view.getByRole('button', { name: '일정 수정' }));
+    const dialog = view.getByRole('dialog', { name: /^일정 수정/ });
+    const memo = within(dialog).getByLabelText('회차 메모 (이번 회차만)') as HTMLInputElement;
+    expect(memo.value).toBe('모의고사 오답 리뷰 우선');
+    expect(memo.maxLength).toBe(200);
+    fireEvent.change(memo, { target: { value: '  숙제 먼저  ' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+
+    // 반복 수업이어도 범위 창이 뜨지 않는다 — 메모는 그 회차 하나의 것이다
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith(
+      { kind: 'patch', serId: 3, body: { memo: '숙제 먼저', scope: 'this', onDate: '2026-09-03' } },
+      expect.any(Object),
+    ));
+    expect(view.queryByRole('button', { name: /이번만/ })).toBeNull();
+    expect(onWritten).toHaveBeenCalledWith(written, '회차 메모');
+  });
+
+  it('메모를 비우면 지운다(null) — 빈 글을 저장하지 않는다', async () => {
+    const withMemo = { ...occurrence, memo: '지울 메모' };
+    const view = render(<LessonDetail occ={withMemo} meta={meta} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '일정 수정' }));
+    const dialog = view.getByRole('dialog', { name: /^일정 수정/ });
+    fireEvent.change(within(dialog).getByLabelText('회차 메모 (이번 회차만)'), { target: { value: '   ' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith(
+      { kind: 'patch', serId: 3, body: { memo: null, scope: 'this', onDate: '2026-09-03' } },
+      expect.any(Object),
+    ));
+  });
+
+  it('명단에 넣은 학생이 같은 시각 다른 수업에도 있으면 막지 않고 알린다 — role=status (N-58)', () => {
+    mutate.mockImplementationOnce((_write, options) => options.onSuccess({
+      ...result, needGuide: [], needBook: [],
+      studentOverlaps: [{
+        serId: 3, date: '2026-09-03', studentId: 2, studentName: '신규학생', otherSerId: 9,
+        otherTitle: 'SAT Math', otherStartMin: 630, otherEndMin: 720,
+      }],
+    }));
+    const view = render(
+      <LessonDetail occ={occurrence} allStudents={[{ id: 2, name: '신규학생' }]} onClose={() => undefined} />,
+    );
+    fireEvent.click(view.getByRole('button', { name: '신규학생 넣기' }));
+    const warn = view.container.querySelector('[data-student-overlaps]') as HTMLElement;
+    expect(warn.getAttribute('role')).toBe('status');
+    expect(warn.textContent).toContain('신규학생 · 9/3 (목) 10:30–12:00 SAT Math');
+    expect(view.queryByRole('alert')).toBeNull();
+  });
+
+  it('출결에서 「취소」를 고르면 「청구는 휴강 창에서」와 휴강 창 여는 단추가 선다 — 출결은 청구를 바꾸지 않는다 (N-48)', () => {
+    const ended = { ...occurrence, attendanceMode: 'manage' as const };
+    const view = render(
+      <LessonDetail occ={ended} meta={meta} cancelReasons={cancelReasonsW11} cancelTreats={cancelTreatsW11} onClose={() => undefined} />,
+    );
+    fireEvent.click(view.getByRole('button', { name: '출결 확정' }));
+    const dialog = within(view.getByRole('dialog', { name: '출결 확정' }));
+    expect(dialog.queryByText('청구는 휴강 창에서')).toBeNull();
+    fireEvent.click(dialog.getByRole('button', { name: /^취소/ }));
+    expect(dialog.getByText('청구는 휴강 창에서')).toBeTruthy();
+    fireEvent.click(dialog.getByRole('button', { name: '휴강 창 열기' }));
+    expect(view.getByRole('dialog', { name: /^휴강 — / })).toBeTruthy();
+    expect(view.queryByRole('dialog', { name: '출결 확정' })).toBeNull();
+    // 이 화면은 휴강을 쓰지 않는다 — 여는 것까지다
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('휴강을 쓸 수 없으면 안내 줄만 서고 여는 단추는 없다', () => {
+    permissions.canEdit = false;
+    const ended = { ...occurrence, attendanceMode: 'manage' as const };
+    const view = render(<LessonDetail occ={ended} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '출결 확정' }));
+    const dialog = within(view.getByRole('dialog', { name: '출결 확정' }));
+    fireEvent.click(dialog.getByRole('button', { name: /^취소/ }));
+    expect(dialog.getByText('청구는 휴강 창에서')).toBeTruthy();
+    expect(dialog.queryByRole('button', { name: '휴강 창 열기' })).toBeNull();
+  });
+});
+
+const cancelReasonsW11 = [{ key: 'student_absent' as const, label: '학생 결석', deductible: true }];
+const cancelTreatsW11 = [{ key: 'carry' as const, label: '이월', sub: '다음 달로' }];

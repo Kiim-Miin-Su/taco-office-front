@@ -4,6 +4,8 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Occurrence } from '@/api/types';
@@ -137,6 +139,44 @@ describe('EventBlock', () => {
     cleanup();
     const waiting = render(<EventBlock occ={{ ...occurrence, repState: 'wait' }} subName="AP Chem" kindName="수업" />);
     expect(waiting.getByText('승인 대기')).toBeTruthy();
+  });
+
+  it('원문 §07 범례 「[미작성] 리포트」 — 끝났는데 리포트가 없는 수업은 과목색 보기에서도 빨간 「미작성」 배지를 단다', () => {
+    const three = ['양찬욱', '이유찬', '오유준'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false }));
+    const late = { ...occurrence, repState: 'none' as const, written: false, students: three };
+    const view = render(<EventBlock occ={late} subName="MAP Math" color="#5677A5" cap={4} />);
+    const badge = view.getByText('미작성');
+    expect(badge.className).toContain('bg-red');
+    expect(badge.className).toContain('text-white');
+    expect(view.getByRole('button', { name: /MAP Math/ }).getAttribute('title')).toContain('미작성');
+    // 배지 자리는 하나다 — 배지가 서면 정원 점은 title 로만 간다(승인 대기 · 반려와 같은 규칙)
+    expect(view.container.querySelector('[data-cap-dots]')).toBeNull();
+    cleanup();
+
+    // 예정 · 작성 중 · 승인은 배지가 없다 — 원문 어느 블록·범례에도 그 배지가 없다
+    for (const repState of ['plan', 'draft', 'ok'] as const) {
+      const other = render(<EventBlock occ={{ ...occurrence, repState }} subName="MAP Math" color="#5677A5" />);
+      expect(other.queryByText('미작성')).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('「승인 대기」와 「리포트 반려」 배지는 컷(§07 · §08)처럼 같은 황토 채움 · 흰 글자다', () => {
+    for (const [repState, word] of [['wait', '승인 대기'], ['rej', '리포트 반려']] as const) {
+      const view = render(<EventBlock occ={{ ...occurrence, repState }} subName="MAP Math" color="#5677A5" />);
+      const badge = view.getByText(word);
+      expect(badge.className).toContain('bg-amber');
+      expect(badge.className).toContain('text-white');
+      cleanup();
+    }
+  });
+
+  it('휴강 회차는 서버가 리포트 대상 아님(na)으로 보낸다 — 블록은 받은 값 그대로라 리포트 배지가 없다', () => {
+    // 판정은 서버 한 곳(스케줄 목록 = 리포트 목록 · A′) — 화면은 휴강을 다시 보고 배지를 고르지 않는다
+    const canceled = { ...occurrence, repState: 'na' as const, written: false, canceled: true, cancelTreatLabel: '이월' };
+    const view = render(<EventBlock occ={canceled} subName="MAP Math" color="#5677A5" />);
+    for (const word of ['미작성', '승인 대기', '리포트 반려']) expect(view.queryByText(word)).toBeNull();
+    expect(view.getByRole('button', { name: /MAP Math/ }).getAttribute('title')).toContain('휴강 · 이월');
   });
 
   it('과목도 제목도 없는 회차는 코드값 대신 종류 이름을 제목으로 쓰고, 같은 낱말을 배지로 또 달지 않는다', () => {
@@ -278,8 +318,59 @@ describe('EventBlock 휴강 사유·휴원 모양 (원문 §07 범례)', () => {
     const view = render(<Legend items={[occurrence]} colorOf={() => '#5677A5'} />);
     for (const word of ['학생 결강', '학원 취소', '휴원', '정원 · 여석']) expect(view.getByText(word)).toBeTruthy();
     expect(view.queryByText('강사 불가')).toBeNull();
+    // 원문 「[미작성] 리포트」 — 블록 배지와 같은 낱말 · 같은 색(한 값)
+    const unwritten = view.container.querySelector('[data-legend-unwritten]') as HTMLElement;
+    expect(unwritten.textContent).toBe('미작성리포트');
+    expect(unwritten.firstElementChild?.className).toContain('bg-red');
+    // 「강사 불가」 띠는 회색 빗금이다 — §07 범례 견본 · 강사 덱 slide 16 「불가 시간이 회색」 (격자 띠와 범례가 같은 클래스)
+    const css = readFileSync(join(process.cwd(), 'src/components/cal/EventBlock.module.css'), 'utf8');
+    const band = css.match(/\.unavBand\s*\{([^}]+)\}/)?.[1] ?? '';
+    expect(band).toContain('var(--fg-subtle)');
+    expect(band).not.toContain('var(--orange)');
     fireEvent.click(view.getByRole('button', { name: '접기' }));
     expect(view.queryByText('학생 결강')).toBeNull();
     expect(view.getByRole('button', { name: '펼치기' }).getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+/**
+ * 회차 메모 (N-57) — 원문 §08 블록 맨 아래 한 줄 「▎모의고사 오답 리뷰 우선」, 원문 §07 은 줄이 못 서는 블록에 「노트」 배지.
+ * 높이가 모자라면 메모 줄이 가장 먼저 빠지고 그때만 배지가 선다. 글은 언제나 title 로 되찾는다.
+ */
+describe('EventBlock 회차 메모 (N-57)', () => {
+  const memo: Occurrence = {
+    ...occurrence, memo: '모의고사 오답 리뷰 우선',
+    students: [{ id: 1, name: '고은성', droppedOnce: false, paused: false }],
+  };
+
+  it('줄이 들어가면 맨 아래 메모 줄로 서고 「노트」 배지는 달지 않는다', () => {
+    const view = render(<EventBlock occ={memo} subName="SAT Reading" lines={3} />);
+    const button = view.getByRole('button', { name: /SAT Reading/ });
+    expect(button.textContent).toContain('모의고사 오답 리뷰 우선');
+    expect(view.queryByText('노트')).toBeNull();
+    expect(button.getAttribute('title')).toContain('노트: 모의고사 오답 리뷰 우선');
+    cleanup();
+  });
+
+  it('높이가 모자라면 메모 줄이 먼저 빠지고 「노트」 배지가 대신 선다 — 강사·학생 줄은 남는다', () => {
+    const view = render(<EventBlock occ={memo} subName="SAT Reading" lines={2} />);
+    const button = view.getByRole('button', { name: /SAT Reading/ });
+    expect(button.textContent).not.toContain('모의고사 오답 리뷰 우선');
+    expect(view.getByText('노트')).toBeTruthy();
+    expect(button.textContent).toContain('이다현');
+    expect(button.textContent).toContain('고은성');
+    // 빠진 글은 title 로 되찾는다
+    expect(button.getAttribute('title')).toContain('노트: 모의고사 오답 리뷰 우선');
+    cleanup();
+  });
+
+  it('메모가 없거나 공백뿐이면 줄도 배지도 없다', () => {
+    const blank = render(<EventBlock occ={{ ...memo, memo: '   ' }} subName="SAT Reading" lines={1} />);
+    expect(blank.queryByText('노트')).toBeNull();
+    expect(blank.getByRole('button').getAttribute('title')).not.toContain('노트');
+    cleanup();
+    const none = render(<EventBlock occ={{ ...memo, memo: null }} subName="SAT Reading" lines={1} />);
+    expect(none.queryByText('노트')).toBeNull();
+    cleanup();
   });
 });

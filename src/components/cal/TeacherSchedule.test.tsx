@@ -20,6 +20,9 @@ vi.mock('@/api/queries', () => ({
   useHorizon: mocks.horizon, useScheduleWrite: mocks.scheduleWrite,
   // 공휴일 이름표(GET /schedule/holidays)·머리줄 서버 값(GET /teacher/shell) — 둘 다 서버 표에서 온다
   useScheduleHolidays: mocks.holidays, useTeacherShell: mocks.shell,
+  // 「GPA 회차 요청」 창(N-99) — 창을 열 때만 읽는다. 창의 요청 모양은 GpaRequestButton 시험이 본다
+  useTeacherGpaRequestOptions: () => ({ data: undefined, isLoading: false, isError: false }),
+  useCreateSettingRequest: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false }),
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</> }));

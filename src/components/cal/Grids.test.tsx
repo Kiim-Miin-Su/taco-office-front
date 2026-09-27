@@ -234,3 +234,44 @@ describe('공휴일 칩과 강사 불가 띠', () => {
     expect(withUnav.container.querySelectorAll('[data-unav]').length).toBe(1);
   });
 });
+
+/**
+ * N-74 · N-80 — lane 은 셋까지 나란히, 넘치면 「+M」. 주간과 일간(날짜 한 열)이 같은 함수(`laneLayout`)를 쓰고
+ * 「+M」의 행선지만 다르다: 주간은 그날 일간으로(원문 §08 「날짜 머리 → 그날 일간」), 일간은 그 묶음을 펼친다.
+ */
+describe('lane 상한 셋 + 「+M」 (N-74 · N-80)', () => {
+  const crowd = (date: string, n: number) => Array.from({ length: n }, (_, i) => occurrence(i + 1, {
+    date, onDate: date, startMin: 600, endMin: 690, title: `겹친 수업 ${i + 1}`,
+  }));
+
+  it('주간: 넷 이상 겹치면 셋만 나란히 두고 「+M」을 누르면 그날로 간다', () => {
+    const onPickDate = vi.fn();
+    const view = render(<WeekGrid date="2026-09-01" items={crowd('2026-09-02', 5)} onPickDate={onPickDate} />);
+    const week = view.getByRole('region', { name: '주간 시간표' });
+    expect(week.querySelectorAll('[data-week-event]')).toHaveLength(3);
+    const more = within(week).getByRole('button', { name: '2026-09-02 겹친 수업 2건 더 — 그날 일간으로' });
+    expect(more.textContent).toBe('+2');
+    fireEvent.click(more);
+    expect(onPickDate).toHaveBeenCalledWith('2026-09-02');
+  });
+
+  it('주간: 셋까지는 「+M」 없이 전부 나란히 선다', () => {
+    const view = render(<WeekGrid date="2026-09-01" items={crowd('2026-09-02', 3)} onPickDate={vi.fn()} />);
+    const week = view.getByRole('region', { name: '주간 시간표' });
+    expect(week.querySelectorAll('[data-week-event]')).toHaveLength(3);
+    expect(week.querySelector('[data-lane-more]')).toBeNull();
+  });
+
+  it('일간(날짜 한 열): 머리는 두 줄이고 누르는 단추가 아니다 — 「+M」은 그 묶음을 펼쳐 전부 보인다', () => {
+    const onOpen = vi.fn();
+    const view = render(<WeekGrid date="2026-09-02" days={['2026-09-02']} items={crowd('2026-09-02', 4)} onOpen={onOpen} />);
+    const day = view.getByRole('region', { name: '일간 시간표' });
+    expect(within(day).getByText('26년 9월 2일 수요일')).toBeTruthy();
+    expect(within(day).getByText('일정 4건')).toBeTruthy();
+    expect(within(day).queryByRole('button', { name: /날짜 선택/ })).toBeNull();
+    expect(day.querySelectorAll('[data-week-event]')).toHaveLength(3);
+    fireEvent.click(within(day).getByRole('button', { name: '겹친 수업 4건 펼치기' }));
+    fireEvent.click(within(day).getByRole('button', { name: /겹친 수업 4$/ }));
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ serId: 4 }));
+  });
+});

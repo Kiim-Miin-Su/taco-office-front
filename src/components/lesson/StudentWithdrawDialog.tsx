@@ -18,7 +18,7 @@ import { Banner, Button, Chip, Dialog, Input, Label, Select, Textarea } from '..
 import { apiMessage } from '@/api/client';
 import { useWithdrawStudent } from '@/api/queries';
 import type { WithdrawResult } from '@/api/types';
-import { won } from '@/lib/money';
+import { MASKED, won } from '@/lib/money';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const md = (iso: string) => `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
@@ -156,7 +156,7 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
               <p className="mt-2 border-t border-line pt-2 text-fg-subtle">청구서에서 뺄 것이 없습니다 — 이 뒤의 회차는 아직 청구되지 않았습니다.</p>
             )}
             <p className="mt-2 text-[12.5px] font-bold text-fg">
-              환불 합계 {preview.canSeeAmounts ? won(preview.refundTotal) : '가려짐'}
+              환불 합계 {preview.canSeeAmounts ? won(preview.refundTotal) : MASKED}
             </p>
           </section>
         ) : dateOk && !err ? (

@@ -22,6 +22,10 @@
  * 시간 비례 격자(일간·주간)에서는 제목에 시작 시각을 붙이지 않는다 — 축이 이미 말한다(원문 §07·§08).
  * 월간 칸은 원문 §09 처럼 「08:00 Vocabulary」로 시각을 붙이고 테두리 없는 왼쪽 띠 + 옅은 채움이다.
  * 개인표(§10·§11)는 「과목 / 시간대 / 담당 강사(학생별) · 학생(선생님별)」 세 줄이다.
+ *
+ * 회차 메모(N-57 · `occ.memo`)는 원문 §08 처럼 **맨 아래 한 줄**(「▎모의고사 오답 리뷰 우선」)이고 높이가 모자라면
+ * 가장 먼저 빠진다. 빠졌을 때만 오른쪽 위 「노트」 배지가 선다(원문 §07 — 줄이 보이는 블록에는 배지가 없다).
+ * 메모 글은 언제나 `title` 로 되찾는다.
  */
 import { useId, type CSSProperties, type ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
@@ -50,12 +54,21 @@ export const STATUS_LABEL: Array<[keyof typeof STATUS_LOOK, string]> = [
 ];
 
 /**
- * 블록 배지로 올리는 리포트 상태 — 원문 §07 「승인 대기」 · §08 「리포트 반려」.
- * 끝난(승인) · 아직(예정·미작성) 상태는 배지를 달지 않는다 — 색과 범례가 이미 말한다.
+ * 원문 §07 바닥 범례 「[미작성] 리포트」 — 끝났는데 리포트가 없는 수업(서버 `repState` none)에 다는 빨간 배지.
+ * 범례(`Legend`)가 이 값을 그대로 그린다 — 낱말과 색을 두 곳에 두지 않는다. 색은 컷의 배지 채움(`--red`)이다.
+ */
+export const UNWRITTEN_BADGE = { label: '미작성', look: 'bg-red text-white' } as const;
+
+/**
+ * 블록 배지로 올리는 리포트 상태 — 원문 §07 「승인 대기」 · §08 「리포트 반려」 · §07 범례 「[미작성] 리포트」.
+ * 과목색 보기(일정)에서는 리포트 상태가 색으로 안 보이므로 이 셋만 배지로 올린다.
+ * 승인 · 예정 · 작성 중은 배지를 달지 않는다 — 원문 어느 블록·범례에도 그 배지가 없다.
+ * 「승인 대기」와 「리포트 반려」는 컷에서 **같은 황토 채움**이다(§07 GPA 관리 · §08 MAP Math · Interview) — 낱말로 가른다.
  */
 const REPORT_BADGE: Partial<Record<string, { label: string; look: string }>> = {
+  none: UNWRITTEN_BADGE,
   wait: { label: '승인 대기', look: 'bg-amber text-white' },
-  rej: { label: '리포트 반려', look: 'bg-violet text-white' },
+  rej: { label: '리포트 반려', look: 'bg-amber text-white' },
 };
 
 /**
@@ -175,6 +188,7 @@ export function EventBlock({
     : occ.roomName ? `현장 ${occ.roomName}` : null;
   // 제목이 이미 종류 이름이면 같은 낱말을 배지로 또 달지 않는다
   const kindBadge = kindName && occ.kindKey !== PLAIN_KIND && kindName !== heading ? kindName : null;
+  // 휴강 · 출결 취소한 회차는 서버가 리포트 대상 아님(na)으로 보낸다(리포트 목록과 한 판정) — 블록은 받은 값만 그린다
   const reportBadge = REPORT_BADGE[occ.repState] ?? null;
   // 정원 점 — 그날 명단(그날 빠짐 · 휴원 제외)이 정원 몇 자리를 채웠는지. §79 카드의 인원과 같은 규칙이다(서버 LessonTracking.count).
   // 배지 자리는 하나라 종류·리포트 배지가 서면 점은 title 로만 간다(원문 블록도 오른쪽 위 배지가 하나다).
@@ -183,10 +197,12 @@ export function EventBlock({
   const allPaused = occ.students.length > 0 && occ.students.every((s) => s.paused || s.droppedOnce)
     && occ.students.some((s) => s.paused);
   const capLabel = cap && cap > 1 ? `정원 ${seated}/${cap}명` : null;
-  const dots = !compact && capLabel && cap! <= CAP_DOTS_MAX && !kindBadge && !reportBadge
+  const dots = !compact && capLabel && cap! <= CAP_DOTS_MAX && !kindBadge && !reportBadge && !occ.memo?.trim()
     ? { filled: Math.min(seated, cap!), empty: Math.max(0, cap! - seated) }
     : null;
   // 휴강의 처리(이월/차감/보강 이관)는 회계가 읽는 값이라 블록에도 적는다 — 낱말은 서버 것 (C92)
+  // 회차 메모 — 그 회차 하나의 한 줄(N-57). 빈 글은 서버가 저장하지 않는다
+  const memo = occ.memo?.trim() ? occ.memo.trim() : null;
   const status = occ.canceled && occ.cancelTreatLabel
     ? `휴강 · ${occ.cancelTreatLabel}${occ.makeupDate ? ` → ${occ.makeupDate.slice(5)}` : ''}`
     : occ.makeupOfDate ? `보강 · ${occ.makeupOfDate.slice(5)} 회차`
@@ -216,8 +232,16 @@ export function EventBlock({
     }
     if (status) details.push({ key: 'status', keep: 1, node: status });
   }
+  // 메모 줄은 **보이는 차례도 빼는 차례도 마지막**이다 — 높이가 모자라면 이 줄부터 빠지고 「노트」 배지가 대신 선다
+  if (memo) {
+    details.push({
+      key: 'memo', keep: 3,
+      node: <span className="border-l-2 border-current pl-1">{memo}</span>,
+    });
+  }
   const fit = compact ? 0 : (lines ?? details.length);
   const kept = new Set([...details].sort((a, b) => a.keep - b.keep).slice(0, fit).map((d) => d.key));
+  const noteBadge = memo !== null && !kept.has('memo');
 
   // 잘리거나 빠진 글자는 전부 여기서 되찾는다 — 좁은 블록에서도 정보가 사라지지 않는다
   const title = [
@@ -230,6 +254,7 @@ export function EventBlock({
     reportBadge?.label,
     capLabel,
     occ.extra ? '추가' : null,
+    memo ? `노트: ${memo}` : null,
   ].filter(Boolean).join(' · ');
   const dragging = move.isDragging || resize.isDragging;
   // 읽기 전용 블록도 상세를 여는 버튼이다. dnd-kit의 disabled attributes를 그대로
@@ -286,6 +311,8 @@ export function EventBlock({
           {occ.extra ? <Badge look="bg-fg/15">추가</Badge> : null}
           {!compact && kindBadge ? <Badge look="bg-fg/15">{kindBadge}</Badge> : null}
           {!compact && reportBadge ? <Badge look={reportBadge.look}>{reportBadge.label}</Badge> : null}
+          {/* 원문 §07 「노트」 — 회차 메모가 있는데 줄로는 못 그릴 때만 (N-57) */}
+          {!compact && noteBadge ? <Badge look="border border-line-2 bg-card text-fg">노트</Badge> : null}
           {dots ? (
             <span aria-hidden data-cap-dots className="flex shrink-0 items-center gap-[2px] rounded-full bg-fg/15 px-1 py-[3px]">
               {Array.from({ length: dots.filled }, (_, i) => <span key={`f${i}`} className="size-[6px] rounded-full bg-current" />)}
@@ -296,7 +323,8 @@ export function EventBlock({
         {details.filter((d) => kept.has(d.key)).map((d) => (
           <div key={d.key} className={cn(
             'mt-0.5 truncate text-[10px] leading-[12px]',
-            d.key === 'status' ? 'font-bold opacity-90' : d.key === 'teacher' ? 'font-bold opacity-80' : 'opacity-80',
+            d.key === 'status' ? 'font-bold opacity-90' : d.key === 'teacher' ? 'font-bold opacity-80'
+              : d.key === 'memo' ? 'font-bold' : 'opacity-80',
           )}>
             {d.node}
           </div>

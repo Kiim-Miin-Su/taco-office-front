@@ -77,13 +77,14 @@
 }
 
 /* 원문 §07 범례 「강사 불가」 · §11 「가능 시간」(G37) — 강사가 불가로 적은 시각을 격자에 까는 빗금 띠.
-   격자(Grids.tsx UnavBands)와 범례(Legend.tsx)가 같은 클래스를 쓴다 — 두 벌이면 범례가 거짓이 된다. */
+   격자(Grids.tsx UnavBands)와 범례(Legend.tsx)가 같은 클래스를 쓴다 — 두 벌이면 범례가 거짓이 된다.
+   색은 **회색**이다 — §07 범례 견본이 회색 사선 · 진한 테두리이고, 강사 덱 slide 16 도 「관리자 배정 화면에서 불가 시간이 회색」이라 적는다. */
 .unavBand {
-  border-top: 1px solid color-mix(in srgb, var(--orange) 55%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--orange) 55%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--fg-subtle) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--fg-subtle) 55%, transparent);
   background-image: repeating-linear-gradient(
     135deg,
-    color-mix(in srgb, var(--orange) 16%, transparent) 0 6px,
+    color-mix(in srgb, var(--fg-subtle) 20%, transparent) 0 6px,
     transparent 6px 12px
   );
 }

@@ -18,12 +18,12 @@
  */
 'use client';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Banner, Button, Chip, ConflictGuard, Dialog, RecurrenceScope } from '../ui';
+import { Banner, Button, Chip, ConflictGuard, Dialog, RecurrenceScope, Segmented } from '../ui';
 import { WideDialog } from '../ui/WideDialog';
 import { SearchField, type SearchFieldHandle } from '../ui/SearchField';
 import { SearchEmpty } from '../ui/SearchEmpty';
-import { hhmm, longDateLabel } from '@/lib/calendar';
-import { won } from '@/lib/money';
+import { hhmm, longDateLabel, studentOverlapLines } from '@/lib/calendar';
+import { MASKED, won } from '@/lib/money';
 import { useLessonTracking, useScheduleWrite } from '@/api/queries';
 import Link from 'next/link';
 import { apiMessage } from '@/api/client';
@@ -33,6 +33,7 @@ import { AttendanceControl } from './AttendanceControl';
 import { StudentTracking } from './StudentTracking';
 import { CancelLessonDialog, type CancelLessonInput } from './CancelLessonDialog';
 import { SessionEditor } from '../cal/SessionEditor';
+import { LessonTodoButton } from '../drawer/TodoCreateDialog';
 
 /**
  * 준비 줄은 **서버가 만든다** — 줄 이름도, 됐는지도, 「준비 6 / 9」도 (C82-b).
@@ -99,9 +100,15 @@ export interface LessonDetailProps {
    * 지금까지 이 창은 성공하면 `onClose()` 만 불러 **서버가 준 되돌리기 토큰을 버리고 있었다** —
    * 실수로 지운 사람에게 아무것도 남지 않았다.
    */
-  onWritten?: (result: unknown, label: string) => void;
+  onWritten?: (result: unknown, label: string, detail?: readonly string[]) => void;
   onClose: () => void;
 }
+
+/** 수업 상세의 방식 토글 — 「일정 수정」 창의 방식 칸과 같은 두 낱말이다 (N-56) */
+const MODE_TOGGLE: Array<{ value: Occurrence['mode']; label: string }> = [
+  { value: 'offline', label: '현장' },
+  { value: 'online', label: '온라인' },
+];
 
 /**
  * 준비 한 줄 — 원문 §12: 완료는 초록 바탕 + 채운 초록 원 ✓, 미완은 분홍 바탕 + 빈 원.
@@ -142,9 +149,9 @@ function RosterHead({ d }: { d: LessonTracking }) {
       <Chip tone={d.canAdd > 0 ? 'info' : 'warning'}>{d.capLabel}</Chip>
       {d.priced ? (
         <Chip>
-          1인 {d.canSeeAmounts && d.unitPrice != null ? won(d.unitPrice) : '가려짐'}
+          1인 {d.canSeeAmounts && d.unitPrice != null ? won(d.unitPrice) : MASKED}
           {' · 수업당 '}
-          {d.canSeeAmounts && d.total != null ? won(d.total) : '가려짐'}
+          {d.canSeeAmounts && d.total != null ? won(d.total) : MASKED}
         </Chip>
       ) : (
         <Chip tone="warning">단가표 미등록 — 가격은 표시하지 않습니다</Chip>
@@ -163,6 +170,10 @@ export function LessonDetail({
   const [askCancel, setAskCancel] = useState(false);
   /** 「일정 수정」 창 — 열 때마다 새로 그려 지난 오류·범위 선택이 남지 않는다 */
   const [editing, setEditing] = useState(false);
+  /** 방식 토글로 열었으면 그 방식이 골라진 채 「일정 수정」 창이 선다 — 저장·범위는 그 창이 한다 (N-56) */
+  const [presetMode, setPresetMode] = useState<Occurrence['mode'] | undefined>(undefined);
+  /** 명단에 넣은 학생이 같은 시각 다른 수업에도 있다 — 막지 않고 알린다 (N-58) */
+  const [overlapLines, setOverlapLines] = useState<string[]>([]);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   /** 「+ 학생 넣기」 검색어 — 후보를 좁히기만 한다. 넣는 것은 칩을 누를 때 한 번이다 (원문 §79) */
@@ -180,6 +191,8 @@ export function LessonDetail({
   useEffect(() => {
     setRosterResult(null);
     setEditing(false);
+    setPresetMode(undefined);
+    setOverlapLines([]);
     setRosterOpen(true);
     // 검색 칸은 창과 함께 새로 그려져 비는데 검색어가 남으면 빈 칸이 후보를 몰래 좁힌다
     setQuery('');
@@ -199,6 +212,7 @@ export function LessonDetail({
     if (!canEdit) return;
     setErr(null);
     setRosterResult(null);
+    setOverlapLines([]);
     write.mutate(
       { kind: 'roster', serId: occ.serId, body: { op, onDate: occ.onDate, studentId } },
       {
@@ -206,6 +220,8 @@ export function LessonDetail({
         onSuccess: (result) => {
           // 그날 전체 휴강 결과도 count 를 들고 있다 — 명단 결과는 준비할 일 칸으로 가른다
           if ('needGuide' in result) setRosterResult(result);
+          // 명단 넣기만 싣는다 — 판정(그날 명단 · 휴원 · 그날만 빠짐)은 서버 것이다 (N-58)
+          if ('studentOverlaps' in result) setOverlapLines(studentOverlapLines(result.studentOverlaps ?? []));
         },
       },
     );
@@ -239,7 +255,14 @@ export function LessonDetail({
     setAsk(null);
     setAskCancel(true);
   };
-  const openEdit = () => { setErr(null); setEditing(true); };
+  const openEdit = () => { setErr(null); setPresetMode(undefined); setEditing(true); };
+  /** 방식 토글 — 저장은 「일정 수정」 창이 한다(범위 · 겹침 · 줌 계정을 같은 창에서 · N-56) */
+  const openModeSwitch = (mode: Occurrence['mode']) => {
+    if (mode === occ.mode) return;
+    setErr(null);
+    setPresetMode(mode);
+    setEditing(true);
+  };
   const endSeries = () =>
     withScope('delete', (scope) => {
       if (scope === 'this') { openCancel(); return; }
@@ -441,6 +464,11 @@ export function LessonDetail({
   const footer = (
     <>
       <Button variant="secondary" className="mr-auto" onClick={onClose}>닫기</Button>
+      {/* 「+ 할 일」 — 이 회차에 거는 할 일(W11 · N-71 · 공용 할 일 창). 휴강 회차에는 세우지 않는다(서버도 409) */}
+      {canEdit && !occ.canceled ? (
+        <LessonTodoButton people={meta?.staff ?? []}
+          lesson={{ serId: occ.serId, onDate: occ.onDate, date: occ.date, label: `${lessonName} · ${occ.date} ${hhmm(occ.startMin)}` }} />
+      ) : null}
       {canEdit && !occ.canceled ? (
         <Button variant="secondary" onClick={openCancel} disabled={write.isPending}
           title="이번 회차만 — 사유 · 처리(이월/차감/보강 이관) · 메모를 적습니다">
@@ -495,6 +523,22 @@ export function LessonDetail({
               </div>
             ) : null}
 
+            {/* 회차 방식 전환(N-56) — 누르면 방식이 골라진 「일정 수정」 창이 선다. 휴강 회차에는 세우지 않는다(「일정 수정」과 같은 조건) */}
+            {canEditSchedule ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-bold text-fg">수업 방식</span>
+                <Segmented ariaLabel="이 회차 수업 방식" options={MODE_TOGGLE} value={occ.mode}
+                  disabled={write.isPending} onChange={openModeSwitch} />
+              </div>
+            ) : null}
+
+            {/* 회차 메모 — 그 회차 하나의 한 줄(N-57 · 원문 §08 블록의 메모 줄). 고치는 곳은 「일정 수정」이다 */}
+            {occ.memo ? (
+              <p data-occ-memo className="rounded-lg border-l-4 border-fg-subtle bg-inset px-3 py-2 text-[12px] text-fg">
+                <b className="mr-1.5">회차 메모</b>{occ.memo}
+              </p>
+            ) : null}
+
             <section>
               {/* 머리와 막대는 서버가 센 값이다 — 화면이 prep 를 다시 세지 않는다 (D-R37) */}
               <div className="mb-2 flex items-baseline gap-2">
@@ -524,7 +568,8 @@ export function LessonDetail({
             {/* 준비를 못 읽는 화면(강사 · 읽는 중 · 실패)에서도 명단은 선다 — 같은 명단 한 벌이다 */}
             {!rosterInPrep ? <section aria-label="수강 학생">{rosterBody}</section> : null}
 
-            <AttendanceControl occ={occ} />
+            {/* 출결 취소는 청구를 바꾸지 않는다 — 청구는 휴강 창에서(N-48). 휴강을 쓸 수 있을 때만 그 창을 여는 단추를 준다 */}
+            <AttendanceControl occ={occ} onOpenCancel={canEdit && !occ.canceled ? openCancel : undefined} />
 
             {occ.kindKey === 'gpa' && canAdminPage && canEdit ? (
               <p className="text-[12px]">
@@ -533,15 +578,24 @@ export function LessonDetail({
               </p>
             ) : null}
             {err ? <div role="alert"><Banner tone="danger">{err}</Banner></div> : null}
+            {overlapLines.length ? (
+              <div role="status" data-student-overlaps>
+                {/* 학생은 겹침을 막는 축이 아니다 — 넣었고, 같은 시각 다른 수업에도 있다는 사실만 알린다 (N-58) */}
+                <Banner tone="warning">
+                  넣었습니다 — 다만 <b>같은 시각 다른 수업에도 있는 학생</b>입니다: {overlapLines.slice(0, 3).join(' · ')}
+                  {overlapLines.length > 3 ? ` 외 ${overlapLines.length - 3}건` : ''}
+                </Banner>
+              </div>
+            ) : null}
             {rosterResult ? (
               <ConflictGuard
                 result="ok"
                 message={`명단을 반영했습니다 · ${rosterResult.count}/${rosterResult.cap}명${
                   // N-17-a 표기 표본 — 대표 단가는 구간 값(예외 제외), 총액은 예외 합산 (서버 계산·§54)
                   rosterResult.priced && rosterResult.unitPrice != null && rosterResult.total != null
-                    ? ` · 1인 ${rosterResult.unitPrice.toLocaleString('ko-KR')}원(${rosterResult.tierHeads}인 구간${
+                    ? ` · 1인 ${won(rosterResult.unitPrice)}(${rosterResult.tierHeads}인 구간${
                         rosterResult.overrideCount ? ` · 예외 ${rosterResult.overrideCount}명` : ''
-                      }) · 수업당 ${rosterResult.total.toLocaleString('ko-KR')}원`
+                      }) · 수업당 ${won(rosterResult.total)}`
                     : ' · 단가표 미등록 — 가격은 표시하지 않습니다'
                 }`}
               />
@@ -559,10 +613,13 @@ export function LessonDetail({
 
       {canEdit && editing && meta ? (
         <SessionEditor
-          edit={{ occ, name: lessonName }}
+          edit={{ occ, name: lessonName, presetMode }}
           meta={meta}
-          onClose={() => setEditing(false)}
-          onSaved={(result) => onWritten?.(result, '일정 수정')}
+          onClose={() => { setEditing(false); setPresetMode(undefined); }}
+          // 방식 전환은 함께 바뀐 것(「강의실을 비웠습니다」 …)을 서버 문장 그대로 알린다 (N-56 · WriteResult.log)
+          onSaved={(result, saved) => (saved.modeChanged
+            ? onWritten?.(result, '방식 전환', result.log)
+            : onWritten?.(result, saved.memoOnly ? '회차 메모' : '일정 수정'))}
         />
       ) : null}
 

@@ -15,6 +15,10 @@
  *
  * 일간의 강의실/강사 열은 첫 건 + 「+N」으로 접고, 주간의 날짜 열은 원문처럼
  * 평행 lane으로 미리 보여 준다. 두 보기는 같은 `overlapClusters` 결과를 소비한다.
+ *
+ * lane 은 **셋까지**다(N-74) — 넘치면 셋만 나란히 두고 「+M」을 단다. 주간의 「+M」은 그날 일간으로 가고
+ * (원문 §08 「날짜 머리 클릭 → 그날 일간」), 일간 기본 모양(날짜 한 열 · N-80)의 「+M」은 그 묶음을 펼친다.
+ * 둘 다 `laneLayout` 한 함수를 쓴다.
  */
 'use client';
 import { useId, useMemo, useState } from 'react';
@@ -24,8 +28,8 @@ import { EventBlock, blockDetailLines, type DragData } from './EventBlock';
 import blockStyles from './EventBlock.module.css';
 import { cn } from '../ui/cn';
 import {
-  HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, nowMinKst, occurrenceKey, overlapClusters, periodSummary, timeRange,
-  todayKst, weekDays, type CalendarColAxis, type SelectMode,
+  HOUR_PX, KO_DOW, SLOT_MIN, dowOf, hhmm, laneLayout, longDateLabel, nowMinKst, occurrenceKey, overlapClusters,
+  periodSummary, timeRange, todayKst, weekDays, type CalendarColAxis, type SelectMode,
 } from '@/lib/calendar';
 import type { Occurrence } from '@/api/types';
 import type { CalendarColorOf } from '@/lib/tokens';
@@ -101,6 +105,11 @@ export interface WeekGridProps extends GridProps {
   dark?: boolean;
   /** 바닥 「합계 N회」 줄 — 원문 §10 개인표. 요일마다 「회 / 시간」(취소 제외 · 기간 집계와 같은 함수) */
   totals?: boolean;
+  /**
+   * 그릴 날짜 열 — 주지 않으면 그 주 7일. 일간 기본 모양(N-80 · 원문 §07 캡처 「날짜 한 열 + lane」)은
+   * 그날 하루만 준다. lane 과 「+M」은 주간과 같은 함수다(N-74).
+   */
+  days?: readonly string[];
 }
 
 const byDate = (items: Occurrence[]) => {
@@ -346,9 +355,12 @@ export function DayGrid({
 
 export function WeekGrid({
   date, items, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, cursor,
-  dark = false, totals = false, holidaysOf, unavOf,
+  dark = false, totals = false, holidaysOf, unavOf, days: onlyDays,
 }: WeekGridProps) {
-  const days = weekDays(date);
+  const days = onlyDays ?? weekDays(date);
+  const single = days.length === 1;
+  /** 일간(날짜 한 열)의 「+M」 — 그 묶음만 펼친다. 주간의 「+M」은 그날 일간으로 간다 */
+  const [openCluster, setOpenCluster] = useState<string | null>(null);
   const map = useMemo(() => byDate(items), [items]);
   // §08·10·11은 보기마다 별도 목록을 만들지 않는다. 같은 회차 배열에서 한 번 구한
   // 공통 범위를 7개 날짜 열이 공유해야 세로 좌표가 서로 어긋나지 않는다.
@@ -363,12 +375,15 @@ export function WeekGrid({
   const now = nowMinKst();
   const showNow = days.includes(todayKst()) && now >= from && now <= to;
 
+  const cols = `56px repeat(${days.length}, minmax(112px, 1fr))`;
+
   return (
-    <div data-png-expand className="overflow-x-auto rounded-xl border border-line bg-card" role="region" aria-label="주간 시간표">
-      <div className="min-w-[900px]">
+    <div data-png-expand className="overflow-x-auto rounded-xl border border-line bg-card" role="region"
+      aria-label={single ? '일간 시간표' : '주간 시간표'} onClick={() => setOpenCluster(null)}>
+      <div className={single ? 'min-w-[360px]' : 'min-w-[900px]'}>
         {/* 머리 — 개인표(§10·§11)는 어둡고, 전체 주간(§08)은 밝은 머리에 「17일 · 8건」 한 줄이다 */}
         <div className={cn('grid border-b border-line', dark ? 'bg-fg text-white' : 'bg-inset text-fg')}
-             style={{ gridTemplateColumns: '56px repeat(7, minmax(112px, 1fr))' }}>
+             style={{ gridTemplateColumns: cols }}>
           <div className={cn('border-r p-2 text-[11px] font-bold', dark ? 'border-white/10 text-white/65' : 'border-line text-fg-subtle')}>
             한국 시간
           </div>
@@ -376,15 +391,8 @@ export function WeekGrid({
             const n = map.get(d)?.length ?? 0;
             const dow = dowOf(d);
             const isToday = d === todayKst();
-            return (
-              <button key={d} type="button" onClick={() => onPickDate?.(d)}
-                aria-label={`${d} (${KO_DOW[dow]}) 날짜 선택`}
-                className={cn(
-                  'border-r px-2 py-1.5 text-center transition-colors last:border-r-0 focus-visible:outline-blue',
-                  dark ? 'border-white/10 hover:bg-white/10' : 'border-line hover:bg-blue/[0.06]',
-                  dark && isToday && 'bg-blue',
-                  !dark && isToday && 'bg-blue/10',
-                )}>
+            const body = (
+              <>
                 {dark ? (
                   <>
                     <div className={cn('text-[11px] font-bold', !isToday && dow === 0 ? 'text-red-300' : !isToday && dow === 6 ? 'text-blue-300' : 'text-white/75')}>
@@ -392,6 +400,12 @@ export function WeekGrid({
                     </div>
                     <div className="text-[14px] font-bold">{+d.slice(8, 10)}</div>
                     <div className={cn('text-[10px]', n ? 'font-bold text-amber-300' : 'text-white/70')}>{n ? `${n}건` : '—'}</div>
+                  </>
+                ) : single ? (
+                  /* 원문 §07 캡처의 일간 머리 두 줄 「26년 8월 21일 금요일 / 일정 21건」 */
+                  <>
+                    <div className={cn('text-[13px] font-bold', isToday ? 'text-blue' : 'text-fg')}>{longDateLabel(d)}</div>
+                    <div className="text-[11px] text-fg-subtle">일정 {n}건</div>
                   </>
                 ) : (
                   <>
@@ -408,12 +422,28 @@ export function WeekGrid({
                   <div key={name} data-holiday={name} title={name}
                     className={cn('truncate text-[10px] font-bold', dark ? 'text-red-300' : 'text-red')}>{name}</div>
                 ))}
+              </>
+            );
+            const look = cn(
+              'border-r px-2 py-1.5 text-center last:border-r-0',
+              dark ? 'border-white/10' : 'border-line',
+              dark && isToday && 'bg-blue',
+              !dark && isToday && 'bg-blue/10',
+            );
+            // 날짜 머리 클릭 → 그날 일간(원문 §08). 날짜 한 열(일간)은 이미 그날이라 갈 곳이 없다 — 눌리지 않는 단추를 세우지 않는다
+            return !single ? (
+              <button key={d} type="button" onClick={() => onPickDate?.(d)}
+                aria-label={`${d} (${KO_DOW[dow]}) 날짜 선택`}
+                className={cn(look, 'transition-colors focus-visible:outline-blue', dark ? 'hover:bg-white/10' : 'hover:bg-blue/[0.06]')}>
+                {body}
               </button>
+            ) : (
+              <div key={d} data-day-head={d} className={look}>{body}</div>
             );
           })}
         </div>
 
-        <div className="relative grid" style={{ gridTemplateColumns: '56px repeat(7, minmax(112px, 1fr))' }}>
+        <div className="relative grid" style={{ gridTemplateColumns: cols }}>
           <div className="relative border-r border-line bg-card" style={{ height }}>
             {slots.filter((m) => m % 60 === 0).map((m) => (dark ? (
               /* 원문 §10·§11 개인표 눈금 — 큰 「12」 아래 작은 「13」: 그 한 시간 칸이 몇 시에서 몇 시까지인가 */
@@ -444,32 +474,63 @@ export function WeekGrid({
                 </div>
                 <UnavBands bands={unavOf?.(d)} px={px} />
                 <div className="pointer-events-none absolute inset-0">
-                  {clusters.flatMap((cluster) => cluster.map((o, lane) => {
-                    // 명세의 겹친 수업은 감추지 않고 같은 시간대 안에서 평행 미리보기한다.
-                    // 군집 폭을 한 번만 나눠 학생별·선생님별도 완전히 같은 배치를 소비한다.
-                    const laneCount = cluster.length;
-                    const gap = 2;
-                    const left = `calc(${(lane / laneCount) * 100}% + ${lane === 0 ? gap : gap / 2}px)`;
-                    const width = `calc(${100 / laneCount}% - ${gap + gap / laneCount}px)`;
-                    const blockHeight = Math.max(20, px(o.endMin) - px(o.startMin) - 2);
-                    return (
-                      <div key={`${occurrenceKey(o)}|${lane}`} data-week-event={occurrenceKey(o)}
-                           className="pointer-events-auto absolute z-[1] transition-[top,height,left,width]"
-                           style={{
-                             top: px(o.startMin) + 1,
-                             height: blockHeight,
-                             left,
-                             width,
-                           }}>
-                        <EventBlock occ={o} subName={subName?.(o)} kindName={kindName?.(o)} zaccLabel={zaccLabel?.(o)}
-                                    cap={capOf?.(o)} person={person} hideTime
-                                    color={colorOf?.(o)}
-                                    compact={o.endMin - o.startMin < 45} lines={blockDetailLines(blockHeight)}
-                                    onClick={() => onOpen?.(o)} onSelect={onSelect}
-                                    selected={selected?.has(occurrenceKey(o))} draggable={interactive} />
+                  {clusters.flatMap((cluster) => {
+                    // 셋까지 나란히, 넘치면 「+M」 — 일간(날짜 한 열)과 같은 함수다 (N-74)
+                    const { shown, more } = laneLayout(cluster);
+                    const head = shown[0];
+                    const key = `${d}|${occurrenceKey(head)}|${head.startMin}`;
+                    const expanded = openCluster === key;
+                    const extras = more > 0 ? [(
+                      <button key={`${key}|more`} type="button" data-lane-more={more}
+                        aria-label={single ? `겹친 수업 ${cluster.length}건 펼치기` : `${d} 겹친 수업 ${more}건 더 — 그날 일간으로`}
+                        title={single ? '겹친 수업을 모두 펼칩니다' : '그날 일간 표로 갑니다'}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (single) setOpenCluster(key); else onPickDate?.(d);
+                        }}
+                        className="pointer-events-auto absolute right-0.5 z-[2] rounded bg-fg px-1.5 py-0.5 text-[10px] font-bold text-white shadow"
+                        style={{ top: px(head.startMin) + 3 }}>
+                        +{more}
+                      </button>
+                    ), expanded ? (
+                      <div key={`${key}|open`} onClick={(event) => event.stopPropagation()}
+                        className="pointer-events-auto absolute left-1 right-1 z-20 flex flex-col gap-1 rounded-lg border border-line bg-card p-1.5 shadow-lg"
+                        style={{ top: px(head.startMin) + 3 }}>
+                        {cluster.map((o) => (
+                          <EventBlock key={occurrenceKey(o)} occ={o} subName={subName?.(o)} kindName={kindName?.(o)}
+                            zaccLabel={zaccLabel?.(o)} color={colorOf?.(o)} compact
+                            onClick={() => { setOpenCluster(null); onOpen?.(o); }}
+                            onSelect={onSelect} selected={selected?.has(occurrenceKey(o))} />
+                        ))}
                       </div>
-                    );
-                  }))}
+                    ) : null] : [];
+                    return [...shown.map((o, lane) => {
+                      // 명세의 겹친 수업은 감추지 않고 같은 시간대 안에서 평행 미리보기한다.
+                      // 군집 폭을 한 번만 나눠 학생별·선생님별도 완전히 같은 배치를 소비한다.
+                      const laneCount = shown.length;
+                      const gap = 2;
+                      const left = `calc(${(lane / laneCount) * 100}% + ${lane === 0 ? gap : gap / 2}px)`;
+                      const width = `calc(${100 / laneCount}% - ${gap + gap / laneCount}px)`;
+                      const blockHeight = Math.max(20, px(o.endMin) - px(o.startMin) - 2);
+                      return (
+                        <div key={`${occurrenceKey(o)}|${lane}`} data-week-event={occurrenceKey(o)}
+                             className="pointer-events-auto absolute z-[1] transition-[top,height,left,width]"
+                             style={{
+                               top: px(o.startMin) + 1,
+                               height: blockHeight,
+                               left,
+                               width,
+                             }}>
+                          <EventBlock occ={o} subName={subName?.(o)} kindName={kindName?.(o)} zaccLabel={zaccLabel?.(o)}
+                                      cap={capOf?.(o)} person={person} hideTime
+                                      color={colorOf?.(o)}
+                                      compact={o.endMin - o.startMin < 45} lines={blockDetailLines(blockHeight)}
+                                      onClick={() => onOpen?.(o)} onSelect={onSelect}
+                                      selected={selected?.has(occurrenceKey(o))} draggable={interactive} />
+                        </div>
+                      );
+                    }), ...extras];
+                  })}
                 </div>
               </div>
             );
@@ -486,7 +547,7 @@ export function WeekGrid({
         {/* 원문 §10 바닥 「합계 1회」 — 요일마다 「회 / 시간」. 세는 함수는 기간 집계와 같은 periodSummary 다 (D-R11 · N-19) */}
         {totals ? (
           <div className="grid border-t border-line" role="row" aria-label="합계"
-               style={{ gridTemplateColumns: '56px repeat(7, minmax(112px, 1fr))' }}>
+               style={{ gridTemplateColumns: cols }}>
             <div className="flex items-baseline gap-1 border-r border-line bg-fg px-2 py-2 text-white">
               <span className="text-[12px] font-bold">합계</span>
               <span className="text-[10px] text-white/70">{items.filter((o) => !o.canceled).length}회</span>

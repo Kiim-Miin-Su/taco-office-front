@@ -17,6 +17,7 @@
  */
 'use client';
 import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useSensor, useSensors,
@@ -44,20 +45,22 @@ import { Legend } from '@/components/cal/Legend';
 import { StudentBookChip } from '@/components/cal/StudentBookChip';
 import { PeriodSummaryBar } from '@/components/cal/PeriodSummaryBar';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
+import { TeacherGuideLink } from '@/components/cal/TeacherGuideLink';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 import {
-  fetchConflicts, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleHolidays, useScheduleSeriesCounts,
+  fetchConflictPreview, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleHolidays, useScheduleSeriesCounts,
   useScheduleUnavailable, useScheduleWrite,
 } from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
 import { useCan, useSession } from '@/store/useSession';
 import { canAccessAppRoute } from '@/components/shell/navigation';
 import {
-  boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin,
+  boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin, studentOverlapLines,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
-import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, UnavWarn, WriteResult } from '@/api/types';
+import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, StudentOverlap, UnavWarn, WriteResult } from '@/api/types';
+import { ROLE_BAR, ROLES } from '@/lib/roles';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
 import { downloadElementPng } from '@/lib/png-export';
 import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
@@ -71,6 +74,20 @@ import { positiveQueryId, queryIsoDate } from '@/lib/url-state';
 const PERSON_BLOCKED: Array<{ label: string; why: string }> = [
   { label: '메모', why: '이 강사에 대한 메모 자리입니다 — 무엇을 어디에 남길지 아직 정해지지 않았습니다' },
 ];
+
+/**
+ * 원문 §10 학생 목록의 성별 아바타(여 · 남 · —) — N-83 채택: **관리자 이 목록에만** 쓴다.
+ * 낱말은 서버 코드표(`meta.genders`), 빛깔만 여기 둔다(토큰 · D-R41). 비어 있으면(옛 학생 · N-25) 「—」다 — 추정하지 않는다.
+ * PNG 로 나가는 표에는 싣지 않는다(외부 출력 제외) — 내보내는 동안 감춘다.
+ */
+const GENDER_LOOK: Record<string, string> = { female: 'bg-pink text-white', male: 'bg-blue text-white' };
+const AVATAR_UNKNOWN = 'border border-line bg-inset text-fg-subtle';
+
+/**
+ * 원문 §11 선생님 목록의 역할 아바타 — N-83: 새 칸 없이 **이미 있는 역할**로 선다.
+ * 역할 낱말·빛깔은 `lib/roles` 의 표에서 **꺼낼** 뿐 견주지 않는다(D-R39 · §17 묶음 띠와 같은 표).
+ */
+const ROLE_NAME: Record<string, string> = Object.fromEntries(ROLES.map((r) => [r.key, r.label]));
 
 /**
  * 학생 목록 순서 — 원문 §10 은 학년순(K → G3 → G4 …)이다. 「G숫자」와 「K」만 순서를 알고,
@@ -157,6 +174,8 @@ type A =
   | { t: 'cursor'; value: PasteCursor | null }
   | { t: 'focus'; index: CalendarPaneIndex }
   | { t: 'split' }
+  /** 원문 §07 「세로선 나누기」 — 고른 표의 일간을 강의실 열로 나누거나 날짜 한 열로 되돌린다 (N-80) */
+  | { t: 'roomColumns' }
   | { t: 'ratio'; value: number }
   | { t: 'filters'; value: ScheduleFilters };
 
@@ -168,10 +187,13 @@ function reducer(s: S, a: A): S {
   });
   switch (a.t) {
     case 'view': {
-      // 사람을 고르는 보기가 아니면 선택을 놓는다 — 안 그러면 안 보이는 필터가 남는다
+      // 사람을 고르는 보기가 아니면 선택을 놓는다 — 안 그러면 안 보이는 필터가 남는다.
+      // **축이 바뀌어도 놓는다**(학생별 ↔ 선생님별) — 고른 번호는 그 축의 번호다. 들고 가면 학생 1 이 강사 1 로 읽혀
+      // 없는 강사의 표 · 「안내 N」 요청(404)이 되거나, 같은 번호의 다른 사람이 조용히 골라진다(W11 웹 크롤이 찾음).
+      // 놓으면 새 축의 첫 사람이 골라진다(`personAt` · 원문 §10 · §11 은 첫 사람이 골라진 채 열린다)
       const next = patchPane({
         view: a.v,
-        personId: a.v === 'student' || a.v === 'teacher' ? pane.personId : null,
+        personId: (a.v === 'student' || a.v === 'teacher') && a.v === pane.view ? pane.personId : null,
       });
       return {
         ...next,
@@ -229,6 +251,7 @@ function reducer(s: S, a: A): S {
       return s.panes.length === 1
         ? { ...s, panes: splitPanes(pane), focused: 0, ratio: 0.5 }
         : { ...s, panes: unsplitPanes(s.panes, s.focused), focused: 0, ratio: 0.5 };
+    case 'roomColumns': return patchPane({ roomColumns: !pane.roomColumns });
     case 'ratio': return { ...s, ratio: Math.max(0, Math.min(1, a.value)) };
     case 'filters': return { ...s, filters: a.value };
   }
@@ -298,6 +321,8 @@ function AdminSchedulePage() {
   /* 사이드바 [관리] 는 §18 에 들어갈 수 있을 때만 — 직접 URL 과 같은 내비 규칙(D-R39) */
   const sessionMe = useSession((st) => st.me);
   const canOpenPrograms = canAccessAppRoute('/programs', sessionMe);
+  /* 원문 §07 「≡ 회계」(N-100) — 회계 탭에 들어갈 수 있을 때만 선다. 직접 URL 과 같은 내비 규칙(D-R39) */
+  const canOpenAccounting = canAccessAppRoute('/accounting', sessionMe);
   /* ── 워크스페이스 셸 (U1 · 원본§07) — 접힘은 전역 store 하나, 배지는 셸과 같은 조회를 공유한다 ── */
   const sidebarOpen = useWorkspace((w) => w.sidebarOpen);
   const railOpen = useWorkspace((w) => w.railOpen);
@@ -332,6 +357,11 @@ function AdminSchedulePage() {
    * 오류가 아니라 알림이라 자리도 색도 따로 쓴다 — 막을 일이었으면 서버가 막았다.
    */
   const [unavail, setUnavail] = useState<string[]>([]);
+  /**
+   * 저장은 됐는데 **같은 학생이 같은 시각 다른 수업에도 있다** (N-58). 불가 시간 알림과 같은 자리 · 같은 모양이다 —
+   * 막을 일이 아니라 알릴 일이다(학생은 겹침 막는 축이 아니다). 판정은 서버 것, 줄 낱말은 `lib/calendar` 한 벌.
+   */
+  const [overlaps, setOverlaps] = useState<string[]>([]);
   /** 빈 칸에서 시작하는 새 일정 (C-5) — 새 일정은 범위를 묻지 않는다 */
   const [draft, setDraft] = useState<SessionDraft | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -362,18 +392,25 @@ function AdminSchedulePage() {
     if (requestedStudentId) go({ t: 'deepLinkStudent', id: requestedStudentId });
   }, [requestedStudentId]);
 
-  /** 저장이 됐을 때 — 오류를 지우고, 서버가 준 불가 시간 알림만 남긴다. */
-  const doneWrite = (result: unknown, undoLabel = '일정 변경') => {
+  /**
+   * 저장이 됐을 때 — 오류를 지우고, 서버가 준 알림(불가 시간 · 학생 겹침)만 남긴다.
+   * `detail` 은 그 쓰기가 **함께 바꾼 것**을 말하는 서버 문장이다 — 방식 전환(N-56)의 「강의실을 비웠습니다」 같은 줄.
+   */
+  const doneWrite = (result: unknown, undoLabel = '일정 변경', detail: readonly string[] = []) => {
     setErr(null);
-    const typed = result as (WriteResult & { unavailable?: UnavWarn[] }) | undefined;
+    const typed = result as (WriteResult & { unavailable?: UnavWarn[]; studentOverlaps?: StudentOverlap[] }) | undefined;
     const rows = typed?.unavailable ?? [];
     setUnavail(unavailableLines(rows));
+    setOverlaps(studentOverlapLines(typed?.studentOverlaps ?? []));
+    const said = detail.length ? ` — ${detail.join(' · ')}` : '';
     if (typed?.undoToken) {
       // 여러 단계(g1 S5) — 맨 뒤에 쌓는다. 만료는 서버 값을 그대로(목록이 지난 단계를 뺀다)
       pushUndo({ token: typed.undoToken, label: undoLabel, expiresAt: typed.undoExpiresAt ?? null });
       // 라벨은 「새 일정」·「수업 삭제」처럼 **한 일의 이름**이라 「…을 저장했습니다」로 이으면
       // 삭제까지 「저장」이 된다. 이름을 그대로 앞에 놓고 되돌리는 길만 잇는다.
-      setNotice(`${undoLabel} — 10분 안에 Ctrl/⌘+Z 로 되돌릴 수 있습니다.`);
+      setNotice(`${undoLabel}${said} — 10분 안에 Ctrl/⌘+Z 로 되돌릴 수 있습니다.`);
+    } else if (said) {
+      setNotice(`${undoLabel}${said}`);
     }
   };
 
@@ -391,11 +428,14 @@ function AdminSchedulePage() {
     const base = apiMessage(e);
     setErr(base);
     setUnavail([]);
+    setOverlaps([]);
     if (!probe || !isConflict(e)) return;
-    void fetchConflicts(probe)
-      .then((rows) => {
-        if (!rows.length) return;
-        setErr(`${base} — ${conflictLines(rows).slice(0, 3).join(' · ')}`);
+    void fetchConflictPreview(probe)
+      .then(({ conflicts, freeLine }) => {
+        // 「그 시각 비어 있는 강의실 · 줌 계정」 한 줄은 서버 문장이다 — 누를 수 없고 미리 잡지 않는다 (N-70)
+        const parts = [...conflictLines(conflicts).slice(0, 3), ...(freeLine ? [freeLine] : [])];
+        if (!parts.length) return;
+        setErr(`${base} — ${parts.join(' · ')}`);
       })
       // 설명을 못 가져와도 원래 문구는 이미 서 있다 — 실패가 실패를 덮지 않게 한다
       .catch(() => undefined);
@@ -715,11 +755,12 @@ function AdminSchedulePage() {
     }
     const label = undoLast.label;
     undoLast.undo({
-      onFail: (message) => { setNotice(null); setErr(message); setUnavail([]); },
+      onFail: (message) => { setNotice(null); setErr(message); setUnavail([]); setOverlaps([]); },
       onDone: () => {
         setNotice(`${label}${objectParticle(label ?? '')} 되돌렸습니다.`);
         setErr(null);
         setUnavail([]);
+        setOverlaps([]);
         go({ t: 'selected', keys: [] });
         go({ t: 'clipboard', value: null });
         go({ t: 'cursor', value: null });
@@ -832,11 +873,24 @@ function AdminSchedulePage() {
      * 서버 플래그로 가른다: 관리 화면 권한이 없는 사람(강사)은 늘 서고, 관리 화면 사람은 이 기간 맡은 회차가 있을 때만 선다.
      * 지금 고른 사람은 목록에서 빼지 않는다(표가 「사람을 고르세요」로 바뀌지 않게).
      */
+    const genderLabel = new Map((meta.data?.genders ?? []).map((g) => [g.key as string, g.label]));
     const peopleSource = pane.view === 'student'
-      ? (meta.data?.students ?? []).map((x) => ({ id: x.id, name: x.name, sub: x.grade ?? '' }))
+      ? (meta.data?.students ?? []).map((x) => ({
+        id: x.id, name: x.name, sub: x.grade ?? '',
+        // 원문 §10 성별 아바타 — 낱말은 서버, 비어 있으면 「—」 (N-83)
+        avatar: {
+          text: (x.gender ? genderLabel.get(x.gender) : undefined) ?? '—',
+          look: (x.gender ? GENDER_LOOK[x.gender] : undefined) ?? AVATAR_UNKNOWN,
+          private: true,
+        },
+      }))
       : (meta.data?.staff ?? [])
         .filter((x) => !x.canAdminPage || x.id === pane.personId || paneAll.some((o) => o.teacherId === x.id))
-        .map((x) => ({ id: x.id, name: x.name, sub: x.title ?? '' }));
+        .map((x) => ({
+          id: x.id, name: x.name, sub: x.title ?? '',
+          // 원문 §11 역할 아바타 — 새 칸 없이 이미 있는 역할로 (N-83)
+          avatar: { text: ROLE_NAME[x.role] ?? x.role, look: `${ROLE_BAR[x.role] ?? 'bg-fg-subtle'} text-white`, private: false },
+        }));
     const people = peopleSource.map((person) => {
       const list = mine(person.id);
       // 시수 산식은 기간 집계와 **같은 함수**다 — 두 곳에서 따로 세면 칩과 상단 줄이 갈린다 (D-R11).
@@ -895,7 +949,8 @@ function AdminSchedulePage() {
   /** 표 한 벌을 PNG 로 — 도구줄(전체)과 개인 머리(그 사람 표)가 같은 공용 내보내기를 쓴다 */
   const exportElement = async (element: HTMLElement | null, fileName: string) => {
     if (!element || exporting) return;
-    setExporting(true);
+    // 성별 아바타는 외부 출력(PNG)에 싣지 않는다(N-83) — 감춘 화면이 **그려진 뒤에** 찍는다
+    flushSync(() => setExporting(true));
     try {
       await downloadElementPng(element, fileName);
       setErr(null);
@@ -964,7 +1019,16 @@ function AdminSchedulePage() {
     const unavTeacher = pane.view === 'teacher' ? pane.personId : pane.view === 'student' ? null : s.filters.teacherId;
     const unavOf = unavFor(unavTeacher);
 
-    const grids = shown === 'day' ? (
+    // 원문 §07 캡처 — 일간 기본은 날짜 한 열 + 나란한 lane(상한 셋 · 「+M」), 「세로선 나누기」면 강의실 열 (N-80 · N-74)
+    const grids = shown === 'day' && !pane.roomColumns ? (
+      <WeekGrid date={pane.date} days={[pane.date]} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
+        capOf={capOf} person={person} dark={isPerson} totals={isPerson}
+        holidaysOf={holidaysOf} unavOf={unavOf}
+        colorOf={blockColor} interactive={canEdit}
+        onSelect={select} selected={selectedSet} cursor={s.cursor}
+        onAddAt={canEdit ? (date, startMin) => chooseSlot(pane, date, startMin) : undefined}
+        onOpen={(occurrence) => go({ t: 'open', o: occurrence })} />
+    ) : shown === 'day' ? (
       <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
         columnOf={(occurrence) => occurrence.roomId ?? null}
         subName={subName} kindName={kindName} zaccLabel={zaccLabel} capOf={capOf} person={person} colorOf={blockColor}
@@ -1098,6 +1162,13 @@ function AdminSchedulePage() {
                     className={`flex w-full flex-col items-start gap-1.5 border-b border-line px-3 py-2.5 text-left transition-colors hover:bg-inset ${
                       pane.personId === person.id ? 'border-l-4 border-l-primary bg-primary/10' : ''}`}>
                     <span className="flex items-center gap-1.5">
+                      {/* 원문 §10 성별 · §11 역할 아바타 — 성별은 PNG 로 나가는 동안 감춘다(외부 출력 제외 · N-83) */}
+                      {person.avatar.private && exporting ? null : (
+                        <span aria-hidden data-avatar={person.avatar.private ? 'gender' : 'role'}
+                          className={`grid h-6 min-w-6 shrink-0 place-items-center rounded-md px-1 text-[10.5px] font-bold ${person.avatar.look}`}>
+                          {person.avatar.text}
+                        </span>
+                      )}
                       <span className="text-[13px] font-bold text-fg">{person.name}</span>
                       {person.sub ? <Chip size="compact">{person.sub}</Chip> : null}
                     </span>
@@ -1145,7 +1216,8 @@ function AdminSchedulePage() {
                           title={unavOn ? '강사 불가 시간 겹쳐 보기를 끕니다' : '강사가 적어 둔 불가 시간을 이 표에 겹쳐 봅니다'}>
                           가능 시간
                         </Button>
-                        <LinkButton size="sm" href="/guides" title="수업 안내로 갑니다">안내</LinkButton>
+                        {/* 원문 §11 「안내 N」 — 보냈는데 아직 확인 안 된 안내 수(서버 · N-100) */}
+                        <TeacherGuideLink teacherId={pane.personId} />
                         {canMoney ? <LinkButton size="sm" href="/accounting?tab=payout" title="강사료 정산 탭으로 갑니다">정산</LinkButton> : null}
                         {PERSON_BLOCKED.map((entry) => (
                           <Button key={entry.label} size="sm" disabled title={entry.why}>{entry.label}</Button>
@@ -1278,12 +1350,15 @@ function AdminSchedulePage() {
           target={activeTarget}
           filters={s.filters}
           meta={meta.data}
-          splitOn={s.panes.length === 2}
+          roomColumnsOn={activeModel.pane.roomColumns}
+          roomColumnsAvailable={activeModel.shown === 'day'}
+          showAccounting={canOpenAccounting}
           exporting={exporting}
           date={activeModel.pane.date}
           axisLabel={activeModel.axisLabel}
           freeOn={freeOn}
-          freeAvailable={activeModel.shown === 'day' && activeTarget === 'all'}
+          // 빈 칸은 강의실마다 센다 — 강의실 열(「세로선 나누기」)이 선 일간 전체 표에서만 뜻이 있다
+          freeAvailable={activeModel.shown === 'day' && activeTarget === 'all' && activeModel.pane.roomColumns}
           onPeriodChange={(period) => (
             activeTarget === 'all' ? go({ t: 'view', v: period }) : go({ t: 'personPeriod', v: period })
           )}
@@ -1293,7 +1368,7 @@ function AdminSchedulePage() {
           onStep={(dir) => go({ t: 'step', dir })}
           onToday={() => go({ t: 'today' })}
           onFreeToggle={() => setFreeOn((v) => !v)}
-          onSplit={() => go({ t: 'split' })}
+          onRoomColumnsToggle={() => go({ t: 'roomColumns' })}
           onExport={exportSchedule}
         />
 
@@ -1324,6 +1399,16 @@ function AdminSchedulePage() {
           <div className="mb-3 flex flex-wrap items-center gap-2" role="status">
             <Banner tone="success">{notice}</Banner>
             {undoLast.canUndo ? <Button size="sm" variant="ghost" onClick={runUndo}>되돌리기 · Ctrl/⌘+Z</Button> : null}
+          </div>
+        ) : null}
+
+        {overlaps.length ? (
+          <div className="mb-3" role="status" data-student-overlaps>
+            {/* 학생은 겹침을 막는 축이 아니다 — 저장은 됐고, 같은 시각 다른 수업에도 있다는 사실만 알린다 (N-58) */}
+            <Banner tone="warning">
+              저장했습니다 — 다만 <b>같은 시각 다른 수업에도 있는 학생</b>이 있습니다: {overlaps.slice(0, 3).join(' · ')}
+              {overlaps.length > 3 ? ` 외 ${overlaps.length - 3}건` : ''}
+            </Banner>
           </div>
         ) : null}
 
@@ -1387,7 +1472,7 @@ function AdminSchedulePage() {
           cancelReasons={meta.data?.cancelReasons}
           cancelTreats={meta.data?.cancelTreats}
           meta={meta.data}
-          onWritten={(result, label) => doneWrite(result, label)}
+          onWritten={(result, label, detail) => doneWrite(result, label, detail)}
           onClose={() => go({ t: 'open', o: null })}
         />
 

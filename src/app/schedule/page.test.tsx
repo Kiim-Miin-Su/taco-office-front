@@ -15,8 +15,10 @@ import { useWorkspace } from '@/store/useWorkspace';
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), write: vi.fn(), meta: vi.fn(), detail: vi.fn(), drawerWrite: vi.fn(), drawer: vi.fn(),
   download: vi.fn(), conflicts: vi.fn(), draft: vi.fn(), holidays: vi.fn(), unav: vi.fn(),
-  seriesCounts: vi.fn(), studentBooks: vi.fn(),
+  seriesCounts: vi.fn(), studentBooks: vi.fn(), conflictPreview: vi.fn(), teacherGuides: vi.fn(),
   permissions: { canAdminPage: true, canCrudAll: true } as Record<string, boolean>,
+  /** 경로 권한 판정(canAccessAppRoute)이 읽는 사용자 — 기본은 없음(null) */
+  me: null as Record<string, unknown> | null,
   drag: null as DndContextProps | null,
   context: null as ReturnType<typeof useDndContext> | null,
 }));
@@ -36,7 +38,7 @@ function DndProbe() {
 vi.mock('@/store/useSession', () => ({
   useCan: (key: string) => mocks.permissions[key] ?? false,
   // 사이드바 [관리] 판정(canAccessAppRoute)만 읽는다 — 셸은 목이라 사이드바가 그려지지 않는다
-  useSession: (select: (s: { me: null }) => unknown) => select({ me: null }),
+  useSession: (select: (s: { me: unknown }) => unknown) => select({ me: mocks.me }),
 }));
 // 셸은 목이지만 사이드 패널은 그린다 — 전체 표의 「가능 시간」 단추는 사이드바에만 있다(기본 접힘이면 그리지 않는다)
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry, sidePanel }: {
@@ -59,12 +61,18 @@ vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: ({ occ }: { o
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences,
   useScheduleWrite: () => ({ mutate: mocks.write }),
+  // 셸의 되돌리기 한 단추가 결재 되돌리기(§14 · N-84)도 탄다 — 이 파일은 스케줄 쓰기만 본다
+  useApprovalUndo: () => ({ mutate: vi.fn(), isPending: false }),
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
   useMeta: mocks.meta,
   useDrawer: mocks.drawer,
   // §11 To-Do 띠의 「+ 주기」 — 서랍과 같은 쓰기 훅이다
   useDrawerWrite: () => ({ mutate: mocks.drawerWrite, isPending: false }),
   fetchConflicts: mocks.conflicts,
+  // 409 뒤 설명 — 누구와 + 그 시각 비어 있는 자원 한 줄(N-70)
+  fetchConflictPreview: mocks.conflictPreview,
+  // §11 「안내 N」 — 서버가 센 수 (N-100)
+  useScheduleTeacherGuides: mocks.teacherGuides,
   // 공휴일 이름표 · 강사 불가 시간(관리자 읽기) — 서버 표에서 읽는다 (wave5 · §09 #2 · G37)
   useScheduleHolidays: mocks.holidays,
   useScheduleUnavailable: mocks.unav,
@@ -79,7 +87,8 @@ import SchedulePage from './page';
 const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true, extra: false }],
   subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
-  students: [{ id: 1, name: '선택 학생', grade: 'G10' }, { id: 2, name: '다른 학생' }],
+  genders: [{ key: 'female', label: '여' }, { key: 'male', label: '남' }],
+  students: [{ id: 1, name: '선택 학생', grade: 'G10', gender: 'female' }, { id: 2, name: '다른 학생' }],
   staff: [
     { id: 11, name: '선택 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },
     { id: 22, name: '다른 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },
@@ -102,6 +111,9 @@ beforeEach(() => {
   mocks.meta.mockReturnValue({ data: meta });
   mocks.download.mockResolvedValue(undefined);
   mocks.conflicts.mockResolvedValue([]);
+  mocks.conflictPreview.mockResolvedValue({ conflicts: [], freeLine: null });
+  mocks.me = null;
+  mocks.teacherGuides.mockReturnValue({ data: undefined });
   mocks.holidays.mockReturnValue({ data: { items: [] } });
   mocks.unav.mockReturnValue({ data: { items: [] }, isLoading: false });
   mocks.seriesCounts.mockReturnValue({ data: undefined });
@@ -343,9 +355,12 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
   });
 
   it('분할된 오른쪽 월간의 날짜 선택이 왼쪽 날짜·보기를 변경하지 않는다', () => {
+    // 표 나누기(분할)는 사이드바 하나가 맡는다 — 도구줄 「세로선 나누기」는 강의실 열이다 (N-80)
+    useWorkspace.setState({ sidebarOpen: true });
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: '월간' }));
-    fireEvent.click(view.getByRole('button', { name: '세로로 나누기' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    useWorkspace.setState({ sidebarOpen: false });
     const left = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
     const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
     fireEvent.pointerDown(right);
@@ -648,20 +663,55 @@ describe('겹침 설명 (§19 · D-R43)', () => {
 
   it('409 면 놓으려던 그 자리를 다시 물어 상대 이름까지 붙인다', async () => {
     mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.(conflictError));
-    mocks.conflicts.mockResolvedValue([
-      { serId: 9, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'room', whoName: '현장 3호' },
-    ]);
+    mocks.conflictPreview.mockResolvedValue({
+      conflicts: [{ serId: 9, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'room', whoName: '현장 3호' }],
+      freeLine: null,
+    });
     const view = render(<SchedulePage />);
     finish(drop(items[0]));
 
     // 물어보는 자리는 **놓으려던 곳**이다 — 원래 자리가 아니다
-    expect(mocks.conflicts).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.conflictPreview).toHaveBeenCalledWith(expect.objectContaining({
       date: '2026-09-02', startMin: 915, roomId: 3, exceptSerId: 1,
     }));
     expect(view.getByText(/같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다/)).toBeTruthy();
     // 설명은 한 왕복 뒤에 붙는다 — 가짜 타이머를 쓰는 스위트라 microtask 만 흘려보낸다
     await act(async () => { await Promise.resolve(); });
     expect(view.getByText(/\[강의실\] 현장 3호/)).toBeTruthy();
+  });
+
+  it('409 설명 뒤에 서버가 만든 「그 시각 비어 있는」 한 줄을 붙인다 — 누를 수 없고 미리 잡지 않는다 (N-70)', async () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.(conflictError));
+    mocks.conflictPreview.mockResolvedValue({
+      conflicts: [{ serId: 9, onDate: '2026-09-02', startMin: 900, endMin: 960, with: 'room', whoName: '현장 3호' }],
+      freeLine: '그 시각 비어 있는 강의실 — 1호 · 2호',
+    });
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+    await act(async () => { await Promise.resolve(); });
+    const alert = view.getByRole('alert');
+    expect(alert.textContent).toContain('[강의실] 현장 3호');
+    expect(alert.textContent).toContain('그 시각 비어 있는 강의실 — 1호 · 2호');
+    // 문장일 뿐이다 — 이름을 눌러 다시 저장하는 단추가 서지 않는다
+    expect(within(alert).queryByRole('button')).toBeNull();
+    expect(mocks.write).toHaveBeenCalledOnce();
+  });
+
+  it('저장은 됐지만 같은 학생이 같은 시각 다른 수업에도 있으면 막지 않고 알린다 (N-58)', () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onSuccess?: (r: unknown) => void }) => opts.onSuccess?.({
+      effScope: 'this', log: [], projected: 1, serIds: [1], unavailable: [],
+      studentOverlaps: [{
+        serId: 1, date: '2026-09-02', studentId: 1, studentName: '선택 학생', otherSerId: 2,
+        otherTitle: '다른 수업', otherStartMin: 900, otherEndMin: 960,
+      }],
+    }));
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+
+    expect(view.queryByRole('alert')).toBeNull();
+    const warn = view.container.querySelector('[data-student-overlaps]') as HTMLElement;
+    expect(warn.getAttribute('role')).toBe('status');
+    expect(warn.textContent).toContain('선택 학생 · 9/2 (수) 15:00–16:00 다른 수업');
   });
 
   it('저장은 됐지만 강사가 불가로 적어 둔 시간이면 그 사실을 알린다 (§15·§16)', () => {
@@ -685,13 +735,13 @@ describe('겹침 설명 (§19 · D-R43)', () => {
     }));
     const view = render(<SchedulePage />);
     finish(drop(items[0]));
-    expect(mocks.conflicts).not.toHaveBeenCalled();
+    expect(mocks.conflictPreview).not.toHaveBeenCalled();
     expect(view.getByText('값이 허용 범위를 벗어났습니다')).toBeTruthy();
   });
 
   it('설명을 못 가져와도 원래 문구는 그대로 선다 — 실패가 실패를 덮지 않는다', async () => {
     mocks.write.mockImplementation((_cmd: unknown, opts: { onError?: (e: unknown) => void }) => opts.onError?.(conflictError));
-    mocks.conflicts.mockRejectedValue(new Error('네트워크'));
+    mocks.conflictPreview.mockRejectedValue(new Error('네트워크'));
     const view = render(<SchedulePage />);
     finish(drop(items[0]));
     await act(async () => { await Promise.resolve(); });
@@ -891,10 +941,12 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
   });
 
   it.each(['일간', '월간'])('동일 날짜 %s split의 블록·드롭칸은 각 렌더 인스턴스에 따로 등록한다', (viewName) => {
+    useWorkspace.setState({ sidebarOpen: true });
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: viewName }));
     const before = { drag: mocks.context!.draggableNodes.size, drop: mocks.context!.droppableContainers.size };
-    fireEvent.click(view.getByRole('button', { name: '세로로 나누기' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    useWorkspace.setState({ sidebarOpen: false });
     expect(mocks.context!.draggableNodes.size).toBe(before.drag * 2);
     expect(mocks.context!.droppableContainers.size).toBe(before.drop * 2);
     expect(view.getAllByRole('button', { name: /선택된 수업/ })).toHaveLength(2);
@@ -1026,8 +1078,10 @@ describe('§07 도구줄과 대상 줄 (wave 3)', () => {
     expect(block.style.getPropertyValue('--event-color')).toBe('');
     expect(block.className).toContain('bg-blue/10');
     const legend = within(view.getByRole('group', { name: '시간표 범례' }));
-    expect(legend.getByText('색 = 리포트')).toBeTruthy();
-    expect(legend.getByText('미작성')).toBeTruthy();
+    // 색 줄이 리포트 낱말이다 — 「미작성」은 색 줄 칩 하나와 블록 배지 「[미작성] 리포트」 한 줄(두 보기 모두)로 두 번 선다
+    const colorRow = within(legend.getByText('색 = 리포트').parentElement!);
+    expect(colorRow.getByText('미작성')).toBeTruthy();
+    expect(legend.getAllByText('미작성')).toHaveLength(2);
   });
 
   it('블록 오른쪽 위 정원 점 — 코드표 정원(4) 중 그날 명단만큼 찬다', () => {
@@ -1044,6 +1098,10 @@ describe('§07 도구줄과 대상 줄 (wave 3)', () => {
     mocks.occurrences.mockReturnValue({ data: { items: [{ ...items[0], roomId: 1, roomName: '1호' }] }, isLoading: false, isError: false });
     const view = render(<SchedulePage />);
     const free = view.getByRole('button', { name: '빈 시간 찾기' });
+    // 빈 칸은 강의실마다 센다 — 기본 일간(날짜 한 열)에서는 누를 수 없고, 「세로선 나누기」로 강의실 열을 켜면 선다 (N-80)
+    expect((free as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    expect((free as HTMLButtonElement).disabled).toBe(false);
     expect(view.container.querySelector('[data-free]')).toBeNull();
     fireEvent.click(free);
     expect(free.getAttribute('aria-pressed')).toBe('true');
@@ -1140,4 +1198,139 @@ it('학생별로 들어오면 목록 첫 사람(학년순)이 골라진 채 표�
   expect(within(view.getByRole('group', { name: '대상' })).getByText('학생별 · 선택 학생')).toBeTruthy();
   expect(view.getByRole('button', { name: /선택된 수업/ })).toBeTruthy();
   expect(view.queryByRole('button', { name: /다른 수업/ })).toBeNull();
+});
+
+/**
+ * W11 — 일간 기본 모양(N-80) · lane 상한 셋 + 「+M」(N-74) · 「≡ 회계」(N-100) · 「안내 N」(N-100) · 아바타(N-83).
+ * 전부 이미 읽은 회차 · 코드표 · 서버 플래그로만 그린다 — 화면이 세거나 역할을 견주지 않는다.
+ */
+describe('W11 스케줄 — 일간 lane · 세로선 나누기 · 회계 · 안내 N · 아바타', () => {
+  const lesson = (serId: number, date: string, startMin = 600, endMin = 690): Occurrence => ({
+    serId, date, onDate: date, startMin, endMin, kindKey: 'class', title: `겹친 수업 ${serId}`,
+    teacherId: 11, mode: 'offline', canceled: false, hasException: false, recurring: false,
+    repState: 'plan', ended: false, written: false, extra: false, attendanceMode: 'unavailable', attendance: null,
+    students: [],
+  });
+
+  it('일간 기본은 날짜 한 열(원문 §07 캡처) — 「세로선 나누기」가 강의실 열을 켜고 끈다', () => {
+    const view = render(<SchedulePage />);
+    // 날짜 한 열 · 머리 두 줄 「26년 9월 1일 화요일 / 일정 2건」 · 누르는 단추가 아니다
+    const day = view.getByRole('region', { name: '일간 시간표' });
+    expect(within(day).getByText('26년 9월 1일 화요일')).toBeTruthy();
+    expect(within(day).getByText('일정 2건')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '2026-09-01 (화) 날짜 선택' })).toBeNull();
+    expect(view.queryByRole('button', { name: /강의실 미지정 빈 시간 선택/ })).toBeNull();
+
+    const toggle = view.getByRole('button', { name: '세로선 나누기' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(view.queryByRole('region', { name: '일간 시간표' })).toBeNull();
+    expect(view.getByRole('button', { name: '2026-09-01 09:00 강의실 미지정 빈 시간 선택' })).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(view.getByRole('region', { name: '일간 시간표' })).toBeTruthy();
+    // 강의실 열은 일간에서만 뜻이 있다 — 주간에서는 누를 수 없다(까닭은 title)
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    expect((view.getByRole('button', { name: '세로선 나누기' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('주간 lane 은 셋까지 나란히, 넘치면 「+M」 — 누르면 그날 일간으로 간다 (N-74)', () => {
+    const five = [1, 2, 3, 4, 5].map((id) => lesson(id, '2026-09-02'));
+    mocks.occurrences.mockReturnValue({ data: { items: five }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    const week = view.getByRole('region', { name: '주간 시간표' });
+    expect(week.querySelectorAll('[data-week-event]')).toHaveLength(3);
+    const more = within(week).getByRole('button', { name: '2026-09-02 겹친 수업 2건 더 — 그날 일간으로' });
+    expect(more.getAttribute('data-lane-more')).toBe('2');
+    fireEvent.click(more);
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-02', to: '2026-09-02' });
+    expect(view.getByRole('region', { name: '일간 시간표' })).toBeTruthy();
+  });
+
+  it('일간(날짜 한 열)의 「+M」은 그 묶음을 펼친다 — 같은 함수, 다른 행선지', () => {
+    const five = [1, 2, 3, 4, 5].map((id) => lesson(id, '2026-09-01'));
+    mocks.occurrences.mockReturnValue({ data: { items: five }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    const day = view.getByRole('region', { name: '일간 시간표' });
+    expect(day.querySelectorAll('[data-week-event]')).toHaveLength(3);
+    expect(within(day).queryByRole('button', { name: /겹친 수업 5$/ })).toBeNull();
+    fireEvent.click(within(day).getByRole('button', { name: '겹친 수업 5건 펼치기' }));
+    // 펼친 목록에 다섯이 다 선다 — 감추지 않는다(lane 의 첫 셋은 그대로 있어 둘씩이다)
+    expect(within(day).getAllByRole('button', { name: /겹친 수업 5$/ })).toHaveLength(1);
+    expect(within(day).getAllByRole('button', { name: /겹친 수업 1$/ })).toHaveLength(2);
+    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-01', to: '2026-09-01' });
+  });
+
+  it('「≡ 회계」는 회계 경로에 들어갈 수 있을 때만 선다 — 역할이 아니라 경로 권한 판정 (N-100)', () => {
+    const closed = render(<SchedulePage />);
+    expect(closed.queryByRole('link', { name: '회계' })).toBeNull();
+    closed.unmount();
+    mocks.me = { id: 1, name: '대표', role: 'ceo', canAdminPage: true, canCrudAll: true, canMoney: true, mustChangeCredentials: false };
+    const view = render(<SchedulePage />);
+    const link = within(view.getByRole('region', { name: '스케줄 도구' })).getByRole('link', { name: '회계' });
+    expect(link.getAttribute('href')).toBe('/accounting');
+  });
+
+  it('학생별 ↔ 선생님별로 축을 바꾸면 고른 사람을 놓고 새 축의 첫 사람이 골라진다 — 학생 번호가 강사 번호로 쓰이지 않는다 (W11 웹 크롤 · 404 /schedule/teachers/{학생 id}/guides)', () => {
+    const view = render(<SchedulePage />);
+    const target = () => within(view.getByRole('group', { name: '스케줄 대상' }));
+    fireEvent.click(target().getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 학생/ }));
+    mocks.teacherGuides.mockClear();
+    fireEvent.click(target().getByRole('button', { name: '선생님별' }));
+    // 「안내 N」은 고른 **강사**의 수다 — 학생 1 이 강사 번호로 실려 나가면 서버는 404 다
+    const asked = mocks.teacherGuides.mock.calls.map((c) => c[0]);
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((id) => id === 11 || id === 22)).toBe(true);
+    // 되돌아가도 강사 번호(11 · 22)가 학생 번호로 쓰이지 않는다 — 첫 학생이 다시 골라진다
+    fireEvent.click(target().getByRole('button', { name: '학생별' }));
+    const pressed = within(view.getByRole('region', { name: '학생 목록' })).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true');
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]!.textContent).toMatch(/선택 학생|다른 학생/);
+  });
+
+  it('§11 「안내 N」은 서버가 센 수 그대로 — 모르면 숫자를 짓지 않는다 (N-100)', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    expect(view.getByRole('link', { name: '안내' }).getAttribute('href')).toBe('/guides');
+    expect(mocks.teacherGuides).toHaveBeenLastCalledWith(11);
+
+    mocks.teacherGuides.mockReturnValue({ data: { teacherId: 11, unconfirmed: 2 } });
+    view.rerender(<SchedulePage />);
+    expect(view.getByRole('link', { name: '안내 2' }).getAttribute('href')).toBe('/guides');
+  });
+
+  it('§10 성별 아바타는 서버 낱말(여 · 남 · 비면 —), §11 역할 아바타는 이미 있는 역할 — 이름을 가리지 않는다 (N-83)', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const students = view.getByRole('region', { name: '학생 목록' });
+    expect(Array.from(students.querySelectorAll('[data-avatar="gender"]')).map((n) => n.textContent)).toEqual(['여', '—']);
+    // 아바타는 읽기 이름에 끼지 않는다 — 줄의 이름은 여전히 학생 이름으로 시작한다
+    expect(students.querySelector('[data-avatar]')!.getAttribute('aria-hidden')).toBe('true');
+    expect(view.getByRole('button', { name: /^선택 학생/ })).toBeTruthy();
+
+    fireEvent.click(within(view.getByRole('group', { name: '스케줄 대상' })).getByRole('button', { name: '선생님별' }));
+    const teachers = view.getByRole('region', { name: '선생님 목록' });
+    expect(teachers.querySelectorAll('[data-avatar="gender"]')).toHaveLength(0);
+    expect(Array.from(teachers.querySelectorAll('[data-avatar="role"]')).map((n) => n.textContent)).toEqual(['강사', '강사']);
+  });
+
+  it('성별 아바타는 PNG 로 나가는 표에 싣지 않는다 — 찍는 순간 목록에 없다 (N-83)', async () => {
+    let atCapture = -1;
+    mocks.download.mockImplementation(async () => {
+      atCapture = document.querySelectorAll('[data-avatar="gender"]').length;
+    });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    expect(view.container.querySelectorAll('[data-avatar="gender"]').length).toBe(2);
+    await act(async () => fireEvent.click(view.getByRole('button', { name: '현재 스케줄을 PNG로 저장' })));
+    expect(mocks.download).toHaveBeenCalledOnce();
+    expect(atCapture).toBe(0);
+    // 다 찍고 나면 관리 화면에는 다시 선다
+    expect(view.container.querySelectorAll('[data-avatar="gender"]').length).toBe(2);
+  });
 });

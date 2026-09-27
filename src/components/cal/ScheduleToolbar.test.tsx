@@ -18,6 +18,7 @@ const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#123456', cap: 4, grp: 'lesson', rep: true, extra: false }],
   subs: [{ key: 'writing', name: 'Writing', color: '#654321' }],
   rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [{ id: 5, label: 'TN Zoom 1' }], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
+  genders: [{ key: 'female', label: '여' }, { key: 'male', label: '남' }],
   students: [{ id: 3, name: '학생 3' }],
   staff: [
     { id: 11, name: '강사 11', role: 'teacher', canAdminPage: false, canGpaPack: false },
@@ -71,12 +72,13 @@ it('공용 도구줄은 native 입력과 기존 버튼으로 모든 제어값을
   const onDateChange = vi.fn();
   const onStep = vi.fn();
   const onToday = vi.fn();
-  const onSplit = vi.fn();
+  const onRoomColumnsToggle = vi.fn();
   const onExport = vi.fn();
   const view = render(
-    <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={INITIAL_SCHEDULE_FILTERS} meta={meta} splitOn={false}
+    <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={INITIAL_SCHEDULE_FILTERS} meta={meta}
+      roomColumnsOn={false} roomColumnsAvailable
       onPeriodChange={onPeriodChange} onTargetChange={onTargetChange} onFiltersChange={onFiltersChange}
-      onDateChange={onDateChange} onStep={onStep} onToday={onToday} onSplit={onSplit} onExport={onExport} />,
+      onDateChange={onDateChange} onStep={onStep} onToday={onToday} onRoomColumnsToggle={onRoomColumnsToggle} onExport={onExport} />,
   );
 
   // 원문 §07 — 보기 축이 둘이다: [일간 · 주간 · 월간] + [전체 · 학생별 · 선생님별]
@@ -121,10 +123,47 @@ it('공용 도구줄은 native 입력과 기존 버튼으로 모든 제어값을
   expect(onStep.mock.calls).toEqual([[-1], [1]]);
   expect(onToday).toHaveBeenCalledOnce();
 
-  fireEvent.click(view.getByRole('button', { name: '세로로 나누기' }));
+  // 원문 §07 「세로선 나누기」 = 강의실 열 켜기/끄기(N-80) — 표 나누기(분할)는 도구줄에 없다
+  expect(view.queryByRole('button', { name: '세로로 나누기' })).toBeNull();
+  const columns = view.getByRole('button', { name: '세로선 나누기' });
+  expect(columns.getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(columns);
   fireEvent.click(view.getByRole('button', { name: '현재 스케줄을 PNG로 저장' }));
-  expect(onSplit).toHaveBeenCalledOnce();
+  expect(onRoomColumnsToggle).toHaveBeenCalledOnce();
   expect(onExport).toHaveBeenCalledOnce();
+});
+
+describe('원문 §07 둘째 줄 — 세로선 나누기 · 빈 시간 찾기 · ≡ 회계 (W11)', () => {
+  const base = {
+    date: '2026-09-14', filters: INITIAL_SCHEDULE_FILTERS, meta,
+    onPeriodChange: vi.fn(), onTargetChange: vi.fn(), onFiltersChange: vi.fn(), onDateChange: vi.fn(),
+    onStep: vi.fn(), onToday: vi.fn(), onExport: vi.fn(), onRoomColumnsToggle: vi.fn(), onFreeToggle: vi.fn(),
+  };
+
+  it('강의실 열이 뜻을 갖지 않는 보기에서는 세로선 나누기를 누를 수 없고 까닭을 적는다', () => {
+    const view = render(<ScheduleToolbar {...base} period="week" target="all" roomColumnsOn roomColumnsAvailable={false} />);
+    const columns = view.getByRole('button', { name: '세로선 나누기' }) as HTMLButtonElement;
+    expect(columns.disabled).toBe(true);
+    // 켜 둔 값이 남아 있어도 누를 수 없는 보기에서는 눌린 모양으로 서지 않는다
+    expect(columns.getAttribute('aria-pressed')).toBe('false');
+    expect(columns.title).toContain('일간');
+  });
+
+  it('빈 시간 찾기는 강의실 열이 섰을 때만 — 아니면 까닭(세로선 나누기)을 적는다', () => {
+    const view = render(<ScheduleToolbar {...base} period="day" target="all" freeOn freeAvailable={false} />);
+    const free = view.getByRole('button', { name: '빈 시간 찾기' }) as HTMLButtonElement;
+    expect(free.disabled).toBe(true);
+    expect(free.getAttribute('aria-pressed')).toBe('false');
+    expect(free.title).toContain('세로선 나누기');
+  });
+
+  it('「≡ 회계」는 부르는 쪽이 준 경로 권한일 때만 서고 기존 회계 탭으로 간다 (N-100)', () => {
+    const hidden = render(<ScheduleToolbar {...base} period="day" target="all" />);
+    expect(hidden.queryByRole('link', { name: '회계' })).toBeNull();
+    hidden.unmount();
+    const view = render(<ScheduleToolbar {...base} period="day" target="all" showAccounting />);
+    expect(view.getByRole('link', { name: '회계' }).getAttribute('href')).toBe('/accounting');
+  });
 });
 
 it('「전체」 필터 칩은 좁힌 축을 모두 풀되 밀도·블록 색은 그대로 둔다', () => {
@@ -134,9 +173,9 @@ it('「전체」 필터 칩은 좁힌 축을 모두 풀되 밀도·블록 색은
   };
   expect(activeFilterCount(narrowed)).toBe(3);
   const view = render(
-    <ScheduleToolbar period="week" target="all" date="2026-09-14" filters={narrowed} meta={meta} splitOn={false}
+    <ScheduleToolbar period="week" target="all" date="2026-09-14" filters={narrowed} meta={meta}
       onPeriodChange={vi.fn()} onTargetChange={vi.fn()} onFiltersChange={onFiltersChange}
-      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onSplit={vi.fn()} onExport={vi.fn()} />,
+      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onExport={vi.fn()} />,
   );
   fireEvent.click(view.getByRole('button', { name: '필터 초기화' }));
   expect(onFiltersChange).toHaveBeenLastCalledWith({ ...INITIAL_SCHEDULE_FILTERS, density: 'wide', display: 'report' });

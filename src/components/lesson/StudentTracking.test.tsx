@@ -6,17 +6,20 @@
 import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { LessonTracking } from '@/api/types';
+import { MASKED } from '@/lib/money';
 
 const state: { data: LessonTracking | undefined; isLoading: boolean; isError: boolean } = {
   data: undefined, isLoading: false, isError: false,
 };
 const mutate = vi.fn();
 const withdrawMutate = vi.fn();
+const noteMutate = vi.fn();
 const permissions: { canEdit: boolean; canMoney: boolean } = { canEdit: true, canMoney: false };
 vi.mock('@/api/queries', () => ({
   useLessonTracking: () => state,
   useStudentPause: () => ({ mutate, isPending: false }),
   useWithdrawStudent: () => ({ mutate: withdrawMutate, isPending: false }),
+  useAddTrackingNote: () => ({ mutate: noteMutate, isPending: false }),
 }));
 vi.mock('@/store/useSession', () => ({ useCan: (name: string) => (name === 'canMoney' ? permissions.canMoney : permissions.canEdit) }));
 
@@ -43,6 +46,7 @@ const base: LessonTracking = {
       { repId: 63, onDate: '2026-09-03', subjectName: 'SAT Math', teacherName: '박도윤',
         onTime: false, onTimeLabel: '지연', excerpt: '극한', homework: null },
     ],
+    notes: [], noteCount: 0,
   }],
 };
 
@@ -50,7 +54,7 @@ const setup = (d: LessonTracking | undefined, o?: { isLoading?: boolean; isError
   state.data = d; state.isLoading = o?.isLoading ?? false; state.isError = o?.isError ?? false;
   return render(<StudentTracking serId={3} onDate="2026-09-11" />);
 };
-afterEach(() => { cleanup(); mutate.mockReset(); withdrawMutate.mockReset(); permissions.canEdit = true; permissions.canMoney = false; });
+afterEach(() => { cleanup(); mutate.mockReset(); withdrawMutate.mockReset(); noteMutate.mockReset(); permissions.canEdit = true; permissions.canMoney = false; });
 
 it('정원 · 단가 칩 줄은 여기서 다시 그리지 않는다 — 원문 §79 는 명단 바로 위에 둔다 (LessonDetail 이 같은 질의로 그린다)', () => {
   const v = setup(base);
@@ -73,17 +77,17 @@ it('「정시 / 지연」 낱말도 서버가 준 것이다 — 제출 시각을
   expect(v.getByText('최신 리포트 2건')).toBeTruthy();
 });
 
-it('금액을 못 보는 사람에게는 단가도 미수도 「가려짐」이다 (D-R39)', () => {
+it('금액을 못 보는 사람에게는 단가도 미수도 숨긴 금액 낱말(「비공개」)이다 (D-R39)', () => {
   const v = setup({ ...base, canSeeAmounts: false, unitPrice: null, total: null,
     students: [{ ...base.students[0], unpaid: null }] });
   // 학생 카드의 미수 칸이 가려진다 (단가 칩은 명단 머리로 옮겼다 — LessonDetail.test 가 본다)
-  expect(v.getByText('가려짐')).toBeTruthy();
+  expect(v.getByText(MASKED)).toBeTruthy();
   expect(v.queryByText(/1,170,000/)).toBeNull();
 });
 
-it('미수 0원과 「가려짐」을 구분한다 — 0 을 감춤으로 읽지 않는다', () => {
+it('미수 ₩0 과 숨긴 금액 낱말을 구분한다 — 0 을 감춤으로 읽지 않는다', () => {
   const v = setup({ ...base, students: [{ ...base.students[0], unpaid: 0 }] });
-  expect(v.queryByText('가려짐')).toBeNull();
+  expect(v.queryByText(MASKED)).toBeNull();
   expect(v.getByText('—')).toBeTruthy();
 });
 
@@ -210,4 +214,33 @@ it('종료 뒤 회차의 카드는 「종료 M/D」 칩으로 남고 휴원·복
   const soon = setup({ ...base, students: [{ ...base.students[0]!, ended: false, endedOn: '2026-09-30' }] });
   expect(soon.getByText('종료 예정 9/30')).toBeTruthy();
   expect(soon.queryByRole('button', { name: '수강 종료' })).toBeNull();
+});
+
+it('인수인계 메모 (N-36 ②) — 서버가 준 줄을 누가 · 언제와 함께 그대로 보이고, 한 줄 더하기는 학생 · 수업 · 글만 보낸다', () => {
+  const notes = [
+    { id: 2, body: '어머니가 9월 SAT 는 미루고 10월로 — 다음 강사는 모의고사부터', authorName: '김민선', createdAt: '2026-09-11T14:05:00+09:00' },
+    { id: 1, body: '숙제는 카톡으로 사진 확인', authorName: null, createdAt: '2026-09-01T09:00:00+09:00' },
+  ];
+  const v = setup({ ...base, students: [{ ...base.students[0]!, notes, noteCount: 23 }] });
+  const card = v.getByText('어머니가 9월 SAT 는 미루고 10월로 — 다음 강사는 모의고사부터').closest('li')!;
+  expect(card.textContent).toContain('김민선 · 2026-09-11 14:05');
+  expect(v.getByText('— · 2026-09-01 09:00')).toBeTruthy();
+  // 줄 수는 서버가 센 것 — 실린 둘보다 많으면 「최근 N줄만」이라 적는다
+  expect(v.getByText(/인수인계 메모 23줄/)).toBeTruthy();
+  expect(v.getByText('최근 2줄만 보입니다 · 전체 23줄')).toBeTruthy();
+
+  const input = v.getByLabelText('문채원 인수인계 메모') as HTMLInputElement;
+  const send = v.getByRole('button', { name: '남기기' }) as HTMLButtonElement;
+  // 빈 글은 보낼 수 없다 — 서버도 400(NOTE_EMPTY)이다
+  expect(send.disabled).toBe(true);
+  fireEvent.change(input, { target: { value: '  다음 수업은 20분 일찍  ' } });
+  fireEvent.click(send);
+  expect(noteMutate).toHaveBeenCalledWith({ studentId: 18, serId: 3, body: '다음 수업은 20분 일찍' }, expect.anything());
+});
+
+it('인수인계 메모 더하기 칸은 canCrudAll 에만 선다 — 읽기는 그대로 (D-R39)', () => {
+  permissions.canEdit = false;
+  const v = setup(base);
+  expect(v.getByText('아직 남긴 인수인계 메모가 없습니다')).toBeTruthy();
+  expect(v.queryByRole('button', { name: '남기기' })).toBeNull();
 });

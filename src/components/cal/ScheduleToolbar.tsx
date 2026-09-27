@@ -5,10 +5,10 @@
  */
 
 'use client';
-import { Clock, Download, Plus, SplitSquareHorizontal } from 'lucide-react';
+import { Clock, Columns3, Download, Menu, Plus } from 'lucide-react';
 import type { Meta, Occurrence } from '@/api/types';
 import type { PersonPeriod, View } from '@/lib/calendar';
-import { Button, Input, Segmented, Select } from '@/components/ui';
+import { Button, Input, LinkButton, Segmented, Select } from '@/components/ui';
 
 export type ScheduleModeFilter = 'all' | Occurrence['mode'];
 export type ScheduleDensity = 'normal' | 'compact' | 'wide';
@@ -128,7 +128,18 @@ export interface ScheduleToolbarProps {
   target: ScheduleTarget;
   filters: ScheduleFilters;
   meta?: Meta;
-  splitOn: boolean;
+  /**
+   * 원문 §07 「세로선 나누기」 — 일간 표를 **강의실 열로 나누는가**(N-80 채택). 표 나누기(분할)와 다른 동작이다 —
+   * 분할은 사이드바 「표 나누기」 하나가 맡는다. 기본은 꺼짐(날짜 한 열 + lane · 원문 §07 캡처 모양).
+   */
+  roomColumnsOn?: boolean;
+  /** 강의실 열이 뜻을 갖는 표(일간)에서만 누를 수 있다 — 다른 보기에서는 까닭을 `title` 로 적는다 */
+  roomColumnsAvailable?: boolean;
+  /**
+   * 원문 §07 둘째 줄 「≡ 회계」(N-100) — 이미 있는 회계 탭으로 간다. 서는지는 부르는 쪽이
+   * **경로 권한 판정**(`canAccessAppRoute('/accounting', me)`)으로 정한다 — 역할을 여기서 견주지 않는다 (D-R39).
+   */
+  showAccounting?: boolean;
   exporting?: boolean;
   /** 고른 표의 날짜 — 원문 §07 도구줄 오른쪽 「‹ 2026-08-21 (금) ▾ › 오늘」 */
   date: string;
@@ -144,14 +155,15 @@ export interface ScheduleToolbarProps {
   onStep: (dir: -1 | 1) => void;
   onToday: () => void;
   onFreeToggle?: () => void;
-  onSplit: () => void;
+  onRoomColumnsToggle?: () => void;
   onExport: () => void;
 }
 
 /** §07~§11이 공유하는 두 줄 도구줄. native select/button으로 키보드 조작 경로를 보존한다. */
 export function ScheduleToolbar({
-  period, target, filters, meta, splitOn, exporting = false, date, axisLabel, freeOn = false, freeAvailable = false,
-  onPeriodChange, onTargetChange, onFiltersChange, onDateChange, onStep, onToday, onFreeToggle, onSplit, onExport,
+  period, target, filters, meta, roomColumnsOn = false, roomColumnsAvailable = false, showAccounting = false,
+  exporting = false, date, axisLabel, freeOn = false, freeAvailable = false,
+  onPeriodChange, onTargetChange, onFiltersChange, onDateChange, onStep, onToday, onFreeToggle, onRoomColumnsToggle, onExport,
 }: ScheduleToolbarProps) {
   const change = <K extends keyof ScheduleFilters>(key: K, value: ScheduleFilters[K]) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -213,9 +225,17 @@ export function ScheduleToolbar({
         <Segmented ariaLabel="스케줄 기간" options={SCHEDULE_PERIODS} value={period} onChange={onPeriodChange} />
         <Segmented ariaLabel="스케줄 대상" options={SCHEDULE_TARGETS} value={target} onChange={onTargetChange} />
 
-        <Button size="sm" variant={splitOn ? 'dark' : 'secondary'} onClick={onSplit}>
-          <SplitSquareHorizontal size={14} aria-hidden />{splitOn ? '분할 해제' : '세로로 나누기'}
-        </Button>
+        {/* 원문 §07 「세로선 나누기」 = 강의실 열 켜기/끄기 (N-80 · g1 §07 #2·#14) — 표 나누기(분할)는 사이드바의 일이다 */}
+        {onRoomColumnsToggle ? (
+          <Button size="sm" variant={roomColumnsOn && roomColumnsAvailable ? 'dark' : 'secondary'}
+            aria-pressed={roomColumnsOn && roomColumnsAvailable} disabled={!roomColumnsAvailable}
+            title={roomColumnsAvailable
+              ? (roomColumnsOn ? '강의실 열을 걷고 날짜 한 열로 봅니다' : '일간 표를 강의실 열로 나눕니다')
+              : '일간 표에서 강의실 열로 나눕니다 — 일간을 고르세요'}
+            onClick={onRoomColumnsToggle}>
+            <Columns3 size={14} aria-hidden />세로선 나누기
+          </Button>
+        ) : null}
         <Segmented ariaLabel="블록 색" options={DISPLAYS} value={filters.display} onChange={(value) => change('display', value)} />
         <Segmented ariaLabel="수업 방식" options={MODES} value={filters.mode} onChange={(value) => change('mode', value)} />
 
@@ -234,13 +254,19 @@ export function ScheduleToolbar({
         <span className="text-[11px] font-bold text-fg-subtle">밀도</span>
         <Segmented ariaLabel="스케줄 밀도" options={DENSITIES} value={filters.density} onChange={(value) => change('density', value)} />
         {onFreeToggle ? (
-          <Button size="sm" variant={freeOn ? 'dark' : 'secondary'} aria-pressed={freeOn}
+          <Button size="sm" variant={freeOn && freeAvailable ? 'dark' : 'secondary'} aria-pressed={freeOn && freeAvailable}
             disabled={!freeAvailable}
             title={freeAvailable ? '일간 표에서 강의실마다 수업이 없는 30분 칸을 칠합니다'
-              : '일간 표(전체 대상)에서 강의실별로 칠합니다 — 일간을 고르세요'}
+              : '일간 표(전체 대상)를 「세로선 나누기」로 강의실 열로 나눈 뒤 강의실별로 칠합니다'}
             onClick={onFreeToggle}>
             <Plus size={14} aria-hidden />빈 시간 찾기
           </Button>
+        ) : null}
+        {/* 원문 §07 둘째 줄 「≡ 회계」 — 이미 있는 회계 탭으로 간다(N-100). 들어갈 수 있는 사람에게만 선다 */}
+        {showAccounting ? (
+          <LinkButton size="sm" href="/accounting" title="회계 탭으로 갑니다">
+            <Menu size={14} aria-hidden />회계
+          </LinkButton>
         ) : null}
         {axisLabel ? (
           <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-bold text-fg-2"

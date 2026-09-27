@@ -19,6 +19,8 @@
  * 「수강 종료」(C94-c · H-80/N-136)는 `StudentWithdrawDialog` — 잔여 회차·환불액은 서버 미리보기이고, 종료 뒤 회차의 카드는
  * 「종료 M/D」 칩으로 남되 인원·단가에서는 빠집니다(서버 `ended`).
  * 「보호자」(DQ3 · 2026-09-25)는 `GuardianListDialog` — 학생 한 명의 보호자 여럿과 대표·받는 채널을 관리합니다.
+ * 「인수인계 메모」(N-36 ② · W11 M2)는 카드 맨 밑 — 원문 §79 컷에는 자리가 없어 결정대로 「최신 리포트」 밑에 한 줄 목록 + 더하기 칸을 둡니다.
+ * 더하기 칸은 `canCrudAll`(이 칸을 읽는 길이 이미 canAdminPage)일 때만 섭니다 — 서버 @Perm 과 같은 둘입니다.
  */
 'use client';
 import Link from 'next/link';
@@ -27,10 +29,11 @@ import { Banner, Button, Chip, Panel } from '../ui';
 import { useLessonTracking, useStudentPause } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
-import { won } from '@/lib/money';
+import { MASKED, won } from '@/lib/money';
 import { StudentPauseDialog, StudentResumeDialog, pauseLabel } from './StudentPauseDialog';
 import { StudentWithdrawDialog, endedLabel } from './StudentWithdrawDialog';
 import { GuardianListDialog } from '../guardians/GuardianList';
+import { HandoverNoteForm, HandoverNoteList } from './HandoverNotes';
 import type { TrackedReport, TrackedStudent } from '@/api/types';
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
@@ -147,7 +150,7 @@ function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
         <Stat label="30일 출석" value={s.attendTotal > 0 ? `${s.attendDone}/${s.attendTotal}` : '—'} />
         <Stat
           label="미수"
-          value={!canSeeAmounts ? '가려짐' : s.unpaid && s.unpaid > 0 ? won(s.unpaid) : '—'}
+          value={!canSeeAmounts ? MASKED : s.unpaid && s.unpaid > 0 ? won(s.unpaid) : '—'}
           tone={canSeeAmounts && s.unpaid && s.unpaid > 0 ? 'danger' : undefined}
         />
       </div>
@@ -158,6 +161,13 @@ function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
       ) : (
         <ul className="flex flex-col gap-1.5">{s.reports.map((r) => <ReportRow key={r.repId} r={r} />)}</ul>
       )}
+
+      {/* 인수인계 메모 (N-36 ②) — 관리자 · 매니저가 한 줄씩 더하고, 그 학생을 맡은 강사가 수업 안내 학생 카드에서 읽는다(학부모 비공개) */}
+      <h4 className="mb-1.5 mt-3 text-[11px] font-bold text-fg-2">
+        인수인계 메모 {s.noteCount}줄 <span className="font-normal text-fg-subtle">· 맡은 강사가 수업 안내에서 읽습니다 · 학부모에게 나가지 않습니다</span>
+      </h4>
+      <HandoverNoteList notes={s.notes} total={s.noteCount} />
+      {canEdit ? <HandoverNoteForm studentId={s.id} serId={serId} studentName={s.name} /> : null}
     </Panel>
   );
 }

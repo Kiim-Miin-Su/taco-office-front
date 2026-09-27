@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMeta, useOccurrences, useScheduleHolidays, useUnwritten } from '@/api/queries';
 import type { Meta, Occurrence } from '@/api/types';
-import { addDays, dowOf, hhmm, KO_DOW, label, occurrenceKey, teacherSchedule, todayKst } from '@/lib/calendar';
+import { addDays, dayHeadLabel, hhmm, label, occurrenceKey, teacherSchedule, todayKst } from '@/lib/calendar';
 import { AppShell } from '@/components/shell/AppShell';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 import { ReportDetailDrawer } from '@/components/report/ReportDetailDrawer';
@@ -24,6 +24,7 @@ import { STATUS_LABEL, STATUS_LOOK } from './EventBlock';
 import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { TeacherTodayHero } from '@/components/teacher/TeacherTodayHero';
+import { GpaRequestButton } from '@/components/teacher/GpaRequestButton';
 import { useTeacherSurface } from '@/components/teacher/teacher-surface';
 
 const EMPTY: Occurrence[] = [];
@@ -98,9 +99,6 @@ function ScheduleRow({ occ, upcoming, lookup, onOpen }: {
 /** 기준일로부터 며칠 뒤 — 두 KST 달력일의 차, 표기만 */
 const daysAfter = (from: string, to: string): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
-
-/** 날짜 묶음 머리 — 덱 리포트 목록(slide 18)과 같은 「9월 9일 (수)」 모양 */
-const dayHead = (iso: string): string => `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일 (${KO_DOW[dowOf(iso)]})`;
 
 /** 다가오는 수업을 날짜로 묶는다 — 목록은 이미 시각 순(teacherSchedule)이라 순서를 다시 정하지 않는다 */
 function byDate(items: readonly Occurrence[]): Array<[string, Occurrence[]]> {
@@ -213,9 +211,9 @@ export function TeacherSchedule() {
                 </div>
                 {model.upcoming.length ? byDate(model.upcoming).map(([date, occs]) => (
                   // 날짜 묶음 — 덱 리포트 목록(slide 18)의 「8월 25일 (화) 2건」 머리와 같은 모양 · 공휴일 이름표는 그날 머리에
-                  <div key={date} role="group" aria-label={`${dayHead(date)} · ${occs.length}건`} className="border-t border-line first:border-t-0">
+                  <div key={date} role="group" aria-label={`${dayHeadLabel(date)} · ${occs.length}건`} className="border-t border-line first:border-t-0">
                     <div className="flex flex-wrap items-center gap-2 bg-inset px-4 py-2 text-[12px] font-bold text-fg">
-                      <time dateTime={date}>{dayHead(date)}</time>
+                      <time dateTime={date}>{dayHeadLabel(date)}</time>
                       <Chip size="compact" tone="info">{daysAfter(today, date)}일 뒤</Chip>
                       <HolidayChips names={holidaysOn.get(date)} />
                       <span className="ml-auto font-medium text-fg-subtle">{occs.length}건</span>
@@ -234,6 +232,8 @@ export function TeacherSchedule() {
             <dl className="flex flex-col gap-4 text-[13px]">
               <div className="flex items-center justify-between gap-2"><dt><Link href="/reports" className="font-bold text-fg hover:text-blue">리포트 미작성 ›</Link></dt><dd className="font-bold text-red">{unwritten.isError ? '확인 필요' : unwritten.data?.total ?? '—'}</dd></div>
             </dl>
+            {/* N-99 — GPA 회차 → 「GPA 회차 요청」(학생 · 서비스 · 시각). 고를 회차는 서버가 쓰기와 같은 판정으로 준다 */}
+            <GpaRequestButton className="mt-4 w-full" />
           </Panel>
           {/* 덱 slide 11 오른쪽 「상자 색이 뜻하는 것」 — 줄 왼쪽 색 막대와 상태 칸이 같은 표(STATUS_LOOK)를 쓴다 */}
           <Panel title="색이 뜻하는 것">

@@ -8,9 +8,10 @@
  * Cal/Legend Group — 범례를 화면 안에 둔다. 사용자 교육이 따로 필요 없게.
  * 관리자 v2 §07~11·§89: 과목색과 온라인 점선/사선을 설명한다.
  *
- * 원문 §07 바닥 「보는 법」 줄 — 색 · 현장/온라인 · 학생 결강/학원 취소/휴원 · 정원·여석(●●○) · 리포트 · 「셀에 마우스를 올리면 …」 · [접기].
+ * 원문 §07 바닥 「보는 법」 줄 — 색 · 현장/온라인 · 학생 결강/학원 취소/휴원 · 정원·여석(●●○) · [미작성] 리포트 · 「셀에 마우스를 올리면 …」 · [접기].
  * **격자가 실제로 그리는 것만** 적는다 — 원문의 「강사 불가」는 「가능 시간」을 켰을 때 격자가 빗금 띠를 깔 때만
  * 적는다(G37 · 관리자 읽기 `GET /schedule/unavailable`). [연강] 은 원문에 판정 규칙이 없어 그리지 않으니 적지 않는다.
+ * [미작성] 은 블록 배지(`UNWRITTEN_BADGE`)를 그대로 그린다 — 블록이 두 보기(일정 · 리포트) 모두에서 다는 배지라 늘 적는다.
  * [일정 · 리포트] 가 「리포트」면 색 줄이 리포트 상태(`STATUS_LABEL`)로 바뀐다 — 블록과 같은 표를 읽는다.
  */
 'use client';
@@ -19,7 +20,7 @@ import type { Occurrence } from '@/api/types';
 import type { CalendarColorOf } from '@/lib/tokens';
 import { Button } from '../ui';
 import { cn } from '../ui/cn';
-import { STATUS_LABEL, STATUS_LOOK, eventColorStyle } from './EventBlock';
+import { STATUS_LABEL, STATUS_LOOK, UNWRITTEN_BADGE, eventColorStyle } from './EventBlock';
 import styles from './EventBlock.module.css';
 
 export function Legend({ items, colorOf, subName, kindName, display = 'schedule', unavOn = false }: {
@@ -87,6 +88,11 @@ export function Legend({ items, colorOf, subName, kindName, display = 'schedule'
               <span className="size-[6px] rounded-full border border-current" />
             </span>
             <span className="text-[11px] font-bold text-fg-subtle">정원 · 여석</span>
+          </div>
+          {/* 원문 「[미작성] 리포트」 — 끝났는데 리포트가 없는 수업의 블록 배지와 같은 낱말·색 */}
+          <div data-legend-unwritten className="flex items-center gap-1.5">
+            <span className={cn('rounded-sm px-1 text-[10px] font-bold leading-[14px]', UNWRITTEN_BADGE.look)}>{UNWRITTEN_BADGE.label}</span>
+            <span className="text-[11px] font-bold text-fg-subtle">리포트</span>
           </div>
           <span className="text-[11px] text-fg-subtle">
             블록에 마우스를 올리면 전체 정보 · 끌면 이동 · 누르면 수업 상세

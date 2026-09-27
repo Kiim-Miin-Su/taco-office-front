@@ -7,6 +7,10 @@
 /**
  * 회차 출결 현재값 — Figma `M2_v3 · 출결 확정`의 선택 구조를 공용 UI로 옮긴다.
  * 권한·시각은 다시 계산하지 않고 서버 `attendanceMode`만 소비한다 (D-R35).
+ *
+ * **출결 취소와 휴강은 다르다**(N-48 채택) — 출결 「취소」는 강사료 축(시수·페이)만 정하고 학생 청구는 건드리지 않는다.
+ * 청구에서 빼려면 휴강 창(사유 · 처리)을 따로 거친다. 그래서 「취소」를 고르면 그 한 줄과 휴강 창을 여는 단추를 둔다 —
+ * 추정으로 회차를 접지 않는다(이 화면은 휴강을 쓰지 않는다).
  */
 'use client';
 import { useEffect, useState } from 'react';
@@ -36,7 +40,11 @@ function confirmedAt(value: string): string {
   }).format(new Date(value));
 }
 
-export function AttendanceControl({ occ }: { occ: Occurrence }) {
+export function AttendanceControl({ occ, onOpenCancel }: {
+  occ: Occurrence;
+  /** 휴강 창을 연다 — 부르는 쪽이 휴강을 쓸 수 있을 때만 준다(없으면 안내 줄만 선다) */
+  onOpenCancel?: () => void;
+}) {
   const write = useAttendanceWrite();
   const [attendance, setAttendance] = useState<Attendance | null>(occ.attendance);
   const [open, setOpen] = useState(false);
@@ -190,6 +198,20 @@ export function AttendanceControl({ occ }: { occ: Occurrence }) {
             <span className="mt-1 block text-[11px] text-fg-subtle">시수 0 · 페이 0의 근거 사유를 남깁니다.</span>
           </button>
         </div>
+
+        {result === 'canceled' ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-inset p-2.5 text-[11px] text-fg-2"
+            data-attendance-bill-note>
+            <span className="min-w-0 flex-1">
+              <b className="text-fg">청구는 휴강 창에서</b> — 출결 취소는 강사료만 정합니다. 학생 청구에서 빼려면 휴강 창에서 사유와 처리를 고릅니다.
+            </span>
+            {onOpenCancel ? (
+              <Button size="sm" variant="secondary" onClick={() => { setOpen(false); onOpenCancel(); }}>
+                휴강 창 열기
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         {result === 'canceled' ? (
           <div className="mt-3">

@@ -56,9 +56,9 @@ it('여는 순간 서버에 미리 보고, 남은 회차·청구서 변화·환�
   expect(text).toContain('SAT Math');
   expect(text).toContain('남은 3회');
   expect(text).toContain('2026-10 청구서 · 3회 빠짐');
-  expect(text).toContain('225,000원 → 90,000원');
-  expect(text).toContain('환불 135,000원');
-  expect(text).toContain('환불 합계 135,000원');
+  expect(text).toContain('₩225,000 → ₩90,000');
+  expect(text).toContain('환불 ₩135,000');
+  expect(text).toContain('환불 합계 ₩135,000');
 });
 
 it('범위를 「모든 수업」으로 바꾸면 serIds 없이 다시 묻고, 「수강 종료」는 날짜·범위·사유만 보낸 뒤 닫힌다', async () => {

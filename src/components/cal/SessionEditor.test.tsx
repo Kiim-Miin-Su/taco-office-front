@@ -102,9 +102,10 @@ const editMeta = {
   ...meta,
   staff: [...meta.staff, { id: 8, name: '이다현', role: 'teacher', canAdminPage: false, canGpaPack: false, title: null }],
   rooms: [...meta.rooms, { id: 2, name: '2호' }],
+  zaccs: [{ id: 5, label: 'TN Zoom 1' }],
 } as unknown as Meta;
 
-function setupEdit(occ: Occurrence, reply: 'ok' | 'conflict' = 'ok') {
+function setupEdit(occ: Occurrence, reply: 'ok' | 'conflict' = 'ok', freeLine: string | null = null) {
   const sent: Array<{ method?: string; url?: string; data?: Record<string, unknown>; params?: Record<string, unknown> }> = [];
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string; params?: Record<string, unknown> }) => {
     sent.push({ method: config.method, url: config.url, data: config.data ? JSON.parse(config.data) : undefined, params: config.params });
@@ -118,7 +119,7 @@ function setupEdit(occ: Occurrence, reply: 'ok' | 'conflict' = 'ok') {
     }
     return { config, status: 200, statusText: 'OK', headers: {}, data: { conflicts: [
       { serId: 9, onDate: '2026-09-28', startMin: 630, endMin: 690, title: 'MAP Reading', with: 'teacher', whoName: '김재훈' },
-    ] } };
+    ], freeLine } };
   }) as never;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   clients.push(qc);
@@ -209,4 +210,68 @@ it('겹쳐서 막히면 새 일정과 같은 ConflictGuard 로 누구와를 붙�
   expect(probe[0].params).toMatchObject({ date: '2026-09-28', startMin: 630, endMin: 690, teacherId: 7, roomId: 1, exceptSerId: 3 });
   expect(onSaved).not.toHaveBeenCalled();
   expect(view.getByRole('dialog', { name: /^일정 수정/ })).toBeTruthy();
+});
+
+/* ── W11 — 회차 방식 전환(N-56) · 회차 메모(N-57) · 409 뒤 빈 자원 한 줄(N-70) ── */
+
+it('온라인으로 바꾸면 강의실은 보내지 않고 고른 줌 계정만 싣는다 — 부르는 쪽에 「방식을 바꿨다」를 알린다', async () => {
+  const { view, patches, onSaved } = setupEdit(lesson);
+  // 이미 온라인인 회차가 아니면 줌 칸은 온라인을 고른 뒤에만 선다
+  expect(view.queryByLabelText('줌 계정')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '온라인' }));
+  expect((view.getByLabelText('강의실') as HTMLSelectElement).disabled).toBe(true);
+  expect(view.getByRole('status').textContent).toContain('강의실을 비웁니다');
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '5' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ mode: 'online', zaccId: 5, scope: 'this', onDate: '2026-09-28' });
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+  expect(onSaved.mock.calls[0][1]).toEqual({ modeChanged: true, memoOnly: false });
+});
+
+it('줌 계정을 고르지 않고 온라인으로 바꾸면 방식만 보낸다 — 계정을 지어내 붙이지 않는다', async () => {
+  const { view, patches } = setupEdit(lesson);
+  fireEvent.click(view.getByRole('button', { name: '온라인' }));
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ mode: 'online', scope: 'this', onDate: '2026-09-28' });
+});
+
+it('현장으로 바꾸면 강의실을 고를 수 있고 그 강의실만 싣는다 — 줌 칸은 서지 않는다', async () => {
+  const { view, patches } = setupEdit({ ...lesson, mode: 'online', roomId: null, roomName: null, zaccId: 5 });
+  expect((view.getByLabelText('강의실') as HTMLSelectElement).disabled).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '현장' }));
+  expect(view.queryByLabelText('줌 계정')).toBeNull();
+  const room = view.getByLabelText('강의실') as HTMLSelectElement;
+  expect(room.disabled).toBe(false);
+  fireEvent.change(room, { target: { value: '2' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ mode: 'offline', roomId: 2, scope: 'this', onDate: '2026-09-28' });
+});
+
+it('온라인 전환이 막히면 줌 계정 자리를 다시 묻고, 서버의 빈 자원 한 줄을 붙인다 (N-70)', async () => {
+  const { view, sent } = setupEdit(lesson, 'conflict', '그 시각 비어 있는 줌 계정 — TN Zoom 2');
+  fireEvent.click(view.getByRole('button', { name: '온라인' }));
+  fireEvent.change(view.getByLabelText('줌 계정'), { target: { value: '5' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  await waitFor(() => expect(view.getByText(/그 시각 비어 있는 줌 계정 — TN Zoom 2/)).toBeTruthy());
+  const probe = sent.filter((r) => r.url === '/schedule/conflicts');
+  expect(probe).toHaveLength(1);
+  // 온라인이면 강의실이 아니라 줌 계정을 묻는다 — 비운 강의실(null)은 싣지 않는다
+  expect(probe[0].params).toMatchObject({ zaccId: 5, teacherId: 7, exceptSerId: 3 });
+  expect(probe[0].params).not.toHaveProperty('roomId');
+});
+
+it('메모만 고치면 반복이어도 범위를 묻지 않는다 — 부르는 쪽에 「메모만」을 알린다 (N-57)', async () => {
+  const { view, patches, onSaved } = setupEdit({ ...lesson, recurring: true, memo: null });
+  fireEvent.change(view.getByLabelText('회차 메모 (이번 회차만)'), { target: { value: '오답 리뷰' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(view.queryByRole('button', { name: /향후/ })).toBeNull();
+  expect(patches()[0].data).toEqual({ memo: '오답 리뷰', scope: 'this', onDate: '2026-09-28' });
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+  expect(onSaved.mock.calls[0][1]).toEqual({ modeChanged: false, memoOnly: true });
 });

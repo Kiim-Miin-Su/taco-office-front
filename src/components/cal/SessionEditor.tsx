@@ -11,12 +11,16 @@
  * **일정 수정은 반복이면 저장 직전 한 번 범위를 묻는다** — 드래그 이동과 같은 `RecurrenceScope` 다 (D-R16).
  * 겹침은 서버(DB EXCLUDE)가 거절하고, 여기는 그 답을 그대로 보여 준다 (D-R43).
  * 코드값(kind·sub·강사·강의실)은 전부 코드표(meta)에서 온다 — 화면이 지어내지 않는다 (D-R18).
+ *
+ * 일정 수정의 **방식 전환**(N-56) — [현장 · 온라인] 토글. 온라인으로 바꾸면 강의실은 서버가 비우고(보내지 않는다)
+ * 줌 계정을 고를 수 있다, 현장으로 바꾸면 서버가 줌을 풀고 강의실을 고른다. 겹치면 409 로 통째로 되돌아간다.
+ * **회차 메모**(N-57) — 그 회차 하나의 한 줄. 메모만 고치면 범위를 묻지 않는다(서버도 「이번만」으로 적는다).
  */
 'use client';
 import { useForm } from 'react-hook-form';
-import { Banner, Button, Chip, ConflictGuard, Dialog, Input, Label, RecurrenceScope, Select } from '../ui';
+import { Banner, Button, Chip, ConflictGuard, Dialog, Input, Label, RecurrenceScope, Segmented, Select } from '../ui';
 import { KO_DOW, buildRrule, conflictLines, lessonTimeIssue, parseHm } from '@/lib/calendar';
-import { fetchConflicts, useScheduleWrite } from '@/api/queries';
+import { fetchConflictPreview, useScheduleWrite, type ConflictProbe } from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
 import { useState } from 'react';
 import type { Meta, Occurrence, OccurrencePatch, Scope, WriteResult } from '@/api/types';
@@ -42,7 +46,26 @@ export interface SessionDraft {
 export interface SessionEdit {
   occ: Occurrence;
   name: string;
+  /** 수업 상세의 방식 토글로 열면 그 방식이 골라진 채 열린다 (N-56) — 저장은 여기서 한다 */
+  presetMode?: Occurrence['mode'];
 }
+
+/** 저장한 것이 무엇이었나 — 부르는 쪽이 되돌리기 이름과 함께 바뀐 것(서버 문장)을 알린다 */
+export interface SessionSaved {
+  /** 방식(현장 ↔ 온라인)을 바꿨다 — 함께 바뀐 것은 `WriteResult.log` 문장이다 (N-56) */
+  modeChanged: boolean;
+  /** 회차 메모 하나만 고쳤다 (N-57) */
+  memoOnly: boolean;
+}
+
+/** 방식 두 낱말 — 새 일정 창의 「대면 · 줌」 단추와 같은 축이다(테두리 채널의 원천 · §2.3) */
+const MODE_OPTIONS: Array<{ value: Occurrence['mode']; label: string }> = [
+  { value: 'offline', label: '현장' },
+  { value: 'online', label: '온라인' },
+];
+
+/** 회차 메모 한도 — 서버 DTO(`SCHEDULE_INPUT_LIMITS.memo`)와 표 CHECK(`exc_memo_len`)가 같은 선이다 */
+const MEMO_MAX = 200;
 
 interface FormShape {
   kindKey: string;
@@ -58,6 +81,10 @@ interface FormShape {
   /** 비면 단발(ONCE) — 요일을 고르면 매주 반복 */
   days: number[];
   studentIds: number[];
+  /** 편집에서만 쓴다 — 온라인으로 바꿀 때 붙일 줌 계정(비우면 서버가 이미 붙은 것을 둔다) */
+  zaccId: string;
+  /** 편집에서만 쓴다 — 그 회차 하나의 메모 (N-57) */
+  memo: string;
 }
 
 /** PATCH 본문에서 범위·원래 날짜를 뺀 것 — 무엇을 바꾸는지는 창이, 어디까지는 사람이 정한다 */
@@ -71,7 +98,10 @@ const idOrNull = (v: string): number | null => (v ? Number(v) : null);
  * 안 바뀐 칸까지 실으면 「향후·모두」에서 이 회차에만 있던 예외가 규칙값으로 덮인다.
  * 강사·강의실의 빈 값은 「미정」이라는 뜻이라 null 을 그대로 싣는다 (계약이 허용한다).
  */
-function editPatch(occ: Occurrence, v: { date: string; startMin: number; endMin: number; teacherId: number | null; roomId: number | null }): EditPatch {
+function editPatch(occ: Occurrence, v: {
+  date: string; startMin: number; endMin: number; teacherId: number | null; roomId: number | null;
+  mode: Occurrence['mode']; zaccId: number | null; memo: string;
+}): EditPatch {
   const out: EditPatch = {};
   if (v.date !== occ.date) out.date = v.date;
   // 시각은 짝이다 — 한쪽만 보내면 서버가 나머지를 규칙값으로 읽어 길이가 바뀐다
@@ -80,8 +110,22 @@ function editPatch(occ: Occurrence, v: { date: string; startMin: number; endMin:
     out.endMin = v.endMin;
   }
   if (v.teacherId !== (occ.teacherId ?? null)) out.teacherId = v.teacherId;
-  if (v.roomId !== (occ.roomId ?? null)) out.roomId = v.roomId;
+  if (v.mode !== occ.mode) {
+    // 방식 전환 (N-56) — 온라인이면 강의실은 서버가 비운다(보내면 400 MODE_ROOM_ONLINE), 줌은 고른 때만 붙인다
+    out.mode = v.mode;
+    if (v.mode === 'online' && v.zaccId !== null) out.zaccId = v.zaccId;
+  }
+  if (v.mode === 'offline' && v.roomId !== (occ.roomId ?? null)) out.roomId = v.roomId;
+  // 메모는 앞뒤 공백을 걷고, 비우면 지운다(null) — 서버가 같은 선으로 적는다
+  const memo = v.memo.trim();
+  if (memo !== (occ.memo?.trim() ?? '')) out.memo = memo || null;
   return out;
+}
+
+/** 보낸 칸이 메모 하나뿐인가 — 서버 리듀서의 `memoOnly` 와 같은 판정이다(범위를 묻지 않고 「이번만」) */
+function isMemoOnly(body: EditPatch): boolean {
+  const keys = Object.keys(body);
+  return keys.length === 1 && keys[0] === 'memo';
 }
 
 export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }: {
@@ -91,8 +135,8 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
   meta?: Meta;
   onClose: () => void;
   onCreated?: (result: WriteResult) => void;
-  /** 편집이 저장됐다 — 되돌리기 토큰이 든 결과를 부르는 쪽에 넘긴다 (N-138) */
-  onSaved?: (result: WriteResult) => void;
+  /** 편집이 저장됐다 — 되돌리기 토큰이 든 결과와 무엇을 바꿨는지를 부르는 쪽에 넘긴다 (N-138 · N-56) */
+  onSaved?: (result: WriteResult, saved: SessionSaved) => void;
 }) {
   const write = useScheduleWrite();
   const [err, setErr] = useState<string | null>(null);
@@ -108,15 +152,15 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     // values 가 아직 없을 첫 렌더에도 배열 필드가 비어 있어야 한다 — undefined.includes 로 죽는 자리
     defaultValues: {
       kindKey: 'class', subKey: '', mode: 'offline', date: '', start: '10:00', end: '11:00',
-      teacherId: '', roomId: '', title: '', days: [], studentIds: [],
+      teacherId: '', roomId: '', title: '', days: [], studentIds: [], zaccId: '', memo: '',
     },
     values: occ
       ? {
-          kindKey: occ.kindKey, subKey: occ.subKey ?? '', mode: occ.mode, date: occ.date,
+          kindKey: occ.kindKey, subKey: occ.subKey ?? '', mode: edit?.presetMode ?? occ.mode, date: occ.date,
           start: hm(occ.startMin), end: hm(occ.endMin),
           teacherId: occ.teacherId == null ? '' : String(occ.teacherId),
           roomId: occ.roomId == null ? '' : String(occ.roomId),
-          title: occ.title ?? '', days: [], studentIds: [],
+          title: occ.title ?? '', days: [], studentIds: [], zaccId: '', memo: occ.memo ?? '',
         }
       : draft
         ? {
@@ -124,7 +168,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
             start: hm(draft.startMin), end: hm(draft.endMin),
             teacherId: draft.teacherId == null ? '' : String(draft.teacherId),
             roomId: draft.roomId === null ? '' : String(draft.roomId),
-            title: '', days: [], studentIds: draft.studentIds ?? [],
+            title: '', days: [], studentIds: draft.studentIds ?? [], zaccId: '', memo: '',
           }
         : undefined,
   });
@@ -147,15 +191,17 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
    * 묻는 때는 **막힌 뒤 한 번**이다. 미리 물어서 비었다고 저장을 건너뛰면 그 사이에 남이
    * 그 자리를 잡는다 — 막는 것은 DB 이고 이것은 설명이다.
    */
-  const explainConflict = (e: unknown, probe: Parameters<typeof fetchConflicts>[0]) => {
+  const explainConflict = (e: unknown, probe: ConflictProbe) => {
     const base = apiMessage(e);
     setErr(base);
     setConflict(isConflict(e));
     if (!isConflict(e)) return;
-    void fetchConflicts(probe)
-      .then((rows) => {
-        if (!rows.length) return;
-        setErr(`${base} — ${conflictLines(rows).slice(0, 3).join(' · ')}`);
+    void fetchConflictPreview(probe)
+      .then(({ conflicts, freeLine }) => {
+        // 그 시각 비어 있는 강의실 · 줌 계정 한 줄은 서버 문장이다 — 누를 수 없고 미리 잡지 않는다 (N-70)
+        const parts = [...conflictLines(conflicts).slice(0, 3), ...(freeLine ? [freeLine] : [])];
+        if (!parts.length) return;
+        setErr(`${base} — ${parts.join(' · ')}`);
       })
       // 설명을 못 가져와도 원래 문구는 이미 서 있다 — 실패가 실패를 덮지 않는다
       .catch(() => undefined);
@@ -166,16 +212,20 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     write.mutate(
       { kind: 'patch', serId: target.serId, body: { ...body, scope, onDate: target.onDate } },
       {
-        // 놓으려던 자리 그대로 다시 묻는다 — 자기 회차는 겹침에서 뺀다
+        // 놓으려던 자리 그대로 다시 묻는다 — 자기 회차는 겹침에서 뺀다. 온라인으로 바꾸면 강의실이 아니라 줌을 묻는다
         onError: (e) => explainConflict(e, {
           date: body.date ?? target.date,
           startMin: body.startMin ?? target.startMin,
           endMin: body.endMin ?? target.endMin,
           teacherId: body.teacherId === undefined ? target.teacherId : body.teacherId,
-          roomId: body.roomId === undefined ? target.roomId : body.roomId,
+          roomId: body.mode === 'online' ? null : body.roomId === undefined ? target.roomId : body.roomId,
+          zaccId: body.mode === 'online' ? (body.zaccId ?? null) : null,
           exceptSerId: target.serId,
         }),
-        onSuccess: (result) => { onSaved?.(result); onClose(); },
+        onSuccess: (result) => {
+          onSaved?.(result, { modeChanged: body.mode !== undefined, memoOnly: isMemoOnly(body) });
+          onClose();
+        },
       },
     );
   };
@@ -193,10 +243,12 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
       if (!v.date) { setErr('날짜를 골라 주세요'); return; }
       const body = editPatch(occ, {
         date: v.date, startMin, endMin, teacherId: idOrNull(v.teacherId), roomId: idOrNull(v.roomId),
+        mode: v.mode, zaccId: idOrNull(v.zaccId), memo: v.memo,
       });
       if (!Object.keys(body).length) { setErr('바뀐 것이 없습니다'); return; }
-      // 범위를 물을지는 서버 판정(`recurring`)이 정한다 — 단발에서 범위 창이 뜨면 버그다 (§5A.0)
-      if (occ.recurring) setAskScope(body);
+      // 범위를 물을지는 서버 판정(`recurring`)이 정한다 — 단발에서 범위 창이 뜨면 버그다 (§5A.0).
+      // 메모 하나만 고치면 묻지 않는다 — 메모는 그 회차 하나의 것이다 (N-57)
+      if (occ.recurring && !isMemoOnly(body)) setAskScope(body);
       else sendEdit(occ, body, 'this');
       return;
     }
@@ -264,6 +316,9 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
 
   if (occ) {
     const kind = (meta?.kinds ?? []).find((k) => k.key === occ.kindKey)?.name;
+    const mode = f.watch('mode');
+    // 온라인으로 **바꿀 때만** 줌 계정을 여기서 고른다 — 이미 온라인인 회차의 계정 바꾸기는 줌 계정 화면(배정)의 일이다
+    const toOnline = mode === 'online' && occ.mode !== 'online';
     return (
       <>
         <Dialog open onClose={onClose} title={`일정 수정 — ${edit!.name} · ${occ.date}`} width={520}>
@@ -271,9 +326,18 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
             {/* 계약(OccurrencePatchDto)이 받는 칸만 고친다 — 종류·과목·반복 요일은 여기서 바꾸지 않는다 */}
             <div className="flex flex-wrap items-center gap-1.5">
               {kind ? <Chip>{kind}</Chip> : null}
-              <Chip tone={occ.mode === 'online' ? 'purple' : 'neutral'}>{occ.mode === 'online' ? '온라인' : '현장'}</Chip>
+              {/* 방식 전환 (N-56) — 범위 규칙은 다른 칸과 같다(반복이면 저장할 때 묻는다) */}
+              <Segmented ariaLabel="수업 방식" options={MODE_OPTIONS} value={mode}
+                onChange={(value) => f.setValue('mode', value)} />
               {occ.recurring ? <Chip tone="info">반복 수업 — 저장할 때 범위를 묻습니다</Chip> : null}
             </div>
+            {mode !== occ.mode ? (
+              <p className="text-[11px] text-fg-subtle" role="status">
+                {mode === 'online'
+                  ? '온라인으로 바꾸면 강의실을 비웁니다. 줌 계정을 고르면 이 수업에 붙이고, 겹치면 저장되지 않습니다.'
+                  : '현장으로 바꾸면 이 수업의 줌 계정을 풉니다. 강의실을 고르면 함께 잡고, 겹치면 저장되지 않습니다.'}
+              </p>
+            ) : null}
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2">
                 <Label htmlFor="se-date">날짜</Label>
@@ -293,7 +357,25 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
               </div>
               <div>
                 <Label htmlFor="se-room">강의실</Label>
-                <Select id="se-room" {...f.register('roomId')}>{roomOptions}</Select>
+                {/* 온라인 회차에는 강의실이 없다 — 서버가 비우므로 여기서 고를 수 없다 */}
+                <Select id="se-room" {...f.register('roomId')} disabled={mode === 'online'}
+                  title={mode === 'online' ? '온라인 수업에는 강의실이 없습니다' : undefined}>
+                  {roomOptions}
+                </Select>
+              </div>
+              {toOnline ? (
+                <div className="col-span-2">
+                  <Label htmlFor="se-zacc">줌 계정</Label>
+                  <Select id="se-zacc" {...f.register('zaccId')}>
+                    <option value="">고르지 않음</option>
+                    {(meta?.zaccs ?? []).map((z) => <option key={z.id} value={z.id}>{z.label}</option>)}
+                  </Select>
+                </div>
+              ) : null}
+              <div className="col-span-2">
+                <Label htmlFor="se-memo">회차 메모 (이번 회차만)</Label>
+                <Input id="se-memo" maxLength={MEMO_MAX} {...f.register('memo')}
+                  placeholder="이 회차에만 붙는 한 줄 — 비우면 지웁니다" />
               </div>
             </div>
             <p className="text-[11px] text-fg-subtle">수강 학생은 수업 상세의 명단에서 넣고 뺍니다.</p>
