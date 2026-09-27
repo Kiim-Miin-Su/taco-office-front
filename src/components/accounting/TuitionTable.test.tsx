@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Tuition } from '@/api/types';
 import { TuitionTable } from './TuitionTable';
+import { MASKED } from '@/lib/money';
 
 const base: Tuition = {
   month: '2026-08', today: '2026-08-21', daysPast: 21, daysLeft: 10,
@@ -52,8 +53,8 @@ it('머리 다섯 칸은 서버가 준 값 그대로다 — 화면이 줄을 더
   expect(headBox(v, '한 수업')).toBe('196');
   expect(headBox(v, '이번 달 전체')).toBe('288');
   expect(headBox(v, '결강 · 휴강')).toBe('5');
-  expect(headBox(v, '지금까지 금액')).toBe('29,911,667원');
-  expect(headBox(v, '다음 달로 넘길 돈')).toBe('870,000원');
+  expect(headBox(v, '지금까지 금액')).toBe('₩29,911,667');
+  expect(headBox(v, '다음 달로 넘길 돈')).toBe('₩870,000');
 });
 
 it('추가 수업(KIND.extra)은 여섯째 칸과 줄의 「추가 N」으로 따로 선다 — 없는 달엔 칸 자체가 없다 (C94-d · C-38)', () => {
@@ -94,7 +95,7 @@ it('값이 둘이어도 **컷 그대로 대표 단가를 적는다** — 컷의 
   d.items[0].priceCount = 2; // SAT 14만 + 모의 4.5만
   const v = render(<TuitionTable data={d} />);
   // 8 × 140,000 = 1,120,000 ≠ 1,365,000 인 줄을 원문이 그대로 보여 준다 — 정확한 줄은 「내역」에 있다
-  expect(v.getByText('140,000원')).toBeTruthy();
+  expect(v.getByText('₩140,000')).toBeTruthy();
   expect(v.getByText('개별 단가')).toBeTruthy();
 });
 
@@ -118,27 +119,27 @@ it('결강이 없으면 「—」 · 있으면 붉게 센다 — 0 을 적지 �
   expect(v.getAllByText('—').length).toBeGreaterThan(0);
 });
 
-it('넘길 돈이 0 이면 「—」 — 0원으로 적지 않는다', () => {
+it('넘길 돈이 0 이면 「—」 — ₩0 으로 적지 않는다', () => {
   const v = render(<TuitionTable data={clone()} />);
-  expect(v.getByText('420,000원')).toBeTruthy();
-  expect(v.queryByText('0원')).toBeNull();
+  expect(v.getByText('₩420,000')).toBeTruthy();
+  expect(v.queryByText('₩0')).toBeNull();
 });
 
-it('금액을 못 보면 배너로 알리고 「가려짐」을 적는다 — 0 으로 뭉개지 않는다 (D-R39)', () => {
+it('금액을 못 보면 배너로 알리고 숨긴 금액 낱말(「비공개」)을 적는다 — 0 으로 뭉개지 않는다 (D-R39)', () => {
   const d = clone();
   d.canSeeAmounts = false;
   d.doneAmount = null; d.carryAmount = null;
   d.items = d.items.map((r) => ({ ...r, unitPrice: null, doneAmount: null, carryAmount: null, lines: [] }));
   const v = render(<TuitionTable data={d} />);
   expect(v.getByText(/서버가 값을 내려보내지 않으므로/)).toBeTruthy();
-  expect(v.getAllByText('가려짐').length).toBeGreaterThan(0);
+  expect(v.getAllByText(MASKED).length).toBeGreaterThan(0);
 });
 
 it('「내역」은 청구서가 쓸 바로 그 줄을 보여 준다', () => {
   const v = render(<TuitionTable data={clone()} />);
   fireEvent.click(v.getAllByRole('button', { name: '내역' })[0]);
   expect(v.getByText('SAT Reading')).toBeTruthy();
-  expect(v.getByText('8회 × 140,000원')).toBeTruthy();
+  expect(v.getByText('8회 × ₩140,000')).toBeTruthy();
   expect(v.getByText(/청구서를 만들 때 이 계산 결과를 그대로 씁니다/)).toBeTruthy();
 });
 
@@ -179,10 +180,10 @@ it('「이월 처리」는 **서버가 된다고 한 줄에만** 선다', () => 
 
 it('넘길 돈이 있어도 **서버가 아니라면** 단추가 서지 않는다 — 돈을 안 받았으면 넘길 것이 없다', () => {
   const d = clone();
-  // 결강 2회 · 넘길 돈 420,000원이지만 청구서가 완납이 아니다
+  // 결강 2회 · 넘길 돈 ₩420,000 이지만 청구서가 완납이 아니다
   d.items[0].carryable = false;
   const v = render(<TuitionTable data={d} onCarry={() => {}} />);
-  expect(v.getByText('420,000원')).toBeTruthy();
+  expect(v.getByText('₩420,000')).toBeTruthy();
   expect(v.queryByRole('button', { name: '이월 처리' })).toBeNull();
 });
 
@@ -220,8 +221,8 @@ it('지난달에서 **넘어온 회차와 돈**은 그 줄과 머리에 적는�
   d.carriedInCount = 2;
   d.carriedInAmount = 70_000;
   const v = render(<TuitionTable data={d} />);
-  expect(v.getByText('이월 2회 · 70,000원 받음')).toBeTruthy();
-  expect(v.getByText('이월 2회 받음 · 70,000원 — 8월 청구에서 빠집니다')).toBeTruthy();
+  expect(v.getByText('이월 2회 · ₩70,000 받음')).toBeTruthy();
+  expect(v.getByText('이월 2회 받음 · ₩70,000 — 8월 청구에서 빠집니다')).toBeTruthy();
 });
 
 it('넘어온 회차가 있는데 금액을 못 보면 회차만 적는다 — 금액은 서버가 안 준 것이다 (D-R39)', () => {
@@ -272,15 +273,15 @@ it('마감된 달은 배지가 서고 「마감 해제」는 사유가 있어야
 });
 
 /*
- * 불러오는 동안은 「—」다 (54-01). 「가려짐」은 **권한이 없어서 서버가 안 줬다**는 뜻이라,
+ * 불러오는 동안은 「—」다 (54-01). 숨긴 금액 낱말(「비공개」)은 **권한이 없어서 서버가 안 줬다**는 뜻이라,
  * 아직 응답이 오지 않은 자리에 적으면 대표에게도 권한이 없다고 거짓말을 한다.
  * 같은 페이지 머리 여섯 칸(`Head`)이 이미 이렇게 막는다 — 여기도 같은 규칙이다.
  */
-it('응답 전에는 머리 금액 두 칸이 「가려짐」이 아니라 「—」다 — 권한이 없다고 말하지 않는다', () => {
+it('응답 전에는 머리 금액 두 칸이 숨긴 금액 낱말이 아니라 「—」다 — 권한이 없다고 말하지 않는다', () => {
   const v = render(<TuitionTable loading />);
   expect(headBox(v, '지금까지 금액')).toBe('—');
   expect(headBox(v, '다음 달로 넘길 돈')).toBe('—');
-  expect(v.queryByText('가려짐')).toBeNull();
+  expect(v.queryByText(MASKED)).toBeNull();
 });
 
 it('내역 창 설명은 사람의 말이다 — 절 번호를 적지 않는다', () => {

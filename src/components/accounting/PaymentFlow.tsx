@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: PaymentFlow.tsx — PaymentFlow (component)
- * 책임/재사용: §55 들어온 돈의 기간 요약·입금 달력·분류별·미수 전체. 기간 이동은 lib/calendar, 조회는 accounting-queries, 칩은 ui/ChipButton 을 재사용한다. 세는 일은 하지 않는다.
+ * 목적: PaymentFlow.tsx — OpenList, UnpaidList, PaymentFlow (component)
+ * 책임/재사용: §55 들어온 돈의 기간 요약·입금 달력·분류별·미수 전체. 기간 이동은 lib/calendar, 조회는 api/queries, 칩은 ui/ChipButton 을 재사용한다. 세는 일은 하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
@@ -21,9 +21,10 @@
 import { useState } from 'react';
 import { Banner, Button, ChipButton, Segmented, cn } from '@/components/ui';
 import { apiMessage } from '@/api/client';
+import { useCashflow } from '@/api/queries';
+import type { Cashflow, CashflowDay } from '@/api/types';
 import { KO_DOW, addDays, dowOf, step, summaryBoundsOf, todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
-import { useCashflow, type Cashflow, type CashflowDay } from './accounting-queries';
 import { categoryTone } from './category-tone';
 import { ManualPaymentButton } from './ManualPaymentForm';
 
@@ -77,8 +78,9 @@ function PayCalendar({ from, to, days, today, canSee }: {
               )}
             >
               <span className={cn('text-[12px] font-bold', dowOf(iso) === 0 ? 'text-red' : 'text-fg')}>{day}</span>
+              {/* 원문 §55 달력 칸은 숫자만이다(「840,000」) — ₩ 는 칸 제목(마우스)과 위 요약에 선다. 모양은 `lib/money` 한 곳 (N-92) */}
               {d ? (
-                <span className="mt-1 block text-[11px] font-bold text-fg">{canSee ? won(d.amount) : `${d.count}건`}</span>
+                <span className="mt-1 block text-[11px] font-bold text-fg">{canSee ? won(d.amount, { unit: false }) : `${d.count}건`}</span>
               ) : null}
               {/* 숫자 배지 = 그날 기한인 **예정** 건수 — 서버가 센 값 */}
               {d && d.expectedCount > 0 ? (
@@ -120,8 +122,12 @@ function ByCategory({ data }: { data: Cashflow }) {
   );
 }
 
-/** 「미수 전체 · 기간과 무관」 — 줄 바탕과 낱말은 서버가 정한다 (연체 분홍 · 임박 노랑) */
-function OpenList({ data }: { data: Cashflow }) {
+/**
+ * 「미수 전체 · 기간과 무관」 — 줄 바탕과 낱말은 서버가 정한다 (연체 분홍 · 임박 노랑).
+ * 분납이면 **못 채운 회차마다 한 줄**이다(원문 §55 「고은성 2회차 ₩413,300 D-10」 · N-79) — 줄의 열쇠는 (청구서 · 회차)다.
+ * 「들어온 돈 › 못 받은 돈」 탭도 이 목록을 그대로 쓴다(W11 · N-37 ①).
+ */
+export function OpenList({ data }: { data: Cashflow }) {
   return (
     <section aria-label="미수 전체">
       <h3 className="mb-2 flex items-baseline gap-2 border-b border-line pb-2 text-[13px] font-bold text-fg">
@@ -133,7 +139,7 @@ function OpenList({ data }: { data: Cashflow }) {
         <ul className="flex flex-col gap-1.5">
           {data.open.map((o) => (
             <li
-              key={o.invId}
+              key={`${o.invId}-${o.seq ?? 0}`}
               className={cn(
                 'grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 rounded-lg border px-3 py-2 text-[12px]',
                 o.tone === 'danger' ? 'border-red/30 bg-red/10' : o.tone === 'warning' ? 'border-amber/30 bg-amber/10' : 'border-line bg-card',
@@ -141,6 +147,7 @@ function OpenList({ data }: { data: Cashflow }) {
             >
               <span className="truncate font-bold text-fg" title={o.studentName}>{o.studentName}</span>
               <span className="text-fg-2">{o.partLabel}</span>
+              {/* null 은 권한이 없거나 컨설팅 비공개(N-94)로 가려진 줄이다 — 낱말은 한 벌(「비공개」) · 남은 돈에는 「미확인」이 없다 */}
               <span className="text-right font-bold text-fg">{won(o.amount)}</span>
               <span className={cn('min-w-12 text-right text-[11px] font-bold', o.tone === 'danger' ? 'text-red' : 'text-fg-2')}>{o.whenLabel}</span>
             </li>
@@ -149,6 +156,18 @@ function OpenList({ data }: { data: Cashflow }) {
       )}
     </section>
   );
+}
+
+/**
+ * 「들어온 돈 › 못 받은 돈」 (W11 · N-37 ①) — §55 오른쪽 「미수 전체 · 기간과 무관」과 **같은 목록**을 한 탭에 크게.
+ * 목록 자체가 기간과 무관하다(서버) — 질의는 입금 기록 탭의 처음 조건(이번 달)과 같은 키로 불러 캐시를 나눠 쓴다.
+ */
+export function UnpaidList() {
+  const bounds = summaryBoundsOf('month', todayKst());
+  const q = useCashflow({ from: bounds.from, to: bounds.to });
+  if (q.isLoading) return <Banner tone="neutral">불러오는 중…</Banner>;
+  if (q.isError) return <Banner tone="danger">{apiMessage(q.error)}</Banner>;
+  return q.data ? <div className="max-w-3xl"><OpenList data={q.data} /></div> : null;
 }
 
 export function PaymentFlow() {

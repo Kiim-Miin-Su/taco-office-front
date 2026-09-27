@@ -7,10 +7,10 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Me } from '@/api/types';
+import type { Cashflow, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
-import type { Cashflow } from './accounting-queries';
 import { PaymentFlow } from './PaymentFlow';
+import { MASKED } from '@/lib/money';
 
 const me: Me = {
   id: 1, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
@@ -38,9 +38,9 @@ const AUG: Cashflow = {
     { key: 'etc', label: '기타', count: 1, billed: 264000, paid: 264000, rate: 100 },
   ],
   open: [
-    { invId: 1, studentName: '양찬욱', partLabel: '전액', amount: 1170000, dueOn: '2026-07-31', whenLabel: '21일 연체', tone: 'danger' },
-    { invId: 2, studentName: '서지호', partLabel: '전액', amount: 150000, dueOn: '2026-08-22', whenLabel: 'D-1', tone: 'warning' },
-    { invId: 3, studentName: '고은성', partLabel: '잔액', amount: 413300, dueOn: '2026-08-31', whenLabel: 'D-10', tone: null },
+    { invId: 1, seq: null, studentName: '양찬욱', partLabel: '전액', amount: 1170000, dueOn: '2026-07-31', whenLabel: '21일 연체', tone: 'danger' },
+    { invId: 2, seq: null, studentName: '서지호', partLabel: '전액', amount: 150000, dueOn: '2026-08-22', whenLabel: 'D-1', tone: 'warning' },
+    { invId: 3, seq: null, studentName: '고은성', partLabel: '잔액', amount: 413300, dueOn: '2026-08-31', whenLabel: 'D-10', tone: null },
   ],
   canSeeAmounts: true,
 };
@@ -80,7 +80,7 @@ it('월간이 기본이고 요약·달력은 서버가 센 수를 그대로 그�
   expect(view.getByText('31일')).toBeTruthy();
   expect(view.getByRole('button', { name: '월간' }).getAttribute('aria-pressed')).toBe('true');
   const sum = flat(view.getByRole('group', { name: '기간 요약' }));
-  expect(sum).toBe('11건5,287,300원청구3,964,000원입금1,323,300원예정');
+  expect(sum).toBe('11건₩5,287,300청구₩3,964,000입금₩1,323,300예정');
 
   const cal = view.getByRole('group', { name: '입금 달력' });
   expect(within(cal).getAllByText(/^[일월화수목금토]$/).map((e) => e.textContent)).toEqual(['일', '월', '화', '수', '목', '금', '토']);
@@ -92,7 +92,7 @@ it('월간이 기본이고 요약·달력은 서버가 센 수를 그대로 그�
   expect(cal.querySelectorAll('[aria-hidden="true"].min-h-\\[76px\\]').length).toBe(6 + 5);
   // 날마다 합계 · 짙기(가장 큰 날에 견준 세 단계) · 예정 배지 · 오늘 칸
   const day = (iso: string) => cal.querySelector(`[data-date="${iso}"]`)!;
-  expect(flat(day('2026-08-05'))).toBe('51,100,000원');
+  expect(flat(day('2026-08-05'))).toBe('51,100,000');
   expect(day('2026-08-05').className).toContain('bg-blue/40');
   expect(day('2026-08-10').className).toContain('bg-blue/10');
   expect(day('2026-08-03').className).not.toContain('bg-blue');
@@ -109,13 +109,13 @@ it('오른쪽 분류별과 미수 전체 — 금액 · 비율 · 줄 바탕 · �
   expect(flat(by)).toContain('분류별 2026년 8월');
   const lines = within(by).getAllByRole('listitem').map((li) => flat(li));
   expect(lines).toEqual([
-    '수업료1,053,300원0%', 'GPA 관리비1,560,000원100%', '컨설팅비1,900,000원100%',
-    '진단고사 · 상담300,000원50%', '시험 응시료210,000원43%', '기타264,000원100%',
+    '수업료₩1,053,3000%', 'GPA 관리비₩1,560,000100%', '컨설팅비₩1,900,000100%',
+    '진단고사 · 상담₩300,00050%', '시험 응시료₩210,00043%', '기타₩264,000100%',
   ]);
   const open = view.getByRole('region', { name: '미수 전체' });
   expect(flat(open)).toContain('기간과 무관');
   const rows = within(open).getAllByRole('listitem');
-  expect(rows.map((r) => flat(r))).toEqual(['양찬욱전액1,170,000원21일 연체', '서지호전액150,000원D-1', '고은성잔액413,300원D-10']);
+  expect(rows.map((r) => flat(r))).toEqual(['양찬욱전액₩1,170,00021일 연체', '서지호전액₩150,000D-1', '고은성잔액₩413,300D-10']);
   expect(rows[0].className).toContain('bg-red/10');
   expect(rows[1].className).toContain('bg-amber/10');
   expect(rows[2].className).toContain('bg-card');
@@ -158,7 +158,7 @@ it('분류 칩은 누르는 필터다 — 칩의 수는 고른 분류와 무관�
   await waitFor(() => expect(calls.at(-1)).toEqual({ from: '2026-08-01', to: '2026-08-31' }));
 });
 
-it('금액을 못 보면 요약은 「가려짐」이고 달력 칸은 건수로 적는다 (D-R39)', async () => {
+it('금액을 못 보면 요약은 숨긴 금액 낱말(「비공개」)이고 달력 칸은 건수로 적는다 (D-R39)', async () => {
   const masked: Cashflow = {
     ...AUG, canSeeAmounts: false, billed: null, paid: null, expected: null,
     days: AUG.days.map((d) => ({ ...d, amount: null, paidAmount: null, expectedAmount: null })),
@@ -168,11 +168,28 @@ it('금액을 못 보면 요약은 「가려짐」이고 달력 칸은 건수로
   const view = setup(() => masked);
   // 기간 낱말은 서버의 것 — 이동기와 「분류별」 머리 두 자리에 같은 낱말이 선다
   await waitFor(() => expect(view.getAllByText('2026년 8월')).toHaveLength(2));
-  expect(flat(view.getByRole('group', { name: '기간 요약' }))).toBe('11건가려짐청구가려짐입금가려짐예정');
+  expect(flat(view.getByRole('group', { name: '기간 요약' }))).toBe(`11건${MASKED}청구${MASKED}입금${MASKED}예정`);
   const cal = view.getByRole('group', { name: '입금 달력' });
   expect(flat(cal.querySelector('[data-date="2026-08-31"]'))).toBe('312건2');
   expect(flat(view.getByRole('region', { name: '분류별' }))).not.toContain('%');
   expect(flat(view.getByRole('region', { name: '분류별' }))).toContain('—');
+});
+
+/**
+ * 분납(N-79 · W11) — 한 청구서의 **못 채운 회차마다 한 줄**이다. 원문 §55 「고은성 2회차 ₩413,300 D-10 · 고은성 3회차 ₩413,300 D-40」.
+ * 줄의 열쇠는 (청구서 · 회차)라 같은 청구서의 두 줄이 한 줄로 접히지 않는다. 「N회차」 낱말 · 금액 · 「D-N」은 서버 값이다.
+ */
+it('분납 청구서는 못 채운 회차마다 한 줄 — 같은 청구서의 두 회차가 둘 다 선다 (N-79)', async () => {
+  const view = setup(() => ({
+    ...AUG,
+    open: [
+      { invId: 3, seq: 2, studentName: '고은성', partLabel: '2회차', amount: 413300, dueOn: '2026-08-31', whenLabel: 'D-10', tone: null },
+      { invId: 3, seq: 3, studentName: '고은성', partLabel: '3회차', amount: 413300, dueOn: '2026-09-30', whenLabel: 'D-40', tone: null },
+    ],
+  }));
+  await waitFor(() => expect(view.getByRole('region', { name: '미수 전체' })).toBeTruthy());
+  const rows = within(view.getByRole('region', { name: '미수 전체' })).getAllByRole('listitem');
+  expect(rows.map((r) => flat(r))).toEqual(['고은성2회차₩413,300D-10', '고은성3회차₩413,300D-40']);
 });
 
 it('요약 옆에 「+ 결제 등록」이 선다 — 청구서 없이 들어온 돈(A-D1 ②)을 적는 자리', async () => {

@@ -36,7 +36,8 @@ const inv = (over: Partial<Invoice>): Invoice => ({
   title: '2026년 8월 수업료 청구', amount: 250000, paidAmount: 0, state: 'sent', stateLabel: '보냄',
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
-  sentAt: null, canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null, lines: [], ...over,
+  sentAt: null, canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null, lines: [],
+  installments: [], nextDueOn: null, nextInstallmentSeq: null, ...over,
 });
 
 const accounting = (todo = 0, invoices: Invoice[] = []): Accounting => ({
@@ -55,6 +56,7 @@ function mount(handler: (config: { url?: string; params?: Record<string, string>
 }
 
 it('청구서 표에 「종류」 칩이 서고 낱말은 서버의 invTypeLabel 이다 (53-02)', async () => {
+  nav.search = 'tab=inv'; // 첫 화면은 트래킹 보드다(C-08) — 표는 청구서 탭에 선다
   const view = mount(() => accounting(0, [inv({ id: 42 }), inv({ id: 43, invType: 'consulting', invTypeLabel: '컨설팅비 청구', studentName: '김하늘' })]));
   await waitFor(() => expect(view.getByText('김하늘')).toBeTruthy());
   const typeOf = (name: string) => view.getByText(name).closest('tr')!.querySelectorAll('td')[2].textContent;
@@ -83,8 +85,8 @@ it('틀린 invId 는 버린다 — 어느 줄도 칠하지 않는다', async () 
 
 it('탭 줄 오른쪽 「+ 청구서」는 다른 탭에서도 청구서 탭으로 가며 발행 칸을 연다 (C-03)', async () => {
   const view = mount(() => accounting());
-  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 0' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '들어온 돈 0' }));
+  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '들어온 돈' }));
   expect(view.queryByText('새 청구서 발행')).toBeNull();
   fireEvent.click(view.getByRole('button', { name: '+ 청구서' }));
   await waitFor(() => expect(view.getByText('새 청구서 발행')).toBeTruthy());
@@ -116,13 +118,15 @@ it('강사료 정산은 이번 달 시트부터 연다 (56-04)', async () => {
   const sheet: PayoutSheet = {
     month, today: todayKst(), monthEnded: false, rows: [], unwrittenCount: 0, netTotal: 0, canSeeAmounts: true,
     writtenMinutes: 0, unwrittenMinutes: 0, grossTotal: 0, lateCutTotal: 0, taxTotal: 0,
+    bonusTotal: 0, correctionCount: 0, amountsHidden: false,
   };
   const view = mount((config) => {
     if (config.url === '/accounting/payouts') { months.push(config.params?.month); return sheet; }
     return accounting();
   });
-  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '강사료 정산' }));
+  // 두 층 탭(N-37 ①) — 「나간 돈」 묶음이 「강사료 정산」으로 연다
+  await waitFor(() => expect(view.getByRole('button', { name: '나간 돈' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '나간 돈' }));
   await waitFor(() => expect(months).toHaveLength(1));
   expect(months[0]).toBe(month);
 });

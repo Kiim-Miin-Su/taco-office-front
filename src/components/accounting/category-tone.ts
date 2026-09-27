@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: category-tone.ts — categoryTone (constant)
+ * 목적: category-tone.ts — categoryTone, categoryChip (constant)
  * 책임/재사용: 회계 분류(입금 여섯 · 청구 종류)의 **빛깔 한 벌**. 값이 아니라 토큰 클래스 이름만 둔다 — 색 값은 tokens.css 한 곳이다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -16,6 +16,8 @@
  * (`pink` · `teal` · `orange`)이다 — 예전에 빌려 쓰던 수업 종류 색(kind-consulting · kind-consult · kind-mock)은
  * 수업 종류의 뜻이라 돌려놓았다. 값·대비는 tokens.css · tokens.test.ts 한 곳.
  */
+import type { ChipColor } from '@/components/ui';
+
 const TONE: Record<string, string> = {
   tuition: 'bg-blue',
   gpa: 'bg-kind-gpa',
@@ -28,4 +30,20 @@ const TONE: Record<string, string> = {
 /** 분류 키 → 배경 클래스. 모르는 키는 흐린 회색 — 새 분류가 서버에 생겨도 화면이 깨지지 않는다 */
 export function categoryTone(key: string): string {
   return TONE[key] ?? 'bg-fg-subtle';
+}
+
+/**
+ * 청구 종류 키 → 칩 색 (W11 · §53 카드의 종류 칩 — 「수업료 청구」 파랑 · 「컨설팅비 청구」 분홍).
+ * 위 표와 **같은 빛깔**이다(수업료 파랑 · 컨설팅 분홍 · 진단 청록 · 응시료 주황) — 칩은 톤 이름을 받으므로 한 벌을 톤으로 옮겨 적었다.
+ * 모르는 종류는 회색.
+ */
+const CHIP: Record<string, ChipColor> = {
+  tuition: 'info',
+  consulting: 'pink',
+  diag_intake: 'teal',
+  exam_fee: 'orange',
+};
+
+export function categoryChip(key: string): ChipColor {
+  return CHIP[key] ?? 'neutral';
 }

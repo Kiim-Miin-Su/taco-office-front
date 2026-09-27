@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: 회계 입금 표의 미확인/권한 가림/0원과 생성 nullable 계약 소비 회귀 · §55 기간 칩 · §56 카드/상세 연결.
+ * 목적: 회계 입금 표의 미확인/권한 가림/₩0 과 생성 nullable 계약 소비 회귀 · §55 기간 칩 · §56 카드/상세 연결.
  * 책임/재사용: 실제 AccountingPage/useAccounting/Table/won을 사용하고 셸의 다른 조회만 제외한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -8,9 +8,9 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Accounting, Me, PayoutSheet, PayoutSheetRow } from '@/api/types';
-import type { Cashflow } from '@/components/accounting/accounting-queries';
+import type { Accounting, Cashflow, Me, PayoutSheet, PayoutSheetRow } from '@/api/types';
 import { monthBounds, todayKst } from '@/lib/calendar';
+import { MASKED } from '@/lib/money';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -47,13 +47,15 @@ it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단�
   api.defaults.adapter = get as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } }); clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 5' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '들어온 돈 5' }));
+  // 두 층 탭(N-37 ①) — 「들어온 돈」 묶음은 「입금 기록」(옛 들어온 돈 + 입금 기록)으로 연다
+  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '들어온 돈' }));
+  expect(view.getByRole('button', { name: '입금 기록' }).getAttribute('aria-pressed')).toBe('true');
   const cells = (name: string) => within(view.getByText(name).closest('tr')!).getAllByRole('cell').map(c => c.textContent);
   // 칸 차례 — 입금일 · 학생 · **분류**(C71) · 금액 · 수단
-  expect(cells('미확인 학생').slice(0, 5)).toEqual(['미확인', '미확인 학생', '기타', canSeeAmounts ? '미확인' : '가려짐', '미확인']);
-  expect(cells('영원 학생').slice(0, 5)).toEqual(['2026-09-11', '영원 학생', '기타', canSeeAmounts ? '0원' : '가려짐', '현금']);
-  expect(cells('입금 학생')[3]).toBe(canSeeAmounts ? '123,400원' : '가려짐');
+  expect(cells('미확인 학생').slice(0, 5)).toEqual(['미확인', '미확인 학생', '기타', canSeeAmounts ? '미확인' : MASKED, '미확인']);
+  expect(cells('영원 학생').slice(0, 5)).toEqual(['2026-09-11', '영원 학생', '기타', canSeeAmounts ? '₩0' : MASKED, '현금']);
+  expect(cells('입금 학생')[3]).toBe(canSeeAmounts ? '₩123,400' : MASKED);
   expect(cells('입금 학생')[4]).toBe('계좌');
   expect(cells('다른 수단')[4]).toBe('card');
   expect(cells('기존 이체')[4]).toBe('계좌');
@@ -100,11 +102,11 @@ it('머리 여섯 칸은 원문의 낱말과 차례 그대로이고, 서버가 �
 
   const heads = HEAD_LABELS.map(l => view.getByText(l).parentElement!);
   expect(heads.map(h => h.textContent)).toEqual([
-    '보낸 청구서7,214,000원',
-    '받은 돈4,377,400원',
-    '못 받은 돈2,836,600원',
-    '기한 지남1,170,000원',
-    '남은 돈−3,052,172원',
+    '보낸 청구서₩7,214,000',
+    '받은 돈₩4,377,400',
+    '못 받은 돈₩2,836,600',
+    '기한 지남₩1,170,000',
+    '남은 돈−₩3,052,172',
     '손봐야 할 것6건납부 기한이 지난 청구서',
   ]);
   // 차례도 원문 그대로다 — 못 받은 돈은 받은 돈 **뒤**에 온다
@@ -114,15 +116,15 @@ it('머리 여섯 칸은 원문의 낱말과 차례 그대로이고, 서버가 �
 
 it('서버가 「못 받은 돈」을 다르게 주면 화면은 그 값을 그대로 쓴다 — 빼서 고치지 않는다', async () => {
   const view = mount({ sent: 1000, collected: 400, unpaid: 999, overdue: 0, net: 0, todo: 0, canSeeAmounts: true });
-  await waitFor(() => expect(view.getByText('999원')).toBeTruthy());
-  expect(view.getByText('못 받은 돈').parentElement!.textContent).toBe('못 받은 돈999원');
+  await waitFor(() => expect(view.getByText('₩999')).toBeTruthy());
+  expect(view.getByText('못 받은 돈').parentElement!.textContent).toBe('못 받은 돈₩999');
 });
 
 it('금액 권한이 없으면 다섯 칸은 가려지고 「손봐야 할 것」은 건수라 그대로 보인다 (D-R39)', async () => {
   const view = mount({ sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 4, canSeeAmounts: false });
   await waitFor(() => expect(view.getByText('4건')).toBeTruthy());
   expect(HEAD_LABELS.slice(0, 5).map(l => view.getByText(l).parentElement!.textContent))
-    .toEqual(['보낸 청구서가려짐', '받은 돈가려짐', '못 받은 돈가려짐', '기한 지남가려짐', '남은 돈가려짐']);
+    .toEqual(['보낸 청구서', '받은 돈', '못 받은 돈', '기한 지남', '남은 돈'].map((l) => `${l}${MASKED}`));
   expect(view.getByText('손봐야 할 것').parentElement!.textContent).toContain('4건');
 });
 
@@ -139,10 +141,12 @@ const sheetRow = (confirmed: boolean): PayoutSheetRow => ({
   gross: 2016000, lateCut: 25000, incomeTax: 59730, localTax: 5973, net: 1925297, unwrittenAmount: 0,
   saved: confirmed, savedDiffers: false, savedNet: confirmed ? 1925297 : null,
   confirmed, confirmedAt: confirmed ? '2026-09-03T02:00:00.000Z' : null, confirmedBy: confirmed ? '김민선' : null, canConfirm: !confirmed,
+  correctionCount: 0, correctionMinutes: 0, lateCount: 0, bonus: 0, amountsHidden: false, confirmBlockedReason: null,
 });
 const sheetOf = (confirmed: boolean): PayoutSheet => ({
   month: '2026-08', today: '2026-09-18', monthEnded: true, rows: [sheetRow(confirmed)], unwrittenCount: 0, netTotal: 1925297, canSeeAmounts: true,
   writtenMinutes: 2880, unwrittenMinutes: 0, grossTotal: 2016000, lateCutTotal: 25000, taxTotal: 65703,
+  bonusTotal: 0, correctionCount: 0, amountsHidden: false,
 });
 /** §56 상세 — 그 사람의 줄은 시트의 그 줄이다 */
 const detailOf = (confirmed: boolean) => ({
@@ -152,6 +156,12 @@ const EMPTY: Accounting = {
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
   invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 };
+/** §54 응답 표본 — 달과 마감 상태만 본다 */
+const tuitionOf = (month: string) => ({
+  month, today: '2026-09-18', daysPast: 17, daysLeft: 12, canSeeAmounts: true,
+  doneCount: 0, totalCount: 0, canceledCount: 0, deductedCount: 0, doneAmount: 0, carryAmount: 0, carriedInCount: 0, carriedInAmount: 0,
+  items: [], close: null, canClose: false, canReopen: false,
+});
 
 it.each([
   { confirmed: true, label: '확정 · 김민선' },
@@ -167,16 +177,18 @@ it.each([
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산' })).toBeTruthy());
+  // 두 층 탭(N-37 ①) — 「나간 돈」 묶음은 「강사료 정산」으로 연다
+  await waitFor(() => expect(view.getByRole('button', { name: '나간 돈' })).toBeTruthy());
   expect(sheetGet).not.toHaveBeenCalled();
-  fireEvent.click(view.getByRole('button', { name: '강사료 정산' }));
+  fireEvent.click(view.getByRole('button', { name: '나간 돈' }));
   await waitFor(() => expect(view.getByRole('button', { name: '이다현 자세히 보기' })).toBeTruthy());
+  expect(view.getByRole('button', { name: '강사료 정산' }).getAttribute('aria-pressed')).toBe('true');
   expect(sheetGet).toHaveBeenCalledTimes(1);
   // 왼쪽 카드에 상태 칩이 선다
   expect(within(view.getByRole('button', { name: '이다현 자세히 보기' })).getByText(label)).toBeTruthy();
   // 「지급 확정」 단추는 서버의 canConfirm 그대로 — 상세 머리에 서고, 확정된 사람에게는 없다
   fireEvent.click(view.getByRole('button', { name: '이다현 자세히 보기' }));
-  await waitFor(() => expect(view.getByText('2026-01-01부터 42,000원/시간')).toBeTruthy());
+  await waitFor(() => expect(view.getByText('2026-01-01부터 ₩42,000/시간')).toBeTruthy());
   const head = within(view.getByRole('heading', { name: '이다현 · 8월 정산' }).closest('header')!);
   expect(head.getByText(label)).toBeTruthy();
   expect(head.queryByRole('button', { name: '지급 확정' }) === null).toBe(confirmed);
@@ -191,15 +203,19 @@ it('단가표는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다
       ratesGet();
       return { config, status: 200, statusText: 'OK', headers: {}, data: { rates: [{ id: 1, kindKey: 'class', kindName: '수업', kindExtra: false, subKey: null, subName: null, heads: 1, unitPrice: 60000, fromDate: '2026-01-01', current: true }], studentRates: [] } };
     }
+    // 「정리 · 기준」 묶음은 「월 마감」으로 연다 — 그 칸은 §54 와 같은 질의로 달의 마감 상태를 읽는다
+    if (config.url === '/accounting/tuition') return { config, status: 200, statusText: 'OK', headers: {}, data: tuitionOf('2026-09') };
     return { config, status: 200, statusText: 'OK', headers: {}, data: EMPTY };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '단가표' })).toBeTruthy());
+  await waitFor(() => expect(view.getByRole('button', { name: '정리 · 기준' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '정리 · 기준' }));
+  await waitFor(() => expect(view.getByText('9월은 마감 전입니다')).toBeTruthy());
   expect(ratesGet).not.toHaveBeenCalled();
   fireEvent.click(view.getByRole('button', { name: '단가표' }));
-  await waitFor(() => expect(view.getByText('60,000원')).toBeTruthy());
+  await waitFor(() => expect(view.getByText('₩60,000')).toBeTruthy());
   expect(ratesGet).toHaveBeenCalledTimes(1);
   expect(view.getByText('지금')).toBeTruthy();
   expect(view.getByRole('button', { name: '+ 단가 등록' })).toBeTruthy();
@@ -213,15 +229,16 @@ it('단가표는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다
  */
 it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙지 않는다', async () => {
   useSession.getState().signIn('fixture', me);
+  nav.search = 'tab=inv'; // 첫 화면은 트래킹 보드다(C-08) — 이 시험이 보는 것은 청구서 탭이다
   api.defaults.adapter = (async (config: { url?: string }) => ({
     config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/accounting/payouts' ? sheetOf(true) : EMPTY,
   })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '강사료 정산' })).toBeTruthy());
+  await waitFor(() => expect(view.getByRole('button', { name: '나간 돈' })).toBeTruthy());
   expect(view.queryByText(/정산은/)).toBeNull();
-  fireEvent.click(view.getByRole('button', { name: '강사료 정산' }));
+  fireEvent.click(view.getByRole('button', { name: '나간 돈' }));
   expect(view.getByText(/정산은/)).toBeTruthy();
 });
 
@@ -258,8 +275,8 @@ it('분류 칩 여섯은 이번 달 기간으로 묻고 건수가 0이어도 서
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
-  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈 0' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '들어온 돈 0' }));
+  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '들어온 돈' }));
   await waitFor(() => expect(view.getByRole('button', { name: '수업료 2' })).toBeTruthy());
   // 기본은 이번 달 — 1일부터 끝날까지(앞뒤 달을 섞지 않는다)
   expect(flows[0]).toEqual(monthBounds(todayKst()));

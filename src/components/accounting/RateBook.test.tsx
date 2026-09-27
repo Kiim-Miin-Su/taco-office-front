@@ -60,9 +60,9 @@ it('두 표를 서버 값 그대로 그린다 — 「지금」은 서버의 curr
   // 같은 종류·인원의 두 줄 — 나중 날짜가 「지금」, 지난 줄은 남는다
   const extraRows = rows.filter((r) => text(r).includes('추가 수업'));
   expect(extraRows).toHaveLength(2);
-  expect(text(extraRows[0]!)).toContain('75,000원');
+  expect(text(extraRows[0]!)).toContain('₩75,000');
   expect(within(extraRows[0]!).getByText('지금')).toBeTruthy();
-  expect(text(extraRows[1]!)).toContain('70,000원');
+  expect(text(extraRows[1]!)).toContain('₩70,000');
   expect(within(extraRows[1]!).queryByText('지금')).toBeNull();
   expect(text(extraRows[0]!)).toContain('추가');
   // 학생별 예외 — 사유 · 누가

@@ -17,17 +17,20 @@
  *
  * 「지급 확정」 단추가 서는지는 **서버의 `canConfirm`** 이다 (D-R39). 단추는 상세 머리에 둔다 — 확정은 그 사람의
  * 수업 날짜·미작성을 본 뒤에 하는 일이고, 카드 전체가 누르는 자리라 카드 안에 또 단추를 겹치지 않는다.
- * 확정을 되돌리는 길은 없다 — 창이 그 사실을 말한다.
+ * 확정을 되돌리는 길은 없다 — 창이 그 사실을 말한다. 막힌 까닭은 서버 문장(`confirmBlockedReason`)을 단추 자리에 그대로 적는다.
+ *
+ * W11 M2 — 가산(N-93)은 총액 안에 든 값을 따로 보이고(`bonus` · `bonusTotal`), 확정 뒤에 쓴 리포트는 원래 달을 바꾸지 않고
+ * 다음 미확정 달에 「보정 · M월 회차」 줄로 얹힌다(N-51 · `settle` = correction / late). 확정된 달의 수업 줄은 지급 확정의
+ * 근거 줄(payout_line)에서 온 굳은 값이다. 시급 비공개(N-94)로 가려진 줄은 숨긴 금액 낱말(「비공개」)로 적고 합계는 그대로다(`amountsHidden`).
  */
 'use client';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Banner, Button, Chip, Dialog, Input, Label, Panel, Table, cn, type Column, type Tone } from '@/components/ui';
 import { apiMessage } from '@/api/client';
-import { useConfirmPayout } from '@/api/queries';
-import type { PayoutSheet as PayoutSheetData, PayoutSheetRow } from '@/api/types';
+import { useConfirmPayout, usePayoutDetail } from '@/api/queries';
+import type { PayoutLesson, PayoutSheet as PayoutSheetData, PayoutSheetRow } from '@/api/types';
 import { hhmm, label as dayLabel } from '@/lib/calendar';
 import { MASKED, won } from '@/lib/money';
-import { usePayoutDetail, type PayoutLesson } from './accounting-queries';
 
 export interface PayoutSheetProps {
   data?: PayoutSheetData;
@@ -35,6 +38,8 @@ export interface PayoutSheetProps {
   /** 보는 달 — 화면이 고르고 서버가 센다 */
   month: string;
   onMonthChange: (month: string) => void;
+  /** 왼쪽 합계 카드 밑 — 원문 §56 「추가로 드리는 돈」 자리(페이지가 채운다 · N-93) */
+  below?: ReactNode;
 }
 
 const monthLabel = (ym: string) => `${Number(ym.slice(5))}월`;
@@ -74,16 +79,21 @@ export function PayoutConfirmButton({ row }: { row: PayoutSheetRow }) {
           {/* 굳히는 값은 서버가 준 줄 그대로다 — 창이 다시 세지 않는다 */}
           <dl id={`${id}-sum`} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             <dt className="text-fg-subtle">쓴 수업</dt><dd className="font-bold text-fg">{row.writtenCount}회 · {hours(row.writtenMinutes)}</dd>
+            {row.correctionCount > 0 ? (
+              <><dt className="text-fg-subtle">보정 줄</dt><dd className="font-bold text-fg">{row.correctionCount}회 · {hours(row.correctionMinutes)}</dd></>
+            ) : null}
             <dt className="text-fg-subtle">미작성 · 빠짐</dt>
             <dd className={row.unwrittenCount > 0 ? 'font-bold text-red' : 'text-fg'}>
               {row.unwrittenCount}회{row.unwrittenAmount ? ` · ${won(row.unwrittenAmount)}` : ''}
             </dd>
             <dt className="text-fg-subtle">휴강 · 대상 아님</dt><dd className="text-fg">{row.canceledCount}회 · {row.naCount}회</dd>
+            {row.bonus ? <><dt className="text-fg-subtle">가산</dt><dd className="text-fg">{won(row.bonus)} (총액에 포함)</dd></> : null}
             <dt className="text-fg-subtle">실지급</dt><dd className="font-bold text-fg">{won(row.net)}</dd>
           </dl>
           <p>
-            지금 계산을 그대로 굳힙니다{row.savedDiffers ? ` — 저장돼 있던 ${won(row.savedNet)} 은 덮입니다` : ''}.
-            미작성 리포트는 <b>빠진 채</b> 확정되고, 확정 뒤에는 되돌릴 수 없습니다. 누가·언제 확정했는지 남습니다.
+            지금 계산을 회차 줄과 함께 그대로 굳힙니다{row.savedDiffers ? ` — 저장돼 있던 ${won(row.savedNet)} 은 덮입니다` : ''}.
+            미작성 리포트는 <b>빠진 채</b> 확정되고, 확정 뒤에는 되돌릴 수 없습니다 — 확정 뒤에 쓴 리포트는 다음 달 정산에 보정 줄로 얹힙니다.
+            {row.correctionCount > 0 ? ' 보정 줄은 원래 달이 아니라 이 달 정산으로 지급됩니다(보정 승인).' : ''} 누가·언제 확정했는지 남습니다.
           </p>
           {err ? <Banner tone="danger">{err}</Banner> : null}
         </div>
@@ -110,6 +120,9 @@ function StatusChips({ r }: { r: PayoutSheetRow }) {
         <Chip tone="warning">대기</Chip>
       )}
       {r.noRateCount > 0 ? <Chip tone="danger" title="시급이 없어 못 센 수업이 있습니다 — 시급을 먼저 등록하세요">시급 없음 {r.noRateCount}</Chip> : null}
+      {/* N-51 — 보정 줄(앞선 확정 달 회차가 이 달 정산에 얹힘) · 다음 달 보정(이 달 회차인데 확정 뒤에 씀). 수는 서버가 센다 */}
+      {r.correctionCount > 0 ? <Chip tone="info" title="앞선 확정 달의 회차를 확정 뒤에 써서 이 달 정산에 얹은 줄입니다">보정 {r.correctionCount}</Chip> : null}
+      {r.lateCount > 0 ? <Chip tone="warning" title="이 달 회차인데 확정 뒤에 써서 다음 미확정 달 정산에 보정으로 들어갑니다">다음 달 보정 {r.lateCount}</Chip> : null}
       {r.savedDiffers ? <Chip tone="neutral" title={`저장값 ${won(r.savedNet)}`}>저장값 다름</Chip> : null}
     </span>
   );
@@ -159,17 +172,24 @@ function TotalsCard({ data }: { data: PayoutSheetData }) {
       <div className="flex flex-wrap gap-1.5">
         <Chip tone="info">{num1(data.writtenMinutes)}시간</Chip>
         {data.grossTotal !== null ? <Chip tone="info">강사료 {won(data.grossTotal)}</Chip> : null}
+        {/* 가산은 강사료(총액) 안에 든 값이다 — 따로 더하지 않는다 (N-93) */}
+        {data.bonusTotal ? <Chip tone="info" title="강사료 안에 든 가산 합">가산 {won(data.bonusTotal)}</Chip> : null}
         {data.lateCutTotal !== null ? <Chip tone="danger">차감 {won(-data.lateCutTotal)}</Chip> : null}
         {data.taxTotal !== null ? <Chip tone="danger">세금 {won(-data.taxTotal)}</Chip> : null}
         {data.unwrittenMinutes > 0 ? <Chip tone="warning" title="리포트를 안 써 이 달 정산에서 빠진 시간">보류 {num1(data.unwrittenMinutes)}h</Chip> : null}
+        {data.correctionCount > 0 ? <Chip tone="info" title="앞선 확정 달 회차가 이 달 정산에 얹힌 줄">보정 {data.correctionCount}건</Chip> : null}
       </div>
     </section>
   );
 }
 
+/** 정산 갈래의 빛깔 — 낱말은 서버 `settleLabel`. 보정 줄은 지급되는 줄(파랑), 다음 달 보정은 아직 지급 전(호박) */
 const SETTLE_TONE: Record<PayoutLesson['settle'], Tone> = {
-  written: 'success', unwritten: 'danger', canceled: 'neutral', na: 'neutral', upcoming: 'info',
+  written: 'success', correction: 'info', late: 'warning', unwritten: 'danger', canceled: 'neutral', na: 'neutral', upcoming: 'info',
 };
+
+/** 쓴 수업 · 보정 줄만 돈이 붙는다 — 그 줄이 시급 비공개로 가려졌으면 숨긴 금액 낱말(「비공개」), 아니면 없음(—) */
+const paysOn = (l: PayoutLesson) => l.settle === 'written' || l.settle === 'correction';
 
 /** 오른쪽 상세 — 시급 · 정산 내역 · 수업 날짜(리포트 미작성 포함). 값은 시트의 그 줄과 같은 함수가 셌다 */
 function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }) {
@@ -185,8 +205,26 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
         </span>
       ),
     },
-    { key: 's', head: '정산', width: 120, cell: (l) => <Chip tone={SETTLE_TONE[l.settle]}>{l.settleLabel}</Chip> },
-    { key: 'p', head: '강사료', width: 110, align: 'right', cell: (l) => (l.pay === null ? <span className="text-fg-subtle">—</span> : won(l.pay)) },
+    {
+      key: 's', head: '정산', width: 150, cell: (l) => (
+        <span className="flex flex-wrap items-center gap-1">
+          <Chip tone={SETTLE_TONE[l.settle]}>{l.settleLabel}</Chip>
+          {/* 확정된 달의 줄은 지급 확정 근거 줄에서 온 굳은 값이다 (N-36 ①) — 시급이 바뀌어도 이 값은 안 바뀐다 */}
+          {l.frozen ? <span className="text-[10.5px] text-fg-subtle" title="지급 확정 때 남긴 회차 줄의 값입니다">확정 값</span> : null}
+        </span>
+      ),
+    },
+    {
+      key: 'p', head: '강사료', width: 110, align: 'right',
+      cell: (l) => (l.pay === null
+        ? <span className="text-fg-subtle">{row.amountsHidden && paysOn(l) ? MASKED : '—'}</span>
+        : won(l.pay)),
+    },
+    {
+      // 가산(N-93)은 강사료와 따로 선다 — 두 칸의 합이 그 회차의 총액이다(서버 값 그대로 · 화면이 더하지 않는다)
+      key: 'b', head: '가산', width: 90, align: 'right',
+      cell: (l) => (l.bonus ? <span className="text-fg">+{won(l.bonus)}</span> : <span className="text-fg-subtle">—</span>),
+    },
     {
       key: 'l', head: '지각 차감', width: 100, align: 'right',
       cell: (l) => (l.lateCut ? <span className="font-bold text-red">{won(-l.lateCut)}</span> : <span className="text-fg-subtle">—</span>),
@@ -200,7 +238,12 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
           <h3 className="text-[15px] font-bold text-fg">{row.staffName} · {monthLabel(row.yearMonth)} 정산</h3>
           <div className="mt-1"><StatusChips r={row} /></div>
         </div>
-        <PayoutConfirmButton row={row} />
+        {row.canConfirm ? (
+          <PayoutConfirmButton row={row} />
+        ) : row.confirmBlockedReason ? (
+          // 단추가 서지 않는 까닭 — 서버 문장 그대로 (D-R18 · D-R39)
+          <p className="max-w-[260px] text-right text-[11.5px] text-fg-subtle">{row.confirmBlockedReason}</p>
+        ) : null}
       </header>
 
       {/* 정산 내역 — 시트의 줄 그대로다 (화면이 더하지 않는다) */}
@@ -211,8 +254,18 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
           {row.unwrittenCount}회{row.unwrittenAmount ? ` · ${won(row.unwrittenAmount)} 빠짐` : ''}
         </dd>
         <dt className="text-fg-subtle">휴강 · 대상 아님</dt><dd className="text-fg">휴강 {row.canceledCount} · 대상 아님 {row.naCount}</dd>
+        <dt className="text-fg-subtle">보정</dt>
+        <dd className="text-fg">
+          {row.correctionCount > 0 ? `보정 줄 ${row.correctionCount}회 · ${hours(row.correctionMinutes)}` : '보정 줄 없음'}
+          {row.lateCount > 0 ? ` · 다음 달 보정 ${row.lateCount}회` : ''}
+        </dd>
         <dt className="text-fg-subtle">총액</dt><dd className="text-fg">{won(row.gross)}</dd>
-        <dt className="text-fg-subtle">지각 차감</dt><dd className={row.lateCut ? 'font-bold text-red' : 'text-fg'}>{row.lateCut === null || row.lateCut === undefined ? MASKED : won(-row.lateCut)}</dd>
+        <dt className="text-fg-subtle">가산</dt>
+        <dd className="text-fg">{row.bonus === null ? MASKED : row.bonus > 0 ? `${won(row.bonus)} (총액에 포함)` : '없음'}</dd>
+        <dt className="text-fg-subtle">지각 차감</dt>
+        <dd className={row.lateCut ? 'font-bold text-red' : 'text-fg'}>
+          {row.lateCut === null || row.lateCut === undefined ? MASKED : won(-row.lateCut)}
+        </dd>
         {/* 소득세·지방세는 각각 절사한 값이다 (D-15) — 화면이 더해 한 칸으로 접지 않는다 */}
         <dt className="text-fg-subtle">세금</dt><dd className="text-fg">소득세 {won(row.incomeTax)} · 지방세 {won(row.localTax)}</dd>
         <dt className="text-fg-subtle">실지급</dt><dd className="font-bold text-fg">{won(row.net)}</dd>
@@ -246,7 +299,7 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
   );
 }
 
-export function PayoutSheet({ data, loading, month, onMonthChange }: PayoutSheetProps) {
+export function PayoutSheet({ data, loading, month, onMonthChange, below }: PayoutSheetProps) {
   const id = useId();
   const rows = data?.rows ?? [];
   const [staffId, setStaffId] = useState<number | null>(null);
@@ -280,6 +333,10 @@ export function PayoutSheet({ data, loading, month, onMonthChange }: PayoutSheet
         <Banner tone="neutral" className="mb-3">
           금액은 대표만 봅니다 — 서버가 값을 내려보내지 않으므로 여기에도 없습니다. 회차 수는 그대로 보입니다.
         </Banner>
+      ) : data?.amountsHidden ? (
+        <Banner tone="neutral" className="mb-3">
+          시급 비공개가 켜져 있어 강사별 시급 · 금액은 「{MASKED}」로 보입니다 — 합계 카드는 그대로입니다.
+        </Banner>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -300,6 +357,7 @@ export function PayoutSheet({ data, loading, month, onMonthChange }: PayoutSheet
             </ul>
           )}
           {data ? <TotalsCard data={data} /> : null}
+          {below}
         </div>
 
         <div className="min-w-0">

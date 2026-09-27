@@ -17,6 +17,9 @@ const card = (over: Partial<InvBoard['columns'][number]['cards'][number]> = {}) 
 
 const base: InvBoard = {
   canSeeAmounts: true,
+  // §53 다섯 칸(W11 · N-28 ②)은 이 부품이 그리지 않는다 — 같은 응답의 다른 칸이다
+  stages: [],
+  candidateMonth: '2026-08',
   columns: [
     { key: 'draft', label: '청구서 작성', sub: '아직 안 만들었습니다', count: 1, amount: 150_000, cards: [card({ invId: 9, studentName: '서지호', title: '진단고사 + 1차 상담', stateLabel: '작성 중', amount: 150_000, paid: 0, paidPercent: null })] },
     { key: 'sent', label: '청구서 전달', sub: '보냈습니다 · 입금을 기다립니다', count: 0, amount: 0, cards: [] },
@@ -71,7 +74,7 @@ it('칸 합계도 서버 값이다 — 화면이 카드를 더하지 않는다 (
   // 카드는 하나인데 서버가 5,400,000 이라 했다면 그것이 맞다 — 안 보이는 건까지 센 값이다
   d.columns[3].amount = 5_400_000;
   const v = render(<InvoiceBoard data={d} />);
-  expect(colOf(v, '입금 기록').getByText('5,400,000원')).toBeTruthy();
+  expect(colOf(v, '입금 기록').getByText('₩5,400,000')).toBeTruthy();
 });
 
 /*

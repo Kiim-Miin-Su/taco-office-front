@@ -14,7 +14,7 @@
  * 누계·상태 전이·초과 거절은 **서버가 한다.** 화면은 더하지 않고, 거절 문구를 그대로 그린다.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useCreatePayment, useDeletePayment } from '@/api/queries';
 import type { Invoice, Payment, PaymentCreate } from '@/api/types';
@@ -29,9 +29,22 @@ export type PayMethod = NonNullable<PaymentCreate['method']>;
 /** 수단 낱말 — 청구서에 붙이는 입금과 「+ 결제 등록」이 같은 표를 쓴다 */
 export const METHOD_LABEL: Record<PayMethod, string> = { transfer: '계좌', cash: '현금' };
 
-export function PaymentRecorder({ invoices, payments }: { invoices: Invoice[]; payments: Payment[] }) {
+export function PaymentRecorder({ invoices, payments, initialInvId = null }: {
+  invoices: Invoice[];
+  payments: Payment[];
+  /**
+   * 처음 고를 청구서 — §53 ③ 「입금 완료 →」이 그 청구서로 연다(W11 · N-28 ②). 금액 · 입금일은 사람이 적는다.
+   * 다른 청구서로 다시 열 때는 부르는 쪽이 `key` 를 바꿔 새로 연다.
+   */
+  initialInvId?: number | null;
+}) {
   const open = invoices.filter((i) => OPEN_STATES.has(i.state));
-  const [pickedId, setPickedId] = useState<number | null>(null);
+  const [pickedId, setPickedId] = useState<number | null>(initialInvId);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // 다른 탭에서 건너왔으면 이 칸을 화면에 부른다 — 기간 요약 · 달력 아래에 있어 안 보일 수 있다
+  useEffect(() => {
+    if (initialInvId !== null) rootRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [initialInvId]);
   const picked = invoices.find((i) => i.id === pickedId) ?? null;
   const lines = picked ? payments.filter((p) => p.invId === picked.id) : [];
 
@@ -61,7 +74,7 @@ export function PaymentRecorder({ invoices, payments }: { invoices: Invoice[]; p
   };
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
+    <div ref={rootRef} className="flex flex-col gap-4 lg:flex-row">
       <Panel
         className="lg:w-[340px] lg:shrink-0"
         title={`받을 돈 · ${open.length}건`}
@@ -125,6 +138,19 @@ export function PaymentRecorder({ invoices, payments }: { invoices: Invoice[]; p
                 </b>
               </span>
             </div>
+
+            {/* 분납 일정(N-79) — 회차 · 예정일 · 금액과 「받음」(누적 입금이 그 회차까지 채웠는가)은 서버 값이다. 화면이 더하지 않는다 */}
+            {picked.installments.length ? (
+              <ol aria-label="분납 일정" className="mb-3 flex flex-wrap gap-1.5">
+                {picked.installments.map((x) => (
+                  <li key={x.seq}>
+                    <Chip size="compact" tone={x.covered ? 'success' : x.seq === picked.nextInstallmentSeq ? (picked.overdueDays > 0 ? 'danger' : 'warning') : 'neutral'}>
+                      {x.seq}회차 · {x.dueOn} · {won(x.amount)}{x.covered ? ' · 받음' : ''}
+                    </Chip>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
 
             {lines.length === 0 ? (
               <p className="mb-3 px-1 py-3 text-center text-[12.5px] text-fg-subtle">아직 들어온 줄이 없습니다.</p>

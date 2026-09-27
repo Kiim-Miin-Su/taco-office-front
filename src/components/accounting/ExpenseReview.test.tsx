@@ -65,9 +65,9 @@ it('분류별 합계는 화면이 더하지 않는다 — 줄이 몇 개든 서�
     undefined,
     [{ category: 'ent', categoryLabel: '접대비', sum: 1400000 }],
   );
-  expect(view.container.textContent).toContain('1,400,000원');
+  expect(view.container.textContent).toContain('₩1,400,000');
   // 대기 중인 145,000 은 서버가 안 보냈으니 합계에도 없다
-  expect(view.container.textContent).not.toContain('1,545,000원');
+  expect(view.container.textContent).not.toContain('₩1,545,000');
 });
 
 it('서버가 합계를 안 보내면 없다고 말한다 — 줄에서 다시 세지 않는다', () => {

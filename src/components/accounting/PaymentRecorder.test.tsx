@@ -21,7 +21,8 @@ const inv = (over: Partial<Invoice> = {}): Invoice => ({
   id: 9, studentId: 11, studentName: '고은설', grade: 'G8', yearMonth: '2026-08', title: '8월 수업료',
   amount: 520000, paidAmount: 200000, remaining: 320000, state: 'partial', stateLabel: '일부 납부',
   invType: 'tuition', invTypeLabel: '수업료 청구',
-  issuedOn: '2026-08-01', dueOn: '2026-08-21', paidAt: null, overdueDays: 0, lines: [], sentAt: null, canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null, ...over,
+  issuedOn: '2026-08-01', dueOn: '2026-08-21', paidAt: null, overdueDays: 0, lines: [], sentAt: null, canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null,
+  installments: [], nextDueOn: '2026-08-21', nextInstallmentSeq: null, ...over,
 });
 const line: Payment = {
   id: 3, invId: 9, studentId: 11, studentName: '고은설', amount: 200000, paidOn: '2026-08-23',
@@ -35,14 +36,14 @@ afterEach(() => {
   api.defaults.adapter = originalAdapter; useSession.getState().signOut();
 });
 
-function setup(invoices: Invoice[], payments: Payment[], adapter?: typeof api.defaults.adapter) {
+function setup(invoices: Invoice[], payments: Payment[], adapter?: typeof api.defaults.adapter, initialInvId: number | null = null) {
   useSession.getState().signIn('fixture', me);
   if (adapter) api.defaults.adapter = adapter;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   clients.push(client);
   return render(
     <QueryClientProvider client={client}>
-      <PaymentRecorder invoices={invoices} payments={payments} />
+      <PaymentRecorder invoices={invoices} payments={payments} initialInvId={initialInvId} />
     </QueryClientProvider>,
   );
 }
@@ -53,7 +54,7 @@ it('잔액은 placeholder 로만 보이고 value 는 비어 있다 — 확인하
   const amount = view.getByLabelText('이번에 들어온 금액') as HTMLInputElement;
   expect(amount.value).toBe('');
   expect(amount.placeholder).toBe('320000');
-  expect(view.container.textContent).toContain('320,000원');
+  expect(view.container.textContent).toContain('₩320,000');
   expect(view.getByRole('button', { name: '입금 기록' }).hasAttribute('disabled')).toBe(true);
 });
 
@@ -101,4 +102,32 @@ it('완납된 청구서는 고를 수 없고, 줄을 더하거나 지우는 자�
   const view = setup([paid], [line]);
   expect(view.queryByRole('button', { name: /고은설/ })).toBeNull();
   expect(view.container.textContent).toContain('다 받았습니다');
+});
+
+/**
+ * §53 ③ 「입금 완료 →」(W11 · N-28 ②) — 입금 기록을 **그 청구서를 고른 채** 연다. 금액 · 입금일은 여전히 사람이 적는다.
+ */
+it('처음 고를 청구서를 받으면 그 청구서가 골라진 채 열린다 — 금액 칸은 여전히 비어 있다', () => {
+  const view = setup([inv({ id: 8, studentName: '강라율' }), inv()], [line], undefined, 9);
+  expect(view.getByRole('button', { name: /고은설/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(view.getByRole('button', { name: /강라율/ }).getAttribute('aria-pressed')).toBe('false');
+  expect(view.container.textContent).toContain('입금 기록 · 고은설');
+  expect((view.getByLabelText('이번에 들어온 금액') as HTMLInputElement).value).toBe('');
+});
+
+/** 분납 일정(N-79) — 회차 · 예정일 · 금액 · 「받음」은 서버 값 그대로다. 지금 기한인 회차는 연체면 붉다 */
+it('분납 청구서를 고르면 회차 일정이 서고, 채운 회차는 「받음」 · 지금 회차는 연체 빛깔이다', () => {
+  const split = inv({
+    amount: 520000, paidAmount: 200000, remaining: 320000, overdueDays: 3, nextDueOn: '2026-08-18', nextInstallmentSeq: 2,
+    installments: [
+      { seq: 1, dueOn: '2026-08-05', amount: 200000, covered: true },
+      { seq: 2, dueOn: '2026-08-18', amount: 160000, covered: false },
+      { seq: 3, dueOn: '2026-08-31', amount: 160000, covered: false },
+    ],
+  });
+  const view = setup([split], [line], undefined, 9);
+  const plan = view.getByRole('list', { name: '분납 일정' });
+  const chips = [...plan.querySelectorAll('li')].map((li) => li.textContent);
+  expect(chips).toEqual(['1회차 · 2026-08-05 · ₩200,000 · 받음', '2회차 · 2026-08-18 · ₩160,000', '3회차 · 2026-08-31 · ₩160,000']);
+  expect(plan.querySelectorAll('li')[1].firstElementChild!.className).toContain('text-red');
 });

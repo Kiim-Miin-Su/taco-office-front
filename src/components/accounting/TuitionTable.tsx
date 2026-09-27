@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: TuitionTable.tsx — TuitionTableProps, TuitionTable (component)
+ * 목적: TuitionTable.tsx — TuitionTableProps, MonthCloseControls, TuitionTable (component)
  * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -52,8 +52,11 @@ export interface TuitionTableProps {
   closeError?: string | null;
 }
 
-/** 「N월 마감」 배지 + 「마감하기」·「마감 해제」 — 낱말·판정 전부 서버(`close`·`canClose`·`canReopen`) */
-function MonthCloseControls({ data, onCloseMonth, onReopenMonth, pending = false, error }: {
+/**
+ * 「N월 마감」 배지 + 「마감하기」·「마감 해제」 — 낱말·판정 전부 서버(`close`·`canClose`·`canReopen`).
+ * W11(N-37 ①) — 단추는 「정리 · 기준 › 월 마감」에서 선다(원문 연동 「월 마감 시 정리·기준 탭에서 확정」). §54 표는 배지만 그린다(단추 콜백을 안 받는다).
+ */
+export function MonthCloseControls({ data, onCloseMonth, onReopenMonth, pending = false, error }: {
   data: Tuition; onCloseMonth?: () => void; onReopenMonth?: (reason: string) => void; pending?: boolean; error?: string | null;
 }) {
   const id = useId();
@@ -295,7 +298,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
               label={data?.deductedCount ? `결강 · 휴강 (차감 ${data.deductedCount})` : '결강 · 휴강'}
               value={n(data?.canceledCount)} tone="warning"
             />
-            {/* 아직 응답이 없으면 「—」다 — 「가려짐」은 **권한이 없어서 서버가 안 줬다**는 뜻이라
+            {/* 아직 응답이 없으면 「—」다 — 숨긴 금액 낱말(「비공개」)은 **권한이 없어서 서버가 안 줬다**는 뜻이라
                 불러오는 중에 쓰면 거짓말이 된다 (54-01 · 같은 페이지 머리 `Head` 와 같은 규칙) */}
             <HeadBox label="지금까지 금액" value={won(data?.doneAmount, data ? {} : { empty: '—' })} />
             <HeadBox label="다음 달로 넘길 돈" value={won(data?.carryAmount, data ? {} : { empty: '—' })} tone="warning" />

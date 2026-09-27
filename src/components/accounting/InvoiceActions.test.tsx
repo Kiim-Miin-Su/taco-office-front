@@ -16,6 +16,7 @@ const base: Invoice = {
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
   sentAt: null, canDeliver: true, canVoid: true, voidBlockedReason: null, voidReason: null, lines: [],
+  installments: [], nextDueOn: null, nextInstallmentSeq: null,
 };
 
 const originalAdapter = api.defaults.adapter;

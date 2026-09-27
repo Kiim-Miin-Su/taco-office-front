@@ -25,9 +25,14 @@ export interface ExpenseCreateButtonProps {
   categories: ExpenseCategory[];
   /** 등록이 끝난 뒤 — 부모가 목록을 다시 읽는다(훅이 회계 갈래를 버린다) */
   onDone?: (made: Expense) => void;
+  /**
+   * 단추 · 창 · 확정 단추의 낱말 — 회계 탭은 「등록」, 서랍의 직원 자리는 「신청」(N-52 · 「+ 지출 신청」).
+   * 보내는 본문과 서버 판정(언제나 심사 대기)은 같다.
+   */
+  verb?: '등록' | '신청';
 }
 
-export function ExpenseCreateButton({ categories, onDone }: ExpenseCreateButtonProps) {
+export function ExpenseCreateButton({ categories, onDone, verb = '등록' }: ExpenseCreateButtonProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [spendOn, setSpendOn] = useState(todayKst());
@@ -75,15 +80,15 @@ export function ExpenseCreateButton({ categories, onDone }: ExpenseCreateButtonP
 
   return (
     <>
-      <Button type="button" size="sm" variant="secondary" onClick={openDialog}>+ 지출 등록</Button>
+      <Button type="button" size="sm" variant="secondary" onClick={openDialog}>+ 지출 {verb}</Button>
       <Dialog
         open={open}
         onClose={close}
-        title="지출 등록"
+        title={`지출 ${verb}`}
         footer={(
           <>
             <Button type="button" variant="ghost" onClick={close} disabled={pending}>취소 (Esc)</Button>
-            <Button type="button" onClick={() => void submit()} disabled={!ready}>{pending ? '올리는 중…' : '등록'}</Button>
+            <Button type="button" onClick={() => void submit()} disabled={!ready}>{pending ? '올리는 중…' : verb}</Button>
           </>
         )}
       >

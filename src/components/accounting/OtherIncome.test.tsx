@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import type { OtherIncome as OtherIncomeData } from '@/api/types';
+import { MASKED, won } from '@/lib/money';
 import { OtherIncome } from './OtherIncome';
 
 const base: OtherIncomeData = {
@@ -68,8 +69,8 @@ it('건수·금액·받음은 서버 값 그대로다 — 화면이 items 를 �
   // 줄이 둘뿐인데 서버가 6건이라 했다면 그것이 맞다 — 안 보이는 건까지 센 값이다
   const v = render(<OtherIncome data={d} />);
   expect(v.getByText('6건')).toBeTruthy();
-  expect(v.getByText('8,400,000원')).toBeTruthy();
-  expect(v.getByText('받음 800,000원')).toBeTruthy();
+  expect(v.getByText('₩8,400,000')).toBeTruthy();
+  expect(v.getByText('받음 ₩800,000')).toBeTruthy();
 });
 
 it('「청구 안 함」은 0 이면 뱃지를 달지 않는다 — 아무 말도 하지 않는 뱃지를 세우지 않는다', () => {
@@ -110,7 +111,7 @@ it('금액을 못 보면 배너로 알리고 **건수는 그대로 보인다** (
   expect(v.getByText(/금액은 대표만 봅니다/)).toBeTruthy();
   expect(v.getByText('6건')).toBeTruthy();
   expect(v.getByText('청구 안 함 2')).toBeTruthy();
-  expect(v.queryByText('8,400,000원')).toBeNull();
+  expect(v.queryByText('₩8,400,000')).toBeNull();
 });
 
 /**
@@ -127,11 +128,11 @@ it('눈금 셋을 컷의 낱말로 보여 주고 고른 것을 알린다', () =>
 
 it('펼치면 **날짜 묶음 머리**가 서고 그 머리의 숫자도 서버 값이다', () => {
   const d = clone();
-  // 줄 안에 두 건뿐인데 서버가 묶음을 「2건 · 5,400,000원」이라 했다면 그것이 맞다
+  // 줄 안에 두 건뿐인데 서버가 묶음을 「2건 · ₩5,400,000」이라 했다면 그것이 맞다
   const v = render(<OtherIncome data={d} />);
   fireEvent.click(v.getByRole('button', { name: /컨설팅비/ }));
   expect(v.getByText('2026년 8월')).toBeTruthy();
-  expect(v.getByText('2건 · 5,400,000원')).toBeTruthy();
+  expect(v.getByText('2건 · ₩5,400,000')).toBeTruthy();
 });
 
 it('묶음이 여럿이면 여럿을 그린다 — 화면이 날짜로 다시 묶지 않는다', () => {
@@ -155,4 +156,20 @@ it('줄의 점 색은 §55 분류와 같은 토큰을 쓴다', () => {
   expect(dotOf('컨설팅비')).toContain('bg-pink');
   expect(dotOf('진단고사 + 상담 비용')).toContain('bg-teal');
   expect(dotOf('MAP + CAT')).toContain('bg-orange');
+});
+
+it('컨설팅 비공개(N-94)로 가려진 묶음 · 청구서 금액은 숨긴 금액 낱말 한 벌(「비공개」) — 접힌 줄의 합계는 그대로 (W11 D)', () => {
+  const d = clone();
+  const cons = d.rows[0]!;
+  cons.groups = cons.groups.map((g) => ({ ...g, amount: null, paid: null, items: g.items.map((it) => ({ ...it, amount: null, paid: null })) }));
+  const v = render(<OtherIncome data={d} />);
+  // 접힌 줄의 합계는 서버가 가리지 않은 값 그대로
+  expect(v.getByText(won(8_400_000))).toBeTruthy();
+  fireEvent.click(v.getByText('컨설팅비'));
+  const text = (v.container.textContent ?? '').replace(/\s+/g, ' ');
+  expect(text).toContain(`2건 · ${MASKED}`);
+  expect(text).toContain(`받음 ${MASKED}`);
+  expect(text).not.toContain(won(4_800_000));
+  // 권한으로 가린 칸과 스위치로 가린 줄이 다른 낱말이던 옛 표기(「가려짐」)는 남지 않는다
+  expect(text).not.toContain('가려짐');
 });
