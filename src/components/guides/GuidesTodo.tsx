@@ -7,7 +7,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import type { Guide, GuideMissing, Guides, PerLessonNotice, ZoomNoticeBatchResult } from '@/api/types';
+import type { Guide, GuideDeadline, GuideMissing, Guides, PerLessonNotice, ZoomNoticeBatchResult } from '@/api/types';
 import { useAssignZoom, useCreateGuideDraft, useMeta, useSendGuide, useSendZoomNotice, useSendZoomNoticeBatch } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import { Banner } from '@/components/ui/Banner';
@@ -41,14 +41,41 @@ type ParentNotice = PerLessonNotice['notices'][number];
 type OnceRow = { kind: 'guide'; key: string; guide: Guide } | { kind: 'missing'; key: string; missing: GuideMissing };
 
 /**
- * 기한 칸의 긴급도 낱말 — 원문 §43 「마감 지남」·「오늘 안에」 (g4 §43-10).
- * 판정은 서버 overdueDays(지난 날 수) 그대로이고, 「오늘 안에」는 기한 날짜가 오늘인 줄이다.
+ * 원문 §43 「하루 · 6시간 · 3시간」 사다리 (N-89 · W11) — 칸 · 지남 · 「N시간 남음」은 서버 `deadline` 그대로다.
+ * 지난 칸은 분홍 ✕, 남은 칸은 이름이다(원문 컷 모양). 화면은 날짜 · 시각을 빼지 않는다(D-R37).
  */
-function DueCell({ overdueDays, dueOn }: { overdueDays: number; dueOn: string | null | undefined }) {
-  if (overdueDays > 0) return <Chip tone="danger">{`마감 지남 · ${overdueDays}일`}</Chip>;
-  if (dueOn && dueOn === todayKst()) return <Chip tone="warning">오늘 안에</Chip>;
-  return <span className="text-fg-subtle">{dueOn ?? '—'}</span>;
+function LadderCell({ deadline }: { deadline: GuideDeadline | null }) {
+  if (!deadline) return <span className="text-fg-subtle">—</span>;
+  return (
+    <div className="flex flex-col items-center gap-1" data-testid="guide-ladder">
+      <div className="flex gap-1">
+        {deadline.ladder.map((step) => (
+          <span key={step.key}
+            aria-label={step.passed ? `${step.label} 지남` : `${step.label} 남음`}
+            className={step.passed
+              ? 'inline-flex h-6 w-12 items-center rounded-md border border-red/30 bg-red/10 px-1.5 text-[11px] font-bold text-red'
+              : 'inline-flex h-6 w-12 items-center rounded-md border border-line bg-card px-1.5 text-[11px] font-bold text-fg-2'}>
+            {step.passed ? '×' : step.label}
+          </span>
+        ))}
+      </div>
+      <span className="text-[11px] font-bold text-fg-subtle">{deadline.leftLabel}</span>
+    </div>
+  );
 }
+
+/** 상태 칸의 긴급도 낱말 — 원문 §43 「마감 지남」(붉은 칩) · 「오늘 안에」(주황 칩). 낱말은 서버 urgencyLabel */
+function UrgencyChip({ deadline }: { deadline: GuideDeadline | null }) {
+  if (!deadline?.urgencyLabel) return null;
+  return <Chip styleKind="solid" tone={deadline.urgency === 'overdue' ? 'danger' : 'warning'}>{deadline.urgencyLabel}</Chip>;
+}
+
+/** 줄 바탕 — 원문 §43 마감 지난 줄은 붉은 테 · 오늘 안에 줄은 옅은 주황(판정은 서버 urgency) */
+const URGENT_ROW: Record<string, string | undefined> = {
+  overdue: 'bg-red/5 outline outline-1 -outline-offset-1 outline-red/40',
+  today: 'bg-amber/5',
+  none: undefined,
+};
 
 /** 학부모 안내 줄(PNOTI parent)이 아직 없을 때 — 강사 줌 안내를 남기는 순간 학생별로 만들어진다 */
 const PARENT_NO_ROW = '학부모 안내 줄이 아직 없습니다 — 강사 안내를 남기면 학생별로 만들어집니다';
@@ -157,7 +184,9 @@ function PerLessonRow({ lesson, assignmentOpen, onAssign }: {
    */
   const send = useSendZoomNotice();
   return (
-    <article className="rounded-xl border border-line bg-card px-4 py-3">
+    // 원문 §43 — 계정이 아직 없는 줄은 붉은 왼쪽 막대 · 옅은 분홍 바탕(판정은 서버 zoomAssigned)
+    <article data-zoom-missing={lesson.zoomAssigned ? undefined : 'true'}
+      className={lesson.zoomAssigned ? 'rounded-xl border border-line bg-card px-4 py-3' : 'rounded-xl border border-line border-l-4 border-l-red bg-red/5 px-4 py-3'}>
       <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[78px_minmax(180px,1fr)_180px_290px]">
         <div>
           <b className="block text-[14px]">{hm(lesson.startMin)}</b>
@@ -281,6 +310,10 @@ export function GuidesTodo({ data }: { data: Guides }) {
     ...missingRows.map((missing) => ({ kind: 'missing' as const, key: `m-${missing.sourceOccurrenceId}-${missing.studentId}`, missing })),
     ...data.guides.filter((guide) => guide.pending).map((guide) => ({ kind: 'guide' as const, key: `g-${guide.id}`, guide })),
   ];
+  const firstDeadline = onceRows
+    .map((row) => (row.kind === 'guide' ? row.guide.deadline : row.missing.deadline))
+    .find((deadline): deadline is GuideDeadline => Boolean(deadline));
+  const ladderHead = firstDeadline ? firstDeadline.ladder.map((step) => step.label).join(' · ') : '남은 시간';
   const startDraft = (missing: GuideMissing) => {
     if (actionLock.current || createDraft.isPending) return;
     createDraft.mutate(
@@ -296,7 +329,9 @@ export function GuidesTodo({ data }: { data: Guides }) {
       width: 112,
       cell: (row) => (
         <div className="flex flex-col items-start gap-1">
-          {row.kind === 'guide' ? <GuideStateChip state={row.guide.state} /> : <Chip tone="danger">안내 없음</Chip>}
+          {/* 원문 §43 — 긴급도(마감 지남 · 오늘 안에)가 먼저, 이미 있는 안내는 그 상태가 뒤에 선다 */}
+          <UrgencyChip deadline={row.kind === 'guide' ? row.guide.deadline : row.missing.deadline} />
+          {row.kind === 'guide' ? <GuideStateChip state={row.guide.state} /> : null}
           <GuideReasonChip reason={row.kind === 'guide' ? row.guide.reason : (row.missing.reason as Guide['reason'])} />
         </div>
       ),
@@ -310,7 +345,8 @@ export function GuidesTodo({ data }: { data: Guides }) {
         return (
           <span>
             <b className="block text-fg">{item.studentName ?? '학생 미상'}</b>
-            <span className="text-[11px] text-fg-subtle">{item.teacherName ?? '강사 미정'}</span>
+            {/* 원문 §43 「Megan 강사」 */}
+            <span className="text-[11px] text-fg-subtle">{item.teacherName ? `${item.teacherName} 강사` : '강사 미정'}</span>
           </span>
         );
       },
@@ -320,11 +356,14 @@ export function GuidesTodo({ data }: { data: Guides }) {
       head: '수업',
       width: 180,
       cell: (row) => {
+        const item = row.kind === 'guide' ? row.guide : row.missing;
         const on = row.kind === 'guide' ? (row.guide.eventOn ?? row.guide.dueOn) : row.missing.eventOn;
+        // 원문 §43 「08-21 16:00」 굵게 · 아래 「MAP Reading · 3호」 — 시각은 서버 startMin, 날짜는 서버 eventOn
+        const when = on ? [on.slice(5), item.startMin != null ? hm(item.startMin) : null].filter(Boolean).join(' ') : '날짜 미정';
         return (
           <span>
-            <b className="block text-fg">{on ?? '날짜 미정'}</b>
-            <span className="text-[11px] text-fg-subtle">{guideLessonLabel(row.kind === 'guide' ? row.guide : row.missing)}</span>
+            <b className="block text-fg">{when}</b>
+            <span className="text-[11px] text-fg-subtle">{guideLessonLabel(item, { time: false })}</span>
           </span>
         );
       },
@@ -336,20 +375,17 @@ export function GuidesTodo({ data }: { data: Guides }) {
         row.kind === 'guide' ? (
           <span className="line-clamp-2 min-w-0 max-w-md text-fg-subtle [overflow-wrap:anywhere]">{row.guide.body ?? '아직 쓰지 않았습니다'}</span>
         ) : (
-          <span className="text-fg-subtle">아직 만들지 않았습니다</span>
+          // 원문 §43 안내 칸 「안내 없음」 그대로
+          <span className="text-[13px] text-fg">안내 없음</span>
         ),
     },
     {
-      key: 'due',
-      head: '기한',
-      width: 130,
-      cell: (row) =>
-        row.kind === 'guide' ? (
-          <DueCell overdueDays={row.guide.overdueDays} dueOn={row.guide.dueOn} />
-        ) : (
-          // 안내 기한 = 그 수업 날 (서버가 초안의 due_on 을 수업 날로 둔다)
-          <DueCell overdueDays={row.missing.overdueDays} dueOn={row.missing.eventOn} />
-        ),
+      key: 'ladder',
+      // 머리 낱말도 서버 사다리 칸 이름이다(원문 「하루 · 6시간 · 3시간」)
+      head: ladderHead,
+      width: 190,
+      align: 'center',
+      cell: (row) => <LadderCell deadline={row.kind === 'guide' ? row.guide.deadline : row.missing.deadline} />,
     },
     {
       key: 'action',
@@ -361,7 +397,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
             && createDraft.variables?.sourceOccurrenceId === row.missing.sourceOccurrenceId
             && createDraft.variables.studentId === row.missing.studentId;
           return (
-            <Button size="sm" variant="ghost" disabled={createDraft.isPending || Boolean(drafted)}
+            <Button size="sm" variant="primary" disabled={createDraft.isPending || Boolean(drafted)}
               aria-label={`${row.missing.studentName} 안내 작성`} onClick={() => startDraft(row.missing)}>
               {creating ? '초안 만드는 중…' : '안내 작성'}
             </Button>
@@ -384,11 +420,11 @@ export function GuidesTodo({ data }: { data: Guides }) {
   const perLessonTodo = data.perLesson.filter((lesson) => !lesson.parentDeliveryRecorded || !lesson.teacherDeliveryRecorded).length;
   /*
    * 원문 §43 매번 머리 오른쪽 「강사 9명 한 번에」 (wave 6 §43-6). N·누를 수 있는지·막힌 이유는 서버 zoomBatch 그대로다 —
-   * 화면이 perLesson 을 다시 세면 단추의 N 과 서버가 실제로 고르는 회차가 갈린다(D-R37 · D-R39). 옛 응답(칸 없음)이면 서지 않는다.
+   * 화면이 perLesson 을 다시 세면 단추의 N 과 서버가 실제로 고르는 회차가 갈린다(D-R37 · D-R39). 칸은 필수다(W11 7-3 ②).
    */
   const zoomBatch = data.zoomBatch;
   const batch = useSendZoomNoticeBatch();
-  const batchAction = zoomBatch ? (
+  const batchAction = (
     <>
       {!zoomBatch.canSend && zoomBatch.blockedReason ? (
         <span className="max-w-xs text-right text-[11px] text-fg-subtle">{zoomBatch.blockedReason}</span>
@@ -403,7 +439,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
         {batch.isPending ? '보내는 중…' : `강사 ${zoomBatch.teacherCount}명 한 번에`}
       </Button>
     </>
-  ) : null;
+  );
 
   return (
     <div className="space-y-4">
@@ -439,22 +475,27 @@ export function GuidesTodo({ data }: { data: Guides }) {
           <span className="flex flex-wrap items-center gap-2">
             <span className="inline-flex rounded-md bg-primary px-2 py-1 text-[11px] font-bold text-white">한 번</span>
             <span>
-              신규 학생 · 강사 교체 — <b id="guide-once-title">수업 안내와 교재</b>를 한 번 보냅니다
+              신규 학생 · 강사 교체 — <b id="guide-once-title" className="rounded-md bg-primary px-1.5 py-0.5 text-white">수업 안내와 교재</b>를 한 번 보냅니다
             </span>
             <b className="ml-auto text-[13px]">{`${onceRows.length}건`}</b>
           </span>
         </Banner>
         <Panel className="mt-2">
-          <Table columns={guideColumns} rows={onceRows} rowKey={(row) => row.key} empty="처리할 한 번 안내가 없습니다." />
+          <Table columns={guideColumns} rows={onceRows} rowKey={(row) => row.key} empty="처리할 한 번 안내가 없습니다."
+            rowClassName={(row) => URGENT_ROW[(row.kind === 'guide' ? row.guide.deadline : row.missing.deadline)?.urgency ?? 'none']} />
         </Panel>
       </section>
 
       <section aria-labelledby="guide-each-title">
         <Banner tone="warning">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex rounded-md bg-amber px-2 py-1 text-[11px] font-bold text-white">매번</span>
-            <span>온라인 수업은 수업마다 계정을 배정하고 학부모와 강사 양쪽에 안내합니다.</span>
-            <b className="ml-auto text-[13px]">{`처리할 것 ${perLessonTodo}`}</b>
+            {/* 원문 §43 매번 띠 — 주황 칩 · 「온라인 수업은 [수업마다] 계정을 배정하고 [학부모와 강사 양쪽]에 보냅니다」 · 빨간 「처리할 것 N」 */}
+            <span className="inline-flex rounded-md bg-orange px-2 py-1 text-[11px] font-bold text-white">매번</span>
+            <span>
+              온라인 수업은 <b className="rounded-md bg-orange px-1.5 py-0.5 text-white">수업마다</b> 계정을 배정하고{' '}
+              <b className="rounded-md bg-orange px-1.5 py-0.5 text-white">학부모와 강사 양쪽</b>에 보냅니다
+            </span>
+            <b className="ml-auto text-[13px] text-red">{`처리할 것 ${perLessonTodo}`}</b>
           </span>
         </Banner>
         {/* 강사 안내는 앱 안 알림이 전달이다(외부 채널 없음 — 막힌 것이 아니다). 막힌 이유는 학부모 채널 설정이 없을 때만 서버가 준다 (DQ3) */}

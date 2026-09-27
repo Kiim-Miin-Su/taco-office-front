@@ -33,11 +33,21 @@ export function GuideKindChip({ guide }: { guide: Pick<Guide, 'reason' | 'kindLa
   return <Chip styleKind="dot" tone={guide.reason === 'teacher_change' ? 'purple' : 'info'}>{guide.kindLabel}</Chip>;
 }
 
-export function GuideStateChip({ state, count }: { state: Guide['state']; count?: number }) {
+export function GuideStateChip({ state, count, look = 'soft' }: {
+  state: Guide['state'];
+  count?: number;
+  /** 원문 §45 — 날짜 머리 합계는 꽉 찬 칩(solid), 이력 줄은 「● 발송 대기」 점 글자(dot). 기본은 지금 모양(soft) */
+  look?: 'soft' | 'solid' | 'dot';
+}) {
   const view = STATE_VIEW[state];
   // count 는 §45 날짜 머리의 상태 합계 — 「발송 대기 1」 (서버 줄을 그대로 묶어 센 수)
-  return <Chip tone={view.tone}>{count === undefined ? view.label : `${view.label} ${count}`}</Chip>;
+  return <Chip tone={view.tone} styleKind={look}>{count === undefined ? view.label : `${view.label} ${count}`}</Chip>;
 }
+
+/** §45 이력 줄 왼쪽 막대 — 상태 칩과 같은 색(원문: 발송 대기 주황 · 발송 완료 파랑) */
+export const GUIDE_STATE_BAR: Record<Guide['state'], string> = {
+  draft: 'border-l-red', ready: 'border-l-amber', sent: 'border-l-blue', read: 'border-l-green',
+};
 
 /** 상태 칩을 놓는 차례 — 원장 흐름(작성 → 발송 대기 → 발송 → 확인) */
 export const GUIDE_STATE_ORDER: ReadonlyArray<Guide['state']> = ['draft', 'ready', 'sent', 'read'];
@@ -53,9 +63,11 @@ type GuideLessonFacts = {
  * 정규 수업은 규칙 제목(`serTitle`)이 비어 있는 것이 보통이라, 전에는 거의 모든 줄이 「수업명 미정」이었다.
  * 과목 → 종류 순으로 이름을 고르고, 시각·강의실이 있으면 뒤에 붙인다. 판정·계산은 없다 — 서버 값을 잇기만 한다.
  */
-export function guideLessonLabel(facts: GuideLessonFacts): string {
+export function guideLessonLabel(facts: GuideLessonFacts, options: { time?: boolean } = {}): string {
   const name = facts.serTitle ?? facts.subName ?? facts.kindName ?? null;
-  const parts = [name, facts.startMin != null ? hm(facts.startMin) : null, facts.roomName ?? null].filter(
+  // time:false — 시각을 따로 굵게 적는 자리(원문 §43 「08-21 16:00」 위 · 「MAP Reading · 3호」 아래)
+  const time = options.time !== false && facts.startMin != null ? hm(facts.startMin) : null;
+  const parts = [name, time, facts.roomName ?? null].filter(
     (part): part is string => Boolean(part),
   );
   return parts.length ? parts.join(' · ') : '수업명 미정';

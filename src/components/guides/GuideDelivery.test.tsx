@@ -24,7 +24,7 @@ const me: Me = { id: 1, name: '관리자', role: 'admin', roleLabel: '관리자'
 const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'ready', pending: true,
   studentName: '학생', teacherName: '강사', serTitle: '수업', body: '저장한 안내', dueOn: null, eventOn: '2026-09-24',
   sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00', sentAt: null, acknowledgedAt: null,
-  overdueDays: 0, siblingCount: 0, canSend: true, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null };
+  overdueDays: 0, siblingCount: 0, deadline: null, canSend: true, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null };
 const clients: QueryClient[] = [];
 const originalAdapter = api.defaults.adapter;
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; useSession.getState().signOut(); vi.clearAllMocks(); });
@@ -37,7 +37,8 @@ function setup(viewer = me, guide = initial) {
   const calls: Array<{ method?: string; url?: string; body?: unknown }> = [];
   const data = (): Guides => ({ guides: [current], perLesson: [], missing: [], todoCount: 1, scopedTeacherId: null,
     stats: { monitoring: 1, overdue: 0, drafting: 0, sendPending: 1, teacherUnconfirmed: 0, repeatedTeacherChange: 0 },
-    deliveryCapabilities: { parentExternal: false, teacherExternal: false, reason: '외부 미연결' } });
+    deliveryCapabilities: { parentExternal: false, teacherExternal: false, reason: '외부 미연결' },
+    zoomBatch: { teacherCount: 0, lessonCount: 0, canSend: false, blockedReason: '오늘 온라인 수업이 없습니다' } });
   api.defaults.adapter = async (config) => {
     calls.push({ method: config.method, url: config.url, body: config.data ? JSON.parse(config.data as string) : undefined });
     if (config.method === 'post') {

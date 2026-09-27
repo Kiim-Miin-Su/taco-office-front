@@ -50,7 +50,7 @@ const guide: Guide = {
   createdAt: '2026-09-14T10:00:00+09:00',
   sentAt: null,
   acknowledgedAt: null,
-  overdueDays: 0, siblingCount: 0,
+  overdueDays: 0, siblingCount: 0, deadline: null,
 };
 
 function history(anchor: string, sourceOccurrenceId = 99): GuideHistoryDto {
@@ -71,6 +71,7 @@ function history(anchor: string, sourceOccurrenceId = 99): GuideHistoryDto {
         serTitle: 'MAP Reading',
         reason: 'new',
         overdueDays: 0,
+        deadline: null,
       },
     ],
     days: [],
@@ -139,15 +140,28 @@ it('낙관 제거는 후보가 실제 들어 있는 기간 캐시만 바꾼다',
 
 /**
  * g4 §45-2 · §45-3 · §45-4 — 안 한 것 카드는 **카드 전체가 단추**(누르면 초안 → 작성 창),
- * 요약 칩 셋(만듦 · 보냄 · 안 한 것)은 기간 이동 줄 **같은 줄 오른쪽**, 날짜 머리에 상태 합계 칩.
+ * 요약 칩 셋(만듦 · 보냄 · 안 한 것)은 기간 이동 줄 **같은 줄 오른쪽**, 날짜 머리에 사건 합계 칩.
+ * N-90(W11) — 줄 하나 = 사건 하나(작성 · 발송 · 확인) · 칩은 사건 뒤 상태 · 시각은 사건 시각 · 합계는 서버 tally 그대로.
  */
-it('안 한 것 카드 전체가 단추이고, 요약 칩은 기간 줄에, 날짜 머리에 상태 합계가 선다 (§45)', async () => {
+it('안 한 것 카드 전체가 단추이고, 요약 칩은 기간 줄에, 날짜 머리에 사건 합계가 선다 (§45 · N-90)', async () => {
   const today = todayKst();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const sentGuide = { ...guide, id: 14, state: 'sent' as const, pending: false };
   const data: GuideHistoryDto = {
     ...history(today),
-    days: [{ date: '2026-09-15', items: [guide, { ...guide, id: 13, state: 'ready' }, { ...guide, id: 14, state: 'sent', pending: false }] }],
-    counts: { created: 3, sent: 1, missing: 1 },
+    days: [{
+      date: '2026-09-15',
+      events: [
+        { id: 903, action: 'guide_send', label: '안내 발송', stateAfter: 'sent', at: '2026-09-15T16:40:00+09:00', time: '16:40', byId: 4, byName: '대표', guide: sentGuide },
+        { id: 902, action: 'guide_write', label: '안내 작성', stateAfter: 'ready', at: '2026-09-15T11:00:00+09:00', time: '11:00', byId: 4, byName: '대표', guide: { ...guide, id: 13, state: 'ready' } },
+        { id: 901, action: 'guide_write', label: '안내 작성', stateAfter: 'ready', at: '2026-09-15T09:10:00+09:00', time: '09:10', byId: 4, byName: '대표', guide: sentGuide },
+      ],
+      tally: [
+        { action: 'guide_write', stateAfter: 'ready', label: '안내 작성', count: 2 },
+        { action: 'guide_send', stateAfter: 'sent', label: '안내 발송', count: 1 },
+      ],
+    }],
+    counts: { created: 2, sent: 1, missing: 1 },
   };
   client.setQueryData(sessionQueryKey(qk.guideHistory({ span: 'month', anchor: today }), me.id), data);
   clients.push(client);
@@ -156,10 +170,22 @@ it('안 한 것 카드 전체가 단추이고, 요약 칩은 기간 줄에, 날�
   const card = view.getByRole('button', { name: /학생1.*누락 안내 초안 만들기/ });
   expect(card.textContent).toContain('MAP Reading');
   const bar = view.getByTestId('guide-history-bar');
-  expect(bar.textContent).toContain('3건 만듦');
+  expect(bar.textContent).toContain('2건 만듦');
+  expect(bar.textContent).toContain('1건 보냄');
   expect(bar.textContent).toContain('안 한 것 1');
   const head = view.getByText('26년 9월 15일 화요일').closest('summary') as HTMLElement;
-  expect(head.textContent).toContain('작성 중 1');
-  expect(head.textContent).toContain('발송 대기 1');
+  expect(head.textContent).toContain('3건');
+  expect(head.textContent).toContain('발송 대기 2');
   expect(head.textContent).toContain('발송 완료 1');
+  // 같은 안내의 작성 · 발송이 각자 한 줄이다 — 시각은 그 사건의 시각(원문 §45 줄 끝 「11:00」 · 「16:40」)
+  const rows = view.getAllByRole('listitem').filter((row) => row.getAttribute('aria-label')?.includes('학생1'));
+  expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+    '안내 발송 · 학생1 · 16:40', '안내 작성 · 학생1 · 11:00', '안내 작성 · 학생1 · 09:10',
+  ]);
+  expect(rows[0].textContent).toContain('발송 완료');
+  expect(rows[1].textContent).toContain('발송 대기');
+  // 원문 §45 줄 — 상태 색 왼쪽 막대(발송 완료 파랑 · 발송 대기 주황) · 사유 칩 없음(W11 재대조)
+  expect(rows[0].className).toContain('border-l-blue');
+  expect(rows[1].className).toContain('border-l-amber');
+  expect(rows[1].textContent).not.toContain('첫 수업');
 });

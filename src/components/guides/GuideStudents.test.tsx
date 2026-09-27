@@ -52,7 +52,7 @@ function student(studentId: number, name: string): GuideStudent {
     createdAt: '2026-09-14T10:00:00+09:00',
     sentAt: null,
     acknowledgedAt: null,
-    overdueDays: 0, siblingCount: 0,
+    overdueDays: 0, siblingCount: 0, deadline: null,
   };
   return {
     studentId,
@@ -207,6 +207,8 @@ it('본문·교재·세 시각의 순서와 PNG 포함 범위를 보존하고 �
   expect(text).toContain('발송 2026-09-14 11:00 · 발송자');
   expect(text).toContain('강사 확인 2026-09-14 12:00 · 수신 강사');
   expect(text).not.toContain('안내문 PNG');
+  // 원문 §44 카드 아래 초록 칸 「강사 확인 06-04 18:40」 — 서버 확인 시각 그대로(W11 재대조)
+  expect(view.getByRole('button', { name: '강사 확인 09-14 12:00' })).toBeTruthy();
 });
 
 it.each(['sent', 'read'] as const)('같은 GUIDE id가 %s로 재조회되면 이전 본문 편집을 닫는다', async (state) => {
@@ -317,4 +319,25 @@ it('머리 칩은 서버가 준 안내 종류 낱말을 점 모양으로 적는�
   const again = render(<QueryClientProvider client={client2}><GuideStudents /></QueryClientProvider>);
   const head2 = (await again.findByTestId('guide-student-card')).querySelector('header') as HTMLElement;
   expect(within(head2).getByText('첫 수업')).toBeTruthy();
+});
+
+it('교재 줄 앞에 서버 레벨의 사각이 선다 — Practice 는 P · 주황, 모르는 옛 원문은 중립, 없으면 세우지 않는다 (§44 · N-47)', async () => {
+  const base = student(1, '강라율');
+  const books = [
+    { ...base.books[0], issueId: 11, title: 'Between the Lines', level: 'Practice' },
+    { ...base.books[0], issueId: 12, title: '옛 교재', level: 'AP' },
+    { ...base.books[0], issueId: 13, title: '레벨 없는 교재', level: null },
+  ];
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [{ ...base, books }] } });
+  useSession.getState().signIn('fixture', me);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><GuideStudents /></QueryClientProvider>);
+  const row = (title: string) => view.getByText(title).closest('li') as HTMLElement;
+  const practice = (await view.findByText('Between the Lines')).closest('li') as HTMLElement;
+  const marker = practice.querySelector('[data-level-marker]') as HTMLElement;
+  expect(marker.textContent).toBe('P');
+  expect(marker.className).toContain('bg-amber');
+  expect((row('옛 교재').querySelector('[data-level-marker]') as HTMLElement).className).toContain('bg-fg-2');
+  expect(row('레벨 없는 교재').querySelector('[data-level-marker]')).toBeNull();
 });

@@ -26,7 +26,7 @@ const guide: Guide = {
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'draft', pending: true, studentName: '고은설',
   teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20', eventOn: '2026-09-20',
-  sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0,
+  sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0, deadline: null,
   siblingCount: 2,
   autoFill: {
     body: AUTO_BODY,
@@ -150,6 +150,7 @@ function guides(over: Partial<Guides> = {}): Guides {
     guides: [], perLesson: [lesson()], missing: [], todoCount: 1, scopedTeacherId: null,
     stats: { monitoring: 0, overdue: 0, drafting: 0, sendPending: 0, teacherUnconfirmed: 0, repeatedTeacherChange: 0 },
     deliveryCapabilities: { parentExternal: false, teacherExternal: false, reason: '외부 발송 미연결' },
+    zoomBatch: { teacherCount: 1, lessonCount: 1, canSend: true, blockedReason: null },
     ...over,
   };
 }
@@ -265,7 +266,7 @@ it('「강사 N명 한 번에」의 N 은 서버 zoomBatch 그대로이고, 누�
   expect(within(banner).getByText(/13:00 강라율 · 강사 미정 — 강사가 아직 정해지지 않았습니다/)).toBeTruthy();
 });
 
-it('보낼 회차가 없으면 「강사 0명 한 번에」가 잠기고 서버 이유를 적는다 · 옛 응답(zoomBatch 없음)이면 단추가 서지 않는다 (§43-6)', () => {
+it('보낼 회차가 없으면 「강사 0명 한 번에」가 잠기고 서버 이유를 적는다 (§43-6 · zoomBatch 는 필수 칸 — W11 7-3 ②)', () => {
   useSession.getState().signIn('fixture', me);
   adapter(() => []);
   const view = render(
@@ -277,9 +278,6 @@ it('보낼 회차가 없으면 「강사 0명 한 번에」가 잠기고 서버 
   expect(batch.disabled).toBe(true);
   expect(batch.title).toBe('오늘 강사 안내를 모두 보냈습니다');
   expect(view.getByText('오늘 강사 안내를 모두 보냈습니다')).toBeTruthy();
-  cleanup();
-  const legacy = render(<QueryClientProvider client={client()}><GuidesTodo data={guides()} /></QueryClientProvider>);
-  expect(legacy.queryByRole('button', { name: /한 번에$/ })).toBeNull();
 });
 
 /* ── S3-b §43 회차별 계정 배정 ──────────────────────────────────────────── */

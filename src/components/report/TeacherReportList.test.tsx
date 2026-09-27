@@ -43,3 +43,22 @@ it('grouped — 덱 slide 18 목록처럼 날짜 묶음 머리 「9월 14일 (�
   expect(onOpen).toHaveBeenCalledWith(second);
   expect(view.getByText('반려')).toBeTruthy();
 });
+
+it('grouped + head — 덱 slide 18 머리 띠(이름 · 서버 수)와 고른 줄 표시 · 비었거나 불러오는 중에도 머리는 선다', () => {
+  const onOpen = vi.fn();
+  const view = render(<TeacherReportList grouped rows={[row]} subjectName={() => 'Writing'} onOpen={onOpen}
+    head={{ title: '아직 안 쓴 리포트', tone: 'danger', count: 5 }} selected={{ serId: 11, onDate: '2026-09-14' }} />);
+  const region = view.getByRole('region', { name: '아직 안 쓴 리포트' });
+  expect(region.firstElementChild?.textContent).toBe('아직 안 쓴 리포트5');
+  expect(region.firstElementChild?.className).toContain('bg-red');
+  expect(view.getByRole('button', { name: /10:00 학생A/ }).getAttribute('aria-current')).toBe('true');
+  view.rerender(<TeacherReportList grouped rows={[]} subjectName={() => 'Writing'} onOpen={onOpen}
+    head={{ title: '작성한 리포트', tone: 'dark' }} />);
+  expect(view.getByRole('region', { name: '작성한 리포트' }).textContent).toBe('작성한 리포트0리포트가 없습니다');
+  view.rerender(<TeacherReportList grouped rows={[]} subjectName={() => 'Writing'} onOpen={onOpen}
+    head={{ title: '작성한 리포트', tone: 'dark' }} status="loading" />);
+  expect(view.getByText('리포트를 불러오는 중…')).toBeTruthy();
+  view.rerender(<TeacherReportList grouped rows={[]} subjectName={() => 'Writing'} onOpen={onOpen}
+    head={{ title: '작성한 리포트', tone: 'dark' }} status="error" />);
+  expect(view.getByText('리포트를 불러오지 못했습니다.')).toBeTruthy();
+});

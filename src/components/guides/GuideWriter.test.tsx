@@ -21,7 +21,7 @@ const guide: Guide = {
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'draft', pending: true, studentName: '고은설',
   teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20', eventOn: '2026-09-20',
-  sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0, siblingCount: 0,
+  sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0, siblingCount: 0, deadline: null,
 };
 
 const templates: GuideTemplate[] = [

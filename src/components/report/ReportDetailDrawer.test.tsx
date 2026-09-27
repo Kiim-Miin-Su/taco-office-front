@@ -10,7 +10,7 @@ const { query, editor, exporter } = vi.hoisted(() => ({ query: vi.fn(), editor: 
 vi.mock('@/api/queries', () => ({ useReportDetail: query }));
 vi.mock('./ReportForm', () => ({ ReportEditor: editor }));
 vi.mock('./ReportExportPanel', () => ({ ReportExportPanel: exporter }));
-import { ReportDetailDrawer } from './ReportDetailDrawer';
+import { ReportDetailDrawer, ReportDetailPane } from './ReportDetailDrawer';
 import { ApiError } from '@/api/client';
 
 beforeEach(() => { vi.clearAllMocks(); editor.mockReturnValue(null); exporter.mockReturnValue(null); query.mockReturnValue({}); });
@@ -62,6 +62,32 @@ it('배경 재조회가 실패해도 열려 있는 편집기와 미저장 초안
   expect(view.getByRole('textbox', { name: '미저장 초안' })).toBe(input);
   expect((input as HTMLTextAreaElement).value).toBe('작성 중인 내용');
   expect(view.getByText('최신 상태를 다시 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.')).toBeTruthy();
+});
+
+it('강사 작성 칸(덱 18 오른쪽)은 머리만 제 것이고 편집기 · 내보내기는 서랍과 같은 것을 같은 값으로 연다', () => {
+  const data = { id: 1, date: '2026-08-25', onDate: '2026-08-25', state: 'none', startMin: 600, endMin: 690,
+    students: [{ id: 4, name: '한도윤' }], subjectName: 'Kinder Phonics A', teacherName: '김범준', canEdit: true, canReview: false };
+  query.mockReturnValue({ data });
+  const back = vi.fn();
+  const view = render(<ReportDetailPane selection={{ serId: 2, onDate: data.onDate }} onBack={back} />);
+  expect(query).toHaveBeenLastCalledWith(2, '2026-08-25');
+  const pane = view.getByRole('region', { name: '한도윤 · Kinder Phonics A 리포트' });
+  expect(pane.querySelector('h2')?.textContent).toBe('한도윤 · Kinder Phonics A');
+  expect(view.getByText('2026년 8월 25일 (화) 10:00–11:30')).toBeTruthy();
+  expect(view.getByText('미작성')).toBeTruthy();
+  expect(editor.mock.calls[0][0]).toEqual({ detail: data, subject: 'Kinder Phonics A' });
+  expect(exporter.mock.calls[0][0]).toEqual({ detail: data, initialStudentId: undefined });
+  fireEvent.click(view.getByRole('button', { name: '‹ 목록' }));
+  expect(back).toHaveBeenCalled();
+});
+
+it('강사 작성 칸도 접근을 잃은(403) 상세는 머리 · 편집기를 비운다', () => {
+  query.mockReturnValue({ data: { id: 1, date: '2026-09-07', state: 'draft', canEdit: true, students: [], subjectName: '이전 과목' },
+    isError: true, error: new ApiError('REPORT_FORBIDDEN', '접근할 수 없습니다', 403) });
+  const view = render(<ReportDetailPane selection={{ serId: 2, onDate: '2026-09-07' }} />);
+  expect(view.getByText('리포트 상세를 불러오지 못했습니다.')).toBeTruthy();
+  expect(view.queryByText(/이전 과목/)).toBeNull();
+  expect(editor).not.toHaveBeenCalled();
 });
 
 it.each([403, 404])('상세 재조회 %i는 이전 본문·편집·내보내기를 노출하지 않는다', (status) => {

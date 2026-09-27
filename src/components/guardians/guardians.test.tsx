@@ -224,6 +224,7 @@ const guides = (perLesson: PerLessonNotice[]): Guides => ({
   guides: [], perLesson, missing: [], todoCount: 1, scopedTeacherId: null,
   stats: { monitoring: 0, overdue: 0, drafting: 0, sendPending: 0, teacherUnconfirmed: 0, repeatedTeacherChange: 0 },
   deliveryCapabilities: { parentExternal: false, teacherExternal: false, reason: '외부 발송 미연결' },
+  zoomBatch: { teacherCount: 0, lessonCount: 0, canSend: false, blockedReason: '오늘 강사 안내를 모두 보냈습니다' },
 });
 
 it('§43 「학부모 안내」 — 그 학생의 안내 줄과 본문으로 보호자 발송 창을 연다 (강사 안내는 그대로)', async () => {

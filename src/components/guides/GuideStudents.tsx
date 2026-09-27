@@ -15,6 +15,8 @@ import { Chip } from '@/components/ui/Chip';
 import { Panel } from '@/components/ui/Panel';
 import { QueryState } from '@/components/ui/QueryState';
 import { cn } from '@/components/ui/cn';
+import { bookLevelPresentation } from '@/lib/book-presentation';
+import { kstDateTime } from '@/lib/calendar';
 import { downloadElementPng } from '@/lib/png-export';
 import { GuideDiagnosticSummary, GuideScoreCards } from './GuideDiagnosticSummary';
 import { GuideBody, GuideNote, GuideTimeline } from './GuideReadout';
@@ -159,6 +161,14 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
             <ul className="space-y-2">
               {student.books.map((book) => (
                 <li key={book.issueId} className="flex flex-wrap items-center gap-2 rounded-lg border border-line px-3 py-2.5">
+                  {/* 원문 §44 교재 줄 앞 레벨 사각 「P」 — §38 · §39 · §41 과 같은 선택기 · 낱말은 서버 level(N-47 · W11 A 후속) */}
+                  {book.level ? (
+                    <span data-level-marker title={bookLevelPresentation(book.level).label}
+                      className={cn('inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[11px] font-black text-white',
+                        bookLevelPresentation(book.level).bandClass)}>
+                      {bookLevelPresentation(book.level).marker}
+                    </span>
+                  ) : null}
                   {book.seTe ? <Chip tone="purple">{book.seTe}</Chip> : null}
                   <span className="min-w-0 grow text-[13px] font-bold">{book.title}</span>
                   {book.edition ? <Chip>{book.edition}</Chip> : null}
@@ -190,7 +200,8 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           학부모에게 보내기
         </Button>
         <Button variant="success" disabled title="강사 확인 전이는 수신처·세션 계약 확정 후 연결합니다">
-          {guide.acknowledgedAt ? '강사 확인 완료' : '강사 확인 대기'}
+          {/* 원문 §44 「강사 확인 06-04 18:40」 — 서버 확인 시각(KST) 그대로 */}
+          {guide.acknowledgedAt ? `강사 확인 ${kstDateTime(guide.acknowledgedAt)?.slice(5) ?? ''}`.trim() : '강사 확인 대기'}
         </Button>
       </div>
       </div>

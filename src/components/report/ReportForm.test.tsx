@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Me, ReportBody, ReportDetail, ReportField } from '@/api/types';
@@ -120,7 +120,93 @@ describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상
   it('읽기 전용이거나 관리 화면 로그인이면 그리지 않는다', () => {
     as(false);
     expect(mount(detail(false)).queryByRole('note')).toBeNull();
-    as(true);
+    // 앞의 편집기도 세션을 구독한다 — 세션 바꾸기를 act 로 감싼다
+    act(() => as(true));
     expect(mount(detail(true)).queryByRole('note')).toBeNull();
+  });
+});
+
+describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화면은 지금 그대로', () => {
+  afterEach(() => { cleanup(); useSession.setState({ me: null, ready: false }); window.localStorage.clear(); });
+  const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
+    id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
+    subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'none',
+    written: false, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
+    body: { content: '', progress: '', homework: '' }, fields,
+    canEdit: true, canReview: false, lang: 'ko', writtenAt: null,
+    canExport: false, canDeliver: false, exportFiles: [], subjectName: 'AP Chemistry',
+    submittedAt: null, reviewedAt: null, rejectReason: null, ...over,
+  });
+  const mount = (d: ReportDetail) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    return render(<QueryClientProvider client={client}><ReportEditor detail={d} subject="AP Chemistry" /></QueryClientProvider>);
+  };
+  const as = (canAdminPage: boolean) => useSession.setState({
+    me: { id: 3, name: '강사', canAdminPage, canCrudAll: canAdminPage } as unknown as Me, ready: true,
+  });
+
+  it('강사 표면 — 「임시 저장」 · 「승인 요청하기」와 「학부모님이 직접 읽는 리포트입니다」 상자(원문 네 줄 · 관찰형 세 줄)', () => {
+    as(false);
+    const view = mount(detail());
+    expect(view.getByRole('button', { name: '임시 저장' })).toBeTruthy();
+    const submit = view.getByRole('button', { name: '승인 요청하기' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    const guide = view.getByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' });
+    expect(guide.querySelectorAll('ol > li')).toHaveLength(4);
+    expect(guide.textContent).toContain('그래도 사실은 빠뜨리지 마세요.');
+    expect(guide.textContent).toContain('20분이 지나며 집중이 흔들리는 모습이었습니다');
+    // 양식(입력 칸) 아래에 선다
+    const lastField = view.container.querySelector('#rep-homework')!;
+    expect(lastField.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 결정으로 닫힌 원문 요소는 세우지 않는다 — 작성 언어 토글(N-2) · Kinder 4영역(N-5) · AI 프롬프트(남김)
+    expect(view.queryByText('작성 언어')).toBeNull();
+    expect(view.queryByText(/언어 발달/)).toBeNull();
+    expect(view.queryByText(/AI 프롬프트/)).toBeNull();
+  });
+
+  it('관리 화면 · 읽기 전용은 지금 그대로 — 「임시저장」 · 「제출」 · 안내 상자 없음', () => {
+    as(true);
+    const view = mount(detail());
+    expect(view.getByRole('button', { name: '임시저장' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '제출' })).toBeTruthy();
+    expect(view.queryByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' })).toBeNull();
+    cleanup();
+    as(false);
+    expect(mount(detail({ canEdit: false, state: 'wait' })).queryByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' })).toBeNull();
+  });
+
+  it('N-69 — 같은 서버 글에서 쓰던 초안을 되살리고 「불러온 글 버리기」로 서버 글에 돌아간다', () => {
+    as(false);
+    const d = detail();
+    window.localStorage.setItem(`taco:draft:v1:3:report:${d.serId}:${d.onDate}`, JSON.stringify({
+      value: { content: '어제 쓰던 수업 내용', progress: '12쪽', homework: 7 },
+      base: `${d.state}|${JSON.stringify(d.body)}`,
+      savedAt: Date.parse('2026-09-03T21:00:00+09:00'),
+    }));
+    const view = mount(d);
+    expect((view.container.querySelector('#rep-content') as HTMLTextAreaElement).value).toBe('어제 쓰던 수업 내용');
+    expect((view.container.querySelector('#rep-progress') as HTMLTextAreaElement).value).toBe('12쪽');
+    // 모양이 틀린 칸(숫자)은 받지 않는다
+    expect((view.container.querySelector('#rep-homework') as HTMLTextAreaElement).value).toBe('');
+    expect(view.getByText(/이 브라우저에 남아 있던 쓰던 글을 불러왔습니다/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '불러온 글 버리기' }));
+    expect((view.container.querySelector('#rep-content') as HTMLTextAreaElement).value).toBe('');
+    expect(window.localStorage.getItem(`taco:draft:v1:3:report:${d.serId}:${d.onDate}`)).toBeNull();
+  });
+
+  it('N-69 — 제출된 글(쓸 수 없음)이나 그새 바뀐 서버 글에는 초안을 되살리지 않고 지운다', () => {
+    as(false);
+    const key = 'taco:draft:v1:3:report:2:2026-09-03';
+    const stale = JSON.stringify({ value: { content: '옛 초안', progress: '', homework: '' }, base: 'none|{}', savedAt: 1 });
+    window.localStorage.setItem(key, stale);
+    const waiting = mount(detail({ state: 'wait', canEdit: false, body: { content: '제출본', progress: 'p', homework: 'h' } }));
+    expect(waiting.container.textContent).toContain('제출본');
+    expect(waiting.container.textContent).not.toContain('옛 초안');
+    expect(window.localStorage.getItem(key)).toBeNull();
+    cleanup();
+    window.localStorage.setItem(key, stale);
+    const changed = mount(detail({ state: 'draft', body: { content: '다른 사람이 저장', progress: '', homework: '' } }));
+    expect((changed.container.querySelector('#rep-content') as HTMLTextAreaElement).value).toBe('다른 사람이 저장');
+    expect(window.localStorage.getItem(key)).toBeNull();
   });
 });

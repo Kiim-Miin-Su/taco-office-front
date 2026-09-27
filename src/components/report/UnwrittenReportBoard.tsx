@@ -8,12 +8,9 @@
 
 import { useState } from 'react';
 import type { ReportRow, Unwritten, UnwrittenByTeacher } from '@/api/types';
-import { KO_DOW, dowOf } from '@/lib/calendar';
+import { monthDayLabel } from '@/lib/calendar';
 import { hrefForScheduleOccurrence } from '@/lib/report-links';
 import { Button, Chip, cn, type Column, LinkButton, Panel, StatusBadge, Table } from '@/components/ui';
-
-/** 원문 §47 날짜 「8월 19일 수요일」 — 연도 없이 (같은 달의 최근 수업만 서기 때문이다) */
-const monthDayLabel = (iso: string): string => `${+iso.slice(5, 7)}월 ${+iso.slice(8, 10)}일 ${KO_DOW[dowOf(iso)]}요일`;
 
 type ReminderMessage = { tone: 'success' | 'danger'; text: string } | null;
 
@@ -61,6 +58,7 @@ export function UnwrittenReportBoard({
 
   /* 원문 §47 표 — 날짜(연도 없이) · 과목(과목색 점 + 과목색 글자) · 학생 · 지난 날(「2일」) · 상태 · 링크(머리 비움) (g5 47-03~05·08) */
   const columns: Array<Column<ReportRow>> = [
+    // 「8월 19일 수요일」 — 연도 없이 (같은 달의 최근 수업만 서기 때문이다)
     { key: 'date', head: '날짜', width: 130, cell: (row) => <b>{monthDayLabel(row.date)}</b> },
     {
       key: 'subject', head: '과목', width: 160, cell: (row) => {

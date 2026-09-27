@@ -66,12 +66,22 @@ function Results({ result }: { result: GuardianSendResult }) {
 }
 
 export function GuardianSendDialog({
-  open, student, pnotiId = null, defaultBody, defaultSubject = '', title, onClose, onSent,
+  open, student, pnotiId = null, wrepId = null, attachments, defaultBody, defaultSubject = '', title, onClose, onSent,
 }: {
   open: boolean;
   student: { id: number; name: string };
   /** §43 회차 학부모 안내 줄 — 실제로 나간 것이 있으면 서버가 그 줄을 「보냄」으로 찍는다 */
   pnotiId?: number | null;
+  /**
+   * §47 주간 묶음(N-54 · W11) — 그 묶음에서 보낼 때. 본문은 서버가 모은 글(사람이 쓴 리포트 · 총평)이라 **창에서 고치지 않는다**
+   * — 서버도 받은 본문이 그 글과 같은지 다시 본다.
+   */
+  wrepId?: number | null;
+  /**
+   * §30 ③ 「계약서 전달하기」(N-77 · W11) — 메일에 붙일 컨설팅 계약서 후보. `checked` 가 처음 고른 것.
+   * 주어지면 하나 이상 골라야 하고 메일 채널이 있어야 보낸다(서버가 다시 본다 — 그 컨설팅의 계약서 · 개수 · 크기). 문자에는 붙지 않는다.
+   */
+  attachments?: Array<{ id: number; name: string; bytes: number; checked?: boolean }>;
   /** 여는 쪽이 채워 주는 내용 — 창에서 고칠 수 있다 */
   defaultBody: string;
   defaultSubject?: string;
@@ -89,6 +99,8 @@ export function GuardianSendDialog({
   const [subject, setSubject] = useState(defaultSubject);
   const [result, setResult] = useState<GuardianSendResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 메일에 붙일 파일(N-77) — 여는 쪽이 고른 것에서 시작한다 */
+  const [attached, setAttached] = useState<Set<number>>(() => new Set((attachments ?? []).filter((a) => a.checked).map((a) => a.id)));
   const keyRef = useRef<string | null>(null);
   const seeded = useRef(false);
 
@@ -115,6 +127,14 @@ export function GuardianSendDialog({
     touched();
     setChannels((prev) => { const next = new Set(prev); if (next.has(c)) next.delete(c); else next.add(c); return next; });
   };
+  const toggleAttached = (fileId: number) => {
+    touched();
+    setAttached((prev) => { const next = new Set(prev); if (next.has(fileId)) next.delete(fileId); else next.add(fileId); return next; });
+  };
+  /** 첨부는 메일에만 실린다 — 파일을 고르지 않았거나 메일 채널이 없으면 보낼 수 없다(서버도 400 으로 막는다) */
+  const attachIssue = attachments === undefined ? null
+    : attached.size === 0 ? '메일에 붙일 파일을 하나 이상 고르세요.'
+      : !channels.has('email') ? '파일은 메일에만 붙습니다 — 메일을 골라 주세요.' : null;
 
   const chosen = active.filter((g) => picked.has(g.id));
   // 고른 채널을 하나도 받지 않는 보호자 — 서버가 거절하므로 먼저 알린다(판정 재료는 서버가 준 receives).
@@ -123,7 +143,7 @@ export function GuardianSendDialog({
   const mismatch = channels.size === 0 ? [] : chosen.filter((g) => !g.receives.some((c) => channels.has(c)));
   const readyChannels = channelRows.filter((c) => c.ready);
   const canSend = !send.isPending && result === null && chosen.length > 0 && channels.size > 0
-    && mismatch.length === 0 && body.trim() !== '';
+    && mismatch.length === 0 && body.trim() !== '' && attachIssue === null;
 
   const submit = () => {
     if (!canSend) return;
@@ -132,11 +152,14 @@ export function GuardianSendDialog({
     send.mutate({
       studentId: student.id,
       pnotiId,
+      // §47 주간 묶음(N-54)으로 열었을 때만 싣는다 — 다른 여는 곳의 요청 모양은 그대로다
+      ...(wrepId !== null ? { wrepId } : {}),
       guardianIds: chosen.map((g) => g.id),
       channels: channelRows.filter((c) => channels.has(c.channel)).map((c) => c.channel),
       subject: subject.trim() || null,
       body,
       requestKey: keyRef.current,
+      ...(attachments ? { consFileIds: attachments.filter((a) => attached.has(a.id)).map((a) => a.id) } : {}),
     }, {
       onSuccess: (r) => { setResult(r); onSent?.(r); },
       onError: (e) => setError(apiMessage(e)),
@@ -214,9 +237,31 @@ export function GuardianSendDialog({
                   <Input id={`${id}-subject`} value={subject} maxLength={120} onChange={(e) => { touched(); setSubject(e.target.value); }} />
                 </div>
               ) : null}
+              {attachments ? (
+                <fieldset>
+                  <legend className="mb-1 text-[11px] font-bold text-fg-subtle">메일에 붙일 파일</legend>
+                  <ul className="flex flex-col gap-1">
+                    {attachments.map((a) => (
+                      <li key={a.id}>
+                        <Checkbox label={`${a.name} · ${Math.ceil(a.bytes / 1024)}KB`} checked={attached.has(a.id)} onChange={() => toggleAttached(a.id)} />
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-[11px] text-fg-subtle">파일은 메일에만 붙습니다 — 문자로는 적은 글만 갑니다.</p>
+                  {attachIssue ? <Banner tone="warning" className="mt-2">{attachIssue}</Banner> : null}
+                </fieldset>
+              ) : null}
               <div>
                 <Label htmlFor={`${id}-body`}>보낼 내용</Label>
-                <CountedTextarea id={`${id}-body`} value={body} max={2000} onChange={(v) => { touched(); setBody(v); }} />
+                {wrepId !== null ? (
+                  /* 주간 묶음 — 사람이 쓴 글을 창에서 바꿔 보내지 않는다(읽기 전용 · 서버가 같은 글인지 다시 본다) */
+                  <pre id={`${id}-body`} aria-label="보낼 내용" aria-readonly="true" tabIndex={0}
+                    className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-inset p-3 text-[12px] leading-relaxed text-fg">
+                    {body}
+                  </pre>
+                ) : (
+                  <CountedTextarea id={`${id}-body`} value={body} max={2000} onChange={(v) => { touched(); setBody(v); }} />
+                )}
               </div>
             </>
           ) : null}

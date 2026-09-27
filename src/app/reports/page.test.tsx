@@ -13,7 +13,7 @@ import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 const mocks = vi.hoisted(() => ({
   permissions: { canCrudAll: false, canApprove: false },
-  unwritten: vi.fn(), reports: vi.fn(), deliveryQuery: vi.fn(), historyQuery: vi.fn(), reminder: vi.fn(), detail: vi.fn(),
+  unwritten: vi.fn(), reports: vi.fn(), deliveryQuery: vi.fn(), historyQuery: vi.fn(), weeklyQuery: vi.fn(), reminder: vi.fn(), detail: vi.fn(),
   board: vi.fn(), deliveryView: vi.fn(), historyView: vi.fn(), weeklyView: vi.fn(), fullText: vi.fn(),
 }));
 
@@ -24,8 +24,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/store/useSession', () => ({
   useCan: (name: keyof typeof mocks.permissions) => mocks.permissions[name],
   // 지각 차감 안내 띠(LateReportPolicy)는 세션의 canAdminPage 만 본다
-  useSession: <T,>(select: (state: { me: { canAdminPage: boolean } | null }) => T) =>
-    select({ me: { canAdminPage: mocks.permissions.canCrudAll } }),
+  useSession: <T,>(select: (state: { me: { id: number; canAdminPage: boolean } | null }) => T) =>
+    select({ me: { id: 7, canAdminPage: mocks.permissions.canCrudAll } }),
 }));
 vi.mock('@/api/queries', () => ({
   useMeta: () => ({ data: { subs: [], lateReportTiers: LATE_TIERS_FIXTURE } }),
@@ -33,6 +33,7 @@ vi.mock('@/api/queries', () => ({
   useReports: mocks.reports,
   useReportDelivery: mocks.deliveryQuery,
   useReportDeliveryHistory: mocks.historyQuery,
+  useReportWeekly: mocks.weeklyQuery,
   useReportReminder: mocks.reminder,
   useReportDetail: mocks.detail,
 }));
@@ -41,7 +42,7 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 vi.mock('@/components/report/UnwrittenReportBoard', () => ({ UnwrittenReportBoard: mocks.board }));
 vi.mock('@/components/report/ReportDeliveryQueue', () => ({ ReportDeliveryQueue: mocks.deliveryView }));
 vi.mock('@/components/report/ReportDeliveryHistory', () => ({ ReportDeliveryHistory: mocks.historyView }));
-vi.mock('@/components/report/ReportWeeklyTrackingBoundary', () => ({ ReportWeeklyTrackingBoundary: mocks.weeklyView }));
+vi.mock('@/components/report/ReportWeekly', () => ({ ReportWeekly: mocks.weeklyView }));
 vi.mock('@/components/report/ReportForm', () => ({ ReportEditor: () => null }));
 vi.mock('@/components/report/ReportExportPanel', () => ({ ReportExportPanel: () => null }));
 vi.mock('@/components/report/ReportFullTextDialog', () => ({ ReportFullTextDialog: mocks.fullText }));
@@ -58,24 +59,28 @@ describe('리포트 역할별 화면', () => {
     mocks.reports.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false });
     mocks.deliveryQuery.mockReturnValue({ data: { remaining: 5 }, isLoading: false, isError: false });
     mocks.historyQuery.mockReturnValue({ data: { total: 1, items: [{ id: 1 }] }, isLoading: false, isError: false });
+    mocks.weeklyQuery.mockReturnValue({ data: { remaining: 3, total: 4, bundles: [] }, isLoading: false, isError: false });
     mocks.reminder.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
     mocks.detail.mockReturnValue({});
     mocks.board.mockReturnValue(<div>강사별 조치 보드</div>);
     mocks.deliveryView.mockReturnValue(<div>어제 보내기 화면</div>);
     mocks.historyView.mockReturnValue(<div>보낸 내역 화면</div>);
-    mocks.weeklyView.mockReturnValue(<div>주간 기준 미확정</div>);
+    mocks.weeklyView.mockReturnValue(<div>주간 묶음 화면</div>);
     mocks.fullText.mockReturnValue(null);
   });
 
   it('강사는 전체 추적·독촉·발송 탭 없이 자기 작성 목록만 본다', () => {
     const view = render(<ReportsPage />);
-    // 덱 slide 18 의 두 목록 이름 — 「아직 안 쓴 리포트 N」(서버 미작성 수) · 「작성한 리포트」
-    expect(view.getByRole('button', { name: '아직 안 쓴 리포트 2' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '작성한 리포트' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '반려됨' })).toBeTruthy();
+    // 덱 slide 18 왼쪽 두 목록 — 머리 띠 「아직 안 쓴 리포트 N」(서버 조치 수) · 「작성한 리포트」
+    expect(view.getByRole('region', { name: '아직 안 쓴 리포트' }).firstElementChild?.textContent).toBe('아직 안 쓴 리포트2');
+    expect(view.getByRole('region', { name: '작성한 리포트' })).toBeTruthy();
+    // 반려는 「아직 안 쓴 리포트」(서버 조치 목록)에서 다시 쓴다 — 따로 탭이 없다
+    expect(view.queryByRole('button', { name: '반려됨' })).toBeNull();
     expect(view.queryByRole('tab', { name: /어제 보내기/ })).toBeNull();
     expect(view.queryByText('강사별 조치 보드')).toBeNull();
     expect(mocks.deliveryQuery).not.toHaveBeenCalled();
+    // 주간 묶음(학생 글 · 보호자 발송)도 강사 화면은 부르지 않는다 — 서버도 403 이다
+    expect(mocks.weeklyQuery).not.toHaveBeenCalled();
     expect(mocks.reminder).not.toHaveBeenCalled();
   });
 
@@ -100,12 +105,10 @@ describe('리포트 역할별 화면', () => {
       isLoading: false, isError: false,
     }));
     const view = render(<ReportsPage />);
-    fireEvent.click(view.getByRole('button', { name: '작성한 리포트' }));
-    // 두 상태를 각각 서버가 걸러 준다 — 화면이 상태를 다시 판정하지 않는다
-    expect(mocks.reports).toHaveBeenCalledWith({ state: 'wait' }, true);
-    expect(mocks.reports).toHaveBeenCalledWith({ state: 'ok' }, true);
-    // 탭 줄도 group 이다 — 목록 안의 날짜 묶음만 본다
-    const groups = within(view.getByLabelText('내 리포트 목록')).getAllByRole('group');
+    // 두 상태를 각각 서버가 걸러 준다 — 화면이 상태를 다시 판정하지 않는다 · 작성자(나)를 요청 조건에 싣는다
+    expect(mocks.reports).toHaveBeenCalledWith({ state: 'wait', teacherId: 7 }, true);
+    expect(mocks.reports).toHaveBeenCalledWith({ state: 'ok', teacherId: 7 }, true);
+    const groups = within(view.getByRole('region', { name: '작성한 리포트' })).getAllByRole('group');
     // 새 날짜가 먼저 — 덱 「작성한 리포트」 목록 차례
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['9월 15일 (화) · 1건', '9월 14일 (월) · 1건']);
     expect(view.getByText('양찬욱')).toBeTruthy();
@@ -122,19 +125,20 @@ describe('리포트 역할별 화면', () => {
     expect(view.getAllByRole('tab')).toHaveLength(4);
     expect(view.getByRole('tab', { name: /안 쓴 리포트 2건/ })).toBeTruthy();
     expect(view.getByRole('tab', { name: /어제 보내기 5명 남음/ })).toBeTruthy();
-    expect(view.getByRole('tab', { name: /주간 트래킹 상세 기준 미확정/ })).toBeTruthy();
+    // 「주간 트래킹 · N명 남음」 — 서버 remaining(N-54) 그대로 · 배지도 같은 수
+    expect(view.getByRole('tab', { name: /주간 트래킹 3명 남음/ })).toBeTruthy();
     expect(view.getByRole('tab', { name: /보낸 내역 1건/ })).toBeTruthy();
     expect(view.getByText('강사별 조치 보드')).toBeTruthy();
   });
 
-  it('탭 전환은 URL과 본문을 함께 바꾸고 주간 상세를 발명하지 않는다', () => {
+  it('탭 전환은 URL과 본문을 함께 바꾸고 주간 묶음은 서버 묶음 화면을 연다', () => {
     mocks.permissions.canCrudAll = true;
     const view = render(<ReportsPage />);
     fireEvent.click(view.getByRole('tab', { name: /어제 보내기/ }));
     expect(view.getByText('어제 보내기 화면')).toBeTruthy();
     expect(nav.replace).toHaveBeenLastCalledWith('/reports?section=delivery', { scroll: false });
     fireEvent.click(view.getByRole('tab', { name: /주간 트래킹/ }));
-    expect(view.getByText('주간 기준 미확정')).toBeTruthy();
+    expect(view.getByText('주간 묶음 화면')).toBeTruthy();
     expect(nav.replace).toHaveBeenLastCalledWith('/reports?section=weekly', { scroll: false });
   });
 
@@ -154,11 +158,11 @@ describe('리포트 역할별 화면', () => {
     nav.search = 'section=weekly';
     mocks.permissions.canCrudAll = true;
     const view = render(<ReportsPage />);
-    expect(view.getByText('주간 기준 미확정')).toBeTruthy();
+    expect(view.getByText('주간 묶음 화면')).toBeTruthy();
     mocks.permissions.canCrudAll = false;
     view.rerender(<ReportsPage />);
-    expect(view.queryByText('주간 기준 미확정')).toBeNull();
-    expect(view.getByRole('button', { name: '아직 안 쓴 리포트 2' })).toBeTruthy();
+    expect(view.queryByText('주간 묶음 화면')).toBeNull();
+    expect(view.getByRole('region', { name: '아직 안 쓴 리포트' })).toBeTruthy();
   });
 
   it('§14 승인 서랍 deep link는 4탭과 섞지 않고 전건 검토 큐로 연다', () => {
@@ -203,8 +207,33 @@ describe('리포트 역할별 화면', () => {
   it('승인 예외만 있는 강사는 승인 큐만 열고 관리 화면을 열지 않는다', () => {
     mocks.permissions.canApprove = true;
     const view = render(<ReportsPage />);
-    fireEvent.click(view.getByRole('button', { name: '승인 대기' }));
-    expect(mocks.reports).toHaveBeenLastCalledWith({ state: 'wait' }, true);
+    // 세 번째 목록 「승인 대기」 — 서버 검토 목록(작성자 조건 없음)
+    expect(view.getByRole('region', { name: '승인 대기' })).toBeTruthy();
+    expect(mocks.reports).toHaveBeenCalledWith({ state: 'wait' }, true);
     expect(view.queryByRole('tab', { name: /어제 보내기/ })).toBeNull();
+  });
+
+  it('강사 목록 줄을 누르면 옆 작성 칸이 그 회차(원래 키)로 열리고 「‹ 목록」으로 돌아간다 — 서랍이 아니다 (덱 18·19)', () => {
+    mocks.unwritten.mockReturnValue({
+      data: { total: 1, byTeacher: [], items: [{ id: 3, serId: 31, date: '2026-09-25', onDate: '2026-09-24', startMin: 900, endMin: 960, subKey: 'writing', kindKey: 'class', state: 'rej', written: true, students: [{ id: 3, name: '고은설', deliver: true }], minutesSinceEnd: 90, penalty: 0 }] },
+      isLoading: false, isError: false,
+    });
+    const view = render(<ReportsPage />);
+    expect(view.getByText('왼쪽 목록에서 리포트를 고르면 여기에 작성 양식이 열립니다.')).toBeTruthy();
+    // 반려도 첫 목록에 선다
+    const row = within(view.getByRole('region', { name: '아직 안 쓴 리포트' })).getByRole('button', { name: /15:00 고은설/ });
+    expect(within(row).getByText('반려')).toBeTruthy();
+    fireEvent.click(row);
+    expect(mocks.detail).toHaveBeenLastCalledWith(31, '2026-09-24');
+    expect(row.getAttribute('aria-current')).toBe('true');
+    expect(view.queryByRole('dialog')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '‹ 목록' }));
+    expect(view.getByText('왼쪽 목록에서 리포트를 고르면 여기에 작성 양식이 열립니다.')).toBeTruthy();
+  });
+
+  it('강사 deep link(serId · onDate)는 작성 칸을 그 회차로 연다', () => {
+    nav.search = 'serId=31&onDate=2026-09-24';
+    render(<ReportsPage />);
+    expect(mocks.detail).toHaveBeenLastCalledWith(31, '2026-09-24');
   });
 });

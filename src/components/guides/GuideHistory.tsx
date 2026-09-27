@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useCreateGuideDraft, useGuideHistory } from '@/api/queries';
-import type { Guide, GuideHistorySpan, GuideMissing } from '@/api/types';
+import type { Guide, GuideHistoryEvent, GuideHistorySpan, GuideMissing } from '@/api/types';
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -17,7 +17,8 @@ import { Panel } from '@/components/ui/Panel';
 import { QueryState } from '@/components/ui/QueryState';
 import { Segmented } from '@/components/ui/Segmented';
 import { addDays, longDateLabel, todayKst } from '@/lib/calendar';
-import { GUIDE_STATE_ORDER, GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
+import { cn } from '@/components/ui/cn';
+import { GUIDE_STATE_BAR, GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 
 const SPANS: Array<{ value: GuideHistorySpan; label: string }> = [
@@ -65,16 +66,23 @@ function MissingCard({ item, creating, onCreate }: { item: GuideMissing; creatin
   );
 }
 
-function HistoryRow({ guide }: { guide: Guide }) {
+/**
+ * 이력 한 줄 = **사건 하나**(N-90 · W11) — 안내 작성 · 발송 · 강사 확인. 칩은 그 사건 뒤의 상태(원문 §45 「발송 대기」 ·
+ * 「발송 완료」)이고 오른쪽 끝 시각은 그 사건의 시각이다. 사건 · 시각 · 한 사람은 서버 원장(hist) 그대로다.
+ */
+function HistoryRow({ event }: { event: GuideHistoryEvent }) {
+  const guide = event.guide;
+  const state = event.stateAfter as Guide['state'];
+  // 원문 §45 줄 — 상태 색 왼쪽 막대 · 「● 발송 대기」 점 글자 · 이름 · 수업 · 강사 · 오른쪽 끝 시각(사유 칩은 원문 줄에 없다)
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded-lg border border-l-[3px] border-line border-l-blue bg-card px-3 py-2.5">
-      <GuideStateChip state={guide.state} />
-      <GuideReasonChip reason={guide.reason} />
+    <li className={cn('flex flex-wrap items-center gap-2 rounded-lg border border-l-[3px] border-line bg-card px-3 py-2.5', GUIDE_STATE_BAR[state])}
+      aria-label={`${event.label} · ${guide.studentName ?? '학생 미상'} · ${event.time}`}>
+      <GuideStateChip state={state} look="dot" />
       <b className="text-[12.5px]">{guide.studentName ?? '학생 미상'}</b>
       <span className="text-[11.5px] text-fg-subtle">{guideLessonLabel(guide)}</span>
       <span className="text-[11.5px] text-fg-subtle">{guide.teacherName ?? '강사 미정'}</span>
-      <time className="ml-auto text-[11px] text-fg-subtle">
-        {guide.sentAt?.slice(11, 16) ?? guide.createdAt.slice(11, 16) ?? '—'}
+      <time className="ml-auto text-[11px] text-fg-subtle" dateTime={event.at} title={event.byName ? `${event.label} · ${event.byName}` : event.label}>
+        {event.time}
       </time>
     </li>
   );
@@ -168,19 +176,18 @@ export function GuideHistory() {
                   <details key={day.date} open className="group overflow-hidden rounded-xl border border-line bg-card">
                     <summary className="flex cursor-pointer list-none items-center gap-2 bg-inset px-4 py-3">
                       <b className="text-[13px]">{longDateLabel(day.date)}</b>
-                      <Chip>{day.items.length}건</Chip>
-                      {/* 상태 합계 — 서버가 준 그날 줄을 상태별로 묶어 센 수 (g4 §45-4) */}
-                      {GUIDE_STATE_ORDER.map((state) => {
-                        const count = day.items.filter((item) => item.state === state).length;
-                        return count > 0 ? <GuideStateChip key={state} state={state} count={count} /> : null;
-                      })}
+                      <Chip>{day.events.length}건</Chip>
+                      {/* 사건 합계 — 서버 tally 그대로(작성 → 발송 → 확인 차례 · 0 은 오지 않는다 · N-90) */}
+                      {day.tally.map((entry) => (
+                        <GuideStateChip key={entry.action} state={entry.stateAfter as Guide['state']} count={entry.count} look="solid" />
+                      ))}
                       <span className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" aria-hidden>
                         ⌄
                       </span>
                     </summary>
                     <ul className="space-y-2 p-3">
-                      {day.items.map((guide) => (
-                        <HistoryRow key={guide.id} guide={guide} />
+                      {day.events.map((event) => (
+                        <HistoryRow key={event.id} event={event} />
                       ))}
                     </ul>
                   </details>
