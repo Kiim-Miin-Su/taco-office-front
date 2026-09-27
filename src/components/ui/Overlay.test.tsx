@@ -222,6 +222,17 @@ describe('Dialog 머리 × · 부제 · 바닥 줄 (공용 · g2 75-7)', () => {
     expect(within(dialog).getByRole('button', { name: '저장' }).parentElement!.className).toContain('shrink-0');
   });
 
+  it('좁은 화면에서는 내용의 최소 너비보다 창이 먼저 줄고 바닥 단추가 줄바꿈된다 (J-100 모바일 QA)', () => {
+    const view = render(
+      <Dialog open onClose={() => undefined} title="근거 확인" footer={<><button type="button">긴 작업 하나</button><button type="button">긴 작업 둘</button></>}>
+        <div className="min-w-[420px]">긴 내용</div>
+      </Dialog>,
+    );
+    const dialog = view.getByRole('dialog', { name: '근거 확인' });
+    expect(dialog.className).toContain('min-w-0');
+    expect(within(dialog).getByRole('button', { name: '긴 작업 하나' }).parentElement!.className).toContain('flex-wrap');
+  });
+
   it('바닥 줄은 윗선과 옅은 바탕으로 본문과 갈린다', () => {
     const view = render(<Dialog open onClose={() => undefined} title="확인" footer={<button type="button">확인</button>}>내용</Dialog>);
     const foot = within(view.getByRole('dialog', { name: '확인' })).getByRole('button', { name: '확인' }).parentElement!;
