@@ -274,4 +274,12 @@ describe('lane 상한 셋 + 「+M」 (N-74 · N-80)', () => {
     fireEvent.click(within(day).getByRole('button', { name: /겹친 수업 4$/ }));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ serId: 4 }));
   });
+
+  it('일간 「+M」 펼침 안의 숨겨졌던 일정도 실제 draggable로 등록한다', () => {
+    const view = render(<WeekGrid date="2026-09-02" days={['2026-09-02']} items={crowd('2026-09-02', 4)} interactive />);
+    const day = view.getByRole('region', { name: '일간 시간표' });
+    fireEvent.click(within(day).getByRole('button', { name: '겹친 수업 4건 펼치기' }));
+    const hidden = within(day).getByRole('button', { name: /겹친 수업 4$/ });
+    expect(hidden.getAttribute('aria-roledescription')).toBe('draggable');
+  });
 });

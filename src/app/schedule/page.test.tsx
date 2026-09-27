@@ -26,10 +26,15 @@ const nav = vi.hoisted(() => ({ search: '' }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock('@dnd-kit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@dnd-kit/core')>();
-  return { ...actual, DndContext: (props: DndContextProps) => {
-    mocks.drag = props;
-    return <actual.DndContext {...props}><DndProbe />{props.children}</actual.DndContext>;
-  } };
+  return {
+    ...actual,
+    DndContext: (props: DndContextProps) => {
+      mocks.drag = props;
+      return <actual.DndContext {...props}><DndProbe />{props.children}</actual.DndContext>;
+    },
+    // callback을 직접 구동하는 단위 시험에서도 overlay 내용을 볼 수 있게 portal/내부 active 상태만 걷어낸다.
+    DragOverlay: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  };
 });
 function DndProbe() {
   mocks.context = useDndContext();
@@ -60,7 +65,7 @@ vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: ({ occ }: { o
 } }));
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences,
-  useScheduleWrite: () => ({ mutate: mocks.write }),
+  useScheduleWrite: () => ({ mutate: mocks.write, isPending: false }),
   // 셸의 되돌리기 한 단추가 결재 되돌리기(§14 · N-84)도 탄다 — 이 파일은 스케줄 쓰기만 본다
   useApprovalUndo: () => ({ mutate: vi.fn(), isPending: false }),
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
@@ -443,6 +448,56 @@ describe('키보드 길 — 복사·잘라내기·붙여넣기·취소 (§5.2)',
     });
   });
 
+  it('복사 → 빈 칸 뒤 명시적 붙여넣기 단추도 같은 paste 계약을 쓴다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { metaKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', metaKey: true });
+    pickEmpty(view, '2026-09-03 13:30 빈 시간 선택');
+    expect(view.getByText(/붙일 곳 9\/3 \(목\) · 13:30/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '붙여넣기' }));
+
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({
+      kind: 'paste', body: { targetDate: '2026-09-03', targetStartMin: 810, cut: false },
+    });
+  });
+
+  it('빠른 이중 클릭과 키 repeat는 paste POST를 한 번만 보낸다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { metaKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', metaKey: true });
+    pickEmpty(view, '2026-09-03 13:30 빈 시간 선택');
+    const paste = view.getByRole('button', { name: '붙여넣기' });
+    fireEvent.click(paste);
+    fireEvent.click(paste);
+    fireEvent.keyDown(document.body, { key: 'v', metaKey: true, repeat: true });
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('클립보드를 만든 뒤 CRUD 권한이 회수되면 붙여넣기를 다시 막는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { metaKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', metaKey: true });
+    pickEmpty(view, '2026-09-03 13:30 빈 시간 선택');
+    mocks.permissions.canCrudAll = false;
+    view.rerender(<SchedulePage />);
+    const paste = view.getByRole('button', { name: '붙여넣기' }) as HTMLButtonElement;
+    expect(paste.disabled).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'v', metaKey: true });
+    expect(view.getByText('이 계정은 일정 편집 권한이 없어 복사·붙여넣기를 사용할 수 없습니다.')).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('관리 화면을 볼 수 있어도 CRUD 권한이 없으면 복사·붙여넣기를 시작하지 않는다', () => {
+    mocks.permissions.canCrudAll = false;
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+
+    expect(view.getByText('이 계정은 일정 편집 권한이 없어 복사·붙여넣기를 사용할 수 없습니다.')).toBeTruthy();
+    expect(view.queryByText('1건 복사됨')).toBeNull();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
   it('잘라내기는 낱말과 계약의 cut 만 바꾼다 — 누르는 순간 원본을 지우지 않는다', () => {
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
@@ -804,6 +859,17 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     finish(drop(items[0]));
     expect(mocks.write.mock.calls[0][0]).toEqual({ kind: 'patch', serId: 1,
       body: { date: '2026-09-02', startMin: 915, endMin: 975, roomId: 3, onDate: '2026-09-01', scope: 'this' } });
+  });
+
+  it('드래그 중 미리 본 날짜·15분 시각과 drop 저장 시각이 같다', () => {
+    const view = render(<SchedulePage />);
+    const event = drop(items[0]);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: new MouseEvent('pointerdown') }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.getByText('9/2 (수) · 15:15–16:15').getAttribute('data-drop-preview')).not.toBeNull();
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(mocks.write.mock.calls[0][0].body).toMatchObject({ date: '2026-09-02', startMin: 915, endMin: 975 });
+    expect(view.queryByText('9/2 (수) · 15:15–16:15')).toBeNull();
   });
 
   it('주간 슬롯 drop은 세로 시각을 저장하고 보이지 않는 강의실·강사 축은 바꾸지 않는다', () => {

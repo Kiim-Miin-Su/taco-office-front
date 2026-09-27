@@ -5,8 +5,17 @@
  */
 
 import { fileURLToPath } from 'node:url';
+import { resolveApiUpstream } from './scripts/api-upstream.mjs';
 
 const FRONT_ROOT = fileURLToPath(new URL('.', import.meta.url));
+
+/**
+ * 브라우저는 언제나 front 와 같은 origin의 `/api/v1`만 부른다.
+ * 실제 API 주소는 Next 서버만 알고 rewrite한다. 서로 다른 `*.vercel.app`을 브라우저가
+ * 직접 오가면 refresh cookie가 third-party가 되어 하드 새로고침에서 401이 날 수 있다.
+ * 옛 배포의 absolute NEXT_PUBLIC_API_BASE도 upstream으로 읽어 무중단 전환한다.
+ */
+const configuredUpstream = resolveApiUpstream(process.env);
 
 /** @type {import('next').NextConfig} */
 export default {
@@ -15,9 +24,12 @@ export default {
   // 홈 디렉터리의 다른 package-lock.json을 monorepo 루트로 오인하지 않게 이 앱을 tracing SSOT로 고정한다.
   outputFileTracingRoot: FRONT_ROOT,
 
-  // API 는 별도 레포·별도 Vercel 프로젝트다 (D-R42). 여기서 프록시하지 않는다 —
-  // 대신 **같은 도메인 아래**(app.tn.kr · api.tn.kr)에 두어 쿠키가 1st-party 로 실리게 한다.
-  env: { NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE },
+  // 브라우저 번들에는 같은-origin 경로만 둔다. upstream은 위 서버 설정에만 남는다.
+  env: { NEXT_PUBLIC_API_BASE: '/api/v1' },
+
+  async rewrites() {
+    return [{ source: '/api/v1/:path*', destination: `${configuredUpstream}/:path*` }];
+  },
 
   /**
    * 빌드 산출물 위치. 기본은 .next 다.

@@ -21,7 +21,7 @@ import { flushSync } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useSensor, useSensors,
-  type CollisionDetection, type DragEndEvent, type DragStartEvent,
+  type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { AppShell } from '@/components/shell/AppShell';
 import { ScheduleSidebar } from '@/components/shell/ScheduleSidebar';
@@ -108,6 +108,12 @@ interface ConflictProbe {
   roomId?: number | null;
   zaccId?: number | null;
   exceptSerId?: number | null;
+}
+
+interface DropPreview {
+  date: string;
+  startMin: number;
+  endMin: number;
 }
 
 /**
@@ -318,6 +324,8 @@ function AdminSchedulePage() {
   const hz = useHorizon();
   const write = useScheduleWrite();
   const canEdit = useCan('canCrudAll');
+  /** React state 반영 전 같은 tick의 이중 클릭·키 반복도 같은 paste POST를 두 번 보내지 않는다. */
+  const pasteInFlight = useRef(false);
   /* 사이드바 [관리] 는 §18 에 들어갈 수 있을 때만 — 직접 URL 과 같은 내비 규칙(D-R39) */
   const sessionMe = useSession((st) => st.me);
   const canOpenPrograms = canAccessAppRoute('/programs', sessionMe);
@@ -334,6 +342,7 @@ function AdminSchedulePage() {
 
   /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
   const [dragging, setDragging] = useState<Occurrence | null>(null);
+  const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [creating, setCreating] = useState<Extract<DragData, { type: 'create' }> | null>(null);
   const [dragCopy, setDragCopy] = useState(false);
   const dragCopyRef = useRef(false);
@@ -466,6 +475,13 @@ function AdminSchedulePage() {
   };
 
   const submitPaste = (pending: PendingPaste, scope: Scope) => {
+    if (!canEdit) {
+      setPasteAsk(null);
+      setErr('이 계정은 일정 편집 권한이 없어 복사·붙여넣기를 사용할 수 없습니다.');
+      return;
+    }
+    if (pasteInFlight.current || write.isPending) return;
+    pasteInFlight.current = true;
     write.mutate(
       {
         kind: 'paste',
@@ -492,12 +508,18 @@ function AdminSchedulePage() {
             go({ t: 'selected', keys: [] });
           }
         },
+        onSettled: () => { pasteInFlight.current = false; },
       },
     );
   };
 
   /** 단발은 즉시, 반복 원본이 하나라도 있으면 붙여넣기 직전에 한 번만 범위를 묻는다. */
   const requestPaste = (pending: PendingPaste) => {
+    if (!canEdit) {
+      setErr('이 계정은 일정 편집 권한이 없어 복사·붙여넣기를 사용할 수 없습니다.');
+      return;
+    }
+    if (pasteInFlight.current || write.isPending) return;
     if (pending.items.some((o) => o.recurring)) setPasteAsk(pending);
     else submitPaste(pending, 'this');
   };
@@ -562,8 +584,40 @@ function AdminSchedulePage() {
     if (d.type === 'move') setDragging(d.occ);
   };
 
+  /**
+   * 손 아래의 drop 좌표를 한 번만 해석한다. 미리보기와 실제 저장이 이 함수를 함께 써야
+   * 사용자가 본 시각과 서버로 보낸 시각이 갈리지 않는다.
+   */
+  const dropTarget = (
+    occ: Occurrence,
+    over: DragMoveEvent['over'] | DragEndEvent['over'],
+    translatedTop: number | null | undefined,
+  ): DropPreview | null => {
+    const target = over?.data.current as DropData | undefined;
+    if (!over || !target) return null;
+    const duration = occ.endMin - occ.startMin;
+    if (target.type === 'day') {
+      return lessonTimeIssue(occ.startMin, occ.endMin)
+        ? null : { date: target.date, startMin: occ.startMin, endMin: occ.endMin };
+    }
+    const startMin = translatedTop === null || translatedTop === undefined
+      ? null : slotStartMin(target.slotMin, over.rect.top, over.rect.height, translatedTop);
+    if (startMin === null || lessonTimeIssue(startMin, startMin + duration)) return null;
+    return { date: target.date, startMin, endMin: startMin + duration };
+  };
+
+  const onDragMove = (e: DragMoveEvent) => {
+    const d = e.active.data.current as DragData | undefined;
+    if (d?.type !== 'move') {
+      setDropPreview(null);
+      return;
+    }
+    setDropPreview(dropTarget(d.occ, e.over, e.active.rect.current.translated?.top));
+  };
+
   const onDragEnd = (e: DragEndEvent) => {
     setDragging(null);
+    setDropPreview(null);
     setCreating(null);
     setDragCopy(false);
     const copy = dragCopyRef.current;
@@ -620,10 +674,8 @@ function AdminSchedulePage() {
       return;
     }
     // 대상 slot과 블록의 상단은 같은 viewport 좌표다. 다른 pane의 시작 시각·스크롤도 반영한다.
-    const translated = e.active.rect.current.translated;
-    const startMin = translated && e.over
-      ? slotStartMin(over.slotMin, e.over.rect.top, e.over.rect.height, translated.top)
-      : null;
+    const projected = dropTarget(d.occ, e.over, e.active.rect.current.translated?.top);
+    const startMin = projected?.startMin ?? null;
     const issue = startMin === null ? '놓은 위치의 시각을 확인할 수 없습니다. 다시 놓아 주세요.'
       : lessonTimeIssue(startMin, startMin + d.occ.endMin - d.occ.startMin);
     if (issue || startMin === null) {
@@ -662,6 +714,7 @@ function AdminSchedulePage() {
 
   const onDragCancel = () => {
     setDragging(null);
+    setDropPreview(null);
     setCreating(null);
     setDragCopy(false);
     dragCopyRef.current = false;
@@ -718,6 +771,10 @@ function AdminSchedulePage() {
 
   /** 복사 시점에는 DB를 바꾸지 않는다. X도 붙여넣기 성공 전까지 원본을 보존한다. */
   const copySelection = (cut: boolean) => {
+    if (!canEdit) {
+      setErr('이 계정은 일정 편집 권한이 없어 복사·붙여넣기를 사용할 수 없습니다.');
+      return;
+    }
     const picked = selectedOccurrences(filteredAll, s.selected);
     if (!picked.length) return;
     go({ t: 'clipboard', value: { items: picked, cut } });
@@ -725,6 +782,11 @@ function AdminSchedulePage() {
   };
 
   const pasteAtCursor = () => {
+    if (!canEdit) {
+      setErr('이 계정은 일정 편집 권한이 없어 복사·붙여넣기를 사용할 수 없습니다.');
+      return;
+    }
+    if (pasteInFlight.current || write.isPending) return;
     if (!s.clipboard) {
       setErr('클립보드가 비어 있습니다. 먼저 일정을 선택하고 Ctrl/⌘ + C를 누르세요.');
       return;
@@ -780,6 +842,7 @@ function AdminSchedulePage() {
       }
       if (mod && key === 'v') {
         e.preventDefault();
+        if (e.repeat) return;
         pasteAtCursor();
         return;
       }
@@ -1340,6 +1403,7 @@ function AdminSchedulePage() {
           sensors={sensors}
           collisionDetection={calendarCollision}
           onDragStart={onDragStart}
+          onDragMove={onDragMove}
           onDragEnd={onDragEnd}
           onDragCancel={onDragCancel}
         >
@@ -1460,6 +1524,10 @@ function AdminSchedulePage() {
         <ClipboardBar
           count={s.clipboard?.items.length ?? 0}
           cut={s.clipboard?.cut ?? false}
+          target={s.cursor ? `${label(s.cursor.date)} · ${hhmm(s.cursor.startMin)}` : null}
+          pasteDisabled={!canEdit || write.isPending || pasteInFlight.current}
+          pasteBusy={write.isPending || pasteInFlight.current}
+          onPaste={pasteAtCursor}
           onClear={() => { go({ t: 'clipboard', value: null }); go({ t: 'cursor', value: null }); }}
         />
 
@@ -1489,6 +1557,11 @@ function AdminSchedulePage() {
               } ${dragCopy ? 'ring-2 ring-violet' : ''}`}>
               {dragCopy ? '복제 · ' : ''}{subName(dragging) ?? dragging.title ?? dragging.kindKey}
               <span className="ml-1 opacity-70">{dragging.students.length ? `· ${dragging.students.length}명` : ''}</span>
+              {dropPreview ? (
+                <span data-drop-preview className="mt-1 block rounded bg-card/80 px-1 py-0.5 text-[10px] text-fg">
+                  {label(dropPreview.date)} · {hhmm(dropPreview.startMin)}–{hhmm(dropPreview.endMin)}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </DragOverlay>

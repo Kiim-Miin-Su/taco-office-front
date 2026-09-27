@@ -23,7 +23,7 @@ describe('앱 내부 클립보드 띠 (§5.2)', () => {
     rerender(<ClipboardBar count={3} cut onClear={vi.fn()} />);
     expect(screen.getByText('3건 잘라내기됨')).toBeTruthy();
     // 잘라내기여도 안내는 같다 — 원본은 붙여넣기가 성공할 때까지 남는다
-    expect(screen.getByText('붙일 칸을 고른 뒤 Ctrl/⌘ + V')).toBeTruthy();
+    expect(screen.getByText(/붙일 빈 칸을 먼저 고르세요/)).toBeTruthy();
   });
 
   it('상태 띠라 role=status 로 읽히고, 취소는 누른 쪽에 맡긴다', () => {
@@ -32,5 +32,24 @@ describe('앱 내부 클립보드 띠 (§5.2)', () => {
     expect(screen.getByRole('status')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Esc 취소' }));
     expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('대상 전에는 붙여넣기 단추를 막고, 대상이 생기면 시각을 말하며 실행한다', () => {
+    const onPaste = vi.fn();
+    const { rerender } = render(<ClipboardBar count={1} cut={false} target={null} onPaste={onPaste} onClear={vi.fn()} />);
+    expect((screen.getByRole('button', { name: '붙여넣기' }) as HTMLButtonElement).disabled).toBe(true);
+    rerender(<ClipboardBar count={1} cut={false} target="9/3 (목) · 13:30" onPaste={onPaste} onClear={vi.fn()} />);
+    expect(screen.getByText(/붙일 곳 9\/3 \(목\) · 13:30/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '붙여넣기' }));
+    expect(onPaste).toHaveBeenCalledOnce();
+  });
+
+  it('저장 중이면 대상이 있어도 두 번 붙이지 못하게 한다', () => {
+    const onPaste = vi.fn();
+    render(<ClipboardBar count={1} cut={false} target="9/3 (목) · 13:30" pasteDisabled pasteBusy onPaste={onPaste} onClear={vi.fn()} />);
+    const button = screen.getByRole('button', { name: '저장 중…' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(onPaste).not.toHaveBeenCalled();
   });
 });

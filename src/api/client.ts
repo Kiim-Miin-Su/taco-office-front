@@ -29,7 +29,8 @@ export class ApiError extends Error {
 }
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3001/api/v1',
+  // 인증 쿠키를 first-party로 유지하려고 브라우저는 Next의 same-origin API rewrite만 부른다.
+  baseURL: process.env.NEXT_PUBLIC_API_BASE ?? '/api/v1',
   withCredentials: true, // Refresh 쿠키를 주고받는다
   timeout: 20_000,
   // XHR timeout을 ETIMEDOUT로 받아 브라우저 abort(ECONNABORTED)와 구분한다.

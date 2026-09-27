@@ -325,7 +325,8 @@ export function DayGrid({
                             <EventBlock key={`${o.serId}|${o.onDate}`} occ={o} subName={subName?.(o)} kindName={kindName?.(o)}
                                         zaccLabel={zaccLabel?.(o)} color={colorOf?.(o)} compact
                                         onClick={() => { setOpenCluster(null); onOpen?.(o); }}
-                                        onSelect={onSelect} selected={selected?.has(occurrenceKey(o))} />
+                                        onSelect={onSelect} selected={selected?.has(occurrenceKey(o))}
+                                        draggable={interactive} resizable={interactive} />
                           ))}
                         </div>
                       ) : null}
@@ -500,7 +501,8 @@ export function WeekGrid({
                           <EventBlock key={occurrenceKey(o)} occ={o} subName={subName?.(o)} kindName={kindName?.(o)}
                             zaccLabel={zaccLabel?.(o)} color={colorOf?.(o)} compact
                             onClick={() => { setOpenCluster(null); onOpen?.(o); }}
-                            onSelect={onSelect} selected={selected?.has(occurrenceKey(o))} />
+                            onSelect={onSelect} selected={selected?.has(occurrenceKey(o))}
+                            draggable={interactive} />
                         ))}
                       </div>
                     ) : null] : [];
