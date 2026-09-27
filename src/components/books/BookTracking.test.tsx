@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it } from 'vitest';
 import { api } from '@/api/client';
 import type { Me } from '@/api/types';
+import { todayKst } from '@/lib/calendar';
 import { useSession } from '@/store/useSession';
 import { BookTracking } from './BookTracking';
 
@@ -251,7 +252,7 @@ it('배부 창은 사유를 함께 보내고 고른 학생의 최신 진단 한 
   fireEvent.change(view.getByLabelText('사유'), { target: { value: '  Reading 보강 — 진단 결과  ' } });
   fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 3, libId: 4, state: 'ok', reason: 'Reading 보강 — 진단 결과' });
+  expect(mutation.body).toEqual({ studentId: 3, libId: 4, state: 'ok', issuedOn: todayKst(), reason: 'Reading 보강 — 진단 결과' });
 });
 
 it('진단이 없는 학생은 없다고 적고, 빈 사유는 보내지 않는다 (N-62)', async () => {
@@ -262,7 +263,7 @@ it('진단이 없는 학생은 없다고 적고, 빈 사유는 보내지 않는�
   fireEvent.change(view.getByLabelText('교재'), { target: { value: '5' } });
   fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 9, libId: 5, state: 'ok' });
+  expect(mutation.body).toEqual({ studentId: 9, libId: 5, state: 'ok', issuedOn: todayKst() });
 });
 
 /**
@@ -284,5 +285,44 @@ it('형태 칩은 서버 낱말 그대로 승인 대기 요청 줄에도 서고,
   fireEvent.change(view.getByLabelText('형태'), { target: { value: 'pdf' } });
   fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 3, libId: 5, state: 'ok', form: 'pdf' });
+  expect(mutation.body).toEqual({ studentId: 3, libId: 5, state: 'ok', issuedOn: todayKst(), form: 'pdf' });
+});
+
+it('배부 생성은 초기 상태를 고르고 대기 상태에는 배부일·진도를 보내지 않는다 (E-52)', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
+  expect([...(view.getByLabelText('초기 상태') as HTMLSelectElement).options].map((option) => option.textContent))
+    .toEqual(['승인 대기', '전달 대기', '배부 완료']);
+  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
+  fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
+  fireEvent.change(view.getByLabelText('초기 상태'), { target: { value: 'wait' } });
+  expect(view.queryByLabelText('배부일')).toBeNull();
+  expect(view.queryByLabelText('초기 진도 쪽수')).toBeNull();
+  expect(view.getByText('배부일과 진도는 전달 완료 뒤 기록합니다.')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '승인 요청 등록' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
+  expect(mutation.body).toEqual({ studentId: 3, libId: 4, state: 'wait' });
+});
+
+it('즉시 배부는 고른 배부일과 0쪽 초기 진도를 생성 DTO로 보낸다 (E-52)', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
+  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
+  fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
+  fireEvent.change(view.getByLabelText('배부일'), { target: { value: '2026-09-20' } });
+  fireEvent.change(view.getByLabelText('초기 진도 쪽수'), { target: { value: '0' } });
+  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
+  expect(mutation.body).toEqual({
+    studentId: 3, libId: 4, state: 'ok', issuedOn: '2026-09-20', progressPage: 0,
+  });
+});
+
+it('회수는 사용자가 고른 회수일을 기존 return 계약으로 보낸다 (E-55)', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '고은성 펼치기' }));
+  fireEvent.change(view.getByLabelText('고은성 SAT Reading 회수일'), { target: { value: '2026-09-21' } });
+  fireEvent.click(view.getByRole('button', { name: '고은성 SAT Reading 회수' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues/10/return'));
+  expect(mutation.body).toEqual({ returnedOn: '2026-09-21' });
 });

@@ -63,8 +63,12 @@ export function BookTracking({
   const [libId, setLibId] = useState('');
   const [reason, setReason] = useState('');
   const [form, setForm] = useState('');
+  const [issueState, setIssueState] = useState<NonNullable<BookIssueCreate['state']>>('ok');
+  const [issuedOn, setIssuedOn] = useState(todayKst());
+  const [initialProgress, setInitialProgress] = useState('');
   const diag = useBookIssueDiag(adding && studentId ? Number(studentId) : null);
   const [pages, setPages] = useState<Record<number, string>>({});
+  const [returnDates, setReturnDates] = useState<Record<number, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   useEffect(() => {
     if (createRequest > 0) setAdding(true);
@@ -105,6 +109,47 @@ export function BookTracking({
                   ))}
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="issue-state">초기 상태</Label>
+                <Select
+                  id="issue-state"
+                  value={issueState}
+                  onChange={(event) => setIssueState(event.target.value as NonNullable<BookIssueCreate['state']>)}
+                >
+                  <option value="wait">승인 대기</option>
+                  <option value="auto">전달 대기</option>
+                  <option value="ok">배부 완료</option>
+                </Select>
+              </div>
+              {issueState === 'ok' ? (
+                <>
+                  <div>
+                    <Label htmlFor="issue-issued-on">배부일</Label>
+                    <Input
+                      id="issue-issued-on"
+                      type="date"
+                      value={issuedOn}
+                      onChange={(event) => setIssuedOn(event.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="issue-progress">초기 진도 쪽수</Label>
+                    <Input
+                      id="issue-progress"
+                      type="number"
+                      min={0}
+                      max={books.data?.items.find((book) => book.id === Number(libId))?.pages ?? undefined}
+                      value={initialProgress}
+                      onChange={(event) => setInitialProgress(event.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="self-end text-[11px] text-fg-subtle">
+                  배부일과 진도는 전달 완료 뒤 기록합니다.
+                </p>
+              )}
               {/* N-62 — 그 학생의 최신 상담 진단 한 줄(읽기만) */}
               {studentId ? (
                 <p data-testid="issue-diag" className="text-[12px] text-fg-subtle sm:col-span-2">
@@ -145,7 +190,9 @@ export function BookTracking({
                 onClick={() =>
                   create.mutate(
                     {
-                      studentId: Number(studentId), libId: Number(libId), state: 'ok',
+                      studentId: Number(studentId), libId: Number(libId), state: issueState,
+                      ...(issueState === 'ok' && issuedOn ? { issuedOn } : {}),
+                      ...(issueState === 'ok' && initialProgress !== '' ? { progressPage: Number(initialProgress) } : {}),
                       ...(reason.trim() ? { reason: reason.trim() } : {}),
                       ...(form ? { form: form as BookIssueCreate['form'] } : {}),
                     },
@@ -156,12 +203,15 @@ export function BookTracking({
                         setLibId('');
                         setReason('');
                         setForm('');
+                        setIssueState('ok');
+                        setIssuedOn(todayKst());
+                        setInitialProgress('');
                       },
                     },
                   )
                 }
               >
-                배부 완료
+                {issueState === 'wait' ? '승인 요청 등록' : issueState === 'auto' ? '전달 대기 등록' : '배부 완료'}
               </Button>
             </div>
           </Panel>
@@ -379,12 +429,20 @@ export function BookTracking({
                                         >
                                           저장
                                         </Button>
+                                        <Input
+                                          aria-label={`${s.name} ${bookTitle} 회수일`}
+                                          className="!h-8 !w-36 !px-2"
+                                          type="date"
+                                          min={issue.issuedOn ?? undefined}
+                                          value={returnDates[issue.id] ?? todayKst()}
+                                          onChange={(event) => setReturnDates((value) => ({ ...value, [issue.id]: event.target.value }))}
+                                        />
                                         <Button
                                           size="sm"
                                           variant="secondary"
                                           aria-label={`${s.name} ${bookTitle} 회수`}
                                           disabled={ret.isPending}
-                                          onClick={() => ret.mutate({ id: issue.id })}
+                                          onClick={() => ret.mutate({ id: issue.id, returnedOn: returnDates[issue.id] ?? todayKst() })}
                                         >
                                           회수
                                         </Button>
