@@ -22,6 +22,7 @@ import { Button, Chip, Logo, cn } from '@/components/ui';
 import {
   adminNavBadgeFor, type AdminNavBadge, type AdminNavItem, type PersonalNavIcon,
 } from '@/components/shell/navigation';
+import { won } from '@/lib/money';
 
 /** Figma Icon/* (Lucide) — 이름은 navigation.ts 항목이 갖고, 여기서는 그림만 잇는다 */
 const ICON: Record<PersonalNavIcon, LucideIcon> = {
@@ -118,7 +119,7 @@ export function TeacherMenuPanel({
           })}
         </div>
         {/*
-          사용자 칸 — 강사 덱 메뉴 맨 아래 「범준 김범준 / 강사 · 마이 페이지 › / 시간대 Seoul UTC+9 / 시급 45,000원」.
+          사용자 칸 — 강사 덱 메뉴 맨 아래 「범준 김범준 / 강사 · 마이 페이지 › / 시간대 Seoul UTC+9 / 시급 45,000원」(금액 표기는 `lib/money` 「₩45,000」 · N-92).
           역할 낱말도 서버가 만든다 — 화면이 제 표를 들면 관리자 서랍과 여기가 갈린다.
           「마이 페이지」 화면은 강사 화면 7개에 없다 — 내 설정(시간대·시급 변경 요청)이 있는 홈 「내 설정」으로 간다 (D-R44).
         */}
@@ -142,7 +143,7 @@ export function TeacherMenuPanel({
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-fg-subtle">
                 {tzLabel ? <><dt>시간대</dt><dd className="font-bold text-fg">{tzLabel}</dd></> : null}
                 {wageRate !== null && wageRate !== undefined
-                  ? <><dt>시급</dt><dd className="font-bold text-fg">{wageRate.toLocaleString('ko-KR')}원</dd></>
+                  ? <><dt>시급</dt><dd className="font-bold text-fg">{won(wageRate)}</dd></>
                   : null}
               </dl>
             ) : null}

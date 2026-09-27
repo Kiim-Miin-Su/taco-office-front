@@ -52,7 +52,7 @@ describe('§17 구성원 (C97)', () => {
 
   it('canWage 면 wageable 인 줄에만 시급과 「시급 수정」이 서고, 줄이 없는 강사는 「시급 없음」이라 적지 않는다 — 매니저 줄에는 없다', () => {
     const { view } = paint({ canWage: true });
-    expect(row(view, '김재훈').textContent).toContain('시급 40,000원 · 2026-01-01 부터');
+    expect(row(view, '김재훈').textContent).toContain('시급 ₩40,000 · 2026-01-01 부터');
     expect(within(row(view, '김재훈')).getByRole('button', { name: '시급 수정' })).toBeTruthy();
     expect(row(view, '새 강사').textContent).not.toContain('시급 없음');
     expect(within(row(view, '새 강사')).getByRole('button', { name: '시급 수정' })).toBeTruthy();
@@ -166,12 +166,12 @@ describe('§17 구성원 (C97)', () => {
     fireEvent.click(within(row(view, '김재훈')).getByRole('button', { name: '시급 수정' }));
     const dialog = view.getByRole('dialog');
     expect(dialog.textContent).toContain('김재훈 · 시급');
-    expect(dialog.textContent).toContain('지금 시급 40,000원 · 2026-01-01 부터');
+    expect(dialog.textContent).toContain('지금 시급 ₩40,000 · 2026-01-01 부터');
     await waitFor(() => expect(get).toHaveBeenCalledWith('/accounting/wages', { params: { staffId: 7 } }));
     await waitFor(() => expect(within(dialog).getAllByRole('row')).toHaveLength(4));
     const cells = within(dialog).getAllByRole('row').slice(1).map((r) => r.textContent);
     expect(cells[0]).toContain('2026-09-26');
-    expect(cells[0]).toContain('47,000원');
+    expect(cells[0]).toContain('₩47,000');
     expect(cells[0]).not.toContain('지금');
     expect(cells[1]).toContain('지금');
     expect(cells[1]).toContain('연봉 협상');

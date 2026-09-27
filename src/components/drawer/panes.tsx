@@ -16,8 +16,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { AlarmClock, ArrowLeftRight, Bell, Check, CornerDownLeft, Info, type LucideIcon } from 'lucide-react';
 import {
-  Banner, Button, Checkbox, Chip, ChipButton, ConflictGuard, Input, Label, Segmented, Select, Table,
-  cn, type Column, type Tone,
+  Banner, Button, Checkbox, Chip, ChipButton, ChipRow, ConflictGuard, Input, Label, Segmented, Select, Table,
+  cn, type ChipColor, type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
 import {
@@ -25,7 +25,7 @@ import {
 } from '@/components/approval/ApprovalRowContent';
 import type {
   ApFlow, ApRow, ChangeReq, ConflictRow, Drawer as DrawerData, DrawerTodo, DrawerTodoCreate,
-  Kind, KindRow, MemberGroup, Noti, Occurrence, PhoneCountry, Room, StaffBrief, Sub, TzGroup, Zacc, ZoomAccount, ZoomBoard,
+  Kind, KindRow, MemberGroup, Noti, Occurrence, PhoneCountry, Room, StaffBrief, Sub, Todo, TodoLesson, TzGroup, Zacc, ZoomAccount, ZoomBoard,
 } from '@/api/types';
 import {
   addDays, conflictLines, dowOf, hhmm, KO_DOW, label, lessonTimeIssue, monthBounds, parseHm, step, todayKst, weekDays,
@@ -39,29 +39,6 @@ import { WageChangeButton } from './WageChangeDialog';
 import { TodoCreateDialog } from './TodoCreateDialog';
 
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, newChangeReqDraft, type ChangeReqDraft } from './change-request';
-
-/**
- * 원문 §14·§16 의 **누르는 칩** — 눌린 칩은 어두운 채움, 나머지는 흰 바탕에 분류 색 점(g2 대조 14-8 · 16-3).
- * 두 칸이 같은 모양을 각자 그리던 것을 한 벌로 모았다. 공용 `ChipRow` 는 눌린 모양이 파란 채움이라 원문과 달라 쓰지 않는다.
- */
-function FilterPill({ pressed, dot, onClick, children }: {
-  pressed: boolean; dot?: string; onClick: () => void; children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors',
-        pressed ? 'border-fg bg-fg text-card' : 'border-line bg-card text-fg hover:border-primary/50',
-      )}
-    >
-      {dot ? <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-full', dot)} /> : null}
-      {children}
-    </button>
-  );
-}
 
 /** 「반려」·「끝난 것 지우기」처럼 되돌리기 어려운 쪽 — 원문은 흰 바탕에 붉은 글자·옅은 붉은 테두리다(g2 14-10) */
 const DANGER_OUTLINE = '!border-red/40 !text-red';
@@ -198,21 +175,22 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
   flow: ApFlow; onGo: () => void;
   onReview?: (v: ApReview) => void; busy?: boolean; error?: string | null;
 }) {
-  const [filter, setFilter] = useState<string>('all');
+  /** 고른 분류 — `''` 가 「전체」다(공용 `ChipRow` 의 약속) */
+  const [filter, setFilter] = useState<string>('');
   const actionable = flow.inbox.filter((r) => r.canAct).length;
   const linkOnly = flow.inbox.length - actionable;
-  const shown = flow.inbox.filter((row) => filter === 'all' || row.category === filter);
+  const shown = flow.inbox.filter((row) => filter === '' || row.category === filter);
   return (
     <>
       {/*
         원문 §14 머리는 평문 한 줄이다 — 건수는 서버가 센 inboxCount(g2 14-9). 전건이 뜨고 자동 승인이 없다는 규칙은
-        목록 자체가 말한다. 「모든 처리는 되돌리기로 취소됩니다」는 결재 되돌리기가 생길 때까지 적지 않는다
-        (14-1 결정 대기 — 없는 기능을 말하게 된다). 단추 없는 줄(N-12)이 있으면 어디서 처리하는지만 덧붙인다.
+        목록 자체가 말한다. 「모든 처리는 되돌리기로 취소됩니다」는 결재 되돌리기(N-84)가 생겨 원문 그대로 적는다 —
+        처리하면 상단바 「되돌리기」에 그 처리가 쌓인다(본인 · 10분). 단추 없는 줄(N-12)이 있으면 어디서 처리하는지만 덧붙인다.
       */}
       <p className="mb-3 text-[12.5px] leading-relaxed text-fg-2">
         강사·코디네이터가 올린 요청이 <b className="text-fg">{flow.inboxCount}건</b> 대기 중입니다.
         {actionable > 0 ? (
-          <> 반려에도 <b className="text-fg">사유</b>가 남습니다.{linkOnly > 0 ? ' 단추가 없는 줄은 줄을 눌러 그 화면에서 처리합니다.' : ''}</>
+          <> 반려에도 사유가 남고, 모든 처리는 <b className="text-fg">되돌리기</b>로 취소됩니다.{linkOnly > 0 ? ' 단추가 없는 줄은 줄을 눌러 그 화면에서 처리합니다.' : ''}</>
         ) : (
           <> 줄을 눌러 그 화면에서 처리합니다.</>
         )}
@@ -225,22 +203,21 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
           없는 것이 아니라 못 세는 것입니다.
         </Banner>
       ) : null}
-      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="승인 요청 분류">
-        {[
-          { key: 'all', label: '전체', count: flow.inboxCount },
-          ...flow.categories.filter((category) => category.count > 0 || category.key !== 'other'),
-        ].map((category) => (
-          <FilterPill
-            key={category.key}
-            pressed={filter === category.key}
-            // 분류 칩 앞의 점은 카드 배지와 같은 색이다 — 「전체」에는 점이 없다 (g2 14-8)
-            dot={category.key === 'all' ? undefined : TONE_MARK[approvalCategoryTone(category.key)].dot}
-            onClick={() => setFilter(category.key)}
-          >
-            {category.label} {category.count}
-          </FilterPill>
-        ))}
-      </div>
+      {/* 원문 §14 칩 — 눌린 칩은 진한 채움(`ink`), 분류 칩 앞의 점은 카드 배지와 같은 색 · 「전체」에는 점이 없다 (g2 14-8 · W11 7-3) */}
+      <ChipRow
+        className="mb-3"
+        ariaLabel="승인 요청 분류"
+        pressedTone="ink"
+        value={filter}
+        onChange={setFilter}
+        allCount={flow.inboxCount}
+        options={flow.categories
+          .filter((category) => category.count > 0 || category.key !== 'other')
+          .map((category) => ({
+            value: category.key, label: category.label, count: category.count,
+            dot: TONE_MARK[approvalCategoryTone(category.key)].dot,
+          }))}
+      />
       <ApList rows={shown} onGo={onGo} onReview={onReview} busy={busy} />
     </>
   );
@@ -302,17 +279,79 @@ function TodoDayCard({ heading, items, today = false, busy, onToggle }: {
   );
 }
 
+/** §15 줄 앞 출처 점 — 아래 §64 채운 칩(TODO_SOURCE_TONE)과 같은 빛깔이다. 상담 사후 관리는 상담 갈래의 청록(W11 A' · N-86) */
 const TODO_SOURCE_DOT: Record<string, string> = {
-  meeting: 'bg-violet', complaint: 'bg-red', consulting: 'bg-amber', plan: 'bg-green', manual: 'bg-blue', lesson: 'bg-blue',
+  meeting: 'bg-violet', complaint: 'bg-red', consulting: 'bg-amber', plan: 'bg-green', manual: 'bg-blue', lesson: 'bg-blue', lead: 'bg-teal',
+};
+/** §64 줄 머리의 채운 출처 칩 색 — 원문 컷 수업 파랑 · 회의 보라 (g6 64-2). 낱말은 서버의 srcLabel 이다 (D-R18) */
+const TODO_SOURCE_TONE: Record<string, ChipColor> = {
+  lesson: 'info', meeting: 'purple', complaint: 'danger', consulting: 'warning', plan: 'success', lead: 'teal', manual: 'neutral',
 };
 
-/** 서랍과 운영이 같은 행을 쓴다. 기간·상태·권한·mutation은 부르는 화면이 소유한다. */
-export function TodoRows({ items, busy, onToggle, onEdit }: {
-  items: Array<Pick<DrawerTodo, 'id' | 'title' | 'done' | 'src' | 'srcLabel' | 'fromName' | 'toName' | 'overdueDays'> & Partial<Pick<DrawerTodo, 'go'>>>;
+type TodoRowItem = Pick<DrawerTodo, 'id' | 'title' | 'done' | 'src' | 'srcLabel' | 'fromName' | 'toName' | 'overdueDays'>
+  & Partial<Pick<DrawerTodo, 'go'>> & Partial<Pick<Todo, 'lesson'>>;
+
+/**
+ * §64 「연결 수업」 칩 (N-71) — 「● 학습실 09:30」. 점은 서버가 준 과목색이고 누르면 그 회차다(서버의 go).
+ * 회차가 투영에서 사라졌으면 서버가 go 를 비운다 — 이름만 서고 없는 회차로 보내지 않는다.
+ */
+function TodoLessonChip({ lesson }: { lesson: TodoLesson }) {
+  const look = 'inline-flex shrink-0 items-center gap-1.5 rounded-md bg-inset px-2 py-0.5 text-[11px] font-bold text-fg-2';
+  const body = (
+    <>
+      <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: lesson.color ?? 'var(--fg-subtle)' }} />
+      {lesson.label}
+    </>
+  );
+  return lesson.go
+    ? <Link href={lesson.go} className={cn(look, 'hover:bg-line')} aria-label={`연결 수업 ${lesson.label} 열기`}>{body}</Link>
+    : <span className={look}>{body}</span>;
+}
+
+/**
+ * 서랍과 운영이 같은 행을 쓴다. 기간·상태·권한·mutation은 부르는 화면이 소유한다.
+ *
+ * `layout="ops"` 는 원문 §64 줄 모양이다 (W11 · g6 64-2 · 64-3) — 제목 앞 **채운 출처 칩** · 오른쪽에
+ * 연결 수업 칩(누르면 그 회차 · 서버 투영 N-71) · **받는 사람 굵게 + 「준 사람 지시」** · 「고치기」.
+ * 서랍 §15 는 같은 부품의 기본 모양 그대로다(기본값 유지).
+ */
+export function TodoRows({ items, busy, onToggle, onEdit, layout = 'drawer' }: {
+  items: TodoRowItem[];
   busy: boolean;
   onToggle: (id: number, done: boolean) => void;
   onEdit?: (id: number) => void;
+  layout?: 'drawer' | 'ops';
 }) {
+  if (items.length > 0 && layout === 'ops') {
+    return (
+      <ul className="flex flex-col gap-1.5">
+        {items.map((t) => (
+          <li key={t.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2">
+            <Checkbox
+              checked={t.done} disabled={busy}
+              onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
+              className="shrink-0"
+              aria-label={`${t.title} 완료`}
+            />
+            <Chip size="compact" styleKind="solid" tone={TODO_SOURCE_TONE[t.src] ?? 'neutral'}>{t.srcLabel}</Chip>
+            <span className={cn('min-w-0 flex-1 text-[12.5px] font-bold', t.done ? 'text-fg-subtle line-through' : 'text-fg')}>{t.title}</span>
+            {t.overdueDays > 0 ? <Chip tone="danger">{t.overdueDays}일 지남</Chip> : null}
+            {t.lesson ? <TodoLessonChip lesson={t.lesson} /> : null}
+            <span className="flex shrink-0 items-baseline gap-1.5">
+              <b className="text-[12px] text-fg">{t.toName ?? '미배정'}</b>
+              <span className="text-[11px] text-fg-subtle">{t.fromName ?? '—'} 지시</span>
+            </span>
+            {/* 원문 §64 「고치기」 — 흰 바탕 · 붉은 글자 · 옅은 붉은 테두리(서랍의 되돌리기 어려운 쪽과 같은 모양) */}
+            {onEdit ? <Button size="sm" className={DANGER_OUTLINE} disabled={busy} onClick={() => onEdit(t.id)} aria-label={`${t.title} 기한 고치기`}>고치기</Button> : null}
+            {/* 「원본」 — 서버가 지은 주소 그대로(W11 A' 후속 2). 수업 할 일은 연결 수업 칩이 같은 주소라 한 번만 세운다 */}
+            {t.go && t.go !== t.lesson?.go ? (
+              <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return items.length === 0 ? (
     <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[11px] text-fg-subtle">할 일 없음</p>
   ) : (
@@ -367,8 +406,11 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
   const left = rows.filter((t) => !t.done).length;
   const overdue = rows.filter((t) => !t.done && t.overdueDays > 0).length;
   // 단추의 숫자와 보낼 목록이 **같은 배열**에서 나온다 — 두 벌이면 또 갈린다 (D-R22 · S4)
-  const doneRows = rows.filter((t) => t.done);
+  // 지울 수 있는 줄인지는 서버 플래그(`clearable`)다 — 상담 사후 관리(해피콜 · 월간 상담)는 완료 이력이라 빠진다 (W11 A' · N-86)
+  const doneRows = rows.filter((t) => t.done && t.clearable);
   const done = doneRows.length;
+  /** 끝났지만 남는 줄 — 왜 안 지워지는지는 서버 문장 그대로 단추에 단다 */
+  const kept = rows.find((t) => t.done && !t.clearable && t.clearBlockedReason);
   const dated = rows.filter((t) => t.dueOn);
   const dayKeys = period === 'week'
     ? weekDays(anchor)
@@ -420,6 +462,7 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
         <Chip tone="warning">안 끝난 것 {left}</Chip>
         <Chip tone="danger" styleKind="solid">기한 지남 {overdue}</Chip>
         <Button className={cn('ml-auto', DANGER_OUTLINE)} size="sm" variant="secondary" disabled={busy || done === 0}
+          title={kept?.clearBlockedReason ?? undefined}
           onClick={() => onClear(doneRows.map((t) => t.id))}>끝난 것 지우기</Button>
       </div>
 
@@ -456,12 +499,13 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
  * 분류 코드표는 서버가 갖고(`lib/noti.ts`) 여기는 코드값 → 그림·토큰 대응만 한 곳에 둔다(D-R41).
  */
 const NOTI_LOOK: Readonly<Record<string, { icon: LucideIcon; tile: string; dot: string }>> = {
-  report_due: { icon: AlarmClock, tile: 'bg-red/10 text-red', dot: 'bg-red' },
-  re_alarm: { icon: Bell, tile: 'bg-red/10 text-red', dot: 'bg-primary' },
-  report: { icon: Check, tile: 'bg-green/10 text-green', dot: 'bg-green' },
-  schedule: { icon: ArrowLeftRight, tile: 'bg-amber/10 text-amber', dot: 'bg-amber' },
-  request: { icon: CornerDownLeft, tile: 'bg-blue/10 text-blue', dot: 'bg-blue' },
-  etc: { icon: Info, tile: 'bg-inset text-fg-2', dot: 'bg-fg-subtle' },
+  // `dot` 은 공용 `ChipRow` 가 받는 CSS 색(토큰 변수)이다 — 칩 줄이 공용으로 옮겼다(W11 7-3)
+  report_due: { icon: AlarmClock, tile: 'bg-red/10 text-red', dot: 'var(--red)' },
+  re_alarm: { icon: Bell, tile: 'bg-red/10 text-red', dot: 'var(--primary)' },
+  report: { icon: Check, tile: 'bg-green/10 text-green', dot: 'var(--green)' },
+  schedule: { icon: ArrowLeftRight, tile: 'bg-amber/10 text-amber', dot: 'var(--amber)' },
+  request: { icon: CornerDownLeft, tile: 'bg-blue/10 text-blue', dot: 'var(--blue)' },
+  etc: { icon: Info, tile: 'bg-inset text-fg-2', dot: 'var(--fg-subtle)' },
 };
 const notiLook = (category: string) => NOTI_LOOK[category] ?? NOTI_LOOK.etc!;
 
@@ -484,7 +528,8 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
   widened: boolean;
   busy: boolean;
 }) {
-  const [filter, setFilter] = useState<string>('all');
+  /** 고른 칩 — `''` 가 「전체」다(공용 `ChipRow` 의 약속) */
+  const [filter, setFilter] = useState<string>('');
   const mine = (n: Noti) => meId !== null && n.toId === meId;
   const unread = notis.filter((n) => !n.read).length;
   /** 「전부 읽음」이 실제로 바꿀 수 있는 수 — 남의 알림은 서버가 거절한다 */
@@ -493,7 +538,7 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
   /* 목록은 서버가 「안 읽은 것 먼저」로 주지만, §16 은 **날짜로 묶어** 보여 준다.
      그 순서 그대로 묶으면 오늘/어제가 두 번씩 나온다 — 그리는 순서만 날짜순으로 되돌린다. */
   const shown = notis
-    .filter((n) => (filter === 'all' ? true
+    .filter((n) => (filter === '' ? true
       : filter === 'mine' ? mine(n)
         : filter === 'unread' ? !n.read : n.category === filter))
     .slice()
@@ -518,29 +563,26 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
         독촉과 재알람은 정산에 그대로 반영되므로 처리 여부를 여기서 확인하세요.
       </p>
 
-      <div className="flex flex-wrap gap-1">
-        {[
-          { key: 'all', label: `전체 ${notis.length}` },
+      {/* 원문 §16 칩 — 눌린 칩은 진한 채움(`ink`), 분류 칩 앞의 점은 카드 타일과 같은 색 · 전체·내게 온 것·안 읽음에는 점이 없다 (g2 16-3 · W11 7-3) */}
+      <ChipRow
+        ariaLabel="알림 분류"
+        pressedTone="ink"
+        value={filter}
+        onChange={setFilter}
+        allCount={notis.length}
+        options={[
           /*
             원문 M-126 의 「내게 온 것」. 관리자·대표는 **남의 알림도 보는** 화면이라,
             줄마다 「남의 알림」이라 적어 두기만 하고 **골라 볼 길이 없었다** — 스무 줄이 넘으면
             그 라벨만으로는 내 것을 못 찾는다. 판정은 이미 쓰고 있는 `mine()` 그대로다.
           */
-          { key: 'mine', label: `내게 온 것 ${notis.filter(mine).length}` },
-          { key: 'unread', label: `안 읽음 ${unread}` },
-          ...categories.map((category) => ({ key: category.key, label: `${category.label} ${category.count}` })),
-        ].map((c) => (
-          <FilterPill
-            key={c.key}
-            pressed={filter === c.key}
-            // 분류 칩 앞의 점은 카드 타일과 같은 색이다 — 전체·내게 온 것·안 읽음에는 점이 없다 (g2 16-3)
-            dot={NOTI_LOOK[c.key]?.dot}
-            onClick={() => setFilter(c.key)}
-          >
-            {c.label}
-          </FilterPill>
-        ))}
-      </div>
+          { value: 'mine', label: '내게 온 것', count: notis.filter(mine).length },
+          { value: 'unread', label: '안 읽음', count: unread },
+          ...categories.map((category) => ({
+            value: category.key, label: category.label, count: category.count, dot: NOTI_LOOK[category.key]?.dot,
+          })),
+        ]}
+      />
 
       {shown.length === 0 ? <Empty>이 분류에는 알림이 없습니다</Empty> : null}
 
@@ -665,8 +707,10 @@ function useMinuteTick(): number {
  * 그 모양을 적을 수 없다. 없는 표를 지어내지 않고(D-R44 · N-25) **역할로 묶고 직함은 줄에 적는다.**
  * 직함을 여러 개 갖는 것이 맞다면 표를 파는 일이므로 대표 결정이다 (N-41).
  *
- * 컷의 둘째 문장 「여기서 바꾼 시간대는 각자의 화면에만 적용됩니다」는 **적지 않는다** —
- * 이 서랍에는 바꾸는 자리가 없고, 그 문장은 없는 단추를 있다고 말한다 (C68 에서 되돌린 것과 같은 자리).
+ * 컷의 둘째 문장 「여기서 바꾼 시간대는 각자의 화면에만 적용됩니다」는 **바꾸는 자리가 설 때만** 적는다 —
+ * C73 에는 자리가 없어 뺐고(없는 단추를 있다고 말하는 문장), W8 이 줄마다 「수정」 창(시간대 칸)을 세운 뒤로는
+ * 그 창이 서는 줄이 하나라도 있을 때 참이다(서버 `canEdit`). 시간대(`staff.tz`)는 그 사람의 강사 화면과
+ * 이 줄의 「지금 시각」만 바꾼다 — 관리자 화면은 서울 고정 그대로다(W11 원문 재대조).
  */
 export function MembersPane({
   groups, tzGroups, tz, canAddMember = false, canWage = false, phoneCountries, loginIdRule, tempPasswordRule,
@@ -694,14 +738,17 @@ export function MembersPane({
    * 그 시간대의 약칭을 붙인다. 약칭은 IANA 식별자의 표기일 뿐 업무 값이 아니라 여기 둔다(관리자 화면은 KST 한 곳이다).
    */
   const abbr = TZ_ABBR[tz];
+  /** 시간대를 바꾸는 자리(줄의 「수정」)가 하나라도 서는가 — 서버 플래그만 본다 (D-R39) */
+  const tzEditable = groups.some((g) => g.members.some((m) => m.canEdit));
 
   return (
     <>
       {/* 원문 §17 머리는 평문이다 — 사용자 문장에 결정 번호를 적지 않는다(g2 C-7 · 근거 D-R12 · D-R39) */}
       <p className="mb-3 text-[12.5px] leading-relaxed text-fg-2">
         관리자 화면은 <b className="text-fg">{tzName(tz)}{abbr ? ` ${abbr}` : ''} 고정</b>입니다.
+        {tzEditable ? ' 여기서 바꾼 시간대는 각자의 화면에만 적용됩니다.' : ''}
         옆의 시각은 <b className="text-fg">그 사람이 있는 곳의 지금</b>입니다.
-        직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생합니다.
+        직함은 권한이 아닙니다 — 권한은 역할 4종에서 파생하고, 사람별 예외는 대표가 정합니다.
       </p>
       {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
       {canAddMember ? (
@@ -733,6 +780,12 @@ export function MembersPane({
                 {/* W8 — 계정 상태는 서버 값 그대로: 첫 설정을 안 끝낸 계정 · 사용 중지된 계정 */}
                 {m.mustChangeCredentials ? <Chip size="compact" tone="warning">첫 설정 전</Chip> : null}
                 {m.active ? null : <Chip size="compact" tone="danger">사용 중지</Chip>}
+                {/* N-68 — 적힌 권한 예외만 줄에 적는다(「역할 따름」은 적지 않는다). 예외 목록은 구성원을 다루는 사람에게만 온다 */}
+                {(m.perms ?? []).filter((p) => p.override !== null).map((p) => (
+                  <Chip key={p.key} size="compact" tone={p.override ? 'info' : 'neutral'} title="사람별 권한 예외">
+                    {p.label} {p.override ? '켬' : '끔'}
+                  </Chip>
+                ))}
                 {/* 시급은 볼 수 있는 사람에게만 온다(canWage) — 줄이 서는지는 서버의 wageable 이 가른다 (C97 · D-48) */}
                 {canWage && m.wageable ? (
                   <>

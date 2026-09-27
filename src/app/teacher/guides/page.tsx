@@ -9,10 +9,11 @@
  * 수신 GUIDE는 독립 GET /teacher/guides/received이며 현재 주 학생 자료보다 먼저 보여 준다.
  * 이번 주 담당 학생(좌) + 학생 준비 정보(우)는 기존 GET /teacher/guides의 교재·진단·수업 설정이다.
  * 덱의 «학생 스타일 영역별 바»는 구조화 저장처가 없어 싣지 않는다 — 진단 요약(diag)으로 대신하고
- * 경계를 기록했다 (TBO-49 §6 조사 메모). 교재 «변경 요청·받기»는 미확정 쓰기 — disabled 표시만.
+ * 경계를 기록했다 (TBO-49 §6 조사 메모). 교재 «변경 요청»은 REQ(book_change) 한 줄을 올린다(N-99 · W11) —
+ * 눌리는지 · 「변경 요청 중」은 서버 플래그. «받기»는 여전히 미확정이라 그리지 않는다.
  */
 'use client';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
@@ -29,6 +30,9 @@ import { GuideDiagnosticSummary } from '@/components/guides/GuideDiagnosticSumma
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { useLessonName } from '@/components/teacher/lesson-name';
+import { BookChangeRequestButton } from '@/components/teacher/BookChangeRequestButton';
+import { HandoverNoteList } from '@/components/lesson/HandoverNotes';
+import { bookLevelPresentation } from '@/lib/book-presentation';
 
 const addDays = (iso: string, n: number): string => {
   const d = new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000);
@@ -72,24 +76,40 @@ function StudentRow({ s, active, onPick }: { s: TeacherGuideStudent; active: boo
 function BookCard({
   code,
   title,
+  level,
   seTe,
   issuedOn,
   returnedOn,
+  action,
 }: {
   code: string;
   title: string;
+  /** 서버 레벨 낱말(코드표 레벨 · 아직이면 옛 원문) — 없으면 사각을 세우지 않는다 */
+  level?: string | null;
   seTe: string;
   issuedOn: string;
   returnedOn: string | null | undefined;
+  /** 사용 중 칩 옆 「변경 요청」 자리 (N-99) */
+  action?: ReactNode;
 }) {
   const done = Boolean(returnedOn);
+  const shown = level ? bookLevelPresentation(level) : null;
   return (
     <div className={`flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 ${done ? 'opacity-60' : ''}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-fg text-[10px] font-bold text-card">
         {seTe}
       </span>
       <div className="min-w-0 grow">
-        <div className="truncate text-[13.5px] font-bold text-fg">{title}</div>
+        {/* 제목 앞 레벨 사각 — 관리 §44 교재 줄과 같은 선택기 · 같은 크기(F 빨강 · P 주황 · M 초록 · 그 밖 원문은 중립) */}
+        <div className="flex min-w-0 items-center gap-1.5">
+          {shown ? (
+            <span data-level-marker title={shown.label}
+              className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-[11px] font-black text-white ${shown.bandClass}`}>
+              {shown.marker}
+            </span>
+          ) : null}
+          <span className="truncate text-[13.5px] font-bold text-fg">{title}</span>
+        </div>
         <div className="text-[11.5px] text-fg-subtle">
           {code} · {issuedOn}부터{done ? ` ~ ${returnedOn} 교체` : ''}
         </div>
@@ -103,9 +123,7 @@ function BookCard({
           <Chip size="compact" tone="success">
             사용 중
           </Chip>
-          <Button size="sm" disabled title="정책 확정 전 — 표시만">
-            변경 요청
-          </Button>
+          {action}
         </div>
       )}
     </div>
@@ -274,14 +292,16 @@ export default function TeacherGuidesPage() {
                                 key={b.issueId}
                                 code={b.code}
                                 title={b.title}
+                                level={b.level}
                                 seTe={b.seTe}
                                 issuedOn={b.issuedOn}
                                 returnedOn={b.returnedOn}
+                                action={<BookChangeRequestButton studentId={picked.studentId} studentName={picked.name} book={b} />}
                               />
                             ))}
                           </div>
                         )}
-                        <p className="mt-3 text-[11px] text-fg-subtle">교재 변경 요청·받기는 정책 확정 전이라 표시만 합니다.</p>
+                        <p className="mt-3 text-[11px] text-fg-subtle">교재 변경 요청은 관리자 승인 뒤 처리되고 결과는 알림으로 옵니다.</p>
                       </Panel>
 
                       <Panel
@@ -316,6 +336,11 @@ export default function TeacherGuidesPage() {
                             영역별 스타일 평가는 저장처 확정 전이라 싣지 않습니다 — 진단 기록 원문을 그대로 보여 줍니다.
                           </p>
                         )}
+                      </Panel>
+
+                      {/* 인수인계 메모 (N-36 ② · 강사 덱 27 「이전 강사 인수인계」) — 관리자 · 매니저가 §79 에서 남긴 줄을 읽기만 한다 */}
+                      <Panel className="mt-4" title="인수인계 메모" sub="관리자가 남긴 줄 · 최근 것부터 · 학부모에게 나가지 않습니다">
+                        <HandoverNoteList notes={picked.notes} empty="남겨진 인수인계 메모가 없습니다." />
                       </Panel>
                     </div>
                   ) : null}

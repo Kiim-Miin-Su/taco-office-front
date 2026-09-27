@@ -26,6 +26,8 @@ vi.mock('@/api/queries', () => ({
   useTeacherShell: () => ({ data: undefined }),
   useTeacherNotiRead: () => ({ mutate: vi.fn(), isPending: false }),
   useMeta: () => ({ data: undefined }),
+  // 셸이 부르는 §76 권한 표(N-98) — 강사에게는 창이 없어 늘 꺼져 있다
+  usePermissionTable: () => ({ data: undefined, isLoading: false, error: null }),
 }));
 
 const teacher: Me = {

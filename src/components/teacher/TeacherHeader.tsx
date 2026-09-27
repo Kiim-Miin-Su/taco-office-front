@@ -7,7 +7,7 @@
 /**
  * 강사 표면의 머리줄 — Figma 「현재 · 강사 웹」(7676:21759)·「현재 · 모바일」(7615:1605)의 모든 화면이 이 한 줄이다.
  * 관리자 머리줄(오늘 전체·뒤로·되돌리기·업무 탭·전체 화면·권한)은 강사 덱·Figma 에 없으므로 그리지 않는다.
- * 강사 덱 머리줄 오른쪽 차례 그대로: 「◷ Seoul · UTC+9」 · 「₩ 45,000원/시간」 · 「김범준 · 강사」 · 「로그아웃」 · 🔔.
+ * 강사 덱 머리줄 오른쪽 차례 그대로: 「◷ Seoul · UTC+9」 · 「₩45,000/시간」(덱 「₩ 45,000원/시간」 · 금액 표기는 `lib/money`) · 「김범준 · 강사」 · 「로그아웃」 · 🔔.
  * 덱의 「관리자 화면 미리보기」는 강사에게 남기지 않는다(AGENT.md §B). 시간대·시급·역할 낱말은 서버 값이다.
  * 좁은 화면(모바일 393)에서는 시간대·시급·역할을 메뉴 패널 사용자 칸으로 미루고 🔔 는 남긴다.
  * 누름 칸은 44px 높이다 — Figma 설명 「44px actions」(모바일 손가락 칸). UI/Button 두 크기(32/40)에 44 가 없어
@@ -16,6 +16,7 @@
 'use client';
 import { Bell, Clock3 } from 'lucide-react';
 import { Button, Chip } from '@/components/ui';
+import { won } from '@/lib/money';
 
 export function TeacherHeader({
   title, name, roleLabel, tzLabel, wageRate, unread = 0, notiOpen = false,
@@ -60,9 +61,8 @@ export function TeacherHeader({
         <span data-teacher-tz="" className={pill}><Clock3 size={13} aria-hidden />{tzLabel}</span>
       ) : null}
       {wageRate !== null && wageRate !== undefined ? (
-        <span data-teacher-wage="" className={pill}>
-          <span aria-hidden>₩</span>{wageRate.toLocaleString('ko-KR')}원/시간
-        </span>
+        // 덱은 「₩ 45,000원/시간」(₩ 글리프 + 뒤 「원」)이었다 — 금액 표기가 「₩45,000」 한 모양이 되어(N-92) ₩ 가 두 번 서지 않게 금액만 적는다
+        <span data-teacher-wage="" className={pill}>{won(wageRate)}/시간</span>
       ) : null}
       {name ? (
         <span className="shrink-0 whitespace-nowrap text-[12px] font-medium text-white">

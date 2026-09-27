@@ -58,6 +58,7 @@ export function WageChangeButton({ member, onDone }: WageChangeButtonProps) {
 
   const cols: Array<Column<WageRow>> = [
     { key: 'from', head: '언제부터', cell: (r) => <span className="tabular-nums">{r.fromDate}</span> },
+    // 시급 비공개(N-94)가 켜져 있고 비공개 열람이 없으면 서버가 시급만 null 로 준다(날짜 · 사유는 그대로) — 숨긴 금액 낱말(「비공개」)로 적는다
     { key: 'rate', head: '시급', align: 'right', cell: (r) => <span className="font-bold tabular-nums">{won(r.rate)}</span> },
     // 「지금」은 서버가 가른 줄이다 — 화면이 날짜를 비교해 다시 고르지 않는다 (D-R37)
     { key: 'now', head: '', width: 56, cell: (r) => (r.current ? <Chip size="compact" tone="success">지금</Chip> : null) },
@@ -84,8 +85,9 @@ export function WageChangeButton({ member, onDone }: WageChangeButtonProps) {
         )}
       >
         <div className="flex flex-col gap-3">
+          {/* 적용일이 있는데 값이 없으면 시급 비공개로 가려진 것(숨긴 금액 낱말) · 적용일도 없으면 아직 줄이 없는 것이라 「—」 — 목록(WageList)과 같은 규칙 */}
           <Banner tone="info">
-            지금 시급 <b>{won(member.wageRate)}</b>{member.wageFrom ? <> · {member.wageFrom} 부터</> : null}.
+            지금 시급 <b>{won(member.wageRate, member.wageFrom ? {} : { empty: '—' })}</b>{member.wageFrom ? <> · {member.wageFrom} 부터</> : null}.
             새 줄은 <b>그 날짜의 수업부터</b> 붙고 지난 정산은 그때 시급 그대로입니다(소급 없음 · 같은 날 한 줄).
           </Banner>
           <div className="grid grid-cols-3 gap-2">

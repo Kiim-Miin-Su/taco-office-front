@@ -242,7 +242,7 @@ describe('강사 덱 머리줄 오른쪽 — 시간대 · 시급 · 이름·역�
     const header = view.getByRole('banner');
     expect(shellQ.calls.every(Boolean)).toBe(true);
     expect(within(header).getByText('Seoul · UTC+9')).toBeTruthy();
-    expect(within(header).getByText(/45,000원\/시간/)).toBeTruthy();
+    expect(within(header).getByText('₩45,000/시간')).toBeTruthy();
     expect(within(header).getByText(/· 강사/)).toBeTruthy();
     const bell = within(header).getByRole('button', { name: '알림 · 안 읽음 1건' });
     expect(within(bell).getByText('1')).toBeTruthy();
@@ -279,7 +279,7 @@ describe('강사 덱 머리줄 오른쪽 — 시간대 · 시급 · 이름·역�
     const my = within(nav).getByRole('link', { name: /마이 페이지/ });
     expect(my.getAttribute('href')).toBe('/teacher#my-settings');
     expect(within(nav).getByText('시간대').nextElementSibling?.textContent).toBe('Seoul · UTC+9');
-    expect(within(nav).getByText('시급').nextElementSibling?.textContent).toBe('45,000원');
+    expect(within(nav).getByText('시급').nextElementSibling?.textContent).toBe('₩45,000');
   });
 });
 

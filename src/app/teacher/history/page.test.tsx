@@ -18,6 +18,7 @@ import type { ReactNode } from 'react';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TeacherHistory } from '@/api/types';
+import { won } from '@/lib/money';
 import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 import TeacherHistoryPage from './page';
 
@@ -35,7 +36,8 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const lesson = (over: Partial<TeacherHistory['lessons'][number]> = {}): TeacherHistory['lessons'][number] => ({
   serId: 1, onDate: '2026-09-17', startMin: 960, durMin: 90, kindKey: 'class', subKey: 'ap-chem',
   mode: 'offline', title: null, students: '김민준, 송지호', studentCount: 2, repState: 'plan',
-  canceled: false, pay: 67500, lateCut: 5000, ...over,
+  canceled: false, pay: 67500, lateCut: 5000,
+  bonus: 0, settle: 'written', settleLabel: '리포트 씀', correctionOf: null, paidIn: null, frozen: false, ...over,
 });
 
 const data = (): TeacherHistory => ({
@@ -48,7 +50,9 @@ const data = (): TeacherHistory => ({
     lateCut: 20000, incomeTax: 10740, localTax: 1074, net: 346186,
     unwrittenCount: 1, unwrittenMinutes: 60, unwrittenAmount: 42000,
     remainingCount: 4, remainingMinutes: 300, remainingAmount: 225000,
+    bonus: 0, correctionCount: 0, lateCount: 0, note: null,
   },
+  bonusRules: [],
 });
 
 it('수업 기록 한 줄은 **세 묶음**으로 나뉜다 — 모바일에서 세 줄로 접히는 자리다', async () => {
@@ -65,7 +69,7 @@ it('수업 기록 한 줄은 **세 묶음**으로 나뉜다 — 모바일에서 
   expect(row.textContent).toContain('AP Chem');
   expect(row.textContent).not.toContain('ap-chem');
   expect(row.textContent).toContain('대면');
-  expect(row.textContent).toContain('67,500원');
+  expect(row.textContent).toContain('₩67,500');
 });
 
 it('웹 한 줄의 순서는 원본 그대로다 — order 1~7 이 한 번씩 있다', async () => {
@@ -128,4 +132,43 @@ it('리포트 지각 차감 규칙 표는 서버 구간(/meta lateReportTiers)�
   const box = panel.closest('section, aside, div[class*="rounded"]')?.parentElement ?? view.container;
   const rows = [...box.querySelectorAll('ul li')].map((li) => li.textContent);
   expect(rows).toEqual(LATE_TIERS_FIXTURE.map((tier) => `${tier.range}${tier.cut}`));
+});
+
+/* ── W11 M2 — 가산(N-93) · 보정(N-51). 금액 글자는 `lib/money` 로 만든다 ── */
+
+it('가산 · 보정 — 줄의 가산 · 보정 칩 · 확정 안내 문장 · 가산 규칙 칸을 서버 값 그대로 그린다 (N-93 · N-51)', async () => {
+  const d = data();
+  mocks.history.mockReturnValue({
+    data: {
+      ...d,
+      lessons: [
+        lesson({ serId: 2, kindKey: 'mock', subKey: null, title: '모의수업', students: '김민준', studentCount: 1, repState: 'ok', pay: 45000, lateCut: 0, bonus: 15000 }),
+        lesson({ serId: 3, onDate: '2026-08-28', title: 'SAT Reading', subKey: null, students: '송지호', studentCount: 1, repState: 'ok', pay: 45000, lateCut: 0,
+          settle: 'correction', settleLabel: '보정 · 8월 회차', correctionOf: '2026-08', frozen: false }),
+      ],
+      settlement: { ...d.settlement, bonus: 15000, correctionCount: 1, note: '앞선 확정 달의 회차 1건이 이 달 정산에 보정으로 들어옵니다' },
+      bonusRules: [
+        { label: '모의수업', hint: '한 번에 얼마', amount: 15000, applied: true, note: null },
+        { label: 'Kinder 수업', hint: '시급에 더함', amount: null, applied: false, note: 'Kinder 수업을 가르는 표시가 아직 없어 0원으로 셉니다 — 규칙은 적어 둘 수 있습니다' },
+      ],
+    },
+    isLoading: false, isError: false,
+  });
+  const view = render(<TeacherHistoryPage />);
+  await waitFor(() => expect(view.getByText('보정 · 8월 회차')).toBeTruthy());
+  const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+  // 줄의 가산 — 수업료와 따로 적는다
+  expect(text).toContain(`+${won(15000)} 가산`);
+  // 보정 줄은 앞선 달의 회차 — 날짜 머리에 달을 같이 적는다
+  expect(text).toContain('8월 28일');
+  // 확정 · 보정 안내 한 문장 · 수업료 산식의 가산 포함
+  expect(text).toContain('앞선 확정 달의 회차 1건이 이 달 정산에 보정으로 들어옵니다');
+  expect(text).toContain(`가산 ${won(15000)} 포함`);
+  // 가산 규칙 칸 — 낱말 · 금액 · 셈에 안 드는 까닭까지 서버 것
+  const rules = view.getByRole('list', { name: '가산 규칙' });
+  expect(rules.textContent).toContain(`모의수업한 번에 얼마 +${won(15000)}`);
+  expect(rules.textContent).toContain('Kinder 수업시급에 더함 · 없음');
+  expect(rules.textContent).toContain('Kinder 수업을 가르는 표시가 아직 없어 0원으로 셉니다');
+  // 옛 안내(「가산은 정책 확정 전」)는 사라졌다
+  expect(text).not.toContain('정책 확정 전이라 단일 시급 기준');
 });

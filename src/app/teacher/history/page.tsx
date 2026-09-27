@@ -7,7 +7,10 @@
 /**
  * 수업 히스토리 — 강사 덱 §29~31 · Figma 「웹 · 수업 히스토리」(8027:44990·8056:48153·8562:42504).
  * 월 기록 + 본인 정산. 금액·차감·인정 판정은 전부 GET /teacher/history 가 한다 (D-R7·D-R32·D-15).
- * Kinder·그룹·진단 «가산»과 특이사항 저장은 정책·저장처 확정 전 — 배선하지 않는다 (teacherC22 원장 경계).
+ * 가산(N-93 · W11 M2)은 대표의 정리 · 기준 › 가산 규칙을 대표 시트와 **같은 함수**가 더한 값이다 — 화면은 받은 `bonus` 와
+ * 오늘 걸린 규칙(`bonusRules`)을 그리기만 한다(Kinder 는 수업을 가를 표시가 없어 0 · 까닭은 서버 문장).
+ * 확정된 달은 지급 확정 근거 줄의 굳은 값이고, 확정 뒤에 쓴 회차는 「확정된 달 — 다음 달 보정」 · 다음 달에는 「보정 · M월 회차」다(N-51).
+ * 특이사항 저장은 저장처 확정 전 — 배선하지 않는다 (teacherC22 원장 경계).
  */
 'use client';
 import { useState } from 'react';
@@ -86,6 +89,8 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
   ) : l.pay !== null && l.pay !== undefined ? (
     <>
       <div className="text-[13px] font-bold text-fg">{won(l.pay)}</div>
+      {/* 가산(N-93) — 규칙이 그 날짜에 붙인 돈. 수업료와 따로 적고 두 값의 합이 그 회차의 돈이다(서버 값 그대로) */}
+      {l.bonus ? <div className="text-[11px] font-bold text-green">+{won(l.bonus)} 가산</div> : null}
       {l.lateCut ? <div className="text-[11px] font-bold text-red">−{won(l.lateCut)} 지각</div> : null}
     </>
   ) : l.penaltyIfNow !== null && l.penaltyIfNow !== undefined ? (
@@ -117,6 +122,10 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
             {lessonName(l)}
           </span>
           {kindChips(l).map((c) => <Chip key={c.label} size="compact" tone={c.tone}>{c.label}</Chip>)}
+          {/* N-51 — 보정 줄(앞선 확정 달 회차가 이 달 정산에 얹힘) · 확정 뒤에 써서 다음 달 보정으로 간 회차. 낱말은 서버 */}
+          {l.settle === 'correction' || l.settle === 'late'
+            ? <Chip size="compact" tone={l.settle === 'correction' ? 'info' : 'warning'}>{l.settleLabel}</Chip>
+            : null}
         </div>
 
         {/* ③ 대면 · 상태 · 금액 — 웹 순서(대면 → 시수 → 상태 → 금액)는 order 로 그대로 지킨다 */}
@@ -182,13 +191,21 @@ export default function TeacherHistoryPage() {
                           {s.confirmed ? '확정' : s.saved ? '마감 작성 중' : '실시간 계산'}
                         </Chip>
                       </div>
-                      <SRow name="수업료 · 시급 기준" how={`제출 인정 ${hours(s.writtenMinutes)}시간 (리포트 쓴 수업만)`} amount={won(s.gross)} />
+                      <SRow
+                        name="수업료 · 시급 기준"
+                        how={`제출 인정 ${hours(s.writtenMinutes)}시간 (리포트 쓴 수업만)${s.bonus > 0 ? ` · 가산 ${won(s.bonus)} 포함` : ''}`}
+                        amount={won(s.gross)}
+                      />
                       <SRow name="리포트 지각 제출 차감" how="수업 종료 시각 기준 두 구간" amount={s.lateCut > 0 ? `−${won(s.lateCut)}` : '없음'} />
                       <SRow name="원천징수" how="소득세 3% + 지방소득세 · 각각 절사" amount={`−${won(s.incomeTax + s.localTax)}`} />
                       <div className="mt-2 flex items-baseline justify-between border-t border-card/25 pt-3">
                         <b className="text-[14px]">{s.confirmed ? '실지급액' : '실지급 예정액'}</b>
                         <b className="text-[24px]">{won(s.net)}</b>
                       </div>
+                      {/* 확정 · 보정 안내 한 문장 — 서버가 만든다 (N-51 「확정된 달 — 다음 달 보정」) */}
+                      {s.note ? (
+                        <p className="mt-3 rounded-lg border border-card/35 px-3 py-2 text-[12.5px] font-bold">{s.note}</p>
+                      ) : null}
                       {s.unwrittenCount > 0 ? (
                         <div className="mt-3 flex flex-col gap-2">
                           <div className="flex items-center justify-between rounded-lg border border-card/35 px-3 py-2 text-[12.5px]">
@@ -203,7 +220,7 @@ export default function TeacherHistoryPage() {
                       ) : null}
                       <p className="mt-3 text-[11px] leading-relaxed opacity-70">
                         이 정산 내역은 본인만 볼 수 있습니다. 리포트를 쓴 수업만 정산에 들어가며, 승인 여부로 깎이지 않습니다.
-                        Kinder·그룹·진단 가산은 정책 확정 전이라 단일 시급 기준입니다.
+                        가산은 오른쪽 가산 규칙대로 붙고 수업료 안에 들어 있습니다. 확정된 달은 바뀌지 않습니다.
                         {s.remainingCount > 0 ? ` 이 달 남은 예정 수업 ${s.remainingCount}건 · ${hours(s.remainingMinutes)}시간 (예상 ${won(s.remainingAmount)}).` : ''}
                       </p>
                     </div>
@@ -227,7 +244,10 @@ export default function TeacherHistoryPage() {
                             return (
                               <div key={g.date}>
                                 <div className="flex items-center gap-2 rounded-md bg-inset px-2 py-1.5 text-[12px]">
-                                  <b className="text-fg">{Number(g.date.slice(8, 10))}일 ({dowOf(g.date)})</b>
+                                  {/* 보정 줄은 앞선 달의 회차라 달을 같이 적는다 — 이 달 같은 날짜와 헷갈리지 않게 */}
+                                  <b className="text-fg">
+                                    {g.date.slice(0, 7) !== d.month ? `${Number(g.date.slice(5, 7))}월 ` : ''}{Number(g.date.slice(8, 10))}일 ({dowOf(g.date)})
+                                  </b>
                                   <span className="text-fg-subtle">{live.length}건{canceled ? ` · 취소 ${canceled}건` : ''}</span>
                                   <span className="ml-auto text-fg-subtle">{hours(live.reduce((a, l) => a + l.durMin, 0))}시간</span>
                                 </div>
@@ -249,8 +269,24 @@ export default function TeacherHistoryPage() {
                           </li>
                         ))}
                       </ul>
+                      {/* 가산 규칙 (N-93) — 대표 정리 · 기준 탭의 칸 그대로 · 오늘 걸린 금액. 낱말 · 금액 · 셈에 드는가 전부 서버 값 */}
+                      {d.bonusRules.length > 0 ? (
+                        <ul aria-label="가산 규칙" className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+                          {d.bonusRules.map((r) => (
+                            <li key={r.label} className="flex flex-col gap-0.5">
+                              <span className="flex items-center justify-between gap-2 text-[13px]">
+                                <span className="text-fg">{r.label}</span>
+                                <Chip size="compact" tone={r.amount === null || !r.applied ? 'neutral' : 'success'}>
+                                  {r.amount === null ? `${r.hint} · 없음` : `${r.hint} +${won(r.amount)}`}
+                                </Chip>
+                              </span>
+                              {r.note ? <span className="text-[11px] text-amber">{r.note}</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       <p className="mt-3 border-t border-line pt-2 text-[11px] text-fg-subtle">
-                        차감액은 서버가 최초 제출 시각으로 확정합니다. Kinder·그룹·진단 가산 규칙은 확정 전이라 여기 싣지 않습니다.
+                        차감액은 서버가 최초 제출 시각으로 확정합니다. 가산은 리포트를 쓴 수업에만 붙고, 규칙이 바뀌면 그 날짜의 수업부터입니다.
                       </p>
                     </Panel>
                   </aside>

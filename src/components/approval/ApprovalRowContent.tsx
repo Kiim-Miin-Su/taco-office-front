@@ -6,7 +6,7 @@
 
 import { ChevronRight } from 'lucide-react';
 import type { ApRow, ApprovalFlowItem } from '@/api/types';
-import { Chip, cn, type ChipTone, type Tone } from '@/components/ui';
+import { Chip, cn, type ChipColor, type Tone } from '@/components/ui';
 
 /** §14 구형/부분 fixture에도 쓰는 표시 fallback. 서버 categoryLabel이 있으면 언제나 서버 값을 우선한다. */
 const APPROVAL_KIND_FALLBACK: Readonly<Record<string, string>> = {
@@ -25,8 +25,8 @@ export function approvalKindLabel(kind: string): string {
  * 겹치던 두 색(시간대=초록 · 시급=빨강)을 원문대로 갈랐다 — 이제 일곱이 모두 다르다(건의·GPA 는 원문도 같은 보라).
  * §14 의 「GPA 요청」(보라)과 §75 의 「자료 요청」(초록)은 원문 두 컷이 서로 다르게 칠한 그대로다.
  */
-/** 결 — 공용 `Chip` 의 결에 원문 분홍을 더한 것. 분홍 배지는 `Chip` 에 결이 없어 채움만 덮는다(아래 `badgeTone`) */
-export type ApprovalTone = ChipTone | 'pink';
+/** 결 — 공용 `Chip` 이 받는 색 그대로(원문 분홍 포함 · W11 7-3 에 칩이 분홍을 갖게 됐다) */
+export type ApprovalTone = ChipColor;
 
 const INBOX_CATEGORY_TONE: Readonly<Record<string, ApprovalTone>> = {
   schedule_change: 'info', book_change: 'warning', tz_change: 'teal', wage_change: 'pink',
@@ -41,21 +41,21 @@ export const approvalCategoryTone = (category?: string | null): ApprovalTone => 
 /** §75 종류 → 결 */
 export const approvalFlowKindTone = (kind: string): Tone => FLOW_KIND_TONE[kind] ?? 'neutral';
 
-/** 배지(`Chip` 채움)의 결 — 분홍은 `Chip` 에 없으므로 붉은 결 위에 분홍 채움을 덮는다(공용 `Chip` 은 이 청크 범위 밖) */
-const badgeTone = (tone: ApprovalTone): { tone: ChipTone; className?: string } =>
-  tone === 'pink' ? { tone: 'danger', className: '!bg-pink' } : { tone };
 
-/** 결 → 점 · 세로 띠 · 글자 · 테두리+옅은 바탕. tailwind 가 빌드 때 찾도록 클래스 이름을 통째로 적는다 */
+/**
+ * 결 → 점 · 세로 띠 · 글자 · 테두리+옅은 바탕. tailwind 가 빌드 때 찾도록 클래스 이름을 통째로 적는다.
+ * 점만은 공용 `ChipRow` 의 `dot` 이 받는 **CSS 색**(토큰 변수)이다 — §14 분류 칩이 공용 칩 줄로 옮겼다(W11 7-3).
+ */
 export const TONE_MARK: Readonly<Record<ApprovalTone, { dot: string; bar: string; text: string; frame: string }>> = {
-  neutral: { dot: 'bg-fg-subtle', bar: 'border-l-fg-subtle', text: 'text-fg-2', frame: 'border-line bg-inset' },
-  info: { dot: 'bg-blue', bar: 'border-l-blue', text: 'text-blue', frame: 'border-blue/50 bg-blue/5' },
-  success: { dot: 'bg-green', bar: 'border-l-green', text: 'text-green', frame: 'border-green/50 bg-green/5' },
-  warning: { dot: 'bg-amber', bar: 'border-l-amber', text: 'text-amber', frame: 'border-amber/50 bg-amber/5' },
-  danger: { dot: 'bg-red', bar: 'border-l-red', text: 'text-red', frame: 'border-red/50 bg-red/5' },
-  purple: { dot: 'bg-violet', bar: 'border-l-violet', text: 'text-violet', frame: 'border-violet/50 bg-violet/5' },
-  teal: { dot: 'bg-teal', bar: 'border-l-teal', text: 'text-teal', frame: 'border-teal/50 bg-teal/5' },
-  orange: { dot: 'bg-orange', bar: 'border-l-orange', text: 'text-orange', frame: 'border-orange/50 bg-orange/5' },
-  pink: { dot: 'bg-pink', bar: 'border-l-pink', text: 'text-pink', frame: 'border-pink/50 bg-pink/5' },
+  neutral: { dot: 'var(--fg-subtle)', bar: 'border-l-fg-subtle', text: 'text-fg-2', frame: 'border-line bg-inset' },
+  info: { dot: 'var(--blue)', bar: 'border-l-blue', text: 'text-blue', frame: 'border-blue/50 bg-blue/5' },
+  success: { dot: 'var(--green)', bar: 'border-l-green', text: 'text-green', frame: 'border-green/50 bg-green/5' },
+  warning: { dot: 'var(--amber)', bar: 'border-l-amber', text: 'text-amber', frame: 'border-amber/50 bg-amber/5' },
+  danger: { dot: 'var(--red)', bar: 'border-l-red', text: 'text-red', frame: 'border-red/50 bg-red/5' },
+  purple: { dot: 'var(--violet)', bar: 'border-l-violet', text: 'text-violet', frame: 'border-violet/50 bg-violet/5' },
+  teal: { dot: 'var(--teal)', bar: 'border-l-teal', text: 'text-teal', frame: 'border-teal/50 bg-teal/5' },
+  orange: { dot: 'var(--orange)', bar: 'border-l-orange', text: 'text-orange', frame: 'border-orange/50 bg-orange/5' },
+  pink: { dot: 'var(--pink)', bar: 'border-l-pink', text: 'text-pink', frame: 'border-pink/50 bg-pink/5' },
 };
 
 function isFlowItem(row: ApRow | ApprovalFlowItem): row is ApprovalFlowItem {
@@ -87,9 +87,9 @@ export function ApprovalRowContent({ row, variant }: {
   const back = row.state === 'back';
   // 배지 색은 갈래의 색이다 — 되돌아온 것은 줄 바탕(§75 분홍)과 반려 사유 줄이 말한다
   const tone: ApprovalTone = flowItem ? approvalFlowKindTone(row.kind) : approvalCategoryTone(row.category);
-  const look = badgeTone(tone);
+  // 분홍도 칩이 제 색으로 그린다 — 붉은 칩 위에 분홍을 덮던 `!bg-pink` 를 걷었다 (W11 7-3)
   const badge = (
-    <Chip tone={look.tone} styleKind="solid" className={cn('shrink-0', look.className)}>
+    <Chip tone={tone} styleKind="solid" className="shrink-0">
       {kindLabel}
     </Chip>
   );

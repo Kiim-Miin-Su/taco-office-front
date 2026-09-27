@@ -1,18 +1,23 @@
 /** @file-guide
- * 목적: 강사 홈 §8 「내 설정」 — 변경 요청 버튼·한 달에 한 번·서버 판정 소비 회귀 (C39).
+ * 목적: 강사 홈 §8 「내 설정」 — 변경 요청 버튼·한 달에 한 번·서버 판정 소비 회귀 (C39) · 알림 링크 `?meeting=` 의 회의 창 (W11 A' 후속).
  * 책임/재사용: 실제 TeacherHomePage/useTeacherHome 을 쓰고 네트워크만 어댑터로 갈아 끼운다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Me, TeacherHome } from '@/api/types';
+import type { MeetingDetail, Me, TeacherHome } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import TeacherHomePage from './page';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+// 질의(`?meeting=`)는 시험마다 바꾼다 — 창을 닫으면 질의를 걷는지(replace)도 본다
+const nav = vi.hoisted(() => ({ search: '', replace: vi.fn(), push: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: nav.replace, push: nav.push }),
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 
 const me: Me = {
@@ -25,7 +30,7 @@ const home = (over: Partial<TeacherHome['settings']> = {}): TeacherHome => ({
   todayDate: '2026-09-12', today: [], upcoming: [],
   todaySummary: { lessons: 0, minutes: 0 },
   week: { lessons: 0, minutes: 0, unwritten: 0 },
-  todo: { unwrittenReports: 0, waitingApprovals: 0, openChangeRequests: 0, openStaffRequests: 0 },
+  todo: { unwrittenReports: 0, waitingApprovals: 0, openChangeRequests: 0, openStaffRequests: 0, openBookChanges: 0 },
   settings: {
     name: '이다현', timezone: 'Asia/Seoul', wageRate: 42000, wageFrom: '2026-01-01',
     timezones: [{ tz: 'Asia/Seoul', name: '한국 (KST)' }, { tz: 'America/New_York', name: '미국 동부' }],
@@ -35,19 +40,24 @@ const home = (over: Partial<TeacherHome['settings']> = {}): TeacherHome => ({
 
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
+/** 이 시험에서 화면이 읽은 경로 */
+const requested: string[] = [];
 afterEach(() => {
   cleanup(); clients.splice(0).forEach((c) => c.clear());
   api.defaults.adapter = originalAdapter; useSession.getState().signOut();
+  nav.search = ''; nav.replace.mockClear(); nav.push.mockClear(); requested.length = 0;
 });
 
 /** 머리줄 서버 값(GET /teacher/shell) — 시간대 낱말·IANA 이름은 서버가 준다 */
 const SHELL = { timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 42000, notis: [], unread: 0, notiWindowDays: 30 };
 
-function setup(data: TeacherHome, post?: ReturnType<typeof vi.fn>, shell: typeof SHELL = SHELL) {
+function setup(data: TeacherHome, post?: ReturnType<typeof vi.fn>, shell: typeof SHELL = SHELL, meeting?: MeetingDetail) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { method?: string; url?: string }) => {
     if (String(config.method).toLowerCase() === 'post' && post) return post(config);
-    const body = String(config.url).includes('/teacher/shell') ? shell : data;
+    const url = String(config.url);
+    requested.push(url);
+    const body = url.includes('/teacher/shell') ? shell : url.includes('/ops/meetings/') ? meeting : data;
     return { config, status: 200, statusText: 'OK', headers: {}, data: body };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -162,4 +172,56 @@ it('다가오는 수업 줄은 날짜와 「N일 뒤」를 적고, 끝난 수업
   expect(link.getAttribute('href')).toBe('/reports?serId=6&onDate=2026-09-12');
   // 아직 안 한 수업(예정)은 쓸 리포트가 없으므로 링크가 아니다
   expect(view.getAllByRole('link', { name: /Literature & Writing/ })).toHaveLength(1);
+});
+
+/* 강사 덱 slide 8 「오늘 할 일」 넷째 줄 — 교재 변경 요청 중(서버가 센 수 · N-99). 수업 안내로 간다 */
+it('오늘 할 일 넷째 줄은 「교재 변경 요청 중」이고 서버가 센 수를 그대로 쓰며 수업 안내로 잇는다 (N-99)', async () => {
+  const data = home();
+  const view = setup({ ...data, todo: { ...data.todo, openStaffRequests: 3, openBookChanges: 1 } });
+  await waitFor(() => expect(view.getByText('교재 변경 요청 중')).toBeTruthy());
+  const row = view.getByText('교재 변경 요청 중').closest('a')!;
+  expect(row.getAttribute('href')).toBe('/teacher/guides');
+  expect(row.textContent).toContain('1');
+  // 덱에 없는 「요청 진행 중」 줄은 서지 않는다 — 시급 · 시간대 요청은 「내 설정」이 보인다
+  expect(view.queryByText('요청 진행 중')).toBeNull();
+});
+
+/* ── W11 A' 후속 — 강사 참석자의 회의 상세 (회의 안내 · 회의 할 일 알림의 링크) ─────────────── */
+
+/** 강사 참석자가 받는 상세 — 쓰기 플래그는 서버가 끈다(운영 권한 없음) · 응답만 선다 */
+const MEETING: MeetingDetail = {
+  id: 4, mtType: 'general', mtTypeLabel: '일반 회의', title: '주간 운영 회의', onDate: '2026-09-15',
+  startMin: 1110, endMin: 1170, placeLabel: '6호',
+  attendees: [
+    { staffId: 2, name: '김민수', title: null, state: 'in', stateLabel: '참석' },
+    { staffId: 6, name: '이다현', title: null, state: 'waiting', stateLabel: '응답 대기' },
+  ],
+  confirmed: 1, attendLabel: '참석 1/2 확인', preFiles: [], minutes: null, minutesAt: null, minutesByName: null,
+  minutesTemplates: ['[정한 것]', '[누가 무엇을]', '[다음 회의까지]', '[보류]'], minutesHint: '정한 것 · 누가 무엇을 · 다음 회의까지',
+  tasks: [], taskDone: 0,
+  canEdit: false, canSendNotice: false, noticeBlockedReason: null, canRespond: true, myAttend: { state: 'waiting', stateLabel: '응답 대기' },
+};
+
+it('알림 링크 `/teacher?meeting=N` 은 홈 위에 운영 화면과 같은 회의 상세 창을 연다 — 쓰기 단추는 서버 플래그 · 닫으면 질의를 걷는다', async () => {
+  nav.search = 'meeting=4';
+  const view = setup(home(), undefined, SHELL, MEETING);
+  const dialog = await waitFor(() => view.getByRole('dialog', { name: '일반 회의' }));
+  await waitFor(() => expect(within(dialog).getByText('참석 1/2 확인')).toBeTruthy());
+  // 참석자로만 여는 강사 — 안내 · 속기록 저장 · 머리말이 서지 않고 본인 응답만 선다
+  expect(within(dialog).queryByRole('button', { name: '안내 보내기' })).toBeNull();
+  expect(within(dialog).queryByRole('button', { name: '속기록 저장' })).toBeNull();
+  expect(within(dialog).getByRole('group', { name: '내 참석 응답' })).toBeTruthy();
+  // 홈은 그대로 뒤에 있다
+  expect(view.getByRole('button', { name: '변경 신청' })).toBeTruthy();
+  fireEvent.click(within(dialog).getAllByRole('button', { name: '닫기' })[1]);
+  expect(nav.replace).toHaveBeenCalledWith('/teacher');
+});
+
+it('질의가 없거나 번호 모양이 아니면 회의 창을 열지 않는다 — 회의를 읽지도 않는다', async () => {
+  nav.search = 'meeting=abc';
+  const view = setup(home());
+  await waitFor(() => expect(view.getByRole('button', { name: '변경 신청' })).toBeTruthy());
+  expect(view.queryByRole('dialog')).toBeNull();
+  expect(requested.some((u) => u.includes('/teacher/home'))).toBe(true);
+  expect(requested.some((u) => u.includes('/ops/meetings/'))).toBe(false);
 });

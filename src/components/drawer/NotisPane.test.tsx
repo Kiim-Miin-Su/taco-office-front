@@ -142,7 +142,19 @@ it('안 읽음 점을 누르면 읽음이 된다 — 「전부 읽음으로 표�
 /* g2 대조 16-3 — 분류 칩 앞에 카드 타일과 같은 색 점 */
 it('분류 칩 앞에 색 점이 서고 전체·안 읽음에는 없다', () => {
   const { view } = setup();
-  expect(view.getByRole('button', { name: '전체 3' }).querySelector('span[aria-hidden]')).toBeNull();
-  expect(view.getByRole('button', { name: '작성 독촉 2' }).querySelector('span[aria-hidden]')?.className).toContain('bg-red');
-  expect(view.getByRole('button', { name: '리포트 1' }).querySelector('span[aria-hidden]')?.className).toContain('bg-green');
+  const dot = (name: string) => view.getByRole('button', { name }).querySelector<HTMLElement>('[data-chip-dot]');
+  expect(dot('전체 3')).toBeNull();
+  expect(dot('안 읽음 2')).toBeNull();
+  expect(dot('작성 독촉 2')?.style.backgroundColor).toBe('var(--red)');
+  expect(dot('리포트 1')?.style.backgroundColor).toBe('var(--green)');
+});
+
+/* W11 7-3 — §16 칩도 공용 칩 줄이다: 눌린 칩은 진한 채움(ink) */
+it('알림 칩은 공용 칩 줄의 진한 채움으로 눌린다', () => {
+  const { view } = setup();
+  const group = view.getByRole('group', { name: '알림 분류' });
+  expect(within(group).getByRole('button', { name: '전체 3' }).querySelector('[data-chip-pressed="ink"]')).toBeTruthy();
+  fireEvent.click(within(group).getByRole('button', { name: '안 읽음 2' }));
+  expect(within(group).getByRole('button', { name: '안 읽음 2' }).querySelector('[data-chip-pressed="ink"]')).toBeTruthy();
+  expect(view.container.textContent).not.toContain('시험 준비 자료 기록 승인');
 });

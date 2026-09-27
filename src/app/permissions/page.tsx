@@ -4,18 +4,25 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-/** 이전 공유 URL 호환. 정상 진입은 §76의 상단 권한 모달이다. */
+/** 이전 공유 URL 호환. 정상 진입은 §76의 상단 권한 모달이다 — 같은 서버 표(`GET /permissions` · N-98)를 그린다. */
 'use client';
+import { usePermissionTable } from '@/api/queries';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { PermissionMatrix } from '@/components/data/PermissionMatrix';
 import { PageHeader } from '@/components/ui';
-import { useSession } from '@/store/useSession';
+
+/** 셸 안에서만 읽는다 — 인증 경계(RequireAuth)를 지난 뒤에 부른다 */
+function PermissionsBody() {
+  const table = usePermissionTable(true);
+  return (
+    <>
+      <PageHeader title="권한" sub={table.data?.sub} />
+      <PermissionMatrix table={table.data} loading={table.isLoading} error={table.error} />
+    </>
+  );
+}
 
 export default function PermissionsPage() {
-  const me = useSession((s) => s.me);
-  return <RequireAuth><AppShell>
-    <PageHeader title="권한" />
-    <PermissionMatrix me={me} />
-  </AppShell></RequireAuth>;
+  return <RequireAuth><AppShell><PermissionsBody /></AppShell></RequireAuth>;
 }

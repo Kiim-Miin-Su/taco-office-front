@@ -128,7 +128,9 @@ it('처리할 줄이 하나도 없으면 안내는 예전대로 「그 화면에
     <ApprovalsPane flow={flow([row({ canAct: false })])} onGo={vi.fn()} onReview={vi.fn()} />,
   );
   expect(view.container.textContent).toContain('줄을 눌러 그 화면에서');
-  expect(view.container.textContent).not.toContain('반려에도 사유가 남습니다');
+  expect(view.container.textContent).not.toContain('반려에도 사유가 남');
+  // 처리할 줄이 없으면 되돌릴 처리도 없다 — 되돌리기 절도 적지 않는다
+  expect(view.container.textContent).not.toContain('되돌리기');
 });
 
 it('변경 요청 줄도 같은 자리에서 처리한다 — 갈래는 서버가 준 kind 그대로 넘어간다 (C42)', () => {
@@ -194,24 +196,45 @@ it('머리는 평문으로 대기 건수를 말하고 내부 번호가 없다', 
   const { view } = panel([row(), row({ id: 2 })]);
   const text = view.container.textContent ?? '';
   expect(text).toContain('강사·코디네이터가 올린 요청이 2건 대기 중입니다.');
-  expect(text).toContain('반려에도 사유가 남습니다.');
-  expect(text).not.toMatch(/D-R\d/);
-  // 되돌리기 절은 결재 되돌리기가 생길 때까지 적지 않는다 (14-1 결정 대기)
-  expect(text).not.toContain('되돌리기');
+  expect(text).not.toMatch(/D-R\d|N-\d/);
+});
+
+/* 원문 §14 머리 둘째 문장 — 결재 되돌리기(N-84)가 생겨 원문 그대로 적는다. 굵은 낱말은 「되돌리기」 하나다 */
+it('머리는 원문대로 「반려에도 사유가 남고, 모든 처리는 되돌리기로 취소됩니다」를 말한다 (N-84)', () => {
+  const { view } = panel([row()]);
+  const head = view.container.querySelector('p')!;
+  expect(head.textContent).toContain('반려에도 사유가 남고, 모든 처리는 되돌리기로 취소됩니다.');
+  expect(Array.from(head.querySelectorAll('b')).map((b) => b.textContent)).toEqual(['1건', '되돌리기']);
 });
 
 /* g2 대조 14-8 — 분류 칩 앞에 카드 배지와 같은 색 점이 있고, 「전체」에는 없다 */
 it('분류 칩 앞에 같은 색 점이 서고 「전체」에는 점이 없다', () => {
   const { view } = panel([row()]);
   const group = view.getByRole('group', { name: '승인 요청 분류' });
-  const dot = (name: string) => within(group).getByRole('button', { name }).querySelector('span[aria-hidden]');
+  const dot = (name: string) => within(group).getByRole('button', { name }).querySelector<HTMLElement>('[data-chip-dot]');
   expect(dot('전체 1')).toBeNull();
   // 원문 §14 칩 점 일곱 색(픽셀): 스케줄 #2563EB · 교재 #D97706 · 시간대 #0891B2 · 시급 #DB2777 · 건의/GPA #7C3AED · 빠진 것 #DC2626
-  expect(dot('시급 변경 1')?.className).toContain('bg-pink');
-  expect(dot('스케줄 변경 0')?.className).toContain('bg-blue');
-  expect(dot('시간대 변경 0')?.className).toContain('bg-teal');
-  expect(dot('교재 변경 0')?.className).toContain('bg-amber');
-  expect(dot('빠진 것 0')?.className).toContain('bg-red');
+  expect(dot('시급 변경 1')?.style.backgroundColor).toBe('var(--pink)');
+  expect(dot('스케줄 변경 0')?.style.backgroundColor).toBe('var(--blue)');
+  expect(dot('시간대 변경 0')?.style.backgroundColor).toBe('var(--teal)');
+  expect(dot('교재 변경 0')?.style.backgroundColor).toBe('var(--amber)');
+  expect(dot('빠진 것 0')?.style.backgroundColor).toBe('var(--red)');
+});
+
+/* W11 7-3 — §14 칩은 공용 칩 줄이다: 눌린 칩은 진한 채움(ink), 누른 칩을 다시 누르면 「전체」로 돌아간다 */
+it('분류 칩은 공용 칩 줄의 진한 채움으로 눌리고 그 분류만 남긴다', () => {
+  const { view } = panel([row(), row({ id: 2, kind: 'chreq', reqType: 'cancel', title: '휴강 요청', category: 'schedule_change', categoryLabel: '스케줄 변경' })]);
+  const group = view.getByRole('group', { name: '승인 요청 분류' });
+  const all = within(group).getByRole('button', { name: '전체 2' });
+  expect(all.getAttribute('aria-pressed')).toBe('true');
+  expect(all.querySelector('[data-chip-pressed="ink"]')).toBeTruthy();
+  const wage = within(group).getByRole('button', { name: '시급 변경 1' });
+  fireEvent.click(wage);
+  expect(wage.getAttribute('aria-pressed')).toBe('true');
+  expect(view.getAllByRole('listitem')).toHaveLength(1);
+  fireEvent.click(wage);
+  expect(all.getAttribute('aria-pressed')).toBe('true');
+  expect(view.getAllByRole('listitem')).toHaveLength(2);
 });
 
 /* 시간대 변경 카드도 같은 색 — 배지(채움) · 사유 띠가 한 결이다 */

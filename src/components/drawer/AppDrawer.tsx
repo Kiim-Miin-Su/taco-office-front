@@ -23,12 +23,16 @@ import { useDrawer, useDrawerWrite, useMeta, useOccurrences, useZoom } from '@/a
 import { ApiError, apiMessage } from '@/api/client';
 import { browserLog } from '@/lib/browser-log';
 import { useSession } from '@/store/useSession';
+import { useWorkspace } from '@/store/useWorkspace';
 import { useRailPresent } from '@/components/shell/WorkspaceRail';
-import type { ChangeReqResult } from '@/api/types';
+import { approvalKindLabel } from '@/components/approval/ApprovalRowContent';
+import type { ChangeReqResult, ReqReviewResult } from '@/api/types';
 import {
   ApprovalsPane, changeReqBody, ChangeReqForm, changeReqReady, ChangeReqsPane, KindsPane, MembersPane,
   newChangeReqDraft, NotisPane, TodosPane, ZoomPane, type ChangeReqDraft, type TodoBox,
 } from './panes';
+import { MyExpenses } from './MyExpenses';
+import { ScheduleHistory } from './ScheduleHistory';
 
 /**
  * 여덟 칸 — Figma `Spec/02 우측 서랍` 의 순서 그대로.
@@ -79,6 +83,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const previousPane = useRef<DrawerPane>(pane);
 
   const meId = useSession((s) => s.me?.id ?? null);
+  const pushUndo = useWorkspace((w) => w.pushUndo);
   /* 원문 서랍 안에는 칸 전환 줄이 없다 — 레일이 그 일을 한다(g2 대조 C-3). 레일이 없는 화면에서만 줄을 남긴다 */
   const railed = useRailPresent();
   // 닫혀 있으면 부르지 않는다 — 모든 화면이 서랍을 들고 있으므로 열 때만 읽는다
@@ -190,12 +195,23 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
               error={reviewError}
               onReview={(v) => {
                 setReviewError(null);
+                // 되돌리기 목록의 이름 — 누른 줄의 사람 · 분류를 그대로 잇는다(서버가 준 낱말만 · 새로 짓지 않는다)
+                const row = data.approvals.inbox.find((r) => r.kind === v.kind && r.id === v.id);
+                const undoLabel = `${row ? `${row.byName} · ${row.categoryLabel ?? approvalKindLabel(row.kind)} ` : ''}${v.decision === 'approve' ? '승인' : '반려'}`;
                 // 갈래마다 경로가 다르다 — 어느 줄인지는 서버가 준 kind 로 안다
                 write.mutate(
                   v.kind === 'chreq'
                     ? { kind: 'chreqReview', id: v.id, decision: v.decision, reason: v.reason }
                     : { kind: 'reqReview', id: v.id, decision: v.decision, reason: v.reason },
-                  { onError: (e) => setReviewError(apiMessage(e)) },
+                  {
+                    onError: (e) => setReviewError(apiMessage(e)),
+                    /* N-84 — 서버가 되돌리기 토큰을 주면(본인 · 10분 · 그 처리 하나) 상단바 「되돌리기」와 같은 목록에 쌓는다.
+                       토큰이 없는 처리(줌 계정 갈래)는 쌓지 않는다 — 못 되돌리는 것을 되돌릴 수 있다고 말하지 않는다. */
+                    onSuccess: (res) => {
+                      const r = res as ReqReviewResult;
+                      if (r.undoToken) pushUndo({ token: r.undoToken, label: undoLabel, expiresAt: r.undoExpiresAt, kind: 'approval' });
+                    },
+                  },
                 );
               }}
             />
@@ -235,6 +251,10 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
                 </div>
               ) : null}
               <ChangeReqsPane rows={data.changeReqs} onCreate={openCreate} />
+              {/* 원문 §20 「최근 변경 이력」 — 스케줄 쓰기 감사 줄의 서버 문장. 이 칸을 열 때만 읽는다 (W11 A' 후속) */}
+              <ScheduleHistory enabled={open && pane === 'chreqs'} />
+              {/* N-52 — 서랍(요청함)의 「+ 지출 신청」 · 「내 지출 신청」. 목록은 이 칸을 열 때만 읽는다 */}
+              <MyExpenses summary={data.myExpenses} enabled={open && pane === 'chreqs'} />
             </>
           ) : null}
           {pane === 'zoom' ? <ZoomPane rows={data.zoomAccounts} board={zoom.data} loading={zoom.isLoading} /> : null}

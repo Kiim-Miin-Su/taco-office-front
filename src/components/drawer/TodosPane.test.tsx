@@ -15,25 +15,25 @@ const monday = mondayOf(todayKst());
 const todos: DrawerTodo[] = [
   {
     id: 1, title: '회의록 정리', fromId: 2, fromName: '김민수', toId: 1, toName: '김민선',
-    dueOn: monday, done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0, go: '/ops',
+    dueOn: monday, done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0, go: '/ops', clearable: true, clearBlockedReason: null,
   },
   {
     id: 2, title: '완료된 점검', fromId: 1, fromName: '김민선', toId: 1, toName: '김민선',
-    dueOn: addDays(monday, 1), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null,
+    dueOn: addDays(monday, 1), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null, clearable: true, clearBlockedReason: null,
   },
   {
     id: 3, title: '다음 주 작업', fromId: 1, fromName: '김민선', toId: 1, toName: '김민선',
-    dueOn: addDays(monday, 8), done: false, src: 'plan', srcLabel: '기획', overdueDays: 0, go: null,
+    dueOn: addDays(monday, 8), done: false, src: 'plan', srcLabel: '기획', overdueDays: 0, go: null, clearable: true, clearBlockedReason: null,
   },
   // 이번 주 밖에서 이미 끝난 것 — 화면에 안 보이므로 「끝난 것 지우기」가 건드리면 안 된다 (S4)
   {
     id: 4, title: '지난 달에 끝낸 것', fromId: 1, fromName: '김민선', toId: 1, toName: '김민선',
-    dueOn: addDays(monday, -40), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null,
+    dueOn: addDays(monday, -40), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null, clearable: true, clearBlockedReason: null,
   },
   // 남의 끝난 것 — 매니저 서랍에는 목록으로 오지만 다른 묶음(수신함)에 있다
   {
     id: 5, title: '남의 끝난 것', fromId: 2, fromName: '김민수', toId: 2, toName: '김민수',
-    dueOn: addDays(monday, 1), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null,
+    dueOn: addDays(monday, 1), done: true, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, go: null, clearable: true, clearBlockedReason: null,
   },
 ];
 
@@ -121,6 +121,34 @@ it('보이는 끝난 것이 하나도 없으면 단추가 잠긴다 — 눌러�
   cleanup(); // setup 이 이미 한 벌 그렸다 — 같은 단추가 둘이면 찾지 못한다
   const view = render(<TodosPane {...props} todos={props.todos.filter((t) => !t.done)} />);
   expect((view.getByRole('button', { name: '끝난 것 지우기' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+/* W11 A' · N-86 — 상담 사후 관리(해피콜 · 월간 상담)는 끝나도 이력이다. 지울지 말지 · 까닭은 서버가 준다 */
+it('끝낸 사후 관리 줄은 「끝난 것 지우기」가 보내지 않는다 — 서버 플래그 · 서버 문장 그대로 · 점은 상담 청록 · 「원본」은 그 상담 건', () => {
+  const care: DrawerTodo = {
+    id: 9, title: '해피콜 — 박시온', fromId: 2, fromName: '김민수', toId: 1, toName: '김민선',
+    dueOn: addDays(monday, 1), done: true, src: 'lead', srcLabel: '상담', overdueDays: 0, go: '/intake?lead=31',
+    clearable: false, clearBlockedReason: '상담 사후 관리(해피콜 · 월간 상담)는 끝나도 이력으로 남습니다',
+  };
+  const { props } = setup();
+  cleanup(); // setup 이 이미 한 벌 그렸다
+  const view = render(<TodosPane {...props} todos={[...props.todos, care]} />);
+  const clear = view.getByRole('button', { name: '끝난 것 지우기' });
+  expect(clear.getAttribute('title')).toBe(care.clearBlockedReason);
+  fireEvent.click(clear);
+  // 같은 화요일에 끝난 셋 중 사후 관리(9)만 빠진다 — 보내는 목록과 단추의 수가 같은 배열이다
+  expect(props.onClear).toHaveBeenCalledWith([2, 5]);
+
+  // 사후 관리만 끝나 있으면 단추가 잠기고 까닭이 선다
+  cleanup();
+  const only = render(<TodosPane {...props} todos={[care]} />);
+  const locked = only.getByRole('button', { name: '끝난 것 지우기' }) as HTMLButtonElement;
+  expect(locked.disabled).toBe(true);
+  expect(locked.getAttribute('title')).toBe(care.clearBlockedReason);
+  // 출처 점은 상담 갈래의 청록 · 「원본」은 서버가 준 그 상담 건
+  const row = only.getByText('해피콜 — 박시온').closest('li')!;
+  expect(row.querySelector('.bg-teal')).not.toBeNull();
+  expect(within(row).getByRole('link', { name: '원본' }).getAttribute('href')).toBe('/intake?lead=31');
 });
 
 it('공용 Dialog·Field로 만든 할 일을 DTO 형상 그대로 넘긴다', () => {

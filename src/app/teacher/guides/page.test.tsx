@@ -24,21 +24,21 @@ const teacher: Me = { id: 2, name: '강사A', role: 'teacher', roleLabel: '강�
 const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'sent', pending: false,
   studentName: '수신 학생', teacherName: '강사A', serTitle: '수신 수업', body: '<img src=x onerror=alert(1)>\nhttps://example.test/'+ 'a'.repeat(400),
   dueOn: null, eventOn: '2026-09-24', sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00',
-  sentAt: '2026-09-24T10:00:00+09:00', acknowledgedAt: null, overdueDays: 0, siblingCount: 0,
+  sentAt: '2026-09-24T10:00:00+09:00', acknowledgedAt: null, overdueDays: 0, siblingCount: 0, deadline: null,
   canSend: false, canAck: true, sendBlockedReason: '권한이 없습니다', acknowledgedAfterSeconds: null };
 type Received = components['schemas']['ReceivedGuidesDto'];
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; useSession.getState().signOut(); nav.search = ''; vi.clearAllMocks(); });
 
-function setup(options: { search?: string; weeklyError?: boolean; receivedError?: boolean; items?: Guide[]; viewer?: Me } = {}) {
+function setup(options: { search?: string; weeklyError?: boolean; receivedError?: boolean; items?: Guide[]; viewer?: Me; students?: TeacherGuides['students'] } = {}) {
   nav.search = options.search ?? '';
   let items = options.items ?? [initial];
   let status = 200;
   let hold = false;
   let release: (() => void) | undefined;
   const calls: Array<{ method?: string; url?: string; body?: unknown; viewer?: number }> = [];
-  const weekly: TeacherGuides = { weekFrom: '2026-09-21', weekTo: '2026-09-27', students: [] };
+  const weekly: TeacherGuides = { weekFrom: '2026-09-21', weekTo: '2026-09-27', students: options.students ?? [] };
   api.defaults.adapter = async (config) => {
     const viewer = useSession.getState().me?.id;
     calls.push({ method: config.method, url: config.url, body: config.data ? JSON.parse(config.data as string) : undefined, viewer });
@@ -184,4 +184,43 @@ it('받은 안내는 관리자가 적은 「지도 방향」·「관리자 코�
   expect(view.getByRole('region', { name: '관리자 코멘트 · 강사만' }).textContent).toContain('어머니가 숙제량을 걱정하십니다');
   // 수업 이름표는 공용 규칙 — 규칙 제목이 있으면 그것
   expect(view.getByText('수신 학생 · 수신 수업')).toBeTruthy();
+});
+
+it('학생 카드의 「인수인계 메모」는 관리자가 §79 에서 남긴 줄을 서버 차례 그대로 읽기만 한다 — 더하기 칸이 없다 (N-36 ② · 강사 덱 27)', async () => {
+  const student: TeacherGuides['students'][number] = {
+    studentId: 4, name: '수신 학생', grade: 'G9', weekCount: 1, lessons: [], books: [], diag: null,
+    notes: [
+      { id: 7, body: '이전 강사: 오답노트를 먼저 확인하면 수업이 빨리 풀립니다', authorName: '김민선', createdAt: '2026-09-20T18:30:00+09:00' },
+    ],
+  };
+  const { view, calls } = setup({ items: [], students: [student] });
+  const panel = (await view.findByText('이전 강사: 오답노트를 먼저 확인하면 수업이 빨리 풀립니다')).closest('section') ?? view.container;
+  expect(panel.textContent).toContain('김민선 · 2026-09-20 18:30');
+  expect(view.getByText('인수인계 메모')).toBeTruthy();
+  expect(view.queryByRole('button', { name: '남기기' })).toBeNull();
+  expect(calls.filter((c) => c.method === 'post')).toHaveLength(0);
+});
+
+it('학생 교재 줄 제목 앞에 서버 레벨 사각이 선다 — §44 와 같은 선택기(Practice → P · 주황), 옛 원문은 중립, 없으면 세우지 않는다 (W11 A\' 후속)', async () => {
+  const book: TeacherGuides['students'][number]['books'][number] = {
+    issueId: 11, code: 'ENG-RD-G9-P-001', title: 'Between the Lines', level: 'Practice', seTe: 'SE',
+    issuedOn: '2026-09-01', returnedOn: null, changePending: false, changeRequestable: true,
+  };
+  const student: TeacherGuides['students'][number] = {
+    studentId: 4, name: '수신 학생', grade: 'G9', weekCount: 1, lessons: [], diag: null, notes: [],
+    books: [book, { ...book, issueId: 12, title: '옛 교재', level: 'AP' }, { ...book, issueId: 13, title: '레벨 없는 교재', level: null }],
+  };
+  const { view, calls } = setup({ items: [], students: [student] });
+  const line = async (title: string) => (await view.findByText(title)).parentElement as HTMLElement;
+  const practiceLine = await line('Between the Lines');
+  const practice = practiceLine.querySelector('[data-level-marker]') as HTMLElement;
+  expect(practice.textContent).toBe('P');
+  expect(practice.getAttribute('title')).toBe('Practice');
+  expect(practice.className).toContain('bg-amber');
+  expect(practiceLine.firstElementChild).toBe(practice);
+  const legacy = (await line('옛 교재')).querySelector('[data-level-marker]') as HTMLElement;
+  expect(legacy.textContent).toBe('AP');
+  expect(legacy.className).toContain('bg-fg-2');
+  expect((await line('레벨 없는 교재')).querySelector('[data-level-marker]')).toBeNull();
+  expect(calls.filter((c) => c.method === 'post')).toHaveLength(0);
 });

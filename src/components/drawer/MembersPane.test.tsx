@@ -4,6 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import { cleanup, render, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Member, MemberGroup, TzGroup } from '@/api/types';
 import { MembersPane } from './panes';
@@ -104,6 +105,18 @@ it('없는 단추를 있다고 말하지 않는다 — 서랍에는 시간대를
   expect(text).toContain('고정');
   expect(text).not.toContain('여기서 바꾼');
   expect(view.queryAllByRole('button')).toHaveLength(0);
+});
+
+/* 원문 §17 둘째 문장 — 줄의 「수정」(시간대 칸)이 서면 참이 된다(W8 · W11 재대조). 서는지는 서버 canEdit 뿐이다 */
+it('바꾸는 자리가 서면 원문 둘째 문장 「여기서 바꾼 시간대는 각자의 화면에만 적용됩니다」를 적는다', () => {
+  const editable = groups.map((g) => ({ ...g, members: g.members.map((m) => ({ ...m, canEdit: true })) }));
+  const client = new QueryClient();
+  const view = render(
+    <QueryClientProvider client={client}>
+      <MembersPane groups={editable} tzGroups={tzGroups} tz="Asia/Seoul" />
+    </QueryClientProvider>,
+  );
+  expect((view.container.textContent ?? '').replace(/\s+/g, ' ')).toContain('여기서 바꾼 시간대는 각자의 화면에만 적용됩니다.');
 });
 
 /* g2 대조 C-7 — 사용자 문장에 결정 번호를 적지 않는다(근거는 주석으로) */

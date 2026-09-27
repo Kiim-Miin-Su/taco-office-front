@@ -8,10 +8,15 @@
  * 강사 홈 — 강사 덱 §7~9 · Figma 「웹 · 홈」.
  * 오늘/다가오는 수업 · 주간 요약 · 오늘 할 일 · 내 설정. 전부 GET /teacher/home 한 번.
  * 판정(미작성·할 일 수·시급)은 서버가 한다 — 화면은 숫자와 상태만 그린다 (D-R39 · SKILLS §3).
+ *
+ * `?meeting=N` — 회의 안내 · 회의 할 일 알림의 링크가 여는 회의 상세 창 (W11 A' 후속 · N-32).
+ * 강사는 운영 화면을 못 여므로 서버가 링크를 이 자리로 보낸다(lib/meeting-link). 창은 운영 화면과 **같은**
+ * `MeetingDetail`(`GET /ops/meetings/:id` — 참석자 본인에게 열려 있다)이고, 쓰기 단추는 서버 플래그가 정한다.
  */
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { apiMessage } from '@/api/client';
@@ -22,6 +27,9 @@ import { REP, hm, hours, md } from '@/components/teacher/format';
 import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
 import { useLessonName } from '@/components/teacher/lesson-name';
 import { TeacherTodayHero } from '@/components/teacher/TeacherTodayHero';
+import { MeetingDetail } from '@/components/ops/MeetingDetail';
+import { positiveQueryId } from '@/lib/url-state';
+import { won } from '@/lib/money';
 
 const REQ_STATE: Record<string, { label: string; tone: Tone }> = {
   pending: { label: '승인 대기', tone: 'info' },
@@ -68,7 +76,7 @@ function MySettings({ s }: { s: TeacherSettings }) {
         </dd>
         <dt className="text-fg-subtle">기본 시급 · 나만 볼 수 있습니다</dt>
         <dd className="flex items-center justify-between font-bold text-fg">
-          {s.wageRate === null || s.wageRate === undefined ? '—' : `${s.wageRate.toLocaleString('ko-KR')}원/시간`}
+          {s.wageRate === null || s.wageRate === undefined ? '—' : `${won(s.wageRate)}/시간`}
           <Button
             size="sm"
             disabled={!s.canAskWage || ask.isPending}
@@ -205,9 +213,13 @@ const QUICK_LINKS: ReadonlyArray<readonly [string, string]> = [
 
 export default function TeacherHomePage() {
   const q = useTeacherHome();
+  const router = useRouter();
+  // 알림 링크가 연 회의 — 질의가 곧 상태다(창을 닫으면 질의를 걷는다). 모양이 아닌 값은 열지 않는다
+  const meetingId = positiveQueryId(useSearchParams().get('meeting'));
   return (
     <RequireAuth>
       <AppShell>
+        {meetingId !== null ? <MeetingDetail meetingId={meetingId} onClose={() => router.replace('/teacher')} /> : null}
         {/* 강사 정책은 화면 최상단 (대표 결정 2026-09-25) — 강사로 로그인했을 때만 선다 */}
         <LateReportPolicy className="mb-3" />
         <QueryState query={q} isEmpty={() => false}>
@@ -250,7 +262,8 @@ export default function TeacherHomePage() {
                         <Todo n={d.todo.unwrittenReports} label="리포트 미작성" href="/reports" tone="danger" />
                         <Todo n={d.todo.waitingApprovals} label="관리자 승인 대기" href="/reports" tone="info" />
                         <Todo n={d.todo.openChangeRequests} label="스케줄 변경 요청 중" tone="info" />
-                        <Todo n={d.todo.openStaffRequests} label="요청 진행 중" tone="info" />
+                        {/* 덱 slide 8 넷째 줄 — 수업 안내 교재 행에서 올린 교재 변경 요청 중 열린 것(서버가 센다 · N-99). 시급 · 시간대 요청은 「내 설정」에 있다 */}
+                        <Todo n={d.todo.openBookChanges} label="교재 변경 요청 중" href="/teacher/guides" tone="info" />
                       </ul>
                     </Panel>
 

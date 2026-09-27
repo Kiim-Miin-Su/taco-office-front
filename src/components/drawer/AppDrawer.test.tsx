@@ -9,22 +9,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
 import type { Occurrence } from '@/api/types';
 import { WorkspaceRail } from '@/components/shell/WorkspaceRail';
+import { useWorkspace } from '@/store/useWorkspace';
 import { AppDrawer } from './AppDrawer';
 
-const mocks = vi.hoisted(() => ({ drawer: vi.fn(), meta: vi.fn(), write: vi.fn(), zoom: vi.fn(), occ: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  drawer: vi.fn(), meta: vi.fn(), write: vi.fn(), zoom: vi.fn(), occ: vi.fn(), myExpenses: vi.fn(), history: vi.fn(),
+}));
 vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
   useMeta: mocks.meta,
   useDrawerWrite: () => ({ mutate: mocks.write, mutateAsync: mocks.write, isPending: false }),
   useZoom: mocks.zoom,
   useOccurrences: mocks.occ,
+  // N-52 「내 지출 신청」 — 「변경 요청 · 이력」 칸을 열 때만 읽는다
+  useMyExpenses: mocks.myExpenses,
+  // §20 「최근 변경 이력」 — 같은 칸을 열 때만 읽는다 (W11 A' 후속)
+  useScheduleHistory: mocks.history,
 }));
 vi.mock('@/store/useSession', () => ({
   useSession: (select: (state: { me: { id: number } }) => unknown) => select({ me: { id: 1 } }),
 }));
 vi.mock('./panes', async (importOriginal) => ({
   ...await importOriginal<typeof import('./panes')>(),
-  ApprovalsPane: () => <div>승인 내용</div>,
+  ApprovalsPane: ({ onReview }: { onReview?: (v: { id: number; kind: string; decision: 'approve' | 'reject' }) => void }) => (
+    <div>
+      승인 내용
+      <button type="button" onClick={() => onReview?.({ id: 1, kind: 'req', decision: 'approve' })}>시험 승인</button>
+    </div>
+  ),
   KindsPane: () => <div>종류 내용</div>,
 }));
 
@@ -34,12 +46,15 @@ beforeEach(() => {
     data: {
       approvals: { count: 2, inboxCount: 2 }, notis: [], notiCategories: [], kinds: [], zoomAccounts: [], members: [],
       tz: 'Asia/Seoul', tzGroups: [{ id: 1, name: '한국 (KST)', tz: 'Asia/Seoul' }], changeReqs: [],
+      myExpenses: { total: 3, pending: 1, rejected: 1 },
     },
     isLoading: false, isError: false,
   });
   mocks.meta.mockReturnValue({ data: { staff: [], rooms: [], zaccs: [], subs: [], kinds: [] } });
   mocks.zoom.mockReturnValue({ data: undefined, isLoading: false });
   mocks.occ.mockReturnValue({ data: undefined, isLoading: false });
+  mocks.myExpenses.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+  mocks.history.mockReturnValue({ data: undefined, isLoading: false, isError: false });
 });
 afterEach(() => {
   cleanup();
@@ -222,6 +237,92 @@ describe('공용 서랍의 제어형 선택', () => {
  * 전에는 「수업 번호」 숫자를 직접 치게 했다 — 사용자는 SER id 를 알 수 없다.
  * 이제 「어느 날」(기본 오늘)의 일정을 시간표와 같은 질의로 받아 고르고, 보내는 계약(`serId`·`onDate`)은 그대로다.
  */
+/*
+ * N-84 — §14 처리가 성공해 서버가 되돌리기 토큰을 주면 상단바 「되돌리기」와 **같은 목록**에 쌓는다(`kind: 'approval'`).
+ * 이름은 누른 줄의 사람 · 분류 그대로다. 토큰이 없는 처리(줌 계정 갈래)는 쌓지 않는다.
+ */
+describe('§14 결재 되돌리기 — 상단바 되돌리기 목록에 쌓는다', () => {
+  const inboxRow = { kind: 'req', id: 1, byName: '이다현', categoryLabel: '시급 변경' };
+  beforeEach(() => {
+    useWorkspace.setState({ undoStack: [] });
+    mocks.drawer.mockReturnValue({
+      data: {
+        approvals: { count: 1, inboxCount: 1, inbox: [inboxRow] }, notis: [], notiCategories: [], kinds: [], zoomAccounts: [],
+        members: [], tz: 'Asia/Seoul', tzGroups: [], changeReqs: [],
+      },
+      isLoading: false, isError: false,
+    });
+  });
+
+  it('토큰이 오면 「사람 · 분류 승인」 이름과 서버 만료 그대로 결재 갈래로 쌓는다', () => {
+    const expiresAt = new Date(Date.now() + 600_000).toISOString();
+    mocks.write.mockImplementation((_w: unknown, opts?: { onSuccess?: (res: unknown) => void }) => {
+      opts?.onSuccess?.({ id: 1, state: 'approved', applied: null, undoToken: 'tok-1', undoExpiresAt: expiresAt });
+    });
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '시험 승인' }));
+    expect(mocks.write.mock.calls[0]![0]).toEqual({ kind: 'reqReview', id: 1, decision: 'approve', reason: undefined });
+    expect(useWorkspace.getState().undoStack).toEqual([
+      { token: 'tok-1', label: '이다현 · 시급 변경 승인', expiresAt, kind: 'approval' },
+    ]);
+  });
+
+  it('토큰이 없는 처리는 쌓지 않는다 — 못 되돌리는 것을 되돌릴 수 있다고 말하지 않는다', () => {
+    mocks.write.mockImplementation((_w: unknown, opts?: { onSuccess?: (res: unknown) => void }) => {
+      opts?.onSuccess?.({ id: 1, state: 'approved', applied: '줌 계정 → A', undoToken: null, undoExpiresAt: null });
+    });
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '시험 승인' }));
+    expect(useWorkspace.getState().undoStack).toEqual([]);
+  });
+});
+
+/* N-52 — 「변경 요청 · 이력」 칸 아래 「내 지출 신청」: 건수는 서랍이 센 값, 목록은 그 칸을 열 때만 읽는다 */
+describe('서랍 「내 지출 신청」 (N-52)', () => {
+  it('「변경 요청 · 이력」 칸에서만 목록을 읽고, 머리 건수는 서랍이 센 값 그대로다', () => {
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    const section = view.getByRole('region', { name: '내 지출 신청' });
+    expect(section.textContent).toContain('심사 대기 1 · 반려 1');
+    expect(mocks.myExpenses).toHaveBeenLastCalledWith(true);
+    view.rerender(<AppDrawer open pane="kinds" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(view.queryByRole('region', { name: '내 지출 신청' })).toBeNull();
+  });
+});
+
+/* 원문 §20 「최근 변경 이력」 — 스케줄 쓰기 감사 줄의 서버 문장 세 줄(누가 — 언제 · 앞 → 뒤 · 무엇을) (W11 A' 후속) */
+describe('§20 「최근 변경 이력」', () => {
+  it('요청 목록 아래 · 지출 신청 위에 서고, 서버 문장을 그대로 그린다 — 모르는 앞뒤는 「—」 · 칸을 열 때만 읽는다', () => {
+    mocks.history.mockReturnValue({
+      isLoading: false, isError: false,
+      data: {
+        rows: [
+          { id: 12, at: '2026-08-28T14:20:00+09:00', actorName: '김민선', summary: 'SAT Reading 8/28 → 20:00 이동 (이 주만)', from: null, to: '20:00' },
+          { id: 11, at: '2026-08-27T09:05:00+09:00', actorName: '김범준', summary: 'Interview 8/28 휴강 (이 주만)', from: '수업', to: '휴강' },
+        ],
+      },
+    });
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    const section = view.getByRole('region', { name: '최근 변경 이력' });
+    const cards = within(section).getAllByRole('listitem').map((li) => [...li.children].map((c) => c.textContent));
+    expect(cards).toEqual([
+      ['김민선 — 8/28 14:20', '— → 20:00', 'SAT Reading 8/28 → 20:00 이동 (이 주만)'],
+      ['김범준 — 8/27 09:05', '수업 → 휴강', 'Interview 8/28 휴강 (이 주만)'],
+    ]);
+    expect(mocks.history).toHaveBeenLastCalledWith(true);
+    // 차례 — 변경 요청 목록 → 최근 변경 이력 → 내 지출 신청
+    const expenses = view.getByRole('region', { name: '내 지출 신청' });
+    expect(section.compareDocumentPosition(expenses) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    view.rerender(<AppDrawer open pane="kinds" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(view.queryByRole('region', { name: '최근 변경 이력' })).toBeNull();
+  });
+
+  it('줄이 없으면 빈 문장 한 줄이다', () => {
+    mocks.history.mockReturnValue({ isLoading: false, isError: false, data: { rows: [] } });
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect(within(view.getByRole('region', { name: '최근 변경 이력' })).getByText('바뀐 일정이 없습니다')).toBeTruthy();
+  });
+});
+
 describe('§19 변경 요청 창 — 어느 날 · 어느 일정 · 무엇을 · 왜', () => {
   const occ = (over: Partial<Occurrence>): Occurrence => ({
     serId: 41, date: '2026-09-25', onDate: '2026-09-25', startMin: 1200, endMin: 1260, kindKey: 'class', extra: false,

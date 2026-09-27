@@ -20,7 +20,7 @@ import { Banner, Button, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { PhoneInput, composePhone, samePhone, splitPhone, type PhoneValue } from '../account/PhoneInput';
 import { apiMessage } from '@/api/client';
 import { useDeleteMember, useResetMemberPassword, useSetMemberActive, useUpdateMember } from '@/api/queries';
-import type { Member, PhoneCountry, StaffPatch, TzGroup } from '@/api/types';
+import type { Member, PhoneCountry, StaffPatch, StaffPermsPatch, TzGroup } from '@/api/types';
 import { ROLES } from '@/lib/roles';
 import { STAFF_PICKABLE_ROLES } from './MemberCreateDialog';
 
@@ -77,9 +77,22 @@ const tidy = (d: Draft, countries: readonly PhoneCountry[]): Flat => ({
 });
 
 /**
+ * 사람별 권한 예외 한 칸의 세 값 — 원문 PDF 의 자리 차이를 역할을 늘리지 않고 사람에게 적는다(N-68 · 「켬/끔/역할 따름」).
+ * 저장값은 서버의 `boolean | null` 이고 여기서는 누르는 낱말로만 바꾼다.
+ */
+type PermChoice = 'role' | 'on' | 'off';
+const permChoice = (v: boolean | null | undefined): PermChoice => (v === true ? 'on' : v === false ? 'off' : 'role');
+const permValue = (c: PermChoice): boolean | null => (c === 'on' ? true : c === 'off' ? false : null);
+const PERM_CHOICES: Array<{ value: PermChoice; label: string }> = [
+  { value: 'role', label: '역할 따름' }, { value: 'on', label: '켬' }, { value: 'off', label: '끔' },
+];
+
+/**
  * 「수정」 — 바뀐 칸만 보낸다. 역할 칸은 서버의 `canChangeRole` 이 있을 때만(자기 줄은 없다).
  * 이메일 · 휴대폰을 바꾸거나 비우면 그 사람은 **다음 요청부터 첫 설정을 다시 한다**(N-104 · 대표 결정 2026-09-26) — 저장 전에 창이 먼저 말한다.
  * 아이디는 연락처가 아니라 첫 설정을 걸지 않는다(W10) — 다음 로그인부터 새 아이디로 들어온다는 것만 알린다.
+ * 권한 예외 다섯 칸은 서버의 `canEditPerms`(대표 · 자기 줄 아님)가 있을 때만 선다(N-68) — 바뀐 칸만 `perms` 로 보내고,
+ * 올릴 수 없는 권한(보는 이에게 없는 것)은 서버가 403 으로 막고 그 말을 그대로 띄운다.
  */
 function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }: {
   member: Member; tzGroups: TzGroup[]; tz: string; phoneCountries: readonly PhoneCountry[]; loginIdRule?: string;
@@ -93,7 +106,13 @@ function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }:
   }), [member, tz, phoneCountries]);
   const [draft, setDraft] = useState<Draft>(initial);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (open) { setDraft(initial); setErr(null); } }, [open, initial]);
+  /** 권한 예외 — 서버가 준 다섯 줄(`member.perms`)의 지금 값에서 연다 */
+  const permRows = useMemo(() => (member.canEditPerms ? member.perms ?? [] : []), [member]);
+  const initialPerms = useMemo<Record<string, PermChoice>>(
+    () => Object.fromEntries(permRows.map((p) => [p.key, permChoice(p.override)])), [permRows],
+  );
+  const [perms, setPerms] = useState<Record<string, PermChoice>>(initialPerms);
+  useEffect(() => { if (open) { setDraft(initial); setPerms(initialPerms); setErr(null); } }, [open, initial, initialPerms]);
 
   const set = (key: Exclude<keyof Draft, 'phone'>) => (value: string) => setDraft((d) => ({ ...d, [key]: value }));
   // 바뀐 칸만 — 같은 값을 다시 보내지 않는다(서버는 빈 수정을 409 로 막는다). 휴대폰은 모양(공백 · 하이픈)만 다른 것을 같게 본다
@@ -106,15 +125,22 @@ function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }:
     const changed = key === 'phone' ? !samePhone(after.phone, before.phone) : after[key] !== before[key];
     if (changed) body[key] = after[key];
   }
+  // 권한 예외도 바뀐 칸만 — 「역할 따름」은 null 로 보낸다(예외를 지운다)
+  const permsBody: StaffPermsPatch = {};
+  for (const p of permRows) {
+    const next = perms[p.key] ?? 'role';
+    if (next !== initialPerms[p.key]) permsBody[p.key as keyof StaffPermsPatch] = permValue(next);
+  }
+  const permsChanged = Object.keys(permsBody).length > 0;
   // N-104 — 연락처(이메일 · 휴대폰)가 바뀌면 서버가 첫 설정을 다시 건다. 아이디는 연락처가 아니다(W10)
   const contactChanged = 'email' in body || 'phone' in body;
   const pending = write.isPending;
-  const canSubmit = Object.keys(body).length > 0 && after.name.length > 0 && after.loginId.length > 0 && !pending;
+  const canSubmit = (Object.keys(body).length > 0 || permsChanged) && after.name.length > 0 && after.loginId.length > 0 && !pending;
 
   const submit = () => {
     if (!canSubmit) return;
     setErr(null);
-    write.mutate({ id: member.id, body: body as StaffPatch }, {
+    write.mutate({ id: member.id, body: { ...body, ...(permsChanged ? { perms: permsBody } : {}) } as StaffPatch }, {
       onSuccess: () => setOpen(false),
       onError: (e) => setErr(apiMessage(e)),
     });
@@ -184,6 +210,29 @@ function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }:
               <Input id={`${id}-hired`} type="date" value={draft.hiredOn} onChange={(e) => set('hiredOn')(e.target.value)} disabled={pending} />
             </div>
           </div>
+          {permRows.length > 0 ? (
+            <fieldset className="rounded-xl border border-line p-3">
+              <legend className="px-1 text-[12px] font-bold text-fg">사람별 권한 예외</legend>
+              <p className="mb-2 text-[11.5px] leading-relaxed text-fg-subtle">
+                역할이 정한 것과 다르게 할 때만 바꿉니다 — 「역할 따름」이면 역할대로입니다.
+              </p>
+              <ul className="flex flex-col gap-2">
+                {permRows.map((p) => (
+                  <li key={p.key} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[12.5px] text-fg">
+                      {p.label}
+                      <span className="ml-1.5 text-[11px] text-fg-subtle">역할 기본 {p.roleDefault ? '켬' : '끔'}</span>
+                    </span>
+                    <Segmented<PermChoice> ariaLabel={p.label} value={perms[p.key] ?? 'role'} disabled={pending}
+                      onChange={(next) => setPerms((cur) => ({ ...cur, [p.key]: next }))} options={PERM_CHOICES} />
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          ) : null}
+          {permsChanged ? (
+            <Banner tone="info">권한 예외는 저장한 다음 요청부터 {member.name} 님에게 적용됩니다.</Banner>
+          ) : null}
           {'loginId' in body ? (
             <Banner tone="info">아이디를 바꾸면 {member.name} 님은 다음 로그인부터 새 아이디로 들어옵니다 — 새 아이디를 알려 주세요.</Banner>
           ) : null}
