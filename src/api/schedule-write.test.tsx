@@ -109,6 +109,7 @@ it('되돌리기는 삭제와 같은 갈래를 버린다 — 차감·이월이 �
   // §54 가 옛 수를 들고 있으면 한 화면에 두 답이 생긴다
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
     ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'series-counts'], ['schedule', 'tracking'], ['accounting'], ['drawer'],
+    ['schedule', 'day-cancel-notices'],
   ]);
 });
 

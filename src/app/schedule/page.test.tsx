@@ -66,6 +66,7 @@ vi.mock('@/components/lesson/LessonDetail', () => ({ LessonDetail: ({ occ }: { o
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences,
   useScheduleWrite: () => ({ mutate: mocks.write, isPending: false }),
+  useDayCancelNotices: () => ({ data: { items: [] }, isLoading: false, isError: false }),
   // 셸의 되돌리기 한 단추가 결재 되돌리기(§14 · N-84)도 탄다 — 이 파일은 스케줄 쓰기만 본다
   useApprovalUndo: () => ({ mutate: vi.fn(), isPending: false }),
   useHorizon: () => ({ data: { from: '2026-01-01', to: '2026-12-31' } }),
