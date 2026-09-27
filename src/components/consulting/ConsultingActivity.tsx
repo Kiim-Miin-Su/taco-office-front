@@ -13,7 +13,8 @@
  * - 회차: 머리 「1회차 · 26년 7월 14일 화요일 · 16:00–17:00 · 김범준 · 4호 · 기록됨」(31-07 — 시각·담당·강의실은 서버가 시간표 회차에서 읽는다,
  *   「기록됨」도 서버 판정 `recorded`) · 본문 무엇을 · 왜 · 어떻게 3열(31-09) · 「결과」 인용 상자와 「다음까지」 호박 줄(31-08) ·
  *   단추 「고치기」 · 「일정」(31-10 — 일정은 그날 시간표로 간다).
- * 「항목 수정」·항목별 「파일」은 결정 대기(DQ5/N-18-a · N-63)라 세우지 않는다.
+ * - 「항목 수정」(31-05 · N-18-a DQ5 대안 — 담당이 더하기 · 이름 바꾸기 · 빼기)과 항목 줄의 「파일」(31-06 · N-63 — 항목마다 6개) (W11).
+ *   서는지는 서버 값(`capabilities.canEditItems` · 항목의 `canAddFile`)이다 — 화면이 단계 · 파일 수를 다시 세지 않는다.
  */
 'use client';
 import { useState } from 'react';
@@ -22,6 +23,8 @@ import { useToggleConsultingItem, useWriteConsultingSession } from '@/api/querie
 import type { ConsSession, Consulting, ConsultingDetail } from '@/api/types';
 import { Banner, Button, Chip, Label, LinkButton, Textarea, cn } from '@/components/ui';
 import { kstDateTime, longDateLabel } from '@/lib/calendar';
+import { ConsultingItemFiles } from './ConsultingItemFiles';
+import { ConsultingItemsEditor } from './ConsultingItemsEditor';
 import { ConsultingProgress } from './ConsultingProgress';
 
 const FIELDS = [
@@ -125,9 +128,14 @@ function SessionCard({ consId, session, locked }: { consId: number; session: Con
 
 export function ConsultingActivity({ item, detail, onAddSession }: { item: Consulting; detail?: ConsultingDetail; onAddSession?: () => void }) {
   const toggle = useToggleConsultingItem();
+  const [editing, setEditing] = useState(false);
+  const [filesOf, setFilesOf] = useState<number | null>(null);
   const done = item.items.filter((row) => row.done).length;
   const total = item.items.length;
   const locked = item.stage === 'done';
+  /** 「항목 수정」 · 항목 파일 빼기 — 서버의 상세 단추(종료 전 건) */
+  const canEditItems = detail?.capabilities.canEditItems === true;
+  const filesItem = filesOf === null ? null : item.items.find((row) => row.id === filesOf) ?? null;
   return (
     <div className="space-y-4">
       {/* 원본 §31 머리 — 「2 / 6회 진행한 회차」와 막대 · 「+ 회차 기록」 (31-01). 「한 회차」는 서버의 sessionsDone */}
@@ -150,9 +158,15 @@ export function ConsultingActivity({ item, detail, onAddSession }: { item: Consu
           {total > 0 ? <>
             <div className="grow"><ConsultingProgress value={done} max={total} label={`해야 할 항목 ${done}/${total}`} /></div>
             <span className="text-[12px] font-bold text-violet">{Math.round((done / total) * 100)}%</span>
-          </> : null}
+          </> : <div className="grow" />}
+          {/* 원본 §31 머리 오른쪽 「항목 수정」 (31-05) */}
+          {canEditItems ? <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(true)}>항목 수정</Button> : null}
         </div>
-        {total === 0 ? <p className="text-[12px] text-fg-subtle">이 유형의 기본 진행 항목은 아직 확정되지 않았습니다.</p> : (
+        {total === 0 ? (
+          <p className="text-[12px] text-fg-subtle">
+            {canEditItems ? '항목이 없습니다 — 「항목 수정」으로 더합니다.' : '이 유형의 기본 진행 항목은 아직 확정되지 않았습니다.'}
+          </p>
+        ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {item.items.map((row) => {
               const at = kstDateTime(row.doneAt) ?? row.doneOn;
@@ -170,6 +184,12 @@ export function ConsultingActivity({ item, detail, onAddSession }: { item: Consu
                     </span>
                   </span>
                   {row.required ? <Chip tone="warning" size="compact">필수</Chip> : null}
+                  {/* 원본 §31 항목 줄의 「파일」 (31-06 · N-63) — 올릴 수 있거나 올린 것이 있을 때 선다 */}
+                  {row.canAddFile || row.files.length > 0 ? (
+                    <Button type="button" size="sm" variant="secondary" className="shrink-0"
+                      aria-label={`${row.label} 파일${row.files.length ? ` ${row.files.length}개` : ''}`}
+                      onClick={() => setFilesOf(row.id)}>파일</Button>
+                  ) : null}
                 </li>
               );
             })}
@@ -177,6 +197,10 @@ export function ConsultingActivity({ item, detail, onAddSession }: { item: Consu
         )}
         {toggle.isError ? <Banner tone="danger" className="mt-2">{apiMessage(toggle.error)}</Banner> : null}
       </section>
+      {editing ? <ConsultingItemsEditor open consId={item.id} items={item.items} onClose={() => setEditing(false)} /> : null}
+      {filesItem ? (
+        <ConsultingItemFiles open consId={item.id} item={filesItem} canRemove={canEditItems} onClose={() => setFilesOf(null)} />
+      ) : null}
 
       {/* 회차 기록 — 원본 §31 「회차 기록」 머리 아래 회차 카드 */}
       <section aria-label="회차 기록">

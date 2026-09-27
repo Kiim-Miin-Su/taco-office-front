@@ -7,6 +7,7 @@
 import type { Consulting, ConsultingStage } from '@/api/types';
 import { Board, type BoardColumn, Chip } from '@/components/ui';
 import { CONSULTING_CONTRACT_STEPS, consultingContractStep } from '@/lib/consulting';
+import { won } from '@/lib/money';
 import { ConsultingProgress } from './ConsultingProgress';
 
 /**
@@ -25,10 +26,12 @@ interface ConsultingStageBoardProps {
   onOpen: (item: Consulting) => void;
 }
 
-/** 원본 §26 카드 바닥의 금액쌍 — 「₩400,000 / ₩800,000」. 못 보면 줄 자체가 없다 (D-R39) */
+/**
+ * 원본 §26 카드 바닥의 금액쌍 — 「₩400,000 / ₩800,000」. 못 보면 줄 자체가 없다 (D-R39).
+ * 원화 모양은 `lib/money.won` 한 곳이다 — 이 카드만 제 ₩ 함수를 들고 있던 것을 N-92 에서 걷었다.
+ */
 function MoneyPair({ item }: { item: Consulting }) {
   if (item.amount == null && item.paidAmount == null) return null;
-  const won = (n: number) => `₩${n.toLocaleString('ko-KR')}`;
   return (
     <span className="text-[10.5px] font-bold text-fg-2">
       {won(item.paidAmount ?? 0)} / {item.amount == null ? '—' : won(item.amount)}
@@ -155,7 +158,8 @@ export function ConsultingStageBoard({ items, stages, loading = false, onOpen }:
         className="min-w-[780px]"
         columns={columns}
         itemKey={(item) => item.id}
-        empty={loading ? '불러오는 중…' : '컨설팅 건이 없습니다'}
+        // 빈 칸은 원문 §26 「종료 0」 칸 그대로 「없습니다」 (W11 재대조)
+        empty={loading ? '불러오는 중…' : '없습니다'}
         renderCard={(item) => (
           <button
             type="button"

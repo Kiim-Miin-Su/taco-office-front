@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { ConsultingDetail } from '@/api/types';
+import type { Consulting, ConsultingDetail } from '@/api/types';
 import { ConsultingActivity } from './ConsultingActivity';
 import { consultingItem } from './consulting.fixture';
 
@@ -33,7 +33,11 @@ const capabilities = {
   canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
   canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: null, canAddSession: true, canClose: false, closeBlockedReason: '남았다',
+  archiveBlockedReason: null, canSendContract: false, canCloseException: false, canEditItems: false,
 } satisfies ConsultingDetail['capabilities'];
+
+/** 항목의 파일 · 단추(W11) — 이 시험들은 보지 않는다 */
+const noFiles = { files: [], canAddFile: false, canRename: false, canRemove: false };
 
 function setup(detail?: Partial<ConsultingDetail>) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
@@ -89,10 +93,10 @@ it('끝낸 항목 아래에 처리 시각 · 처리자를, 안 끝낸 항목에�
   const withItems = consultingItem({
     id: 2, stage: 'running', contractStep: 5,
     items: [
-      { id: 1, seq: 1, label: '지원서 작성', required: true, done: true, doneBy: '김범준', doneOn: '2026-07-22', doneAt: '2026-07-22T14:00:00+09:00', source: 'template' },
-      { id: 2, seq: 2, label: '추천서 2부', required: false, done: false, doneBy: null, doneOn: null, doneAt: null, source: 'template' },
+      { id: 1, seq: 1, label: '지원서 작성', required: true, done: true, doneBy: '김범준', doneOn: '2026-07-22', doneAt: '2026-07-22T14:00:00+09:00', source: 'template', ...noFiles },
+      { id: 2, seq: 2, label: '추천서 2부', required: false, done: false, doneBy: null, doneOn: null, doneAt: null, source: 'template', ...noFiles },
       // 처리 시각이 없는 옛 줄은 처리일만 적는다 — 시각을 지어내지 않는다
-      { id: 3, seq: 3, label: '여권 사본', required: false, done: true, doneBy: null, doneOn: '2026-07-24', doneAt: null, source: 'template' },
+      { id: 3, seq: 3, label: '여권 사본', required: false, done: true, doneBy: null, doneOn: '2026-07-24', doneAt: null, source: 'template', ...noFiles },
     ],
   });
   const client = new QueryClient();
@@ -143,6 +147,78 @@ it('회차 머리에 날짜 낱말 · 시각 · 담당 · 강의실 · 「기록
   // 「누가」는 본문 칸이 아니다 — 머리의 담당 이름이 그 자리다 (31-09)
   expect(within(card).queryByText('누가')).toBeNull();
   expect(within(card).getByRole('link', { name: '1회차 일정' }).getAttribute('href')).toBe('/schedule?date=2026-09-16');
+});
+
+/** 항목 한 줄 — W11 시험이 덮어쓴다 */
+const row = (over: Partial<Consulting['items'][number]>): Consulting['items'][number] => ({
+  id: 1, seq: 1, label: '항목', required: false, done: false, doneBy: null, doneOn: null, doneAt: null, source: 'manual',
+  files: [], canAddFile: true, canRename: true, canRemove: true, ...over,
+});
+function renderItems(items: Consulting['items'], canEditItems: boolean, reply: (config: { url?: string; method?: string; data?: string }) => unknown = () => ({})) {
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method !== 'get') patched.push({ url: `${config.method} ${config.url}`, body: config.data ? JSON.parse(config.data) : undefined });
+    return { config, status: 200, statusText: 'OK', headers: {}, data: reply(config) };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(client);
+  const withItems = consultingItem({ id: 2, stage: 'running', contractStep: 5, items });
+  return render(<QueryClientProvider client={client}>
+    <ConsultingActivity item={withItems} detail={{ capabilities: { ...capabilities, canEditItems } } as ConsultingDetail} />
+  </QueryClientProvider>);
+}
+
+/**
+ * 「항목 수정」(31-05 · W11) — 9유형 기본 항목표가 없는 동안 담당이 항목을 채운다. 서는지는 서버의 canEditItems,
+ * 줄마다 이름 · 빼기는 서버 단추(canRename · canRemove)이고, 창은 **바꾼 것만** 보낸다(목록 통째가 아니다).
+ */
+it('「항목 수정」은 canEditItems 에만 서고, 창은 더할 줄 · 바꾼 이름 · 뺄 줄만 보낸다 (W11)', async () => {
+  const items = [
+    row({ id: 1, seq: 1, label: '지원서 작성', required: true }),
+    row({ id: 2, seq: 2, label: '추천서' }),
+    row({ id: 3, seq: 3, label: '여권 사본', done: true, doneOn: '2026-07-24', source: 'template', canRename: false, canRemove: false }),
+  ];
+  const locked = renderItems(items, false);
+  expect(locked.queryByRole('button', { name: '항목 수정' })).toBeNull();
+  cleanup();
+
+  const view = renderItems(items, true, () => []);
+  fireEvent.click(view.getByRole('button', { name: '항목 수정' }));
+  const dialog = view.getByRole('dialog', { name: '항목 수정' });
+  const save = within(dialog).getByRole('button', { name: '저장' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  // 끝낸 기본 항목은 이름도 빼기도 잠겨 있다 — 서버가 준 단추 그대로
+  expect((within(dialog).getByLabelText('여권 사본 이름') as HTMLInputElement).disabled).toBe(true);
+  expect((within(dialog).getByRole('button', { name: '여권 사본 빼기' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(within(dialog).getByLabelText('지원서 작성 이름'), { target: { value: ' 지원서 최종본 ' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '추천서 빼기' }));
+  fireEvent.click(within(dialog).getByRole('button', { name: '+ 항목 더하기' }));
+  fireEvent.change(within(dialog).getByLabelText('새 항목 1 이름'), { target: { value: '면접 준비' } });
+  expect(save.disabled).toBe(false);
+  fireEvent.click(save);
+  await waitFor(() => expect(patched).toHaveLength(1));
+  expect(patched[0]).toEqual({
+    url: 'patch /consulting/2/items',
+    body: { add: [{ label: '면접 준비', required: true }], rename: [{ id: 1, label: '지원서 최종본' }], remove: [2] },
+  });
+});
+
+/** 항목 줄의 「파일」(31-06 · W11) — 올릴 수 있거나(canAddFile) 올린 것이 있을 때만 선다. 빼기는 그 항목 주소로 간다 */
+it('항목 「파일」은 올릴 수 있거나 올린 것이 있을 때 서고, 창에서 뺀 파일은 그 항목의 주소로 지운다 (W11)', async () => {
+  const items = [
+    row({
+      id: 1, label: '지원서 작성', canRemove: false,
+      files: [{ id: 77, name: '지원서.pdf', mime: 'application/pdf', bytes: 3072, url: '/files/77', role: 'item', uploadedByName: '김범준', uploadedAt: '2026-09-20T10:00:00+09:00' }],
+    }),
+    row({ id: 2, seq: 2, label: '추천서', canAddFile: false }),
+  ];
+  const view = renderItems(items, true);
+  expect(view.queryByRole('button', { name: /^추천서 파일/ })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '지원서 작성 파일 1개' }));
+  const dialog = view.getByRole('dialog', { name: '지원서 작성 — 파일' });
+  expect(within(dialog).getByText('3KB · 2026-09-20 · 김범준')).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole('button', { name: '지원서.pdf 빼기' }));
+  await waitFor(() => expect(patched).toHaveLength(1));
+  expect(patched[0]!.url).toBe('delete /consulting/2/items/1/files/77');
 });
 
 it('「다음까지」·「결과」도 바뀐 칸만 보낸다 — 다음까지는 담당의 할 일이 된다는 안내가 선다 (31-08)', async () => {

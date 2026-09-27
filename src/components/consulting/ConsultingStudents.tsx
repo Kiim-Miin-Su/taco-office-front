@@ -28,7 +28,7 @@ export interface ConsultingStudentsProps {
   onOpen?: (consId: number) => void;
 }
 
-/** 「받은 돈 / 계약 금액」 — 둘 다 서버가 준 값이고, 못 보면 「가려짐」 한 번만 적는다 */
+/** 「받은 돈 / 계약 금액」 — 둘 다 서버가 준 값이고, 못 보면 숨긴 금액 낱말(「비공개」) 한 번만 적는다 */
 const moneyPair = (paid?: number | null, amount?: number | null): string =>
   paid === null || paid === undefined || amount === null || amount === undefined
     ? MASKED

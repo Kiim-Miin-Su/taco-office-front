@@ -30,9 +30,10 @@ const detail = {
     canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: null,
     canAddSession: true, canClose: false, closeBlockedReason: '약정 13회 중 8회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다',
+    archiveBlockedReason: '받은 돈이 있는 컨설팅은 지울 수 없습니다', canSendContract: false, canCloseException: true, canEditItems: true,
   },
   contractFiles: [], signedFiles: [], feedback: [], delivery: null, payment: { paid: 4400000, due: 4000000, invoiceId: null },
-  sessionsDone: 8, sessionsPlanned: 0, requiredLeft: 3, closedAt: null, closedByName: null,
+  sessionsDone: 8, sessionsPlanned: 0, requiredLeft: 3, closedAt: null, closedByName: null, closeReason: null,
 } satisfies ConsultingDetail;
 const result: ConsSessionsResult = {
   preview: true, consId: 1, staffId: 3, staffName: '김범준', studentNames: ['오예린'],

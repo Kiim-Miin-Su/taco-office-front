@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ConsStudent } from '@/api/types';
+import { MASKED } from '@/lib/money';
 import { ConsultingStudents } from './ConsultingStudents';
 
 /** 원문 컷과 같은 모양 — 고은성(G12) 1건 · 민제인(G10) 1건 */
@@ -18,8 +19,8 @@ const students: ConsStudent[] = [
       sessionsLogged: 2, sessionsDone: 2, sessions: 6, itemsDone: 4, itemsTotal: 7,
       amount: 800000, paid: 400000,
       items: [
-        { id: 11, seq: 1, label: '지원서 작성', required: true, done: true, source: 'template', doneBy: '김범준', doneOn: '2026-08-01' },
-        { id: 12, seq: 2, label: '추천서 2부', required: true, done: false, source: 'template', doneBy: null, doneOn: null },
+        { id: 11, seq: 1, label: '지원서 작성', required: true, done: true, source: 'template', doneBy: '김범준', doneOn: '2026-08-01', files: [], canAddFile: false, canRename: false, canRemove: false },
+        { id: 12, seq: 2, label: '추천서 2부', required: true, done: false, source: 'template', doneBy: null, doneOn: null, files: [], canAddFile: true, canRename: true, canRemove: false },
       ],
     }],
   },
@@ -76,14 +77,14 @@ it('내용이 잠겨 항목 줄이 안 와도 숫자는 말해 준다 — 「항
   expect(v.getByText(/공개 범위 밖입니다/)).toBeTruthy();
 });
 
-it('금액을 못 보면 「가려짐」 — 0 원으로 뭉개지 않는다 (D-R39)', () => {
+it('금액을 못 보면 숨긴 금액 낱말(「비공개」) — ₩0 으로 뭉개지 않는다 (D-R39)', () => {
   const d = clone().map((s) => ({
     ...s, amount: null, paid: null,
     cases: s.cases.map((c) => ({ ...c, amount: null, paid: null })),
   }));
   const v = render(<ConsultingStudents items={d} />);
-  expect(v.getAllByText('가려짐').length).toBeGreaterThan(0);
-  expect(v.queryByText('0원 / 0원')).toBeNull();
+  expect(v.getAllByText(MASKED).length).toBeGreaterThan(0);
+  expect(v.queryByText('₩0 / ₩0')).toBeNull();
 });
 
 it('학생을 고르면 오른쪽이 그 학생으로 바뀐다 — 처음에는 첫 줄이다', () => {

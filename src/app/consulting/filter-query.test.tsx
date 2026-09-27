@@ -19,6 +19,7 @@ vi.mock('@/store/useSession', () => ({
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 
 describe('실제 useConsulting 연결', () => {
   it('네 필터 왕복이 기존 사용자별 캐시 하나를 소비하고 GET을 추가하지 않는다', async () => {

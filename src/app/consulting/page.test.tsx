@@ -27,6 +27,8 @@ vi.mock('@/api/queries', () => ({
   useConsToInvoice: () => empty,
 }));
 vi.mock('@/store/useSession', () => ({ useCan: () => false }));
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/consulting/ConsultingStartForm', () => ({
@@ -49,8 +51,26 @@ const item: Consulting = consultingItem({
 
 describe('§26 조회 계약 통합', () => {
   beforeEach(() => {
+    nav.search = '';
     Object.assign(query, { data: { items: [item], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE }, isError: false, isLoading: false, error: null });
     Object.assign(create, { data: undefined, mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null });
+  });
+
+  it('알림 링크의 `?id=` 는 그 건 상세를 바로 연다 — 잠긴 건 · 형식이 틀린 값이면 보드만 보인다 (W11 알림 링크)', () => {
+    nav.search = '?id=1';
+    const opened = render(<ConsultingPage />);
+    expect(opened.getByText('워크플로 #1')).toBeTruthy();
+    opened.unmount();
+
+    query.data = { items: [{ ...item, canOpen: false, sessionsLog: [], items: [] }], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
+    const locked = render(<ConsultingPage />);
+    expect(locked.queryByText(/워크플로 #/)).toBeNull();
+    locked.unmount();
+
+    query.data = { items: [item], canSeeAmounts: false, stages: CONSULTING_STAGE_FIXTURE };
+    nav.search = '?id=1abc';
+    const bad = render(<ConsultingPage />);
+    expect(bad.queryByText(/워크플로 #/)).toBeNull();
   });
 
   it('§29 생성 성공 응답 id로 즉시 §30 상세을 연다', () => {

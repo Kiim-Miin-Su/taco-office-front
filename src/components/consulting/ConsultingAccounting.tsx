@@ -12,6 +12,8 @@
  *
  * 원문 동작 둘 — 「납부 넣기」와 「청구서로 전환」. 전환은 **남은 돈으로** 낸다(서버 판정).
  * 눌러도 되는지도 서버가 `canInvoice` 로 말해 준다 — 화면이 단계를 다시 읽지 않는다 (D-R39).
+ * 학생이 여럿인 컨설팅은 전환 창에서 **받는 학생을 사람이 고른다**(N-33 ② · 고르기 전에는 단추가 잠긴다). 한 명이면 고르개가 없다.
+ * 「받음 · 남음」은 전환 청구서에 들어온 돈까지 센 서버 값이다(계약 → 진행 전이와 같은 조각).
  */
 'use client';
 import { useState } from 'react';
@@ -19,7 +21,7 @@ import { apiMessage } from '@/api/client';
 import { useAddConsPayment, useConsToInvoice } from '@/api/queries';
 import type { ConsAccounting, ConsAccountRow } from '@/api/types';
 import {
-  Banner, Button, Chip, Column, Drawer, Input, Label, Panel, StatCard, Table,
+  Banner, Button, Chip, Column, Drawer, Input, Label, Panel, Select, StatCard, Table,
 } from '@/components/ui';
 import { CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
@@ -32,7 +34,7 @@ export interface ConsultingAccountingProps {
   loading?: boolean;
 }
 
-/** 「07-12 400,000원」 — 표 한 칸에 드는 짧은 꼴. 연도는 줄을 늘리기만 한다. */
+/** 「07-12 ₩400,000」 — 표 한 칸에 드는 짧은 꼴(금액은 `lib/money`). 연도는 줄을 늘리기만 한다. */
 const payBrief = (isoDate: string): string => isoDate.slice(5);
 
 export function ConsultingAccounting({ data, loading }: ConsultingAccountingProps) {
@@ -41,12 +43,16 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
   const [amount, setAmount] = useState('');
   const [paidOn, setPaidOn] = useState('');
   const [memo, setMemo] = useState('');
+  /** 「청구서로 전환」 — 받는 학생(학생이 여럿일 때만 고른다 · N-33 ②) */
+  const [invStudent, setInvStudent] = useState('');
 
   const addPayment = useAddConsPayment();
   const toInvoice = useConsToInvoice();
 
   const rows = data?.items ?? [];
   const open = rows.find((r) => r.id === openId) ?? null;
+  const pickStudent = open !== null && open.students.length > 1;
+  const openRow = (id: number) => { setOpenId(id); setInvStudent(''); toInvoice.reset(); };
 
   const closePay = () => {
     setPayFor(null);
@@ -118,7 +124,7 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
           >
             납부 넣기
           </Button>
-          <Button size="sm" onClick={(e) => { e.stopPropagation(); setOpenId(r.id); }}>열기</Button>
+          <Button size="sm" onClick={(e) => { e.stopPropagation(); openRow(r.id); }}>열기</Button>
         </div>
       ),
     },
@@ -211,8 +217,9 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
               </span>
               <Button
                 variant="primary"
-                disabled={!open.canInvoice || toInvoice.isPending}
-                onClick={() => toInvoice.mutate({ consId: open.id })}
+                disabled={!open.canInvoice || toInvoice.isPending || (pickStudent && !invStudent)}
+                title={open.canInvoice && pickStudent && !invStudent ? '청구서를 받을 학생을 먼저 고르세요' : undefined}
+                onClick={() => toInvoice.mutate({ consId: open.id, ...(pickStudent ? { studentId: Number(invStudent) } : {}) })}
               >
                 {toInvoice.isPending ? '전환 중…' : '청구서로 전환'}
               </Button>
@@ -223,6 +230,16 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
         {open ? (
           <div className="p-4">
             {toInvoice.isError ? <Banner tone="danger" className="mb-3">{apiMessage(toInvoice.error)}</Banner> : null}
+            {/* 학생이 여럿이면 청구서는 한 명 앞으로 나간다 — 사람이 고른다 (N-33 ② · 서버가 대신 고르지 않는다) */}
+            {open.canInvoice && pickStudent ? (
+              <div className="mb-4">
+                <Label htmlFor="cons-inv-student">청구서를 받을 학생</Label>
+                <Select id="cons-inv-student" value={invStudent} onChange={(e) => setInvStudent(e.target.value)}>
+                  <option value="">고르세요</option>
+                  {open.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </Select>
+              </div>
+            ) : null}
             <h3 className="mb-2 text-[12px] font-bold text-fg-subtle">납부 기록</h3>
             {open.payments.length === 0 ? (
               <p className="text-[12px] text-fg-subtle">아직 받은 돈이 없습니다.</p>
@@ -239,7 +256,7 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
               </ul>
             )}
             <p className="mt-4 border-t border-line pt-3 text-[11px] text-fg-subtle">
-              청구서로 전환해도 이 기록은 그대로 남습니다 — 청구서와의 연결(cs_id)이지 옮김이 아닙니다.
+              청구서로 전환해도 이 기록은 그대로 남습니다 — 청구서와 이어 둘 뿐 옮기지 않습니다. 전환 뒤 입금은 그 청구서에 적고, 받은 돈에 함께 셉니다.
             </p>
           </div>
         ) : null}

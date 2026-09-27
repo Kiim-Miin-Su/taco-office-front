@@ -34,6 +34,15 @@ vi.mock('@/api/queries', () => ({
   useCloseConsulting: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
   useGuideTemplates: () => ({ data: [] }),
 }));
+// §30 ③ 「계약서 전달하기」가 여는 보호자 발송 창 — 이 시험은 무엇을 넘기는지만 본다(창 자체는 guardians 시험이 본다)
+vi.mock('@/components/guardians/GuardianSendDialog', () => ({
+  GuardianSendDialog: ({ title, student, attachments }: { title?: string; student: { id: number }; attachments?: Array<{ id: number; checked?: boolean }> }) => (
+    <section aria-label={title}>
+      <span>받는 학생 #{student.id}</span>
+      <span>{`붙일 파일 ${(attachments ?? []).map((a) => `${a.id}${a.checked ? '(고름)' : ''}`).join(' ')}`}</span>
+    </section>
+  ),
+}));
 
 const capabilities: ConsultingDetail['capabilities'] = {
   // 이 표본은 **대표가 보는** 상세다 — 비공개 지정까지 열려 있다 (S4 · 매니저 화면은 아래 회귀가 따로 본다)
@@ -42,6 +51,7 @@ const capabilities: ConsultingDetail['capabilities'] = {
   canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: '외부 수신처 정책 미정',
   canAddSession: false, canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
+  archiveBlockedReason: null, canSendContract: false, canCloseException: false, canEditItems: true,
 };
 
 const detail = {
@@ -58,7 +68,7 @@ const detail = {
   },
   capabilities, contractFiles: [], signedFiles: [], feedback: [], delivery: null,
   payment: { paid: 0, due: 800000, invoiceId: null },
-  sessionsDone: 0, sessionsPlanned: 0, requiredLeft: 0, closedAt: null, closedByName: null,
+  sessionsDone: 0, sessionsPlanned: 0, requiredLeft: 0, closedAt: null, closedByName: null, closeReason: null,
 } satisfies ConsultingDetail;
 
 /** 공개 범위는 한 줄 배너다 — 고르는 칸은 「공개 범위 바꾸기」를 눌러야 열린다 (30-06) */
@@ -98,7 +108,7 @@ describe('ConsultingContractWorkflow', () => {
     const view = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
     expect(view.getByRole('list', { name: '계약 3/5' })).toBeTruthy();
     expect(view.getByText('이 유형의 기본 항목 원문이 아직 없습니다.')).toBeTruthy();
-    expect(view.getByText('800,000원')).toBeTruthy();
+    expect(view.getByText('₩800,000')).toBeTruthy();
     expect(view.getByRole('button', { name: '전달 완료 기록' }).hasAttribute('disabled')).toBe(true);
     expect(view.getByRole('button', { name: '수납·청구서 열기' }).hasAttribute('disabled')).toBe(true);
     expect(view.getByRole('button', { name: /파일 고르기/ })).toBeTruthy();
@@ -289,5 +299,62 @@ describe('ConsultingContractWorkflow', () => {
     expect(first.querySelector('header')?.textContent).toBe('① 계약서 준비올림');
     for (const t of ['③ 학부모께 전달', '④ 학부모 서명', '⑤ 수납']) expect(view.getByRole('region', { name: t })).toBeTruthy();
     expect(view.getByRole('region', { name: '③ 학부모께 전달' }).parentElement?.className).not.toContain('grid-cols-3');
+  });
+
+  /** ③ 「계약서 전달하기」(W11) — 서버의 canSendContract 로만 서고, 올린 계약서를 붙일 후보로 넘긴다(가장 최근 판을 미리 고름) */
+  it('「계약서 전달하기」는 서버 값으로 서고, 누르면 보호자 발송 창에 계약서를 붙일 후보로 넘긴다 · 학생이 여럿이면 받는 학생을 고른다', () => {
+    const draft = (id: number, role: ConsultingFile['role']): ConsultingFile => ({
+      id, name: `${id}.pdf`, mime: 'application/pdf', bytes: 10, url: `/files/${id}`, role, uploadedByName: 'Grace', uploadedAt: '2026-08-20T10:00:00+09:00',
+    });
+    const sendable = {
+      ...detail, contractStep: 2, studentIds: [10, 11], studentNames: ['고은성', '고은비'],
+      contractFiles: [draft(21, 'draft'), draft(22, 'revision')],
+      capabilities: { ...capabilities, externalParentSendSupported: true, externalParentSendReason: null, canSendContract: false },
+    };
+    state.detail = sendable;
+    const locked = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    expect(locked.getByRole('button', { name: '계약서 전달하기' }).hasAttribute('disabled')).toBe(true);
+    cleanup();
+
+    state.detail = { ...sendable, capabilities: { ...sendable.capabilities, canSendContract: true } };
+    const view = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    // 시스템 밖에서 건넨 전달을 적는 단추는 둘째로 남는다
+    expect(view.getByRole('button', { name: '전달 완료 기록' })).toBeTruthy();
+    fireEvent.change(view.getByLabelText('받는 학생'), { target: { value: '11' } });
+    fireEvent.click(view.getByRole('button', { name: '계약서 전달하기' }));
+    const dialog = view.getByRole('region', { name: '계약서 전달하기 — 고은비' });
+    expect(dialog.textContent).toContain('받는 학생 #11');
+    expect(dialog.textContent).toContain('붙일 파일 21 22(고름)');
+  });
+
+  /** PB-11 (W11) — 받은 돈 · 전환 청구서 · 회차가 있으면 서버가 지우기를 막고 그 까닭을 준다 */
+  it('지우기가 막힌 건은 단추가 잠기고 서버의 까닭이 곁에 선다', () => {
+    state.detail = { ...detail, capabilities: { ...capabilities, canArchive: false, archiveBlockedReason: '받은 돈이 있는 컨설팅은 지울 수 없습니다' } };
+    const view = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    const button = view.getByRole('button', { name: '지우기' });
+    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.getAttribute('title')).toBe('받은 돈이 있는 컨설팅은 지울 수 없습니다');
+    // 원문 바닥 「지우기」는 테두리 단추 · 빨간 글자다 — 빨간 채움이 아니다 (W11 재대조)
+    expect(button.className).toContain('text-red');
+    expect(button.className).not.toContain('bg-red');
+    expect(view.getByText('받은 돈이 있는 컨설팅은 지울 수 없습니다')).toBeTruthy();
+  });
+
+  /** 예외 종료(W11) — 정상 종료가 막혔고 서버가 canCloseException 을 열면 「예외 종료」 단추, 끝난 건은 그 사유를 보인다 */
+  it('「3 · 종료」 — 서버가 예외 종료를 열면 「예외 종료」가 서고, 예외로 닫힌 건은 사유를 보인다', () => {
+    state.detail = {
+      ...detail, stage: 'running', contractStep: 5,
+      capabilities: { ...capabilities, canClose: false, closeBlockedReason: '필수 항목 2개가 남았습니다', canCloseException: true },
+    };
+    const view = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    fireEvent.click(within(view.getByRole('group', { name: '상세 단계' })).getByRole('button', { name: '3 · 종료' }));
+    expect(view.getByRole('button', { name: '예외 종료' }).hasAttribute('disabled')).toBe(false);
+    expect(view.queryByRole('button', { name: '컨설팅 종료' })).toBeNull();
+    expect(view.getByText('필수 항목 2개가 남았습니다')).toBeTruthy();
+    cleanup();
+
+    state.detail = { ...detail, stage: 'done', contractStep: 5, endOn: '2026-09-20', closedAt: '2026-09-20T05:00:00.000Z', closedByName: '김민선', closeReason: '학부모 요청으로 중단' };
+    const done = render(<ConsultingContractWorkflow consId={7} onClose={vi.fn()} onOpenAccounting={vi.fn()} />);
+    expect(done.getByText('예외 종료 · 사유 학부모 요청으로 중단')).toBeTruthy();
   });
 });

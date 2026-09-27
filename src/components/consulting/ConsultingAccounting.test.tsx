@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ConsAccounting as Dto } from '@/api/types';
+import { MASKED } from '@/lib/money';
 
 const { pay, conv } = vi.hoisted(() => ({ pay: vi.fn(), conv: vi.fn() }));
 vi.mock('@/api/queries', () => ({
@@ -21,13 +22,13 @@ const base: Dto = {
   totalAmount: 1700000, totalPaid: 400000, totalDue: 1300000,
   items: [
     {
-      id: 1, studentName: '민제인', consType: 'essay', typeLabel: '에세이 지도', stage: 'contract', stageLabel: '계약',
+      id: 1, studentName: '민제인', students: [{ id: 11, name: '민제인' }], consType: 'essay', typeLabel: '에세이 지도', stage: 'contract', stageLabel: '계약',
       amount: 900000, paid: 0, due: 900000, payments: [], invId: null, canInvoice: false,
       // 계약 단계라 서명본 전 — 서버가 납부를 막는다 (S5)
       canAddPayment: false, payBlockedReason: '서명본 등록 뒤 수납할 수 있습니다',
     },
     {
-      id: 2, studentName: '고은성', consType: 'visa', typeLabel: '비자 · 서류', stage: 'running', stageLabel: '진행',
+      id: 2, studentName: '고은성', students: [{ id: 12, name: '고은성' }], consType: 'visa', typeLabel: '비자 · 서류', stage: 'running', stageLabel: '진행',
       amount: 800000, paid: 400000, due: 400000,
       payments: [{ id: 7, amount: 400000, paidOn: '2026-07-12', memo: '계약금', byName: '김민수' }],
       invId: null, canInvoice: true, canAddPayment: true, payBlockedReason: null,
@@ -44,16 +45,16 @@ const card = (v: ReturnType<typeof render>, label: string): string =>
 
 it('머리 세 칸은 서버가 준 값 그대로다 — 화면이 줄을 더하지 않는다 (D-R37)', () => {
   const v = render(<ConsultingAccounting data={clone()} />);
-  expect(card(v, '계약 금액')).toBe('1,700,000원');
-  expect(card(v, '받은 돈')).toBe('400,000원');
-  expect(card(v, '남은 돈')).toBe('1,300,000원');
+  expect(card(v, '계약 금액')).toBe('₩1,700,000');
+  expect(card(v, '받은 돈')).toBe('₩400,000');
+  expect(card(v, '남은 돈')).toBe('₩1,300,000');
 });
 
 it('서버의 합계가 줄과 안 맞아도 화면은 서버 값을 그린다 — 조용히 고치지 않는다', () => {
   const d = clone();
   d.totalDue = 999; // 서버가 이렇게 줬다면 그건 서버에서 볼 일이다
   const v = render(<ConsultingAccounting data={d} />);
-  expect(card(v, '남은 돈')).toBe('999원');
+  expect(card(v, '남은 돈')).toBe('₩999');
 });
 
 it('종류 이름도 서버 낱말(typeLabel)이다 — 가운뎃점 앞뒤를 띄운 원본 그대로 (29-02)', () => {
@@ -74,17 +75,17 @@ it('단계 낱말도 서버가 준 것을 쓴다 — 코드값이 새지 않는�
 it('납부 기록이 없으면 —, 있으면 날짜와 금액을 한 칸에 적는다', () => {
   const v = render(<ConsultingAccounting data={clone()} />);
   expect(v.getByText('—')).toBeTruthy();
-  expect(v.getByText('07-12 400,000원')).toBeTruthy();
+  expect(v.getByText('07-12 ₩400,000')).toBeTruthy();
 });
 
-it('금액이 가려지면 배너로 알리고 계약 칸에 「가려짐」을 적는다 — 0 원으로 뭉개지 않는다', () => {
+it('금액이 가려지면 배너로 알리고 계약 칸에 숨긴 금액 낱말(「비공개」)을 적는다 — ₩0 으로 뭉개지 않는다', () => {
   const d = clone();
   d.canSeeAmounts = false;
   d.totalAmount = null; d.totalPaid = null; d.totalDue = null;
   d.items = d.items.map((r) => ({ ...r, amount: null, paid: null, due: null, payments: [], canInvoice: false }));
   const v = render(<ConsultingAccounting data={d} />);
-  expect(v.getAllByText('가려짐').length).toBeGreaterThan(0);
-  expect(v.queryByText('0원')).toBeNull();
+  expect(v.getAllByText(MASKED).length).toBeGreaterThan(0);
+  expect(v.queryByText('₩0')).toBeNull();
 });
 
 it('납부 넣기 — 화면은 서버에 보낼 세 값만 모은다', () => {
@@ -140,11 +141,27 @@ it('「청구서로 전환」은 서버의 canInvoice 를 따른다 — 화면�
   expect(v.getByText('계약 5단계(수납)부터, 남은 돈이 있을 때 전환합니다')).toBeTruthy();
 });
 
-it('전환할 수 있는 건은 눌리고, 누르면 그 건 하나만 보낸다', () => {
+it('전환할 수 있는 건은 눌리고, 누르면 그 건 하나만 보낸다 — 학생이 한 명이면 고르는 칸이 없다(서버가 그 학생으로 낸다)', () => {
   const v = render(<ConsultingAccounting data={clone()} />);
   fireEvent.click(v.getAllByRole('button', { name: '열기' })[1]);
+  expect(v.queryByLabelText('청구서를 받을 학생')).toBeNull();
   fireEvent.click(v.getByRole('button', { name: '청구서로 전환' }));
   expect(conv).toHaveBeenCalledWith({ consId: 2 });
+});
+
+/** N-33 ② (W11) — 학생이 여럿인 건은 409 로 막혀 끝나던 자리. 이제 사람이 받는 학생을 골라 보낸다(서버가 대신 고르지 않는다) */
+it('학생이 여럿이면 받는 학생을 골라야 전환이 눌리고, 고른 학생을 함께 보낸다 (W11)', () => {
+  const d = clone();
+  d.items[1] = { ...d.items[1], studentName: '고은성, 고은비', students: [{ id: 12, name: '고은성' }, { id: 13, name: '고은비' }] };
+  const v = render(<ConsultingAccounting data={d} />);
+  fireEvent.click(v.getAllByRole('button', { name: '열기' })[1]);
+  const button = v.getByRole('button', { name: '청구서로 전환' });
+  expect(button.hasAttribute('disabled')).toBe(true);
+  expect(button.getAttribute('title')).toBe('청구서를 받을 학생을 먼저 고르세요');
+  fireEvent.change(v.getByLabelText('청구서를 받을 학생'), { target: { value: '13' } });
+  expect(button.hasAttribute('disabled')).toBe(false);
+  fireEvent.click(button);
+  expect(conv).toHaveBeenCalledWith({ consId: 2, studentId: 13 });
 });
 
 it('이미 전환한 건은 청구서 번호를 보여 주고 다시 눌리지 않는다', () => {
@@ -171,6 +188,6 @@ it('원본 §28 모양 — 개발 설명 없는 타일 · 제목 없는 표 · �
   const stage = v.getByText('진행');
   expect(stage.className).toContain('text-violet');
   expect(stage.querySelector('[aria-hidden]')?.className).toContain('bg-violet');
-  expect(v.getByText('900,000원', { selector: 'span.text-red' })).toBeTruthy();
-  expect(v.getByText('07-12 400,000원').closest('td')?.className).toContain('text-center');
+  expect(v.getByText('₩900,000', { selector: 'span.text-red' })).toBeTruthy();
+  expect(v.getByText('07-12 ₩400,000').closest('td')?.className).toContain('text-center');
 });

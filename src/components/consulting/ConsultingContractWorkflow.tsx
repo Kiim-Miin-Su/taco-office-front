@@ -21,7 +21,8 @@ import {
 } from '@/api/queries';
 import type { Consulting, ConsultingDetail, ConsultingFile, ConsultingShareUpdate, Meta } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
-import { Banner, Button, Chip, Dialog, Panel, QueryState, Segmented, Textarea } from '@/components/ui';
+import { GuardianSendDialog } from '@/components/guardians/GuardianSendDialog';
+import { Banner, Button, Chip, Dialog, Panel, QueryState, Segmented, Select, Textarea } from '@/components/ui';
 import { WideDialog } from '@/components/ui/WideDialog';
 import { fileUploadBody } from '@/lib/file-upload';
 import { CONSULTING_CONTRACT_STEPS, CONSULTING_SHARES, CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
@@ -47,6 +48,8 @@ const FILE_ROLE_VIEW: Record<ConsultingFile['role'], { label: string; tone: 'inf
   draft: { label: '초안', tone: 'info' },
   revision: { label: '수정본', tone: 'neutral' },
   signed: { label: '서명본', tone: 'neutral' },
+  // 항목 파일(N-63)은 §31 항목 줄에 선다 — 계약 절에는 오지 않지만 낱말 표는 역할 넷을 다 갖는다
+  item: { label: '항목 파일', tone: 'neutral' },
 };
 
 /**
@@ -241,11 +244,41 @@ function FeedbackSection({ detail }: { detail: ConsultingDetail }) {
   );
 }
 
+/**
+ * ③ 학부모께 전달 — 원본 §30 「계약서 전달하기」 주버튼 (30-12 · N-77 채택).
+ * 보호자 선택 발송 창(DQ3)을 열고 계약서를 **메일에** 붙인다 — 문자에는 붙지 않는다 · 서명 링크는 만들지 않는다(서명본은 스캔 등록).
+ * 본문은 담당이 적는다(화면 · 서버가 짓지 않는다). 메일이 **실제로 나가야** 서버가 「전달」 단계로 넘긴다 — 화면은 결과를 짓지 않는다.
+ * 학생이 여럿이면 받는 학생(그 보호자)을 고른다. 「전달 완료 기록」은 시스템 밖에서 건넨 전달을 적는 둘째 단추로 남는다.
+ */
+function ContractSend({ detail }: { detail: ConsultingDetail }) {
+  const students = detail.studentIds.map((sid, i) => ({ id: sid, name: detail.studentNames[i] ?? '' }));
+  const [pick, setPick] = useState<number | null>(students[0]?.id ?? null);
+  const [sendOpen, setSendOpen] = useState(false);
+  const student = students.find((s) => s.id === pick) ?? students[0] ?? null;
+  // 기본으로 붙는 것은 가장 최근에 올린 계약서다(피드백을 반영한 판) — 창에서 바꿀 수 있다
+  const attachments = detail.contractFiles.map((f, i, all) => ({ id: f.id, name: f.name, bytes: f.bytes, checked: i === all.length - 1 }));
+  return <>
+    <div className="flex flex-wrap items-center gap-2">
+      {students.length > 1 ? (
+        <Select aria-label="받는 학생" className="w-auto" value={pick ?? ''} onChange={(e) => setPick(Number(e.target.value))}>
+          {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </Select>
+      ) : null}
+      <Button variant="primary" disabled={!detail.capabilities.canSendContract || student === null} onClick={() => setSendOpen(true)}>계약서 전달하기</Button>
+    </div>
+    {sendOpen && student ? (
+      <GuardianSendDialog open student={student} title={`계약서 전달하기 — ${student.name}`} defaultBody=""
+        attachments={attachments} onClose={() => setSendOpen(false)} />
+    ) : null}
+  </>;
+}
+
 function ContractActions({ detail, onOpenAccounting }: { detail: ConsultingDetail; onOpenAccounting: () => void }) {
   const deliver = useDeliverConsultingContract();
   const signed = useAddConsultingSignedFile();
   const [signedIssue, setSignedIssue] = useState<string | null>(null);
   const totalFiles = detail.contractFiles.length + detail.signedFiles.length;
+  const sending = detail.capabilities.externalParentSendSupported;
   const uploadSigned = async (files: File[]) => {
     const file = files[0];
     if (!file) return;
@@ -258,16 +291,17 @@ function ContractActions({ detail, onOpenAccounting }: { detail: ConsultingDetai
   };
   // ③ · ④ · ⑤ 도 한 열로 쌓는다 (30-08)
   return <div className="flex flex-col gap-4">
-    <StepSection title="③ 학부모께 전달" sub={detail.capabilities.externalParentSendSupported
-      ? '서버가 허용한 외부 전달을 기록합니다.'
-      : detail.capabilities.externalParentSendReason ?? '외부 발송 수신처 정책이 확정되지 않았습니다.'}>
-      {detail.delivery ? <Banner tone="success">{detail.delivery.deliveredAt} · {detail.delivery.deliveredByName} 전달 기록</Banner> : null}
-      {!detail.delivery || detail.capabilities.canDeliver ? (
-        <Button variant="primary" disabled={!detail.capabilities.canDeliver || deliver.isPending}
-          className={detail.delivery ? 'mt-2' : undefined}
-          title={!detail.capabilities.externalParentSendSupported ? '외부 발송 성공이 아니라 전달 완료 사실만 기록합니다' : undefined}
-          onClick={() => deliver.mutate(detail.id)}>{deliver.isPending ? '기록 중…' : detail.delivery ? '다시 전달 완료 기록' : '전달 완료 기록'}</Button>
-      ) : null}
+    {/* 원본 §30 ③ 은 한 줄 설명 없이 「계약서 전달하기」 주버튼 하나다 (30-12) — 전달 방식이 없을 때만 까닭을 적는다 */}
+    <StepSection title="③ 학부모께 전달" sub={sending ? null : detail.capabilities.externalParentSendReason ?? '외부 발송 수신처 정책이 확정되지 않았습니다.'}>
+      {detail.delivery ? <Banner tone="success" className="mb-2">{detail.delivery.deliveredAt} · {detail.delivery.deliveredByName} 전달 기록</Banner> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {sending ? <ContractSend detail={detail} /> : null}
+        {!detail.delivery || detail.capabilities.canDeliver ? (
+          <Button variant={sending ? 'secondary' : 'primary'} disabled={!detail.capabilities.canDeliver || deliver.isPending}
+            title="보내지 않고 전달했다는 사실만 기록합니다(직접 건넨 경우)"
+            onClick={() => deliver.mutate(detail.id)}>{deliver.isPending ? '기록 중…' : detail.delivery ? '다시 전달 완료 기록' : '전달 완료 기록'}</Button>
+        ) : null}
+      </div>
       {deliver.isError ? <Banner tone="danger" className="mt-2">{apiMessage(deliver.error)}</Banner> : null}
     </StepSection>
     <StepSection title="④ 학부모 서명">
@@ -335,24 +369,38 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
       // 종료 — 원본 §26 「종료 · 마무리하고 안내」. 서는지와 막힌 이유는 서버가 정한다 (N-18 채택 · I-95 · 30-14 종료 진입을 이 탭으로)
       <Panel title="종료">
         {detail.stage === 'done' ? (
-          <p className="text-[12.5px] font-bold text-fg">종료일 {detail.endOn ?? '—'} · 처리 {detail.closedByName ?? '—'}</p>
+          <>
+            <p className="text-[12.5px] font-bold text-fg">종료일 {detail.endOn ?? '—'} · 처리 {detail.closedByName ?? '—'}</p>
+            {/* 예외 종료로 닫은 건은 그 사유를 함께 보인다 — 감사 원장의 그 줄 (N-18-a) */}
+            {detail.closeReason ? <p className="mt-1 text-[12px] text-fg-2">예외 종료 · 사유 {detail.closeReason}</p> : null}
+          </>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="secondary" disabled={!detail.capabilities.canClose} title={detail.capabilities.closeBlockedReason ?? undefined} onClick={() => setCloseOpen(true)}>컨설팅 종료</Button>
+            {detail.capabilities.canClose || !detail.capabilities.canCloseException ? (
+              <Button variant="secondary" disabled={!detail.capabilities.canClose} title={detail.capabilities.closeBlockedReason ?? undefined} onClick={() => setCloseOpen(true)}>컨설팅 종료</Button>
+            ) : (
+              // 필수 항목 · 약정 회차가 남아 막혔고 승인 권한이 있다 — 사유를 적고 승인하는 예외 종료 (N-18-a · 서버 값)
+              <Button variant="danger" onClick={() => setCloseOpen(true)}>예외 종료</Button>
+            )}
             {detail.capabilities.closeBlockedReason ? <span className="text-[12px] text-fg-subtle">{detail.capabilities.closeBlockedReason}</span> : null}
           </div>
         )}
       </Panel>
     )}
-    <div className="mt-5 flex flex-wrap justify-between gap-2 border-t border-line pt-4">
-      {/* 원본 §30 바닥 「지우기」 — 동작은 보관(소프트 삭제) 그대로다 (30-14) */}
-      <Button variant="danger" disabled={!detail.capabilities.canArchive || archive.isPending} onClick={() => setConfirmArchive(true)}>지우기</Button>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+      {/* 원본 §30 바닥 「지우기」 — 동작은 보관(소프트 삭제) 그대로다 (30-14). 받은 돈 · 전환 청구서 · 회차가 있으면 서버가 막는다(PB-11) */}
+      <span className="flex flex-wrap items-center gap-2">
+        {/* 원문 바닥 「지우기」는 테두리 단추 · 빨간 글자다(채움 아님 · W11 재대조) — 확인 창의 「지우기」만 채움 */}
+        <Button variant="secondary" className="text-red" disabled={!detail.capabilities.canArchive || archive.isPending}
+          title={detail.capabilities.archiveBlockedReason ?? undefined} onClick={() => setConfirmArchive(true)}>지우기</Button>
+        {detail.capabilities.archiveBlockedReason ? <span className="text-[11px] text-fg-subtle">{detail.capabilities.archiveBlockedReason}</span> : null}
+      </span>
       <Button onClick={onClose}>닫기</Button>
     </div>
     <ConsultingSessionDialog open={sessionOpen} detail={detail} onClose={() => setSessionOpen(false)}
       onDone={(r) => setNotice(`회차 ${r.rows.length}건 잡음 — 새 회차 ${r.created} · 연결 ${r.linked} · 회차 ${r.sessionsDone} / 약정 ${r.sessions ?? '—'}`)} />
     <ConsultingCloseDialog open={closeOpen} detail={detail} onClose={() => setCloseOpen(false)}
-      onDone={(r) => setNotice(`종료 — 학부모 안내 ${r.parentNotices}명 · 종료일 ${r.endOn ?? '—'}`)} />
+      onDone={(r) => setNotice(`${r.exception ? '예외 종료' : '종료'} — 학부모 안내 ${r.parentNotices}명 · 종료일 ${r.endOn ?? '—'}`)} />
     <Dialog open={confirmArchive} onClose={() => setConfirmArchive(false)} title="이 컨설팅을 지울까요?" footer={<>
       <Button onClick={() => setConfirmArchive(false)}>취소</Button>
       <Button variant="danger" disabled={archive.isPending} onClick={() => archive.mutate(detail.id, { onSuccess: onClose })}>지우기</Button>

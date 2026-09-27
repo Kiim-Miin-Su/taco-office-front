@@ -10,6 +10,7 @@
  */
 'use client';
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Column, PageHeader, Panel, QueryState, StatCard, TabCards, Table } from '@/components/ui';
@@ -32,6 +33,7 @@ import {
   type ConsultingStageFilterValue,
 } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
+import { positiveQueryId } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
 
 /**
@@ -52,7 +54,10 @@ export default function ConsultingPage() {
   // §27 은 그 탭을 열 때만 부른다. 탭 머리의 「N명」은 목록 응답이 같은 셈으로 준다(studentCount · 26-03) — 열기 전에도 선다
   const students = useConsStudents(view === 'students');
   const studentCount = students.data?.items.length ?? d?.studentCount;
-  const [openId, setOpenId] = useState<number | null>(null);
+  // 알림 「수납 · 진행 가능」 · 「회차 기록 요청」이 그 건을 `?id=` 로 연다 (W11 · N-65). 형식만 본다 —
+  // 열 수 있는 건인지는 아래 목록의 canOpen(서버 판정)이 정하고, 없거나 잠긴 건이면 조용히 보드만 보인다
+  const searchParams = useSearchParams();
+  const [openId, setOpenId] = useState<number | null>(() => positiveQueryId(searchParams.get('id')));
   const [startOpen, setStartOpen] = useState(false);
   const meta = useMeta(startOpen);
   const create = useCreateConsulting();

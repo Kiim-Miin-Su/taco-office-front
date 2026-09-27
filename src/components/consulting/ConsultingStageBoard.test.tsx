@@ -134,4 +134,11 @@ describe('§26 카드와 칸 (C86-e)', () => {
     expect(text).toContain('국제학교 지원');
     expect(text).not.toContain('전달');
   });
+
+  it('빈 칸은 원문 §26 「종료 0」 칸 그대로 「없습니다」다 (W11 재대조)', () => {
+    const view = board();
+    const done = view.container.querySelector('[data-board-column="done"]') as HTMLElement;
+    expect(within(done).getByText('없습니다')).toBeTruthy();
+    expect(view.queryByText('컨설팅 건이 없습니다')).toBeNull();
+  });
 });

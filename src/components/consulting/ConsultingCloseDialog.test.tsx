@@ -23,14 +23,15 @@ const base = {
     canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: null,
     canAddSession: true, canClose: false, closeBlockedReason: '약정 8회 중 3회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다',
+    archiveBlockedReason: '받은 돈이 있는 컨설팅은 지울 수 없습니다', canSendContract: false, canCloseException: false, canEditItems: true,
   },
   contractFiles: [], signedFiles: [], feedback: [], delivery: null, payment: { paid: 3600000, due: 0, invoiceId: null },
-  sessionsDone: 3, sessionsPlanned: 0, requiredLeft: 0, closedAt: null, closedByName: null,
+  sessionsDone: 3, sessionsPlanned: 0, requiredLeft: 0, closedAt: null, closedByName: null, closeReason: null,
 } satisfies ConsultingDetail;
 const result: ConsCloseResult = {
   preview: true, consId: 1, stage: 'done', studentNames: ['정하람'],
   noticeBody: '컨설팅 종료 안내 — 에세이 지도 컨설팅(8회)이 마무리되었습니다. 그동안 함께해 주셔서 감사합니다. · 수고 많으셨습니다',
-  parentNotices: 1, sessionsDone: 8, sessions: 8, endOn: '2026-09-18', notified: true,
+  parentNotices: 1, sessionsDone: 8, sessions: 8, endOn: '2026-09-18', notified: true, exception: false,
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -88,4 +89,40 @@ it('열리면 문구 틀·한 줄을 보내 미리 보고, 안내문은 응답 �
   expect(posts[1]!.url).toBe('/consulting/1/close');
   await waitFor(() => expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ preview: false, parentNotices: 1 })));
   expect(onClose).toHaveBeenCalled();
+});
+
+/**
+ * 예외 종료(W11) — 정상 종료가 남은 회차 · 필수 항목으로 막혔고 서버가 `canCloseException` 을 열었을 때만 사유 칸이 선다.
+ * 사유와 **사람이 고르거나 적은** 학부모 안내가 있어야 서버에 묻고, 미리 본 그 본문 그대로 승인한다.
+ */
+it('서버가 예외 종료를 열면 사유와 학부모 안내(틀이나 글)가 있어야 미리 보고, 같은 본문으로 승인한다 (W11 예외 종료)', async () => {
+  const { view, onDone } = setup({ ...base, capabilities: { ...base.capabilities, canCloseException: true } });
+  const dialog = await view.findByRole('dialog', { name: '컨설팅 종료 — 정하람' });
+  expect(dialog.textContent).toContain('남은 5회를 마쳐야 종료할 수 있습니다');
+  expect(dialog.textContent).toContain('예외 종료는 사유를 적고 승인하면');
+  const preview = within(dialog).getByRole('button', { name: '미리 보기' }) as HTMLButtonElement;
+  expect(preview.disabled).toBe(true);
+  fireEvent.change(within(dialog).getByLabelText('예외 종료 사유'), { target: { value: ' 학부모 요청으로 중단 ' } });
+  // 사유만으로는 묻지 않는다 — 학부모에게 갈 글은 사람이 고르거나 적는다(서버 기본 문장이 없다)
+  expect(preview.disabled).toBe(true);
+  fireEvent.change(within(dialog).getByLabelText(/학부모 안내 글/), { target: { value: '그동안 감사했습니다' } });
+  expect(preview.disabled).toBe(false);
+  fireEvent.click(preview);
+  await waitFor(() => expect(posts).toHaveLength(1));
+  const sent = { memo: '그동안 감사했습니다', exception: { reason: '학부모 요청으로 중단' } };
+  expect(posts[0]).toEqual({ url: '/consulting/1/close/preview', body: sent });
+  await within(dialog).findByLabelText('종료 미리보기');
+  const approve = within(dialog).getByRole('button', { name: '예외 종료 승인' }) as HTMLButtonElement;
+  await waitFor(() => expect(approve.disabled).toBe(false));
+  fireEvent.click(approve);
+  await waitFor(() => expect(posts).toHaveLength(2));
+  expect(posts[1]).toEqual({ url: '/consulting/1/close', body: sent });
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+});
+
+it('예외 종료가 닫혀 있으면(서버 판정) 사유 칸도 승인 단추도 없다', async () => {
+  const { view } = setup(base);
+  const dialog = await view.findByRole('dialog', { name: '컨설팅 종료 — 정하람' });
+  expect(within(dialog).queryByLabelText('예외 종료 사유')).toBeNull();
+  expect(within(dialog).queryByRole('button', { name: '예외 종료 승인' })).toBeNull();
 });

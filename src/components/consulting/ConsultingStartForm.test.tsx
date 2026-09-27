@@ -21,7 +21,7 @@ const REQUESTER_WORDS = [{ key: 'mother', label: '어머니' }, { key: 'father',
 const PICK_WORDS = { typeWords: TYPE_WORDS, requesterWords: REQUESTER_WORDS };
 
 const meta = {
-  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
+  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [], genders: [],
   staff: [
     { id: 2, name: '김민수', role: 'admin', canAdminPage: true, canGpaPack: true },
     { id: 3, name: '김범준', role: 'manager', canAdminPage: true, canGpaPack: true },
@@ -146,7 +146,7 @@ describe('ConsultingStartForm', () => {
     expect(box.textContent).toContain('금액을 넣으면 회계에 잡힙니다');
     fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '800000' } });
     expect(box.textContent).toContain('계약 단계로 들어갑니다 · 계약서 → 피드백 → 전달 → 서명 → 수납');
-    expect(box.textContent).toContain('회계에 800,000원으로 잡힙니다');
+    expect(box.textContent).toContain('회계에 ₩800,000으로 잡힙니다');
     expect(box.textContent).toContain('회차를 넣으면 스케줄에 컨설팅으로 들어갑니다');
     const footer = view.getByRole('button', { name: '시작하기' }).parentElement!;
     expect(footer.className).toContain('justify-between');
