@@ -72,11 +72,11 @@ export function Legend({ items, colorOf, subName, kindName, display = 'schedule'
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-fg-subtle">취소</span>
-            <span className="rounded border border-line px-1.5 py-0.5 text-[10px] line-through opacity-45">취소된 수업</span>
+            <span className="rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-fg line-through">취소된 수업</span>
             {/* 블록과 같은 모양 클래스 — 사유는 서버의 휴강 사유(cancelKind), 휴원은 명단의 paused 다 */}
-            <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] ${styles.cancelStudent}`}>학생 결강</span>
-            <span className={`rounded border px-1.5 py-0.5 text-[10px] ${styles.cancelAcademy}`}>학원 취소</span>
-            <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] ${styles.paused}`}>휴원</span>
+            <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-fg ${styles.cancelStudent}`}>학생 결강</span>
+            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium text-fg ${styles.cancelAcademy}`}>학원 취소</span>
+            <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-fg ${styles.paused}`}>휴원</span>
             {/* 격자의 불가 띠와 같은 클래스 — 「가능 시간」을 켰을 때만 격자가 그리므로 그때만 적는다 */}
             {unavOn ? <span data-legend-unav className={`rounded px-1.5 py-0.5 text-[10px] ${styles.unavBand}`}>강사 불가</span> : null}
           </div>

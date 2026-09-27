@@ -83,7 +83,7 @@ describe('EventBlock', () => {
     expect(view.getByText('수강 학생')).toBeTruthy();
     expect(view.getByText('예외 있음')).toBeTruthy();
     expect(block.className).toContain('line-through');
-    expect(block.className).toContain('opacity-45');
+    expect(block.className).not.toMatch(/(?:^|\s)(?:\S+:)?opacity-45(?:\s|$)/);
     expect(block.className).toContain('ring-2');
     expect(block.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(block, { ctrlKey: true });
@@ -240,7 +240,10 @@ describe('EventBlock', () => {
     expect(view.getByText('회의').style.getPropertyValue('--event-color')).toBe('#736CAE');
     expect(view.getByText('현장')).toBeTruthy();
     expect(view.getByText('온라인').className).toContain('online');
-    expect(view.getByText('취소된 수업')).toBeTruthy();
+    const canceled = view.getByText('취소된 수업');
+    expect(canceled.className).toContain('line-through');
+    expect(canceled.className).toContain('text-fg');
+    expect(canceled.className).not.toMatch(/(?:^|\s)(?:\S+:)?opacity-45(?:\s|$)/);
     expect(view.queryByText('색 = 리포트를 썼는가')).toBeNull();
   });
 });
@@ -312,10 +315,16 @@ describe('EventBlock 정원 점 · 시각 생략 · 월간 모양 · 개인표 �
 describe('EventBlock 휴강 사유·휴원 모양 (원문 §07 범례)', () => {
   it('학생 결석 휴강은 「학생 결강」, 다른 사유는 「학원 취소」, 명단이 모두 휴원이면 「휴원」 모양이다', () => {
     const student = render(<EventBlock occ={{ ...occurrence, canceled: true, cancelKind: 'student_absent' }} subName="AP Chem" color="#5677A5" />);
-    expect(student.getByRole('button', { name: /AP Chem/ }).className).toContain('cancelStudent');
+    const studentBlock = student.getByRole('button', { name: /AP Chem/ });
+    expect(studentBlock.className).toContain('cancelStudent');
+    expect(studentBlock.className).toContain('line-through');
+    expect(studentBlock.className).not.toContain('opacity-45');
     cleanup();
     const academy = render(<EventBlock occ={{ ...occurrence, canceled: true, cancelKind: 'holiday' }} subName="AP Chem" color="#5677A5" />);
-    expect(academy.getByRole('button', { name: /AP Chem/ }).className).toContain('cancelAcademy');
+    const academyBlock = academy.getByRole('button', { name: /AP Chem/ });
+    expect(academyBlock.className).toContain('cancelAcademy');
+    expect(academyBlock.className).toContain('line-through');
+    expect(academyBlock.className).not.toContain('opacity-45');
     cleanup();
     const paused = render(<EventBlock occ={{ ...occurrence, students: [{ id: 1, name: '쉬는 학생', droppedOnce: false, paused: true, late: false }] }}
       subName="AP Chem" color="#5677A5" />);
@@ -330,7 +339,12 @@ describe('EventBlock 휴강 사유·휴원 모양 (원문 §07 범례)', () => {
 
   it('범례는 블록이 실제로 그리는 모양만 적는다 — 학생 결강 · 학원 취소 · 휴원 · 정원 · 여석, 접으면 줄이 접힌다', () => {
     const view = render(<Legend items={[occurrence]} colorOf={() => '#5677A5'} />);
-    for (const word of ['학생 결강', '학원 취소', '휴원', '정원 · 여석']) expect(view.getByText(word)).toBeTruthy();
+    for (const word of ['취소된 수업', '학생 결강', '학원 취소', '휴원']) {
+      const sample = view.getByText(word);
+      expect(sample.className).toContain('text-fg');
+      expect(sample.className).not.toContain('opacity-45');
+    }
+    expect(view.getByText('정원 · 여석')).toBeTruthy();
     expect(view.queryByText('강사 불가')).toBeNull();
     // 원문 「[미작성] 리포트」 — 블록 배지와 같은 낱말 · 같은 색(한 값)
     const unwritten = view.container.querySelector('[data-legend-unwritten]') as HTMLElement;

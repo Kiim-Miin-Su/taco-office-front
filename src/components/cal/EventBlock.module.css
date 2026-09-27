@@ -24,7 +24,7 @@
   pointer-events: none;
 }
 
-/* 점선과 사선은 온라인이다. 취소는 기존 opacity/취소선과 독립적으로 유지한다. */
+/* 점선과 사선은 온라인이다. 취소는 취소선과 사유별 패턴/테두리로 독립적으로 유지한다. */
 .online {
   --event-color: var(--fg-subtle);
   background-image: repeating-linear-gradient(

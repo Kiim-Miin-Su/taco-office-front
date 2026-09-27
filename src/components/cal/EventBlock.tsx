@@ -10,7 +10,7 @@
  * 채널을 섞지 않는다 (관리자 v2 §07~11·§88·§89):
  *   색     = 과목 (없으면 수업 종류). color 미주입의 기존 소비자는 상태색 유지.
  *   테두리 = 어디서 하는가 (실선 현장 / 점선 온라인)
- *   사선   = 관리자 온라인. 취소는 별도 취소선·투명도.
+ *   사선   = 관리자 온라인. 취소는 별도 취소선·사유별 패턴/테두리.
  * 한 채널에 두 뜻을 실으면 읽을 수 없게 된다.
  *
  * 드래그(TBO-41 · §5): `dragData` 를 주면 잡아서 옮길 수 있고, `resizable` 이면
@@ -299,7 +299,8 @@ export function EventBlock({
           occ.mode === 'online' ? 'border-dashed' : 'border-solid',
           color && occ.mode === 'online' && styles.online,
           color && flat && styles.flat,
-          occ.canceled && 'opacity-45 line-through',
+          // 취소된 작은 글자까지 읽을 수 있도록 블록 전체를 흐리지 않고, 취소선과 아래 사유별 모양으로 구분한다.
+          occ.canceled && 'line-through',
           // 원문 §07 범례 「학생 결강 · 학원 취소 · 휴원」 — 휴강 사유(서버 cancelKind)와 휴원(students[].paused)으로 모양을 가른다.
           // 학생 결석만 「학생 결강」이고 나머지 사유(학원 사정 · 공휴일 · 강사 결강 · 기타)는 학원이 접은 것이다
           occ.canceled && occ.cancelKind === 'student_absent' && styles.cancelStudent,
