@@ -323,7 +323,7 @@ describe('§20 「최근 변경 이력」', () => {
       ['김민선 — 8/28 14:20', '— → 20:00', 'SAT Reading 8/28 → 20:00 이동 (이 주만)'],
       ['김범준 — 8/27 09:05', '수업 → 휴강', 'Interview 8/28 휴강 (이 주만)'],
     ]);
-    expect(mocks.history).toHaveBeenLastCalledWith(true);
+    expect(mocks.history).toHaveBeenLastCalledWith(true, undefined);
     // 차례 — 변경 요청 목록 → 최근 변경 이력 → 내 지출 신청
     const expenses = view.getByRole('region', { name: '내 지출 신청' });
     expect(section.compareDocumentPosition(expenses) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -32,6 +32,7 @@ import { ConsultingActivity } from './ConsultingActivity';
 import { ConsultingCloseDialog } from './ConsultingCloseDialog';
 import { ConsultingFileDropzone } from './ConsultingFileDropzone';
 import { ConsultingSessionDialog } from './ConsultingSessionDialog';
+import { ConsultingCoreEditor } from './ConsultingCoreEditor';
 
 const MAX_FILES = 10;
 /**
@@ -347,6 +348,7 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
     {!detail.typeCapability.defaultItemsSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.reason ?? '이 유형의 기본 진행 항목은 아직 확정되지 않았습니다.'}</Banner> : null}
     {!detail.typeCapability.scheduleCreationSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.scheduleCreationReason ?? '스케줄 자동 생성 정책이 아직 확정되지 않았습니다.'}</Banner> : null}
     {notice ? <Banner tone="success" className="mb-4">{notice}</Banner> : null}
+    <ConsultingCoreEditor detail={detail} onDone={() => setNotice('계약 핵심정보를 고쳤습니다')} />
     {/* 공개 범위는 세 탭 공통이다 — 원본 §30 · §31 모두 탭 위에 있다 */}
     <div className="mb-4"><ShareEditor detail={detail} meta={meta.data} /></div>
     <Segmented<DetailTab> className="mb-4" ariaLabel="상세 단계" options={STAGES} value={tab} onChange={setTab} />

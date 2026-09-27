@@ -162,6 +162,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   cashflow: qk.cashflow({ from: '2026-09-01', to: '2026-09-30' }),
   payoutDetail: qk.payoutDetail(7, '2026-08'),
   invoiceDraft: qk.invoiceDraft({ studentId: 3, yearMonth: '2026-09', invType: 'tuition' }),
+  scheduleHistory: qk.scheduleHistory(120),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */

@@ -165,6 +165,7 @@ export type LeadFail = S['LeadFailDto'];
 export type LeadResume = S['LeadResumeDto'];
 /** C90 — 「+ 신규 문의」 · 단계 이동 · 접촉 원장 (N-45 · N-44). 낱말·전이표·칩 판정은 전부 서버 */
 export type LeadCreate = S['LeadCreateDto'];
+export type LeadPatch = S['LeadPatchDto'];
 export type LeadStageMove = S['LeadStageMoveDto'];
 export type LeadTouchWrite = S['LeadTouchWriteDto'];
 export type LeadTouch = S['LeadTouchDto'];
@@ -324,6 +325,7 @@ export type ConsItem = S['ConsItemDto'];
 export type ConsItemsEdit = S['ConsItemsEditDto'];
 /** §29·§30 컨설팅 시작·계약 워크플로 — 요청/응답은 생성 OpenAPI만 별칭으로 소비한다. */
 export type ConsultingCreate = S['ConsultingCreateDto'];
+export type ConsultingPatch = S['ConsultingPatchDto'];
 export type ConsultingDetail = S['ConsultingDetailDto'];
 export type ConsultingShareUpdate = S['ConsultingShareUpdateDto'];
 export type ConsultingFileCreate = S['ConsultingFileCreateDto'];
@@ -524,6 +526,7 @@ export type ChangeReq = S['ChangeReqDto'];
 /** §20 「최근 변경 이력」 (W11 A' 후속) — 스케줄 쓰기 감사 줄 한 줄 = 누가 · 언제 · 앞 → 뒤 · 무엇을(서버 문장) */
 export type ScheduleHistory = S['ScheduleHistoryDto'];
 export type ScheduleHistoryRow = S['ScheduleHistoryRowDto'];
+export type ScheduleHistoryQuery = NonNullable<paths['/drawer/schedule-history']['get']['parameters']['query']>;
 export type ZoomAccount = S['ZoomAccountDto'];
 /** 요청 본문의 oneOf를 그대로 쓴다 — 종류별 필수 필드가 컴파일 단계에서 갈린다. */
 export type ChangeReqCreate = paths['/drawer/change-requests']['post']['requestBody']['content']['application/json'];

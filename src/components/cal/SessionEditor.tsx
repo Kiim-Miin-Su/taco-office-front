@@ -94,6 +94,29 @@ interface FormShape {
 /** PATCH 본문에서 범위·원래 날짜를 뺀 것 — 무엇을 바꾸는지는 창이, 어디까지는 사람이 정한다 */
 type EditPatch = Omit<OccurrencePatch, 'scope' | 'onDate'>;
 
+const DOW_INDEX: Record<string, number> = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
+
+/** 서버 정규형을 편집기의 네 선택으로 푼다. 알 수 없는 간격은 표시만 하고 건드리지 않으면 원문을 보존한다. */
+function editorRepeat(rrule: string): { repeat: ScheduleRepeat; days: number[]; supported: boolean } {
+  const raw = rrule.trim().toUpperCase();
+  if (raw === 'ONCE') return { repeat: 'once', days: [], supported: true };
+  if (raw === 'DAILY') return { repeat: 'daily', days: [], supported: true };
+  const weekly = /^WEEKLY:((?:SU|MO|TU|WE|TH|FR|SA)(?:,(?:SU|MO|TU|WE|TH|FR|SA))*)(?:\/(\d+))?$/.exec(raw);
+  if (weekly) {
+    const interval = Number(weekly[2] ?? '1');
+    return {
+      repeat: interval === 2 ? 'biweekly' : 'weekly',
+      days: weekly[1].split(',').map((day) => DOW_INDEX[day]),
+      supported: interval === 1 || interval === 2,
+    };
+  }
+  return { repeat: raw.startsWith('DAILY') ? 'daily' : 'weekly', days: [], supported: false };
+}
+
+const SERIES_PATCH_KEYS = new Set<keyof EditPatch>(['kindKey', 'subKey', 'title', 'rrule', 'toDate']);
+const hasSeriesPatch = (body: EditPatch): boolean =>
+  Object.keys(body).some((key) => SERIES_PATCH_KEYS.has(key as keyof EditPatch));
+
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const idOrNull = (v: string): number | null => (v ? Number(v) : null);
 
@@ -104,7 +127,9 @@ const idOrNull = (v: string): number | null => (v ? Number(v) : null);
  */
 function editPatch(occ: Occurrence, v: {
   date: string; startMin: number; endMin: number; teacherId: number | null; roomId: number | null;
+  kindKey: string; subKey: string | null; title: string | null;
   mode: Occurrence['mode']; zaccId: number | null; memo: string;
+  rrule: string; toDate: string | null; recurrenceChanged: boolean; recurrenceRuleChanged: boolean;
 }): EditPatch {
   const out: EditPatch = {};
   if (v.date !== occ.date) out.date = v.date;
@@ -114,6 +139,13 @@ function editPatch(occ: Occurrence, v: {
     out.endMin = v.endMin;
   }
   if (v.teacherId !== (occ.teacherId ?? null)) out.teacherId = v.teacherId;
+  if (v.kindKey !== occ.kindKey) out.kindKey = v.kindKey;
+  if (v.subKey !== (occ.subKey ?? null)) out.subKey = v.subKey;
+  if (v.title !== (occ.title ?? null)) out.title = v.title;
+  if (v.recurrenceChanged) {
+    if (v.recurrenceRuleChanged && v.rrule !== occ.rrule) out.rrule = v.rrule;
+    if (v.rrule !== 'ONCE' && v.toDate !== occ.toDate) out.toDate = v.toDate;
+  }
   if (v.mode !== occ.mode) {
     // 방식 전환 (N-56) — 온라인이면 강의실은 서버가 비운다(보내면 400 MODE_ROOM_ONLINE), 줌은 고른 때만 붙인다
     out.mode = v.mode;
@@ -149,9 +181,14 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
    * 붙이므로, 날짜 누락·바뀐 것 없음·없는 회차 같은 오류에 붙으면 틀린 안내가 된다.
    */
   const [conflict, setConflict] = useState(false);
+  const [recurrenceRuleTouched, setRecurrenceRuleTouched] = useState(false);
+  const [recurrenceEndTouched, setRecurrenceEndTouched] = useState(false);
   /** 반복 수업 편집이 범위를 기다리는 중 — 고르기 전에는 아무것도 보내지 않는다 */
   const [askScope, setAskScope] = useState<EditPatch | null>(null);
   const occ = edit?.occ ?? null;
+  const occRrule = occ?.rrule ?? 'ONCE';
+  const occFromDate = occ?.fromDate ?? occ?.onDate ?? '';
+  const initialRepeat = occ ? editorRepeat(occRrule) : null;
   const f = useForm<FormShape>({
     // values 가 아직 없을 첫 렌더에도 배열 필드가 비어 있어야 한다 — undefined.includes 로 죽는 자리
     defaultValues: {
@@ -164,7 +201,8 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
           start: hm(occ.startMin), end: hm(occ.endMin),
           teacherId: occ.teacherId == null ? '' : String(occ.teacherId),
           roomId: occ.roomId == null ? '' : String(occ.roomId),
-          title: occ.title ?? '', repeat: 'once', days: [], toDate: '', studentIds: [], zaccId: '', memo: occ.memo ?? '',
+          title: occ.title ?? '', repeat: initialRepeat!.repeat, days: initialRepeat!.days,
+          toDate: occ.toDate ?? '', studentIds: [], zaccId: '', memo: occ.memo ?? '',
         }
       : draft
         ? {
@@ -183,6 +221,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
   const toggle = (name: 'days' | 'studentIds', v: number) => {
     const cur = f.getValues(name) as number[];
     f.setValue(name, cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
+    if (name === 'days' && occ) setRecurrenceRuleTouched(true);
   };
 
   /**
@@ -245,14 +284,27 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
 
     if (occ) {
       if (!v.date) { setErr('날짜를 골라 주세요'); return; }
+      if (recurrenceRuleTouched && (v.repeat === 'weekly' || v.repeat === 'biweekly') && !v.days.length) {
+        setErr('매주·격주 일정은 요일을 하나 이상 골라 주세요');
+        return;
+      }
+      if ((recurrenceRuleTouched || recurrenceEndTouched) && v.repeat !== 'once' && v.toDate && v.toDate < occ.onDate) {
+        setErr('종료일이 이 회차보다 앞설 수 없습니다');
+        return;
+      }
       const body = editPatch(occ, {
         date: v.date, startMin, endMin, teacherId: idOrNull(v.teacherId), roomId: idOrNull(v.roomId),
+        kindKey: v.kindKey, subKey: v.subKey || null, title: v.title.trim() || null,
         mode: v.mode, zaccId: idOrNull(v.zaccId), memo: v.memo,
+        rrule: recurrenceRuleTouched ? buildRrule(v.days, v.repeat) : occRrule,
+        toDate: v.toDate || null,
+        recurrenceChanged: recurrenceRuleTouched || recurrenceEndTouched,
+        recurrenceRuleChanged: recurrenceRuleTouched,
       });
       if (!Object.keys(body).length) { setErr('바뀐 것이 없습니다'); return; }
       // 범위를 물을지는 서버 판정(`recurring`)이 정한다 — 단발에서 범위 창이 뜨면 버그다 (§5A.0).
       // 메모 하나만 고치면 묻지 않는다 — 메모는 그 회차 하나의 것이다 (N-57)
-      if (occ.recurring && !isMemoOnly(body)) setAskScope(body);
+      if ((occ.recurring || (hasSeriesPatch(body) && occRrule !== 'ONCE')) && !isMemoOnly(body)) setAskScope(body);
       else sendEdit(occ, body, 'this');
       return;
     }
@@ -302,6 +354,16 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
       ? [{ id: occ.roomId, name: occ.roomName ?? `강의실 ${occ.roomId}` }] : []),
     ...(meta?.rooms ?? []),
   ];
+  const kinds = [
+    ...(occ && !(meta?.kinds ?? []).some((k) => k.key === occ.kindKey)
+      ? [{ key: occ.kindKey, name: occ.kindKey }] : []),
+    ...(meta?.kinds ?? []),
+  ];
+  const subs = [
+    ...(occ?.subKey && !(meta?.subs ?? []).some((s) => s.key === occ.subKey)
+      ? [{ key: occ.subKey, name: occ.subKey }] : []),
+    ...(meta?.subs ?? []),
+  ];
   const repeat = f.watch('repeat');
   const teacherSelect = (
     <Select id="se-teacher" {...f.register('teacherId')}>
@@ -334,9 +396,9 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     const toOnline = mode === 'online' && occ.mode !== 'online';
     return (
       <>
-        <Dialog open onClose={onClose} title={`일정 수정 — ${edit!.name} · ${occ.date}`} width={520}>
+        <Dialog open onClose={onClose} title={`일정 수정 — ${edit!.name} · ${occ.date}`} width={560}>
           <form onSubmit={submit} className="flex flex-col gap-3">
-            {/* 계약(OccurrencePatchDto)이 받는 칸만 고친다 — 종류·과목·반복 요일은 여기서 바꾸지 않는다 */}
+            {/* 회차 칸과 SER 시리즈 칸을 한 계약으로 고친다. 시리즈 칸은 반복이면 향후/모두만 허용한다. */}
             <div className="flex flex-wrap items-center gap-1.5">
               {kind ? <Chip>{kind}</Chip> : null}
               {/* 방식 전환 (N-56) — 범위 규칙은 다른 칸과 같다(반복이면 저장할 때 묻는다) */}
@@ -352,6 +414,23 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
               </p>
             ) : null}
             <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="se-kind">종류</Label>
+                <Select id="se-kind" {...f.register('kindKey')}>
+                  {kinds.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="se-sub">과목</Label>
+                <Select id="se-sub" {...f.register('subKey')}>
+                  <option value="">—</option>
+                  {subs.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label htmlFor="se-title">제목 (선택)</Label>
+                <Input id="se-title" maxLength={80} {...f.register('title')} />
+              </div>
               <div className="col-span-2">
                 <Label htmlFor="se-date">날짜</Label>
                 <Input id="se-date" type="date" {...f.register('date')} />
@@ -391,6 +470,42 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
                   placeholder="이 회차에만 붙는 한 줄 — 비우면 지웁니다" />
               </div>
             </div>
+            <div>
+              <Label>반복 주기</Label>
+              <Segmented ariaLabel="반복 주기" value={repeat} onChange={(value) => {
+                if (repeat === 'once' && value !== 'once' && f.getValues('toDate') === occFromDate) f.setValue('toDate', '');
+                f.setValue('repeat', value);
+                setRecurrenceRuleTouched(true);
+              }} options={[
+                { value: 'once', label: '한 번' }, { value: 'daily', label: '매일' },
+                { value: 'weekly', label: '매주' }, { value: 'biweekly', label: '격주' },
+              ]} />
+              {!initialRepeat?.supported ? (
+                <p className="mt-1 text-[11px] text-amber">현재 규칙 {occRrule}은 간편 선택 밖입니다. 새 주기를 고르기 전에는 그대로 보존합니다.</p>
+              ) : null}
+            </div>
+            {repeat === 'weekly' || repeat === 'biweekly' ? (
+              <div>
+                <Label>반복 요일</Label>
+                <div className="mt-1 flex gap-1">
+                  {KO_DOW.map((day, index) => (
+                    <button key={day} type="button" aria-label={`반복 ${day}요일`} aria-pressed={days.includes(index)}
+                      onClick={() => toggle('days', index)}
+                      className={`h-8 w-8 rounded-lg border text-[12px] font-bold transition-colors ${
+                        days.includes(index) ? 'border-blue bg-blue text-white' : 'border-line text-fg-subtle hover:border-blue'}`}>
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {repeat !== 'once' ? (
+              <div>
+                <Label htmlFor="se-to-date" hint="비우면 종료일 없이 반복">반복 종료일</Label>
+                <Input id="se-to-date" type="date" min={occ.onDate}
+                  {...f.register('toDate', { onChange: () => setRecurrenceEndTouched(true) })} />
+              </div>
+            ) : null}
             <p className="text-[11px] text-fg-subtle">수강 학생은 수업 상세의 명단에서 넣고 뺍니다.</p>
 
             {errorBox}
@@ -401,6 +516,10 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
         <RecurrenceScope
           open={!!askScope}
           mode="edit"
+          scopes={askScope && hasSeriesPatch(askScope) ? ['future', 'all'] : undefined}
+          warning={askScope && hasSeriesPatch(askScope)
+            ? '종류·과목·제목·반복 규칙은 회차가 아니라 시리즈 값이라 이번만에는 저장할 수 없습니다.'
+            : undefined}
           onPick={(scope) => {
             const body = askScope;
             setAskScope(null);

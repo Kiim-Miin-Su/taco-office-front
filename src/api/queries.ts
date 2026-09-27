@@ -53,6 +53,7 @@ import type {
   ConsStudents,
   ConsClose, ConsCloseResult, ConsSession, ConsSessionCreate, ConsSessionsResult, ConsSessionWrite, GpaCycleCloseResult,
   ConsultingCreate,
+  ConsultingPatch,
   ConsultingDetail,
   ConsultingFeedback,
   ConsultingFeedbackCreate,
@@ -115,6 +116,7 @@ import type {
   KindPatch,
   Lead,
   LeadCreate,
+  LeadPatch,
   LeadFail,
   LeadResume,
   LeadStageMove,
@@ -181,6 +183,7 @@ import type {
   RosterPatch,
   RosterResult,
   ScheduleHistory,
+  ScheduleHistoryQuery,
   ScheduleUndo,
   StudentPauseResult,
   StudentPauseWrite,
@@ -322,7 +325,7 @@ export const qk = {
    * §20 「최근 변경 이력」 (W11 A' 후속) — 칸을 열 때만 부르고 열 때마다 다시 읽는다.
    * `['drawer']` 밑에 두지 않는다 — 그 앞자락은 서랍 쓰기의 낙관 반영이 서랍 모양으로 고쳐 쓴다.
    */
-  scheduleHistory: ['schedule', 'history'] as const,
+  scheduleHistory: (beforeId?: number) => ['schedule', 'history', beforeId ?? 'latest'] as const,
   /** §76 권한 표 · 창 부제 · 역할 설명 줄 (N-98) — 권한 창과 옛 `/permissions` 가 같은 키를 읽는다 */
   permissions: ['permissions'] as const,
   /** 강사 「GPA 회차 요청」의 서비스 고르기 (N-99) — 규정표라 거의 안 바뀐다 */
@@ -377,6 +380,7 @@ export const family = {
   holidays: ['schedule', 'holidays'] as const,
   scheduleUnav: ['schedule', 'unavailable'] as const,
   seriesCounts: ['schedule', 'series-counts'] as const,
+  scheduleHistory: ['schedule', 'history'] as const,
   guardians: ['guardians'] as const,
 };
 
@@ -1052,11 +1056,13 @@ export function useCreateExpense(): UseMutationResult<Expense, unknown, ExpenseC
  * §20 「최근 변경 이력」 — 스케줄 쓰기 감사 줄을 서버가 문장으로 준다(누가 · 언제 · 앞 → 뒤 · 무엇을).
  * 볼 수 있는 범위(전체 · 내가 한 것)도 서버가 정한다. 칸을 열 때만 부르고, 남이 바꾸므로 열 때마다 다시 읽는다
  */
-export function useScheduleHistory(enabled = true): UseQueryResult<ScheduleHistory> {
+export function useScheduleHistory(enabled = true, beforeId?: ScheduleHistoryQuery['beforeId']): UseQueryResult<ScheduleHistory> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey(qk.scheduleHistory, viewerId),
-    queryFn: async () => (await api.get<ScheduleHistory>('/drawer/schedule-history')).data,
+    queryKey: sessionQueryKey(qk.scheduleHistory(beforeId), viewerId),
+    queryFn: async () => (await api.get<ScheduleHistory>('/drawer/schedule-history', {
+      params: beforeId ? { beforeId } : {},
+    })).data,
     enabled,
     staleTime: 0,
   });
@@ -1127,6 +1133,22 @@ export function useCreateConsulting(): UseMutationResult<ConsultingDetail, unkno
   const viewerId = useViewerId();
   return useMutation({
     mutationFn: async (body) => (await api.post<ConsultingDetail>('/consulting', body)).data,
+    onSuccess: (detail) => qc.setQueryData(sessionQueryKey(qk.consultingDetail(detail.id), viewerId), detail),
+    onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
+  });
+}
+
+/** 계약 작업 전 핵심정보 수정. 성공 응답을 상세 캐시에 넣고 목록/학생별/회계를 함께 다시 읽는다. */
+export function useUpdateConsultingCore(): UseMutationResult<
+  ConsultingDetail,
+  unknown,
+  { consId: number } & ConsultingPatch
+> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async ({ consId, ...body }) =>
+      (await api.patch<ConsultingDetail>(`/consulting/${consId}`, body)).data,
     onSuccess: (detail) => qc.setQueryData(sessionQueryKey(qk.consultingDetail(detail.id), viewerId), detail),
     onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
   });
@@ -1925,6 +1947,7 @@ export function useScheduleWrite(): UseMutationResult<
     void qc.invalidateQueries({ queryKey: family.occurrences });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.horizon });
+    void qc.invalidateQueries({ queryKey: family.scheduleHistory });
     // 만들기·붙여넣기·「향후」 가르기·삭제는 일정 원본 수(§07 사이드바)를 바꾼다
     void qc.invalidateQueries({ queryKey: family.seriesCounts });
     // 명단을 고치면 §79 카드의 정원·단가·학생 목록이 함께 달라진다 (C55)
@@ -2559,6 +2582,15 @@ export function useCreateLead(): UseMutationResult<Lead, unknown, LeadCreate> {
   const invalidate = useOpsInvalidate();
   return useMutation({
     mutationFn: async (body) => (await api.post<Lead>('/ops/leads', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 문의 카드 머리 수정 — 성공/실패 뒤 목록 한 벌을 다시 읽어 카드·서랍 제목을 함께 맞춘다. */
+export function usePatchLead(): UseMutationResult<Lead, unknown, { id: number } & LeadPatch> {
+  const invalidate = useOpsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<Lead>(`/ops/leads/${id}`, body)).data,
     onSettled: invalidate,
   });
 }

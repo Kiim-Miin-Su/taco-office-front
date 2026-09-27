@@ -12,6 +12,7 @@ import { CONTRACT_STEPS_FIXTURE, consultingItem } from './consulting.fixture';
 
 const state = vi.hoisted(() => ({
   detail: {} as ConsultingDetail,
+  updateCore: vi.fn(),
   updateShare: vi.fn(),
   deliver: vi.fn(),
   archive: vi.fn(),
@@ -19,6 +20,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@/api/queries', () => ({
   useConsultingDetail: () => ({ data: state.detail, isPending: false, isError: false, refetch: vi.fn() }),
   useMeta: () => ({ data: { staff: [] } }),
+  useUpdateConsultingCore: () => ({ mutate: state.updateCore, mutateAsync: state.updateCore, isPending: false, isError: false, error: null }),
   useUpdateConsultingShare: () => ({ mutate: state.updateShare, mutateAsync: state.updateShare, isPending: false, isError: false, error: null }),
   useAddConsultingContractFile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
   useRemoveConsultingContractFile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
@@ -77,6 +79,7 @@ const openShare = (view: ReturnType<typeof render>) => fireEvent.click(view.getB
 describe('ConsultingContractWorkflow', () => {
   beforeEach(() => {
     state.detail = detail;
+    state.updateCore.mockReset().mockResolvedValue(detail);
     state.updateShare.mockReset().mockResolvedValue(detail);
     state.deliver.mockReset();
     state.archive.mockReset();

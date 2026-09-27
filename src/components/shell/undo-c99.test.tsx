@@ -18,7 +18,7 @@ import type { ReactNode } from 'react';
 import type { Me, Occurrence } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { useWorkspace } from '@/store/useWorkspace';
-import { api } from '@/api/client';
+import { api, ApiError } from '@/api/client';
 import { AppShell } from './AppShell';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 
@@ -81,9 +81,39 @@ describe('상단바 되돌리기 (원본 §16 · N-138)', () => {
     await waitFor(() => expect(useWorkspace.getState().undoStack).toEqual([]));
   });
 
-  it('실패해도 토큰을 버린다 — 만료·stale 은 다시 눌러도 같은 답이다', async () => {
-    vi.spyOn(api, 'post').mockRejectedValue(new Error('만료'));
+  it('만료된 토큰은 버린다 — 다시 눌러도 같은 답이다', async () => {
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError('BAD_UNDO_TOKEN', '만료', 400));
     useWorkspace.setState({ undoStack: [{ token: 'tok-2', label: '휴강', expiresAt: live() }] });
+    const view = wrap(<AppShell><div /></AppShell>);
+    fireEvent.click(view.getByRole('button', { name: '되돌리기' }));
+    await waitFor(() => expect(useWorkspace.getState().undoStack).toEqual([]));
+  });
+
+  it('달 마감 실패는 토큰을 남기고, 마감을 푼 뒤 다시 시도할 수 있다고 알린다', async () => {
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError('MONTH_CLOSED', '마감한 달입니다', 409));
+    useWorkspace.setState({ undoStack: [{ token: 'tok-month', label: '수업 이동', expiresAt: live() }] });
+    const view = wrap(<AppShell><div /></AppShell>);
+    fireEvent.click(view.getByRole('button', { name: '되돌리기' }));
+    await waitFor(() => expect(useWorkspace.getState().undoStack.map((step) => step.token)).toEqual(['tok-month']));
+    expect(await view.findByText(/되돌리기 항목은 남겨 두었습니다/)).toBeTruthy();
+    expect((view.getByRole('button', { name: '되돌리기' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it.each(['UNDO_HAS_REFS'])(
+    '%s는 연결 자료를 정리한 뒤 재시도할 수 있어 토큰을 남긴다',
+    async (code) => {
+      vi.spyOn(api, 'post').mockRejectedValue(new ApiError(code, '지금은 되돌릴 수 없습니다', 409));
+      useWorkspace.setState({ undoStack: [{ token: `tok-${code}`, label: '휴강', expiresAt: live() }] });
+      const view = wrap(<AppShell><div /></AppShell>);
+      fireEvent.click(view.getByRole('button', { name: '되돌리기' }));
+      await waitFor(() => expect(useWorkspace.getState().undoStack.map((step) => step.token)).toEqual([`tok-${code}`]));
+      expect(await view.findByText(/되돌리기 항목은 남겨 두었습니다/)).toBeTruthy();
+    },
+  );
+
+  it('이미 발송한 안내는 회수할 수 없어 토큰을 버린다', async () => {
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError('UNDO_HAS_DELIVERY', '이미 발송했습니다', 409));
+    useWorkspace.setState({ undoStack: [{ token: 'tok-delivery', label: '휴강', expiresAt: live() }] });
     const view = wrap(<AppShell><div /></AppShell>);
     fireEvent.click(view.getByRole('button', { name: '되돌리기' }));
     await waitFor(() => expect(useWorkspace.getState().undoStack).toEqual([]));
@@ -139,7 +169,7 @@ describe('되돌리기 여러 단계 (g1 S5)', () => {
       if (url !== '/schedule/undo') return { data: {} } as never;
       undone += 1;
       if (undone === 1) return { data: { projected: 1, serIds: [], log: [], effScope: 'undo', undoToken: null, undoExpiresAt: null } } as never;
-      throw { response: { data: { message: '그 뒤 같은 수업이 다시 바뀌었습니다' } } };
+      throw new ApiError('UNDO_STALE', '그 뒤 같은 수업이 다시 바뀌었습니다', 409);
     });
     useWorkspace.setState({ undoStack: [
       { token: 'tok-a', label: '새 일정', expiresAt: live() },

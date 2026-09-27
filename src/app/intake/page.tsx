@@ -46,6 +46,7 @@ import { IntakeChannelBadge } from '@/components/intake/IntakeChannelBadge';
 import { LeadPlanSection, leadPlanSummary } from '@/components/intake/LeadPlanSection';
 import { LeadApptSection, leadApptLine } from '@/components/intake/LeadApptSection';
 import { LeadCardActions, type LeadCardFocus } from '@/components/intake/LeadCardActions';
+import { LeadCoreEditor } from '@/components/intake/LeadCoreEditor';
 import { won } from '@/lib/money';
 import { positiveQueryId } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
@@ -682,6 +683,9 @@ export default function IntakePage() {
             {notice ? <Banner tone="success" className="mb-2">{notice}</Banner> : null}
             {/* 등록 확정 직후 — 카드가 「등록」 칸으로 옮겨 간 뒤에도 무엇이 만들어졌는지 한 줄 남긴다 (C91) */}
             {enrolled ? <Banner tone="success" className="mb-2">{enrolled}</Banner> : null}
+            <div className="mb-3">
+              <LeadCoreEditor lead={selected} sources={head?.sources ?? []} onDone={(row) => setNotice(`${row.name} 문의 정보를 고쳤습니다`)} />
+            </div>
             {/* 단계 이동 (C90 · N-45) — 갈 수 있는 곳이 없으면(등록 · 등록 실패) 서지 않는다 */}
             <div className="mb-3">
               <LeadStageMove

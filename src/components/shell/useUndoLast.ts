@@ -15,9 +15,21 @@
  */
 import { liveUndoSteps, useWorkspace, type WorkspaceUndo } from '@/store/useWorkspace';
 import { useApprovalUndo, useScheduleWrite } from '@/api/queries';
-import { apiMessage } from '@/api/client';
+import { ApiError, apiMessage } from '@/api/client';
 
 type UndoDone = { onDone?: () => void; onFail?: (message: string) => void };
+
+/** 서버가 이 토큰을 다시 받아도 성공할 수 없는 답만 폐기한다. MONTH_CLOSED·전송 실패는 원인을 고친 뒤 재시도할 수 있다. */
+const TERMINAL_UNDO_CODES = new Set([
+  'BAD_UNDO_TOKEN', 'UNDO_STALE', 'UNDO_HAS_DELIVERY', 'UNDO_PAYOUT_CONFIRMED', 'CYCLE_CLOSED',
+]);
+
+const terminalUndoFailure = (error: unknown): boolean => {
+  const code = error instanceof ApiError
+    ? error.code
+    : (error as { response?: { data?: { code?: string } } })?.response?.data?.code;
+  return typeof code === 'string' && TERMINAL_UNDO_CODES.has(code);
+};
 
 export interface UndoLast {
   canUndo: boolean;
@@ -29,8 +41,8 @@ export interface UndoLast {
   /**
    * 가장 최근 한 단계.
    * @param done 성공/실패를 부르는 쪽이 이어 받는다 (스케줄 화면은 선택·클립보드·커서를 비운다).
-   *   실패해도 토큰은 버린다 — 만료·stale 둘 다 **다시 눌러도 같은 답**이고, 남겨 두면
-   *   단추가 살아 있는 채로 계속 실패한다.
+   *   만료·stale처럼 다시 성공할 수 없는 실패만 토큰을 버린다. 달 마감·전송 실패는 원인을 고친 뒤
+   *   같은 토큰을 다시 쓸 수 있으므로 목록에 남기고 그 사실을 문구로 알린다.
    */
   undo: (done?: UndoDone) => void;
   /**
@@ -53,7 +65,12 @@ export function useUndoLast(): UndoLast {
     const [head, ...rest] = queue;
     if (!head) { done?.onDone?.(); return; }
     const settle = {
-      onError: (error: unknown) => { dropUndo(head.token); done?.onFail?.(apiMessage(error)); },
+      onError: (error: unknown) => {
+        const terminal = terminalUndoFailure(error);
+        if (terminal) dropUndo(head.token);
+        const retry = terminal ? '' : ' — 되돌리기 항목은 남겨 두었습니다. 문제를 해결한 뒤 다시 시도해 주세요.';
+        done?.onFail?.(`${apiMessage(error)}${retry}`);
+      },
       onSuccess: () => { dropUndo(head.token); run(rest, done); },
     };
     if (head.kind === 'approval') approval.mutate({ token: head.token }, settle);

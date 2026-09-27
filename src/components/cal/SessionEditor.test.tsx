@@ -160,6 +160,8 @@ const lesson: Occurrence = {
 };
 const editMeta = {
   ...meta,
+  kinds: [...meta.kinds, { key: 'meeting', name: '회의', cap: 10, rep: false, grp: 'meeting', grpLabel: '회의', color: '#333', extra: false }],
+  subs: [...meta.subs, { key: 'writing', name: 'Writing', color: '#444' }],
   staff: [...meta.staff, { id: 8, name: '이다현', role: 'teacher', canAdminPage: false, canGpaPack: false, title: null }],
   rooms: [...meta.rooms, { id: 2, name: '2호' }],
   zaccs: [{ id: 5, label: 'TN Zoom 1' }],
@@ -201,10 +203,9 @@ it('편집은 지금 값으로 채워 열리고, 바꾼 칸만 PATCH 로 보낸�
   expect((view.getByLabelText('끝') as HTMLInputElement).value).toBe('11:00');
   expect((view.getByLabelText('강사') as HTMLSelectElement).value).toBe('7');
   expect((view.getByLabelText('강의실') as HTMLSelectElement).value).toBe('1');
-  // 계약(OccurrencePatchDto)에 없는 칸은 편집 창에 없다 — 종류·과목·반복·명단은 여기서 바꾸지 않는다
-  expect(view.queryByLabelText('종류')).toBeNull();
-  expect(view.queryByLabelText('과목')).toBeNull();
-  expect(view.queryByText(/반복 — 요일을 고르면/)).toBeNull();
+  expect((view.getByLabelText('종류') as HTMLSelectElement).value).toBe('class');
+  expect((view.getByLabelText('과목') as HTMLSelectElement).value).toBe('vocab');
+  expect(view.getByRole('group', { name: '반복 주기' })).toBeTruthy();
 
   fireEvent.change(view.getByLabelText('시작'), { target: { value: '10:30' } });
   fireEvent.change(view.getByLabelText('끝'), { target: { value: '11:30' } });
@@ -218,6 +219,54 @@ it('편집은 지금 값으로 채워 열리고, 바꾼 칸만 PATCH 로 보낸�
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
   expect(onSaved.mock.calls[0][0]).toMatchObject({ undoToken: 'u1' });
   expect(onClose).toHaveBeenCalled();
+});
+
+it('종류·과목·제목·반복 규칙은 시리즈 수정으로 보내며 반복 수업에서는 향후/모두만 고른다', async () => {
+  const recurring = {
+    ...lesson, recurring: true, rrule: 'WEEKLY:MO,WE', fromDate: '2026-09-01', toDate: '2026-10-31',
+  };
+  const { view, patches } = setupEdit(recurring);
+  fireEvent.change(view.getByLabelText('종류'), { target: { value: 'meeting' } });
+  fireEvent.change(view.getByLabelText('과목'), { target: { value: 'writing' } });
+  fireEvent.change(view.getByLabelText('제목 (선택)'), { target: { value: '격주 Writing 회의' } });
+  fireEvent.click(view.getByRole('button', { name: '격주' }));
+  fireEvent.click(view.getByRole('button', { name: '반복 월요일' }));
+  fireEvent.click(view.getByRole('button', { name: '반복 수요일' }));
+  fireEvent.click(view.getByRole('button', { name: '반복 금요일' }));
+  fireEvent.change(view.getByLabelText('반복 종료일'), { target: { value: '2026-12-31' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  expect(await view.findByText(/시리즈 값이라 이번만에는 저장할 수 없습니다/)).toBeTruthy();
+  expect(view.queryByRole('button', { name: /^이번만/ })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: /^향후/ }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({
+    kindKey: 'meeting', subKey: 'writing', title: '격주 Writing 회의',
+    rrule: 'WEEKLY:FR/2', toDate: '2026-12-31', scope: 'future', onDate: '2026-09-28',
+  });
+});
+
+it('간편 선택 밖 반복 규칙은 제목만 고칠 때 그대로 보존한다', async () => {
+  const { view, patches } = setupEdit({
+    ...lesson, recurring: true, rrule: 'DAILY/3', fromDate: '2026-09-01', toDate: null,
+  });
+  expect(view.getByText(/현재 규칙 DAILY\/3은 간편 선택 밖/)).toBeTruthy();
+  fireEvent.change(view.getByLabelText('제목 (선택)'), { target: { value: '3일마다 수업' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  fireEvent.click(await view.findByRole('button', { name: /^향후/ }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ title: '3일마다 수업', scope: 'future', onDate: '2026-09-28' });
+});
+
+it('간편 선택 밖 반복 규칙은 종료일만 고쳐도 /3 간격을 덮어쓰지 않는다', async () => {
+  const { view, patches } = setupEdit({
+    ...lesson, recurring: true, rrule: 'DAILY/3', fromDate: '2026-09-01', toDate: '2026-10-31',
+  });
+  fireEvent.change(view.getByLabelText('반복 종료일'), { target: { value: '2026-12-31' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  fireEvent.click(await view.findByRole('button', { name: /^향후/ }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ toDate: '2026-12-31', scope: 'future', onDate: '2026-09-28' });
 });
 
 it('반복 수업은 저장 직전에 범위를 한 번 묻고 고른 범위를 싣는다 — 다른 날·미정 강사도 계약 그대로', async () => {

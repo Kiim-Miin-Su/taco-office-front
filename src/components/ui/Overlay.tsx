@@ -252,11 +252,14 @@ const SCOPE_TEXT: Record<'edit' | 'paste' | 'delete', Record<Scope, { label: str
   },
 };
 
-export function RecurrenceScope({ open, mode, warning, onPick, onClose }: {
+export function RecurrenceScope({ open, mode, warning, scopes, onPick, onClose }: {
   open: boolean; mode: 'edit' | 'paste' | 'delete'; warning?: ReactNode;
+  /** 시리즈 필드처럼 이번 회차에 저장할 곳이 없는 변경은 future/all만 보여 준다. 생략하면 기존 3범위다. */
+  scopes?: Scope[];
   onPick: (s: Scope) => void; onClose: () => void;
 }) {
   const verb = { edit: '고칩니다', paste: '붙여넣습니다', delete: '지웁니다' }[mode];
+  const choices = scopes ?? (['this', 'future', 'all'] as Scope[]);
   return (
     <Dialog
       open={open}
@@ -266,8 +269,8 @@ export function RecurrenceScope({ open, mode, warning, onPick, onClose }: {
     >
       {warning ? <div className="mb-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[11px] text-fg-2">{warning}</div> : null}
       <div className="flex flex-col gap-2">
-        {(['this', 'future', 'all'] as Scope[]).map((s) => (
-          <button key={s} type="button" autoFocus={s === 'this'} onClick={() => onPick(s)}
+        {choices.map((s, index) => (
+          <button key={s} type="button" autoFocus={index === 0} onClick={() => onPick(s)}
             className="rounded-lg border border-line p-3 text-left transition-colors hover:border-blue hover:bg-blue/5">
             <div className="text-[13px] font-bold text-fg">{SCOPE_TEXT[mode][s].label}</div>
             <div className="mt-0.5 text-[11px] text-fg-subtle">{SCOPE_TEXT[mode][s].help}</div>

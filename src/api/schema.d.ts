@@ -1559,6 +1559,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/leads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 문의 핵심정보 수정 — 이름 · 학교 · 유입 경로 · 담당 · 학년
+         * @description 카드 머리의 사실만 바꾼다. 단계·접촉·진단·배치·등록 정보는 각 전용 경로를 사용하며, 바꾸기 전후는 LOG에 같은 트랜잭션으로 남긴다.
+         */
+        patch: operations["OpsController_patchLead"];
+        trace?: never;
+    };
     "/ops/leads/{id}/stage": {
         parameters: {
             query?: never;
@@ -2875,7 +2895,11 @@ export interface paths {
         delete: operations["archive"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * 계약 핵심정보 수정 — 계약 작업 전
+         * @description 계약 1단계에서만 학생 · 요청자 · 담당 · 금액 · 약정 회차 · 기간을 바꾼다. 종류는 기본 항목과 결합되어 있고 공개 범위는 전용 PATCH가 있으므로 받지 않는다. 전후 값은 LOG에 남긴다.
+         */
+        patch: operations["updateCore"];
         trace?: never;
     };
     "/consulting/{id}/share": {
@@ -4478,6 +4502,18 @@ export interface components {
             extra: boolean;
             subKey?: string | null;
             title?: string | null;
+            /** @description 이 회차가 속한 SER의 반복 규칙. 구버전 응답 호환을 위해 optional 표기 */
+            rrule?: string;
+            /**
+             * Format: date
+             * @description 이 회차가 속한 SER의 시작일. 구버전 응답 호환을 위해 optional 표기
+             */
+            fromDate?: string;
+            /**
+             * Format: date
+             * @description 이 회차가 속한 SER의 종료일
+             */
+            toDate?: string | null;
             teacherId?: number | null;
             teacherName?: string | null;
             roomId?: number | null;
@@ -5009,6 +5045,19 @@ export interface components {
              * @description 다른 날로 옮길 때만
              */
             date?: string | null;
+            /** @description SER 종류. 반복 수업은 future/all 범위에서만 변경 */
+            kindKey?: string;
+            /** @description SER 과목. null이면 과목 없음 */
+            subKey?: string | null;
+            /** @description SER 표시 제목. null이면 제목 없음 */
+            title?: string | null;
+            /** @description SER 반복 규칙. ONCE | DAILY[/n] | WEEKLY:MO,WE[/n] */
+            rrule?: string;
+            /**
+             * Format: date
+             * @description SER 반복 종료일. null이면 열린 반복
+             */
+            toDate?: string | null;
             /**
              * @description 방식 전환 (N-56). 온라인이면 강의실을 비우고(roomId 를 같이 보내면 400 MODE_ROOM_ONLINE) zaccId 를 이 회차(또는 규칙)에 붙인다. 현장이면 줌 계정을 풀고 roomId 를 보내면 그 강의실로 둔다. 규칙과 같은 방식으로 돌아가면 예외를 비운다. 범위(scope) 규칙은 다른 칸과 같다. 겹치면 EXCLUDE 409 로 통째로 되돌아가고, 함께 바뀐 것은 log 문장으로 온다
              * @enum {string}
@@ -7358,6 +7407,21 @@ export interface components {
             /** @description 학년 — 원본 §23 카드의 학년 칩(23-10). 비우면 null */
             grade?: string | null;
         };
+        LeadPatchDto: {
+            /** @description 학생 이름 */
+            name?: string;
+            /** @description 학교 — null 또는 빈 문자열이면 비운다 */
+            school?: string | null;
+            /**
+             * @description 유입 경로 — 낱말은 GET /ops.intakeHead.sources
+             * @enum {string}
+             */
+            source?: "kakao" | "phone" | "blog" | "instagram" | "referral" | "walkin";
+            /** @description 담당 — null이면 미배정 */
+            ownerId?: number | null;
+            /** @description 학년 — null 또는 빈 문자열이면 비운다 */
+            grade?: string | null;
+        };
         LeadStageMoveDto: {
             /**
              * @description 옮길 단계 — 깔때기 안 넷. 전이표 밖이면 409 LEAD_STAGE_INVALID · 끝난 건이면 409 LEAD_LOCKED
@@ -9378,6 +9442,18 @@ export interface components {
             /** @description 금액을 볼 수 있는가 (D-R39) */
             canSeeAmounts: boolean;
         };
+        ConsultingPatchDto: {
+            studentIds?: number[];
+            /** @enum {string} */
+            requester?: "mother" | "father";
+            ownerId?: number;
+            amount?: number;
+            sessions?: number;
+            /** Format: date */
+            startOn?: string;
+            /** Format: date */
+            endOn?: string;
+        };
         ConsultingShareUpdateDto: {
             /** @enum {string} */
             share: "all" | "money_only" | "picked" | "private";
@@ -11035,10 +11111,14 @@ export interface components {
             from: string | null;
             /** @description 원문 둘째 줄의 뒤 — 모르면 null */
             to: string | null;
+            /** @description 아직 존재하는 회차면 그 회차를 여는 주소. 지워져 열 수 없으면 null */
+            go: string | null;
         };
         ScheduleHistoryDto: {
             /** @description 최근 것부터 — 볼 수 있는 범위는 §20 목록과 같다(전체 권한이면 모두 · 아니면 내가 한 것) */
             rows: components["schemas"]["ScheduleHistoryRowDto"][];
+            /** @description 더 오래된 줄을 읽을 cursor. 끝이면 null */
+            nextBeforeId: number | null;
         };
         TodoCreateDto: {
             title: string;
@@ -14013,7 +14093,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description SERIES_HAS_REPORTS | SERIES_HAS_EXCEPTIONS — 종류·반복 규칙 변경으로 연결된 리포트·회차 예외가 고아가 되는 것을 막는다 */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18091,6 +18171,81 @@ export interface operations {
                 content?: never;
             };
             /** @description code LEAD_NAME_REQUIRED | LEAD_SOURCE_INVALID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_patchLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND | STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code EMPTY_PATCH | LEAD_NAME_REQUIRED */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23719,6 +23874,81 @@ export interface operations {
             };
         };
     };
+    updateCore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsultingPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultingDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 컨설팅 건 · 담당 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code CONS_CORE_LOCKED | CONS_DATE_ORDER | EMPTY_PATCH */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     updateShare: {
         parameters: {
             query?: never;
@@ -27326,7 +27556,10 @@ export interface operations {
     };
     DrawerController_scheduleHistory: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 이 log.id보다 오래된 줄 스무 개. 생략하면 최신 페이지 */
+                beforeId?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
