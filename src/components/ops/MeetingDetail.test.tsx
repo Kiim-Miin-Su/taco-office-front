@@ -7,11 +7,13 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import type { MeetingDetail as MeetingDetailDto, StaffBrief } from '@/api/types';
 
-const { state, save, assign, todo } = vi.hoisted(() => ({
+const { state, save, assign, todo, notice, respond } = vi.hoisted(() => ({
   state: { data: undefined as MeetingDetailDto | undefined, isLoading: false, isError: false, error: null },
   save: vi.fn(),
   assign: vi.fn(),
   todo: vi.fn(),
+  notice: vi.fn(),
+  respond: vi.fn(),
 }));
 vi.mock('@/api/queries', () => ({
   useMeetingDetail: () => state,
@@ -19,6 +21,9 @@ vi.mock('@/api/queries', () => ({
   useAssignMeetingTask: () => ({ mutate: assign, isPending: false, isError: false, error: null }),
   // ③ 할 일 체크는 서랍·운영 할 일과 같은 쓰기다 (w5)
   useDrawerWrite: () => ({ mutate: todo, isPending: false, isError: false, error: null }),
+  // W11 · N-32 — 「안내 보내기」 · 본인 참석 응답
+  useSendMeetingNotice: () => ({ mutate: notice, isPending: false, isError: false, error: null }),
+  useRespondMeeting: () => ({ mutate: respond, isPending: false, isError: false, error: null }),
 }));
 
 const { MeetingDetail } = await import('./MeetingDetail');
@@ -43,10 +48,12 @@ const base: MeetingDetailDto = {
   minutesTemplates: ['[정한 것]', '[누가 무엇을]', '[다음 회의까지]', '[보류]'],
   minutesHint: '정한 것 · 누가 무엇을 · 다음 회의까지',
   tasks: [
-    { id: 9, title: '단가 시뮬레이션', done: false, toName: '김범준', dueOn: '2026-08-26', overdueDays: 5 },
-    { id: 8, title: '끝낸 것', done: true, toName: '김민수', dueOn: '2026-08-21', overdueDays: 0 },
+    { id: 9, title: '단가 시뮬레이션', done: false, toName: '김범준', dueOn: '2026-08-26', overdueDays: 5, canToggle: true },
+    { id: 8, title: '끝낸 것', done: true, toName: '김민수', dueOn: '2026-08-21', overdueDays: 0, canToggle: true },
   ],
   taskDone: 1,
+  // 운영 권한으로 여는 사람(참석자 아님) — 단추가 서는지는 서버가 정한다 (W11 · N-32 · D-R39)
+  canEdit: true, canSendNotice: true, noticeBlockedReason: null, canRespond: false, myAttend: null,
 };
 
 const setup = (d: MeetingDetailDto) => {
@@ -180,4 +187,70 @@ it('③ 할 일 줄은 체크박스다 — 누르면 할 일 완료 경로(서�
   expect(v.queryByText('☐')).toBeNull();
   fireEvent.click(open);
   await waitFor(() => expect(todo).toHaveBeenCalledWith({ kind: 'todo', id: 9, done: true }, expect.anything()));
+});
+
+/* ── W11 · N-32 — 「안내 보내기」와 본인 참석 응답 ─────────────────────────────── */
+
+it('「안내 보내기」는 원문 §66 바닥 왼쪽(「일정 보기」 옆)에 서고, 누르면 이 회의로 보낸 뒤 서버가 센 수를 알린다', async () => {
+  notice.mockImplementation((_vars: unknown, opts?: { onSuccess?: (r: { sent: number }) => void }) => opts?.onSuccess?.({ sent: 3 }));
+  const v = setup(base);
+  const dialog = v.getByRole('dialog', { name: '일반 회의' });
+  const send = within(dialog).getByRole('button', { name: '안내 보내기' }) as HTMLButtonElement;
+  expect(send.disabled).toBe(false);
+  // 「일정 보기」와 한 묶음(왼쪽)이다 — 「닫기」·「속기록 저장」은 오른쪽
+  expect(send.parentElement).toBe(within(dialog).getByRole('link', { name: '일정 보기' }).parentElement);
+  fireEvent.click(send);
+  await waitFor(() => expect(notice).toHaveBeenCalledWith({ id: 4 }, expect.anything()));
+  expect(v.getByRole('status').textContent).toBe('참석자 3명에게 안내를 보냈습니다.');
+});
+
+it('막힌 안내는 단추가 닫히고 서버가 준 이유를 그대로 말한다 (취소된 회의 · 받을 사람 없음)', () => {
+  const v = setup({ ...base, canSendNotice: false, noticeBlockedReason: '취소된 회의에는 안내를 보내지 않습니다' });
+  const send = v.getByRole('button', { name: '안내 보내기' }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  expect(send.title).toBe('취소된 회의에는 안내를 보내지 않습니다');
+});
+
+it('참석자로만 여는 사람(강사 참석자 포함)은 읽기만 한다 — 안내 · 속기록 저장 · 머리말 · 배정이 서지 않는다', () => {
+  const v = setup({
+    ...base, canEdit: false, canSendNotice: false, noticeBlockedReason: null,
+    canRespond: true, myAttend: { state: 'waiting', stateLabel: '응답 대기' },
+  });
+  expect(v.queryByRole('button', { name: '안내 보내기' })).toBeNull();
+  expect(v.queryByRole('button', { name: '속기록 저장' })).toBeNull();
+  expect(v.queryByRole('button', { name: '[정한 것]' })).toBeNull();
+  expect((v.getByLabelText('속기록') as HTMLTextAreaElement).readOnly).toBe(true);
+  fireEvent.click(v.getByRole('button', { name: /③ 할 일/ }));
+  expect(v.queryByRole('button', { name: '배정' })).toBeNull();
+});
+
+it('참석 응답은 본인 줄만 — 「참석 · 불참」을 누르면 그 값 하나를 보낸다(대리 입력 없음)', async () => {
+  const v = setup({ ...base, canEdit: false, canSendNotice: false, canRespond: true, myAttend: { state: 'waiting', stateLabel: '응답 대기' } });
+  const group = within(v.getByRole('group', { name: '내 참석 응답' }));
+  expect(group.getByRole('button', { name: '참석' }).getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(group.getByRole('button', { name: '불참' }));
+  await waitFor(() => expect(respond).toHaveBeenCalledWith({ id: 4, confirmed: false }));
+  cleanup();
+
+  // 이미 답한 값은 눌린 채로 선다 — 바꾸려면 다른 쪽을 누른다
+  const again = setup({ ...base, canRespond: true, myAttend: { state: 'in', stateLabel: '참석' } });
+  expect(within(again.getByRole('group', { name: '내 참석 응답' })).getByRole('button', { name: '참석' }).getAttribute('aria-pressed')).toBe('true');
+});
+
+it('참석자가 아니면 응답 단추가 없다 — 남의 줄을 대신 적지 않는다', () => {
+  const v = setup(base);
+  expect(v.queryByRole('group', { name: '내 참석 응답' })).toBeNull();
+});
+
+/* ── W11 A' 후속 — 강사 참석자의 회의 상세 ─────────────────────────────── */
+
+it('할 일 체크 칸은 서버의 canToggle 이 연다 — 강사 참석자는 자기에게 온 것만 체크한다', () => {
+  const v = setup({
+    ...base, canEdit: false, canSendNotice: false, canRespond: true, myAttend: { state: 'waiting', stateLabel: '응답 대기' },
+    tasks: [{ ...base.tasks[0], canToggle: true }, { ...base.tasks[1], canToggle: false }],
+  });
+  fireEvent.click(v.getByRole('button', { name: /③ 할 일/ }));
+  expect((v.getByRole('checkbox', { name: '단가 시뮬레이션 완료' }) as HTMLInputElement).disabled).toBe(false);
+  // 남의 할 일은 닫힌 칸이다(서버도 그 체크 쓰기를 404 로 막는다)
+  expect((v.getByRole('checkbox', { name: '끝낸 것 완료' }) as HTMLInputElement).disabled).toBe(true);
 });

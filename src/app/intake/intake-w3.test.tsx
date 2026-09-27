@@ -16,7 +16,7 @@ import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
 const push = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -116,6 +116,16 @@ describe('§23 카드 (23-10 · 23-12 · 23-13)', () => {
     expect(within(late).getByText('1일 지남').parentElement?.className).toContain('bg-red');
     expect(late.parentElement?.className).toContain('bg-red/5');
   });
+
+  it('실패 카드 — 사유(기울임) 아래 「상태 · 재연락 완료 · 09-18」 한 줄 · 중단 지점 칩은 없다 · 재연락 판정이 없는 옛 건은 줄이 없다 (원본 §23 · W11 1:1)', async () => {
+    const view = await setup();
+    const yuna = view.getByText('신유나').closest('button')!;
+    const row = within(yuna).getByText('상태').parentElement!;
+    expect(row.textContent).toBe('상태재연락 완료 · 09-18');
+    expect(within(yuna).queryByText(/중단|안 옴|무산|미분류/)).toBeNull();
+    const legacy = view.getByText('장서우').closest('button')!;
+    expect(within(legacy).queryByText('상태')).toBeNull();
+  });
 });
 
 describe('§24 등록 실패 내역 (24-04 · 24-05 · 24-06 · 24-07 · 24-08)', () => {
@@ -172,12 +182,12 @@ describe('§24 등록 실패 내역 (24-04 · 24-05 · 24-06 · 24-07 · 24-08)'
     const drawer = view.getByRole('dialog', { name: /백승우/ });
     const kind = within(drawer).getByLabelText('사유 분류') as HTMLSelectElement;
     expect([...kind.options].map((o) => o.textContent)).toEqual(['분류 선택', '연락 두절', '타 학원 등록', '일정 안 맞음', '비용', '시기 안 맞음']);
-    fireEvent.change(within(drawer).getByLabelText('중단 지점 (필수)'), { target: { value: 'after_first' } });
     fireEvent.change(kind, { target: { value: 'cost' } });
     fireEvent.click(within(drawer).getByRole('button', { name: '실패로 분류' }));
     fireEvent.click(within(drawer).getByRole('button', { name: '한 번 더 누르면 실패 확정' }));
     await waitFor(() => expect(post).toHaveBeenCalled());
-    expect(post.mock.calls[0]).toEqual(['/ops/leads/1/fail', { stopAt: 'after_first', reasonKind: 'cost' }]);
+    // 중단 지점은 보내지 않는다 — 서버가 실패 순간의 단계에서 판정한다 (N-87)
+    expect(post.mock.calls[0]).toEqual(['/ops/leads/1/fail', { reasonKind: 'cost' }]);
   });
 });
 

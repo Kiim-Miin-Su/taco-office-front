@@ -12,6 +12,7 @@ import { api } from '@/api/client';
 import type { Me, Ops, Todo } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
+import { MASKED } from '@/lib/money';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
 
@@ -55,9 +56,9 @@ function setup(viewer = me, selectMarketing = true) {
   return { ...view, client, commits };
 }
 function expectHidden(view: ReturnType<typeof setup>) {
-  expect(view.queryByText('246,800원')).toBeNull();
-  expect(view.queryByText('123,400원')).toBeNull();
-  expect(view.getAllByText('가려짐')).toHaveLength(2);
+  expect(view.queryByText('₩246,800')).toBeNull();
+  expect(view.queryByText('₩123,400')).toBeNull();
+  expect(view.getAllByText(MASKED)).toHaveLength(2);
   expect(view.getByText('검수 채널')).toBeTruthy();
 }
 afterEach(() => {
@@ -104,8 +105,8 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
   it('역할명이 아니라 최종 canMoney=true인 매니저에게 허용된 값을 표시한다', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response });
     const view = setup({ ...me, role: 'manager', canSeeProfit: false });
-    await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
-    expect(view.getByText('123,400원')).toBeTruthy();
+    await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
+    expect(view.getByText('₩123,400')).toBeTruthy();
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일/ }));
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
@@ -160,7 +161,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
   it('⭐ 할 일 동그라미는 열린 것만 센다 — 담당 칩의 「전체 N」과 같은 수다 (N-19)', async () => {
     const todo = (id: number, done: boolean): Todo => ({
       id, title: `할 일 ${id}`, done, src: 'manual', srcLabel: '직접 등록', toId: 2, toName: '김민수', fromName: '대표',
-      dueOn: '2026-09-21', overdueDays: 0,
+      dueOn: '2026-09-21', overdueDays: 0, lesson: null, go: null,
     });
     vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response,
       todos: [todo(1, false), todo(2, false), todo(3, true)],
@@ -180,13 +181,13 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     expect(view.getByRole('button', { name: '전체 1' })).toBeTruthy();
   });
 
-  it('허용된 0원과 등록이 없어 계산할 수 없는 null을 구분한다', async () => {
+  it('허용된 ₩0 과 등록이 없어 계산할 수 없는 null을 구분한다', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ data: {
       ...response, marketing: [{ ...response.marketing[0], cost: 0, costPerEnroll: null, enrolled: 0 }],
     } });
     const view = setup();
-    await waitFor(() => expect(view.getByText('0원')).toBeTruthy());
-    expect(view.queryByText('가려짐')).toBeNull();
+    await waitFor(() => expect(view.getByText('₩0')).toBeTruthy());
+    expect(view.queryByText(MASKED)).toBeNull();
     // 「등록당」은 표의 마지막 칸이다 — C53 이 담당 칸을 더하면서 「—」가 화면에 둘이 되었다
     const cells = view.container.querySelectorAll('tbody tr td');
     expect(cells[cells.length - 1]?.textContent).toBe('—');
@@ -197,11 +198,11 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const pending = new Promise<{ data: Ops }>((done) => { resolve = done; });
     const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ data: response }).mockReturnValueOnce(pending);
     const view = setup();
-    await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
     const loadedCommits = view.commits.mock.calls.length;
     act(() => useSession.setState({ me: { ...me, canMoney: false } }));
-    expect(view.queryByText('246,800원')).toBeNull();
-    expect(view.queryByText('123,400원')).toBeNull();
+    expect(view.queryByText('₩246,800')).toBeNull();
+    expect(view.queryByText('₩123,400')).toBeNull();
     expect(view.commits).toHaveBeenCalledTimes(loadedCommits + 1);
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     await act(async () => { resolve({ data: response }); await pending; });
@@ -227,7 +228,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup({ ...me, canMoney: false });
     await waitFor(() => expectHidden(view));
     act(() => useSession.setState({ me }));
-    await waitFor(() => expect(view.getByText('246,800원')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
     expect(get).toHaveBeenCalledTimes(2);
   });
 });

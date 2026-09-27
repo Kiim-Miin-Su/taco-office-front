@@ -10,7 +10,7 @@
  * **서는 단추와 낱말은 서버가 준 `lead.cardActions` 그대로다** — 화면은 단계를 보고 단추를 고르지 않는다(D-R18 · D-R39).
  * 단계를 옮기는 단추의 도착지도 서버의 `to`(언제나 그 건의 `nextStages` 안)라 카드가 새 전이를 만들지 않는다.
  * 단추마다 **이미 있는 길**로 간다 — 입력 없이 끝나는 셋(연장 +2일 · 스케줄에 N건 만들기 · 단계 이동/되살리기)은 여기서 부르고,
- * 입력이 필요한 것(실패의 중단 지점 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계가 미분류)은 상세 서랍의 그 칸을 연다(`onOpen`) ·
+ * 입력이 필요한 것(실패의 사유 — 중단 지점은 서버가 단계에서 판정 · N-87 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계가 미분류)은 상세 서랍의 그 칸을 연다(`onOpen`) ·
  * 등록은 등록 확정 창(`onEnroll`). 단계 이동과 되살리기는 서랍과 같이 **두 번 눌러야** 한다(「한 번 더 누르면 …」).
  * 거절(409)은 서버 문장 그대로 단추 줄 아래에 선다. 카드 몸통 단추와 **형제**로 놓인다 — 단추 안에 단추를 두지 않는다(접근성).
  */
@@ -18,9 +18,8 @@
 import { useState } from 'react';
 import { Banner, Button, type ButtonVariant } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useMoveLeadStage, useResumeLead } from '@/api/queries';
+import { useExtendLeadHold, useMoveLeadStage, useResumeLead, useScheduleLeadAppts } from '@/api/queries';
 import type { Lead, LeadStageMove } from '@/api/types';
-import { useExtendLeadHold, useScheduleLeadAppts } from './intake-queries';
 
 type CardAction = NonNullable<Lead['cardActions']>[number];
 /** 서랍의 어느 칸을 열지 — 입력이 필요한 단추만 쓴다 */

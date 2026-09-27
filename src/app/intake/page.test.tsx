@@ -16,19 +16,21 @@ import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
+// W11 · N-87 — §24 분류는 서버가 실패 당시 단계에서 판정해 준다(failStopKey · failStopLabel) · 판정 없는 옛 건은 「미분류」
 const lead: Lead = {
   id: 1, name: '장서우', school: '언주중', ownerName: 'Grace', reason: '연락 두절',
   stage: 'failed', stopAt: 'after_first', ageDays: 0, createdAt: '2026-09-10', studentId: null, ownerId: null,
+  failFrom: 'first', failStopKey: 'first', failStopLabel: '1차 상담 중단',
   nextStages: [], touches: [],
 };
 const leads = [lead, { ...lead, id: 2, name: '신유나', school: '역삼중', reason: '타 학원 등록' },
-  { ...lead, id: 3, name: '윤도현', school: null, ownerName: null, reason: null, stopAt: null },
-  { ...lead, id: 4, name: '진행중학생', stage: 'first' }];
+  { ...lead, id: 3, name: '윤도현', school: null, ownerName: null, reason: null, stopAt: null, failFrom: null, failStopKey: 'none', failStopLabel: '미분류' },
+  { ...lead, id: 4, name: '진행중학생', stage: 'first', failFrom: null, failStopKey: null, failStopLabel: null }];
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
   feedback: [], feedbackNeedsFix: 0, canComment: false, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
@@ -204,15 +206,16 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
     const renamed: Ops['intakeHead'] = {
       ...full,
       funnel: full.funnel.map((f) => ({ ...f, label: `${f.label}(서버)` })),
-      stops: [{ key: 'after_first', label: '1차 후 미진행(서버)' }],
+      stops: [{ key: 'first', label: '1차 상담 중단(서버)', sub: '첫 통화 뒤 더 진행되지 않았습니다' }],
     };
     const view = await head(renamed);
     const text = view.container.textContent ?? '';
     // 보드 칸 여섯이 서버 이름 그대로 선다
     for (const f of renamed.funnel) expect(text).toContain(f.label);
-    // 실패 지정 select 의 갈래도 같은 자리에서 온다
+    // §24 분류 카드의 낱말 · 설명 한 줄도 같은 자리에서 온다 (N-87)
     fireEvent.click(view.getByRole('button', { name: '등록 실패 내역' }));
-    expect(view.container.textContent).toContain('1차 후 미진행(서버)');
+    expect(view.container.textContent).toContain('1차 상담 중단(서버)');
+    expect(view.container.textContent).toContain('첫 통화 뒤 더 진행되지 않았습니다');
   });
 
   /**
@@ -234,35 +237,37 @@ describe('§23 상담 머리 — 퍼널 띠 · 담당 칩 · 경고 줄', () => 
 /**
  * 24-02 (P1) — 원본 §24 「어느 단계에서 멈췄는지」 분류 카드. 표가 아니라 카드이고, **누르면 그 분류만 남는다**.
  * 카드의 낱말과 순서는 서버의 `intakeHead.stops`, 건수는 검색이 적용된 실패 건을 기존 `stopRows` 로 묶은 것이다.
- * 0 건 분류도 선다(칩 줄과 같은 규약 — 분류는 어휘다). 「분류 안 됨」은 그런 건이 있을 때만 선다.
+ * 0 건 분류도 선다(칩 줄과 같은 규약 — 분류는 어휘다). 「미분류」는 그런 건이 있을 때만 서고 낱말은 그 건의 서버 낱말이다(N-87).
  */
 describe('§24 분류 카드 — 누르면 그 분류만 (24-02)', () => {
   const cardNames = (group: HTMLElement) => within(group).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
   const listed = (view: Awaited<ReturnType<typeof setup>>) =>
     within(view.getByRole('list', { name: '실패한 상담' })).getAllByRole('listitem').map((li) => li.querySelector('b')?.textContent);
 
-  it('전체 + 서버 네 분류(0 건도) + 분류 안 됨 카드가 서고, 누르면 그 분류의 실패 카드만 남으며 다시 누르면 전체로 돌아간다', async () => {
+  it('전체 + 서버 네 분류(0 건도) + 미분류 카드가 서고, 누르면 그 분류의 실패 카드만 남으며 다시 누르면 전체로 돌아간다', async () => {
     const view = await setup();
     const group = view.getByRole('group', { name: '중단 지점으로 거르기' });
     expect(cardNames(group)).toEqual([
-      '전체 3건', '상담 예약 전 이탈 0건', '1차 상담 전 이탈 0건', '1차 후 미진행 2건', '2차 후 미등록 0건', '분류 안 됨 1건',
+      '전체 3건', '1차 상담 중단 2건', '2차 안 옴 0건', '2차 상담 중단 0건', '보류 후 무산 0건', '미분류 1건',
     ]);
+    // 카드 아래 한 줄은 원문 설명 그대로(서버 sub) — 비중 % 는 원문에 없다
+    expect(within(group).getByText('일정은 잡았는데 오지 않았습니다')).toBeTruthy();
     expect(within(group).getByRole('button', { name: '전체 3건', pressed: true })).toBeTruthy();
     expect(listed(view)).toEqual(['장서우', '신유나', '윤도현']);
 
-    fireEvent.click(within(group).getByRole('button', { name: '1차 후 미진행 2건' }));
-    expect(within(group).getByRole('button', { name: '1차 후 미진행 2건', pressed: true })).toBeTruthy();
+    fireEvent.click(within(group).getByRole('button', { name: '1차 상담 중단 2건' }));
+    expect(within(group).getByRole('button', { name: '1차 상담 중단 2건', pressed: true })).toBeTruthy();
     expect(listed(view)).toEqual(['장서우', '신유나']);
 
-    fireEvent.click(within(group).getByRole('button', { name: '분류 안 됨 1건' }));
+    fireEvent.click(within(group).getByRole('button', { name: '미분류 1건' }));
     expect(listed(view)).toEqual(['윤도현']);
 
     // 같은 카드를 한 번 더 누르면 「전체」로 — ChipRow 와 같은 규약
-    fireEvent.click(within(group).getByRole('button', { name: '분류 안 됨 1건' }));
+    fireEvent.click(within(group).getByRole('button', { name: '미분류 1건' }));
     expect(within(group).getByRole('button', { name: '전체 3건', pressed: true })).toBeTruthy();
     expect(listed(view)).toHaveLength(3);
     // 0 건 분류를 누르면 목록 대신 한 줄로 말한다
-    fireEvent.click(within(group).getByRole('button', { name: '2차 후 미등록 0건' }));
+    fireEvent.click(within(group).getByRole('button', { name: '보류 후 무산 0건' }));
     expect(view.getByText('이 분류에 해당하는 실패 건이 없습니다')).toBeTruthy();
     expect(view.get).toHaveBeenCalledTimes(1);
   });
@@ -273,9 +278,9 @@ describe('§24 분류 카드 — 누르면 그 분류만 (24-02)', () => {
     act(() => { vi.advanceTimersByTime(260); });
     const group = view.getByRole('group', { name: '중단 지점으로 거르기' });
     expect(cardNames(group)).toEqual([
-      '전체 1건', '상담 예약 전 이탈 0건', '1차 상담 전 이탈 0건', '1차 후 미진행 1건', '2차 후 미등록 0건', '분류 안 됨 0건',
+      '전체 1건', '1차 상담 중단 1건', '2차 안 옴 0건', '2차 상담 중단 0건', '보류 후 무산 0건', '미분류 0건',
     ]);
-    fireEvent.click(within(group).getByRole('button', { name: '1차 후 미진행 1건' }));
+    fireEvent.click(within(group).getByRole('button', { name: '1차 상담 중단 1건' }));
     expect(listed(view)).toEqual(['신유나']);
   });
 

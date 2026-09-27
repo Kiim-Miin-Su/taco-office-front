@@ -19,7 +19,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Banner, Button, Checkbox, Chip, Dialog, Input, Label, Select } from '../ui';
 import { ApiError, apiMessage } from '@/api/client';
 import { fetchConflicts, useBooks, useEnrollLead, useMeta } from '@/api/queries';
-import type { EnrollResult, Lead, LeadEnroll } from '@/api/types';
+import type { EnrollResult, Gender, Lead, LeadEnroll } from '@/api/types';
 import { KO_DOW, buildRrule, conflictLines, hhmm, parseHm, todayKst, unavailableLines } from '@/lib/calendar';
 import { won } from '@/lib/money';
 
@@ -73,6 +73,8 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   const [name, setName] = useState('');
   const [grade, setGrade] = useState('');
   const [school, setSchool] = useState('');
+  /** 성별 — 선택 칸(N-83). 새 학생을 만들 때만 보내고 관리자 §10 아바타에만 쓰인다. 미리 채우지 않는다 */
+  const [gender, setGender] = useState<'' | Gender['key']>('');
   const [startedOn, setStartedOn] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [issueInvoice, setIssueInvoice] = useState(true);
@@ -97,6 +99,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
     if (!open) return;
     // 상담 카드에 적어 둔 학년이 있으면 그대로 채운다 — 같은 사실을 두 번 적지 않게 (23-10). 없으면 빈 칸
     setExisting(false); setStudentId(''); setName(lead.name); setGrade(lead.grade ?? ''); setSchool(lead.school ?? '');
+    setGender('');
     // 배치안이 있으면 그 줄로 채운다(23-16 · §24 「당시 배치안이 그대로 채워지고」) — 없으면 빈 줄 하나
     setStartedOn(todayKst()); setLines(planLines.length ? planLines.map(fromPlan) : [newLine()]); setIssueInvoice(true); setAllowSameName(false); setMemo('');
     setPreview(null); setPreviewOf(''); setErr(null); setErrCode(null); setConflicts([]);
@@ -131,7 +134,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
     }
     return {
       body: {
-        ...(existing ? { studentId: Number(studentId) } : { student: { name: name.trim(), ...(grade.trim() ? { grade: grade.trim() } : {}), school: school.trim() } }),
+        ...(existing ? { studentId: Number(studentId) } : { student: { name: name.trim(), ...(grade.trim() ? { grade: grade.trim() } : {}), school: school.trim(), ...(gender ? { gender } : {}) } }),
         startedOn, lines: out, issueInvoice, ...(issueInvoice ? { dueOn } : {}),
         ...(allowSameName ? { allowSameName: true } : {}), ...(memo.trim() ? { memo: memo.trim() } : {}),
       },
@@ -220,6 +223,14 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
               <div><Label htmlFor={`${id}-name`}>이름</Label><Input id={`${id}-name`} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} disabled={pending} /></div>
               <div><Label htmlFor={`${id}-grade`} hint="동명이인을 가릅니다">학년</Label><Input id={`${id}-grade`} value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} disabled={pending} placeholder="예: 고2" /></div>
               <div><Label htmlFor={`${id}-school`}>학교</Label><Input id={`${id}-school`} value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} disabled={pending} /></div>
+              {/* N-83 — 선택 칸. 낱말은 서버 코드표(meta.genders), 비워 두면 저장하지 않는다 */}
+              <div>
+                <Label htmlFor={`${id}-gender`} hint="선택 · 관리자 시간표에만">성별</Label>
+                <Select id={`${id}-gender`} value={gender} onChange={(e) => setGender(e.target.value as '' | Gender['key'])} disabled={pending}>
+                  <option value="">고르지 않음</option>
+                  {(meta.data?.genders ?? []).map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+                </Select>
+              </div>
             </div>
           )}
         </section>
@@ -342,13 +353,21 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
             <ul className="mt-2 flex flex-col gap-1 border-t border-line pt-2">
               <li className="text-fg-2">
                 청구서 — {preview.invoice
-                  ? <b className="text-fg">{preview.invoice.yearMonth} · {preview.invoice.amount == null ? '금액은 대표만' : won(preview.invoice.amount)} · {preview.invoice.lines.map((x) => `${x.label} ${x.count}회`).join(' + ')}</b>
+                  ? <b className="text-fg">{preview.invoice.yearMonth} · {won(preview.invoice.amount)} · {preview.invoice.lines.map((x) => `${x.label} ${x.count}회`).join(' + ')}</b>
                   : preview.invoiceSkipped ? <span className="text-red">건너뜀 — {preview.invoiceSkipped.message}</span> : '내지 않음'}
               </li>
               <li className="text-fg-2">
                 교재 — 요청 {preview.bookIssues.length}건{preview.diagBookApplied ? ' (상담에서 담당자가 고른 교재 포함)' : ''}{preview.booksMissing.length ? <span className="text-amber"> · 배정 필요 {preview.booksMissing.map((b) => b.label).join(' · ')}</span> : null}
               </li>
               <li className="text-fg-2">안내 초안 {preview.guideDrafts}건 · 알림 강사 {preview.notifiedTeachers}명 · 관리자 {preview.notifiedStaff}명</li>
+              {/* 사후 관리 (W11 · N-86) — 해피콜(첫 실제 수업 + 7일) · 첫 월간 상담(다음 달 같은 날)이 상담 담당의 할 일로 선다. 날은 서버가 정한다 */}
+              {preview.aftercare ? (
+                <li className="text-fg-2">
+                  사후 관리 — 해피콜 {preview.aftercare.happyCallOn ? md(preview.aftercare.happyCallOn) : '날짜 미정'}
+                  {' '}· 첫 월간 상담 {preview.aftercare.monthlyOn ? md(preview.aftercare.monthlyOn) : '날짜 미정'}
+                  {' '}· {preview.aftercare.ownerName ? `${preview.aftercare.ownerName}의 할 일` : '담당 없음'}
+                </li>
+              ) : null}
             </ul>
             {preview.unavailable.length ? (
               <Banner tone="warning" className="mt-2">
@@ -359,7 +378,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
         ) : null}
 
         <p className="text-[11px] text-fg-subtle">
-          학생 · 등록 · 시간표 · 첫 달 청구서 · 교재 요청 · 첫 수업 안내 초안 · 알림이 <b>한 번에</b> 만들어지고 상담은 「등록」으로 옮겨집니다.
+          학생 · 등록 · 시간표 · 첫 달 청구서 · 교재 요청 · 첫 수업 안내 초안 · 알림 · 사후 관리 할 일(해피콜 · 월간 상담)이 <b>한 번에</b> 만들어지고 상담은 「등록」으로 옮겨집니다.
           겹치는 시간이면 서버가 막고 아무것도 남지 않습니다. 미리 본 값 그대로 등록됩니다.
         </p>
         {err ? (

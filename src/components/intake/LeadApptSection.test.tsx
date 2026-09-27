@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import { LeadApptSection } from './LeadApptSection';
-import type { Lead, LeadAppt } from './intake-queries';
+import type { Lead, LeadAppt } from '@/api/types';
 
 const KINDS = [{ key: 'diag', label: '진단' }, { key: 'second', label: '2차' }];
 const diag: LeadAppt = {

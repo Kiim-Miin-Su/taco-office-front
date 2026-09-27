@@ -17,9 +17,9 @@
 import { useId, useState } from 'react';
 import { Banner, Button, Chip, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useMeta } from '@/api/queries';
+import { useDeleteLeadAppt, useMeta, useSaveLeadAppt, useScheduleLeadAppts } from '@/api/queries';
+import type { Lead, LeadAppt } from '@/api/types';
 import { hhmm, parseHm } from '@/lib/calendar';
-import { useDeleteLeadAppt, useSaveLeadAppt, useScheduleLeadAppts, type Lead, type LeadAppt } from './intake-queries';
 
 /** 카드 한 줄 — 「08-24 10:00 · 3층 컨설팅룸」 (원본 §23 모양 · 월-일) */
 export const leadApptLine = (a: LeadAppt) => `${a.onDate.slice(5)} ${hhmm(a.startMin)} · ${a.placeLabel}`;

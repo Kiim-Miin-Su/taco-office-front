@@ -15,7 +15,9 @@ import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+// 서랍 할 일의 「원본」이 여는 주소(`/intake?lead=`) — 시험마다 바꾼다 (W11 A')
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -59,7 +61,7 @@ const response: Ops = {
 };
 
 const clients: QueryClient[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); useSession.setState({ me: null }); });
+afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); useSession.setState({ me: null }); nav.search = ''; });
 
 async function setup() {
   useSession.setState({ me: null, ready: true });
@@ -119,13 +121,31 @@ describe('§23 카드 단계별 단추 줄 (23-14)', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/leads/34/resume', {}));
   });
 
-  it('입력이 필요한 단추(실패 · 사후 관리)는 상세 서랍의 그 칸을 연다 — 중단 지점 고르기 · 접촉 기록', async () => {
+  it('입력이 필요한 단추(실패 · 사후 관리)는 상세 서랍의 그 칸을 연다 — 사유 분류 고르기(중단 지점은 묻지 않는다 · N-87) · 접촉 기록', async () => {
     const { view } = await setup();
     fireEvent.click(within(actionsOf(view, '정하윤')).getByRole('button', { name: '실패' }));
-    await waitFor(() => expect(document.activeElement?.id).toBe('lead-stop-at'));
+    await waitFor(() => expect(document.activeElement?.id).toBe('lead-reason-kind'));
     fireEvent.click(within(actionsOf(view, '박시온')).getByRole('button', { name: '사후 관리' }));
     await waitFor(() => expect(view.getByRole('dialog').textContent).toContain('박시온'));
     // 접촉 기록 칸이 열려 있다(「어떻게」 고르기)
     await waitFor(() => expect(view.getByLabelText('어떻게')).toBeTruthy());
+  });
+});
+
+describe('서랍 할 일의 「원본」이 그 상담 건을 연다 (W11 A\' · N-86 사후 관리)', () => {
+  it('`/intake?lead=<id>` 로 들어오면 그 건의 상세 서랍이 열린다 — 번호는 서버가 준 것 그대로', async () => {
+    nav.search = '?lead=31';
+    const { view } = await setup();
+    await waitFor(() => expect(view.getByRole('dialog').textContent).toContain('박시온'));
+  });
+
+  it('목록에 없는 번호 · 형식이 틀린 번호면 아무것도 열리지 않는다(볼 수 있는지는 서버 목록이 정한다)', async () => {
+    nav.search = '?lead=999';
+    const missing = await setup();
+    expect(missing.view.queryByRole('dialog')).toBeNull();
+    cleanup();
+    nav.search = '?lead=31abc';
+    const malformed = await setup();
+    expect(malformed.view.queryByRole('dialog')).toBeNull();
   });
 });

@@ -31,6 +31,8 @@ const result: EnrollResult = {
   guideDrafts: 1, notifiedTeachers: 1, notifiedStaff: 2,
   unavailable: [{ serId: 5, date: '2026-10-05', teacherId: 6, teacherName: '김재훈', startMin: 960, endMin: 1080, reason: '병원' }], stage: 'enrolled',
   diagBookApplied: false, latestDiag: null,
+  // W11 · N-86 — 등록 확정이 상담 담당에게 만드는 사후 관리 할 일(날은 서버가 정한다)
+  aftercare: { firstLessonOn: '2026-10-05', happyCallOn: '2026-10-12', monthlyOn: '2026-11-05', ownerId: 3, ownerName: 'Grace' },
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -97,9 +99,10 @@ it('학생 칸·시작일·배치안 줄만 보낸다 — 미리 본 뒤에야 �
   expect(text).toContain('문채원 · 새 학생 · 10/1부터 · 수업 1개');
   expect(text).toContain('Writing · 매주 월·수 16:00–17:00 · 김재훈');
   expect(text).toContain('첫 수업 10/5 · 이달 8회');
-  expect(text).toContain('2026-10 · 480,000원 · Writing 8회');
+  expect(text).toContain('2026-10 · ₩480,000 · Writing 8회');
   expect(text).toContain('배정 필요 Writing');
   expect(text).toContain('안내 초안 1건 · 알림 강사 1명 · 관리자 2명');
+  expect(text).toContain('사후 관리 — 해피콜 10/12 · 첫 월간 상담 11/5 · Grace의 할 일');
   expect(text).toContain('2026-10-05 16:00–18:00 · 김재훈 — 병원');
   await waitFor(() => expect((within(dialog).getByRole('button', { name: '등록 확정' }) as HTMLButtonElement).disabled).toBe(false));
   // 미리 본 뒤 줄을 고치면 다시 본다 — 그동안 「등록 확정」은 잠긴다
@@ -190,4 +193,25 @@ it('상담 진단에서 고른 교재가 첫 줄의 기본값이다 — 키를 �
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(posted).toHaveLength(2));
   expect(posted[1]!.body).toEqual(expectedBody);
+});
+
+/**
+ * N-83 (W11 · 스케줄 담당 줄) — 성별은 선택 칸이다. 낱말은 서버 코드표(`meta.genders`)이고 미리 채우지 않는다.
+ * 고르지 않으면 본문에 칸이 없고(첫 시험의 expectedBody), 고르면 새 학생 칸에만 실린다.
+ */
+it('성별은 서버 코드표의 두 낱말 중 고를 때만 새 학생 칸에 실린다 — 미리 채우지 않는다 (N-83)', async () => {
+  Object.assign(meta, { genders: [{ key: 'female', label: '여' }, { key: 'male', label: '남' }] });
+  try {
+    const { view } = setup();
+    const dialog = await fillOneLine(view);
+    const gender = within(dialog).getByLabelText(/^성별/) as HTMLSelectElement;
+    expect(gender.value).toBe('');
+    expect(Array.from(gender.options).map((o) => o.textContent)).toEqual(['고르지 않음', '여', '남']);
+    fireEvent.change(gender, { target: { value: 'female' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]!.body).toEqual({ ...expectedBody, student: { ...expectedBody.student, gender: 'female' } });
+  } finally {
+    delete (meta as { genders?: unknown }).genders;
+  }
 });

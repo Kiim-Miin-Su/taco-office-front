@@ -38,6 +38,7 @@ const me: Me = {
 
 const META: Meta = {
   kinds: [], subs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [], students: [],
+  genders: [],
   rooms: [{ id: 1, branch: '본원', name: '1호', capacity: 10 }],
   zaccs: [{ id: 3, label: 'TN', meetingId: '123' }],
   staff: [
@@ -79,10 +80,10 @@ const ops = (over: Partial<Ops> = {}): Ops => ({
 describe('S2-b — §64 상태·날짜·기한 입력', () => {
   const data = () => ops({
     todos: [
-      { id: 31, title: '다음 자료', toId: 7, toName: '김재훈', fromName: '대표', dueOn: '2026-09-24', done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0 },
-      { id: 32, title: '오늘 자료', toId: 8, toName: '김재훈', fromName: '대표', dueOn: '2026-09-23', done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0 },
-      { id: 33, title: '날짜 없는 자료', toId: null, toName: null, fromName: null, dueOn: null, done: false, src: 'manual', srcLabel: '직접 등록', overdueDays: 0 },
-      { id: 34, title: '끝낸 자료', toId: 7, toName: '김재훈', fromName: '대표', dueOn: '2026-09-22', done: true, src: 'plan', srcLabel: '기획', overdueDays: 0 },
+      { id: 31, title: '다음 자료', toId: 7, toName: '김재훈', fromName: '대표', dueOn: '2026-09-24', done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0, lesson: null, go: null },
+      { id: 32, title: '오늘 자료', toId: 8, toName: '김재훈', fromName: '대표', dueOn: '2026-09-23', done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0, lesson: null, go: null },
+      { id: 33, title: '날짜 없는 자료', toId: null, toName: null, fromName: null, dueOn: null, done: false, src: 'manual', srcLabel: '직접 등록', overdueDays: 0, lesson: null, go: null },
+      { id: 34, title: '끝낸 자료', toId: 7, toName: '김재훈', fromName: '대표', dueOn: '2026-09-22', done: true, src: 'plan', srcLabel: '기획', overdueDays: 0, lesson: null, go: null },
     ],
     todoOwnerCounts: [{ key: '7', label: '김재훈', count: 1 }, { key: '8', label: '김재훈', count: 1 }, { key: '__none__', label: '담당 없음', count: 1 }],
     todoDoneOwnerCounts: [{ key: '7', label: '김재훈', count: 1 }],
@@ -443,7 +444,7 @@ describe('C96 — 운영에 만드는 길 (N-46 ③)', () => {
 
   it('「+ 할 일 주기」는 **새 경로가 아니다** — 서랍이 쓰는 그 경로를 부른다 (C76)', async () => {
     const view = setup(ops({
-      todos: [{ id: 1, title: '자료 정리', toId: 7, toName: '김재훈', fromName: '대표', srcLabel: '직접 등록', dueOn: null, done: false, src: 'manual', overdueDays: 0 }],
+      todos: [{ id: 1, title: '자료 정리', toId: 7, toName: '김재훈', fromName: '대표', srcLabel: '직접 등록', dueOn: null, done: false, src: 'manual', overdueDays: 0, lesson: null, go: null }],
       todoOwnerCounts: [{ key: '7', label: '김재훈', count: 1 }, { key: '__none__', label: '담당 없음', count: 2 }],
     }));
     const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { id: 41 } } as never);
@@ -491,8 +492,8 @@ describe('w5 — §63 회의 줄 · 머리 · 속 갈래', () => {
 
   it('속 갈래 「할 일」은 회의에서 나온 열린 할 일이다 — 새 요청 없이 받은 목록에서 거른다 (63-4)', async () => {
     const view = setup(ops({ todos: [
-      { id: 41, title: '회의에서 나온 일', toId: 7, toName: '김재훈', fromName: '대표', dueOn: null, done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0 },
-      { id: 42, title: '수업에서 나온 일', toId: 7, toName: '김재훈', fromName: '대표', dueOn: null, done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0 },
+      { id: 41, title: '회의에서 나온 일', toId: 7, toName: '김재훈', fromName: '대표', dueOn: null, done: false, src: 'meeting', srcLabel: '회의', overdueDays: 0, lesson: null, go: null },
+      { id: 42, title: '수업에서 나온 일', toId: 7, toName: '김재훈', fromName: '대표', dueOn: null, done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0, lesson: null, go: null },
     ] }));
     await waitFor(() => expect(top(view).getByRole('tab', { name: /^회의/ })).toBeTruthy());
     fireEvent.click(top(view).getByRole('tab', { name: /^회의/ }));

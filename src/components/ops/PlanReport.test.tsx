@@ -24,10 +24,7 @@ vi.mock('@/api/queries', () => ({
   useMovePlanStage: () => ({ mutate: move, isPending: false, isError: false, error: null }),
   // 과제 체크는 **서랍·운영 할 일과 같은 쓰기**다 — 새 경로를 만들지 않는다
   useDrawerWrite: () => ({ mutate: todo, isPending: false, isError: false, error: null }),
-}));
-
-// 「+ 대표 지시」 (w5 · 65-4) — 새 쓰기 경로 하나. 몸통은 서버다
-vi.mock('./ops-queries', () => ({
+  // 「+ 대표 지시」 (w5 · 65-4) — 새 쓰기 경로 하나. 몸통은 서버다
   useAddPlanTask: () => ({ mutate: addTask, isPending: false, isError: false, error: null }),
 }));
 
@@ -55,6 +52,9 @@ const base: PlanDetail = {
   nextStages: [],
   // w5 · 65-4 — 서는지와 막힌 이유는 서버가 준다
   canAddTask: true, addTaskBlockedReason: null,
+  // W11 — 반려된 기한(N-95)과 공개 범위(N-72). 옛 기획은 공개 범위가 없다(칩 없음 · 모두에게 보임)
+  dueRejectedOn: null, dueRejectedByName: null,
+  share: null, shareLabel: null, pickIds: [], pickNames: [], canEditShare: false,
 };
 
 /** 작성 중 — 담당이 적고 올리는 쪽의 화면 (S6) */
@@ -74,8 +74,10 @@ it('기한 승인 전에는 최종 승인 단추가 「기한부터 승인하세
   const v = setup(base);
   const btn = v.getByRole('button', { name: '기한부터 승인하세요' }) as HTMLButtonElement;
   expect(btn.disabled).toBe(true);
-  expect(v.getByText('기한 제안 2026-08-25')).toBeTruthy();
-  expect(v.getByText('대표 확인을 기다립니다')).toBeTruthy();
+  // 원문 §65 띠 — 「기한 제안」 칩 · 굵은 날짜 · 「대표 확인을 기다립니다」 (W11 재대조 · 칩 낱말은 서버)
+  const band = v.getByText('대표 확인을 기다립니다').parentElement!;
+  expect(within(band).getByText('기한 제안').className).toContain('bg-amber');
+  expect(within(band).getByText('2026-08-25').tagName).toBe('B');
 });
 
 it('막힌 이유는 서버가 준 문장이다 — 화면이 조건을 다시 적지 않는다', () => {
@@ -84,12 +86,12 @@ it('막힌 이유는 서버가 준 문장이다 — 화면이 조건을 다시 �
   expect(v.queryByRole('button', { name: '기한 승인' })).toBeNull();
 });
 
-it('기한 승인·반려를 서버에 그대로 보낸다', async () => {
+it('기한 승인·반려를 서버에 그대로 보낸다 — 대표가 본 날짜를 함께 실어 그 사이 바뀐 날짜가 승인되지 않게 한다 (PB-12-2)', async () => {
   const v = setup(base);
   fireEvent.click(v.getByRole('button', { name: '기한 승인' }));
-  await waitFor(() => expect(decide).toHaveBeenCalledWith({ id: 3, approve: true }));
+  await waitFor(() => expect(decide).toHaveBeenCalledWith({ id: 3, approve: true, dueOn: '2026-08-25' }));
   fireEvent.click(v.getByRole('button', { name: '기한 반려' }));
-  await waitFor(() => expect(decide).toHaveBeenCalledWith({ id: 3, approve: false }));
+  await waitFor(() => expect(decide).toHaveBeenCalledWith({ id: 3, approve: false, dueOn: '2026-08-25' }));
 });
 
 it('기한이 승인되면 최종 승인이 열리고 누가 승인했는지 남는다', () => {
@@ -128,6 +130,14 @@ it('네 칸을 원문 차례대로 보인다', () => {
   for (const h of ['1 · 목표', '2 · 과제', '3 · 리서치', '4 · 결정 요청']) {
     expect(v.getByText(h)).toBeTruthy();
   }
+});
+
+it('적는 칸의 안내 글은 낱말에 맞는 조사 하나다 — 「을(를)」을 둘 다 적지 않는다 (W11 QA)', () => {
+  const v = setup(drafting);
+  expect(v.getByLabelText('목표').getAttribute('placeholder')).toBe('목표를 적습니다');
+  expect(v.getByLabelText('리서치').getAttribute('placeholder')).toBe('리서치를 적습니다');
+  expect(v.getByLabelText('결정 요청').getAttribute('placeholder')).toBe('결정 요청을 적습니다');
+  expect(document.body.innerHTML).not.toContain('을(를)');
 });
 
 /* ── S6 「기획이 결재까지 간다」 ─────────────────────────────────────── */
@@ -246,7 +256,8 @@ it('본문은 레터헤드 문서다 — 「TN ACADEMY · 기획 보고」 · �
   // 큰 제목은 글이다 — 창의 제목(heading)은 하나뿐이다
   expect(v.getAllByRole('heading', { name: '9월 신규 상담 유입 30% 늘리기' })).toHaveLength(1);
   expect(within(doc).getByText('홍지승', { selector: 'dd' })).toBeTruthy();
-  const due = within(doc).getByText('2026-08-25', { selector: 'b' });
+  // 격자의 「마감」 칸 — 기한 띠에도 같은 날짜가 굵게 선다(W11 재대조 · 칩 + 굵은 날짜)
+  const due = within(doc).getByText('2026-08-25', { selector: 'dd b' });
   expect(due.className).toContain('text-red');
   // 기한 상태 칩도 서버 낱말이다
   expect(within(doc).getAllByText('기한 제안').length).toBeGreaterThan(0);
@@ -289,4 +300,66 @@ it('「보완 요청」이 닫힌 이유는 서버의 문장이다 — 화면이
   const rework = v.getByRole('button', { name: '보완 요청' }) as HTMLButtonElement;
   expect(rework.disabled).toBe(true);
   expect(rework.getAttribute('title')).toBe('기획 결재는 대표만 합니다');
+});
+
+/* ── W11 · N-95 반려된 기한 · N-72 공개 범위 ─────────────────────────────── */
+
+it('반려된 기한은 사라지지 않는다 — 날짜 · 반려한 사람이 남고, 담당이 새 기한을 내면 그 날짜 하나를 보낸다 (N-95)', async () => {
+  const v = setup({
+    ...drafting, dueOn: null, dueState: 'rejected', dueStateLabel: '기한 반려',
+    dueRejectedOn: '2026-08-19', dueRejectedByName: '김민선',
+  });
+  const band = v.getByText(/김민선 님이 반려했습니다/).parentElement!;
+  expect(within(band).getByText('기한 반려').className).toContain('bg-red');
+  expect(within(band).getByText('2026-08-19').tagName).toBe('B');
+  const propose = v.getByRole('button', { name: '새 기한 내기' }) as HTMLButtonElement;
+  expect(propose.disabled).toBe(true);
+  fireEvent.change(v.getByLabelText('새 기한'), { target: { value: '2026-09-01' } });
+  fireEvent.click(propose);
+  await waitFor(() => expect(patch).toHaveBeenCalledWith({ id: 3, dueOn: '2026-09-01' }));
+});
+
+const SHARES = [{ key: 'all' as const, label: '전체 공개' }, { key: 'picked' as const, label: '지정 공개' }];
+const setupShare = (d: PlanDetail) => {
+  state.data = d;
+  return render(<PlanReport planId={3} staff={STAFF} shareWords={SHARES} onClose={() => {}} />);
+};
+
+it('공개 범위는 머리 부제와 「공개」 칸에 서고, 지정된 사람 이름이 따라 선다 (N-72)', () => {
+  const v = setupShare({ ...base, share: 'picked', shareLabel: '지정 공개', pickIds: [8], pickNames: ['김성재'] });
+  // 원문 §65 머리 「홍지승 작성 · 2026-08-15 · 전체 공개」 — 공개 범위는 색 글자다(지정 공개는 §61 칩과 같은 주황)
+  const share = within(v.getByRole('dialog').querySelector('header')!).getByText('지정 공개');
+  expect(share.parentElement?.textContent).toBe('홍지승 작성 · 2026-08-15 · 지정 공개');
+  expect(share.className).toContain('text-orange');
+  const body = within(v.getByRole('article', { name: '기획 보고서 본문' }));
+  expect(body.getByText('공개')).toBeTruthy();
+  expect(body.getByText('김성재')).toBeTruthy();
+  // 바꿀 수 있는지는 서버의 canEditShare — 담당 · 결재권자가 아니면 단추가 없다
+  expect(v.queryByRole('button', { name: '공개 범위 바꾸기' })).toBeNull();
+});
+
+it('옛 기획(공개 범위 없음)은 칸도 칩도 없다 — 지어 적지 않는다 (N-72 · N-25)', () => {
+  const v = setupShare(base);
+  expect(v.getByText('홍지승 작성 · 2026-08-15')).toBeTruthy();
+  expect(within(v.getByRole('article', { name: '기획 보고서 본문' })).queryByText('공개')).toBeNull();
+});
+
+it('담당 · 결재권자는 공개 범위를 바꾼다 — 전체 공개로 두면 사람을 보내지 않는다 (N-72)', async () => {
+  const v = setupShare({
+    ...base, share: 'picked', shareLabel: '지정 공개', pickIds: [8], pickNames: ['김성재'], canEditShare: true,
+  });
+  fireEvent.click(v.getByRole('button', { name: '공개 범위 바꾸기' }));
+  expect((v.getByRole('checkbox', { name: '김성재 지정' }) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(within(v.getByRole('group', { name: '공개 범위' })).getByRole('button', { name: '전체 공개' }));
+  fireEvent.click(v.getByRole('button', { name: '공개 범위 저장' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledWith({ id: 3, share: 'all' }, expect.anything()));
+});
+
+it('지정 공개로 고르면 고른 사람을 함께 보낸다 (N-72)', async () => {
+  const v = setupShare({ ...base, share: 'all', shareLabel: '전체 공개', canEditShare: true });
+  fireEvent.click(v.getByRole('button', { name: '공개 범위 바꾸기' }));
+  fireEvent.click(within(v.getByRole('group', { name: '공개 범위' })).getByRole('button', { name: '지정 공개' }));
+  fireEvent.click(v.getByRole('checkbox', { name: '김성재 지정' }));
+  fireEvent.click(v.getByRole('button', { name: '공개 범위 저장' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledWith({ id: 3, share: 'picked', pickIds: [8] }, expect.anything()));
 });

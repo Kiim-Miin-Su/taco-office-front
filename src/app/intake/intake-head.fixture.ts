@@ -27,11 +27,12 @@ export const INTAKE_HEAD_FIXTURE: IntakeHead = {
   enrollRate: 0,
   owners: [],
   alerts: [],
+  // W11 · N-87 — §24 중단 지점은 실패 당시 단계(원문 넷 · 키가 단계 코드) · 설명 한 줄은 원문 분류 카드 그대로
   stops: [
-    { key: 'before_book', label: '상담 예약 전 이탈' },
-    { key: 'before_first', label: '1차 상담 전 이탈' },
-    { key: 'after_first', label: '1차 후 미진행' },
-    { key: 'after_second', label: '2차 후 미등록' },
+    { key: 'first', label: '1차 상담 중단', sub: '첫 통화 뒤 더 진행되지 않았습니다' },
+    { key: 'wait2nd', label: '2차 안 옴', sub: '일정은 잡았는데 오지 않았습니다' },
+    { key: 'second', label: '2차 상담 중단', sub: '진단까지 했는데 배치에서 멈췄습니다' },
+    { key: 'hold', label: '보류 후 무산', sub: '결정을 기다리다 끝났습니다' },
   ],
   // C90 · N-44 — 유입 경로 여섯(어휘 · 0 이어도 선다) · 접촉 「어떻게」 일곱 · 임박 0 · 도달 기록 시작일
   sources: [

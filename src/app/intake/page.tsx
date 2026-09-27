@@ -22,10 +22,12 @@
  * wave 5: 등록 카드의 사후 관리 줄(청구서 · 교재 · 안내 · 23-18) — 서버 `aftercare` 그대로. 등록률 산식(23-19)은 서버 한 곳이다.
  * wave 6: 등록 카드의 「등록 수업」 한 줄(23-11 · 서버 `lessons`) · 카드 단계별 단추 줄(23-14 · 서버 `cardActions`) — 카드는 몸통 단추와
  * 단추 줄이 **형제**다(단추 안에 단추 없음). 입력이 필요한 단추는 상세 서랍의 그 칸을 열어 초점을 옮긴다(`drawerFocus`).
+ * W11: §24 중단 지점은 **실패 당시 단계**에서 서버가 읽는다(N-87 — `failStopKey`·`failStopLabel` · 원문 넷 · 판정 없는 옛 건은 「미분류」) —
+ * 실패 지정 창은 중단 지점을 묻지 않는다. 등록 카드의 해피콜 · 월간 줄과 띠는 담당의 할 일을 읽는다(N-86 · 서버 `aftercare` · `stageDue`).
  */
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, Drawer, Label, PageHeader, Panel, Segmented, Select, StatCard, Table, Textarea, cn, type ChipTone, type Column, type Tone } from '@/components/ui';
@@ -45,6 +47,7 @@ import { LeadPlanSection, leadPlanSummary } from '@/components/intake/LeadPlanSe
 import { LeadApptSection, leadApptLine } from '@/components/intake/LeadApptSection';
 import { LeadCardActions, type LeadCardFocus } from '@/components/intake/LeadCardActions';
 import { won } from '@/lib/money';
+import { positiveQueryId } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
 
 /**
@@ -68,14 +71,14 @@ const FUNNEL_LOOK: Record<ChipTone, { line: string; num: string }> = {
 };
 
 /**
- * 중단 지점 4어휘의 **낱말과 순서는 서버가 준다**(`intakeHead.stops` · C86-b).
- * 원본 fail.from/at{} 대응은 N-25 채택(§4-17 · C35)으로 종결 — from 은 lead.fail_from(전이 순간
- * 서버 기록), at 은 stop_at 이고 레거시 건은 추정 이관 없이 미분류로 둔다.
+ * 중단 지점 넷의 **낱말 · 순서 · 설명 한 줄은 서버가 준다**(`intakeHead.stops` · C86-b).
+ * W11 · N-87: 원문 슬라이드 24 「fail.from 필드로 중단 단계 판정 · 없으면 at{} 기록을 역순으로」 그대로 — 건마다의 분류(`failStopKey`)와
+ * 낱말(`failStopLabel`)도 서버가 판정해 준다. 판정 없는 옛 건은 추정 이관 없이 「미분류」(키 `none`)이고, 옛 중단 지점(`stopAtLabel`)은 읽기 전용 기록이다.
  */
-type StopKey = LeadFail['stopAt'];
 type ReasonKindKey = NonNullable<LeadFail['reasonKind']>;
 type ResumeKey = NonNullable<LeadResume['to']>;
-const UNCLASSIFIED = '분류 안 됨';
+/** 판정 없는 실패의 분류 키 — 서버 `intakeFailStop` 의 그것(낱말은 그런 건의 failStopLabel) */
+const STOP_UNSET = 'none';
 /**
  * 되살릴 단계 판정 근거 라벨 — 판정 자체는 서버 응답(revivalStage/Source)만 그린다.
  * 사용자에게는 업무 낱말만 보인다 — 「명시값」·「역순 판정」 같은 개발 낱말을 쓰지 않는다 (23-20).
@@ -88,12 +91,14 @@ const REVIVAL_SOURCE: Record<string, string> = {
 
 /**
  * §24 실패 카드 한 장 (24-04 · 24-05 · 24-06 · 24-07) — 원본 컷 그대로: 이름 · 학년 · 학교 · 유입 경로 배지 · 재연락 칩 /
- * 중단 지점 · 사유 분류 칩 + 설명 / 「실패 날짜 · 그 전 단계」 · 「재연락 날짜 (D-N)」 · 담당 / 최근 접촉 한 줄 / 단추 셋.
+ * 사유 분류 칩 + 설명 / 「실패 날짜 · 그 전 단계」 · 「재연락 날짜 (D-N)」 · 담당 / 최근 접촉 한 줄 / 단추 셋.
+ * 중단 지점은 카드에 칩으로 따로 세우지 않는다 — 원문 카드에 없고, 「· 보류 단계」 줄과 위 분류 카드가 같은 말을 한다(W11 1:1 · N-87).
+ * 그 전 단계는 서버 판정 그대로다(명시값 → 도달 기록 · `failFrom` → `revivalStage`).
  * 실패일 · 재연락 · 사유 분류 낱말은 서버가 준 것이다. 실패 시각이 없는 옛 건은 「날짜 기록 없음」이라 적고 지어내지 않는다(N-25).
  * 「내역 · 상태 저장」·「단계로 되살리기」는 같은 상세 서랍(접촉 기록 · 되살리기)을 연다. 「바로 수업 등록」은 되살리기 없이 등록 확정 창으로 간다.
  */
-function FailedLeadCard({ lead: l, selected, onPick, onEnroll, stopLabel, failFromLabel }: {
-  lead: Lead; selected: boolean; onPick: () => void; onEnroll: () => void; stopLabel: string; failFromLabel: string | null;
+function FailedLeadCard({ lead: l, selected, onPick, onEnroll, failFromLabel }: {
+  lead: Lead; selected: boolean; onPick: () => void; onEnroll: () => void; failFromLabel: string | null;
 }) {
   const last = l.touches[0];
   return (
@@ -107,7 +112,6 @@ function FailedLeadCard({ lead: l, selected, onPick, onEnroll, stopLabel, failFr
         {l.recontact ? <Chip tone={l.recontact.tone as Tone} styleKind="solid" size="compact">{l.recontact.label}</Chip> : null}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Chip tone="danger" size="compact">{stopLabel}</Chip>
         {l.reasonKindLabel ? <Chip styleKind="solid" size="compact">{l.reasonKindLabel}</Chip> : null}
         {l.reason ? <span className="text-[12px] text-fg-2">{l.reason}</span> : null}
       </div>
@@ -207,7 +211,6 @@ export default function IntakePage() {
 
   // §24 실패 지정/되살리기 초안 — 서버 판정(코드) 결과만 소비하고, 성공하면 재조회로 갈아탄다.
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [stopAt, setStopAt] = useState<StopKey | ''>('');
   const [reasonKind, setReasonKind] = useState<ReasonKindKey | ''>('');
   const [reason, setReason] = useState('');
   const [resumeTo, setResumeTo] = useState<ResumeKey | ''>('');
@@ -215,7 +218,7 @@ export default function IntakePage() {
   // 등록 확정 창 (C91 · A-05) — 열려 있는 동안만 코드표·교재를 읽는다
   const [enrolling, setEnrolling] = useState(false);
   const [enrolled, setEnrolled] = useState<string | null>(null);
-  /** 카드 단추가 연 서랍의 칸 (23-14) — 실패의 중단 지점 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계. 서랍을 닫거나 다른 건을 고르면 비운다 */
+  /** 카드 단추가 연 서랍의 칸 (23-14) — 실패의 사유 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계. 서랍을 닫거나 다른 건을 고르면 비운다 */
   const [drawerFocus, setDrawerFocus] = useState<LeadCardFocus | null>(null);
   const fail = useFailLead();
   const resume = useResumeLead();
@@ -223,7 +226,7 @@ export default function IntakePage() {
 
   const pick = (l: Lead) => {
     setSelectedId((cur) => (cur === l.id ? null : l.id));
-    setStopAt(''); setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
+    setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
     fail.reset(); resume.reset();
   };
   /** 카드 단추가 서랍을 연다 (23-14) — 이미 열린 건이면 닫지 않고 그 칸으로만 옮긴다 */
@@ -231,9 +234,22 @@ export default function IntakePage() {
     if (selectedId !== l.id) pick(l);
     setDrawerFocus(focus);
   };
-  // 서랍이 그려진 뒤 그 칸으로 초점을 옮긴다 — 실패는 중단 지점 고르기, 되살리기는 단계 고르기, 일정은 그 칸 머리
+  /*
+    서랍 할 일의 「원본」(상담 사후 관리 — 해피콜 · 월간 상담 · W11 A' · N-86) — 서버가 준 `/intake?lead=<id>` 가 그 건을 연다.
+    이 화면에 있는 채로 다른 건의 「원본」을 눌러도(주소만 바뀐다) 그 건으로 옮긴다. 형식만 거르고(url-state)
+    볼 수 있는 건인지는 서버 목록이 정한다 — 목록에 없는 번호면 아무것도 열리지 않는다.
+  */
+  const queryLeadId = positiveQueryId(useSearchParams().get('lead'));
   useEffect(() => {
-    const target = drawerFocus === 'fail' ? 'lead-stop-at' : drawerFocus === 'resume' ? 'lead-resume-to' : drawerFocus === 'appt' ? 'lead-drawer-appt' : null;
+    if (queryLeadId === null) return;
+    setSelectedId(queryLeadId);
+    setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
+    fail.reset(); resume.reset();
+    // 주소의 번호가 바뀔 때만 연다(의존은 번호 하나) — 같은 번호로 다시 그려질 때마다 닫은 서랍을 되여는 일이 없게
+  }, [queryLeadId]);
+  // 서랍이 그려진 뒤 그 칸으로 초점을 옮긴다 — 실패는 사유 분류(중단 지점은 묻지 않는다 · N-87), 되살리기는 단계 고르기, 일정은 그 칸 머리
+  useEffect(() => {
+    const target = drawerFocus === 'fail' ? 'lead-reason-kind' : drawerFocus === 'resume' ? 'lead-resume-to' : drawerFocus === 'appt' ? 'lead-drawer-appt' : null;
     if (!target || selectedId === null) return;
     const t = window.setTimeout(() => {
       const el = document.getElementById(target);
@@ -263,8 +279,8 @@ export default function IntakePage() {
   const activeStages = stages.filter((s) => s.funnel);
   const stageLabel = (key: string | null | undefined) =>
     stages.find((s) => s.key === key)?.label ?? key ?? '—';
-  const stopLabel = (key: string | null | undefined) =>
-    (head?.stops ?? []).find((t) => t.key === key)?.label ?? UNCLASSIFIED;
+  /** 실패 지정 창의 안내 — 지금 단계로 실패하면 서는 분류(서버 낱말 · 키가 단계 코드다 · N-87) */
+  const stopOfStage = (stage: string) => (head?.stops ?? []).find((t) => t.key === stage)?.label ?? null;
 
   const failed = useMemo(() => leads.filter((l) => l.stage === 'failed'), [leads]);
   const matchingFailed = useMemo(() => filterLeadsByQuery(failed, failureQuery), [failed, failureQuery]);
@@ -285,7 +301,7 @@ export default function IntakePage() {
     { key: 'st', head: '단계', width: 100, cell: (l) => <Chip tone={STAGE_TONE[l.stage] ?? 'neutral'}>{stageLabel(l.stage)}</Chip> },
     { key: 'o', head: '담당', width: 90, cell: (l) => l.ownerName ?? '미배정' },
     { key: 'c', head: '접수', width: 100, cell: (l) => l.createdAt },
-    { key: 'nx', head: '다음', width: 150, cell: (l) => l.stageDue ? `${l.stageDue.task} · ${l.stageDue.dueLabel}` : (l.nextLabel ?? '—') },
+    { key: 'nx', head: '다음', width: 150, cell: (l) => l.stageDue ? [l.stageDue.task, l.stageDue.dueLabel].filter(Boolean).join(' · ') : (l.nextLabel ?? '—') },
   ];
   const followCols: Array<Column<Lead>> = [
     { key: 'd', head: '다음 날짜', width: 110, cell: (l) => <span className="font-bold">{l.nextOn}</span> },
@@ -296,26 +312,28 @@ export default function IntakePage() {
     { key: 't', head: '최근 접촉', cell: (l) => l.touches[0] ? `${l.touches[0].kindLabel} · ${l.touches[0].note}` : '—' },
   ];
 
+  /** 실패 건을 서버가 판정한 분류로 묶는다(N-87) — 화면은 단계를 읽어 분류를 짓지 않는다 */
   const stopRows = useMemo(() => {
     const g = new Map<string, Lead[]>();
     for (const l of matchingFailed) {
-      const k = l.stopAt ?? 'unknown';
+      const k = l.failStopKey ?? STOP_UNSET;
       g.set(k, [...(g.get(k) ?? []), l]);
     }
-    return [...g.entries()]
-      .map(([k, v]) => ({ key: k, label: stopLabel(k), count: v.length, items: v }))
-      .sort((a, b) => b.count - a.count);
+    return [...g.entries()].map(([k, v]) => ({ key: k, count: v.length, items: v }));
   }, [matchingFailed]);
 
   /**
    * §24 분류 카드 (24-02) — 표 대신 「전체 + 서버의 네 분류」 카드. 묶음과 건수는 위 `stopRows` 그대로다.
-   * 네 분류는 0 건이어도 선다(분류는 어휘다 — 칩 줄과 같은 규약). 「분류 안 됨」은 그런 실패 건이 있을 때만 선다.
+   * 네 분류는 0 건이어도 선다(분류는 어휘다 — 칩 줄과 같은 규약) · 카드 아래 한 줄은 원문 설명 그대로(서버 `sub`).
+   * 「미분류」는 그런 실패 건이 있을 때만 서고, 낱말은 그 건의 서버 낱말이다(N-87 · 대응표 이관 없음).
    * 건수는 검색이 적용된 실패 건을 센다 — 검색이 이 화면의 축이다 (C86-b).
    */
   const stopCards = useMemo(() => {
     const countOf = (key: string) => stopRows.find((r) => r.key === key)?.count ?? 0;
-    const cards = (head?.stops ?? []).map((t) => ({ key: t.key, label: t.label, count: countOf(t.key) }));
-    return failed.some((l) => !l.stopAt) ? [...cards, { key: 'unknown', label: UNCLASSIFIED, count: countOf('unknown') }] : cards;
+    const cards: Array<{ key: string; label: string; sub?: string; count: number }> =
+      (head?.stops ?? []).map((t) => ({ key: t.key, label: t.label, sub: t.sub, count: countOf(t.key) }));
+    const unset = failed.find((l) => (l.failStopKey ?? STOP_UNSET) === STOP_UNSET);
+    return unset ? [...cards, { key: STOP_UNSET, label: unset.failStopLabel ?? '—', count: countOf(STOP_UNSET) }] : cards;
   }, [stopRows, head?.stops, failed]);
   /** 고른 분류가 사라졌으면(재조회) 「전체」로 읽는다 — 빈 목록을 남기지 않는다 */
   const activeStop = stopCards.some((c) => c.key === stopFilter) ? stopFilter : '';
@@ -476,10 +494,18 @@ export default function IntakePage() {
                   </span>
                   <IntakeChannelBadge source={l.source} label={l.sourceLabel} />
                 </div>
-                <div className="mt-0.5 text-[10.5px] text-fg-subtle">{[l.school, l.ownerName ?? '미배정'].filter(Boolean).join(' · ')}</div>
+                {/* 학교 · 담당 — 학교를 모르면 「—」 자리를 남긴다(원본 §23 등록 카드 「— · 김민선」 · W11 1:1) */}
+                <div className="mt-0.5 text-[10.5px] text-fg-subtle">{`${l.school || '—'} · ${l.ownerName ?? '미배정'}`}</div>
                 {/* 카드 한 줄 메모 (23-11) — 실패 건은 사유(기울임), 그 밖은 배치안. 1차의 「원하는 것」은 접촉 원장 글이라(연락처가 섞일 수 있다) 카드에 올리지 않는다 */}
                 {l.stage === 'failed' && l.reason ? (
                   <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] italic text-fg-2">{l.reason}</p>
+                ) : null}
+                {/* 실패 카드의 「상태」 한 줄 — 원본 §23 「상태 · 재연락 완료 · 09-18」. 낱말 · 날짜는 서버의 재연락 판정 그대로(24-06 과 같은 값 · W11 1:1) */}
+                {l.stage === 'failed' && l.recontact ? (
+                  <div className="mt-1 flex items-center gap-2 rounded bg-inset px-1.5 py-0.5 text-[10px] text-fg-2">
+                    <span className="w-9 shrink-0 font-bold">상태</span>
+                    <span className="min-w-0 grow truncate">{l.recontact.label}{l.recontact.on ? ` · ${l.recontact.on.slice(5)}` : ''}</span>
+                  </div>
                 ) : null}
                 {/* 배치안 한 줄 (23-16) — 원본 「SAT Reading 주2 · Rebecca」. 낱말은 서버의 줄 label 을 잇는다 */}
                 {l.stage !== 'failed' && l.stage !== 'enrolled' && l.plan?.length ? (
@@ -504,8 +530,8 @@ export default function IntakePage() {
                     ))}
                   </ul>
                 ) : null}
-                {/* 등록 카드의 사후 관리 줄 (23-18) — 원본 §23 「청구서 없음 · 교재 없음 · 안내 없음」. 그 학생의 원장을 서버가 읽어 낱말까지 준다.
-                    됨은 초록 · 아직은 회색. 해피콜 · 월간 상담 줄은 적을 원장·규칙이 없어 서버가 싣지 않는다(지어내지 않는다) */}
+                {/* 등록 카드의 사후 관리 줄 (23-18) — 원본 §23 「해피콜 완료 08-15 · 월간 완료 · 청구서 없음 · 교재 없음 · 안내 없음」. 낱말까지 서버가 준다.
+                    됨은 초록 · 아직은 회색. 해피콜 · 월간은 등록 확정이 만든 담당의 할 일을 읽는다(W11 · N-86 — 할 일을 끝내면 「완료」) */}
                 {l.aftercare?.length ? (
                   <ul aria-label={`${l.name} 사후 관리`} className="mt-1 flex flex-col gap-0.5">
                     {l.aftercare.map((a) => (
@@ -524,13 +550,12 @@ export default function IntakePage() {
                 {l.stageDue ? (
                   <div className={cn('mt-1.5 flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[10.5px] font-bold', DUE_BAND[l.stageDue.tone] ?? DUE_BAND.neutral)}>
                     <span className="min-w-0 truncate" title={l.stageDue.task}>{l.stageDue.task}</span>
-                    <span className="shrink-0">{l.stageDue.dueLabel}</span>
+                    {l.stageDue.dueLabel ? <span className="shrink-0">{l.stageDue.dueLabel}</span> : null}
                   </div>
                 ) : null}
+                {/* 재촉 칩 — 실패 건에는 서버가 싣지 않는다. 실패 카드에 중단 지점 칩은 원문에 없다(§24 분류 카드가 말한다 · W11 1:1) */}
                 <div className="mt-1.5 flex items-center justify-end gap-1">
-                  {l.stopAt ? <Chip tone="danger">{stopLabel(l.stopAt)}</Chip>
-                    : l.nextLabel ? <Chip tone={(l.nextTone as 'danger' | 'warning' | 'info' | null) ?? 'neutral'} size="compact">{l.nextLabel}</Chip>
-                    : null}
+                  {l.nextLabel ? <Chip tone={(l.nextTone as 'danger' | 'warning' | 'info' | null) ?? 'neutral'} size="compact">{l.nextLabel}</Chip> : null}
                 </div>
                 {/* 최신 진단 한 줄 (DQ1) — 영어·수학·인터뷰 차례 · 레벨은 담당자가 고른 값이 있을 때만 */}
                 {l.latestDiag ? (
@@ -560,7 +585,6 @@ export default function IntakePage() {
                 <div role="group" aria-label="중단 지점으로 거르기" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   {[{ key: '', label: '전체', count: matchingFailed.length }, ...stopCards].map((c) => {
                     const on = activeStop === c.key;
-                    const share = matchingFailed.length ? Math.round((c.count / matchingFailed.length) * 100) : 0;
                     return (
                       <button
                         key={c.key || 'all'}
@@ -571,7 +595,7 @@ export default function IntakePage() {
                         className={cn('rounded-xl text-left', on ? 'ring-2 ring-primary ring-offset-1 ring-offset-bg' : '')}
                       >
                         <StatCard label={c.label} value={c.count} tone={c.key === '' ? 'neutral' : 'danger'}
-                          note={c.key === '' ? '실패한 상담' : `비중 ${share}%`} className={on ? 'bg-inset' : undefined} />
+                          note={'sub' in c ? c.sub : undefined} className={on ? 'bg-inset' : undefined} />
                       </button>
                     );
                   })}
@@ -590,7 +614,7 @@ export default function IntakePage() {
                           {shownFailed.map((l) => (
                             <li key={l.id}>
                               <FailedLeadCard lead={l} selected={selectedId === l.id} onPick={() => pick(l)} onEnroll={() => enrollNow(l)}
-                                stopLabel={stopLabel(l.stopAt)} failFromLabel={l.failFrom ? stageLabel(l.failFrom) : null} />
+                                failFromLabel={(l.failFrom ?? l.revivalStage) ? stageLabel(l.failFrom ?? l.revivalStage) : null} />
                             </li>
                           ))}
                         </ul>
@@ -695,8 +719,10 @@ export default function IntakePage() {
             ) : selected.stage === 'failed' ? (
               <div className="flex flex-col gap-3">
                 <p className="text-[12.5px] text-fg-2">
-                  중단 지점 <b>{stopLabel(selected.stopAt)}</b>
+                  중단 지점 <b>{selected.failStopLabel ?? '—'}</b>
                   {selected.reason ? <> · 사유 「{selected.reason}」</> : null}
+                  {/* 옛 중단 지점 — 대응표로 옮기지 않은 예전 기록을 그대로 읽는다(N-87 · 읽기 전용) */}
+                  {selected.stopAtLabel ? <span className="text-fg-subtle"> · 예전 기록 「{selected.stopAtLabel}」</span> : null}
                 </p>
                 {selected.revivalStage ? (
                   <Banner tone="info">
@@ -744,15 +770,7 @@ export default function IntakePage() {
                   <span className="text-[11px] text-fg-subtle">배치안을 적고 미리 본 뒤 — 학생 · 등록 · 시간표 · 첫 달 청구서 · 교재 · 안내 초안 · 알림이 한 번에 만들어집니다</span>
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
-                  <div className="w-52">
-                    <Label htmlFor="lead-stop-at">중단 지점 (필수)</Label>
-                    <Select id="lead-stop-at" value={stopAt}
-                      onChange={(e) => { setStopAt(e.target.value as StopKey | ''); setArmed(null); }}>
-                      <option value="">지점 선택</option>
-                      {(head?.stops ?? []).map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-                    </Select>
-                  </div>
-                  {/* 사유 분류 다섯 (24-05) — 낱말은 서버의 failReasons. 비우면 기존 분류 유지 */}
+                  {/* 사유 분류 다섯 (24-05) — 낱말은 서버의 failReasons. 비우면 기존 분류 유지. 중단 지점은 묻지 않는다(지금 단계에서 서버가 판정 · N-87) */}
                   <div className="w-44">
                     <Label htmlFor="lead-reason-kind">사유 분류</Label>
                     <Select id="lead-reason-kind" value={reasonKind} onChange={(e) => setReasonKind(e.target.value as ReasonKindKey | '')}>
@@ -770,12 +788,11 @@ export default function IntakePage() {
                   <Button
                     size="sm"
                     variant={armed === 'fail' ? 'danger' : 'secondary'}
-                    disabled={fail.isPending || !stopAt}
-                    title={!stopAt ? '중단 지점을 먼저 고릅니다' : undefined}
+                    disabled={fail.isPending}
                     onClick={() => {
-                      if (armed === 'fail' && stopAt) {
+                      if (armed === 'fail') {
                         fail.mutate(
-                          { id: selected.id, stopAt, ...(reasonKind ? { reasonKind } : {}), ...(reason.trim() ? { reason: reason.trim() } : {}) },
+                          { id: selected.id, ...(reasonKind ? { reasonKind } : {}), ...(reason.trim() ? { reason: reason.trim() } : {}) },
                           { onSettled: () => setArmed(null) },
                         );
                       } else setArmed('fail');
@@ -783,9 +800,9 @@ export default function IntakePage() {
                   >
                     {armed === 'fail' ? '한 번 더 누르면 실패 확정' : '실패로 분류'}
                   </Button>
-                  {/* 서버가 실패 순간의 단계를 lead.fail_from 에 남긴다 — 사람에게는 필드명 대신 그 뜻을 적는다 (23-20) */}
+                  {/* 서버가 실패 순간의 단계를 lead.fail_from 에 남기고 그 단계가 곧 중단 지점이다(N-87) — 사람에게는 필드명 대신 그 뜻을 적는다 (23-20) */}
                   <span className="text-[11px] text-fg-subtle">
-                    지금 단계 「{stageLabel(selected.stage)}」 — 실패로 분류해도 기록에 남아 되살릴 때 그 단계로 돌아갑니다.
+                    지금 단계 「{stageLabel(selected.stage)}」{stopOfStage(selected.stage) ? ` — 「${stopOfStage(selected.stage)}」으로 분류되고` : ' —'} 되살릴 때 이 단계로 돌아갑니다.
                   </span>
                 </div>
                 {fail.isError ? <Banner tone="danger">{apiMessage(fail.error)}</Banner> : null}
@@ -800,7 +817,7 @@ export default function IntakePage() {
           open={enrolling}
           lead={selected}
           onClose={() => setEnrolling(false)}
-          onDone={(r) => setEnrolled(`${r.studentName} 등록 확정 — 수업 ${r.series.length}개${r.series[0]?.firstLessonOn ? ` · 첫 수업 ${r.series[0].firstLessonOn}` : ''}${r.invoice ? ` · 청구서 ${r.invoice.yearMonth}` : ''} · 안내 초안 ${r.guideDrafts}건`)}
+          onDone={(r) => setEnrolled(`${r.studentName} 등록 확정 — 수업 ${r.series.length}개${r.series[0]?.firstLessonOn ? ` · 첫 수업 ${r.series[0].firstLessonOn}` : ''}${r.invoice ? ` · 청구서 ${r.invoice.yearMonth}` : ''} · 안내 초안 ${r.guideDrafts}건${r.aftercare?.happyCallOn ? ` · 해피콜 ${r.aftercare.happyCallOn}` : ''}${r.aftercare?.monthlyOn ? ` · 첫 월간 상담 ${r.aftercare.monthlyOn}` : ''}`)}
         />
       ) : null}
     </AppShell></RequireAuth>

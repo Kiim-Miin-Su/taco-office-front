@@ -100,9 +100,37 @@ it('답은 **가장 나중 코멘트**에 붙는다 — 옛 코멘트에 붙으�
   }));
 });
 
+/* ── W11 · N-29 ③ 보류 — 담당 답의 한 종류 ─────────────────────────── */
+
+it('「보류」는 담당 답의 한 종류 — 가장 나중 코멘트에 kind hold 로 붙는다 · 바닥 단추 줄은 원문 셋(URL · 고친 것 알리기 · 보류)', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: [] });
+  const view = setup([needsFix]);
+  expect(view.getAllByRole('button').map((b) => b.textContent)).toEqual(expect.arrayContaining(['URL', '고친 것 알리기', '보류']));
+  fireEvent.click(view.getByRole('button', { name: '보류' }));
+  fireEvent.change(view.getByLabelText(/^보류/), { target: { value: '다음 주 개편 때 함께 고치겠습니다' } });
+  fireEvent.click(view.getByRole('button', { name: '보류하기' }));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/marketing/1/replies', {
+    parentId: 7, body: '다음 주 개편 때 함께 고치겠습니다', kind: 'hold',
+  }));
+});
+
+it('보류한 카드 — 칩은 「확인 필요」 그대로(셋째 칩 없음) · 보류 글은 「보류」 칩 · 보류 단추는 다시 서지 않고 「고친 것 알리기」는 남는다', () => {
+  const held: MfbThread = {
+    ...needsFix, held: true,
+    posts: [...needsFix.posts, { id: 8, kind: 'hold', kindLabel: '보류', body: '다음 주에 고치겠습니다', byId: 2, byName: '담당', at: '2026-08-21T09:00:00+09:00' }],
+  };
+  const view = setup([held]);
+  expect(view.getByText('확인 필요')).toBeTruthy();
+  expect(view.getByLabelText('보류').textContent).toContain('다음 주에 고치겠습니다');
+  expect(view.queryByText('아직 답이 없습니다')).toBeNull();
+  expect(view.queryByRole('button', { name: '보류' })).toBeNull();
+  expect(view.getByRole('button', { name: '고친 것 알리기' })).toBeTruthy();
+});
+
 it('담당자가 아니면 답 단추가 없다 — canReply 는 서버가 정한다', () => {
   const view = setup([{ ...needsFix, canReply: false }]);
   expect(view.queryByRole('button', { name: '고친 것 알리기' })).toBeNull();
+  expect(view.queryByRole('button', { name: '보류' })).toBeNull();
   expect(view.getByRole('button', { name: 'URL' })).toBeTruthy();
 });
 

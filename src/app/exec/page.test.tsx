@@ -11,6 +11,7 @@ import { api } from '@/api/client';
 import type { Exec, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import ExecPage from './page';
+import { MASKED } from '@/lib/money';
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), search: '' }));
 vi.mock('next/navigation', () => ({
@@ -38,7 +39,7 @@ const it8 = (n: number): Item[] => Array.from({ length: n }, (_, i) => (
  * 원본 §69(2026-08-21) 컷의 카드 여섯 — 문장과 타일은 서버가 짓는다(여기서는 응답 모양 그대로 둔다).
  * 펼칠 줄 머리(`itemsLabel`)도 컷 글자 그대로다 — 마케팅은 0 건이라 줄이 없고, 수업은 배지 17 · 줄 8건(N-67).
  */
-const areas: Area[] = [
+const areas: Area[] = ([
   { key: 'money', label: '회계', review: '납부 기한이 지난 청구서 수', count: 2, go: '/accounting',
     headline: '못 받은 돈 ₩8,550,000 · 그중 2건은 기한이 지났습니다',
     tiles: [t('in', '오늘 입금', 0, '원', '0건'), t('unpaid', '못 받은 돈', 8_550_000, '원', '5건', true), t('overdue', '기한 지남', 2, '건', '₩3,000,000', true)],
@@ -73,7 +74,8 @@ const areas: Area[] = [
     headline: '수업 20건 중 17건 준비 덜 됨',
     tiles: [t('lessons', '오늘 수업', 20, '건', '휴강 없음'), t('missing', '준비 안 됨', 17, '건', '교재 · 안내 · 줌', true)],
     itemsLabel: '준비가 덜 된 수업 8건', items: it8(8) },
-];
+  // 영역 담당은 처음엔 비어 있다 — 이름을 지어 넣지 않는다 (W11 · N-81)
+] satisfies Array<Omit<Area, 'ownerId' | 'ownerName' | 'canSetOwner'>>).map((a) => ({ ...a, ownerId: null, ownerName: null, canSetOwner: false }));
 
 type Head = Exec['head'][number];
 const h = (key: string, label: string, value: number | null, unit: string, money: boolean, o: { total?: number; note?: string } = {}): Head =>
@@ -244,13 +246,13 @@ it('주간 머리 셋은 지난주와 견준 낱말을 값 아래에 적는다 �
   }
 });
 
-it('타일 값이 null 이면 「가려짐」이다 — 서버가 금액을 안 준 것이지 0 원이 아니다 (D-R39)', async () => {
+it('타일 값이 null 이면 숨긴 금액 낱말(「비공개」)이다 — 서버가 금액을 안 준 것이지 ₩0 이 아니다 (D-R39)', async () => {
   const masked = areas.map((a) => (a.key === 'money'
     ? { ...a, headline: '못 받은 돈 5건 · 그중 2건은 기한이 지났습니다', tiles: a.tiles.map((x) => (x.unit === '원' ? { ...x, value: null } : x)) }
     : a));
   const view = setupWrite({ areas: masked, canSeeAmounts: false });
   const money = await view.findByRole('region', { name: '회계' });
-  expect(money.textContent).toContain('오늘 입금가려짐');
+  expect(money.textContent).toContain(`오늘 입금${MASKED}`);
   expect(money.textContent).not.toContain('₩8,550,000');
 });
 
@@ -348,11 +350,11 @@ it('하나도 안 적으면 올릴 수 없다 (D-R14) — 숫자는 이 화면�
 it('이미 올린 보고는 저장·올리기·메모 칸이 모두 닫히고 서버가 준 이유를 말한다 (S5)', async () => {
   const locked: Partial<Exec> = {
     reports: [{
-      id: 9, rptType: 'day', onDate: '2026-08-21', state: 'sent', memo: '',
+      id: 9, rptType: 'day', onDate: '2026-08-21', state: 'sent',
       memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
       filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
       sentByName: '김민수', reviewedByName: null, canReview: false,
-      canWriteMemo: false, writeBlockedReason: '이미 올린 보고는 고칠 수 없습니다. 반려된 뒤에 다시 적어 주세요',
+      canWriteMemo: false, writeBlockedReason: '이미 올린 보고는 고칠 수 없습니다. 반려된 뒤에 다시 적어 주세요', canWithdraw: false,
     }],
   };
   const view = setupWrite(locked);
@@ -393,10 +395,11 @@ it('올리기는 적은 것을 **먼저 저장하고** 올린다 — 화면의 �
 it('결재 단추는 서버가 준 canReview 하나로 선다 (§73)', async () => {
   const report = (canReview: boolean): Partial<Exec> => ({
     reports: [{
-      id: 7, rptType: 'day', onDate: '2026-08-21', state: 'sent', memo: '',
+      id: 7, rptType: 'day', onDate: '2026-08-21', state: 'sent',
       memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
       filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
       sentByName: '김민수', reviewedByName: null, canReview, canWriteMemo: false, writeBlockedReason: '이미 올린 보고는 고칠 수 없습니다. 반려된 뒤에 다시 적어 주세요',
+      canWithdraw: false,
     }],
   });
   const ceo = setupWrite(report(true));
@@ -435,11 +438,13 @@ it('월간 판은 서버가 준 줄만 세우고 머리의 수와 줄들의 합�
       leads: 15,
       lost: 6,
       funnel: [], funnelSince: null,
+      // W11 · N-87 — 실패 당시 단계 넷(깔때기 차례) + 판정 없는 옛 건 「미분류」. 키 · 낱말은 서버 `intakeFailStop` 그대로
       lostRows: [
-        { key: 'before_book', label: '상담 예약 전 이탈', count: 1 },
-        { key: 'after_first', label: '1차 후 미진행', count: 2 },
-        { key: 'after_second', label: '2차 후 미등록', count: 2 },
-        { key: 'none', label: '분류 안 됨', count: 1 },
+        { key: 'first', label: '1차 상담 중단', count: 2 },
+        { key: 'wait2nd', label: '2차 안 옴', count: 1 },
+        { key: 'second', label: '2차 상담 중단', count: 1 },
+        { key: 'hold', label: '보류 후 무산', count: 1 },
+        { key: 'none', label: '미분류', count: 1 },
       ],
     },
   });
@@ -447,8 +452,8 @@ it('월간 판은 서버가 준 줄만 세우고 머리의 수와 줄들의 합�
   const text = view.container.textContent ?? '';
   // 머리 한 줄은 원본 §71 그대로 「등록 실패 N건」 (71-6)
   expect(text).toContain('등록 실패 6건');
-  // 분류 안 된 실패도 제 줄로 선다 — 이 줄을 빼면 머리의 6 과 줄들의 합이 갈린다 (N-25)
-  for (const w of ['상담 예약 전 이탈', '1차 후 미진행', '2차 후 미등록', '분류 안 됨']) {
+  // 판정 없는 실패도 「미분류」 제 줄로 선다 — 이 줄을 빼면 머리의 6 과 줄들의 합이 갈린다 (N-25 · N-19)
+  for (const w of ['1차 상담 중단', '2차 안 옴', '2차 상담 중단', '보류 후 무산', '미분류']) {
     expect(text).toContain(w);
   }
 });
@@ -496,7 +501,7 @@ it('도달 기록이 아직 없으면 퍼널 부제가 그 사실을 말한다 �
   expect(view.container.textContent).toContain('도달 기록이 아직 없습니다 — 지금 단계로만 셉니다');
 });
 
-/* ══ 머리 돈 칸 — 「가려짐」은 권한일 때만 · 강사료·이익은 월간 머리에만 (69-14 · 69-15 · 71-1) ══ */
+/* ══ 머리 돈 칸 — 숨긴 금액 낱말은 권한일 때만 · 강사료·이익은 월간 머리에만 (69-14 · 69-15 · 71-1) ══ */
 
 const monthHead: Head[] = [
   h('revenue', '매출 (입금)', 0, '원', true), h('payout', '강사료', 168_000, '원', true),
@@ -514,26 +519,30 @@ const headCard = (view: ReturnType<typeof render>, title: string, label: string)
   return el ? (el.nextElementSibling?.textContent ?? '') : null;
 };
 
-it('월간 머리 넷은 돈이고 이익률은 「이익」의 부제다 — 적자는 원본 모양 「₩-168,000」 (71-1)', async () => {
+/*
+ * 71-1 — 원문 §71 컷은 계산된 적자를 「₩-7,674,692」(하이픈이 ₩ 뒤)로 적지만, 같은 원문 §56 컷이 사람이 적은 차감을
+ * 「−₩95,000」(빼기 기호가 ₩ 앞)으로 적는다. 금액 모양은 `lib/money` 한 곳이라(N-92) 음수도 한 모양 — 부호가 맨 앞이다.
+ */
+it('월간 머리 넷은 돈이고 이익률은 「이익」의 부제다 — 적자는 부호가 맨 앞 「−₩168,000」 (71-1 · N-92)', async () => {
   const view = setupWrite({ ...monthSeed, head: monthHead.map((x) => (x.key === 'profit' ? { ...x, note: '-50%' } : x)) });
   await waitFor(() => expect(headCard(view, '월간 업무 보고', '이익')).not.toBeNull());
   expect(headCard(view, '월간 업무 보고', '매출 (입금)')).toBe('₩0');
-  expect(headCard(view, '월간 업무 보고', '이익')).toBe('₩-168,000');
+  expect(headCard(view, '월간 업무 보고', '이익')).toBe('−₩168,000');
   expect(view.getByRole('region', { name: '월간 업무 보고' }).textContent).toContain('-50%');
 });
 
-it('금액을 볼 수 있는데 값이 없으면 「—」다 — 「가려짐」은 권한이 없을 때만이다 (69-14)', async () => {
+it('금액을 볼 수 있는데 값이 없으면 「—」다 — 숨긴 금액 낱말은 권한이 없을 때만이다 (69-14)', async () => {
   const view = setupWrite({ ...monthSeed, head: monthHead.map((x) => (x.key === 'payout' ? { ...x, value: null } : x)), canSeeAmounts: true });
   await waitFor(() => expect(headCard(view, '월간 업무 보고', '강사료')).not.toBeNull());
   expect(headCard(view, '월간 업무 보고', '강사료')).toBe('—');
-  expect(view.getByRole('region', { name: '월간 업무 보고' }).textContent).not.toContain('가려짐');
+  expect(view.getByRole('region', { name: '월간 업무 보고' }).textContent).not.toContain(MASKED);
 });
 
-it('권한이 없어 서버가 금액을 안 주면 그때만 「가려짐」이다', async () => {
+it('권한이 없어 서버가 금액을 안 주면 그때만 숨긴 금액 낱말(「비공개」)이다', async () => {
   const view = setupWrite({ ...monthSeed, head: monthHead.map((x) => ({ ...x, value: null })), canSeeAmounts: false });
   await waitFor(() => expect(headCard(view, '월간 업무 보고', '매출 (입금)')).not.toBeNull());
-  expect(headCard(view, '월간 업무 보고', '매출 (입금)')).toBe('가려짐');
-  expect(headCard(view, '월간 업무 보고', '이익')).toBe('가려짐');
+  expect(headCard(view, '월간 업무 보고', '매출 (입금)')).toBe(MASKED);
+  expect(headCard(view, '월간 업무 보고', '이익')).toBe(MASKED);
 });
 
 it('일·주 머리에는 강사료·이익이 없다 — 칸을 정하는 것은 서버다 (69-15)', async () => {
@@ -571,4 +580,65 @@ it('사용자 문구에 결정 코드·절 번호를 적지 않는다', async ()
   expect(visible).not.toMatch(/D-R\d|N-\d|§\s?\d/);
   fireEvent.click(view.getByRole('tab', { name: /결재함/ }));
   expect(view.container.textContent ?? '').not.toMatch(/D-R\d|N-\d|§\s?\d/);
+});
+
+/* ══ W11 — §73 회수(N-97) · §69 영역 담당(N-81) ══════════════════════════════ */
+
+it('올린 사람에게만 「회수」가 선다 — 서버의 canWithdraw 하나로 · 누르면 그 보고를 되돌리는 경로를 부른다 (N-97)', async () => {
+  const sent = (canWithdraw: boolean): Partial<Exec> => ({
+    reports: [{
+      id: 9, rptType: 'day', onDate: '2026-08-21', state: 'sent',
+      memos: data.areas.map((a) => ({ key: a.key as 'money', memo: a.key === 'money' ? '한 줄' : '' })),
+      filled: 1, sentAt: null, reviewedAt: null, rejectReason: null,
+      sentByName: '대표', reviewedByName: null, canReview: false,
+      canWriteMemo: false, writeBlockedReason: '이미 올린 보고는 고칠 수 없습니다. 반려된 뒤에 다시 적어 주세요', canWithdraw,
+    }],
+  });
+  const view = setupWrite(sent(true));
+  const back = await waitFor(() => view.getByRole('button', { name: '회수' }));
+  fireEvent.click(back);
+  await waitFor(() => expect(view.calls).toEqual([{ method: 'post', url: '/exec/report/9/withdraw', body: null }]));
+  cleanup();
+
+  // 남이 올린 보고 · 이미 결재된 보고 — 서버가 false 를 주면 단추가 없다
+  const other = setupWrite(sent(false));
+  await waitFor(() => expect(other.getByRole('textbox', { name: '회계 메모' })).toBeTruthy());
+  expect(other.queryByRole('button', { name: '회수' })).toBeNull();
+});
+
+it('영역 담당 이름은 메모 칸 위에 서고, 비어 있으면 「담당 없음」 — 이름을 지어 넣지 않는다 (N-81)', async () => {
+  const view = setupWrite({ areas: data.areas.map((a) => (a.key === 'money' ? { ...a, ownerId: 7, ownerName: 'Grace' } : a)) });
+  const money = await waitFor(() => view.getByRole('region', { name: '회계' }));
+  expect(within(money).getByText('Grace').tagName).toBe('B');
+  expect(within(view.getByRole('region', { name: '마케팅' })).getByText('담당 없음')).toBeTruthy();
+  // 바꿀 수 있는지는 서버의 canSetOwner — 거짓이면 「바꾸기」가 없다
+  expect(within(money).queryByRole('button', { name: '회계 담당 바꾸기' })).toBeNull();
+});
+
+it('대표는 영역 담당을 고른다 — 「바꾸기」 → 고르기 칸 → 그 영역 하나의 담당만 보낸다 (N-81)', async () => {
+  const calls: Array<{ method: string; url: string; body: unknown }> = [];
+  useSession.getState().signIn('fixture', me);
+  const areasCeo = data.areas.map((a) => ({ ...a, canSetOwner: true }));
+  api.defaults.adapter = vi.fn(async (config) => {
+    const method = (config.method ?? 'get').toLowerCase();
+    if (method !== 'get') {
+      calls.push({ method, url: config.url ?? '', body: config.data ? JSON.parse(String(config.data)) : null });
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { key: 'money', ownerId: 8, ownerName: '김범준' } };
+    }
+    const body = config.url === '/meta' ? { staff: [{ id: 7, name: '홍지승' }, { id: 8, name: '김범준' }] } : { ...data, areas: areasCeo };
+    return { config, status: 200, statusText: 'OK', headers: {}, data: body };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><ExecPage /></QueryClientProvider>);
+
+  const money = await waitFor(() => view.getByRole('region', { name: '회계' }));
+  fireEvent.click(within(money).getByRole('button', { name: '회계 담당 바꾸기' }));
+  const pick = await waitFor(() => {
+    const el = within(money).getByRole('combobox', { name: '회계 담당' }) as HTMLSelectElement;
+    if (el.options.length < 3) throw new Error('고를 사람이 아직 없다');
+    return el;
+  });
+  fireEvent.change(pick, { target: { value: '8' } });
+  await waitFor(() => expect(calls).toEqual([{ method: 'put', url: '/exec/areas/money/owner', body: { staffId: 8 } }]));
 });

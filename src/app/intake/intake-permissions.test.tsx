@@ -19,7 +19,7 @@ import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
 const nav = vi.hoisted(() => ({ path: '/intake', replace: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace, push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ usePathname: () => nav.path, useRouter: () => ({ replace: nav.replace, push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 // 셸의 서랍/메타 요청만 제외한다. 메뉴·RouteAccess·RequireAuth·IntakePage·useOps는 실제 구현이다.
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 

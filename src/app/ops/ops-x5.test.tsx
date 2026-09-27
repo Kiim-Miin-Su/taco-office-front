@@ -167,7 +167,7 @@ describe('§61 · §62 · §63 · §64 · §67', () => {
     const today = todayKst();
     const view = setup(ops({
       todos: [{ id: 1, title: '교재 2권 미리 준비', toId: 7, toName: 'Hoon', fromName: '김민선', dueOn: today,
-        done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0 }],
+        done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0, lesson: null, go: null }],
       todoOwnerCounts: [{ key: '7', label: 'Hoon', count: 1 }],
     }));
     const group = await waitFor(() => {

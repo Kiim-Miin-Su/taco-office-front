@@ -33,19 +33,24 @@
  * 큰 제목은 제목 **글**이지 제목 **요소**가 아니다 — 창의 제목(heading)이 이미 같은 글을 갖는다.
  * **w5 · 65-4 「+ 대표 지시」** — 과제 하나를 더한다. 창은 서랍·운영 할 일과 **같은 창**(`TodoCreateDialog`)이고
  * 서는지와 막힌 이유는 서버의 `canAddTask`·`addTaskBlockedReason` 이다 (D-R39).
+ *
+ * **W11** — ① 기한 결정은 **대표가 본 날짜**를 함께 보낸다(PB-12-2 · 그 사이 옮겨졌으면 서버가 409 로 새 날짜를 말한다).
+ * ② 반려된 기한은 사라지지 않고 「기한 반려 날짜 · 누가」로 남고, 담당이 새 기한을 내면 비워진다(N-95).
+ * ③ 공개 범위(전체 공개 · 지정 공개)와 지정된 사람을 머리에 적고, 바꿀 수 있는 사람(`canEditShare`)에게만 고르는 칸이 선다(N-72).
+ *    낱말은 운영 화면이 준 서버 낱말(`planShares`)이다 — 화면이 이름표를 들지 않는다 (D-R18).
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { Banner, Button, Checkbox, Chip, Label, Textarea } from '../ui';
+import { Banner, Button, Checkbox, Chip, Input, Label, Segmented, Textarea } from '../ui';
 import { WideDialog } from '../ui/WideDialog';
 import { TodoCreateDialog, type TodoPerson } from '../drawer/TodoCreateDialog';
 import { apiMessage } from '@/api/client';
 import {
-  useDecidePlanDue, useDrawerWrite, useMovePlanStage, usePatchPlan, usePlanDetail, useReviewPlan,
+  useAddPlanTask, useDecidePlanDue, useDrawerWrite, useMovePlanStage, usePatchPlan, usePlanDetail, useReviewPlan,
 } from '@/api/queries';
-import { useAddPlanTask } from './ops-queries';
 import { useSession } from '@/store/useSession';
-import type { PlanDetail, PlanPatch, PlanTask } from '@/api/types';
+import { objectParticle } from '@/lib/calendar';
+import type { PlanDetail, PlanPatch, PlanShareWord, PlanTask } from '@/api/types';
 
 /** 화면이 들고 있는 초안 — 서버가 준 글에서 시작하고, 달라진 칸만 보낸다 */
 type Draft = { goal: string; research: string; ask: string };
@@ -60,6 +65,11 @@ function changed(draft: Draft, d: PlanDetail): PlanPatch {
   if (draft.ask !== (d.ask ?? '')) body.ask = draft.ask.trim() || null;
   return body;
 }
+
+/** 기한 상태 칩 색 — 승인 초록 · 제안 주황 · 반려 빨강(원문 §61 「기한 반려」 칩 · N-95) */
+const DUE_STATE_TONE: Record<string, 'success' | 'warning' | 'danger'> = {
+  approved: 'success', proposed: 'warning', rejected: 'danger',
+};
 
 /** 단계 색 — 원문 §61 칸 색 그대로(작성 중 회색 · 검토 요청 주황 · 보완 요청 빨강 · 승인 파랑 · 완료 초록 · w5 61-7) */
 const STAGE_TONE: Record<string, 'neutral' | 'info' | 'danger' | 'success' | 'warning'> = {
@@ -90,7 +100,68 @@ function PlanField({ label, value, can, rows, onChange }: {
   }
   return (
     <Textarea aria-label={label} rows={rows} maxLength={4000} value={value}
-      onChange={(e) => onChange(e.target.value)} placeholder={`${label}을(를) 적습니다`} />
+      // 조사는 낱말 끝소리로 고른다 — 「리서치을(를)」처럼 둘 다 적지 않는다(W11 실브라우저 QA · C99 와 같은 lib/calendar.objectParticle)
+      onChange={(e) => onChange(e.target.value)} placeholder={`${label}${objectParticle(label)} 적습니다`} />
+  );
+}
+
+/**
+ * 새 기한 내기 (N-95) — 기한이 없거나 반려된 기획에서 담당이 다시 낸다. 내면 반려 표시는 서버가 비우고
+ * 다시 「기한 제안」이 된다. 쓰기는 본문 고치기와 같은 PATCH(`dueOn`)다 — 새 경로를 만들지 않는다.
+ */
+function DueProposal({ busy, onPropose }: { busy: boolean; onPropose: (dueOn: string) => void }) {
+  const [value, setValue] = useState('');
+  return (
+    <span className="ml-auto flex items-center gap-1">
+      {/* 너비는 감싼 칸이 정한다 — 공용 Input 은 늘 w-full 이라 className 너비가 이기지 못한다 (CODEX §5-18) */}
+      <span className="w-40">
+        <Input type="date" aria-label="새 기한" value={value} disabled={busy}
+          onChange={(e) => setValue(e.target.value)} />
+      </span>
+      <Button size="sm" variant="primary" disabled={busy || !value} onClick={() => onPropose(value)}>새 기한 내기</Button>
+    </span>
+  );
+}
+
+/**
+ * 공개 범위 고르기 (N-72) — 두 값과 지정된 사람. 지정 공개가 아니면 사람을 보내지 않는다(서버가 409 로 막는다).
+ * 담당 · 결재권자는 지정하지 않아도 늘 본다 — 고르는 것은 **그 밖에** 볼 사람이다.
+ */
+function ShareEditor({ detail, words, people, busy, onSave, onCancel }: {
+  detail: PlanDetail;
+  words: readonly PlanShareWord[];
+  people: readonly TodoPerson[];
+  busy: boolean;
+  onSave: (body: PlanPatch) => void;
+  onCancel: () => void;
+}) {
+  const [share, setShare] = useState<PlanShareWord['key'] | ''>(detail.share ?? '');
+  const [picks, setPicks] = useState<number[]>(detail.pickIds);
+  const toggle = (id: number, on: boolean) => setPicks((prev) => (on ? [...prev, id] : prev.filter((v) => v !== id)));
+  return (
+    <div className="mt-2 rounded-lg border border-line bg-bg-2 p-3">
+      <Segmented ariaLabel="공개 범위" value={share} disabled={busy}
+        options={words.map((w) => ({ value: w.key, label: w.label }))} onChange={setShare} />
+      {share === 'picked' ? (
+        <fieldset className="mt-2">
+          <legend className="text-[11px] text-fg-subtle">볼 사람 — 담당과 결재권자는 늘 봅니다</legend>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            {people.map((p) => (
+              <label key={p.id} className="flex items-center gap-1 text-[12px]">
+                <Checkbox checked={picks.includes(p.id)} disabled={busy}
+                  onChange={(e) => toggle(p.id, e.currentTarget.checked)} aria-label={`${p.name} 지정`} />
+                {p.name}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+      <div className="mt-2 flex justify-end gap-1">
+        <Button size="sm" variant="secondary" disabled={busy} onClick={onCancel}>취소</Button>
+        <Button size="sm" variant="primary" disabled={busy || !share}
+          onClick={() => { if (share) onSave(share === 'picked' ? { share, pickIds: picks } : { share }); }}>공개 범위 저장</Button>
+      </div>
+    </div>
   );
 }
 
@@ -113,10 +184,12 @@ function TaskRow({ t, busy, onToggle }: { t: PlanTask; busy: boolean; onToggle: 
   );
 }
 
-export function PlanReport({ planId, staff, onClose }: {
+export function PlanReport({ planId, staff, shareWords, onClose }: {
   planId: number | null;
-  /** 「+ 대표 지시」 담당으로 고를 사람 — 운영 화면이 `GET /meta` 의 staff 를 준다 */
+  /** 「+ 대표 지시」 담당 · 지정 공개로 볼 사람을 고르는 목록 — 운영 화면이 `GET /meta` 의 staff 를 준다 */
   staff?: readonly TodoPerson[];
+  /** 공개 범위 두 값의 낱말 — 운영 화면이 서버의 `planShares` 를 준다 (N-72 · D-R18) */
+  shareWords?: readonly PlanShareWord[];
   onClose: () => void;
 }) {
   const q = usePlanDetail(planId);
@@ -132,6 +205,7 @@ export function PlanReport({ planId, staff, onClose }: {
   const [todoError, setTodoError] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [armed, setArmed] = useState<'rework' | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const d = q.data;
 
   /* 서버가 준 글에서 시작한다 — 다른 기획을 열거나 단계가 바뀌면 초안을 버린다
@@ -140,6 +214,8 @@ export function PlanReport({ planId, staff, onClose }: {
   /* 일부러 `d` 전체가 아니라 **어느 기획의 어느 단계인가**만 본다 — 저장 뒤 다시 읽어올 때마다
      초안을 되돌리면 적고 있던 글이 사라진다 */
   useEffect(() => { setDraft(draftOf(d)); }, [d?.id, d?.stage]);
+  // 다른 기획을 열면 공개 범위 고르기를 닫는다 — 지난 기획의 고르기가 남아 있으면 남의 기획에 저장한다
+  useEffect(() => { setShareOpen(false); }, [d?.id]);
 
   const body = d ? changed(draft, d) : {};
   const dirty = Object.keys(body).length > 0;
@@ -225,7 +301,13 @@ export function PlanReport({ planId, staff, onClose }: {
   return (
     <WideDialog open={planId !== null} onClose={onClose} title={d?.title ?? '기획 보고서'}
       head={d ? <Chip tone={STAGE_TONE[d.stage] ?? 'neutral'} styleKind="solid">{d.stageLabel}</Chip> : null}
-      sub={d ? `${d.ownerName ?? '담당 없음'} 작성 · ${d.createdOn}` : undefined}
+      // 원문 §65 머리 「홍지승 작성 · 2026-08-15 · 전체 공개」(공개 범위는 색 글자) — 옛 기획(공개 범위 없음)은 그 칸이 없다 (N-72)
+      sub={d ? (
+        <>
+          {`${d.ownerName ?? '담당 없음'} 작성 · ${d.createdOn}`}
+          {d.shareLabel ? <> · <b className={d.share === 'picked' ? 'text-orange' : 'text-green'}>{d.shareLabel}</b></> : null}
+        </>
+      ) : undefined}
       footer={footer}
     >
       {q.isLoading ? <Banner tone="neutral">불러오는 중…</Banner> : null}
@@ -254,28 +336,52 @@ export function PlanReport({ planId, staff, onClose }: {
                 {d.overdueDays > 0 ? <span className="text-[11px] text-fg-subtle">{d.overdueDays}일 지남</span> : null}
               </dd>
               {d.dueState === 'none' ? null
-                : <Chip className="mt-1" size="compact" styleKind="solid" tone={d.dueState === 'approved' ? 'success' : 'warning'}>{d.dueStateLabel}</Chip>}
+                : <Chip className="mt-1" size="compact" styleKind="solid" tone={DUE_STATE_TONE[d.dueState] ?? 'warning'}>{d.dueStateLabel}</Chip>}
             </div>
+            {/* 공개 범위 (N-72) — 옛 기획은 칸이 없다(모두에게 보이고 칩이 없다) */}
+            {d.shareLabel ? (
+              <div>
+                <dt className="text-[10.5px] text-fg-subtle">공개</dt>
+                <dd className="flex flex-wrap items-baseline gap-2">
+                  <b className="text-[14px] text-fg">{d.shareLabel}</b>
+                  {d.pickNames.length ? <span className="text-[11px] text-fg-subtle">{d.pickNames.join(', ')}</span> : null}
+                </dd>
+              </div>
+            ) : null}
             <div>
               <dt className="text-[10.5px] text-fg-subtle">과제</dt>
               <dd className="text-[14px] font-bold text-fg" aria-label={`과제 ${d.taskDone}/${d.tasks.length}`}>{d.taskDone}/{d.tasks.length}</dd>
             </div>
           </dl>
+          {d.canEditShare && shareWords?.length ? (
+            shareOpen ? (
+              <ShareEditor detail={d} words={shareWords} people={staff ?? []} busy={patch.isPending}
+                onCancel={() => setShareOpen(false)}
+                onSave={(b) => patch.mutate({ id: d.id, ...b }, { onSuccess: () => setShareOpen(false) })} />
+            ) : (
+              <Button size="sm" variant="secondary" className="mt-2" onClick={() => setShareOpen(true)}>
+                {d.shareLabel ? '공개 범위 바꾸기' : '공개 범위 정하기'}
+              </Button>
+            )
+          ) : null}
           <hr className="mt-5 border-t-2 border-fg" />
 
           {/* 원문의 기한 띠 — 승인 전에만 뜬다 */}
           {d.dueState === 'proposed' ? (
             <Banner tone="warning" className="mt-2">
               <div className="flex flex-wrap items-center gap-2">
-                <b>기한 제안 {d.dueOn}</b>
+                {/* 원문 §65 띠 — 「기한 제안」 칩 · 굵은 날짜 · 한 줄, 단추는 그 아래 줄 (W11 재대조) */}
+                <Chip size="compact" styleKind="solid" tone="warning">{d.dueStateLabel}</Chip>
+                <b>{d.dueOn}</b>
                 <span className="text-[12px]">대표 확인을 기다립니다</span>
                 {d.canDecideDue ? (
-                  <span className="ml-auto flex gap-1">
+                  <span className="flex basis-full gap-1">
                     {/* 원문 §65 — 「기한 승인」 갈색 주 단추 · 「기한 반려」 테두리 붉은 글자 (65-8) */}
-                    <Button size="sm" variant="primary" disabled={due.isPending}
-                      onClick={() => due.mutate({ id: d.id, approve: true })}>기한 승인</Button>
-                    <Button size="sm" variant="secondary" className="text-red" disabled={due.isPending}
-                      onClick={() => due.mutate({ id: d.id, approve: false })}>기한 반려</Button>
+                    {/* 대표가 **본 날짜**를 함께 보낸다 — 그 사이 옮겨졌으면 서버가 409 로 새 날짜를 말한다 (PB-12-2) */}
+                    <Button size="sm" variant="primary" disabled={due.isPending || !d.dueOn}
+                      onClick={() => d.dueOn && due.mutate({ id: d.id, approve: true, dueOn: d.dueOn })}>기한 승인</Button>
+                    <Button size="sm" variant="secondary" className="text-red" disabled={due.isPending || !d.dueOn}
+                      onClick={() => d.dueOn && due.mutate({ id: d.id, approve: false, dueOn: d.dueOn })}>기한 반려</Button>
                   </span>
                 ) : null}
               </div>
@@ -283,6 +389,25 @@ export function PlanReport({ planId, staff, onClose }: {
           ) : null}
           {d.dueState === 'approved' && d.dueApprovedByName ? (
             <p className="mt-1 text-[11px] text-fg-subtle">기한은 {d.dueApprovedByName} 님이 승인했습니다.</p>
+          ) : null}
+          {/* 반려된 기한은 사라지지 않는다 — 무엇을 누가 반려했는지 남고, 새 기한을 내면 비워진다 (N-95) */}
+          {d.dueState === 'rejected' || (d.dueState === 'none' && d.canEdit) ? (
+            <Banner tone={d.dueState === 'rejected' ? 'danger' : 'neutral'} className="mt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {d.dueState === 'rejected' ? (
+                  <>
+                    <Chip size="compact" styleKind="solid" tone="danger">{d.dueStateLabel}</Chip>
+                    <b>{d.dueRejectedOn}</b>
+                    <span className="text-[12px]">
+                      {d.dueRejectedByName ? `${d.dueRejectedByName} 님이 반려했습니다 · ` : ''}새 기한을 내면 다시 대표 확인을 기다립니다
+                    </span>
+                  </>
+                ) : <span className="text-[12px]">기한이 없습니다 — 기한을 내면 대표 확인을 기다립니다</span>}
+                {d.canEdit ? (
+                  <DueProposal busy={patch.isPending} onPropose={(dueOn) => patch.mutate({ id: d.id, dueOn })} />
+                ) : null}
+              </div>
+            </Banner>
           ) : null}
           {due.isError ? <Banner tone="danger" className="mt-2">{apiMessage(due.error)}</Banner> : null}
 

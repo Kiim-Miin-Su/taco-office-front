@@ -22,12 +22,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Input, PageHeader, Panel, StatCard, TabCards, type Tone } from '@/components/ui';
-import { ExecAreaCard, execWon } from '@/components/exec/ExecAreaCard';
-import { useExec, useExecReportWrite } from '@/api/queries';
+import { ExecAreaCard } from '@/components/exec/ExecAreaCard';
+import { useExec, useExecReportWrite, useMeta, useSetExecAreaOwner } from '@/api/queries';
 import { apiMessage } from '@/api/client';
-import { useCan } from '@/store/useSession';
+import { useCan, useSession } from '@/store/useSession';
 import type { Exec, ExecInbox, ExecMemoWrite } from '@/api/types';
-import { MASKED } from '@/lib/money';
+import { draftKey, useDraftAutosave } from '@/lib/autosave';
+import { MASKED, won } from '@/lib/money';
 import { addDays, longDateLabel, mondayOf, monthBounds, todayKst } from '@/lib/calendar';
 import { queryEnum, queryIsoDate } from '@/lib/url-state';
 
@@ -79,10 +80,13 @@ function headTone(key: string, value: number | null | undefined): Tone {
   return 'neutral';
 }
 
-/** 머리 지표 값 — 금액은 원화, 분모가 있으면 「6/49」, 아니면 「N건」. null 은 권한이 없을 때만 「가려짐」이다(69-14) */
+/**
+ * 머리 지표 값 — 금액(서버 `money` · `unit` 「원」)은 원화 「₩2,864,000」(N-92 — `lib/money` 한 곳), 분모가 있으면 「6/49」,
+ * 아니면 「N건」. null 은 권한이 없을 때만 숨긴 금액 낱말이다(69-14)
+ */
 function headValue(h: Exec['head'][number], canSeeAmounts: boolean): string {
   if (h.value === null || h.value === undefined) return canSeeAmounts ? '—' : MASKED;
-  if (h.money) return execWon(h.value);
+  if (h.money) return won(h.value);
   if (h.total !== null && h.total !== undefined) return `${h.value}/${h.total}`;
   return `${h.value}${h.unit ?? ''}`;
 }
@@ -154,6 +158,22 @@ export default function ExecPage() {
   // 기간·뷰가 바뀌면 남의 기간 초안을 들고 가지 않는다
   useEffect(() => { setDraft({}); setReason(''); setWriteError(null); }, [view, range.from, range.to]);
 
+  /*
+   * N-69 — 쓰던 메모를 이 브라우저에만 남긴다(키 = 사용자 · 보고 기간 · W11 R2). 위 기간 초기화 뒤에 둔다 — 되살린 글을 지우지 않게.
+   * 서버 보고(상태 + 여섯 칸)가 그새 바뀌었거나 더 고칠 수 없으면(올림 · 결재) 되살리지 않고 지운다.
+   */
+  const userId = useSession((s) => s.me?.id ?? null);
+  useDraftAutosave<Record<string, string>>({
+    key: userId !== null && d && view !== 'inbox' ? draftKey(userId, 'exec-memo', `${view}:${range.from}`) : null,
+    base: `${report?.id ?? 'new'}|${report?.state ?? 'none'}|${JSON.stringify(report?.memos.map((m) => [m.key, m.memo]) ?? [])}`,
+    value: draft,
+    dirty,
+    enabled: canWrite && writable,
+    onRestore: (stored) => setDraft(Object.fromEntries(
+      Object.entries(stored ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    )),
+  });
+
   const run = (w: Parameters<typeof write.mutate>[0]) => {
     setWriteError(null);
     write.mutate(w, {
@@ -182,6 +202,15 @@ export default function ExecPage() {
   const review = (action: 'ok' | 'rej') => {
     if (!report) return;
     run({ kind: 'review', id: report.id, body: { action, ...(action === 'rej' ? { reason } : {}) } });
+  };
+
+  /* 영역 담당 (W11 · N-81) — 바꿀 수 있는지는 서버의 canSetOwner(대표 판정)다. 고를 사람 목록은 그때만 받는다 */
+  const canSetOwner = (d?.areas ?? []).some((a) => a.canSetOwner);
+  const meta = useMeta(canSetOwner);
+  const setOwner = useSetExecAreaOwner();
+  const changeOwner = (key: string, staffId: number | null) => {
+    setWriteError(null);
+    setOwner.mutate({ key, staffId }, { onError: (e) => setWriteError(apiMessage(e)) });
   };
 
   /**
@@ -234,7 +263,8 @@ export default function ExecPage() {
                   className="mt-4"
                   title={(
                     <span className="flex items-center gap-2">
-                      <Chip tone={s.tone}>{s.label}</Chip>
+                      {/* 원본 §73 묶음 머리 칩은 채운 칩이다 — §69 상태 띠와 같은 모양 (W11 재대조) */}
+                      <Chip tone={s.tone} styleKind="solid">{s.label}</Chip>
                       <span>{rows.length}건</span>
                       <span className="text-[12px] font-normal text-fg-subtle">{STATE_NOTE[state]}</span>
                     </span>
@@ -250,7 +280,7 @@ export default function ExecPage() {
                             r.apState === 'back' ? 'border-red/40 bg-red/5' : 'border-line bg-card'
                           } hover:border-primary/50`}
                         >
-                          <Chip size="compact" tone={TYPE_TONE[r.rptType] ?? 'neutral'}>{TYPE[r.rptType] ?? r.rptType}</Chip>
+                          <Chip size="compact" styleKind="solid" tone={TYPE_TONE[r.rptType] ?? 'neutral'}>{TYPE[r.rptType] ?? r.rptType}</Chip>
                           <span className="min-w-0 grow truncate text-[13px] font-bold text-fg">{r.label}</span>
                           <span className="shrink-0 text-[11.5px] text-fg-subtle">{r.filled}/6 적음</span>
                           {/* 원본 §73 오른쪽의 빨강 숫자 — 그 기간의 살펴볼 것 (73-3) */}
@@ -291,7 +321,7 @@ export default function ExecPage() {
                 <Button size="sm" variant="ghost" onClick={() => setAnchor(todayKst())}>오늘</Button>
               </div>
               {/* 원본 §69 의 상태 띠 — 「작성 중 · 아직 올리지 않았습니다」 */}
-              <Chip tone={STATE[report?.state ?? 'draft']?.tone ?? 'neutral'}>
+              <Chip tone={STATE[report?.state ?? 'draft']?.tone ?? 'neutral'} styleKind="solid">
                 {STATE[report?.state ?? 'draft']?.label ?? '작성 중'}
               </Chip>
               <span className="text-[12px] text-fg-subtle">{stateNote}</span>
@@ -308,6 +338,13 @@ export default function ExecPage() {
                     비어서 잠겼으면 **왜 잠겼는지**를 단추 옆과 title 에 적는다 — 단추를 도구 줄로 옮길 때 안내가 빠져
                     눌리지 않는 이유가 화면 어디에도 없었다(웹 e2e K-103 · 2026-09-25). 문장은 서버 RPT_EMPTY 의 앞 절과 같다. */}
                 {emptyBlocked ? <span className="text-[12px] text-fg-subtle">{EMPTY_REPORT_HINT}</span> : null}
+                {/* 원문 §73 「제출자는 회수(back)만 가능」 — 올린 사람에게만 서버가 연다(canWithdraw · W11 N-97).
+                    되돌리면 작성 중이 되고 적은 메모는 남으며 올린 사람 서명은 지워진다(다시 올릴 때 새로 찍힌다) */}
+                {report?.canWithdraw ? (
+                  <Button size="sm" disabled={write.isPending}
+                    title="올린 보고를 작성 중으로 되돌립니다 — 적은 메모는 남습니다"
+                    onClick={() => run({ kind: 'withdraw', id: report.id })}>회수</Button>
+                ) : null}
                 <Button size="sm" variant="primary" disabled={!canWrite || !writable || write.isPending || filledNow === 0}
                   title={emptyBlocked ? EMPTY_REPORT_HINT : undefined}
                   onClick={() => submit()}>대표께 올리기</Button>
@@ -406,6 +443,9 @@ export default function ExecPage() {
                     onMemoChange={(next) => setDraft((prev) => ({ ...prev, [a.key]: next }))}
                     onGo={() => router.push(a.go)}
                     onOpenItem={(go) => router.push(go)}
+                    owners={meta.data?.staff}
+                    onOwnerChange={a.canSetOwner ? (staffId) => changeOwner(a.key, staffId) : undefined}
+                    ownerBusy={setOwner.isPending}
                   />
                 ))}
               </div>

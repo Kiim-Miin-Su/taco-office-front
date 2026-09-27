@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-/** §24 실패 지정/되살리기 input (N-25 · C35) — 판정은 서버, 화면은 4어휘와 응답만 그린다. */
+/** §24 실패 지정/되살리기 input (N-25 · C35 · W11 N-87) — 판정은 서버, 화면은 응답만 그린다. 실패 지정은 중단 지점을 묻지 않는다. */
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
@@ -24,13 +24,16 @@ const base: Lead = {
   id: 1, name: '기록있음학생', school: '언주중', ownerName: 'Grace', reason: '연락 두절',
   stage: 'failed', stopAt: 'after_first', ageDays: 0, createdAt: '2026-09-10', studentId: null, ownerId: null,
   failFrom: 'second', revivalStage: 'second', revivalSource: 'explicit',
+  // N-87 — 분류는 서버가 실패 당시 단계에서 읽는다 · 옛 중단 지점은 읽기 전용 낱말
+  failStopKey: 'second', failStopLabel: '2차 상담 중단', stopAtLabel: '1차 후 미진행',
   nextStages: [], touches: [],
 };
+const idle = { stopAt: null, stopAtLabel: null, failFrom: null, revivalStage: null, revivalSource: null, failStopKey: null, failStopLabel: null };
 const leads: Lead[] = [
   base,
-  { ...base, id: 2, name: '예전건학생', failFrom: null, revivalStage: null, revivalSource: null },
-  { ...base, id: 3, name: '진행중학생', stage: 'second', stopAt: null, failFrom: null, revivalStage: null, revivalSource: null },
-  { ...base, id: 4, name: '등록학생', stage: 'enrolled', stopAt: null, failFrom: null, revivalStage: null, revivalSource: null },
+  { ...base, id: 2, name: '예전건학생', failFrom: null, revivalStage: null, revivalSource: null, failStopKey: 'none', failStopLabel: '미분류' },
+  { ...base, ...idle, id: 3, name: '진행중학생', stage: 'second' },
+  { ...base, ...idle, id: 4, name: '등록학생', stage: 'enrolled' },
 ];
 const response: Ops = {
   leads, complaints: [], todos: [], plans: [], meetings: [], marketing: [], suggestions: [], canSeeAmounts: false,
@@ -51,26 +54,22 @@ async function setup() {
 }
 
 describe('§24 실패 지정 — 진행 건', () => {
-  it('중단 지점 없이는 확정 못 하고, 2단 확정으로만 서버 4어휘 body를 보낸다', async () => {
+  it('중단 지점을 묻지 않는다 — 지금 단계가 곧 분류(서버 낱말)이고, 2단 확정으로 사유만 보낸다 (N-87)', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
     // 실패 전 단계를 기록에 남긴다는 뜻만 업무 문장으로 — 필드명(fail_from)을 보이지 않는다 (23-20)
-    expect(view.getByText(/지금 단계 「2차 상담」 — 실패로 분류해도 기록에 남아/)).toBeTruthy();
+    expect(view.getByText('지금 단계 「2차 상담」 — 「2차 상담 중단」으로 분류되고 되살릴 때 이 단계로 돌아갑니다.')).toBeTruthy();
+    expect(view.queryByLabelText(/중단 지점/)).toBeNull();
 
     const confirm = view.getByRole('button', { name: '실패로 분류' }) as HTMLButtonElement;
-    expect(confirm.disabled).toBe(true); // 지점 선택 전
-
-    const select = view.getByLabelText('중단 지점 (필수)') as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual(
-      ['지점 선택', '상담 예약 전 이탈', '1차 상담 전 이탈', '1차 후 미진행', '2차 후 미등록']);
-    fireEvent.change(select, { target: { value: 'after_second' } });
+    expect(confirm.disabled).toBe(false);
     fireEvent.change(view.getByLabelText(/사유 \(선택/), { target: { value: '  시간대 불일치  ' } });
 
     fireEvent.click(view.getByRole('button', { name: '실패로 분류' }));
     expect(view.post).not.toHaveBeenCalled(); // 1단은 무장만
     fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 실패 확정' }));
     await waitFor(() => expect(view.post).toHaveBeenCalledTimes(1));
-    expect(view.post).toHaveBeenCalledWith('/ops/leads/3/fail', { stopAt: 'after_second', reason: '시간대 불일치' });
+    expect(view.post).toHaveBeenCalledWith('/ops/leads/3/fail', { reason: '시간대 불일치' });
     await waitFor(() => expect(view.get).toHaveBeenCalledTimes(2)); // 성공 후 재조회
   });
 
@@ -89,6 +88,10 @@ describe('§24 되살리기 — 판정은 서버 응답만 소비', () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /기록있음학생/ }));
     expect(view.getByText(/실패로 분류할 때 남긴 단계/)).toBeTruthy();
+    // 중단 지점은 서버 낱말 그대로 · 옛 중단 지점은 읽기 전용 기록으로 곁에 (N-87)
+    const drawer = view.getByRole('dialog', { name: /기록있음학생/ });
+    expect(within(drawer).getByText('2차 상담 중단')).toBeTruthy();
+    expect(within(drawer).getByText(/예전 기록 「1차 후 미진행」/)).toBeTruthy();
 
     fireEvent.click(view.getByRole('button', { name: '단계로 되살리기' }));
     fireEvent.click(view.getByRole('button', { name: '한 번 더 누르면 되살리기' }));

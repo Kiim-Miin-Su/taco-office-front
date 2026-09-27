@@ -7,27 +7,25 @@
 /**
  * §59 「+ 오늘 한 것」 — 마케팅 활동 한 줄 · URL 첨부 (x5 · g6 59-3).
  *
- * 화면이 보내는 것은 **무엇을 · 어디에 · 어떤 항목 · URL · 날짜 · 담당**뿐이다(`MarketingCreateDto`).
- * 채널·항목의 낱말은 `GET /ops` 의 `mktChannels`·`mktItems` 다 (D-R18) — 지금 코드의 이름표이고
- * 원문 어휘로 맞추는 일은 열린 결정(N-29 ①)이라 여기서 새 낱말을 짓지 않는다.
+ * 화면이 보내는 것은 **무엇을 · 메모 한 줄 · 어디에 · 어떤 항목 · URL · 날짜 · 담당**뿐이다(`MarketingCreateDto`).
+ * 채널·항목의 낱말은 `GET /ops` 의 `mktChannels`·`mktItems` 다 (D-R18) — 원문 컷의 넷 · 넷(W11 · N-29 ①)이고 채널과 항목은 따로 고른다.
  * 날짜는 비우면 서버가 **오늘**로, 담당은 비우면 **나**로 정한다 — 화면이 그 기본값을 다시 적지 않는다.
  * 틀린 주소·그만둔 담당은 서버가 막고 그 문장을 그대로 띄운다(§63 「+ 회의 잡기」와 같은 모양).
- * 성과(노출·문의·등록·비용)와 메모는 받지 않는다 — 메모 칸은 N-29 결정 전이다.
+ * 메모는 카드 제목 아래 한 줄이다(N-29 ② · 원문 「상담 예약 4건 전환」). 성과(노출·문의·등록·비용)는 받지 않는다.
  */
 'use client';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Banner, Button, Dialog, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useMeta } from '@/api/queries';
+import { useCreateMarketing, useMeta } from '@/api/queries';
 import type { CplWord } from '@/api/types';
 import type { components } from '@/api/schema';
-import { useCreateMarketing } from './ops-queries';
 
 type MarketingCreate = components['schemas']['MarketingCreateDto'];
 type MarketingRow = components['schemas']['MarketingDto'];
 
 export interface MarketingCreateButtonProps {
-  /** 채널 일곱 · 항목 일곱 — 낱말은 서버가 만든다 (D-R18) */
+  /** 채널 · 항목 — 원문 컷의 넷 · 넷 · 낱말은 서버가 만든다 (D-R18 · N-29 ①) */
   channels: CplWord[];
   items: CplWord[];
   /** 단추가 서는지도 서버가 정한다 (D-R39) */
@@ -41,6 +39,7 @@ export function MarketingCreateButton({ channels, items, can, onDone }: Marketin
   const meta = useMeta(open);
   const write = useCreateMarketing();
   const [title, setTitle] = useState('');
+  const [memo, setMemo] = useState('');
   const [channel, setChannel] = useState('');
   const [item, setItem] = useState('');
   const [url, setUrl] = useState('');
@@ -50,7 +49,7 @@ export function MarketingCreateButton({ channels, items, can, onDone }: Marketin
 
   useEffect(() => {
     if (!open) return;
-    setTitle(''); setChannel(''); setItem(''); setUrl(''); setOnDate(''); setById(''); setErr(null);
+    setTitle(''); setMemo(''); setChannel(''); setItem(''); setUrl(''); setOnDate(''); setById(''); setErr(null);
   }, [open]);
 
   const built = useMemo((): { body: MarketingCreate } | { issue: string } => {
@@ -62,12 +61,13 @@ export function MarketingCreateButton({ channels, items, can, onDone }: Marketin
         title: title.trim(),
         // 고를 수 있는 값은 서버가 준 목록뿐이다 — 생성 타입의 enum 으로 좁힌다(모르는 값은 서버가 400)
         channel: channel as MarketingCreate['channel'], item: item as MarketingCreate['item'],
+        ...(memo.trim() ? { memo: memo.trim() } : {}),
         ...(url.trim() ? { url: url.trim() } : {}),
         ...(onDate ? { onDate } : {}),
         ...(byId ? { byId: Number(byId) } : {}),
       },
     };
-  }, [title, channel, item, url, onDate, byId]);
+  }, [title, memo, channel, item, url, onDate, byId]);
 
   const pending = write.isPending;
   const canSubmit = 'body' in built && !pending;
@@ -102,6 +102,11 @@ export function MarketingCreateButton({ channels, items, can, onDone }: Marketin
             <Label htmlFor={`${id}-title`}>무엇을</Label>
             <Input id={`${id}-title`} value={title} maxLength={120} disabled={pending}
               onChange={(e) => setTitle(e.target.value)} placeholder="학습실 하루 · 30초 릴스" />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor={`${id}-memo`} hint="카드 제목 아래 한 줄 — 비워도 됩니다">메모</Label>
+            <Input id={`${id}-memo`} value={memo} maxLength={120} disabled={pending}
+              onChange={(e) => setMemo(e.target.value)} placeholder="상담 예약 4건 전환" />
           </div>
           <div>
             <Label htmlFor={`${id}-channel`}>어디에</Label>

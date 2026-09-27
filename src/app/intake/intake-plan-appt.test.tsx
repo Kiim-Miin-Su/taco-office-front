@@ -15,7 +15,7 @@ import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -93,7 +93,7 @@ describe('상세 서랍 — 배치안 · 연장 +2일 · 일정 · 스케줄에 
     const view = await setup();
     openCard(view, '정하윤');
     const plan = await waitFor(() => view.getByRole('region', { name: '배치안' }));
-    expect(within(plan).getByText('90,000원')).toBeTruthy();
+    expect(within(plan).getByText('₩90,000')).toBeTruthy();
     const put = vi.spyOn(api, 'put').mockResolvedValue({ data: base } as never);
     fireEvent.click(within(plan).getByRole('button', { name: '고치기' }));
     await waitFor(() => expect((within(plan).getByLabelText('배치안 1 종류') as HTMLSelectElement).value).toBe('class'));
@@ -136,7 +136,7 @@ describe('§24 당시 배치안 · 바로 수업 등록 (24-07)', () => {
     const view = await setup();
     fireEvent.click(within(view.getByRole('group', { name: '상담 보기' })).getByRole('button', { name: '등록 실패 내역' }));
     const box = await waitFor(() => view.getByRole('region', { name: '당시 배치안' }));
-    expect(box.textContent).toContain('MAP Reading 주2 · Allissa · 90,000원');
+    expect(box.textContent).toContain('MAP Reading 주2 · Allissa · ₩90,000');
     expect(view.getByText('당시 배치안이 그대로 채워지고, 요일·시간만 다시 잡으면 됩니다')).toBeTruthy();
     fireEvent.click(within(view.getByRole('list', { name: '실패한 상담' })).getByRole('button', { name: '바로 수업 등록' }));
     const dialog = await waitFor(() => view.getByRole('dialog', { name: '등록 확정 — 신유나' }));

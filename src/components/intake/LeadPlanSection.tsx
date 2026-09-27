@@ -16,9 +16,9 @@
 import { useId, useState } from 'react';
 import { Banner, Button, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useMeta } from '@/api/queries';
+import { useExtendLeadHold, useMeta, useSaveLeadPlan } from '@/api/queries';
+import type { Lead, LeadPlanLine } from '@/api/types';
 import { won } from '@/lib/money';
-import { useExtendLeadHold, useSaveLeadPlan, type Lead, type LeadPlanLine } from './intake-queries';
 
 /** 카드의 한 줄 — 서버 낱말을 「 · 」로 잇는다(원본 「MAP Reading 주3 · Allissa · Writing 주2 · Kim」) */
 export const leadPlanSummary = (plan: readonly LeadPlanLine[] | undefined) => (plan ?? []).map((p) => p.label).join(' · ');

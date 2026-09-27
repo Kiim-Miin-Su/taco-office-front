@@ -11,8 +11,8 @@
  * 코멘트와 답의 시각을 견주는 식으로 만들면 카드의 칩과 머리의 숫자가 갈린다 (D-R37 · D-R39).
  * 여기서 하는 일은 서버가 준 `state` · `stateLabel` · `feedbackNeedsFix` 를 **그리는 것뿐**이다.
  *
- * 원문 §60 의 「보류」 단추는 만들지 않았다 — 누른 뒤 카드가 어떤 칩을 다는지 원문이
- * 보여 주지 않는다. 없는 상태를 지어내는 대신 결정 요청으로 올렸다 (N-29).
+ * 원문 §60 확인 필요 카드의 「보류」 — W11 · N-29 ③ 채택: **담당 답변의 한 종류**다(`kind: 'hold'`). 칩은 원문 둘 그대로라
+ * 보류한 카드는 「확인 필요」로 남고 「고쳐야 할 것 N건」에서 빠지지 않는다 — 「고친 것 알리기」가 푼다. 보류는 코멘트마다 한 번(서버 `held`).
  *
  * **x5 (잔여 물결 · g6 60-3~60-8)** — 카드 머리는 한 줄(상태 · 채널 · 제목 ··· 시각), 글 블록은 이름(대표 주황 · 담당 초록) +
  * 본문이고 **시각은 답에만**, 고치기 단추는 **바닥 단추 줄**로(자기 코멘트는 「코멘트 고치기」 · 자기 답은 「답 고치기」),
@@ -37,10 +37,14 @@ const shortAt = (at: string): string => `${at.slice(5, 10)} ${at.slice(11, 16)}`
  */
 function PostBlock({ post }: { post: MfbPost }) {
   const isComment = post.kind === 'comment';
+  // 보류(N-29 ③)는 담당의 답이지만 고친 것이 아니다 — 초록(고친 답) 대신 회색 블록에 「보류」 칩(서버 낱말)을 단다
+  const isHold = post.kind === 'hold';
+  const look = isComment ? 'border-orange bg-orange/5' : isHold ? 'border-line-2 bg-inset' : 'border-green bg-green/5';
   return (
-    <div aria-label={post.kindLabel} className={`border-l-2 px-3 py-2 ${isComment ? 'border-orange bg-orange/5' : 'border-green bg-green/5'}`}>
-      <span className={`text-[11px] font-bold ${isComment ? 'text-orange' : 'text-green'}`}>
+    <div aria-label={post.kindLabel} className={`border-l-2 px-3 py-2 ${look}`}>
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${isComment ? 'text-orange' : isHold ? 'text-fg-2' : 'text-green'}`}>
         {post.byName ?? '—'}
+        {isHold ? <Chip size="compact">{post.kindLabel}</Chip> : null}
       </span>
       <p className="mt-1 whitespace-pre-wrap text-[12.5px] text-fg">{post.body}</p>
       {isComment ? null : <span className="mt-1 block text-[10.5px] italic text-fg-subtle">{shortAt(post.at)}</span>}
@@ -65,11 +69,13 @@ export function MarketingFeedback({
   const [mktId, setMktId] = useState('');
   const [body, setBody] = useState('');
   const [replyMkt, setReplyMkt] = useState<number | null>(null);
+  /** 담당 답의 갈래 — 「고친 것 알리기」(reply) · 「보류」(hold) */
+  const [replyKind, setReplyKind] = useState<'reply' | 'hold'>('reply');
   const [editing, setEditing] = useState<MfbPost | null>(null);
   const [draft, setDraft] = useState('');
 
   const close = () => {
-    setOpenComment(false); setReplyMkt(null); setEditing(null);
+    setOpenComment(false); setReplyMkt(null); setReplyKind('reply'); setEditing(null);
     setBody(''); setDraft(''); setMktId('');
     comment.reset(); reply.reset(); edit.reset();
   };
@@ -130,7 +136,8 @@ export function MarketingFeedback({
           const mine = (kind: string) => (viewerId === null ? undefined
             : [...t.posts].reverse().find((p) => p.kind === kind && p.byId === viewerId));
           const myComment = mine('comment');
-          const myReply = mine('reply');
+          // 자기 답 — 보류 한 줄도 자기 글이라 고칠 수 있다(서버 editPost 는 갈래를 가리지 않는다)
+          const myReply = mine('reply') ?? mine('hold');
           const startEdit = (p: MfbPost) => { close(); setEditing(p); setDraft(p.body); };
           return (
             <Panel
@@ -149,7 +156,7 @@ export function MarketingFeedback({
             >
               <div className="flex flex-col gap-2">
                 {t.posts.map((p) => <PostBlock key={p.id} post={p} />)}
-                {t.state === 'needs_fix' ? (
+                {t.state === 'needs_fix' && !t.held ? (
                   <div className="rounded bg-bg-2 px-3 py-2 text-[12px] text-fg-subtle">아직 답이 없습니다</div>
                 ) : null}
               </div>
@@ -172,7 +179,9 @@ export function MarketingFeedback({
 
               {answering && lastComment ? (
                 <div className="mt-3">
-                  <Label htmlFor="mfb-reply">고친 것 알리기</Label>
+                  <Label htmlFor="mfb-reply" hint={replyKind === 'hold' ? '왜 미루는지 한 줄 — 카드는 「확인 필요」로 남습니다' : undefined}>
+                    {replyKind === 'hold' ? '보류' : '고친 것 알리기'}
+                  </Label>
                   <Textarea id="mfb-reply" rows={3} maxLength={1000} value={draft}
                     onChange={(e) => setDraft(e.target.value)} />
                   {reply.isError ? <Banner tone="danger" className="mt-2">{apiMessage(reply.error)}</Banner> : null}
@@ -180,16 +189,16 @@ export function MarketingFeedback({
                     <Button size="sm" variant="secondary" onClick={close}>취소</Button>
                     <Button size="sm" disabled={reply.isPending || draft.trim() === ''}
                       onClick={() => reply.mutate(
-                        { mktId: t.mktId, parentId: lastComment.id, body: draft.trim() },
+                        { mktId: t.mktId, parentId: lastComment.id, body: draft.trim(), ...(replyKind === 'hold' ? { kind: 'hold' as const } : {}) },
                         { onSuccess: close },
                       )}>
-                      알리기
+                      {replyKind === 'hold' ? '보류하기' : '알리기'}
                     </Button>
                   </div>
                 </div>
               ) : null}
 
-              {/* 바닥 단추 줄 — 「URL · 답 고치기」 / 「URL · 고친 것 알리기(주 단추)」 (60-5 · 60-6). 「보류」는 N-29 결정 전이라 없다 */}
+              {/* 바닥 단추 줄 — 「URL · 답 고치기」 / 「URL · 고친 것 알리기(주 단추) · 보류」 (60-5 · 60-6 · N-29 ③) */}
               <div className="mt-3 flex flex-wrap gap-2">
                 {t.url ? (
                   <a href={t.url} target="_blank" rel="noreferrer">
@@ -206,6 +215,12 @@ export function MarketingFeedback({
                 {t.canReply && lastComment && t.state === 'needs_fix' && !answering ? (
                   <Button size="sm" variant="primary" onClick={() => { close(); setReplyMkt(t.mktId); setDraft(''); }}>
                     고친 것 알리기
+                  </Button>
+                ) : null}
+                {/* 보류는 코멘트마다 한 번 — 이미 보류했으면 서지 않는다(서버도 409 MFB_ALREADY_HELD) */}
+                {t.canReply && lastComment && t.state === 'needs_fix' && !t.held && !answering ? (
+                  <Button size="sm" variant="secondary" onClick={() => { close(); setReplyMkt(t.mktId); setReplyKind('hold'); setDraft(''); }}>
+                    보류
                   </Button>
                 ) : null}
               </div>

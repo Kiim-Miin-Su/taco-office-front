@@ -61,7 +61,7 @@ it('검사기 자체가 코드를 잡는다 — 비어 있다고 통과로 읽�
   for (const bad of ['(D-R39)', '(A-D5 간이 5분류)', '(O-148)', '원문 §54 의', '(N-12)', '(A-4)', '(H-81)']) {
     expect(CODE.test(bad), bad).toBe(true);
   }
-  for (const ok of ['26년 9월 23일 수요일', '09-21 ~ 09-27', '배정 10p', 'G9', '1,365,000원']) {
+  for (const ok of ['26년 9월 23일 수요일', '09-21 ~ 09-27', '배정 10p', 'G9', '₩1,365,000']) {
     expect(CODE.test(ok), ok).toBe(false);
   }
 });
