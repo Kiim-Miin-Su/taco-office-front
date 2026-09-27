@@ -30,7 +30,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Board, BoardColumn, Button, Chip, Drawer, Label, PageHeader, Panel, Segmented, Select, StatCard, Table, Textarea, cn, type ChipTone, type Column, type Tone } from '@/components/ui';
+import { Banner, Board, BoardColumn, Button, Chip, Drawer, Input, Label, PageHeader, Panel, Segmented, Select, StatCard, Table, Textarea, cn, type ChipTone, type Column, type Tone } from '@/components/ui';
 import { useFailLead, useOps, useResumeLead } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import type { Lead, LeadFail, LeadResume } from '@/api/types';
@@ -213,6 +213,8 @@ export default function IntakePage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [reasonKind, setReasonKind] = useState<ReasonKindKey | ''>('');
   const [reason, setReason] = useState('');
+  /** A-08 — 실패와 같은 요청/트랜잭션에 남길 재연락 예정일. */
+  const [recontactOn, setRecontactOn] = useState('');
   const [resumeTo, setResumeTo] = useState<ResumeKey | ''>('');
   const [armed, setArmed] = useState<'fail' | 'resume' | null>(null);
   // 등록 확정 창 (C91 · A-05) — 열려 있는 동안만 코드표·교재를 읽는다
@@ -226,7 +228,7 @@ export default function IntakePage() {
 
   const pick = (l: Lead) => {
     setSelectedId((cur) => (cur === l.id ? null : l.id));
-    setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
+    setReasonKind(''); setReason(''); setRecontactOn(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
     fail.reset(); resume.reset();
   };
   /** 카드 단추가 서랍을 연다 (23-14) — 이미 열린 건이면 닫지 않고 그 칸으로만 옮긴다 */
@@ -783,6 +785,11 @@ export default function IntakePage() {
                     <Textarea id="lead-fail-reason" rows={2} maxLength={500} className="min-h-[44px]"
                       value={reason} onChange={(e) => setReason(e.target.value)} />
                   </div>
+                  <div className="w-48">
+                    <Label htmlFor="lead-fail-recontact" hint="비우면 재연락 일정을 만들지 않습니다">재연락 예정일 (선택)</Label>
+                    <Input id="lead-fail-recontact" type="date" value={recontactOn}
+                      onChange={(e) => setRecontactOn(e.target.value)} />
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -792,7 +799,12 @@ export default function IntakePage() {
                     onClick={() => {
                       if (armed === 'fail') {
                         fail.mutate(
-                          { id: selected.id, ...(reasonKind ? { reasonKind } : {}), ...(reason.trim() ? { reason: reason.trim() } : {}) },
+                          {
+                            id: selected.id,
+                            ...(reasonKind ? { reasonKind } : {}),
+                            ...(reason.trim() ? { reason: reason.trim() } : {}),
+                            ...(recontactOn ? { nextOn: recontactOn } : {}),
+                          },
                           { onSettled: () => setArmed(null) },
                         );
                       } else setArmed('fail');

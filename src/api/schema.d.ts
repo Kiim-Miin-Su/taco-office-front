@@ -1593,7 +1593,7 @@ export interface paths {
         put?: never;
         /**
          * 상담 실패 전이 — 이전 단계를 명시값으로 보존 (v2 §24 · N-25 §4-17 · C35 · W11 N-87)
-         * @description fail_from 은 전이 순간의 실제 단계를 서버가 기록한다 — 추정이 아니라 사실이다. 그 단계가 곧 §24 중단 지점이다(중단 지점을 묻지 않는다 · 옛 stop_at 은 건드리지 않는다). 상담 건을 잠그고 단계를 다시 본다 — 등록 확정과 겹치면 뒤에 온 쪽이 409 다(등록된 건이 실패로 덮이지 않는다). 도달 기록(append-only)에 failed 를 남긴다.
+         * @description fail_from 은 전이 순간의 실제 단계를 서버가 기록한다 — 추정이 아니라 사실이다. 그 단계가 곧 §24 중단 지점이다(중단 지점을 묻지 않는다 · 옛 stop_at 은 건드리지 않는다). 상담 건을 잠그고 단계를 다시 본다 — 등록 확정과 겹치면 뒤에 온 쪽이 409 다(등록된 건이 실패로 덮이지 않는다). 도달 기록(append-only)에 failed 를 남긴다. nextOn 이 있으면 같은 트랜잭션에 메모 접촉 한 줄을 남겨 실패만 저장되는 부분 성공을 막는다(A-08).
          */
         post: operations["OpsController_failLead"];
         delete?: never;
@@ -7319,7 +7319,10 @@ export interface components {
             kind: "call" | "kakao" | "sms" | "visit" | "book" | "noshow" | "memo";
             /** @description 한 줄 */
             note: string;
-            /** @description 다음은 언제 YYYY-MM-DD — 상담 예약이면 상담 날짜 */
+            /**
+             * Format: date
+             * @description 다음은 언제 YYYY-MM-DD — 상담 예약이면 상담 날짜
+             */
             nextOn?: string | null;
         };
         LeadFailDto: {
@@ -7330,6 +7333,11 @@ export interface components {
              * @enum {string}
              */
             reasonKind?: "unreachable" | "other_academy" | "schedule" | "cost" | "timing";
+            /**
+             * Format: date
+             * @description 재연락 예정일 YYYY-MM-DD — 있으면 실패 전이와 같은 트랜잭션에 접촉 원장 한 줄을 남긴다 (A-08)
+             */
+            nextOn?: string | null;
         };
         LeadResumeDto: {
             /**

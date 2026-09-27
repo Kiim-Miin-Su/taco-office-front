@@ -189,6 +189,20 @@ describe('§24 등록 실패 내역 (24-04 · 24-05 · 24-06 · 24-07 · 24-08)'
     // 중단 지점은 보내지 않는다 — 서버가 실패 순간의 단계에서 판정한다 (N-87)
     expect(post.mock.calls[0]).toEqual(['/ops/leads/1/fail', { reasonKind: 'cost' }]);
   });
+
+  it('A-08 실패 확정과 재연락 예정일을 한 요청으로 보낸다', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { ...base, stage: 'failed' } } as never);
+    const view = await setup();
+    fireEvent.click(view.getByText('백승우'));
+    const drawer = view.getByRole('dialog', { name: /백승우/ });
+    fireEvent.change(within(drawer).getByLabelText('사유 분류'), { target: { value: 'cost' } });
+    fireEvent.change(within(drawer).getByLabelText('재연락 예정일 (선택)'), { target: { value: '2026-10-10' } });
+    fireEvent.click(within(drawer).getByRole('button', { name: '실패로 분류' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: '한 번 더 누르면 실패 확정' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/leads/1/fail', {
+      reasonKind: 'cost', nextOn: '2026-10-10',
+    }));
+  });
 });
 
 describe('§23 단계색 (23-03 · 23-04 · 23-09) — 공용 Chip 청록·주황 톤 · Board 윗선', () => {
