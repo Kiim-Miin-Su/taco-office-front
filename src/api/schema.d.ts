@@ -7436,7 +7436,7 @@ export interface components {
             libId?: number | null;
         };
         LeadEnrollDto: {
-            /** @description 이미 있는 학생에게 붙일 때 — 형제·재등록. 비우면 새 학생을 만든다 */
+            /** @description 기존 학생 재등록 전용 — 해당 학생 id. 비우면 새 학생을 만든다. 형제 등록에는 사용하지 않는다 */
             studentId?: number | null;
             /** @description 새 학생 칸 — studentId 가 있으면 무시 */
             student?: components["schemas"]["EnrollStudentDto"];
@@ -7550,7 +7550,7 @@ export interface components {
             preview: boolean;
             studentId: number;
             studentName: string;
-            /** @description 새로 만든 학생인가 (false 면 있는 학생에게 붙였다) */
+            /** @description 새로 만든 학생인가 (false 면 기존 학생 재등록) */
             studentCreated: boolean;
             startedOn: string;
             enrollments: components["schemas"]["EnrollEnrollmentDto"][];
