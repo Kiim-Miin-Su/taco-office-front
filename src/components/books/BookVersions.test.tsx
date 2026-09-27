@@ -307,6 +307,12 @@ it('상위 두 갈래 수 · 행동 기호 · 갈래별 띠 색 · 알약 기간
   expect(swapLine.closest('[data-history-group]')?.getAttribute('data-history-group')).toBe('swap');
   const uploadLine = view.getAllByText('↑ 교재 업로드').find((el) => el.tagName === 'B')!;
   expect(uploadLine.closest('[data-history-group]')?.getAttribute('data-history-group')).toBe('book');
+  // 띠 · 라벨 색은 행동마다다(W11 컷 실측) — 업로드는 파랑, 교체는 주황
+  expect(uploadLine.closest('[data-history-group]')?.className).toContain('border-blue');
+  expect(uploadLine.className).toContain('text-blue');
+  expect(swapLine.closest('[data-history-group]')?.className).toContain('border-amber');
+  // 눌린 「전체」 칩은 진한 채움(원문 §40)
+  expect(view.getAllByRole('button', { name: '전체' }).some((b) => b.querySelector('[data-chip-pressed="ink"]'))).toBe(true);
   // 기간 토글은 알약 — 눌린 칸이 aria-pressed
   expect(view.getByRole('button', { name: '월간' }).getAttribute('aria-pressed')).toBe('true');
 });

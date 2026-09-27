@@ -15,7 +15,7 @@
  */
 'use client';
 import { useState } from 'react';
-import { Banner, Button, Chip, Input, Label, Panel, Segmented, cn } from '@/components/ui';
+import { Banner, Button, Chip, ChipButton, Input, Label, Panel, Segmented, cn } from '@/components/ui';
 import { SearchField } from '@/components/ui/SearchField';
 import { apiMessage } from '@/api/client';
 import { useAddBookVersion, useBookHistory, useUseBookVersion } from '@/api/queries';
@@ -41,28 +41,31 @@ function isBookHistoryAction(value: string): value is BookHistoryAction {
 }
 
 /**
- * 원문 §40 — 행동 칩·줄 라벨의 **기호**와 줄 왼쪽 띠의 **갈래 색**(초록 배부 · 보라 요청 · 주황 교체 · 파랑 안내).
+ * 원문 §40 — 행동 칩·줄 라벨의 **기호**와 줄 왼쪽 띠 · 라벨의 **색**.
+ * 색은 **행동마다**다(W11 컷 실측 재대조 — 갈래색이 아니었다): 교재 배부 · 강사 확인 초록, 교재 업로드 · 안내 작성 파랑,
+ * 안내 발송 청록, 강사 요청 보라, 강사 교체 주황. 컷에 안 나오는 회수 · 교재 교체는 제 갈래 색(초록 · 주황) 그대로.
  * 낱말(actionLabel)은 서버가 주고 여기는 모양만 정한다 (D-R18). 모르는 행동은 기호 없이 파랑 띠.
  */
 type HistoryGroup = 'book' | 'request' | 'swap' | 'guide';
-const ACTION_LOOK: Record<string, { symbol: string; group: HistoryGroup }> = {
-  book_issue: { symbol: '＋', group: 'book' },
-  book_upload: { symbol: '↑', group: 'book' },
-  book_drop: { symbol: '－', group: 'book' },
-  book_swap: { symbol: '⇄', group: 'swap' },
-  teacher_req: { symbol: '✉', group: 'request' },
-  teacher_swap: { symbol: '⇄', group: 'swap' },
-  guide_write: { symbol: '✎', group: 'guide' },
-  guide_send: { symbol: '→', group: 'guide' },
-  guide_ack: { symbol: '✓', group: 'guide' },
+type HistoryTone = 'green' | 'blue' | 'teal' | 'violet' | 'amber';
+const ACTION_LOOK: Record<string, { symbol: string; group: HistoryGroup; tone: HistoryTone }> = {
+  book_issue: { symbol: '＋', group: 'book', tone: 'green' },
+  book_upload: { symbol: '↑', group: 'book', tone: 'blue' },
+  book_drop: { symbol: '－', group: 'book', tone: 'green' },
+  book_swap: { symbol: '⇄', group: 'swap', tone: 'amber' },
+  teacher_req: { symbol: '✉', group: 'request', tone: 'violet' },
+  teacher_swap: { symbol: '⇄', group: 'swap', tone: 'amber' },
+  guide_write: { symbol: '✎', group: 'guide', tone: 'blue' },
+  guide_send: { symbol: '→', group: 'guide', tone: 'teal' },
+  guide_ack: { symbol: '✓', group: 'guide', tone: 'green' },
 };
-const GROUP_STRIPE: Record<HistoryGroup, string> = {
-  book: 'border-green', request: 'border-violet', swap: 'border-amber', guide: 'border-blue',
+const TONE_STRIPE: Record<HistoryTone, string> = {
+  green: 'border-green', blue: 'border-blue', teal: 'border-teal', violet: 'border-violet', amber: 'border-amber',
 };
-const GROUP_TEXT: Record<HistoryGroup, string> = {
-  book: 'text-green', request: 'text-violet', swap: 'text-amber', guide: 'text-blue',
+const TONE_TEXT: Record<HistoryTone, string> = {
+  green: 'text-green', blue: 'text-blue', teal: 'text-teal', violet: 'text-violet', amber: 'text-amber',
 };
-const actionLook = (key: string) => ACTION_LOOK[key] ?? { symbol: '', group: 'guide' as const };
+const actionLook = (key: string) => ACTION_LOOK[key] ?? { symbol: '', group: 'guide' as const, tone: 'blue' as const };
 const withSymbol = (key: string, label: string) => {
   const symbol = actionLook(key).symbol;
   return symbol ? `${symbol} ${label}` : label;
@@ -258,33 +261,31 @@ export function BookHistory() {
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-inset p-2">
-        {/* 상위 두 갈래 — 수는 서버 bookCount · guideCount 그대로 (g4 §40-3) */}
+        {/* 원문 §40 칩 줄 — 「전체」(눌리면 진한 채움) · 상위 두 갈래 · 구분선 · 행동 칩(테두리) (W11 컷 재대조) */}
+        <ChipButton pressed={chip === null} pressedTone="ink" onClick={() => setChip(null)}>
+          전체
+        </ChipButton>
+        {/* 상위 두 갈래 — 수는 서버 bookCount · guideCount 그대로 (g4 §40-3). 점 색은 컷 실측(교재 파랑 · 수업 안내 초록) */}
         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-fg">
-          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-green" />
+          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-blue" />
           {`교재 ${q.data?.bookCount ?? 0}`}
         </span>
         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-fg">
-          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-blue" />
+          <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-green" />
           {`수업 안내 ${q.data?.guideCount ?? 0}`}
         </span>
         <span aria-hidden className="mx-1 h-4 w-px bg-line" />
-        <button type="button" onClick={() => setChip(null)}>
-          <Chip tone={chip === null ? 'info' : 'neutral'} styleKind={chip === null ? 'solid' : 'soft'}>
-            전체
-          </Chip>
-        </button>
         {(q.data?.actions ?? []).map((action) => (
-          <button
+          <ChipButton
             key={action.key}
-            type="button"
+            pressed={chip === action.key}
+            pressedTone="ink"
             onClick={() => {
               if (isBookHistoryAction(action.key)) setChip(action.key);
             }}
           >
-            <Chip tone={chip === action.key ? 'info' : 'neutral'} styleKind={chip === action.key ? 'solid' : 'soft'}>
-              {`${withSymbol(action.key, action.label)} ${action.count}`}
-            </Chip>
-          </button>
+            {`${withSymbol(action.key, action.label)} ${action.count}`}
+          </ChipButton>
         ))}
       </div>
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px]">
@@ -328,11 +329,11 @@ export function BookHistory() {
                           data-history-group={actionLook(row.action).group}
                           className={cn(
                             'grid grid-cols-[48px_104px_minmax(180px,1fr)_110px_minmax(120px,1fr)_90px_80px] items-center gap-2 border-l-4 px-2 py-2 text-[11px]',
-                            GROUP_STRIPE[actionLook(row.action).group],
+                            TONE_STRIPE[actionLook(row.action).tone],
                           )}
                         >
                           <span className="font-bold text-fg-subtle">{row.at.slice(11, 16)}</span>
-                          <b className={GROUP_TEXT[actionLook(row.action).group]}>{withSymbol(row.action, row.actionLabel)}</b>
+                          <b className={TONE_TEXT[actionLook(row.action).tone]}>{withSymbol(row.action, row.actionLabel)}</b>
                           {/* 대상이 지워진 줄은 서버가 「지워진 배부 #23」이라 적는다 — 흐리게 (g4 §40-2) */}
                           <span className={row.refMissing ? 'italic text-fg-subtle' : 'font-bold text-fg'}>{row.subject ?? '—'}</span>
                           <span>{row.code ? <Chip size="compact">{row.code}</Chip> : '—'}</span>

@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import {
+  useBookIssueDiag,
   useBooks,
   useBookTracking,
   useCreateBookIssue,
@@ -15,9 +16,10 @@ import {
   useTransitionBookIssue,
   useUpdateBookProgress,
 } from '@/api/queries';
-import { Banner, Button, Chip, Input, Label, Panel, QueryState, Select, StatCard, cn, type StatTone } from '@/components/ui';
+import { Banner, Button, Chip, Input, Label, Panel, QueryState, Select, StatCard, Textarea, cn, type StatTone } from '@/components/ui';
+import type { BookIssueCreate, LeadDiag } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
-import { bookLevelPresentation } from '@/lib/book-presentation';
+import { bookLevelPresentation, issueFormTone } from '@/lib/book-presentation';
 import { todayKst } from '@/lib/calendar';
 
 /**
@@ -25,6 +27,19 @@ import { todayKst } from '@/lib/calendar';
  * 칸 이름·수·차례는 서버 `states` 그대로이고 화면은 자리에 색만 붙인다.
  */
 const HEAD_TONE: readonly StatTone[] = ['neutral', 'warning', 'teal', 'danger', 'purple', 'success'];
+
+/**
+ * 배부 창의 진단 한 줄 (N-62) — 그 학생의 최신 상담 진단을 **보여 주기만** 한다(배부에 옮겨 적지 않는다 · D-R22).
+ * 낱말 · 차례는 §44 진단 카드와 같다(영어 · 수학 · 인터뷰 · 레벨 · 진단고사 날). 적지 않은 점수는 「—」 — 0 을 짓지 않는다.
+ */
+function diagLine(d: LeadDiag): string {
+  const scores = [['영어', d.english], ['수학', d.math], ['인터뷰', d.interview]] as const;
+  return [
+    scores.map(([label, value]) => `${label} ${value ?? '—'}`).join(' · '),
+    d.levelLabel ? `레벨 ${d.levelLabel}` : null,
+    d.takenOn ? `${d.takenOn} 진단고사` : null,
+  ].filter(Boolean).join(' · ');
+}
 
 /** 진도율 카드 왼쪽 띠 — 서가 카드 띠(bookLevelPresentation.bandClass)와 같은 색. 확정 레벨이 아니면 선 색 */
 const LEVEL_BORDER: Readonly<Record<string, string>> = { 'bg-red': 'border-l-red', 'bg-amber': 'border-l-amber', 'bg-green': 'border-l-green' };
@@ -46,6 +61,9 @@ export function BookTracking({
   const [adding, setAdding] = useState(false);
   const [studentId, setStudentId] = useState('');
   const [libId, setLibId] = useState('');
+  const [reason, setReason] = useState('');
+  const [form, setForm] = useState('');
+  const diag = useBookIssueDiag(adding && studentId ? Number(studentId) : null);
   const [pages, setPages] = useState<Record<number, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   useEffect(() => {
@@ -87,6 +105,36 @@ export function BookTracking({
                   ))}
                 </Select>
               </div>
+              {/* N-62 — 그 학생의 최신 상담 진단 한 줄(읽기만) */}
+              {studentId ? (
+                <p data-testid="issue-diag" className="text-[12px] text-fg-subtle sm:col-span-2">
+                  <b className="mr-1 text-fg">최근 진단</b>
+                  {diag.isPending ? '불러오는 중' : diag.data?.diag ? diagLine(diag.data.diag) : '상담 진단 기록이 없습니다'}
+                </p>
+              ) : null}
+              {/* §38-2 형태(선택) — 낱말은 서버 issueForms 그대로 · 고르지 않으면 칩이 서지 않는다 (W11 A') */}
+              <div>
+                <Label htmlFor="issue-form">형태</Label>
+                <Select id="issue-form" value={form} onChange={(e) => setForm(e.target.value)}>
+                  <option value="">—</option>
+                  {q.data?.issueForms.map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="issue-reason">사유</Label>
+                <Textarea
+                  id="issue-reason"
+                  rows={2}
+                  maxLength={500}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="무슨 교재를 왜 줬는지 남습니다"
+                />
+              </div>
             </div>
             <div className="mt-3 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setAdding(false)}>
@@ -96,12 +144,18 @@ export function BookTracking({
                 disabled={!studentId || !libId || create.isPending}
                 onClick={() =>
                   create.mutate(
-                    { studentId: Number(studentId), libId: Number(libId), state: 'ok' },
+                    {
+                      studentId: Number(studentId), libId: Number(libId), state: 'ok',
+                      ...(reason.trim() ? { reason: reason.trim() } : {}),
+                      ...(form ? { form: form as BookIssueCreate['form'] } : {}),
+                    },
                     {
                       onSuccess: () => {
                         setAdding(false);
                         setStudentId('');
                         setLibId('');
+                        setReason('');
+                        setForm('');
                       },
                     },
                   )
@@ -182,13 +236,13 @@ export function BookTracking({
                                   {/* 레벨 글자 사각 — §39 서가와 같은 선택기(M 초록 · P 주황 · F 빨강 · 그 밖은 중립) (g4 §38-3) */}
                                   <span
                                     data-level-marker
-                                    title={bookLevelPresentation(book?.level).label}
+                                    title={bookLevelPresentation(book?.levelLabel).label}
                                     className={cn(
                                       'inline-flex h-4 min-w-4 items-center justify-center rounded-[3px] px-0.5 text-[10px] font-bold text-white',
-                                      bookLevelPresentation(book?.level).bandClass,
+                                      bookLevelPresentation(book?.levelLabel).bandClass,
                                     )}
                                   >
-                                    {bookLevelPresentation(book?.level).marker.slice(0, 1)}
+                                    {bookLevelPresentation(book?.levelLabel).marker.slice(0, 1)}
                                   </span>
                                   <b>
                                     {book?.title ?? `교재 #${issue.libId}`}
@@ -196,6 +250,12 @@ export function BookTracking({
                                   </b>
                                   {issue.seFileId ? <FileDownloadButton id={issue.seFileId} label="SE" /> : null}
                                   {issue.teFileId ? <FileDownloadButton id={issue.teFileId} label="TE" /> : null}
+                                  {/* 원문 §38 교재 칸 아래 형태 칩 「PDF」 · 「실물 책」 — 승인 대기 요청 줄에도 선다 (7-3 §38-2 · W11 A') */}
+                                  {issue.formLabel ? (
+                                    <span data-issue-form className="basis-full">
+                                      <Chip size="compact" styleKind="solid" tone={issueFormTone(issue.form)}>{issue.formLabel}</Chip>
+                                    </span>
+                                  ) : null}
                                 </div>
                               );
                             })

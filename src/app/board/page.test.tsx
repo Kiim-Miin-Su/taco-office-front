@@ -16,7 +16,7 @@ import BoardPage from './page';
 // 주별·월별 칸은 오늘이 든 주·달에 놓인다 — 표본 수업 날짜를 오늘로 둔다
 const TODAY = todayKst();
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 
 const me: Me = {
@@ -179,6 +179,8 @@ it('과목·강사 칩은 그 기간 facet 만 서고, 과목 칩에 과목색 �
   await waitFor(() => expect(within(subjects).getByRole('button', { name: 'Writing' })).toBeTruthy());
   // meta 에는 있지만 이 기간에 수업이 없는 과목·직원은 칩이 없다
   expect(within(subjects).queryByRole('button', { name: 'Vocabulary' })).toBeNull();
+  // 원문 §34 — 눌린 「전체」는 진한 채움(W11 컷 재대조)
+  expect(within(subjects).getByRole('button', { name: '전체' }).querySelector('[data-chip-pressed="ink"]')).toBeTruthy();
   const writing = within(subjects).getByRole('button', { name: 'Writing' });
   expect(writing.getAttribute('aria-pressed')).toBe('false');
   const dot = writing.querySelector('[data-chip-dot]') as HTMLElement | null;

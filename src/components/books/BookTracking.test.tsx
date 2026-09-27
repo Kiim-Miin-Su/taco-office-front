@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: §38의 여섯 통계·강사 요청·배부 진도 회수 입력이 생성 계약과 연결되는지 검증한다.
+ * 목적: §38의 여섯 통계·강사 요청·배부(사유 · 진단 한 줄)·진도 회수 입력이 생성 계약과 연결되는지 검증한다.
  * 책임/재사용: 실제 컴포넌트와 Query hook을 쓰고 HTTP 어댑터만 fixture로 바꾼다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -36,9 +36,20 @@ afterEach(() => {
   mutation = {};
 });
 
+/** 배부 창의 진단 한 줄 fixture — 학생 3 은 진단이 있고, 그 밖의 학생은 없다 */
+const DIAG = {
+  id: 1, leadId: 8, english: 32, math: null, interview: 58, takenOn: '2026-08-20', level: 'foundation', levelLabel: 'Foundation',
+  byId: 2, byName: '김민수', at: '2026-08-20T10:00:00+09:00',
+};
+
 function setup() {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    const diag = /^\/books\/students\/(\d+)\/latest-diag$/.exec(config.url ?? '');
+    if (config.method === 'get' && diag) {
+      const studentId = Number(diag[1]);
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { studentId, diag: studentId === 3 ? DIAG : null } };
+    }
     if (config.method !== 'get') {
       mutation = { url: config.url, body: JSON.parse(config.data ?? '{}') };
       return {
@@ -80,7 +91,7 @@ function setup() {
                     progressPage: 60,
                     progressPercent: 75,
                   },
-                  { id: 11, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1' },
+                  { id: 11, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1', form: 'print', formLabel: '실물 책' },
                 ],
               },
             ],
@@ -103,11 +114,12 @@ function setup() {
               count: index === 4 ? 1 : 0,
             })),
             teacherRequests: [{ id: 7, requesterName: '김재훈', studentName: '고은성', message: '다 풀었습니다' }],
+            issueForms: [{ key: 'pdf', label: 'PDF' }, { key: 'print', label: '실물 책' }],
           }
         : config.url === '/books'
           ? {
               items: [
-                { id: 4, code: 'SAT', title: 'SAT Reading', level: 'Master', pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 4, code: 'SAT', title: 'SAT Reading', level: 'Master', levelLabel: 'Master', pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
                 { id: 5, code: 'WR', title: 'Writing', pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
               ],
               bySub: {},
@@ -123,7 +135,7 @@ function setup() {
               zaccs: [],
               invTypes: [],
               staff: [],
-              students: [{ id: 3, name: '고은성', grade: 'G12' }],
+              students: [{ id: 3, name: '고은성', grade: 'G12' }, { id: 9, name: '한지우', grade: 'G5' }],
             };
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   }) as never;
@@ -217,4 +229,54 @@ it('교재별 진도율 카드는 레벨 배지 · 오른쪽 인원 · 큰 % · 
   expect(card.querySelector('[data-progress-average]')?.textContent).toBe('20%');
   expect((card.querySelector('[data-average-mark]') as HTMLElement).style.left).toBe('20%');
   expect(card.parentElement?.className).toContain('xl:grid-cols-3');
+});
+
+/**
+ * N-62 — 배부 창은 사유 한 칸을 받고, 고른 학생의 **최신 상담 진단 한 줄**을 보여 주기만 한다.
+ * 점수는 배부 요청에 싣지 않는다(D-R22) · 적지 않은 점수는 「—」다.
+ */
+it('배부 창은 사유를 함께 보내고 고른 학생의 최신 진단 한 줄을 보여 주기만 한다 (N-62)', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
+  expect(view.queryByTestId('issue-diag')).toBeNull();
+  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
+  await waitFor(() => expect(view.getByTestId('issue-diag').textContent).toContain('영어 32 · 수학 — · 인터뷰 58 · 레벨 Foundation · 2026-08-20 진단고사'));
+  fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
+  fireEvent.change(view.getByLabelText('사유'), { target: { value: '  Reading 보강 — 진단 결과  ' } });
+  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
+  expect(mutation.body).toEqual({ studentId: 3, libId: 4, state: 'ok', reason: 'Reading 보강 — 진단 결과' });
+});
+
+it('진단이 없는 학생은 없다고 적고, 빈 사유는 보내지 않는다 (N-62)', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
+  fireEvent.change(view.getByLabelText('학생'), { target: { value: '9' } });
+  await waitFor(() => expect(view.getByTestId('issue-diag').textContent).toContain('상담 진단 기록이 없습니다'));
+  fireEvent.change(view.getByLabelText('교재'), { target: { value: '5' } });
+  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
+  expect(mutation.body).toEqual({ studentId: 9, libId: 5, state: 'ok' });
+});
+
+/**
+ * 7-3 §38-2(W11 A' · 리드 채택) — 교재 칸 아래 형태 칩 「PDF」 · 「실물 책」은 배부 줄의 것이다.
+ * 승인 대기 요청 줄에도 서고(컷 이유찬 · 이하린), 낱말은 서버 formLabel · 배부 창 선택지는 서버 issueForms 그대로.
+ */
+it('형태 칩은 서버 낱말 그대로 승인 대기 요청 줄에도 서고, 배부 창에서 고른 형태를 보낸다 (§38-2)', async () => {
+  const view = setup();
+  await waitFor(() => expect(view.getByText('75%')).toBeTruthy());
+  const chip = view.container.querySelector('[data-issue-form]') as HTMLElement;
+  expect(chip.textContent).toBe('실물 책');
+  expect((chip.firstElementChild as HTMLElement).className).toContain('bg-orange');
+  // 형태를 안 고른 배부 줄에는 칩이 없다
+  expect(view.container.querySelectorAll('[data-issue-form]').length).toBe(1);
+  fireEvent.click(view.getByRole('button', { name: '+ 배부' }));
+  expect([...(view.getByLabelText('형태') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['—', 'PDF', '실물 책']);
+  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
+  fireEvent.change(view.getByLabelText('교재'), { target: { value: '5' } });
+  fireEvent.change(view.getByLabelText('형태'), { target: { value: 'pdf' } });
+  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
+  expect(mutation.body).toEqual({ studentId: 3, libId: 5, state: 'ok', form: 'pdf' });
 });

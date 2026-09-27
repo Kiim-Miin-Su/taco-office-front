@@ -11,7 +11,8 @@
  * 마크와 집계는 저장하지 않으며 요청할 때마다 서버가 원장을 다시 판정한다 (D-R4).
  */
 'use client';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useBoard, useMeta, useOccurrences } from '@/api/queries';
 import type { Board, BoardRow, CheckMark } from '@/api/types';
 import { DayBoard, MonthBoard, WeekBoard } from '@/components/board/BoardViews';
@@ -21,6 +22,7 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, ChipButton, ChipRow, PageHeader, Segmented, StatCard, cn } from '@/components/ui';
 import { boundsOf, longDateLabel, monthBounds, step, todayKst, weekDays } from '@/lib/calendar';
 import { subjectColor } from '@/lib/tokens';
+import { queryIsoDate } from '@/lib/url-state';
 import { useCan } from '@/store/useSession';
 
 type Span = 'day' | 'week' | 'month';
@@ -80,8 +82,11 @@ function lessonMatches(row: BoardRow, focus: HeadKey | null): boolean {
 }
 
 export default function BoardPage() {
+  // 그 날을 곧장 여는 질의 `?date=` — 대표 보고 「준비가 덜 된 수업」 줄이 여기로 온다 (W11 · 7-3 ①). 없으면 오늘
+  const queryDate = queryIsoDate(useSearchParams().get('date'));
   const [span, setSpan] = useState<Span>('day');
-  const [anchor, setAnchor] = useState(todayKst);
+  const [anchor, setAnchor] = useState(() => queryDate ?? todayKst());
+  useEffect(() => { if (queryDate) { setSpan('day'); setAnchor(queryDate); } }, [queryDate]);
   const [teacherId, setTeacherId] = useState<number>();
   const [subKey, setSubKey] = useState('');
   // 「미완료만」 체크 대신 머리 칸 하나를 눌러 거른다 (§34-4). 같은 칸을 다시 누르면 풀린다.
@@ -186,13 +191,15 @@ export default function BoardPage() {
           <div className="flex items-start gap-2 text-[12px]">
             <b className="w-10 shrink-0 pt-0.5 text-fg-subtle">과목</b>
             <div role="group" aria-label="과목" className="flex flex-wrap items-center gap-1.5">
-              <ChipButton pressed={subKey === ''} onClick={() => setSubKey('')}>
+              {/* 원문 §34~§36 — 눌린 칩은 진한 채움(「전체」 · W11 컷 재대조) */}
+              <ChipButton pressed={subKey === ''} pressedTone="ink" onClick={() => setSubKey('')}>
                 전체
               </ChipButton>
               {subjectChips.map((sub) => (
                 <ChipButton
                   key={sub.key}
                   pressed={subKey === sub.key}
+                  pressedTone="ink"
                   // 과목색 점은 공용 ChipButton 의 `dot` 한 벌이다 — 칩마다 점을 손으로 그리지 않는다
                   dot={colorOf(sub.key) ?? 'var(--fg-subtle)'}
                   onClick={() => setSubKey(subKey === sub.key ? '' : sub.key)}
@@ -207,6 +214,7 @@ export default function BoardPage() {
               <b className="w-10 shrink-0 pt-0.5 text-fg-subtle">강사</b>
               <ChipRow
                 ariaLabel="강사"
+                pressedTone="ink"
                 value={teacherId === undefined ? '' : String(teacherId)}
                 onChange={(next) => setTeacherId(next ? Number(next) : undefined)}
                 options={teacherChips}

@@ -35,8 +35,9 @@ const GRP: Array<{ value: Grp; label: string }> = [
 ];
 const FORM: Array<{ value: '' | RepForm; label: string }> = [
   { value: '', label: '없음' },
-  { value: 'dev', label: '성장(dev)' },
-  { value: 'assess', label: '평가(assess)' },
+  // 표의 칩(「성장」 · 「평가」)과 같은 낱말 — 저장 코드(dev · assess)는 화면에 드러내지 않는다 (W11 §18 재대조)
+  { value: 'dev', label: '성장' },
+  { value: 'assess', label: '평가' },
 ];
 const asGrp = (v: string): Grp => (GRP.some((g) => g.value === v) ? (v as Grp) : 'lesson');
 const asForm = (v: string): RepForm | null => (v === 'dev' || v === 'assess' ? v : null);
@@ -135,7 +136,7 @@ export default function ProgramsPage() {
             <Panel className="mb-4" title="프로그램 추가" sub="리포트 대상이면 서식을 함께 고릅니다">
               <div className="grid grid-cols-6 gap-3">
                 <div><Label htmlFor="k-key">코드</Label><Input id="k-key" value={kindForm.key} onChange={(e) => setKindForm({ ...kindForm, key: e.target.value })} placeholder="class" /></div>
-                <div><Label htmlFor="k-name">이름</Label><Input id="k-name" value={kindForm.name} onChange={(e) => setKindForm({ ...kindForm, name: e.target.value })} placeholder="정규 수업" /></div>
+                <div><Label htmlFor="k-name">이름</Label><Input id="k-name" value={kindForm.name} onChange={(e) => setKindForm({ ...kindForm, name: e.target.value })} placeholder="수업" /></div>
                 <div><Label htmlFor="k-color">색</Label><Input id="k-color" type="color" value={kindForm.color} onChange={(e) => setKindForm({ ...kindForm, color: e.target.value })} /></div>
                 <div><Label htmlFor="k-cap">정원</Label><Input id="k-cap" type="number" min={1} value={kindForm.cap} onChange={(e) => setKindForm({ ...kindForm, cap: Number(e.target.value) })} /></div>
                 <div>
@@ -219,7 +220,7 @@ export default function ProgramsPage() {
             <Panel className="mb-4" title="과목 추가">
               <div className="grid grid-cols-3 gap-3">
                 <div><Label htmlFor="s-key">코드</Label><Input id="s-key" value={subForm.key} onChange={(e) => setSubForm({ ...subForm, key: e.target.value })} placeholder="ap-chem" /></div>
-                <div><Label htmlFor="s-name">이름</Label><Input id="s-name" value={subForm.name} onChange={(e) => setSubForm({ ...subForm, name: e.target.value })} placeholder="AP Chemistry" /></div>
+                <div><Label htmlFor="s-name">이름</Label><Input id="s-name" value={subForm.name} onChange={(e) => setSubForm({ ...subForm, name: e.target.value })} placeholder="AP Chem" /></div>
                 <div><Label htmlFor="s-color">색</Label><Input id="s-color" type="color" value={subForm.color} onChange={(e) => setSubForm({ ...subForm, color: e.target.value })} /></div>
               </div>
               {createSub.isError ? <Banner tone="danger" className="mt-3">{apiMessage(createSub.error)}</Banner> : null}
