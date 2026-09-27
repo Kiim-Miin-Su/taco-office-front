@@ -305,7 +305,7 @@ it.each([
   await waitFor(() => expect(client.getQueryData(key)).toEqual(server));
   expect(get).toHaveBeenCalledOnce();
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.accounting, ['exec'],
+    ['schedule', 'occurrences'], ['reports'], ['board'], qk.accounting, ['exec'],
   ]);
 });
 
@@ -323,7 +323,7 @@ it.each([
   expect(invalidate).not.toHaveBeenCalled();
 });
 
-it.each(['save', 'clear'] as const)('출결 %s 성공은 기존 네 소비 key만 갱신한다', async (action) => {
+it.each(['save', 'clear'] as const)('출결 %s 성공은 일정·리포트 등 다섯 소비 key를 갱신한다', async (action) => {
   vi.spyOn(api, action === 'save' ? 'put' : 'delete').mockResolvedValue({ data: { attendance: null } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const view = renderHook(() => useAttendanceWrite(), { wrapper });
@@ -333,6 +333,6 @@ it.each(['save', 'clear'] as const)('출결 %s 성공은 기존 네 소비 key�
       : { action, serId: 1, onDate: range.from });
   });
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['schedule', 'occurrences'], ['board'], qk.accounting, ['exec'],
+    ['schedule', 'occurrences'], ['reports'], ['board'], qk.accounting, ['exec'],
   ]);
 });

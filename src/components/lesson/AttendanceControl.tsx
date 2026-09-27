@@ -20,7 +20,7 @@ import type {
   Attendance, AttendanceCancelReason, AttendanceResult, AttendanceWrite, Occurrence,
 } from '@/api/types';
 import { hhmm } from '@/lib/calendar';
-import { Button, Chip, ConflictGuard, Dialog } from '../ui';
+import { Button, Checkbox, Chip, ConflictGuard, Dialog } from '../ui';
 
 const CANCEL_REASONS: Array<{ value: AttendanceCancelReason; label: string }> = [
   { value: 'teacher_absent', label: '강사 결강' },
@@ -50,12 +50,16 @@ export function AttendanceControl({ occ, onOpenCancel }: {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<AttendanceResult>(occ.attendance?.result ?? 'completed');
   const [reason, setReason] = useState<AttendanceCancelReason | ''>(occ.attendance?.reason ?? '');
+  const [lateStudentIds, setLateStudentIds] = useState<number[]>(
+    occ.attendance?.lateStudents.map((student) => student.studentId) ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setAttendance(occ.attendance);
     setResult(occ.attendance?.result ?? 'completed');
     setReason(occ.attendance?.reason ?? '');
+    setLateStudentIds(occ.attendance?.lateStudents.map((student) => student.studentId) ?? []);
     setError(null);
     setOpen(false);
   }, [occ.serId, occ.onDate, occ.attendance]);
@@ -63,6 +67,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
   const showDialog = () => {
     setResult(attendance?.result ?? 'completed');
     setReason(attendance?.reason ?? '');
+    setLateStudentIds(attendance?.lateStudents.map((student) => student.studentId) ?? []);
     setError(null);
     setOpen(true);
   };
@@ -71,7 +76,8 @@ export function AttendanceControl({ occ, onOpenCancel }: {
     if (result === 'canceled' && !reason) return;
     setError(null);
     const body: AttendanceWrite = result === 'completed'
-      ? { result }
+      // 빈 배열도 보낸다. 정정 창에서 모두 해제한 것은 기존 지각 명단을 유지하라는 생략과 다르다.
+      ? { result, lateStudentIds }
       : { result, reason: reason as AttendanceCancelReason };
     write.mutate(
       {
@@ -132,6 +138,14 @@ export function AttendanceControl({ occ, onOpenCancel }: {
             <p className="mt-1 text-[11px] font-bold text-fg-2">
               {attendance.countsForPay ? '정산 기준 · 시수·페이에 포함' : '정산 기준 · 시수 0 · 페이 0'}
             </p>
+            {attendance.result === 'completed' && attendance.lateStudents.length ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1" aria-label="지각 학생">
+                <span className="mr-1 text-[11px] font-bold text-fg-subtle">지각</span>
+                {attendance.lateStudents.map((student) => (
+                  <Chip key={student.studentId} tone="warning" size="compact">{student.studentName}</Chip>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <p className="text-[12px] text-fg-2">
@@ -198,6 +212,34 @@ export function AttendanceControl({ occ, onOpenCancel }: {
             <span className="mt-1 block text-[11px] text-fg-subtle">시수 0 · 페이 0의 근거 사유를 남깁니다.</span>
           </button>
         </div>
+
+        {result === 'completed' ? (
+          <div className="mt-3 rounded-lg border border-line bg-inset p-3">
+            <p className="text-[11px] font-bold text-fg">지각 학생</p>
+            <p className="mt-0.5 text-[10px] text-fg-subtle">출석·청구·강사료 계산은 완료 상태 그대로 유지됩니다.</p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+              {occ.students.map((student) => {
+                const inactive = student.droppedOnce || student.paused;
+                return (
+                  <Checkbox
+                    key={student.id}
+                    label={`${student.name}${student.grade ? ` · ${student.grade}` : ''}${student.droppedOnce ? ' · 그날 빠짐' : student.paused ? ' · 휴원' : ''}`}
+                    checked={lateStudentIds.includes(student.id)}
+                    // 빠짐·휴원 학생을 새로 지각 처리하지 않되, 이미 기록된 값은 정정할 수 있어야 한다.
+                    disabled={write.isPending || (inactive && !lateStudentIds.includes(student.id))}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      setLateStudentIds((current) => checked
+                        ? [...current, student.id]
+                        : current.filter((id) => id !== student.id));
+                    }}
+                  />
+                );
+              })}
+              {occ.students.length === 0 ? <span className="text-[11px] text-fg-subtle">표시할 학생이 없습니다.</span> : null}
+            </div>
+          </div>
+        ) : null}
 
         {result === 'canceled' ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-inset p-2.5 text-[11px] text-fg-2"

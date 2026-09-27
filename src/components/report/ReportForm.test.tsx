@@ -51,7 +51,7 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
     const detail: ReportDetail = {
       id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
       subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
-      written: true, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
+      written: true, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
       body: { content: '수업', progress: '42p', homework: '43p' }, fields,
       canEdit: false, canReview: true, lang: 'ko', writtenAt: '2026-09-03T08:00:00Z',
       canExport: true, canDeliver: false,
@@ -94,7 +94,7 @@ describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상
   const detail = (canEdit: boolean): ReportDetail => ({
     id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
     subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: canEdit ? 'none' : 'wait',
-    written: !canEdit, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
+    written: !canEdit, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
     body: { content: '', progress: '', homework: '' }, fields,
     canEdit, canReview: false, lang: 'ko', writtenAt: null,
     canExport: false, canDeliver: false, exportFiles: [], subjectName: 'AP Chemistry',
@@ -124,6 +124,20 @@ describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상
     act(() => as(true));
     expect(mount(detail(true)).queryByRole('note')).toBeNull();
   });
+
+  it('리포트 학생의 서버 지각 현재값만 학생 패널 배지로 표시한다', () => {
+    as(true);
+    const view = mount({
+      ...detail(false),
+      students: [
+        { id: 4, name: '지각학생', grade: '고2', deliver: true, late: true },
+        { id: 5, name: '정시학생', grade: '고1', deliver: true, late: false },
+      ],
+    });
+    const badge = view.getByText('지각');
+    expect(badge.getAttribute('title')).toContain('출석은 유지');
+    expect(view.getAllByText('지각')).toHaveLength(1);
+  });
 });
 
 describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화면은 지금 그대로', () => {
@@ -131,7 +145,7 @@ describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화
   const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
     id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
     subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'none',
-    written: false, students: [{ id: 4, name: '학생', grade: '고2', deliver: true }], minutesSinceEnd: 30, penalty: 0,
+    written: false, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
     body: { content: '', progress: '', homework: '' }, fields,
     canEdit: true, canReview: false, lang: 'ko', writtenAt: null,
     canExport: false, canDeliver: false, exportFiles: [], subjectName: 'AP Chemistry',

@@ -1964,6 +1964,8 @@ export function useAttendanceWrite(): UseMutationResult<AttendanceMutationResult
   const qc = useQueryClient();
   const reconcile = () => {
     void qc.invalidateQueries({ queryKey: family.occurrences });
+    // 학생별 지각은 리포트 목록·상세의 ReportStudentDto에도 투영된다.
+    void qc.invalidateQueries({ queryKey: family.reports });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.accounting });
     void qc.invalidateQueries({ queryKey: family.exec });

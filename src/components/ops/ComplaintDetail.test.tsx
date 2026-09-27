@@ -69,7 +69,7 @@ function setup(
 const report = (id: number, date: string, studentId = 5): ReportRow => ({
   id, serId: 100 + id, date, onDate: date, startMin: 600 + id, endMin: 660 + id,
   subKey: 'sat-read', kindKey: 'class', teacherId: 4, teacherName: '강민지', state: 'ok', written: true,
-  students: [{ id: studentId, name: studentId === 5 ? '고은설' : '다른 학생', grade: 'G9', deliver: true }],
+  students: [{ id: studentId, name: studentId === 5 ? '고은설' : '다른 학생', grade: 'G9', deliver: true, late: false }],
   minutesSinceEnd: 60, penalty: 0,
 });
 

@@ -91,6 +91,7 @@ describe('강사 캘린더 기본 오늘 목록 (§8·§9)', () => {
       occurrence(3, '2026-09-07', 960, { attendance: {
         id: 1, result: 'canceled', reason: 'academy', countsForPay: false,
         confirmedBy: 1, confirmedByName: '관리자', confirmedAt: '2026-09-07T10:00:00Z',
+        lateStudents: [],
       } }),
     ], '2026-09-07');
     expect(result.today).toHaveLength(3);

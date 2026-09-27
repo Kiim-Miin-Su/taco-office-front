@@ -12,7 +12,7 @@ import { TeacherReportList } from './TeacherReportList';
 const row: ReportRow = {
   id: 1, serId: 11, date: '2026-09-14', onDate: '2026-09-14', startMin: 600, endMin: 660,
   subKey: 'writing', kindKey: 'class', teacherId: 7, teacherName: '김재훈', state: 'none', written: false,
-  students: [{ id: 1, name: '학생A', deliver: true }], minutesSinceEnd: 30, penalty: 0,
+  students: [{ id: 1, name: '학생A', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
 };
 
 it('모바일 카드와 웹 표가 같은 리포트를 열고 같은 상태를 표시한다', () => {
@@ -30,7 +30,7 @@ it('모바일 카드와 웹 표가 같은 리포트를 열고 같은 상태를 �
 
 it('grouped — 덱 slide 18 목록처럼 날짜 묶음 머리 「9월 14일 (월) · 2건」 아래에 시각 · 학생 · 과목 · 상태 줄이 선다', () => {
   const onOpen = vi.fn();
-  const second: ReportRow = { ...row, id: 2, serId: 12, startMin: 900, endMin: 960, state: 'rej', students: [{ id: 2, name: '학생B', deliver: true }] };
+  const second: ReportRow = { ...row, id: 2, serId: 12, startMin: 900, endMin: 960, state: 'rej', students: [{ id: 2, name: '학생B', deliver: true, late: false }] };
   const other: ReportRow = { ...row, id: 3, serId: 13, date: '2026-09-12', onDate: '2026-09-12' };
   const view = render(<TeacherReportList rows={[row, second, other]} subjectName={() => 'Writing'} onOpen={onOpen} grouped />);
   const groups = view.getAllByRole('group');

@@ -21,8 +21,8 @@ const detail: ReportDetail = {
   subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
   written: true,
   students: [
-    { id: 4, name: '학생A', grade: '고2', deliver: true },
-    { id: 5, name: '학생B', grade: null, deliver: true },
+    { id: 4, name: '학생A', grade: '고2', deliver: true, late: false },
+    { id: 5, name: '학생B', grade: null, deliver: true, late: false },
   ],
   minutesSinceEnd: 30, penalty: 0,
   body: { content: '수업', progress: '42p', homework: '43p' }, fields,

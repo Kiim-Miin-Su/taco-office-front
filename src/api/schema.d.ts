@@ -430,13 +430,13 @@ export interface paths {
         get?: never;
         /**
          * 종료 회차 출결 확정/정정 — 현재값 ATT와 append-only LOG를 함께 저장
-         * @description 일정 변경과 같은 부모 SER를 먼저 잠근 뒤 최신 투영 회차의 종료/취소 여부를 검사한다. 정상 재투영은 사라진 회차로 오인하지 않는다. 종료 전 또는 취소된 회차는 ATTENDANCE_NOT_AVAILABLE409, 없는 회차는 OCCURRENCE_NOT_FOUND404이며 ATT/LOG를 저장하지 않는다.
+         * @description 일정 변경과 같은 부모 SER를 먼저 잠근 뒤 최신 투영 회차의 종료/취소 여부를 검사한다. 정상 재투영은 사라진 회차로 오인하지 않는다. 종료 전 또는 취소된 회차는 ATTENDANCE_NOT_AVAILABLE409, 없는 회차는 OCCURRENCE_NOT_FOUND404이며 ATT/LOG를 저장하지 않는다. C-40 lateStudentIds는 회차 명단의 학생별 지각 현재값이며 ATT.completed 출석·정산 판정은 바꾸지 않는다. 지각 원장과 ATT/LOG는 같은 트랜잭션이다.
          */
         put: operations["ScheduleController_saveAttendance"];
         post?: never;
         /**
          * 회차 출결 현재값 초기화 — 삭제 전 값은 LOG에 보존
-         * @description 일정 변경과 같은 부모 SER를 먼저 잠근 뒤 최신 투영 회차의 종료/취소 여부를 검사한다. 정상 재투영은 사라진 회차로 오인하지 않는다. 종료 전 또는 취소된 회차는 ATTENDANCE_NOT_AVAILABLE409, 없는 회차는 OCCURRENCE_NOT_FOUND404이며 ATT/LOG를 저장하지 않는다.
+         * @description 일정 변경과 같은 부모 SER를 먼저 잠근 뒤 최신 투영 회차의 종료/취소 여부를 검사한다. 정상 재투영은 사라진 회차로 오인하지 않는다. 종료 전 또는 취소된 회차는 ATTENDANCE_NOT_AVAILABLE409, 없는 회차는 OCCURRENCE_NOT_FOUND404이며 ATT/LOG를 저장하지 않는다. C-40 lateStudentIds는 회차 명단의 학생별 지각 현재값이며 ATT.completed 출석·정산 판정은 바꾸지 않는다. 지각 원장과 ATT/LOG는 같은 트랜잭션이다.
          */
         delete: operations["ScheduleController_clearAttendance"];
         options?: never;
@@ -4404,6 +4404,16 @@ export interface components {
             /** @description 학생 성별 선택지 둘 (N-83 · 선택 칸) — 낱말은 서버가 준다 */
             genders: components["schemas"]["GenderDto"][];
         };
+        AttendanceLateStudentDto: {
+            /** @description 이 회차에서 지각으로 표시된 학생 */
+            studentId: number;
+            studentName: string;
+            /** @description 마지막 지각 표시/정정자 */
+            confirmedBy: number;
+            confirmedByName: string;
+            /** Format: date-time */
+            confirmedAt: string;
+        };
         AttendanceDto: {
             id: number;
             /** @enum {string} */
@@ -4416,6 +4426,8 @@ export interface components {
             confirmedAt: string;
             /** @description completed=true, canceled=false. 정산 소비자가 문자열을 다시 비교하지 않는다 */
             countsForPay: boolean;
+            /** @description C-40 회차×학생 지각 현재값. 빈 배열도 completed 출석/정산 판정을 바꾸지 않는다 */
+            lateStudents: components["schemas"]["AttendanceLateStudentDto"][];
         };
         OccStudentDto: {
             id: number;
@@ -4425,6 +4437,8 @@ export interface components {
             droppedOnce: boolean;
             /** @description 그날 휴원 중인가 — 명단에 남되 시간표·청구에서는 빠진다 (C92-c · C-36) */
             paused: boolean;
+            /** @description C-40 이 회차에서 학생이 지각으로 기록됐는가. 출석 계산은 ATT.completed 그대로다 */
+            late: boolean;
         };
         OccurrenceDto: {
             /** @description 반복 규칙 id */
@@ -4730,6 +4744,8 @@ export interface components {
             result: "completed" | "canceled";
             /** @enum {string|null} */
             reason?: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other" | null;
+            /** @description C-40 지각 학생 현재 목록. completed에서만 사용. 생략하면 기존 목록 보존, []이면 모두 해제 */
+            lateStudentIds?: number[];
         };
         AttendanceMutationResultDto: {
             attendance: components["schemas"]["AttendanceDto"] | null;
@@ -5056,6 +5072,8 @@ export interface components {
             grade?: string | null;
             /** @description REP_STU.deliver — 이 학생에게 전문을 전달할지 */
             deliver: boolean;
+            /** @description C-40 회차 출석은 유지하면서 학생별 지각 사실만 표시. 본문·학부모 공개에는 자동 삽입하지 않는다 */
+            late: boolean;
         };
         ReportRowDto: {
             id: number;
@@ -13069,7 +13087,7 @@ export interface operations {
                     "application/json": components["schemas"]["AttendanceMutationResultDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description ATTENDANCE_REASON_REQUIRED | ATTENDANCE_REASON_FORBIDDEN | ATTENDANCE_LATE_FORBIDDEN | ATTENDANCE_LATE_STUDENT_INVALID | ATTENDANCE_LATE_STUDENT_NOT_IN_ROSTER */
             400: {
                 headers: {
                     [name: string]: unknown;

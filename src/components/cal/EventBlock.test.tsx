@@ -77,7 +77,7 @@ describe('EventBlock', () => {
     const onClick = vi.fn();
     const onSelect = vi.fn();
     const occ = { ...occurrence, canceled: true, hasException: true,
-      students: [{ id: 1, name: '수강 학생', droppedOnce: false, paused: false }] };
+      students: [{ id: 1, name: '수강 학생', droppedOnce: false, paused: false, late: false }] };
     const view = render(<EventBlock occ={occ} color="#5677A5" selected draggable resizable onClick={onClick} onSelect={onSelect} />);
     const block = view.getByRole('button', { name: /AP Chemistry/ });
     expect(view.getByText('수강 학생')).toBeTruthy();
@@ -113,7 +113,7 @@ describe('EventBlock', () => {
   it('블록은 담당 강사 줄과 「학생 · 장소」 줄, 종류·리포트 배지를 이미 온 값으로 그린다 (§07·§08)', () => {
     const occ: Occurrence = {
       ...occurrence, kindKey: 'study', repState: 'rej',
-      students: ['강라율', '고은설', '양찬욱'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false })),
+      students: ['강라율', '고은설', '양찬욱'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false, late: false })),
     };
     const view = render(<EventBlock occ={occ} subName="학습실" kindName="자습" color="#59988B" />);
     const block = view.getByRole('button', { name: /학습실/ });
@@ -130,6 +130,20 @@ describe('EventBlock', () => {
     }
   });
 
+  it('시간표는 서버가 표시한 지각 학생을 배지와 전체 title로 보여 준다 (C-40)', () => {
+    const view = render(<EventBlock occ={{
+      ...occurrence,
+      students: [
+        { id: 1, name: '지각 학생', droppedOnce: false, paused: false, late: true },
+        { id: 2, name: '정시 학생', droppedOnce: false, paused: false, late: false },
+      ],
+    }} />);
+    expect(view.getByText('지각')).toBeTruthy();
+    const title = view.getByRole('button', { name: /AP Chemistry/ }).getAttribute('title') ?? '';
+    expect(title).toContain('지각 지각 학생');
+    expect(title).not.toContain('지각 정시 학생');
+  });
+
   it('온라인은 줌 계정 이름을 장소로 쓰고, 기본 종류(수업)와 끝난 리포트에는 배지를 달지 않는다', () => {
     const view = render(<EventBlock occ={{ ...occurrence, mode: 'online', roomName: null, zaccId: 1, repState: 'ok' }}
       subName="AP Chem" kindName="수업" zaccLabel="TN Zoom 1" color="#5677A5" />);
@@ -142,7 +156,7 @@ describe('EventBlock', () => {
   });
 
   it('원문 §07 범례 「[미작성] 리포트」 — 끝났는데 리포트가 없는 수업은 과목색 보기에서도 빨간 「미작성」 배지를 단다', () => {
-    const three = ['양찬욱', '이유찬', '오유준'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false }));
+    const three = ['양찬욱', '이유찬', '오유준'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false, late: false }));
     const late = { ...occurrence, repState: 'none' as const, written: false, students: three };
     const view = render(<EventBlock occ={late} subName="MAP Math" color="#5677A5" cap={4} />);
     const badge = view.getByText('미작성');
@@ -193,7 +207,7 @@ describe('EventBlock', () => {
 
     const occ: Occurrence = {
       ...occurrence, repState: 'wait', canceled: true, cancelTreatLabel: '이월',
-      students: [{ id: 1, name: '수강 학생', droppedOnce: false, paused: false }],
+      students: [{ id: 1, name: '수강 학생', droppedOnce: false, paused: false, late: false }],
     };
     const one = render(<EventBlock occ={occ} subName="AP Chem" lines={1} />);
     expect(one.getByText('이다현')).toBeTruthy();
@@ -236,12 +250,12 @@ describe('EventBlock', () => {
  * · 월간 칸은 테두리 없는 띠 모양(§09 #4) · 개인표 세 줄(§10 #7).
  */
 describe('EventBlock 정원 점 · 시각 생략 · 월간 모양 · 개인표 줄', () => {
-  const three = ['양찬욱', '이유찬', '오유준'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false }));
+  const three = ['양찬욱', '이유찬', '오유준'].map((name, i) => ({ id: i + 1, name, droppedOnce: false, paused: false, late: false }));
 
   it('정원 점은 그날 명단(빠짐·휴원 제외)이 채운 자리만큼 차고 나머지는 빈 점이다 — title 에 「정원 3/4명」', () => {
     const occ: Occurrence = {
       ...occurrence, repState: 'ok',
-      students: [...three, { id: 9, name: '빠진 학생', droppedOnce: true, paused: false }],
+      students: [...three, { id: 9, name: '빠진 학생', droppedOnce: true, paused: false, late: false }],
     };
     const view = render(<EventBlock occ={occ} subName="MAP Math" kindName="수업" cap={4} />);
     const dots = view.container.querySelector('[data-cap-dots]')!;
@@ -303,11 +317,11 @@ describe('EventBlock 휴강 사유·휴원 모양 (원문 §07 범례)', () => {
     const academy = render(<EventBlock occ={{ ...occurrence, canceled: true, cancelKind: 'holiday' }} subName="AP Chem" color="#5677A5" />);
     expect(academy.getByRole('button', { name: /AP Chem/ }).className).toContain('cancelAcademy');
     cleanup();
-    const paused = render(<EventBlock occ={{ ...occurrence, students: [{ id: 1, name: '쉬는 학생', droppedOnce: false, paused: true }] }}
+    const paused = render(<EventBlock occ={{ ...occurrence, students: [{ id: 1, name: '쉬는 학생', droppedOnce: false, paused: true, late: false }] }}
       subName="AP Chem" color="#5677A5" />);
     expect(paused.getByRole('button', { name: /AP Chem/ }).className).toContain('paused');
     cleanup();
-    const plain = render(<EventBlock occ={{ ...occurrence, students: [{ id: 1, name: '나온 학생', droppedOnce: false, paused: false }] }}
+    const plain = render(<EventBlock occ={{ ...occurrence, students: [{ id: 1, name: '나온 학생', droppedOnce: false, paused: false, late: false }] }}
       subName="AP Chem" color="#5677A5" />);
     const cls = plain.getByRole('button', { name: /AP Chem/ }).className;
     expect(cls).not.toContain('paused');
@@ -340,7 +354,7 @@ describe('EventBlock 휴강 사유·휴원 모양 (원문 §07 범례)', () => {
 describe('EventBlock 회차 메모 (N-57)', () => {
   const memo: Occurrence = {
     ...occurrence, memo: '모의고사 오답 리뷰 우선',
-    students: [{ id: 1, name: '고은성', droppedOnce: false, paused: false }],
+    students: [{ id: 1, name: '고은성', droppedOnce: false, paused: false, late: false }],
   };
 
   it('줄이 들어가면 맨 아래 메모 줄로 서고 「노트」 배지는 달지 않는다', () => {

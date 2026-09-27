@@ -32,7 +32,7 @@ function occurrence(patch: Partial<Occurrence> = {}): Occurrence {
     kindKey: 'class', subKey: 'writing', teacherId: 11, roomId: 7, mode: 'offline',
     canceled: false, hasException: false, recurring: false, repState: 'plan', ended: false, written: false, extra: false,
     attendanceMode: 'unavailable', attendance: null,
-    students: [{ id: 3, name: '학생 3', droppedOnce: false, paused: false }],
+    students: [{ id: 3, name: '학생 3', droppedOnce: false, paused: false, late: false }],
     ...patch,
   };
 }
@@ -49,7 +49,7 @@ describe('filterScheduleOccurrences', () => {
       occurrence({ serId: 3, kindKey: 'meeting' }),
       occurrence({ serId: 4, subKey: 'math' }),
       occurrence({ serId: 5, teacherId: 99 }),
-      occurrence({ serId: 6, students: [{ id: 4, name: '학생 4', droppedOnce: false, paused: false }] }),
+      occurrence({ serId: 6, students: [{ id: 4, name: '학생 4', droppedOnce: false, paused: false, late: false }] }),
       occurrence({ serId: 7, roomId: 8 }),
     ];
 
@@ -57,7 +57,7 @@ describe('filterScheduleOccurrences', () => {
   });
 
   it('그날만 제외된 학생은 학생 필터 결과에 포함하지 않고 서버 사실은 변경하지 않는다', () => {
-    const dropped = occurrence({ students: [{ id: 3, name: '학생 3', droppedOnce: true, paused: false }] });
+    const dropped = occurrence({ students: [{ id: 3, name: '학생 3', droppedOnce: true, paused: false, late: false }] });
     const filters = { ...INITIAL_SCHEDULE_FILTERS, studentId: 3 };
 
     expect(filterScheduleOccurrences([dropped], filters)).toEqual([]);

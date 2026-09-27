@@ -20,7 +20,7 @@ import { longDateLabel } from '@/lib/calendar';
 import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
 import { readableAccentColor } from '@/lib/tokens';
 import { useSession } from '@/store/useSession';
-import { Banner, Button, CountedTextarea, Label, Panel, Textarea } from '../ui';
+import { Banner, Button, Chip, CountedTextarea, Label, Panel, Textarea } from '../ui';
 import { LateReportPolicy } from '../teacher/LateReportPolicy';
 import { useTeacherSurface } from '../teacher/teacher-surface';
 import { ReportWriterGuide } from './ReportWriterGuide';
@@ -135,9 +135,18 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
       {/* 쓰는 사람에게만 — 작성 양식 최상단에 지각 차감을 적는다 (대표 결정 2026-09-25 · 강사 로그인만) */}
       {detail.canEdit ? <LateReportPolicy /> : null}
       <Panel title="① 학생" sub="이름·학년은 명단 레코드에서 자동으로 입력됩니다.">
-        <div className="text-[13px] font-bold text-fg">
-          {detail.students.map((student) => `${student.name}${student.grade ? ` · ${student.grade}` : ''}`).join(' / ') || '학생 없음'}
-        </div>
+        {detail.students.length ? (
+          <div className="flex flex-wrap gap-2 text-[13px] font-bold text-fg">
+            {detail.students.map((student) => (
+              <span key={student.id} className="inline-flex items-center gap-1.5">
+                <span>{student.name}{student.grade ? ` · ${student.grade}` : ''}</span>
+                {student.late ? (
+                  <Chip tone="warning" size="compact" title="출석은 유지되고 이 회차 지각으로 기록되었습니다">지각</Chip>
+                ) : null}
+              </span>
+            ))}
+          </div>
+        ) : <div className="text-[13px] font-bold text-fg">학생 없음</div>}
       </Panel>
       <Panel title="② 수업" sub="날짜·과목·시간은 회차 레코드에서 자동으로 입력됩니다.">
         <div className="text-[13px] font-bold text-fg">{detail.date} · {subject} · {reportTimeLabel(detail)}</div>

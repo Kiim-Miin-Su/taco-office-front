@@ -179,6 +179,7 @@ export function EventBlock({
 
   const look = color ? styles.subject : (STATUS_LOOK[occ.repState] ?? STATUS_LOOK.na);
   const studentNames = occ.students.map((s) => s.name);
+  const lateNames = occ.students.filter((student) => student.late).map((student) => student.name);
   const names = shortNames(studentNames);
   // 코드값(kindKey)은 코드표가 아직 없을 때만의 마지막 자리다 — 종류 이름이 있으면 그것을 쓴다 (D-R18)
   const heading = subName ?? occ.title ?? kindName ?? occ.kindKey;
@@ -227,7 +228,14 @@ export function EventBlock({
     if (names || place) {
       details.push({
         key: 'people', keep: 2,
-        node: <>{names ? <span>{names}</span> : null}{names && place ? ' · ' : null}{place ? <span>{place}</span> : null}</>,
+        node: (
+          <span className="flex min-w-0 items-center gap-1">
+            <span className="min-w-0 truncate">
+              {names ? <span>{names}</span> : null}{names && place ? ' · ' : null}{place ? <span>{place}</span> : null}
+            </span>
+            {lateNames.length ? <Badge look="bg-amber text-white">{lateNames.length === 1 ? '지각' : `지각 ${lateNames.length}`}</Badge> : null}
+          </span>
+        ),
       });
     }
     if (status) details.push({ key: 'status', keep: 1, node: status });
@@ -248,6 +256,7 @@ export function EventBlock({
     `${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${heading}`,
     occ.teacherName,
     studentNames.join(', ') || null,
+    lateNames.length ? `지각 ${lateNames.join(', ')}` : null,
     place,
     status,
     kindBadge,

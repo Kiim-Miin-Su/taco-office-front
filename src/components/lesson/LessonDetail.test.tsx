@@ -62,7 +62,7 @@ const occurrence: Occurrence = {
   extra: false,
   attendanceMode: 'manage',
   attendance: null,
-  students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: false }],
+  students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: false, late: false }],
 };
 
 const result: RosterResult = {
@@ -106,6 +106,15 @@ describe('LessonDetail 명단 결과', () => {
     expect(view.queryByRole('button', { name: '이 회차만 빼기' })).toBeNull();
     expect(view.queryByRole('region', { name: '학생 트래킹' })).toBeNull();
     expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('회차 학생의 서버 지각 현재값을 명단 배지로 표시한다', () => {
+    const view = render(<LessonDetail occ={{
+      ...occurrence,
+      students: [{ ...occurrence.students[0], late: true }],
+    }} onClose={() => undefined} />);
+    const badge = view.getByText('지각');
+    expect(badge.getAttribute('title')).toContain('출석은 유지');
   });
 
   it.each([
@@ -534,7 +543,7 @@ describe('§12 일정 수정', () => {
 describe('휴원 (C92-c · C-36)', () => {
   it('휴원 중인 학생은 명단에 남되 「휴원」 칩이 붙는다 — 그날 인원·청구에서 빠지는 것은 서버가 센다', () => {
     tracking.data = undefined;
-    const paused = { ...occurrence, students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: true }] };
+    const paused = { ...occurrence, students: [{ id: 1, name: '기존학생', grade: '10', droppedOnce: false, paused: true, late: false }] };
     const view = render(<LessonDetail occ={paused} onClose={() => undefined} />);
     const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain('수강 학생 0명');

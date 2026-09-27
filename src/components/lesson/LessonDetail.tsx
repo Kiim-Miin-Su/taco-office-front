@@ -370,6 +370,7 @@ export function LessonDetail({
             {s.droppedOnce ? <span className="text-[11px] text-fg-subtle">그날 빠짐</span> : null}
             {/* 휴원 중 — 명단에 남되 그날 인원·청구에서 빠진다. 기간·복귀는 오른쪽 학생 카드에서 (C92-c) */}
             {s.paused ? <Chip tone="warning">휴원</Chip> : null}
+            {s.late ? <Chip tone="warning" title="출석은 유지되고 이 회차 지각으로 기록되었습니다">지각</Chip> : null}
             {canEdit ? (
               <span className="ml-auto flex gap-1">
                 {s.droppedOnce ? (

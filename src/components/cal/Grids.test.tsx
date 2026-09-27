@@ -130,7 +130,7 @@ describe('관리자 달력 날짜 정확성', () => {
   });
 
   it('블록의 세부 줄은 격자가 그린 높이로 정한다 — 45분은 강사 한 줄, 90분은 학생·장소까지', () => {
-    const who = { teacherName: '김재훈', roomName: '6호', students: [{ id: 1, name: '강라율', droppedOnce: false, paused: false }] };
+    const who = { teacherName: '김재훈', roomName: '6호', students: [{ id: 1, name: '강라율', droppedOnce: false, paused: false, late: false }] };
     const items = [
       occurrence(30, { startMin: 14 * 60, endMin: 14 * 60 + 45, ...who }),
       occurrence(31, { startMin: 14 * 60, endMin: 15 * 60 + 30, date: '2026-09-02', onDate: '2026-09-02', ...who }),
