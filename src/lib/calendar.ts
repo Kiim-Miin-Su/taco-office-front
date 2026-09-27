@@ -402,9 +402,16 @@ export function overlapClusters<T extends { startMin: number; endMin: number }>(
 
 /** rrule 문자열 — 서버 `formatRule()` 이 정한 형식만 쓴다. 다른 형식은 회차가 통째로 사라진다 */
 const DOW_CODE = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const;
-export function buildRrule(days: number[]): string {
-  if (!days.length) return 'ONCE';
-  return `WEEKLY:${[...days].sort((a, b) => a - b).map((d) => DOW_CODE[d]).join(',')}`;
+export type ScheduleRepeat = 'once' | 'daily' | 'weekly' | 'biweekly';
+
+export function buildRrule(days: number[], repeat?: ScheduleRepeat): string {
+  // 기존 호출자는 요일 없음=단발, 요일 있음=매주 규약을 계속 쓴다.
+  // SessionEditor처럼 주기를 명시하는 화면만 DAILY와 격주 간격을 넘긴다.
+  const cadence = repeat ?? (days.length ? 'weekly' : 'once');
+  if (cadence === 'once') return 'ONCE';
+  if (cadence === 'daily') return 'DAILY';
+  const weekly = `WEEKLY:${[...days].sort((a, b) => a - b).map((d) => DOW_CODE[d]).join(',')}`;
+  return cadence === 'biweekly' ? `${weekly}/2` : weekly;
 }
 
 /** 시/분을 각각 검증한다. 24:00은 종료값1440이며 시작 허용 여부는 lessonTimeIssue가 판정한다. */

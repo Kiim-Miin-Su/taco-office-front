@@ -19,7 +19,7 @@
 'use client';
 import { useForm } from 'react-hook-form';
 import { Banner, Button, Chip, ConflictGuard, Dialog, Input, Label, RecurrenceScope, Segmented, Select } from '../ui';
-import { KO_DOW, buildRrule, conflictLines, lessonTimeIssue, parseHm } from '@/lib/calendar';
+import { KO_DOW, buildRrule, conflictLines, lessonTimeIssue, parseHm, type ScheduleRepeat } from '@/lib/calendar';
 import { fetchConflictPreview, useScheduleWrite, type ConflictProbe } from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
 import { useState } from 'react';
@@ -78,8 +78,12 @@ interface FormShape {
   teacherId: string;
   roomId: string;
   title: string;
-  /** 비면 단발(ONCE) — 요일을 고르면 매주 반복 */
+  /** 새 일정 반복 주기 — 서버 rrule의 사람이 고르는 표현 */
+  repeat: ScheduleRepeat;
+  /** 매주·격주일 때 수업 요일 */
   days: number[];
+  /** 반복 종료일 — 비면 열린 반복 */
+  toDate: string;
   studentIds: number[];
   /** 편집에서만 쓴다 — 온라인으로 바꿀 때 붙일 줌 계정(비우면 서버가 이미 붙은 것을 둔다) */
   zaccId: string;
@@ -152,7 +156,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     // values 가 아직 없을 첫 렌더에도 배열 필드가 비어 있어야 한다 — undefined.includes 로 죽는 자리
     defaultValues: {
       kindKey: 'class', subKey: '', mode: 'offline', date: '', start: '10:00', end: '11:00',
-      teacherId: '', roomId: '', title: '', days: [], studentIds: [], zaccId: '', memo: '',
+      teacherId: '', roomId: '', title: '', repeat: 'once', days: [], toDate: '', studentIds: [], zaccId: '', memo: '',
     },
     values: occ
       ? {
@@ -160,7 +164,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
           start: hm(occ.startMin), end: hm(occ.endMin),
           teacherId: occ.teacherId == null ? '' : String(occ.teacherId),
           roomId: occ.roomId == null ? '' : String(occ.roomId),
-          title: occ.title ?? '', days: [], studentIds: [], zaccId: '', memo: occ.memo ?? '',
+          title: occ.title ?? '', repeat: 'once', days: [], toDate: '', studentIds: [], zaccId: '', memo: occ.memo ?? '',
         }
       : draft
         ? {
@@ -168,7 +172,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
             start: hm(draft.startMin), end: hm(draft.endMin),
             teacherId: draft.teacherId == null ? '' : String(draft.teacherId),
             roomId: draft.roomId === null ? '' : String(draft.roomId),
-            title: '', days: [], studentIds: draft.studentIds ?? [], zaccId: '', memo: '',
+            title: '', repeat: 'once', days: [], toDate: '', studentIds: draft.studentIds ?? [], zaccId: '', memo: '',
           }
         : undefined,
   });
@@ -254,13 +258,21 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     }
 
     if (!draft) return;
+    if ((v.repeat === 'weekly' || v.repeat === 'biweekly') && !v.days.length) {
+      setErr('매주·격주 일정은 요일을 하나 이상 골라 주세요');
+      return;
+    }
+    if (v.repeat !== 'once' && v.toDate && v.toDate < draft.date) {
+      setErr('종료일이 시작일보다 앞설 수 없습니다');
+      return;
+    }
     write.mutate(
       {
         kind: 'create',
         body: {
           kindKey: v.kindKey, subKey: v.subKey || null, mode: v.mode,
-          fromDate: draft.date, toDate: v.days.length ? null : draft.date,
-          rrule: buildRrule(v.days), startMin, endMin,
+          fromDate: draft.date, toDate: v.repeat === 'once' ? draft.date : v.toDate || null,
+          rrule: buildRrule(v.days, v.repeat), startMin, endMin,
           teacherId: idOrNull(v.teacherId),
           roomId: idOrNull(v.roomId),
           title: v.title || null,
@@ -290,6 +302,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
       ? [{ id: occ.roomId, name: occ.roomName ?? `강의실 ${occ.roomId}` }] : []),
     ...(meta?.rooms ?? []),
   ];
+  const repeat = f.watch('repeat');
   const teacherSelect = (
     <Select id="se-teacher" {...f.register('teacherId')}>
       <option value="">미정</option>
@@ -443,17 +456,37 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
         </div>
 
         <div>
-          <Label>반복 — 요일을 고르면 매주, 안 고르면 이날 한 번</Label>
-          <div className="mt-1 flex gap-1">
-            {KO_DOW.map((d, i) => (
-              <button key={d} type="button" onClick={() => toggle('days', i)}
-                className={`h-8 w-8 rounded-lg border text-[12px] font-bold transition-colors ${
-                  days.includes(i) ? 'border-blue bg-blue text-white' : 'border-line text-fg-subtle hover:border-blue'}`}>
-                {d}
-              </button>
-            ))}
-          </div>
+          <Label>반복 주기</Label>
+          <Segmented ariaLabel="반복 주기" value={repeat} onChange={(value) => f.setValue('repeat', value)}
+            options={[
+              { value: 'once', label: '한 번' },
+              { value: 'daily', label: '매일' },
+              { value: 'weekly', label: '매주' },
+              { value: 'biweekly', label: '격주' },
+            ]} />
         </div>
+
+        {repeat === 'weekly' || repeat === 'biweekly' ? (
+          <div>
+            <Label>반복 요일</Label>
+            <div className="mt-1 flex gap-1">
+              {KO_DOW.map((d, i) => (
+                <button key={d} type="button" aria-pressed={days.includes(i)} onClick={() => toggle('days', i)}
+                  className={`h-8 w-8 rounded-lg border text-[12px] font-bold transition-colors ${
+                    days.includes(i) ? 'border-blue bg-blue text-white' : 'border-line text-fg-subtle hover:border-blue'}`}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {repeat !== 'once' ? (
+          <div>
+            <Label htmlFor="se-to-date" hint="비우면 종료일 없이 반복">반복 종료일</Label>
+            <Input id="se-to-date" type="date" min={draft!.date} {...f.register('toDate')} />
+          </div>
+        ) : null}
 
         <div>
           <Label>수강 학생 {students.length ? `· ${students.length}명` : ''}</Label>

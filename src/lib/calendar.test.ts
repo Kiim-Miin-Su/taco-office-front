@@ -63,6 +63,13 @@ it('새 일정의 요일128조합은 ONCE 또는 정렬된 WEEKLY 계약이며 �
   }
 });
 
+it('새 일정의 명시 주기는 서버 DAILY·격주 계약으로 만든다', () => {
+  expect(buildRrule([], 'daily')).toBe('DAILY');
+  expect(buildRrule([3, 1], 'weekly')).toBe('WEEKLY:MO,WE');
+  expect(buildRrule([3, 1], 'biweekly')).toBe('WEEKLY:MO,WE/2');
+  expect(buildRrule([1], 'once')).toBe('ONCE');
+});
+
 describe('강사 캘린더 기본 오늘 목록 (§8·§9)', () => {
   const occurrence = (serId: number, date: string, startMin = 600, extra: Partial<Occurrence> = {}): Occurrence => ({
     serId, date, onDate: date, startMin, endMin: startMin + 60, kindKey: 'class',

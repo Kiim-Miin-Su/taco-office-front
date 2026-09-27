@@ -89,6 +89,66 @@ it('초안에 학생·강사가 들어 있으면 그대로 골라진 채 열리�
   expect(sent.find((r) => r.method === 'post')!.data).toMatchObject({ teacherId: 7, studentIds: [1], fromDate: '2026-09-28' });
 });
 
+it('매일 반복은 종료일을, 격주는 고른 요일과 /2 간격을 생성 계약에 싣는다', async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  api.defaults.adapter = (async (config: { data?: string }) => {
+    sent.push(config.data ? JSON.parse(config.data) : {});
+    return { config, status: 201, statusText: 'Created', headers: {}, data: { effScope: 'this', log: [], projected: 1, serIds: [9], unavailable: [] } };
+  }) as never;
+  const renderEditor = () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    clients.push(qc);
+    return render(
+      <QueryClientProvider client={qc}>
+        <SessionEditor draft={{ date: '2026-09-28', startMin: 570, endMin: 660, roomId: 1 }} meta={meta} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+  };
+
+  const daily = renderEditor();
+  fireEvent.click(daily.getByRole('button', { name: '매일' }));
+  fireEvent.change(daily.getByLabelText('반복 종료일'), { target: { value: '2026-10-31' } });
+  fireEvent.click(daily.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]).toMatchObject({ fromDate: '2026-09-28', toDate: '2026-10-31', rrule: 'DAILY' });
+  daily.unmount();
+
+  const biweekly = renderEditor();
+  fireEvent.click(biweekly.getByRole('button', { name: '격주' }));
+  fireEvent.click(biweekly.getByRole('button', { name: '월' }));
+  fireEvent.click(biweekly.getByRole('button', { name: '수' }));
+  fireEvent.click(biweekly.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(2));
+  expect(sent[1]).toMatchObject({ fromDate: '2026-09-28', toDate: null, rrule: 'WEEKLY:MO,WE/2' });
+});
+
+it('매주·격주는 요일 없이 보내지 않고 반복 종료일이 시작일보다 앞서도 보내지 않는다', async () => {
+  const sent: unknown[] = [];
+  api.defaults.adapter = (async (config: { data?: string }) => {
+    sent.push(config.data);
+    return { config, status: 201, statusText: 'Created', headers: {}, data: {} };
+  }) as never;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(qc);
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <SessionEditor draft={{ date: '2026-09-28', startMin: 570, endMin: 660, roomId: 1 }} meta={meta} onClose={vi.fn()} />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(view.getByRole('button', { name: '매주' }));
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  expect(await view.findByText('매주·격주 일정은 요일을 하나 이상 골라 주세요')).toBeTruthy();
+  expect(sent).toHaveLength(0);
+
+  fireEvent.click(view.getByRole('button', { name: '매일' }));
+  const toDate = view.getByLabelText('반복 종료일') as HTMLInputElement;
+  fireEvent.change(toDate, { target: { value: '2026-09-27' } });
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  expect(toDate.validity.rangeUnderflow).toBe(true);
+  expect(sent).toHaveLength(0);
+});
+
 /* ── 일정 수정 — 수업 상세의 「일정 수정」 (원문 §12 · OccurrencePatchDto) ── */
 
 const lesson: Occurrence = {
