@@ -26,7 +26,7 @@ import { hhmm, longDateLabel, studentOverlapLines } from '@/lib/calendar';
 import { MASKED, won } from '@/lib/money';
 import { useLessonTracking, useScheduleWrite } from '@/api/queries';
 import Link from 'next/link';
-import { apiMessage } from '@/api/client';
+import { ApiError, apiMessage } from '@/api/client';
 import { useCan } from '@/store/useSession';
 import type { LessonTracking, Meta, Occurrence, RosterPatch, RosterResult, Scope } from '@/api/types';
 import { AttendanceControl } from './AttendanceControl';
@@ -146,7 +146,7 @@ function RosterHead({ d }: { d: LessonTracking }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-[15px] font-bold text-fg">{d.count}명</span>
-      <Chip tone={d.canAdd > 0 ? 'info' : 'warning'}>{d.capLabel}</Chip>
+      <Chip tone={d.count > d.cap ? 'danger' : d.canAdd > 0 ? 'info' : 'warning'}>{d.capLabel}</Chip>
       {d.priced ? (
         <Chip>
           1인 {d.canSeeAmounts && d.unitPrice != null ? won(d.unitPrice) : MASKED}
@@ -180,6 +180,8 @@ export function LessonDetail({
   const [query, setQuery] = useState('');
   const searchRef = useRef<SearchFieldHandle>(null);
   const [rosterResult, setRosterResult] = useState<RosterResult | null>(null);
+  /** B-20 — 서버가 최신 명단으로 정원 초과를 판정한 뒤에만 여는 확인 창. */
+  const [capacityConfirm, setCapacityConfirm] = useState<null | { studentId: number; message: string }>(null);
   /**
    * 「수강 학생」 줄의 펼침. 원문 §79(수강 학생 관리 컷)는 펼친 채이고 §12 는 접힌 채다 —
    * 명단을 고치려고 여는 창이 대부분이라 **펼친 채로** 열고, ▼ 를 누르면 접힌다.
@@ -190,6 +192,7 @@ export function LessonDetail({
 
   useEffect(() => {
     setRosterResult(null);
+    setCapacityConfirm(null);
     setEditing(false);
     setPresetMode(undefined);
     setOverlapLines([]);
@@ -208,16 +211,28 @@ export function LessonDetail({
    * 수강 학생은 3범위가 아니라 **2범위**다 — 다이얼로그 없이 줄 버튼으로 바로 간다
    * (§5A.7 「확인창을 쓰지 않는다」 · D-R21). 판정과 명단 계산은 서버가 한다.
    */
-  const roster = (op: RosterPatch['op'], studentId: number) => {
+  const roster = (op: RosterPatch['op'], studentId: number, confirmOverCapacity = false) => {
     if (!canEdit) return;
     setErr(null);
     setRosterResult(null);
     setOverlapLines([]);
     write.mutate(
-      { kind: 'roster', serId: occ.serId, body: { op, onDate: occ.onDate, studentId } },
       {
-        onError: (e) => setErr(apiMessage(e)),
+        kind: 'roster', serId: occ.serId,
+        body: confirmOverCapacity
+          ? { op, onDate: occ.onDate, studentId, confirmOverCapacity: true }
+          : { op, onDate: occ.onDate, studentId },
+      },
+      {
+        onError: (e) => {
+          if (op === 'add' && e instanceof ApiError && e.code === 'ROSTER_CAP_CONFIRM_REQUIRED') {
+            setCapacityConfirm({ studentId, message: e.message });
+            return;
+          }
+          setErr(apiMessage(e));
+        },
         onSuccess: (result) => {
+          setCapacityConfirm(null);
           // 그날 전체 휴강 결과도 count 를 들고 있다 — 명단 결과는 준비할 일 칸으로 가른다
           if ('needGuide' in result) setRosterResult(result);
           // 명단 넣기만 싣는다 — 판정(그날 명단 · 휴원 · 그날만 빠짐)은 서버 것이다 (N-58)
@@ -642,6 +657,22 @@ export function LessonDetail({
         onSubmit={submitCancel}
         onClose={() => setAskCancel(false)}
       />
+
+      <Dialog
+        open={canEdit && !!capacityConfirm}
+        onClose={() => setCapacityConfirm(null)}
+        title="정원 초과 확인"
+        footer={(
+          <>
+            <Button variant="ghost" onClick={() => setCapacityConfirm(null)}>취소</Button>
+            <Button disabled={write.isPending} onClick={() => {
+              if (capacityConfirm) roster('add', capacityConfirm.studentId, true);
+            }}>그래도 넣기</Button>
+          </>
+        )}
+      >
+        <p className="text-[13px] text-fg-2">{capacityConfirm?.message}</p>
+      </Dialog>
 
       <Dialog
         open={!!rosterResult && (rosterResult.needGuide.length > 0 || rosterResult.needBook.length > 0)}

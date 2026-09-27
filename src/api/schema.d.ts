@@ -5008,6 +5008,8 @@ export interface components {
             /** Format: date */
             onDate: string;
             studentId: number;
+            /** @description 정원 초과 경고를 확인하고도 학생을 넣는 경우 true */
+            confirmOverCapacity?: boolean;
         };
         RosterResultDto: {
             /** @description 실제로 적용된 범위 — 「향후」가 「모두」로 강등되면 여기서 드러난다 (D-R17) */
@@ -13953,7 +13955,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description ROSTER_CAP_CONFIRM_REQUIRED: 정원이 찼으므로 confirmOverCapacity=true 재요청 필요 */
             409: {
                 headers: {
                     [name: string]: unknown;

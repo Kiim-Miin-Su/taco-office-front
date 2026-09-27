@@ -7,6 +7,7 @@
 import { fireEvent, render, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LessonTracking, Meta, Occurrence, RosterResult } from '@/api/types';
+import { ApiError } from '@/api/client';
 
 const { mutate, permissions, tracking } = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -347,6 +348,30 @@ describe('LessonDetail 명단 결과', () => {
     fireEvent.change(search, { target: { value: '없는이름' } });
     expect(await view.findByText('「없는이름」에 맞는 학생이 없습니다')).toBeTruthy();
   });
+
+  it('B-20 정원 초과는 서버 409 뒤 확인 창을 열고, 확인한 요청에만 confirmOverCapacity를 보낸다', () => {
+    mutate
+      .mockImplementationOnce((_write, options) => options.onError(new ApiError(
+        'ROSTER_CAP_CONFIRM_REQUIRED', '정원 4명이 찼습니다. 그래도 넣을까요?', 409,
+      )))
+      .mockImplementationOnce((_write, options) => options.onSuccess(result));
+    const view = render(
+      <LessonDetail occ={occurrence} allStudents={[{ id: 1, name: '기존학생' }, { id: 2, name: '신규학생' }]}
+        onClose={() => undefined} />,
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '신규학생 넣기' }));
+    expect(mutate).toHaveBeenNthCalledWith(1,
+      { kind: 'roster', serId: 3, body: { op: 'add', onDate: '2026-09-03', studentId: 2 } },
+      expect.any(Object));
+    const dialog = view.getByRole('dialog', { name: '정원 초과 확인' });
+    expect(within(dialog).getByText('정원 4명이 찼습니다. 그래도 넣을까요?')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: '그래도 넣기' }));
+    expect(mutate).toHaveBeenNthCalledWith(2,
+      { kind: 'roster', serId: 3, body: { op: 'add', onDate: '2026-09-03', studentId: 2, confirmOverCapacity: true } },
+      expect.any(Object));
+  });
+
 });
 
 /**
@@ -567,6 +592,12 @@ describe('§12·§79 큰 창 두 칸', () => {
     expect(within(dialog).getAllByRole('button', { name: '닫기' })).toHaveLength(2);
     expect(within(dialog).getByRole('button', { name: '휴강 · 수정' })).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: '일정 수정' })).toBeTruthy();
+  });
+
+  it('B-20 확인 뒤 초과 인원은 서버 문장을 danger 칩으로 표시한다', () => {
+    tracking.data = trackingOf({ count: 5, cap: 4, canAdd: 0, capLabel: '정원 4명 · 1명 넘었습니다' });
+    const view = render(<LessonDetail occ={occurrence} onClose={() => undefined} />);
+    expect(view.getByText('정원 4명 · 1명 넘었습니다').className).toContain('text-red');
   });
 
   it('길이가 한 시간이 아니면 「1.5시간」처럼 적고, 강사 화면(준비 없음)은 머리에 강사를 적는다', () => {
