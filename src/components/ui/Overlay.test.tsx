@@ -201,6 +201,27 @@ describe('Dialog 머리 × · 부제 · 바닥 줄 (공용 · g2 75-7)', () => {
     expect(within(view.getByRole('dialog', { name: '확인' })).queryByRole('button', { name: '창 닫기' })).toBeNull();
   });
 
+  /*
+   * W11 실브라우저 QA(W11-D-1) — 구성원 「수정」 창(권한 예외 다섯 줄)이 1280×900 에서 화면보다 길어져 「저장」이 화면 밖으로 밀렸다.
+   * 가운데 창은 `fixed` 라 페이지를 굴려도 따라오지 않는다 — 창이 **화면 높이를 넘지 않고 본문만 굴러야** 바닥 줄이 늘 보인다(WideDialog 와 같은 틀).
+   * jsdom 은 크기를 재지 못하므로 틀(높이 한도 · 본문 굴림 · 머리 · 바닥 줄 고정)을 본다.
+   */
+  it('창이 화면보다 길면 본문만 구르고 머리 · 바닥 줄은 늘 보인다 (W11-D-1)', () => {
+    const view = render(
+      <Dialog open onClose={() => undefined} title="긴 창" sub="부제" closeX footer={<button type="button">저장</button>}>
+        <p>본문</p>
+      </Dialog>,
+    );
+    const dialog = view.getByRole('dialog', { name: '긴 창' });
+    expect(dialog.className).toContain('max-h-[calc(100dvh-3rem)]');
+    expect(dialog.className).toContain('flex-col');
+    const body = within(dialog).getByText('본문').parentElement!;
+    expect(body.className).toContain('overflow-y-auto');
+    expect(body.className).toContain('min-h-0');
+    expect(within(dialog).getByRole('heading', { name: '긴 창' }).closest('[data-dialog-head]')?.className).toContain('shrink-0');
+    expect(within(dialog).getByRole('button', { name: '저장' }).parentElement!.className).toContain('shrink-0');
+  });
+
   it('바닥 줄은 윗선과 옅은 바탕으로 본문과 갈린다', () => {
     const view = render(<Dialog open onClose={() => undefined} title="확인" footer={<button type="button">확인</button>}>내용</Dialog>);
     const foot = within(view.getByRole('dialog', { name: '확인' })).getByRole('button', { name: '확인' }).parentElement!;

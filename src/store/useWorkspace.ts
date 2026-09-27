@@ -32,6 +32,11 @@ export interface WorkspaceUndo {
    * 10분이라는 수를 화면이 따로 들지 않으려고 서버 값을 그대로 쓴다. 없으면 서버가 답할 때까지 둔다.
    */
   expiresAt?: string | null;
+  /**
+   * 어느 되돌리기인가 — 없으면 일정 쓰기(`POST /schedule/undo`), `approval` 이면 §14 결재 되돌리기
+   * (`POST /drawer/approvals/undo` · N-84). 원문 셸의 「⟲ 되돌리기」는 **한 단추**라 두 갈래가 같은 목록에 선다.
+   */
+  kind?: 'approval';
 }
 
 /**

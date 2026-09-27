@@ -1,6 +1,6 @@
 /** @file-guide
  * 목적: series-counts-invalidation.test.tsx — 일정 원본(SER)을 만들거나 가르는 쓰기가 §07 사이드바 건수(`family.seriesCounts`)도 버리는지
- * 책임/재사용: 실제 훅(queries.ts · intake-queries.ts)을 그대로 쓰고 네트워크만 어댑터로 갈아 끼운다. 제품 규칙을 시험 안에 복제하지 않는다.
+ * 책임/재사용: 실제 훅(queries.ts)을 그대로 쓰고 네트워크만 어댑터로 갈아 끼운다. 제품 규칙을 시험 안에 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
@@ -16,9 +16,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import {
-  family, useAddConsultingSessions, useCreateMeeting, useDrawerWrite, useEnrollLead, useTeacherChange,
+  family, useAddConsultingSessions, useCreateMeeting, useDrawerWrite, useEnrollLead, useScheduleLeadAppts, useTeacherChange,
 } from './queries';
-import { useScheduleLeadAppts } from '@/components/intake/intake-queries';
 
 const originalAdapter = api.defaults.adapter;
 afterEach(() => { api.defaults.adapter = originalAdapter; vi.restoreAllMocks(); });

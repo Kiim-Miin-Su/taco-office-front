@@ -111,8 +111,10 @@ function ColorRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit
   const hex = asHex(value);
   return (
     <li className="flex items-center gap-3 rounded-xl border border-line bg-card p-3">
-      {/* 견본을 누르면 색을 고른다 — 컷의 모양(견본 + 이름 + 값) 그대로 두고 견본이 입력칸이 된다 */}
-      <label className="relative h-10 w-10 shrink-0 cursor-pointer rounded-lg border border-line" style={{ background: `var(--${row.key})` }}>
+      {/* 견본을 누르면 색을 고른다 — 컷의 모양(견본 + 이름 + 값) 그대로 두고 견본이 입력칸이 된다.
+          견본은 **흰 틀 안의 색 칸**이다(원문 컷 — 색 고르기 칸의 모양). 색은 안쪽 칸만 칠한다 */}
+      <label className="relative flex h-10 w-10 shrink-0 cursor-pointer rounded-lg border border-line bg-card px-1 py-1.5">
+        <span aria-hidden className="block grow rounded-[3px] border border-fg/60 bg-clip-padding" style={{ backgroundColor: `var(--${row.key})` }} />
         {hex ? (
           <input
             type="color"
@@ -130,7 +132,8 @@ function ColorRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit
       {CONTRAST_ADJUSTED.includes(row.key)
         ? <Chip tone="warning">대비 보강</Chip>
         : null}
-      <code className="shrink-0 rounded-md bg-inset px-2 py-1 font-mono text-[11.5px] uppercase">
+      {/* 값 칩 — 원문 컷은 옅은 갈색 바탕에 흐린 글자다 */}
+      <code className="shrink-0 rounded-md bg-primary/10 px-2 py-1 font-mono text-[11.5px] uppercase text-fg-subtle">
         {value || '—'}
       </code>
     </li>
@@ -174,11 +177,12 @@ function Part({ k, uncounted = false, children }: { k: string; uncounted?: boole
   const n = (usage.counts as Record<string, number>)[k];
   return (
     <section className="rounded-xl border border-line bg-card">
-      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+      {/* 머리는 옅은 바탕 · 「N회 씀」은 옅은 갈색 칩에 기본 색 글자다 (원문 컷) */}
+      <header className="flex items-center gap-2 rounded-t-xl border-b border-line bg-primary/5 px-4 py-2.5">
         <h3 className="text-[13.5px] font-bold">{row.name}</h3>
         <p className="min-w-0 grow truncate text-[11.5px] text-fg-subtle">{row.sub}</p>
         {uncounted ? null : (
-          <span className="shrink-0 rounded-md bg-inset px-2 py-1 text-[11px] font-bold text-fg-subtle">
+          <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">
             {n}회 씀
           </span>
         )}
@@ -205,9 +209,10 @@ const SAMPLE_ROWS = [
 ];
 const SAMPLE_COLS: Array<Column<(typeof SAMPLE_ROWS)[number]>> = [
   { key: 'w', head: '학생', cell: (r) => r.who },
-  { key: 'x', head: '과목', cell: (r) => r.what },
+  // 원문 컷 — 과목 · 상태 칸은 가운데 맞춤이다(공용 `Table` 의 align 그대로)
+  { key: 'x', head: '과목', align: 'center', cell: (r) => r.what },
   {
-    key: 's', head: '상태', width: 100,
+    key: 's', head: '상태', width: 100, align: 'center',
     // 상태 배지 견본과 같은 공용 점 모양(`Chip` dot · 86-2) — 표 안에서 따로 그리지 않는다
     cell: (r) => <Chip tone={r.done ? 'success' : 'warning'} styleKind="dot">{r.done ? '완료' : '대기'}</Chip>,
   },
@@ -263,9 +268,10 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
         </>
       )}
     >
-      {/* 스크롤은 창의 본문이 한다 — 안에서 한 번 더 스크롤하지 않는다 */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
-        <nav aria-label="디자인 시스템 갈래" className="flex gap-2 sm:flex-col">
+      {/* 스크롤은 창의 본문이 한다 — 안에서 한 번 더 스크롤하지 않는다.
+          옆 칸은 창 본문 끝까지 닿는 옅은 바탕 + 오른쪽 선이다(원문 컷) — 창 본문의 안쪽 여백을 걷고 칸마다 여백을 다시 준다 */}
+      <div className="-m-4 grid grid-cols-1 sm:-m-5 sm:grid-cols-[176px_minmax(0,1fr)]">
+        <nav aria-label="디자인 시스템 갈래" className="flex gap-1.5 border-b border-line bg-primary/[0.03] px-2.5 py-3 sm:flex-col sm:border-b-0 sm:border-r">
           {([
             ['color', '색', counts.color],
             ['size', '크기 · 모양', counts.size],
@@ -275,16 +281,17 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
               key={v} type="button" aria-pressed={pane === v} onClick={() => setPane(v)}
               className={cn(
                 'rounded-lg px-4 py-3 text-left transition-colors',
-                pane === v ? 'bg-header text-card' : 'bg-card text-fg hover:bg-inset',
+                pane === v ? 'bg-header text-card' : 'text-fg hover:bg-inset',
               )}
             >
               <span className="block text-[13.5px] font-bold">{label}</span>
-              <span className={cn('block text-[11.5px]', pane === v ? 'text-card/70' : 'text-fg-subtle')}>{n}개</span>
+              {/* 고른 칸의 개수는 흐리게 — `card` 는 투명도 조각이 없는 토큰이라 「card 글자 70%」 클래스는 만들어지지 않고 조용히 빠진다 */}
+              <span className={cn('block text-[11.5px]', pane === v ? 'opacity-70' : 'text-fg-subtle')}>{n}개</span>
             </button>
           ))}
         </nav>
 
-        <div>
+        <div className="min-w-0 p-4 sm:p-5">
           {pane === 'color' ? (
             <>
               <ul className="space-y-2">
@@ -304,7 +311,7 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
               <ul className="space-y-2">{TOKEN_LAYOUT.map((r) => <SizeRow key={r.key} row={r} value={valueOf(r.key)} onEdit={edit} />)}</ul>
               <Banner tone="info" className="mt-3">
                 명세서는 이 갈래를 <b>「5개」</b>라 적었는데 지금 토큰은 여덟입니다 —
-                어느 다섯이 정본인지 확인이 필요합니다.
+                여덟을 두 묶음(쓰는 값 · 화면 틀) 그대로 쓰기로 정했습니다.
               </Banner>
             </>
           ) : (

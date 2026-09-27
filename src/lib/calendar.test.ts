@@ -6,7 +6,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, kstDateTime, longDateLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
+  addDays, boundingRange, dayHeadLabel, kstDateTime, longDateLabel, monthDayLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
+  LANE_CAP, laneLayout, studentOverlapLines,
   periodSummary, splitPanes, step, summaryBoundsOf,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
@@ -19,6 +20,17 @@ it.each([
   ['2026-01-04', '26년 1월 4일 일요일'],
 ] as const)('긴 날짜 %s → %s', (iso, expected) => {
   expect(longDateLabel(iso)).toBe(expected);
+});
+
+// 해 없는 날짜 두 모양 (W11 D) — §66 회의 칩 · §47 미작성 표는 「8월 20일 목요일」, 강사 목록 머리는 「8월 25일 (화)」. 월 · 일의 앞 0 은 떨어진다
+it.each([
+  ['2026-08-20', '8월 20일 목요일', '8월 20일 (목)'],
+  ['2026-08-25', '8월 25일 화요일', '8월 25일 (화)'],
+  ['2026-09-09', '9월 9일 수요일', '9월 9일 (수)'],
+  ['2027-01-03', '1월 3일 일요일', '1월 3일 (일)'],
+] as const)('해 없는 날짜 %s → %s · %s', (iso, long, head) => {
+  expect(monthDayLabel(iso)).toBe(long);
+  expect(dayHeadLabel(iso)).toBe(head);
 });
 
 // 시각은 서버가 어느 오프셋으로 주든 KST 로 읽는다 — ISO 원문을 화면에 그대로 찍지 않는다 (§41)
@@ -466,4 +478,36 @@ describe('objectParticle — 받침이 조사를 정한다', () => {
     expect(objectParticle('수업 이동')).toBe('을');
     expect(objectParticle('이후 수업 끝내기')).toBe('를');
   });
+});
+
+/* ── W11 — lane 상한(N-74) · 학생 겹침 줄(N-58) · 강의실 열 기본값(N-80) ── */
+
+describe('laneLayout — 주간과 일간이 같은 함수', () => {
+  it('상한은 원문이 보여 준 셋이고, 셋까지는 그대로 · 넘치면 앞의 셋과 나머지 수', () => {
+    expect(LANE_CAP).toBe(3);
+    expect(laneLayout(['a', 'b', 'c'])).toEqual({ shown: ['a', 'b', 'c'], more: 0 });
+    expect(laneLayout(['a', 'b', 'c', 'd', 'e'])).toEqual({ shown: ['a', 'b', 'c'], more: 2 });
+    expect(laneLayout([])).toEqual({ shown: [], more: 0 });
+  });
+
+  it('받은 배열을 바꾸지 않는다 — 순서는 받은 차례 그대로', () => {
+    const cluster = ['x', 'y', 'z', 'w'];
+    const { shown } = laneLayout(cluster);
+    shown.push('extra');
+    expect(cluster).toEqual(['x', 'y', 'z', 'w']);
+  });
+});
+
+it('새 표의 일간은 날짜 한 열이 기본이다 — 강의실 열은 「세로선 나누기」로 켠다 (N-80)', () => {
+  expect(INITIAL_PANE.roomColumns).toBe(false);
+  // 분할은 지금 표를 통째로 복제한다 — 강의실 열도 표마다의 상태라 두 표가 따로 켜고 끈다
+  const [left, right] = splitPanes({ ...INITIAL_PANE, date: '2026-09-01', roomColumns: true });
+  expect(right.roomColumns).toBe(true);
+  expect(updatePane([left, right], 1, { roomColumns: false })[0].roomColumns).toBe(true);
+});
+
+it('학생 겹침 한 줄 — 이름 · 날짜 · 상대 시각 · 상대 수업 (N-58)', () => {
+  expect(studentOverlapLines([{
+    studentName: '고은성', date: '2026-09-02', otherTitle: 'SAT Math', otherStartMin: 900, otherEndMin: 1440,
+  }])).toEqual(['고은성 · 9/2 (수) 15:00–24:00 SAT Math']);
 });

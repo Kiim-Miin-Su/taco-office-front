@@ -9,6 +9,7 @@ import { useSession } from '@/store/useSession';
 import { api, ApiError, getSessionGeneration, invalidateSessionRequests } from './client';
 import type { Me } from './types';
 import { resetScheduleOptimistic } from './schedule-optimistic';
+import { clearAllDrafts } from '@/lib/autosave';
 
 /**
  * 인증 사용자가 바뀔 때 이전 사용자의 서버 응답을 함께 폐기한다.
@@ -16,10 +17,12 @@ import { resetScheduleOptimistic } from './schedule-optimistic';
  * 목록 query key는 요청 조건만 표현하므로 캐시를 유지한 채 계정만 바꾸면
  * 새 사용자가 이전 사용자의 목록을 잠깐 볼 수 있다. 로그인·로그아웃은 이
  * 함수를 공유해 사용자 경계를 원자적으로 끊는다.
+ * 이 브라우저에 남긴 쓰던 글(N-69 자동 저장)도 같은 경계에서 비운다 — 같은 기계의 다음 사람이 보지 않게.
  */
 export function clearSessionQueries(queryClient: Pick<QueryClient, 'clear'>): void {
   resetScheduleOptimistic(queryClient);
   queryClient.clear();
+  clearAllDrafts();
 }
 
 /**

@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
   back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn(),
   /** 상단바 되돌리기가 쓰는 쓰기 훅 (N-138 · C99) — 실제 요청은 useUndoLast 회귀가 본다 */
   scheduleWrite: vi.fn(),
+  /** §76 권한 창의 서버 표(N-98) — 창이 열릴 때만 읽는다 */
+  permissionTable: {
+    roleLabel: '대표', possible: 14, locked: 0, sub: '지금 대표 화면입니다 · 14가지 가능 / 0가지 잠김',
+    rows: [], roleNotes: ['대표 · 14가지 가능 / 0가지 잠김'],
+  },
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/board', useRouter: () => mocks }));
 vi.mock('@/api/client', () => ({ api: { post: mocks.post }, setAccessToken: vi.fn() }));
@@ -24,6 +29,9 @@ vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
   useUnwritten: mocks.unwritten,
   useScheduleWrite: mocks.scheduleWrite,
+  // 상단바 되돌리기의 결재 갈래(N-84) — 실제 요청은 undo-c99 회귀가 본다
+  useApprovalUndo: () => ({ mutate: vi.fn(), isPending: false }),
+  usePermissionTable: (enabled: boolean) => ({ data: enabled ? mocks.permissionTable : undefined, isLoading: false, error: null }),
   // 강사 머리줄(GET /teacher/shell) — 이 파일은 셸 조립만 본다. 머리줄 값·알림은 TeacherShell.test 가 본다
   useTeacherShell: () => ({ data: undefined }),
   useTeacherNotiRead: () => ({ mutate: vi.fn(), isPending: false }),
@@ -152,6 +160,10 @@ describe('원본 관리자 공용 셸', () => {
     // §76 창은 폭 640 · 머리 × (76-3)
     expect(within(permissions).getByRole('button', { name: '창 닫기' })).toBeTruthy();
     expect(permissions.getAttribute('style') ?? '').toContain('640');
+    // 부제는 창 머리에 — 서버 문장 그대로이고 표 위에 다시 적지 않는다 (W11 7-3 · N-98)
+    const sub = within(permissions).getAllByText('지금 대표 화면입니다 · 14가지 가능 / 0가지 잠김');
+    expect(sub).toHaveLength(1);
+    expect(within(permissions).getByText('대표 · 14가지 가능 / 0가지 잠김').tagName).toBe('LI');
   });
 
   it('§75 배지는 approvalFlow.total을 쓰고 §14 inboxCount와 섞지 않는다', () => {

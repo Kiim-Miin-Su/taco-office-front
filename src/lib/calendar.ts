@@ -11,7 +11,7 @@
  * 여기서 나눈다 (`AGENT.md §6.1-2`). 보기마다 fetch 하면 전환할 때마다 왕복이 생기고,
  * 같은 날짜가 보기마다 다른 응답에서 오면 색이 갈린다.
  */
-import type { ConflictRow, Occurrence, UnavWarn } from '@/api/types';
+import type { ConflictRow, Occurrence, StudentOverlap, UnavWarn } from '@/api/types';
 
 export type View = 'day' | 'week' | 'month' | 'student' | 'teacher';
 
@@ -33,6 +33,11 @@ export interface CalendarPaneState {
   dayAxis: CalendarColAxis;
   /** 개인 표의 기간. 원본 §10·§11 은 사람 옆에서 주간/일간/월간을 고른다. 기본은 주간이다. */
   personPeriod: PersonPeriod;
+  /**
+   * 일간 표를 **강의실 열로 나누는가** — 도구줄 「세로선 나누기」(N-80 채택).
+   * 기본은 원문 §07 캡처 모양(날짜 한 열 + 겹친 수업은 나란한 lane · 상한 셋)이고, 켜면 본문 모양(강의실 × 시간)이다.
+   */
+  roomColumns: boolean;
 }
 
 /** 새 표의 기본값 한 곳. 분할·초기화가 같은 값을 두 번 적지 않는다. */
@@ -41,7 +46,23 @@ export const INITIAL_PANE: Omit<CalendarPaneState, 'date'> = {
   personId: null,
   dayAxis: 'room',
   personPeriod: 'week',
+  roomColumns: false,
 };
+
+/**
+ * 한 시간대에 **나란히 보이는 lane 의 상한** — N-74 채택 ①.
+ * 원문 §08 주간이 보여 준 평행 lane 최대가 셋이고, §09 월간 · §36 현황판도 「최대 3건 + '+N건 더'」를 쓴다.
+ */
+export const LANE_CAP = 3;
+
+/**
+ * 겹친 묶음을 lane 으로 — **주간과 일간(날짜 한 열)이 같은 함수를 쓴다** (N-74).
+ * 상한까지는 그대로 나란히, 넘치면 상한만큼 그리고 나머지 수(「+M」)를 돌려준다. 순서는 받은 차례 그대로다.
+ */
+export function laneLayout<T>(cluster: readonly T[], cap = LANE_CAP): { shown: T[]; more: number } {
+  if (cluster.length <= cap) return { shown: [...cluster], more: 0 };
+  return { shown: cluster.slice(0, cap), more: cluster.length - cap };
+}
 
 /**
  * 표가 **실제로 그리는 기간**. 개인 표(학생별·선생님별)는 사람이 축이고 기간은 따로 고른다 —
@@ -230,6 +251,20 @@ export const label = (iso: string): string =>
  */
 export const longDateLabel = (iso: string): string =>
   `${iso.slice(2, 4)}년 ${+iso.slice(5, 7)}월 ${+iso.slice(8, 10)}일 ${KO_DOW[dowOf(iso)]}요일`;
+
+/**
+ * 'YYYY-MM-DD' → '8월 20일 목요일' — 해 없는 긴 날짜. 원문 §66 회의 머리 칩 · §47 미작성 표의 날짜 칸이 같은 모양이다.
+ * 두 화면이 같은 식을 각자 적고 있었다(`dayChip` · `monthDayLabel`) — `longDateLabel` 과 같은 까닭으로 한 벌로 모았다 (W11 D).
+ */
+export const monthDayLabel = (iso: string): string =>
+  `${+iso.slice(5, 7)}월 ${+iso.slice(8, 10)}일 ${KO_DOW[dowOf(iso)]}요일`;
+
+/**
+ * 'YYYY-MM-DD' → '8월 25일 (화)' — 강사 목록의 날짜 묶음 머리(덱 slide 18 리포트 목록 · 강사 시간표 목록).
+ * 두 목록이 같은 식을 각자 적고 있었다(`dayHead` 두 벌) — 한 벌로 모았다 (W11 D).
+ */
+export const dayHeadLabel = (iso: string): string =>
+  `${+iso.slice(5, 7)}월 ${+iso.slice(8, 10)}일 (${KO_DOW[dowOf(iso)]})`;
 
 /**
  * 시각(ISO) → KST 'YYYY-MM-DD HH:mm'. 서버가 어느 오프셋으로 주든 서울 시간으로 읽는다 (D-R12).
@@ -552,6 +587,18 @@ export function unavailableLines<
 >(rows: readonly T[]): string[] {
   return rows.map((row) => (
     `${row.date} ${hhmm(row.startMin)}–${hhmm(row.endMin)} · ${row.teacherName} — ${row.reason}`
+  ));
+}
+
+/**
+ * 같은 학생이 같은 시각 다른 수업에도 있다 — 한 줄씩 (N-58 · **막지 않고 알린다**).
+ * 판정(그날 명단 · 휴원 · 그날만 빠짐)은 서버가 했고 여기는 늘어놓기만 한다 — 불가 시간 줄과 같은 자리 · 같은 모양이다.
+ */
+export function studentOverlapLines<
+  T extends Pick<StudentOverlap, 'studentName' | 'date' | 'otherTitle' | 'otherStartMin' | 'otherEndMin'>,
+>(rows: readonly T[]): string[] {
+  return rows.map((row) => (
+    `${row.studentName} · ${label(row.date)} ${hhmm(row.otherStartMin)}–${hhmm(row.otherEndMin)} ${row.otherTitle}`
   ));
 }
 

@@ -21,7 +21,7 @@ import { cn } from './cn';
 /**
  * 칩 앞 **색 점** — 과목·분류 칩(§34 과목)이 쓴다. 값은 CSS 색(`var(--…)` 토큰 또는 서버 Meta 색)이라
  * 런타임 색도 받는다. 점은 장식이라 읽지 않는다(aria-hidden) — 이름은 칩 글자가 말한다.
- * (§14·§16 서랍 칩은 눌린 모양이 어두운 채움이라 로컬 `FilterPill`, §55 는 네모 점이라 그대로 둔다.)
+ * (§14·§16 서랍 칩도 이 줄을 `pressedTone="ink"` 로 쓴다 — W11 7-3. §55 는 네모 점이라 그대로 둔다.)
  */
 function ChipDot({ color }: { color: string }) {
   return <span data-chip-dot aria-hidden className="mr-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />;

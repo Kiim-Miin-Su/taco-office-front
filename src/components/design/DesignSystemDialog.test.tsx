@@ -248,3 +248,25 @@ it('요약 카드 견본은 숫자가 위 · 라벨이 아래이고 분모가 �
   expect(done.previousElementSibling?.textContent).toBe('6/49');
   expect(done.previousElementSibling?.querySelector('small')?.textContent).toBe('/49');
 });
+
+/*
+ * 원본 §86 표 견본 — 과목 · 상태 칸은 가운데 맞춤이다(W11 D 재대조). 견본은 공용 `Table` 의 맞춤(align)을 그대로 쓴다 —
+ * 슬라이드 86 「견본은 실제 클래스를 그대로 씁니다 — 별도 스타일 없음」.
+ */
+it('표 견본은 과목 · 상태 칸이 가운데 맞춤이다 — 공용 표의 맞춤 그대로', () => {
+  const v = open();
+  fireEvent.click(v.getByRole('button', { name: /컴포넌트/ }));
+  const table = v.getByRole('heading', { name: '표', level: 3 }).closest('section')!;
+  expect(within(table).getByText('고은성').closest('td')?.className).toContain('text-left');
+  expect(within(table).getByText('MAP Reading').closest('td')?.className).toContain('text-center');
+  expect(within(table).getByText('대기').closest('td')?.className).toContain('text-center');
+});
+
+/*
+ * tailwind 는 `withAlpha` 로 묶은 색(글자 · 기본 색 · 상태 색 …)에만 `/NN` 투명도를 만든다. `card` · `inset` · `line` · `bg` 는
+ * 변수 그대로라 `text-card/70` 같은 조각은 **만들어지지 않고 조용히 빠진다** — 고른 갈래의 개수가 흐려지지 않았던 까닭이다(W11 D).
+ */
+it('이 창은 만들어지지 않는 투명도 조각(`card` · `inset` · `line` · `bg` 뒤의 /NN)을 쓰지 않는다', () => {
+  const src = readFileSync('src/components/design/DesignSystemDialog.tsx', 'utf8');
+  expect(src).not.toMatch(/\b(?:text|bg|border)-(?:card|inset|line|bg)\/\[?[\d.]+\]?/);
+});

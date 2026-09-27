@@ -63,7 +63,7 @@ describe('상단바 되돌리기 (원본 §16 · N-138)', () => {
     const btn = view.getByRole('button', { name: '되돌리기' }) as HTMLButtonElement;
     // 조건부로 사라지면 컷과 다르다 — 컷은 흐린 단추를 그린다
     expect(btn.disabled).toBe(true);
-    expect(btn.getAttribute('title')).toBe('되돌릴 최근 일정 작업이 없습니다');
+    expect(btn.getAttribute('title')).toBe('되돌릴 최근 작업이 없습니다');
   });
 
   it('토큰이 앉으면 살아나고 누르면 되돌리기 한 번을 보낸다 — 무엇을 되돌리는지도 말한다', async () => {

@@ -18,11 +18,17 @@ export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'purp
  * 한꺼번에 깨진다. 그래서 칩이 받는 톤만 넓히고, 필요한 부품이 이 타입을 골라 쓴다.
  */
 export type ChipTone = Tone | 'teal' | 'orange';
+/**
+ * 칩이 **받는** 색 — `ChipTone` 에 원문 분홍을 더한 것(§14 「시급 변경」 칩 #DB2777 · W11 7-3).
+ * 분홍을 `ChipTone` 에 바로 넣지 않는 까닭은 위와 같다 — 톤마다 표를 둔 다른 부품(Board · 상담 깔때기 …)이 한꺼번에 깨진다.
+ * 전에는 결재 줄이 붉은 칩 위에 `!bg-pink` 를 덮어 그렸다 — 이제 칩이 제 색으로 그린다.
+ */
+export type ChipColor = ChipTone | 'pink';
 /** `dot` = 바탕 없는 **점 + 색 글자**(§86 상태 배지 「● 완료」) */
 export type ChipStyle = 'outline' | 'soft' | 'solid' | 'dot';
 export type ChipSize = 'compact' | 'default';
 
-const SOFT: Record<ChipTone, string> = {
+const SOFT: Record<ChipColor, string> = {
   neutral: 'bg-inset text-fg-2',
   info: 'bg-blue/10 text-blue',
   success: 'bg-green/10 text-green',
@@ -31,8 +37,9 @@ const SOFT: Record<ChipTone, string> = {
   purple: 'bg-violet/10 text-violet',
   teal: 'bg-teal/10 text-teal',
   orange: 'bg-orange/10 text-orange',
+  pink: 'bg-pink/10 text-pink',
 };
-const OUTLINE: Record<ChipTone, string> = {
+const OUTLINE: Record<ChipColor, string> = {
   neutral: 'border border-line text-fg-2',
   info: 'border border-blue/40 text-blue',
   success: 'border border-green/40 text-green',
@@ -41,8 +48,9 @@ const OUTLINE: Record<ChipTone, string> = {
   purple: 'border border-violet/40 text-violet',
   teal: 'border border-teal/40 text-teal',
   orange: 'border border-orange/40 text-orange',
+  pink: 'border border-pink/40 text-pink',
 };
-const SOLID: Record<ChipTone, string> = {
+const SOLID: Record<ChipColor, string> = {
   neutral: 'bg-fg-2 text-white',
   info: 'bg-blue text-white',
   success: 'bg-green text-white',
@@ -51,19 +59,20 @@ const SOLID: Record<ChipTone, string> = {
   purple: 'bg-violet text-white',
   teal: 'bg-teal text-white',
   orange: 'bg-orange text-white',
+  pink: 'bg-pink text-white',
 };
 /** 점 모양의 글자색 · 점 색 — 글자는 soft 와 같은 토큰이라 대비 검사가 한 벌이다 */
-const DOT_TEXT: Record<ChipTone, string> = {
+const DOT_TEXT: Record<ChipColor, string> = {
   neutral: 'text-fg-2', info: 'text-blue', success: 'text-green', warning: 'text-amber',
-  danger: 'text-red', purple: 'text-violet', teal: 'text-teal', orange: 'text-orange',
+  danger: 'text-red', purple: 'text-violet', teal: 'text-teal', orange: 'text-orange', pink: 'text-pink',
 };
-const DOT_MARK: Record<ChipTone, string> = {
+const DOT_MARK: Record<ChipColor, string> = {
   neutral: 'bg-fg-subtle', info: 'bg-blue', success: 'bg-green', warning: 'bg-amber',
-  danger: 'bg-red', purple: 'bg-violet', teal: 'bg-teal', orange: 'bg-orange',
+  danger: 'bg-red', purple: 'bg-violet', teal: 'bg-teal', orange: 'bg-orange', pink: 'bg-pink',
 };
 
 export interface ChipProps {
-  tone?: ChipTone;
+  tone?: ChipColor;
   styleKind?: ChipStyle;
   size?: ChipSize;
   children: ReactNode;

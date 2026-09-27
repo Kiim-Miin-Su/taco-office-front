@@ -12,7 +12,12 @@ import type { AxiosAdapter } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from './client';
 import { useSession } from '@/store/useSession';
-import { family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody, useCreateZoomAccount, usePatchZoomAccount, useMeta, useAssignZoom, useGuides, useLessonTracking, useOccurrences } from './queries';
+import {
+  family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody, useCreateZoomAccount, usePatchZoomAccount, useMeta, useAssignZoom, useGuides, useLessonTracking, useOccurrences,
+  // W11 D — 옛 로컬 훅 파일(intake · ops · accounting)에서 옮긴 쓰기 훅
+  useAddPlanTask, useCreateMarketing, useDeleteLeadAppt, useExtendLeadHold, useSaveLeadAppt, useSaveLeadPlan, useScheduleLeadAppts,
+  useSetAcctPrivacy, useWriteBonusRule,
+} from './queries';
 
 /**
  * TanStack Query 는 **앞자락**으로만 거른다. `sessionQueryKey` 가 사용자 id 를 꼬리에
@@ -131,6 +136,9 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   scheduleUnav: qk.scheduleUnav('2026-08-01', '2026-08-31'),
   // §10 개인 머리 「교재 없음」 — 교재 갈래 안에 산다(배부 쓰기가 family.books 를 버린다)
   studentBooks: qk.studentBooks(4),
+  // §39 서가 필터 · §38 배부 창 진단 한 줄 — 교재 갈래 안에 산다(교재 쓰기가 family.books 를 버린다) (W11 N-47 · N-62)
+  bookShelf: qk.bookShelf({ subject: 'english' }),
+  bookIssueDiag: qk.bookIssueDiag(3),
   // §65 보고서 키는 `ops` 갈래 안에 산다 — 기획 결재가 운영 목록을 함께 바꾸기 때문이다 (C56)
   plan: qk.plan(3),
   meeting: qk.meeting(4),
@@ -144,6 +152,14 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   consultingDetail: qk.consultingDetail(7),
   // 학생의 보호자 — 보호자 갈래 안에 산다. 대표 바꾸기가 같은 학생의 다른 줄도 바꾼다 (DQ3)
   guardians: qk.guardians(4),
+  // §11 개인 머리 「안내 N」 — 안내 갈래 안에 산다(보내기 · 확인 쓰기가 family.guides 를 버린다) (W11 N-100)
+  teacherGuideCount: qk.teacherGuideCount(7),
+  // 주간 묶음 — 리포트 갈래 안의 제 갈래(family.reportWeekly)에 산다. 총평 저장 · 발송이 그 갈래만 버린다 (W11 N-54)
+  reportWeekly: qk.reportWeekly('2026-09-21'),
+  // 옛 `accounting-queries.ts` 에서 옮긴 키 (W11 D) — 회계 갈래 안에 산다. 입금 · 발행 · 확정이 family.accounting 을 버리면 같이 다시 온다
+  cashflow: qk.cashflow({ from: '2026-09-01', to: '2026-09-30' }),
+  payoutDetail: qk.payoutDetail(7, '2026-08'),
+  invoiceDraft: qk.invoiceDraft({ studentId: 3, yearMonth: '2026-09', invType: 'tuition' }),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
@@ -175,6 +191,11 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.guardianChannels,
   // §07 사이드바 일정 원본 수 — 기간이 없는 상수 키 · 스케줄 쓰기가 family.seriesCounts 로 버린다
   qk.seriesCounts,
+  // 가산 규칙 · 비공개 스위치 — 옛 `accounting-queries.ts` 에서 옮긴 상수 키 (W11 D) · 회계 갈래 안에 산다
+  qk.bonusBook,
+  qk.acctPrivacy,
+  // 발행 미리 세기를 꺼 둔 칸도 같은 갈래다
+  qk.invoiceDraft(null),
 ];
 
 describe('갈래 앞자락', () => {
@@ -201,6 +222,16 @@ describe('갈래 앞자락', () => {
         `${name}: ${JSON.stringify(full)}`,
       ).toBe(true);
     }
+  });
+
+  it('상수 키도 전부 어떤 갈래에 걸린다', () => {
+    const heads = Object.values(family);
+    for (const key of CONST_SAMPLE) expect(heads.some((h) => startsWith(key, h)), JSON.stringify(key)).toBe(true);
+  });
+
+  it('§55 조건의 빈 칸은 키에서 빠진다 — 같은 조건이 두 캐시가 되지 않는다 (옮기기 전과 같다)', () => {
+    expect(qk.cashflow({ from: '2026-09-01', to: '', category: '' })).toEqual(qk.cashflow({ from: '2026-09-01' }));
+    expect(qk.cashflow({ from: undefined })).toEqual(qk.cashflow({}));
   });
 
   it('앞자락에 사용자 꼬리를 넣으면 아무것도 안 걸린다 — 그래서 넣지 않는다', () => {
@@ -448,5 +479,27 @@ describe('C77 — 실제 mutation의 query cache 무효화', () => {
   it('안내 작성은 guides와 books를 함께 버린다', async () => {
     const keys = await run(useWriteGuideBody, { id: 8, body: '안내' });
     expect(keys).toEqual(expect.arrayContaining([family.guides, family.books]));
+  });
+
+  /* W11 D — 옛 로컬 훅 파일(intake · ops · accounting)에서 옮긴 쓰기 훅. 옮기기 전과 **같은 앞자락만** 버린다(더도 덜도 아니다) */
+  it('상담 카드 쓰기 넷은 family.ops 만 버린다', async () => {
+    expect(await run(useSaveLeadPlan, { id: 3, lines: [] })).toEqual([family.ops]);
+    expect(await run(useExtendLeadHold, { id: 3 })).toEqual([family.ops]);
+    expect(await run(useSaveLeadAppt, { id: 3, kind: 'diag', onDate: '2026-09-27', startMin: 600, endMin: 660, mode: 'offline' })).toEqual([family.ops]);
+    expect(await run(useDeleteLeadAppt, { id: 3, kind: 'diag' })).toEqual([family.ops]);
+  });
+
+  it('상담 일정을 시간표로 만들면 운영 · 회차 · 지평 · 일정 원본 수를 버린다', async () => {
+    expect(await run(useScheduleLeadAppts, { id: 3 })).toEqual([family.ops, family.occurrences, family.horizon, family.seriesCounts]);
+  });
+
+  it('대표 지시 · 오늘 한 것은 family.ops 만 버린다', async () => {
+    expect(await run(useAddPlanTask, { id: 3, title: '지시', toId: 4 })).toEqual([family.ops]);
+    expect(await run(useCreateMarketing, { title: '활동', channel: 'kakao', item: 'reply' })).toEqual([family.ops]);
+  });
+
+  it('가산 규칙은 회계 · 강사 히스토리를, 비공개 스위치는 회계 · 컨설팅 · 서랍을 버린다', async () => {
+    expect(await run(useWriteBonusRule, { kind: 'per_session', kindKey: 'mock', amount: 5000 })).toEqual([family.accounting, family.teacherHistory]);
+    expect(await run(useSetAcctPrivacy, { key: 'wage', private: true })).toEqual([family.accounting, family.consulting, family.drawer]);
   });
 });

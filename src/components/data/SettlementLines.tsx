@@ -49,7 +49,8 @@ export function SettlementLines({ lines }: { lines: SettlementLine[] }) {
               'shrink-0 font-bold',
               total ? 'text-[16px] text-white' : cut ? 'text-[12.5px] text-red' : 'text-[12.5px] text-fg',
             )}>
-              {cut && l.amount !== null && l.amount > 0 ? `-${won(l.amount)}` : won(l.amount)}
+              {/* 차감 · 세금의 부호도 `lib/money` 가 붙인다 — 손으로 붙인 하이픈은 「-₩」가 되어 원문 「−₩」와 갈린다 (N-92) */}
+              {cut && l.amount !== null && l.amount > 0 ? won(-l.amount) : won(l.amount)}
             </div>
           </div>
         );

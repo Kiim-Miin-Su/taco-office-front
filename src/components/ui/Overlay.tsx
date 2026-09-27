@@ -202,21 +202,27 @@ export function Dialog({ open, onClose, title, sub, closeX = false, children, fo
     <div className="fixed inset-0 z-50 grid place-items-center p-6">
       {/* 원문 §19·§75·§76 모달 뒤는 어둡고 흐리다 — 색은 `fg` 투명도(tailwind withAlpha), 흐림은 공용 유틸 */}
       <div className="absolute inset-0 bg-fg/30 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      {/*
+        창은 화면 높이(바깥 p-6 을 뺀 만큼)를 넘지 않고 **본문만 구른다** — 머리 · 바닥 줄은 늘 보인다.
+        창은 fixed 라 페이지를 굴려도 따라오지 않아, 넘친 바닥 줄(「저장」)은 누를 길이 없었다(W11 실브라우저 QA · 구성원 수정 창 1280×900).
+        WideDialog 와 같은 틀이다(max-h + flex-col + 본문 overflow-y-auto).
+      */}
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} tabIndex={-1}
         style={{ width: '100%', maxWidth: width }}
-        className="relative rounded-2xl border border-line bg-card p-5 shadow-xl">
+        className="relative flex max-h-[calc(100dvh-3rem)] flex-col rounded-2xl border border-line bg-card p-5 shadow-xl">
         {framed ? (
-          <div data-dialog-head className="-mx-5 flex items-start justify-between gap-3 border-b border-line px-5 pb-3">
+          <div data-dialog-head className="-mx-5 flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 pb-3">
             <div className="min-w-0">
               {title ? <h2 id={titleId} className="text-[16px] font-bold text-fg">{title}</h2> : null}
               {sub ? <div className="mt-0.5 text-[12px] text-fg-subtle">{sub}</div> : null}
             </div>
             {closeX ? <CloseX onClose={onClose} label="창 닫기" /> : null}
           </div>
-        ) : title ? <h2 id={titleId} className="text-[15px] font-bold text-fg">{title}</h2> : null}
-        <div className={framed ? 'mt-4' : 'mt-3'}>{children}</div>
+        ) : title ? <h2 id={titleId} className="shrink-0 text-[15px] font-bold text-fg">{title}</h2> : null}
+        {/* 구르는 칸을 창 가장자리까지 넓힌다(-mx-5 px-5 · py-1) — 칸 끝에 닿은 입력의 초점 테두리가 잘리지 않게. 간격은 전과 같다(mt · py 합) */}
+        <div className={cn(framed ? 'mt-3' : 'mt-2', '-mx-5 min-h-0 flex-1 overflow-y-auto px-5 py-1')}>{children}</div>
         {footer ? (
-          <div className="-mx-5 -mb-5 mt-5 flex justify-end gap-2 rounded-b-2xl border-t border-line bg-inset px-5 py-3">{footer}</div>
+          <div className="-mx-5 -mb-5 mt-4 flex shrink-0 justify-end gap-2 rounded-b-2xl border-t border-line bg-inset px-5 py-3">{footer}</div>
         ) : null}
       </div>
     </div>

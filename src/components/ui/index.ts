@@ -7,7 +7,7 @@
 export { cn } from './cn';
 export { Logo, type LogoProps } from './Logo';
 export { Button, LinkButton, type ButtonVariant, type ButtonSize, type LinkButtonProps } from './Button';
-export { Chip, type Tone, type ChipTone, type ChipStyle, type ChipSize } from './Chip';
+export { Chip, type Tone, type ChipTone, type ChipColor, type ChipStyle, type ChipSize } from './Chip';
 export { ChipButton, ChipRow, type ChipOption } from './ChipRow';
 export { StatusBadge } from './StatusBadge';
 export { StatCard, type StatTone } from './StatCard';

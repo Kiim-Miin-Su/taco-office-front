@@ -11,7 +11,7 @@
  * 그 행이 API 로 내려오고, 화면은 그것만 본다. 운영 데이터로 바뀌어도
  * 이 파일도 화면도 한 줄 안 바뀐다.
  */
-import { useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
@@ -24,6 +24,7 @@ import type {
   BookHistoryQuery,
   BookIssue,
   BookIssueCreate,
+  BookIssueDiag,
   BookIssueTransition,
   BookPack,
   BookPackPatch,
@@ -31,6 +32,7 @@ import type {
   BookPackWrite,
   BookPatch,
   Books,
+  BookShelfQuery,
   BookTracking,
   BookVersion,
   BookVersionCreate,
@@ -41,10 +43,12 @@ import type {
   CatalogSub,
   ChangeReqCreate,
   ChangeReqResult,
+  ConflictPreview,
   ConflictRow,
   ConsAccounting,
   ConsAccountRow,
   ConsItem,
+  ConsItemsEdit,
   ConsPaymentCreate,
   ConsStudents,
   ConsClose, ConsCloseResult, ConsSession, ConsSessionCreate, ConsSessionsResult, ConsSessionWrite, GpaCycleCloseResult,
@@ -119,9 +123,13 @@ import type {
   ScheduleUnavList,
   ScheduleSeriesCounts,
   ScheduleStudentBooks,
+  ScheduleTeacherGuides,
   MeetingCreate,
   MeetingCreateResult,
   MeetingDetail,
+  MeetingNoticeResult,
+  ExecAreaOwner,
+  ExecAreaOwnerWrite,
   Meta,
   MfbThread,
   MonthClose,
@@ -159,15 +167,25 @@ import type {
   ReportReview,
   ReportSendHistory,
   ReportSendHistoryList,
+  WeeklyBundle,
+  WeeklyBundleList,
+  WeeklySummaryWrite,
   ReportTeacherQuery,
   ReportUpsert,
   ReqReviewResult,
+  ApprovalUndoResult,
+  MyExpenseList,
+  PermissionTable,
+  TeacherGpaRequestOptions,
   RosterPatch,
   RosterResult,
+  ScheduleHistory,
   ScheduleUndo,
   StudentPauseResult,
   StudentPauseWrite,
   StudentResumeWrite,
+  NoteCreate,
+  TrackedNote,
   SubCreate,
   SubPatch,
   TeacherDiagCreate,
@@ -195,6 +213,9 @@ import type {
   ZoomBoard,
   GuardianChannels, GuardianCreate, Guardian, GuardianList, GuardianPatch, GuardianSend, GuardianSendResult,
   LeadDiagList, LeadDiagWrite,
+  // 옛 로컬 훅 파일 셋(intake · ops · accounting)에서 옮긴 훅이 쓰는 별칭 (W11 D)
+  AcctPrivacy, AcctPrivacyWrite, Cashflow, InvoiceDraft, LeadAppt, LeadApptScheduleResult, LeadApptWrite, LeadPlanWrite,
+  Marketing, MarketingCreate, PayoutBonusBook, PayoutBonusRule, PayoutBonusRuleWrite, PayoutDetail, PlanTaskCreate,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -206,6 +227,8 @@ export const qk = {
   reportDetail: (serId: number, onDate: string) => ['reports', 'detail', serId, onDate] as const,
   reportDelivery: (onDate?: string) => ['reports', 'deliveries', onDate ?? 'yesterday'] as const,
   reportDeliveryHistory: (p: ReportDeliveryHistoryParams) => ['reports', 'deliveries', 'history', p] as const,
+  /** §47 주간 트래킹(N-54) — 리포트 갈래 안이라 리포트가 바뀌면 함께 버려진다. 주가 키에 든다 */
+  reportWeekly: (weekOf?: string) => ['reports', 'weekly', weekOf ?? 'default'] as const,
   accounting: ['accounting'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
@@ -218,6 +241,19 @@ export const qk = {
   rateBook: ['accounting', 'rates'] as const,
   /** 강사 시급 이력 — 같은 회계 갈래 (C97 · D-48). 사람이 키에 든다 */
   wageHistory: (staffId: number) => ['accounting', 'wages', staffId] as const,
+  /* 옛 `accounting-queries.ts` 의 키 다섯 — 모양은 옮기기 전과 한 글자도 같다(회계 갈래 앞자락 밑 · W11 D) */
+  /** §55 들어온 돈 — 기간 · 분류 칩이 키에 든다(빈 값은 뺀다 — `{from: undefined}` 와 `{}` 가 두 캐시가 되지 않게) */
+  cashflow: (p: CashflowParams) => ['accounting', 'cashflow', cashflowParams(p)] as const,
+  /** §56 강사 한 사람 상세 — 사람과 달이 키에 든다 */
+  payoutDetail: (staffId: number, month: string) => ['accounting', 'payouts', 'detail', staffId, month] as const,
+  /** 발행 미리 세기 (N-79) — 학생 · 달 · 종류가 키에 든다. 조건이 없으면(꺼 둔 질의) 「none」 한 칸 */
+  invoiceDraft: (p: InvoiceDraftParams | null) => (p
+    ? ['accounting', 'invoices', 'draft', p.studentId, p.yearMonth, p.invType] as const
+    : ['accounting', 'invoices', 'draft', 'none'] as const),
+  /** 가산 규칙 (N-93) — 정리 · 기준 탭과 강사료 정산 「추가로 드리는 돈」이 같은 키를 읽는다 */
+  bonusBook: ['accounting', 'bonus-rules'] as const,
+  /** 탭 줄 두 비공개 스위치 (N-94) */
+  acctPrivacy: ['accounting', 'privacy'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
   /** §30 계약 5단계 상세 — 건별 서버 projection. */
@@ -227,6 +263,10 @@ export const qk = {
   /** §27 학생별 — CONS 를 학생 기준으로 재구성한 같은 갈래의 다른 질의 (C59) */
   consStudents: ['consulting', 'students'] as const,
   books: ['books'] as const,
+  /** §39 서가 — 고른 필터마다 한 칸 (N-47 · 필터가 없으면 `books` 와 같은 칸을 쓴다) */
+  bookShelf: (p: BookShelfQuery) => ['books', 'shelf', p] as const,
+  /** §38 배부 창의 진단 한 줄 (N-62) */
+  bookIssueDiag: (studentId: number) => ['books', 'issue-diag', studentId] as const,
   bookHistory: ['books', 'history'] as const,
   bookTracking: ['books', 'tracking'] as const,
   bookPacks: ['books', 'deliveries'] as const,
@@ -235,6 +275,8 @@ export const qk = {
   guideHistoryRoot: ['guides', 'history'] as const,
   guideHistory: (p: GuideHistoryQuery) => ['guides', 'history', p] as const,
   guideTemplates: ['guides', 'templates'] as const,
+  /** §11 개인 머리 「안내 N」(N-100) — 안내 갈래 안에 산다: 보내기·확인 쓰기가 `family.guides` 를 버리면 이 수도 다시 온다 */
+  teacherGuideCount: (teacherId: number) => ['guides', 'teacher-unconfirmed', teacherId] as const,
   board: (p: BoardParams) => ['board', p] as const,
   exec: (p: ExecQuery) => ['exec', p] as const,
   horizon: ['schedule', 'horizon'] as const,
@@ -272,6 +314,17 @@ export const qk = {
   guardians: (studentId: number) => ['guardians', 'student', studentId] as const,
   /** 지금 보낼 수 있는 채널 — 서버 설정이 정한다 (DQ3) */
   guardianChannels: ['guardians', 'channels'] as const,
+  /** 서랍 요청함 「내 지출 신청」 (N-52) — 회계 갈래 안이지만 **본인 것만** 온다. 칸을 열 때만 부른다 */
+  myExpenses: ['accounting', 'expenses', 'mine'] as const,
+  /**
+   * §20 「최근 변경 이력」 (W11 A' 후속) — 칸을 열 때만 부르고 열 때마다 다시 읽는다.
+   * `['drawer']` 밑에 두지 않는다 — 그 앞자락은 서랍 쓰기의 낙관 반영이 서랍 모양으로 고쳐 쓴다.
+   */
+  scheduleHistory: ['schedule', 'history'] as const,
+  /** §76 권한 표 · 창 부제 · 역할 설명 줄 (N-98) — 권한 창과 옛 `/permissions` 가 같은 키를 읽는다 */
+  permissions: ['permissions'] as const,
+  /** 강사 「GPA 회차 요청」의 서비스 고르기 (N-99) — 규정표라 거의 안 바뀐다 */
+  teacherGpaRequestOptions: ['teacher', 'gpa-request-options'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -300,6 +353,7 @@ export const family = {
   horizon: ['schedule', 'horizon'] as const,
   reports: ['reports'] as const,
   reportDeliveries: ['reports', 'deliveries'] as const,
+  reportWeekly: ['reports', 'weekly'] as const,
   board: ['board'] as const,
   exec: ['exec'] as const,
   accounting: ['accounting'] as const,
@@ -451,6 +505,20 @@ export function useStudentBooks(studentId: number | null, enabled = true): UseQu
   });
 }
 
+/**
+ * §11 선생님별 개인 머리 「안내 N」(N-100) — 그 강사에게 보냈는데 아직 확인 안 된 안내 수.
+ * 세는 법(S4 상태 「보냄」)은 서버 한 곳이다 — 화면은 수를 그리기만 한다.
+ */
+export function useScheduleTeacherGuides(teacherId: number | null, enabled = true): UseQueryResult<ScheduleTeacherGuides> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherGuideCount(teacherId ?? 0), viewerId),
+    queryFn: async () => (await api.get<ScheduleTeacherGuides>(`/schedule/teachers/${teacherId}/guides`)).data,
+    enabled: enabled && teacherId !== null,
+    staleTime: 30 * 1000,
+  });
+}
+
 /** 날짜·상태·숫자 필터는 생성 OpenAPI만 소유한다. */
 export type ReportParams = ReportQuery;
 
@@ -511,6 +579,31 @@ export function useReportDeliveryHistory(
     queryFn: async () => (await api.get<ReportSendHistoryList>('/reports/deliveries/history', { params: p })).data,
     enabled,
     staleTime: 10 * 1000,
+  });
+}
+
+/**
+ * §47 주간 트래킹 — 그 주 학생별 묶음(N-54). 본문 · 보내기 가능 여부 · 막힌 이유는 서버가 준다(D-R37 · D-R39).
+ * 그 탭을 열 때만 부른다(`enabled`) — 다른 탭은 이 질의를 치르지 않는다.
+ */
+export function useReportWeekly(weekOf?: string, enabled = true): UseQueryResult<WeeklyBundleList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.reportWeekly(weekOf), viewerId),
+    queryFn: async () => (await api.get<WeeklyBundleList>('/reports/weekly', { params: { weekOf } })).data,
+    enabled,
+    staleTime: 10 * 1000,
+  });
+}
+
+/** 총평 쓰기 — 저장 뒤 묶음을 서버 값으로 다시 맞춘다(보내기 가능 여부가 바뀐다) */
+export function useReportWeeklySummary(): UseMutationResult<WeeklyBundle, unknown, WeeklySummaryWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.put<WeeklyBundle>('/reports/weekly', body)).data,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.reportWeekly });
+    },
   });
 }
 
@@ -587,6 +680,119 @@ export function useInvBoard(enabled = true): UseQueryResult<InvBoard> {
   });
 }
 
+/* ── 회계 조회 · 쓰기 (w5 · W11) — 옛 `components/accounting/accounting-queries.ts` 에서 **몸통 그대로** 옮겼다 (W11 D) ──
+ * 키는 전부 `family.accounting` 앞자락 밑(`qk.cashflow` · `qk.payoutDetail` · `qk.invoiceDraft` · `qk.bonusBook` · `qk.acctPrivacy`)이라
+ * 입금 · 발행 · 확정 같은 회계 쓰기가 그 앞자락을 버리면 이 조회들도 같이 다시 읽힌다. 키 · 무효화 · 켜는 조건은 옮기기 전과 같다. */
+
+/** 발행 미리 세기 조건 — 서버가 회차로 세는 두 종류만 (응시료는 사람이 줄을 적는다) */
+export interface InvoiceDraftParams { studentId: number; yearMonth: string; invType: 'tuition' | 'diag_intake' }
+
+/** §55 조회 조건 — 기간(없으면 전체)과 분류 칩. 빈 값은 키와 질의에서 뺀다(같은 조건이 두 캐시가 되지 않게) */
+export interface CashflowParams { from?: string; to?: string; category?: string }
+
+/** `qk.cashflow` 와 질의가 같은 조각을 쓴다 — 빈 값을 뺀 조건 */
+function cashflowParams(p: CashflowParams): CashflowParams {
+  const out: CashflowParams = {};
+  if (p.from) out.from = p.from;
+  if (p.to) out.to = p.to;
+  if (p.category) out.category = p.category;
+  return out;
+}
+
+/**
+ * §55 들어온 돈 — 기간 요약 · 입금 달력 · 분류별 · 미수 전체 (w5 · 55-01 · 55-02 · 55-03 · 55-05).
+ * 세는 것도 기간 낱말도 서버다 — 화면은 받은 숫자를 그린다 (D-R37 · D-R18). 그 탭을 열 때만 부른다.
+ */
+export function useCashflow(params: CashflowParams, enabled = true): UseQueryResult<Cashflow> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.cashflow(params), viewerId),
+    queryFn: async () => (await api.get<Cashflow>('/accounting/cashflow', { params: cashflowParams(params) })).data,
+    enabled,
+  });
+}
+
+/**
+ * §56 강사 한 사람 상세 — 시급 · 수업 날짜 · 리포트 미작성 · 정산 내역 (w5 · 56-01).
+ * 시트와 같은 함수가 센 값이다 — 줄의 총액과 수업 줄의 합이 갈리지 않는다. 고른 사람이 있을 때만 부른다.
+ */
+export function usePayoutDetail(staffId: number | null, month: string): UseQueryResult<PayoutDetail> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.payoutDetail(staffId ?? 0, month), viewerId),
+    queryFn: async () => (await api.get<PayoutDetail>(`/accounting/payouts/${staffId}`, { params: { month } })).data,
+    enabled: staffId !== null && /^\d{4}-(0[1-9]|1[0-2])$/.test(month),
+  });
+}
+
+/**
+ * 발행 미리 세기 (W11 · N-79) — `GET /accounting/invoices/draft`. **발행과 같은 함수**가 센 청구액 · 줄 · 막힌 까닭이다.
+ * 분납 일정의 합은 청구액이어야 하는데(서버가 검사), 청구액은 회차를 세어야 나온다 — 화면이 세지 않고 이 값을 받아 보인다 (D-R37).
+ * 쓰지 않는다. 부르는 쪽이 켤 때만(분납을 고를 때) 부른다.
+ */
+export function useInvoiceDraft(params: InvoiceDraftParams | null): UseQueryResult<InvoiceDraft> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.invoiceDraft(params), viewerId),
+    queryFn: async () => (await api.get<InvoiceDraft>('/accounting/invoices/draft', { params: params ?? {} })).data,
+    enabled: params !== null,
+  });
+}
+
+/**
+ * 가산 규칙 (N-93 · W11 M2) — 정리 · 기준 › 가산 규칙 탭과 강사료 정산의 「추가로 드리는 돈」이 같은 값을 읽는다.
+ * 칸(모의수업 · 진단고사 · Kinder · 그룹) · 오늘 걸린 금액 · 예약 줄 · 셈에 드는가는 서버가 정한다 (D-R37).
+ */
+export function useBonusBook(enabled = true): UseQueryResult<PayoutBonusBook> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bonusBook, viewerId),
+    queryFn: async () => (await api.get<PayoutBonusBook>('/accounting/bonus-rules')).data,
+    enabled,
+  });
+}
+
+/**
+ * 가산 규칙 한 줄 — **새 줄로만** 바꾼다(지난 줄 불변 · 소급 없음 · 같은 칸 같은 날 한 줄은 서버 409).
+ * 그 날짜부터의 회차를 시트 · 상세 · 강사 히스토리가 같은 함수로 센다 — 회계 갈래와 강사 히스토리 갈래를 앞자락 그대로 버린다 (C48).
+ */
+export function useWriteBonusRule(): UseMutationResult<PayoutBonusRule, unknown, PayoutBonusRuleWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<PayoutBonusRule>('/accounting/bonus-rules', body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.teacherHistory });
+    },
+  });
+}
+
+/** 탭 줄 오른쪽 두 비공개 스위치 (N-94) — 켜져 있는지 · 누가 언제 · 켤 수 있는가(`canSet`)는 서버 값이다 */
+export function useAcctPrivacy(enabled = true): UseQueryResult<AcctPrivacy> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.acctPrivacy, viewerId),
+    queryFn: async () => (await api.get<AcctPrivacy>('/accounting/privacy')).data,
+    enabled,
+  });
+}
+
+/**
+ * 스위치 켜고 끄기 — 대표 판정(서버 403 `ACCT_PRIVACY_FORBIDDEN`). 가려지는 줄이 회계 곳곳 · 컨설팅 화면 · 서랍 구성원 시급에 있어
+ * 세 갈래를 앞자락 그대로 버린다 (C48).
+ */
+export function useSetAcctPrivacy(): UseMutationResult<AcctPrivacy, unknown, AcctPrivacyWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.patch<AcctPrivacy>('/accounting/privacy', body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.consulting });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
+  });
+}
+
 /**
  * §54 「이월 처리」 — 받아 놓고 못 해 준 수업을 다음 달로 (N-39).
  *
@@ -636,6 +842,22 @@ export function useStudentPause() {
 }
 
 /**
+ * 인수인계 메모 한 줄 (N-36 ② · W11 M2) — §79 학생 카드에서 관리자 · 매니저가 더한다. 고치기 · 지우기는 없다(누가 · 언제가 남는다).
+ * 같은 줄을 §79 카드와 그 학생을 맡은 강사의 수업 안내 학생 카드가 읽으므로 두 갈래를 앞자락 그대로 버린다 (C48).
+ * 학부모에게 나가는 글에는 쓰이지 않는다.
+ */
+export function useAddTrackingNote(): UseMutationResult<TrackedNote, unknown, NoteCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<TrackedNote>('/schedule/tracking/notes', body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.tracking });
+      void qc.invalidateQueries({ queryKey: family.teacherGuides });
+    },
+  });
+}
+
+/**
  * §54 「N월 마감」·「마감 해제」 (C92-d) — 대표 전용. 마감은 회계뿐 아니라 그 달의 회차·출결·휴원 쓰기를 막으므로
  * 회계 갈래와 함께 일정 갈래(회차·트래킹)도 버린다 — 잠긴 달의 화면이 옛 판정을 들고 있지 않게.
  */
@@ -655,10 +877,15 @@ export function useMonthClose() {
   });
 }
 
+/**
+ * 회계 쓰기(발행 · 전달 · 취소 · 입금 · 지출)는 **회계 갈래를 맨앞자락 그대로** 버린다 (W11 · N-28 ②).
+ * 전에는 `/accounting` 한 질의만 버려서, §53 다섯 칸 판(`/accounting/board`)이 발행 · 전달 · 입금 뒤에도
+ * 옛 칸에 카드를 세워 두었고 §55 기간 요약(`cashflow`)도 옛 합을 들고 있었다 — 다음 칸 단추가 쓰기를 부르면
+ * 카드가 저절로 옮아야 한다. 꼬리를 넣지 않는 까닭은 `family` 머리글 그대로다(C48).
+ */
 function useAccountingInvalidate() {
   const qc = useQueryClient();
-  const viewerId = useViewerId();
-  return () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.accounting, viewerId) });
+  return () => qc.invalidateQueries({ queryKey: family.accounting });
 }
 
 /**
@@ -796,9 +1023,39 @@ export function useWriteStudentRate(): UseMutationResult<StudentRateRow, unknown
 /** 지출 등록 (C94-d · H-83) — 언제나 pending 으로 들어간다. 확정은 `useReviewExpense` 뿐이다 */
 export function useCreateExpense(): UseMutationResult<Expense, unknown, ExpenseCreate> {
   const invalidate = useAccountingInvalidate();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body) => (await api.post<Expense>('/accounting/expenses', body)).data,
-    onSettled: invalidate,
+    onSettled: () => {
+      // 「내 지출 신청」 목록(qk.myExpenses)은 회계 갈래 앞자락에 이미 걸린다 — 서랍 머리 수는 서랍 갈래가 다시 센다 (N-52)
+      void invalidate();
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
+  });
+}
+
+/**
+ * §20 「최근 변경 이력」 — 스케줄 쓰기 감사 줄을 서버가 문장으로 준다(누가 · 언제 · 앞 → 뒤 · 무엇을).
+ * 볼 수 있는 범위(전체 · 내가 한 것)도 서버가 정한다. 칸을 열 때만 부르고, 남이 바꾸므로 열 때마다 다시 읽는다
+ */
+export function useScheduleHistory(enabled = true): UseQueryResult<ScheduleHistory> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.scheduleHistory, viewerId),
+    queryFn: async () => (await api.get<ScheduleHistory>('/drawer/schedule-history')).data,
+    enabled,
+    staleTime: 0,
+  });
+}
+
+/** 서랍 요청함 「내 지출 신청」 (N-52) — 본인이 신청자인 줄과 분류 코드표. 칸을 열 때만 부른다 */
+export function useMyExpenses(enabled = true): UseQueryResult<MyExpenseList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.myExpenses, viewerId),
+    queryFn: async () => (await api.get<MyExpenseList>('/accounting/expenses/mine')).data,
+    enabled,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -1062,6 +1319,32 @@ export function useBooks(enabled = true): UseQueryResult<Books> {
   });
 }
 
+/**
+ * §39 서가 — 과목 · 레벨 · 학년 필터는 **서버가 건다** (N-47 · D-R37). 화면은 고른 칩의 키만 보낸다.
+ * 필터가 비면 `useBooks()` 와 같은 칸을 써서 머리 탭 수와 한 번에 받는다.
+ */
+export function useBookShelf(filter: BookShelfQuery): UseQueryResult<Books> {
+  const viewerId = useViewerId();
+  const params = Object.fromEntries(Object.entries(filter).filter(([, value]) => value !== undefined && value !== '')) as BookShelfQuery;
+  return useQuery({
+    queryKey: sessionQueryKey(Object.keys(params).length ? qk.bookShelf(params) : qk.books, viewerId),
+    queryFn: async () => (await api.get<Books>('/books', { params })).data,
+    staleTime: 10 * 60 * 1000,
+    // 칩을 바꾸는 동안 칩 줄 · 카드가 비었다 다시 서지 않게 앞 응답을 잠깐 든다(칩 건수는 서가 전체라 그대로다)
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** §38 배부 창의 진단 한 줄 — 그 학생의 최신 상담 진단을 **읽기만** 한다 (N-62 · 배부에 옮겨 적지 않는다) */
+export function useBookIssueDiag(studentId: number | null): UseQueryResult<BookIssueDiag> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bookIssueDiag(studentId ?? 0), viewerId),
+    queryFn: async () => (await api.get<BookIssueDiag>(`/books/students/${studentId}/latest-diag`)).data,
+    enabled: studentId != null,
+  });
+}
+
 /** §41·§42 안내 — 강사면 서버가 자기 것만 내려준다 */
 /* ══ §43 「문구 관리」와 「안내 작성」 (C51) ═══════════════════════════════════
    틀은 안내와 끊어져 있다 — 안내를 만들 때 본문을 **복사해** 넣는다.
@@ -1309,7 +1592,23 @@ export function useCreateSettingRequest(): UseMutationResult<TeacherSettingReque
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherHome, viewerId) });
       // 올린 요청은 서랍 §14 승인 대기함에도 같은 행으로 보인다 (D-R26)
       void qc.invalidateQueries({ queryKey: family.drawer });
+      // 교재 변경은 수업 안내 교재 행의 「변경 요청 중」을 바꾼다 (N-99) — 주가 키에 들어 있어 갈래째 버린다
+      void qc.invalidateQueries({ queryKey: family.teacherGuides });
     },
+  });
+}
+
+/**
+ * 강사 「GPA 회차 요청」 창 (N-99) — 서비스 규정 · 고를 수 있는 내 GPA 회차(서버가 쓰기와 같은 판정으로 고른다).
+ * 창을 열 때만 부르고, 열 때마다 다시 읽는다(휴강 · 사이클 마감이 그 사이 바뀔 수 있다).
+ */
+export function useTeacherGpaRequestOptions(enabled = true): UseQueryResult<TeacherGpaRequestOptions> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherGpaRequestOptions, viewerId),
+    queryFn: async () => (await api.get<TeacherGpaRequestOptions>('/teacher/gpa-request-options')).data,
+    enabled,
+    staleTime: 0,
   });
 }
 
@@ -1398,7 +1697,9 @@ export function useBoard(p: BoardParams): UseQueryResult<Board> {
 export type ExecReportWrite =
   | { kind: 'memo'; body: ExecMemoWrite }
   | { kind: 'submit'; body: ExecSubmit }
-  | { kind: 'review'; id: number; body: ExecReview };
+  | { kind: 'review'; id: number; body: ExecReview }
+  /** §73 「회수」 — 올린 사람만 · 올라간 보고만 (W11 · N-97). 서는지는 서버의 `canWithdraw` */
+  | { kind: 'withdraw'; id: number };
 
 export function useExecReportWrite(): UseMutationResult<ExecReportWriteResult, unknown, ExecReportWrite> {
   const qc = useQueryClient();
@@ -1406,12 +1707,25 @@ export function useExecReportWrite(): UseMutationResult<ExecReportWriteResult, u
     mutationFn: async (w: ExecReportWrite) => {
       if (w.kind === 'memo') return (await api.patch<ExecReportWriteResult>('/exec/report', w.body)).data;
       if (w.kind === 'submit') return (await api.post<ExecReportWriteResult>('/exec/report/submit', w.body)).data;
+      if (w.kind === 'withdraw') return (await api.post<ExecReportWriteResult>(`/exec/report/${w.id}/withdraw`)).data;
       return (await api.post<ExecReportWriteResult>(`/exec/report/${w.id}/review`, w.body)).data;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.exec });
       void qc.invalidateQueries({ queryKey: family.drawer });
     },
+  });
+}
+
+/**
+ * §69 영역 담당 지정 (W11 · N-81) — 대표 판정(서버 `canSetOwner`). `null` 이면 비운다.
+ * 담당 이름은 대표 보고 카드가 읽으므로 `family.exec` 를 다시 읽는다.
+ */
+export function useSetExecAreaOwner(): UseMutationResult<ExecAreaOwner, unknown, { key: string } & ExecAreaOwnerWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ key, staffId }) => (await api.put<ExecAreaOwner>(`/exec/areas/${key}/owner`, { staffId })).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.exec }),
   });
 }
 
@@ -1435,17 +1749,27 @@ export function useExec(p: ExecQuery): UseQueryResult<Exec> {
  * 부딪힌 그 순간의 사실이라 stale 이 되면 거짓이 된다. 저장이 409 로 막힌 뒤에 한 번 물어
  * **누구와 부딪혔는지**만 채운다 — 막는 것은 DB 이고 이것은 설명이다 (D-R43).
  */
-export async function fetchConflicts(q: {
+export type ConflictProbe = {
   date: string; startMin: number; endMin: number;
   teacherId?: number | null; roomId?: number | null; zaccId?: number | null; exceptSerId?: number | null;
-}): Promise<ConflictRow[]> {
+};
+
+/**
+ * 같은 질의의 온전한 응답 — 누구와 부딪혔는지 + 그 시각 비어 있는 강의실·줌 계정 한 줄(`freeLine` · N-70).
+ * 빈 자원 줄은 서버 문장이고 누를 수 없다(미리 잡지 않는다). 없으면 null.
+ */
+export async function fetchConflictPreview(q: ConflictProbe): Promise<ConflictPreview> {
   const params: Record<string, string | number> = { date: q.date, startMin: q.startMin, endMin: q.endMin };
   if (q.teacherId) params.teacherId = q.teacherId;
   if (q.roomId) params.roomId = q.roomId;
   if (q.zaccId) params.zaccId = q.zaccId;
   if (q.exceptSerId) params.exceptSerId = q.exceptSerId;
-  const res = await api.get<{ conflicts: ConflictRow[] }>('/schedule/conflicts', { params });
-  return res.data.conflicts;
+  const res = await api.get<ConflictPreview>('/schedule/conflicts', { params });
+  return { conflicts: res.data.conflicts, freeLine: res.data.freeLine ?? null };
+}
+
+export async function fetchConflicts(q: ConflictProbe): Promise<ConflictRow[]> {
+  return (await fetchConflictPreview(q)).conflicts;
 }
 
 export function useHorizon(): UseQueryResult<Horizon> {
@@ -1775,6 +2099,9 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
                 srcLabel: '직접 등록',
                 overdueDays: 0,
                 go: null,
+                // 서버가 아직 모르는 임시 줄(음수 id) — 「끝난 것 지우기」가 보내지 않게 닫아 둔다. 재조회가 서버 판정으로 갈아 끼운다
+                clearable: false,
+                clearBlockedReason: null,
               },
               ...current.todos,
             ],
@@ -1797,7 +2124,9 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         void qc.invalidateQueries({ queryKey: family.ops });
       }
       // 연결 수업의 준비 행은 TODO 총수·완료수를 읽는다. 기한만 바꾸면 이 사실은 그대로다.
-      if (w.kind === 'todo' || w.kind === 'todoClear' || (w.kind === 'todoPatch' && w.body.done !== undefined)) {
+      // 수업 상세 「+ 할 일」(W11 · N-71)은 회차에 걸린 새 지시라 그 수업의 준비 행이 바로 는다
+      if (w.kind === 'todo' || w.kind === 'todoClear' || (w.kind === 'todoPatch' && w.body.done !== undefined)
+        || (w.kind === 'todoCreate' && w.body.serId != null)) {
         void qc.invalidateQueries({ queryKey: family.tracking });
       }
       // 승인은 **실제로 적용된다** — 강사 홈의 시급·시간대가 바뀌었으므로 함께 다시 읽는다
@@ -1814,6 +2143,42 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
     },
     // 창(month/all)마다 키가 다르므로 성공·실패 모두 서버 값으로 화해한다.
     onSettled: () => qc.invalidateQueries({ queryKey: family.drawer }),
+  });
+}
+
+/**
+ * §14 결재 되돌리기 (N-84 · 원문 §14 머리 「모든 처리는 되돌리기로 취소됩니다」) — 승인 · 반려 · 반영 응답의 토큰 하나.
+ * 무엇을 어떻게 되돌릴지는 서버가 토큰과 DB 로 정한다 — 화면은 토큰을 풀지 않는다. 되돌린 뒤에는 그 처리가 건드린
+ * 갈래(서랍 · 강사 홈 · 시간표 · 회계 시급 · GPA)를 다시 읽는다. 낙관 갱신은 하지 않는다(돈 · 시간표가 걸린다).
+ */
+export function useApprovalUndo(): UseMutationResult<ApprovalUndoResult, unknown, { token: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<ApprovalUndoResult>('/drawer/approvals/undo', body)).data,
+    // 무효화는 한 줄에 갈래 하나로 적는다 — 표기 회귀(queries-family)가 `family.X` 모양만 읽는다
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
+      void qc.invalidateQueries({ queryKey: family.board });
+      void qc.invalidateQueries({ queryKey: family.exec });
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.gpa });
+      void qc.invalidateQueries({ queryKey: family.tracking });
+    },
+  });
+}
+
+/** §76 권한 표 · 창 부제 · 역할 설명 줄 (N-98) — 서버 문장. 권한 창을 열 때만 부른다 */
+export function usePermissionTable(enabled = true): UseQueryResult<PermissionTable> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.permissions, viewerId),
+    queryFn: async () => (await api.get<PermissionTable>('/permissions')).data,
+    enabled,
+    // 사람별 예외가 바뀌면 다음 요청부터 판정이 바뀐다 — 창을 다시 열면 다시 읽는다
+    staleTime: 0,
   });
 }
 
@@ -1937,18 +2302,50 @@ export function useDeleteTeacherUnav(): UseMutationResult<{ ok: true }, unknown,
   });
 }
 
-/** §31 진행 항목 체크/해제 — 판정(공개 범위·종료 잠금)은 서버. 성공/실패 모두 목록 재조회. */
+/**
+ * §31 진행 항목 체크/해제 — 판정(공개 범위·종료 잠금)은 서버. 성공/실패 모두 컨설팅 갈래 전체를 다시 받는다.
+ * 목록만 버리면 상세의 종료 단추(canClose · 예외 종료 canCloseException)가 옛 필수 항목 수로 남는다 (PB-15 · W11).
+ */
 export function useToggleConsultingItem(): UseMutationResult<
   ConsItem,
   unknown,
   { consId: number; itemId: number; done: boolean }
 > {
   const qc = useQueryClient();
-  const viewerId = useViewerId();
   return useMutation({
     mutationFn: async ({ consId, itemId, done }) =>
       (await api.patch<ConsItem>(`/consulting/${consId}/items/${itemId}`, { done })).data,
-    onSettled: () => qc.invalidateQueries({ queryKey: sessionQueryKey(qk.consulting, viewerId) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: family.consulting }),
+  });
+}
+
+/**
+ * 원문 §31 「항목 수정」 — 더하기 · 이름 바꾸기 · 빼기를 한 번에 (N-18-a). 바꾸는 것만 보낸다(목록 통째가 아니다).
+ * 필수 항목 수가 바뀌면 종료 단추도 바뀐다 — 컨설팅 갈래 전체를 버린다.
+ */
+export function useEditConsultingItems(): UseMutationResult<ConsItem[], unknown, { consId: number; body: ConsItemsEdit }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ consId, body }) => (await api.patch<ConsItem[]>(`/consulting/${consId}/items`, body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.consulting }),
+  });
+}
+
+/** 항목 「파일」 올리기 — 항목마다 6개(N-63). 계약 파일과 같은 업로드 모양(base64) */
+export function useAddConsultingItemFile(): UseMutationResult<ConsultingFile, unknown, { consId: number; itemId: number } & ConsultingFileCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ consId, itemId, ...body }) => (await api.post<ConsultingFile>(`/consulting/${consId}/items/${itemId}/files`, body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.consulting }),
+  });
+}
+
+/** 항목 파일 빼기 — 종료 전 건만(서버 판정) */
+export function useRemoveConsultingItemFile(): UseMutationResult<void, unknown, { consId: number; itemId: number; fileId: number }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ consId, itemId, fileId }) => { await api.delete(`/consulting/${consId}/items/${itemId}/files/${fileId}`); },
+    onSettled: () => qc.invalidateQueries({ queryKey: family.consulting }),
   });
 }
 
@@ -2114,12 +2511,16 @@ export function useAddConsPayment(): UseMutationResult<ConsAccountRow, unknown, 
   });
 }
 
-/** 청구서로 전환 — §28 동작 ②. 청구서가 생기므로 회계 탭(§53)도 함께 버린다. */
-export function useConsToInvoice(): UseMutationResult<ConsAccountRow, unknown, { consId: number }> {
+/**
+ * 청구서로 전환 — §28 동작 ②. 청구서가 생기므로 회계 탭(§53)도 함께 버린다.
+ * 받는 학생(`studentId`)은 사람이 고른다 — 학생이 여럿이면 필수 · 한 명이면 비운다(서버가 그 학생으로 낸다 · N-33 ②).
+ */
+export function useConsToInvoice(): UseMutationResult<ConsAccountRow, unknown, { consId: number; studentId?: number }> {
   const qc = useQueryClient();
   const invalidate = useConsultingFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ consId }) => (await api.post<ConsAccountRow>(`/consulting/${consId}/invoice`, {})).data,
+    mutationFn: async ({ consId, studentId }) =>
+      (await api.post<ConsAccountRow>(`/consulting/${consId}/invoice`, studentId === undefined ? {} : { studentId })).data,
     onSettled: () => {
       invalidate();
       void qc.invalidateQueries({ queryKey: family.accounting });
@@ -2319,6 +2720,65 @@ export function useResumeLead(): UseMutationResult<Lead, unknown, { id: number }
   });
 }
 
+/* ── 상담 카드의 배치안 초안 · 보류 연장 · 2차/진단 일정 쓰기 (wave 3 · g3 · 23-15 · 23-16) ──
+ * 옛 `components/intake/intake-queries.ts` 에서 **몸통 그대로** 옮겼다 (W11 D). 응답은 상담 한 줄(LeadDto)이지만
+ * 카드 · 머리 수 · 경고가 같이 바뀌므로 `family.ops` 앞자락을 통째로 버린다 — 그 파일의 `useInvalidateOps` 는 아래
+ * `useOpsFamilyInvalidate` 와 몸이 같아(`family.ops` 하나) 그것을 쓴다. */
+
+/** 배치안 통째로 바꾸기 — 빈 배열이면 비운다. 단가는 보내지 않는다(단가표가 정본 · 서버가 붙인다) */
+export function useSaveLeadPlan(): UseMutationResult<Lead, unknown, { id: number } & LeadPlanWrite> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.put<Lead>(`/ops/leads/${id}/plan`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 「연장 +2일」 — 새 재확인 날짜는 서버가 센다 */
+export function useExtendLeadHold(): UseMutationResult<Lead, unknown, { id: number }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id }) => (await api.post<Lead>(`/ops/leads/${id}/hold/extend`)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 2차 · 진단 일정 한 줄 — 같은 종류를 다시 보내면 고쳐 적는다 */
+export function useSaveLeadAppt(): UseMutationResult<Lead, unknown, { id: number } & LeadApptWrite> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.put<Lead>(`/ops/leads/${id}/appts`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * 일정 한 줄 지우기 (23-15 · impl3-w8) — 아직 시간표에 없는 줄만 서버가 지운다.
+ * 시간표에 만든 줄은 서버가 409 문장으로 막는다(회차는 시간표가 정본) — 화면이 그 판정을 다시 하지 않는다.
+ */
+export function useDeleteLeadAppt(): UseMutationResult<Lead, unknown, { id: number; kind: LeadAppt['kind'] }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, kind }) => (await api.delete<Lead>(`/ops/leads/${id}/appts/${kind}`)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 「스케줄에 N건 만들기」 — 시간표에 회차가 생기므로 시간표 갈래도 버린다 */
+export function useScheduleLeadAppts(): UseMutationResult<LeadApptScheduleResult, unknown, { id: number }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }) => (await api.post<LeadApptScheduleResult>(`/ops/leads/${id}/appts/schedule`)).data,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.ops });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.horizon });
+      // 상담 일정이 시간표 회차(SER)가 된다 — §07 사이드바의 일정 원본 수도
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
+    },
+  });
+}
+
 /* ══ §65 기획 보고서 — 창을 열 때만 부른다 (C56) ═══════════════════════
    기한 결재와 최종 결재는 **보고서 전체**를 돌려받는다. 단추가 열리는지는 서버가 정하므로
    (`canReview` · `reviewBlockedReason`) 한 줄만 갈아 끼우면 단추 상태가 뒤처진다.     */
@@ -2348,11 +2808,16 @@ export function usePlanDetail(id: number | null): UseQueryResult<PlanDetail> {
   });
 }
 
-/** 기한 승인 · 반려 — 대표 전용 (409: CEO_ONLY · NO_DUE · DUE_ALREADY_APPROVED) */
-export function useDecidePlanDue(): UseMutationResult<PlanDetail, unknown, { id: number; approve: boolean }> {
+/**
+ * 기한 승인 · 반려 — 대표 전용 (409: CEO_ONLY · NO_DUE · DUE_ALREADY_APPROVED · PLAN_DUE_CHANGED).
+ *
+ * **본 날짜를 함께 보낸다**(W11 · PB-12-2) — 서버는 그 날짜가 지금 기한과 같을 때만 결정한다. 그 사이 담당이 기한을
+ * 옮겼으면 409 `PLAN_DUE_CHANGED` 이고 문장이 새 날짜를 말한다. 실패해도 `family.ops` 를 다시 읽어 새 날짜가 선다.
+ */
+export function useDecidePlanDue(): UseMutationResult<PlanDetail, unknown, { id: number; approve: boolean; dueOn: string }> {
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ id, approve }) => (await api.post<PlanDetail>(`/ops/plans/${id}/due`, { approve })).data,
+    mutationFn: async ({ id, approve, dueOn }) => (await api.post<PlanDetail>(`/ops/plans/${id}/due`, { approve, dueOn })).data,
     onSettled: invalidate,
   });
 }
@@ -2395,6 +2860,38 @@ export function useMovePlanStage(): UseMutationResult<PlanDetail, unknown, { id:
   });
 }
 
+/* 아래 둘은 옛 `components/ops/ops-queries.ts` 에서 **몸통 그대로** 옮겼다 (W11 D) — 키를 새로 만들지 않고 `family.ops` 앞자락만 버린다. */
+
+/**
+ * §65 「+ 대표 지시」 (w5 · g6 65-4) — 과제(TODO) 한 줄 · 담당 알림 · 감사 줄이 서버에서 한 트랜잭션이다.
+ *
+ * 응답은 **보고서 전체**다 — 「과제 N/M」을 화면이 한 줄 붙여 다시 세지 않는다 (D-R37).
+ * 성공하면 `family.ops` 전체를 버린다 — 보고서(`['ops','plan',id,…]`)·§61 카드의 「과제 N/M」·§62 기한 표·§64 할 일이
+ * 전부 그 앞자락 밑에 있다(사용자 꼬리가 가운데 끼는 키라 `sessionQueryKey(qk.ops)` 로는 보고서가 안 걸린다 · C56).
+ */
+export function useAddPlanTask(): UseMutationResult<PlanDetail, unknown, { id: number } & PlanTaskCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<PlanDetail>(`/ops/plans/${id}/tasks`, body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
+  });
+}
+
+/**
+ * §59 「+ 오늘 한 것」 (x5 · g6 59-3) — 활동 한 줄 · 감사 줄이 서버에서 한 트랜잭션이다.
+ *
+ * 응답은 `GET /ops` 의 marketing 줄과 **같은 모양**이지만 화면이 목록에 끼워 넣지 않는다 —
+ * 필터 띠의 수·범례·「N건 M일 진행」이 전부 서버 수라, 끼우면 그 수들과 목록이 갈린다 (D-R37).
+ * 성공하면 `family.ops` 를 버려 목록과 수를 함께 다시 읽는다.
+ */
+export function useCreateMarketing(): UseMutationResult<Marketing, unknown, MarketingCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<Marketing>('/ops/marketing', body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
+  });
+}
+
 /* ══ §66 회의 상세 — 창을 열 때만 부른다 (C57) ═════════════════════════
    속기록 저장과 할 일 배정은 **회의 전체**를 돌려받는다. 「참석 N/M 확인」과 「끝낸 할 일 수」를
    서버가 세므로, 한 줄만 갈아 끼우면 머리의 숫자가 뒤처진다 (D-R37).              */
@@ -2430,6 +2927,30 @@ export function useAssignMeetingTask(): UseMutationResult<
   });
 }
 
+/**
+ * 「안내 보내기」 (W11 · N-32) — 참석자(직원)에게 알림 한 건씩. 본문은 서버가 사실로 조립한다(비밀번호 없음).
+ * 막히면 409 `MEETING_NOTICE_BLOCKED` 이고 문장은 화면의 `noticeBlockedReason` 과 같다.
+ */
+export function useSendMeetingNotice(): UseMutationResult<MeetingNoticeResult, unknown, { id: number }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id }) => (await api.post<MeetingNoticeResult>(`/ops/meetings/${id}/notice`)).data,
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * 참석 응답 (W11 · N-32) — **본인 줄만** 참석 · 불참. 대리 입력은 없다(서버가 보낸 사람의 줄만 고친다).
+ * 회의 목록의 「내 응답 대기 N」도 같은 원장을 세므로 `family.ops` 를 통째로 다시 읽는다.
+ */
+export function useRespondMeeting(): UseMutationResult<MeetingDetail, unknown, { id: number; confirmed: boolean }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, confirmed }) => (await api.post<MeetingDetail>(`/ops/meetings/${id}/attend`, { confirmed })).data,
+    onSettled: invalidate,
+  });
+}
+
 /* ══ §60 대표 피드백 — 세 쓰기 모두 글타래 전체를 돌려받는다 ═══════════════
    한 줄만 붙여 놓으면 「고쳤습니다 / 확인 필요」와 머리의 「고쳐야 할 것 N건」을
    화면이 스스로 다시 세게 된다. 판정은 서버 한 곳이다 (D-R37 · D-R39).       */
@@ -2443,8 +2964,14 @@ export function useMfbComment(): UseMutationResult<MfbThread[], unknown, { mktId
   });
 }
 
-/** 담당자 답변 — 코멘트를 쓴 대표에게만 알림 (409: NOT_OWNER·NOT_A_COMMENT) */
-export function useMfbReply(): UseMutationResult<MfbThread[], unknown, { mktId: number; parentId: number; body: string }> {
+/** 담당 답의 두 갈래 — 코드는 생성 타입(서버 `MFB_ANSWER_KINDS`)에서 온다 */
+type MfbReplyKind = NonNullable<import('./schema').components['schemas']['MfbReplyWriteDto']['kind']>;
+
+/**
+ * 담당자 답변 — 코멘트를 쓴 대표에게만 알림 (409: NOT_OWNER·NOT_A_COMMENT · 보류는 MFB_ALREADY_HELD·MFB_ALREADY_FIXED).
+ * kind 'hold' 는 「보류」(W11 · N-29 ③) — 카드는 「확인 필요」로 남는다. 비우면 「고친 것 알리기」다.
+ */
+export function useMfbReply(): UseMutationResult<MfbThread[], unknown, { mktId: number; parentId: number; body: string; kind?: MfbReplyKind }> {
   const invalidate = useOpsInvalidate();
   return useMutation({
     mutationFn: async ({ mktId, ...body }) => (await api.post<MfbThread[]>(`/ops/marketing/${mktId}/replies`, body)).data,
@@ -2698,6 +3225,10 @@ export function useSendToGuardians(): UseMutationResult<GuardianSendResult, unkn
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.guides });
       void qc.invalidateQueries({ queryKey: family.tracking });
+      // §30 ③ 계약서 전달(N-77) — 메일이 나가면 계약이 「전달」 단계로 넘어간다
+      void qc.invalidateQueries({ queryKey: family.consulting });
+      // §47 주간 묶음(N-54) — 나간 묶음은 「보냄」 · 총평이 잠긴다
+      void qc.invalidateQueries({ queryKey: family.reportWeekly });
     },
   });
 }

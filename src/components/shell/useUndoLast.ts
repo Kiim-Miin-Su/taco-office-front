@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: useUndoLast.ts — 일정 쓰기를 한 단계·여러 단계 되돌리는 단 하나의 자리 (N-138 · g1 S5)
- * 책임/재사용: 공용 store 와 기존 useScheduleWrite 만 쓴다. 서버 판정을 화면에서 다시 하지 않는다.
+ * 목적: useUndoLast.ts — 일정 쓰기 · §14 결재를 한 단계·여러 단계 되돌리는 단 하나의 자리 (N-138 · g1 S5 · N-84)
+ * 책임/재사용: 공용 store 와 기존 useScheduleWrite · useApprovalUndo 만 쓴다. 서버 판정을 화면에서 다시 하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
@@ -14,7 +14,7 @@
  * 되돌릴 수 있는지도 store 한 곳이 답한다 — 화면이 「마지막 작업이 삭제였나」를 다시 따지지 않는다.
  */
 import { liveUndoSteps, useWorkspace, type WorkspaceUndo } from '@/store/useWorkspace';
-import { useScheduleWrite } from '@/api/queries';
+import { useApprovalUndo, useScheduleWrite } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 
 type UndoDone = { onDone?: () => void; onFail?: (message: string) => void };
@@ -44,26 +44,27 @@ export function useUndoLast(): UndoLast {
   const stack = useWorkspace((w) => w.undoStack);
   const dropUndo = useWorkspace((w) => w.dropUndo);
   const write = useScheduleWrite();
+  // §14 결재 되돌리기(N-84) — 원문 셸의 「⟲ 되돌리기」는 한 단추라 같은 목록 · 같은 차례로 탄다. 갈래만 토큰의 `kind` 로 가른다
+  const approval = useApprovalUndo();
   const steps = liveUndoSteps(stack).reverse();
 
   // 한 단계씩 — 앞 단계가 성공해야 다음 단계를 보낸다 (동시에 보내면 서로의 stale 판정을 흔든다)
   const run = (queue: WorkspaceUndo[], done?: UndoDone) => {
     const [head, ...rest] = queue;
     if (!head) { done?.onDone?.(); return; }
-    write.mutate(
-      { kind: 'undo', body: { token: head.token } },
-      {
-        onError: (error) => { dropUndo(head.token); done?.onFail?.(apiMessage(error)); },
-        onSuccess: () => { dropUndo(head.token); run(rest, done); },
-      },
-    );
+    const settle = {
+      onError: (error: unknown) => { dropUndo(head.token); done?.onFail?.(apiMessage(error)); },
+      onSuccess: () => { dropUndo(head.token); run(rest, done); },
+    };
+    if (head.kind === 'approval') approval.mutate({ token: head.token }, settle);
+    else write.mutate({ kind: 'undo', body: { token: head.token } }, settle);
   };
 
   return {
     canUndo: steps.length > 0,
     label: steps[0]?.label ?? null,
     steps,
-    pending: write.isPending,
+    pending: write.isPending || approval.isPending,
     undo: (done) => { if (steps.length) run(steps.slice(0, 1), done); },
     undoTo: (count, done) => { if (steps.length) run(steps.slice(0, Math.max(1, count)), done); },
   };

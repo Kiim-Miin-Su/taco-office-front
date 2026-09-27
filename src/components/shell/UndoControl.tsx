@@ -11,6 +11,7 @@
  * - 본 단추는 가장 최근 한 단계, **▾ 는 여러 단계 목록**(g1 S5)이다 — 고른 단계까지 최근 것부터 차례로 되돌린다.
  *   목록의 단계·순서·만료 판정은 `useUndoLast` 가 준다(만료는 서버 값 · 화면이 10분을 따로 들지 않는다).
  * - 셸 파일에서 떼어 둔 이유: 셸 머리는 여러 청크가 함께 고치는 자리라 되돌리기 부분만 한 파일에 모은다.
+ * - 일정 쓰기와 §14 결재(N-84)가 **같은 목록**에 선다 — 원문 셸의 단추는 하나다. 그래서 문구에 「일정」을 붙이지 않는다.
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
@@ -43,13 +44,13 @@ export function UndoControl({ onFail }: { onFail: (message: string) => void }) {
   return (
     <div ref={box} className="relative flex shrink-0">
       <button type="button" onClick={() => undo.undo({ onFail })} disabled={blocked}
-        title={undo.canUndo ? `${undo.label}${objectParticle(undo.label ?? '')} 되돌립니다 · Ctrl/⌘+Z` : '되돌릴 최근 일정 작업이 없습니다'}
+        title={undo.canUndo ? `${undo.label}${objectParticle(undo.label ?? '')} 되돌립니다 · Ctrl/⌘+Z` : '되돌릴 최근 작업이 없습니다'}
         className={`${TOOL} rounded-l-md px-2.5`}>
         <RotateCcw size={14} aria-hidden />되돌리기
       </button>
       <button type="button" aria-label="되돌릴 단계 목록" aria-haspopup="menu" aria-expanded={open}
         onClick={() => setOpen((v) => !v)} disabled={blocked}
-        title={undo.canUndo ? `되돌릴 수 있는 일정 작업 ${undo.steps.length}단계` : '되돌릴 최근 일정 작업이 없습니다'}
+        title={undo.canUndo ? `되돌릴 수 있는 작업 ${undo.steps.length}단계` : '되돌릴 최근 작업이 없습니다'}
         className={`${TOOL} rounded-r-md border-l-0 px-1`}>
         <ChevronDown size={14} aria-hidden />
       </button>

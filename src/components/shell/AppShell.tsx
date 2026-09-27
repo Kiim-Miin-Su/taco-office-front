@@ -18,9 +18,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/store/useSession';
 import { api } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
-import { useDrawer, useUnwritten } from '@/api/queries';
+import { useDrawer, usePermissionTable, useUnwritten } from '@/api/queries';
 import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
 import { ApprovalFlowDialog } from '@/components/approval/ApprovalFlowDialog';
+import { autosaveTimeLabel, useLastAutosave } from '@/lib/autosave';
 
 /**
  * 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다.
@@ -64,6 +65,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [drawerPane, setDrawerPane] = useState<DrawerPane>('approvals');
   const [approvalFlow, setApprovalFlow] = useState(false);
   const [permissions, setPermissions] = useState(false);
+  // §76 표 · 부제 · 역할 설명은 서버가 만든다(N-98) — 창을 열 때만 읽는다
+  const permissionTable = usePermissionTable(isAdmin && permissions);
   /** §85·§86 — 원문에서 이것은 라우트가 아니라 머리의 「디자인」이 여는 창이다 (C60) */
   const [design, setDesign] = useState(false);
   /* 원문 머리줄 「검색 ⌘K」·「보는 법」(g1 S1·S2) — 둘 다 창이고 라우트가 아니다 */
@@ -112,6 +115,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
     }
   }
 
+  /** 원문 머리줄 「자동 저장됨 · —」(g1 S3) — N-69: 쓰던 글을 이 브라우저에 마지막으로 남긴 시각(서버 저장이 아니다) */
+  const lastAutosave = useLastAutosave();
+  const autosaveText = `자동 저장됨 · ${autosaveTimeLabel(lastAutosave)}`;
   const approvalCount = drawerData?.approvalFlow?.total ?? 0;
   const canViewApprovalFlow = isAdmin && Boolean(drawerData?.approvalFlow?.canView);
   const badges: AdminNavBadges = {
@@ -168,7 +174,16 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
             <CircleHelp size={14} aria-hidden /><span className="hidden min-[1680px]:inline">보는 법</span>
           </button>
-          {canViewApprovalFlow ? <button type="button" onClick={() => setApprovalFlow(true)} aria-haspopup="dialog"
+          {/* 「보는 법 | 자동 저장됨 · —」(원문 차례 · 세로 줄 뒤 초록 글자 · 단추가 아니다). 어두운 머리 바탕 대비 때문에
+              초록 토큰을 흰색과 섞어 밝힌다(승인 대기 글자를 흰색으로 둔 것과 같은 까닭). 1680 미만은 시각만 보이고 앞 낱말은 읽기 글 · title.
+              **1536 미만에서는 세우지 않는다** — 업무 탭 자리를 먼저 준다(B-1 · B-1r 과 같은 규칙). 이 칸(「—」 25px · 시각이면 더 넓다)이
+              W11 에 머리줄에 들어오며 스케줄 1366 에서 업무 탭 10개(521px)가 다시 넘쳐 「대표 보고」가 가려졌다(W11 실브라우저 QA · nav 500 < 521).
+              쓰던 글을 되살리는 알림은 각 편집 화면의 띠(「쓰던 글을 불러왔습니다」)가 그대로 말한다 */}
+          <span data-testid="autosave-status" title={autosaveText}
+            className="hidden h-[30px] shrink-0 whitespace-nowrap border-l border-header-line pl-3 text-[12px] font-bold leading-[30px] text-[color:color-mix(in_srgb,var(--green)_45%,white)] min-[1536px]:block">
+            <span className="sr-only min-[1680px]:not-sr-only">자동 저장됨 · </span>{autosaveTimeLabel(lastAutosave)}
+          </span>
+          {canViewApprovalFlow ?<button type="button" onClick={() => setApprovalFlow(true)} aria-haspopup="dialog"
             aria-label={`승인 대기 ${approvalCount}`} title={`승인 대기 ${approvalCount}`}
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-amber bg-header-approval px-2.5 text-[12px] font-bold text-white">
             {/* 원문 머리 단추는 「● 승인 대기 N」이다(g2 75-1). 글자는 어두운 바탕 대비 때문에 흰색 그대로 둔다(tokens.test).
@@ -228,10 +243,13 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
       <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
       {isAdmin ? <ShellSearch open={search} onClose={() => setSearch(false)} me={me} /> : null}
       {isAdmin ? <ShellGuide open={guide} onClose={() => setGuide(false)} /> : null}
-      {/* 원문 §76 창 = 폭 640(§75 와 같다) · 머리 오른쪽 × (76-3) */}
+      {/* 원문 §76 창 = 폭 640(§75 와 같다) · 머리 오른쪽 × (76-3) · 부제는 창 머리에(「지금 ○○ 화면입니다 · …」 — 서버 문장 · W11 7-3) */}
       <Dialog open={isAdmin && permissions} onClose={() => setPermissions(false)} title="권한" width={640} closeX
+        sub={permissionTable.data?.sub}
         footer={<Button onClick={() => setPermissions(false)}>닫기</Button>}>
-        <div className="max-h-[70dvh] overflow-y-auto"><PermissionMatrix me={me} /></div>
+        <div className="max-h-[70dvh] overflow-y-auto">
+          <PermissionMatrix table={permissionTable.data} loading={permissionTable.isLoading} error={permissionTable.error} />
+        </div>
       </Dialog>
     </div>
   );
