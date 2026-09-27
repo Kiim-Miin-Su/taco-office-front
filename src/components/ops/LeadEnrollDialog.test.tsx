@@ -80,6 +80,13 @@ async function fillOneLine(view: ReturnType<typeof render>) {
   return dialog;
 }
 
+it('기존 학생 선택은 같은 학생의 재등록으로만 안내한다 — 새 형제를 한 사람으로 합치지 않는다 (A-13)', async () => {
+  const { view } = setup();
+  const dialog = await view.findByRole('dialog');
+  expect(within(dialog).getByRole('checkbox', { name: '기존 학생의 재등록으로 붙입니다' })).toBeTruthy();
+  expect(within(dialog).queryByText(/형제/)).toBeNull();
+});
+
 const expectedBody = {
   student: { name: '문채원', school: '언주중' }, startedOn: '2026-10-01', issueInvoice: true, dueOn: '2026-10-25',
   lines: [{ kindKey: 'class', subKey: 'writing', mode: 'offline', rrule: 'WEEKLY:MO,WE', startMin: 960, endMin: 1020, teacherId: 6, roomId: null, title: null, sessions: null, libId: null }],

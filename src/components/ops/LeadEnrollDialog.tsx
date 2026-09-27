@@ -205,10 +205,10 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
       )}
     >
       <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto pr-1">
-        {/* 학생 — 새로 만들거나 있는 학생에게 붙인다 (형제·재등록). 동명이인은 학년·학교로 가른다 (N-137) */}
+        {/* 학생 — 새로 만들거나 같은 학생의 재등록에 붙인다. 새 형제는 별도 학생으로 만든다. 동명이인은 학년·학교로 가른다 (N-137) */}
         <section aria-label="학생" className="rounded-lg border border-line bg-inset p-3">
           <div className="mb-2 flex items-center gap-3">
-            <Checkbox label="이미 있는 학생에게 붙입니다 (형제 · 재등록)" checked={existing} onChange={(e) => setExisting(e.target.checked)} disabled={pending} />
+            <Checkbox label="기존 학생의 재등록으로 붙입니다" checked={existing} onChange={(e) => setExisting(e.target.checked)} disabled={pending} />
           </div>
           {existing ? (
             <div>
