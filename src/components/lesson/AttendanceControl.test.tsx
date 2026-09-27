@@ -90,6 +90,22 @@ describe('AttendanceControl', () => {
     expect(view.queryByRole('button', { name: '출결 정정' })).toBeNull();
   });
 
+  it('롤링 배포 중 구 API가 lateStudents를 생략해도 출결 현재값을 그린다', () => {
+    const legacyAttendance = {
+      id: 9,
+      result: 'completed' as const,
+      reason: null,
+      confirmedBy: 5,
+      confirmedByName: '이매니저',
+      confirmedAt: '2026-09-03T03:00:00.000Z',
+      countsForPay: true,
+    } as Occurrence['attendance'];
+    const view = render(<AttendanceControl occ={{ ...occurrence, attendance: legacyAttendance }} />);
+    expect(view.getByText('수업 완료로 확정되었습니다.')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '출결 정정' }));
+    expect((view.getByRole('checkbox', { name: '김학생 · 고1' }) as HTMLInputElement).checked).toBe(false);
+  });
+
   it('관리자는 현재값을 초기화하는 단일 명령을 보낸다', () => {
     const view = render(
       <AttendanceControl

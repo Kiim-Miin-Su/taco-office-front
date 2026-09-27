@@ -51,7 +51,8 @@ export function AttendanceControl({ occ, onOpenCancel }: {
   const [result, setResult] = useState<AttendanceResult>(occ.attendance?.result ?? 'completed');
   const [reason, setReason] = useState<AttendanceCancelReason | ''>(occ.attendance?.reason ?? '');
   const [lateStudentIds, setLateStudentIds] = useState<number[]>(
-    occ.attendance?.lateStudents.map((student) => student.studentId) ?? [],
+    // 롤링 배포 중 구 API 응답에는 lateStudents가 없을 수 있다. 새 계약이 오기 전에는 빈 현재값으로 읽는다.
+    occ.attendance?.lateStudents?.map((student) => student.studentId) ?? [],
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +60,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
     setAttendance(occ.attendance);
     setResult(occ.attendance?.result ?? 'completed');
     setReason(occ.attendance?.reason ?? '');
-    setLateStudentIds(occ.attendance?.lateStudents.map((student) => student.studentId) ?? []);
+    setLateStudentIds(occ.attendance?.lateStudents?.map((student) => student.studentId) ?? []);
     setError(null);
     setOpen(false);
   }, [occ.serId, occ.onDate, occ.attendance]);
@@ -67,7 +68,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
   const showDialog = () => {
     setResult(attendance?.result ?? 'completed');
     setReason(attendance?.reason ?? '');
-    setLateStudentIds(attendance?.lateStudents.map((student) => student.studentId) ?? []);
+    setLateStudentIds(attendance?.lateStudents?.map((student) => student.studentId) ?? []);
     setError(null);
     setOpen(true);
   };
@@ -138,7 +139,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
             <p className="mt-1 text-[11px] font-bold text-fg-2">
               {attendance.countsForPay ? '정산 기준 · 시수·페이에 포함' : '정산 기준 · 시수 0 · 페이 0'}
             </p>
-            {attendance.result === 'completed' && attendance.lateStudents.length ? (
+            {attendance.result === 'completed' && attendance.lateStudents?.length ? (
               <div className="mt-2 flex flex-wrap items-center gap-1" aria-label="지각 학생">
                 <span className="mr-1 text-[11px] font-bold text-fg-subtle">지각</span>
                 {attendance.lateStudents.map((student) => (
