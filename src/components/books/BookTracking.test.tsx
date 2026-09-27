@@ -42,7 +42,7 @@ const DIAG = {
   byId: 2, byName: '김민수', at: '2026-08-20T10:00:00+09:00',
 };
 
-function setup() {
+function setup({ withoutIssuedBooks = false }: { withoutIssuedBooks?: boolean } = {}) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     const diag = /^\/books\/students\/(\d+)\/latest-diag$/.exec(config.url ?? '');
@@ -71,8 +71,8 @@ function setup() {
                 teacherName: '김재훈',
                 nextLesson: '2026-09-14 16:00',
                 todoLabel: '확인 필요',
-                todos: [{ key: 'teacher_request', label: '강사 요청', count: 1 }],
-                issues: [
+                todos: withoutIssuedBooks ? [] : [{ key: 'teacher_request', label: '강사 요청', count: 1 }],
+                issues: withoutIssuedBooks ? [] : [
                   {
                     id: 10,
                     libId: 4,
@@ -95,7 +95,7 @@ function setup() {
                 ],
               },
             ],
-            books: [
+            books: withoutIssuedBooks ? [] : [
               {
                 libId: 4,
                 title: 'SAT Reading',
@@ -153,6 +153,12 @@ it('원본 여섯 통계와 DB 강사 요청을 표시한다', async () => {
   await waitFor(() => expect(view.getAllByText('강사 요청').length).toBeGreaterThanOrEqual(1));
   expect(view.getByText('고은성 다 풀었습니다')).toBeTruthy();
   expect(view.getAllByText('SAT Reading').length).toBeGreaterThanOrEqual(2);
+});
+
+it('학생은 있지만 배부 교재가 0종이면 빈 진도율 격자 대신 맥락 있는 안내를 표시한다 (P-156)', async () => {
+  const view = setup({ withoutIssuedBooks: true });
+  expect(await view.findByText('학생에게 배부된 교재가 없어 진도율을 표시할 수 없습니다.')).toBeTruthy();
+  expect(view.queryByTestId('book-progress-card')).toBeNull();
 });
 
 it('진도 입력은 페이지 숫자만 DTO로 보내고 퍼센트는 보내지 않는다', async () => {

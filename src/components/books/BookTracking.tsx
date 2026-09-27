@@ -412,12 +412,15 @@ export function BookTracking({
                 원본 §38 「교재별 진도율」 카드(g4 §38-7) — 제목줄 = 레벨 배지 + 제목 + 오른쪽 「N명」, 막대 오른쪽 큰 %,
                 막대 위 평균 표시선, 레벨색 왼쪽 띠, 넓은 화면 3열. 평균·범위·학생별 % 는 서버 값 그대로다(D-R37).
               */}
-              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {d.books.map((book) => {
-                  const level = bookLevelPresentation(book.level);
-                  return (
-                    <article key={book.libId} data-testid="book-progress-card"
-                      className={`rounded-xl border border-l-4 border-line bg-card p-4 ${LEVEL_BORDER[level.bandClass] ?? 'border-l-line'}`}>
+              {d.books.length === 0 ? (
+                <Banner tone="neutral">학생에게 배부된 교재가 없어 진도율을 표시할 수 없습니다.</Banner>
+              ) : (
+                <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {d.books.map((book) => {
+                    const level = bookLevelPresentation(book.level);
+                    return (
+                      <article key={book.libId} data-testid="book-progress-card"
+                        className={`rounded-xl border border-l-4 border-line bg-card p-4 ${LEVEL_BORDER[level.bandClass] ?? 'border-l-line'}`}>
                       <header className="flex items-center gap-2">
                         {book.level ? (
                           <span data-level-marker title={level.label}
@@ -461,10 +464,11 @@ export function BookTracking({
                           </div>
                         ))}
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </>
         )}
