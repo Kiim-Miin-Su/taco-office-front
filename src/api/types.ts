@@ -219,6 +219,8 @@ export type OccurrenceDelete = S['OccurrenceDeleteDto'];
 /** 그날 전체 휴강 — 공휴일·학원 휴원 (C92 · C-33). 결과는 WriteResult + count/skipped */
 export type DayCancel = S['DayCancelDto'];
 export type DayCancelResult = S['DayCancelResultDto'];
+export type DayCancelParentNotice = S['DayCancelParentNoticeDto'];
+export type DayCancelNoticeList = S['DayCancelNoticeListDto'];
 export type RosterPatch = S['RosterPatchDto'];
 /** 휴원·복귀 — 학생 카드 「휴원」·「복귀」 (C92-c · C-36/C-37). 기간 하나를 적고 회차는 지우지 않는다 */
 export type StudentPause = S['StudentPauseDto'];

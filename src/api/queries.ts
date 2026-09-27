@@ -61,6 +61,7 @@ import type {
   ConsultingList,
   ConsultingShareUpdate,
   DayCancel,
+  DayCancelNoticeList,
   DayCancelResult,
   Drawer,
   DrawerTodoClearResult,
@@ -222,6 +223,7 @@ import type {
 export const qk = {
   meta: ['meta'] as const,
   occurrences: (p: OccParams) => ['schedule', 'occurrences', p] as const,
+  dayCancelNotices: (date: string) => ['schedule', 'day-cancel-notices', date] as const,
   reports: (p: ReportParams) => ['reports', p] as const,
   unwritten: (teacherId?: number) => ['reports', 'unwritten', teacherId ?? 'all'] as const,
   reportDetail: (serId: number, onDate: string) => ['reports', 'detail', serId, onDate] as const,
@@ -350,6 +352,7 @@ export function sessionQueryKey<T extends readonly unknown[]>(key: T, viewerId: 
  */
 export const family = {
   occurrences: ['schedule', 'occurrences'] as const,
+  dayCancelNotices: ['schedule', 'day-cancel-notices'] as const,
   horizon: ['schedule', 'horizon'] as const,
   reports: ['reports'] as const,
   reportDeliveries: ['reports', 'deliveries'] as const,
@@ -449,6 +452,17 @@ export function useOccurrences(p: OccParams, enabled = true): UseQueryResult<Occ
     queryFn: async () => (await api.get<OccurrenceList>('/schedule/occurrences', { params: p })).data,
     enabled,
     staleTime: 60 * 1000,
+  });
+}
+
+/** N-133 전일 휴원 — reload 뒤에도 날짜별 학부모 선택 발송을 이어 간다. */
+export function useDayCancelNotices(date: string, enabled = true): UseQueryResult<DayCancelNoticeList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.dayCancelNotices(date), viewerId),
+    queryFn: async () => (await api.get<DayCancelNoticeList>('/schedule/day-cancel/notices', { params: { date } })).data,
+    enabled,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -1923,6 +1937,7 @@ export function useScheduleWrite(): UseMutationResult<
     if (w?.kind === 'delete' || w?.kind === 'dayCancel' || w?.kind === 'undo') {
       void qc.invalidateQueries({ queryKey: family.accounting });
       void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: family.dayCancelNotices });
     }
   };
   return useMutation({

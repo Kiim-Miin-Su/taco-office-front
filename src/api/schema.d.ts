@@ -283,6 +283,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/day-cancel/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 전일 휴원 학부모 안내 준비행 — 새로고침 뒤 선택 발송 재개 (N-133) */
+        get: operations["ScheduleController_dayCancelNotices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedule/series-counts": {
         parameters: {
             query?: never;
@@ -506,7 +523,7 @@ export interface paths {
         put?: never;
         /**
          * 그날 전체 휴강 — 공휴일·학원 전체 휴원 (테스트 시나리오 C-33 · N-133)
-         * @description 그날의 취소 아닌 회차 전부를 같은 사유·처리로 접는다. 한 트랜잭션이라 하나가 막히면 전부 되돌아간다. 학원 사정·공휴일·강사 결강은 차감할 수 없다 (CANCEL_DEDUCT_FORBIDDEN). 알림은 M-125 규칙 그대로 남긴다.
+         * @description 그날의 취소 아닌 회차 전부를 같은 사유·처리로 접는다. 한 트랜잭션이라 하나가 막히면 전부 되돌아간다. 전일 휴원은 사유와 무관하게 차감·보강 이관을 받지 않는다. 학생별 학부모 안내 준비행을 함께 만들며 실제 발송은 보호자·채널 선택을 거친다.
          */
         post: operations["ScheduleController_dayCancel"];
         delete?: never;
@@ -4558,6 +4575,23 @@ export interface components {
             to: string;
             items: components["schemas"]["ScheduleUnavRowDto"][];
         };
+        DayCancelParentNoticeDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            /** @description 서버가 만든 전일 휴원 안내문 — 화면은 이 본문으로 공용 보호자 선택 발송 창을 연다 */
+            body: string;
+            /**
+             * Format: date-time
+             * @description 실제 외부 발송이 한 건이라도 성공한 시각
+             */
+            sentAt?: string | null;
+        };
+        DayCancelNoticeListDto: {
+            /** Format: date */
+            date: string;
+            items: components["schemas"]["DayCancelParentNoticeDto"][];
+        };
         ScheduleSeriesCountDto: {
             /** @description 종류 또는 과목 코드 */
             key: string;
@@ -4881,7 +4915,7 @@ export interface components {
              */
             cancelKind: "teacher_absent" | "student_absent" | "academy" | "holiday" | "other";
             /**
-             * @description 비우면 이월 (기본) — 회차 하나의 휴강과 같은 규칙
+             * @description 비우면 이월 (기본). 전일 휴원은 차감·보강 이관을 받지 않는다
              * @enum {string}
              */
             cancelTreat?: "carry" | "deduct" | "makeup";
@@ -4911,6 +4945,8 @@ export interface components {
             count: number;
             /** @description 이미 휴강이라 건너뛴 회차 수 */
             skipped: number;
+            /** @description 이번 휴원으로 만든 학생별 학부모 안내 준비행 — 실제 발송은 DQ3 보호자·채널 선택을 거친다 */
+            parentNotices: components["schemas"]["DayCancelParentNoticeDto"][];
         };
         StudentPauseWriteDto: {
             /**
@@ -12531,6 +12567,81 @@ export interface operations {
             };
         };
     };
+    ScheduleController_dayCancelNotices: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayCancelNoticeListDto"];
+                };
+            };
+            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     ScheduleController_seriesCounts: {
         parameters: {
             query?: never;
@@ -13472,7 +13583,7 @@ export interface operations {
                     "application/json": components["schemas"]["DayCancelResultDto"];
                 };
             };
-            /** @description code CANCEL_DEDUCT_FORBIDDEN | CANCEL_REASON_REQUIRED */
+            /** @description code CANCEL_DEDUCT_FORBIDDEN | DAY_CANCEL_DEDUCT_FORBIDDEN | CANCEL_REASON_REQUIRED */
             400: {
                 headers: {
                     [name: string]: unknown;

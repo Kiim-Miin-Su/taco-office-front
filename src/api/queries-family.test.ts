@@ -116,6 +116,8 @@ it('배정 후 mounted 안내·트래킹·회차가 새 GET을 받고 meta GET�
 /** 인자를 받는 `qk` 마다 **실제 키 한 벌**. 새 키가 늘면 여기에도 한 줄이 늘어야 한다. */
 const SAMPLE: Record<string, readonly unknown[]> = {
   occurrences: qk.occurrences({ ...RANGE }),
+  // 전일 휴원 보호자 안내 — 날짜별 reload 복구 목록이며 day-cancel/undo가 이 갈래를 버린다 (N-133)
+  dayCancelNotices: qk.dayCancelNotices('2026-09-28'),
   reports: qk.reports({ ...RANGE }),
   unwritten: qk.unwritten(3),
   reportDetail: qk.reportDetail(1, '2026-09-01'),

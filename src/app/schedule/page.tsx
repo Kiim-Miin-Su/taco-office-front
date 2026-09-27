@@ -47,8 +47,9 @@ import { PeriodSummaryBar } from '@/components/cal/PeriodSummaryBar';
 import { TeacherSchedule } from '@/components/cal/TeacherSchedule';
 import { TeacherGuideLink } from '@/components/cal/TeacherGuideLink';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
+import { DayCancelNoticePanel } from '@/components/lesson/DayCancelNoticePanel';
 import {
-  fetchConflictPreview, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleHolidays, useScheduleSeriesCounts,
+  fetchConflictPreview, useDayCancelNotices, useDrawer, useDrawerWrite, useHorizon, useMeta, useOccurrences, useScheduleHolidays, useScheduleSeriesCounts,
   useScheduleUnavailable, useScheduleWrite,
 } from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
@@ -59,7 +60,7 @@ import {
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
-import type { Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, StudentOverlap, UnavWarn, WriteResult } from '@/api/types';
+import type { DayCancelParentNotice, Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, StudentOverlap, UnavWarn, WriteResult } from '@/api/types';
 import { ROLE_BAR, ROLES } from '@/lib/roles';
 import { calendarEventColor, type CalendarCodeLookup, type CalendarColorOf } from '@/lib/tokens';
 import { downloadElementPng } from '@/lib/png-export';
@@ -361,6 +362,7 @@ function AdminSchedulePage() {
   const pushUndo = useWorkspace((w) => w.pushUndo);
   const undoLast = useUndoLast();
   const [notice, setNotice] = useState<string | null>(null);
+  const [dismissedDayCancelDate, setDismissedDayCancelDate] = useState<string | null>(null);
   /**
    * 저장은 됐는데 **강사가 불가로 적어 둔 시간**에 걸쳤다 (원본 §15·§16).
    * 오류가 아니라 알림이라 자리도 색도 따로 쓴다 — 막을 일이었으면 서버가 막았다.
@@ -407,10 +409,15 @@ function AdminSchedulePage() {
    */
   const doneWrite = (result: unknown, undoLabel = '일정 변경', detail: readonly string[] = []) => {
     setErr(null);
-    const typed = result as (WriteResult & { unavailable?: UnavWarn[]; studentOverlaps?: StudentOverlap[] }) | undefined;
+    const typed = result as (WriteResult & {
+      unavailable?: UnavWarn[];
+      studentOverlaps?: StudentOverlap[];
+      parentNotices?: DayCancelParentNotice[];
+    }) | undefined;
     const rows = typed?.unavailable ?? [];
     setUnavail(unavailableLines(rows));
     setOverlaps(studentOverlapLines(typed?.studentOverlaps ?? []));
+    if (typed?.parentNotices?.length) setDismissedDayCancelDate(null);
     const said = detail.length ? ` — ${detail.join(' · ')}` : '';
     if (typed?.undoToken) {
       // 여러 단계(g1 S5) — 맨 뒤에 쌓는다. 만료는 서버 값을 그대로(목록이 지난 단계를 뺀다)
@@ -992,6 +999,9 @@ function AdminSchedulePage() {
   }), [filteredAll, hz.data, meta.data, s.panes]);
 
   const activeModel = paneModels[s.focused] ?? paneModels[0];
+  // N-133 — mutation 응답의 일회성 state가 아니라 서버 PNOTI를 읽어 reload 뒤에도 발송을 이어 간다.
+  const dayCancelNoticeQuery = useDayCancelNotices(activeModel.pane.date, canEdit);
+  const dayCancelNotices = dismissedDayCancelDate === activeModel.pane.date ? [] : (dayCancelNoticeQuery.data?.items ?? []);
 
   // 원문 §10·§11 — 학생별·선생님별로 들어오면 목록 첫 사람(학생은 학년순 · 선생님은 많이 맡은 순)이 골라진 채 표가 보인다
   useEffect(() => {
@@ -1463,6 +1473,12 @@ function AdminSchedulePage() {
           <div className="mb-3 flex flex-wrap items-center gap-2" role="status">
             <Banner tone="success">{notice}</Banner>
             {undoLast.canUndo ? <Button size="sm" variant="ghost" onClick={runUndo}>되돌리기 · Ctrl/⌘+Z</Button> : null}
+          </div>
+        ) : null}
+
+        {dayCancelNotices.length ? (
+          <div className="mb-3">
+            <DayCancelNoticePanel notices={dayCancelNotices} onDismiss={() => setDismissedDayCancelDate(activeModel.pane.date)} />
           </div>
         ) : null}
 
