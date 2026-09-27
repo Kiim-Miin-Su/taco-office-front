@@ -52,4 +52,17 @@ describe('머리줄 검색 — 이미 볼 수 있는 것만 (g1 S1 · D-R44)', (
     expect(onClose).toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith('/schedule?studentId=5');
   });
+
+  it('닫았다 다시 열면 입력과 이전 결과를 함께 비운다 (P-157)', async () => {
+    const onClose = vi.fn();
+    const view = render(<ShellSearch open onClose={onClose} me={ceo} />);
+    fireEvent.change(view.getByRole('searchbox', { name: '검색어' }), { target: { value: '태윤' } });
+    expect(await view.findByRole('button', { name: /강태윤/ })).toBeTruthy();
+
+    view.rerender(<ShellSearch open={false} onClose={onClose} me={ceo} />);
+    view.rerender(<ShellSearch open onClose={onClose} me={ceo} />);
+
+    expect((view.getByRole('searchbox', { name: '검색어' }) as HTMLInputElement).value).toBe('');
+    expect(view.queryByRole('button', { name: /강태윤/ })).toBeNull();
+  });
 });

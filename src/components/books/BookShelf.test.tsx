@@ -186,7 +186,8 @@ it('카드는 원문 모양이다 — 소분류(과목 색) · 학년 범위 · 
   const sat = view.getByRole('heading', { name: 'SAT Reading Foundation', level: 4 }).closest('article') as HTMLElement;
   expect(within(sat).getByLabelText('레벨 Foundation').parentElement?.classList.contains('bg-red')).toBe(true);
   expect((sat.querySelector('[data-book-category]') as HTMLElement).textContent).toBe('Reading');
-  expect((sat.querySelector('[data-book-category]') as HTMLElement).style.color).toBe('rgb(37, 99, 235)');
+  expect((sat.querySelector('[data-book-category]') as HTMLElement).style.color)
+    .toBe('color-mix(in srgb, #2563EB 30%, var(--fg))');
   expect(within(sat).getByText('G9·G10')).toBeTruthy();
   expect(within(sat).getByText('SAT').closest('span')?.className).toContain('bg-fg-2');
   const math = view.getByRole('heading', { name: 'Pre-Algebra 기초 다지기', level: 4 }).closest('article') as HTMLElement;
@@ -204,7 +205,7 @@ it('묶음은 서버 차례의 과목마다 서고 머리에 과목 색 · 보�
   const groups = [...view.container.querySelectorAll('[data-book-group]')].map((g) => g.getAttribute('data-book-group'));
   expect(groups).toEqual(['english', 'math', '__unclassified__']);
   const english = view.getByRole('heading', { name: 'English', level: 3 });
-  expect(english.style.color).toBe('rgb(37, 99, 235)');
+  expect(english.style.color).toBe('color-mix(in srgb, #2563EB 30%, var(--fg))');
   expect(english.parentElement?.getAttribute('style')).toContain('border-bottom-color: rgb(37, 99, 235)');
   expect(english.parentElement?.textContent).toContain('Reading');
   expect(english.parentElement?.textContent).toContain('1종');

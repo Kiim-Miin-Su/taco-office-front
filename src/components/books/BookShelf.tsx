@@ -12,6 +12,7 @@ import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { Banner, Button, Chip, ChipButton, Input, Label, Panel, QueryState, Select, cn } from '@/components/ui';
 import { bookExamTagTone, bookLevelPresentation, bookSubjectColor } from '@/lib/book-presentation';
 import { fileSelectionIssue, fileUploadBody } from '@/lib/file-upload';
+import { readableAccentColor } from '@/lib/tokens';
 import { BookVersionAdder, BookVersionBadge } from './BookVersions';
 
 /**
@@ -428,7 +429,7 @@ export function BookShelf({
               <section key={group.key} data-book-group={group.key}>
                 <div className="mb-2 flex items-baseline gap-2 border-b-2 pb-1" style={{ borderBottomColor: group.color }}>
                   <span className="h-3 w-3 self-center rounded" style={{ backgroundColor: group.color }} />
-                  <h3 className="text-[15px] font-bold" style={{ color: group.color }}>{group.name}</h3>
+                  <h3 className="text-[15px] font-bold" style={{ color: readableAccentColor(group.color) }}>{group.name}</h3>
                   {group.categories.length ? (
                     <span className="text-[11px] text-fg-subtle">{group.categories.join(' · ')}</span>
                   ) : null}
@@ -458,7 +459,8 @@ export function BookShelf({
                           <div className="min-w-0 flex-1 p-3">
                             {/* 원문 §39 카드 윗줄 — 소분류(과목 색) */}
                             {b.bookCategoryName ? (
-                              <p data-book-category className="text-[11px] font-bold" style={{ color: bookSubjectColor(b.bookSubjectColor) }}>
+                              <p data-book-category className="text-[11px] font-bold"
+                                style={{ color: readableAccentColor(bookSubjectColor(b.bookSubjectColor)) }}>
                                 {b.bookCategoryName}
                               </p>
                             ) : null}

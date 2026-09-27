@@ -99,7 +99,8 @@ describe('UnwrittenReportBoard', () => {
     const view = renderBoard();
     expect(view.getByText('8월 2일 일요일')).toBeTruthy();
     const subject = view.getAllByText('Vocabulary')[0];
-    expect((subject as HTMLElement).style.color).toBe('rgb(111, 143, 82)');
+    expect((subject as HTMLElement).style.color)
+      .toBe('color-mix(in srgb, rgb(111, 143, 82) 30%, var(--fg))');
     expect(subject.parentElement?.querySelector('[data-subject-dot]')).not.toBeNull();
     expect(view.getByText('2일')).toBeTruthy();
     expect(view.queryByText('2일 전')).toBeNull();

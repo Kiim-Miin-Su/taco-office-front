@@ -10,7 +10,7 @@
  * 서버에 새 검색 경로를 두지 않았다 — 검색이 권한을 넓히는 통로가 되지 않게, 이미 받은 목록 안에서만 거른다.
  */
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Me, Meta } from '@/api/types';
 import { useMeta } from '@/api/queries';
@@ -45,6 +45,9 @@ export function shellSearchResults(query: string, me: Me | null, students: Meta[
 export function ShellSearch({ open, onClose, me }: { open: boolean; onClose: () => void; me: Me | null }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  // Dialog가 닫히면 SearchField만 내려가므로 부모 query를 함께 비우지 않으면
+  // 재열 때 빈 입력 아래에 이전 결과가 남는다(P-157).
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
   // 코드표는 셸 밖 화면들도 이미 30분 캐시로 들고 있다 — 창이 열렸을 때만 읽는다
   const meta = useMeta(open).data;
   const hits = useMemo(() => shellSearchResults(query, me, meta?.students), [query, me, meta?.students]);

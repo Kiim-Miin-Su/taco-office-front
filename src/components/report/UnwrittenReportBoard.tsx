@@ -10,6 +10,7 @@ import { useState } from 'react';
 import type { ReportRow, Unwritten, UnwrittenByTeacher } from '@/api/types';
 import { monthDayLabel } from '@/lib/calendar';
 import { hrefForScheduleOccurrence } from '@/lib/report-links';
+import { readableAccentColor } from '@/lib/tokens';
 import { Button, Chip, cn, type Column, LinkButton, Panel, StatusBadge, Table } from '@/components/ui';
 
 type ReminderMessage = { tone: 'success' | 'danger'; text: string } | null;
@@ -67,7 +68,7 @@ export function UnwrittenReportBoard({
           <span className="inline-flex items-center gap-1.5">
             <span data-subject-dot aria-hidden className="inline-block h-2 w-2 shrink-0 rounded-full"
               style={{ backgroundColor: color ?? 'var(--fg-subtle)' }} />
-            <b style={color ? { color } : undefined}>{subjectName(row.subKey)}</b>
+            <b style={color ? { color: readableAccentColor(color) } : undefined}>{subjectName(row.subKey)}</b>
           </span>
         );
       },

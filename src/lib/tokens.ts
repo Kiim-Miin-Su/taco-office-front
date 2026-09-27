@@ -22,6 +22,14 @@ export type SubKey = (typeof SUB_KEYS)[number];
 export const kindVar = (k: KindKey): string => `var(--kind-${k})`;
 export const subVar = (k: SubKey): string => `var(--sub-${k})`;
 
+/**
+ * 런타임 강조색을 작은 글자에 그대로 쓰지 않는다. 서버 색은 흰색까지 올 수 있고,
+ * v2 과목색 중에도 흰 바탕에서 4.5:1에 못 미치는 값이 있다(P-159).
+ * 점·띠·테두리는 원색을 유지하고 글자만 전경색 쪽으로 보정한다.
+ */
+export const readableAccentColor = (color: string): string =>
+  `color-mix(in srgb, ${color} 30%, var(--fg))`;
+
 /** 같은 Meta lookup을 이름·색·범례가 공유한다. 서버 DTO의 새 복사본은 만들지 않는다. */
 export interface CalendarCodeLookup {
   subs: ReadonlyMap<string, Meta['subs'][number]>;

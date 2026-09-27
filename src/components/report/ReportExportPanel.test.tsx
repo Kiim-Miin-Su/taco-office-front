@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReportDetail, ReportField } from '@/api/types';
 import * as reportExport from '@/lib/report-export';
@@ -95,6 +95,8 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     const block = view.getByTestId('report-lesson-block');
     // 과목색 막대 — 알려진 과목은 공용 과목색 토큰(var(--sub-ap-chem))
     expect(block.style.borderLeftColor).toContain('--sub-ap-chem');
+    expect((within(block).getByText('AP Chemistry') as HTMLElement).style.color)
+      .toBe('color-mix(in srgb, var(--sub-ap-chem) 30%, var(--fg))');
     const terms = [...block.querySelectorAll('dt')].map((dt) => dt.textContent);
     expect(terms).toEqual(['수업 내용', '진도 페이지', '숙제 페이지']);
     expect(block.querySelectorAll('dd')).toHaveLength(3);

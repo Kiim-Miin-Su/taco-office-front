@@ -15,6 +15,14 @@ const columns: Array<Column<Row>> = [{ key: 'n', head: '이름', cell: (r) => r.
 const tr = (v: ReturnType<typeof render>, name: string) => v.getByText(name).closest('tr')!;
 
 describe('Table — 줄 바탕(rowClassName · §54 넘길 돈 줄 · §62 지난 줄 · x5)', () => {
+  it('빈 표는 빈 tbody 대신 안내 한 줄을 그린다 (P-156)', () => {
+    const basic = render(<Table columns={columns} rows={[]} rowKey={(r) => r.id} />);
+    expect(basic.getByText('없습니다').closest('td')?.colSpan).toBe(columns.length);
+    cleanup();
+    expect(render(<Table columns={columns} rows={[]} rowKey={(r) => r.id} empty="아직 등록한 학생이 없습니다" />)
+      .getByText('아직 등록한 학생이 없습니다')).toBeTruthy();
+  });
+
   it('주지 않으면 지금 모양 그대로다', () => {
     const v = render(<Table columns={columns} rows={rows} rowKey={(r) => r.id} />);
     expect(tr(v, '정하윤').className).toBe('border-b border-line last:border-0');

@@ -18,6 +18,7 @@ import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
 import { autosaveStampLabel, draftKey, useDraftAutosave } from '@/lib/autosave';
 import { longDateLabel } from '@/lib/calendar';
 import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
+import { readableAccentColor } from '@/lib/tokens';
 import { useSession } from '@/store/useSession';
 import { Banner, Button, CountedTextarea, Label, Panel, Textarea } from '../ui';
 import { LateReportPolicy } from '../teacher/LateReportPolicy';
@@ -243,7 +244,7 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
           <div data-testid="report-lesson-block" className="rounded-lg border-l-4 bg-inset p-3" style={{ borderLeftColor: color }}>
             <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
               <span className="font-bold text-fg">{longDateLabel(date)}</span>
-              <span className="font-bold" style={{ color }}>{subject}</span>
+              <span className="font-bold" style={{ color: readableAccentColor(color) }}>{subject}</span>
               <span className="rounded bg-card px-1.5 py-0.5 text-fg-subtle">{timeLabel}</span>
               {teacherName ? <b className="text-fg">{teacherName}</b> : null}
             </div>

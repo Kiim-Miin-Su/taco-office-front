@@ -18,7 +18,9 @@ import { describe, expect, it } from 'vitest';
 import { Button, type ButtonVariant } from '@/components/ui/Button';
 import { Chip, type ChipStyle, type ChipTone } from '@/components/ui/Chip';
 import { Tabs } from '@/components/ui/Segmented';
-import { KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, subjectColor, subVar, type CalendarCodeLookup } from './tokens';
+import {
+  KIND_KEYS, SUB_KEYS, calendarEventColor, kindVar, readableAccentColor, subjectColor, subVar, type CalendarCodeLookup,
+} from './tokens';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const tokens = read('src/styles/tokens.css');
@@ -134,6 +136,16 @@ describe('공용 Button/Chip 작은 글자 대비 — 표준 바탕과 5% 알림
     const markup = renderToStaticMarkup(createElement(Button, { variant: 'primary', disabled: true }, '저장'));
     expect(markup).toContain('disabled=""');
     expect(classNames(markup)).toContain('disabled:opacity-40');
+  });
+});
+
+describe('런타임 강조색 작은 글자 대비', () => {
+  it('서버 강조색은 점·띠 원색과 분리해 공용 전경색 쪽으로 보정한다', () => {
+    expect(readableAccentColor('#FFFFFF')).toBe('color-mix(in srgb, #FFFFFF 30%, var(--fg))');
+    for (const [, colors] of themes) {
+      const worst = composite([255, 255, 255], rgb(colors, 'fg'), 0.3);
+      for (const [, background] of surfaces(colors)) expect(contrast(worst, background)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 
