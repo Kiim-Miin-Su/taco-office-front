@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { apiMessage } from '@/api/client';
-import { Banner, Button, Chip, Dialog, PageHeader, Panel, QueryState, StatCard, Table, type Column } from '@/components/ui';
+import { Banner, Button, Chip, Dialog, LinkButton, PageHeader, Panel, QueryState, StatCard, Table, type Column } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
 import {
   useCloseGpaCycle, useCreateGpaUse, useDeleteGpaUse, useGpaBoard, usePutGpaAlloc, useSetGpaUseState,
@@ -28,6 +28,24 @@ const addD = (iso: string, n: number): string =>
 const md = (iso: string): string => `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일`;
 /** 원본 §82 의 날짜 모양 — 「08-21」 */
 const mmdd = (iso: string): string => iso.slice(5);
+
+/**
+ * S3-c URL 검사가 생기기 전에 저장된 행도 있다. 쓰기 계약의 HTTP(S) 경계를 읽을 때 한 번 더 적용해
+ * 옛 위험 문자열을 링크로 활성화하지 않는다. 파일 본문을 fetch하지 않고 외부 주소만 새 탭으로 연다.
+ */
+const safeRecordHref = (value: string | null | undefined): string | null => {
+  if (!value || [...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127 || char === '\\')) return null;
+  const text = value.trim();
+  if (!/^https?:\/\/[^/?#]/i.test(text) || /\s/.test(text)) return null;
+  try {
+    const url = new URL(text);
+    return url.hostname && !url.username && !url.password && (url.protocol === 'http:' || url.protocol === 'https:')
+      ? text
+      : null;
+  } catch {
+    return null;
+  }
+};
 
 function AllocEditor({ s, cycleId, closed }: { s: GpaStudent; cycleId: number; closed: boolean }) {
   const put = usePutGpaAlloc();
@@ -130,8 +148,8 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
 
   /**
    * 원본 §82 「{학생} 회차 내역 N건」 — **읽는 표**다(82-8). 쓰는 폼(아래 「회차 소비 기록」)과 별개다.
-   * 끝 시각은 서버가 연결 회차에서 읽어 준다(`endMin` — 회차가 없으면 시작만 적는다). 기록지는 링크로 열지 않는다 —
-   * 기록지 열기는 따로 정할 일이라(S3-c) 「있음」만 적는다. 「전체 보기」는 여는 화면이 원문에 없어 두지 않는다.
+   * 끝 시각은 서버가 연결 회차에서 읽어 준다(`endMin` — 회차가 없으면 시작만 적는다). 기록지는 저장된 안전한
+   * HTTP(S) 주소를 공용 이동 링크로 연다. 「전체 보기」는 여는 화면이 원문에 없어 두지 않는다.
    */
   const historyCols: Array<Column<GpaUse>> = [
     {
@@ -153,7 +171,24 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
     },
     { key: 'p', head: 'P', width: 50, cell: (u) => u.points },
     { key: 'coord', head: '코디네이터', width: 110, cell: (u) => u.coordName ?? '—' },
-    { key: 'note', head: '기록지', width: 110, cell: (u) => (u.noteUrl ? '기록지 있음' : '—') },
+    {
+      key: 'note', head: '기록지', width: 110,
+      cell: (u) => {
+        const href = safeRecordHref(u.noteUrl);
+        return href ? (
+          <LinkButton
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            size="sm"
+            variant="secondary"
+            aria-label={`${picked?.name ?? '학생'} ${mmdd(u.onDate)} 기록지 열기`}
+          >
+            열기
+          </LinkButton>
+        ) : u.noteUrl ? '기록지 있음' : '—';
+      },
+    },
     {
       key: 'state', head: '상태', width: 110,
       // 상태 배지 = 점 + 색 글자 (원본 §82 「● 승인 대기」)

@@ -244,7 +244,7 @@ it('고른 학생의 「회차 내역」은 읽는 표다 — 날짜·시간(끝
     id, studentId: 2, svcKey: 'hw', points: 1, onDate: '2026-08-21', startMin: 1080, endMin: 1125, serId: 9,
     coordName: 'Kim', noteUrl: null, state: 'wait', approvedByName: null, approvedOn: null, canApprove: true, ...o,
   });
-  const view = setup({ uses: [use(21, {}), use(22, { onDate: '2026-08-22', endMin: null, noteUrl: 'https://example.test/n', state: 'ok', svcKey: 'prj', points: 2 })] });
+  const view = setup({ uses: [use(21, {}), use(22, { onDate: '2026-08-22', endMin: null, noteUrl: 'http://example.test/n', state: 'ok', svcKey: 'prj', points: 2 })] });
   fireEvent.click(await view.findByRole('button', { name: /^강라울/ }));
   const panel = view.getByRole('heading', { name: /강라울 회차 내역/ }).closest('section')!;
   expect(panel.textContent).toContain('2건');
@@ -253,10 +253,30 @@ it('고른 학생의 「회차 내역」은 읽는 표다 — 날짜·시간(끝
   const rows = [...panel.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
   expect(rows).toEqual([
     ['08-21 18:00–18:45', '강라울', '숙제 지원', '1', 'Kim', '—', '승인 대기'],
-    // 연결 회차가 없으면 끝을 지어내지 않는다 · 기록지는 링크로 열지 않는다(S3-c)
-    ['08-22 18:00', '강라울', '프로젝트 피드백', '2', 'Kim', '기록지 있음', '승인'],
+    // 연결 회차가 없으면 끝을 지어내지 않는다 · 안전한 기록지 URL은 열기 링크다
+    ['08-22 18:00', '강라울', '프로젝트 피드백', '2', 'Kim', '열기', '승인'],
   ]);
-  expect(panel.querySelector('a')).toBeNull();
+  const link = within(panel).getByRole('link', { name: '강라울 08-22 기록지 열기' });
+  expect(link.getAttribute('href')).toBe('http://example.test/n');
+  expect(link.getAttribute('target')).toBe('_blank');
+  expect(link.getAttribute('rel')).toBe('noreferrer');
+});
+
+it.each([
+  ['javascript', 'javascript:alert(1)'],
+  ['data', 'data:text/html,test'],
+  ['credentials', 'https://user:password@example.test/n'],
+  ['backslash', 'https://example.test\\note'],
+] as const)('검증 도입 전의 %s 기록지 URL은 링크로 활성화하지 않는다', async (_name, noteUrl) => {
+  const unsafe: GpaUse = {
+    id: 23, studentId: 2, svcKey: 'hw', points: 1, onDate: '2026-08-21', startMin: 1080, endMin: 1125, serId: 9,
+    coordName: 'Kim', noteUrl, state: 'wait', approvedByName: null, approvedOn: null, canApprove: true,
+  };
+  const view = setup({ uses: [unsafe] });
+  fireEvent.click(await view.findByRole('button', { name: /^강라울/ }));
+  const panel = view.getByRole('heading', { name: /강라울 회차 내역/ }).closest('section')!;
+  expect(within(panel).getByText('기록지 있음')).toBeTruthy();
+  expect(within(panel).queryByRole('link')).toBeNull();
 });
 
 it('GPA 화면 문구에 결정 코드를 적지 않는다 — 부제는 「학부모 비공개 — 내부 자료」다', async () => {
@@ -369,13 +389,16 @@ it('S3-c 400은 서버 문장과 초안을 보존하고 정상 새 GET도 입력
   expect(within(w.panel).getByText('기록지 URL을 확인해 주세요')).toBeTruthy();
 });
 
-it('S3-c 성공은 날짜/시각/URL만 비우고 새 GET의 기록지 있음을 링크 없이 표시한다', async () => {
+it('S3-c 성공은 날짜/시각/URL만 비우고 새 GET의 기록지를 안전한 새 탭 링크로 표시한다', async () => {
   const w = await setupUseWrite();
   w.fill('  https://example.test/record  ');
   fireEvent.click(w.view.getByRole('button', { name: /^고은성/ }));
-  expect(w.view.queryByText('기록지 있음')).toBeNull();
+  expect(w.view.queryByRole('link', { name: '고은성 08-10 기록지 열기' })).toBeNull();
   w.submit();
-  await w.view.findByText('기록지 있음');
+  const link = await w.view.findByRole('link', { name: '고은성 08-10 기록지 열기' });
+  expect(link.getAttribute('href')).toBe('https://example.test/record');
+  expect(link.getAttribute('target')).toBe('_blank');
+  expect(link.getAttribute('rel')).toBe('noreferrer');
   await waitFor(() => expect(w.fields.url.value).toBe(''));
   expect(w.gets()).toBe(2);
   expect(w.posts).toHaveLength(1);
@@ -383,7 +406,6 @@ it('S3-c 성공은 날짜/시각/URL만 비우고 새 GET의 기록지 있음을
   expect(w.fields.start.value).toBe('');
   expect(w.fields.student.value).toBe('1');
   expect(w.fields.service.value).toBe('prj');
-  expect(w.view.getByText('기록지 있음').closest('a')).toBeNull();
   // 다섯(S3-c) + 「수업 연결」(wave 5)
   expect(w.panel.querySelectorAll('input,select,textarea')).toHaveLength(6);
 });
