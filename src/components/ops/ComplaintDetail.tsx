@@ -13,10 +13,72 @@
  */
 'use client';
 import { useEffect, useId, useState } from 'react';
-import { Banner, Button, Chip, Dialog, Input, Label, Segmented, Select, Textarea } from '../ui';
+import { Banner, Button, Chip, Dialog, Input, Label, LinkButton, Segmented, Select, Textarea } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useMeta, usePatchComplaint } from '@/api/queries';
-import type { Complaint, ComplaintPatch, CplWord } from '@/api/types';
+import { useBookIssueDiag, useMeta, usePatchComplaint, useReports } from '@/api/queries';
+import type { Complaint, ComplaintPatch, CplWord, Meta, ReportRow } from '@/api/types';
+import { GuideScoreCards } from '@/components/guides/GuideDiagnosticSummary';
+
+/**
+ * J-100 학생 근거. 컴플레인에는 「성적」 전용 구조값이 없으므로 본문 키워드를 추측하지 않고
+ * 학생이 연결된 모든 건에 같은 읽기 전용 근거를 둔다. 두 조회는 이 컴포넌트가 열린 동안에만 돈다.
+ */
+function ComplaintStudentEvidence({ studentId, subjects }: { studentId: number; subjects: Meta['subs'] | undefined }) {
+  const diagnostic = useBookIssueDiag(studentId);
+  // 근거로 쓸 수 있는 승인 완료 리포트만. GET /reports의 기존 REP_STU 학생 목록으로 고른다.
+  const reports = useReports({ state: 'ok' });
+  const recent = [...(reports.data?.items ?? [])]
+    .filter((report) => report.students.some((student) => student.id === studentId))
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.startMin ?? -1) - (a.startMin ?? -1))
+    .slice(0, 3);
+  const subjectName = (report: ReportRow) =>
+    subjects?.find((subject) => subject.key === report.subKey)?.name ?? report.subKey ?? report.kindKey;
+
+  return (
+    <section aria-label="학생 근거" className="rounded-lg border border-line bg-bg-2 p-3">
+      <div className="mb-2">
+        <h3 className="text-[12px] font-bold text-fg">학생 근거</h3>
+        <p className="mt-0.5 text-[11px] text-fg-subtle">진단 이력과 승인된 최근 리포트를 함께 확인합니다.</p>
+      </div>
+      <div className="flex flex-col gap-3">
+        <div className="rounded-lg border border-line bg-card p-3">
+          <h4 className="mb-2 text-[11px] font-bold text-fg-2">진단 이력</h4>
+          {diagnostic.isPending ? <p className="text-[11.5px] text-fg-subtle">진단 기록을 불러오는 중…</p>
+            : diagnostic.isError ? <p className="text-[11.5px] text-red">진단 기록을 불러오지 못했습니다.</p>
+              : diagnostic.data?.diag ? (
+                <>
+                  <GuideScoreCards scores={diagnostic.data.diag} />
+                  <LinkButton size="sm" variant="ghost" href={`/intake?lead=${diagnostic.data.diag.leadId}`}>
+                    진단 이력 보기
+                  </LinkButton>
+                </>
+              ) : <p className="text-[11.5px] text-fg-subtle">진단 이력이 없습니다.</p>}
+        </div>
+
+        <div className="rounded-lg border border-line bg-card p-3">
+          <h4 className="mb-2 text-[11px] font-bold text-fg-2">최근 승인 리포트</h4>
+          {reports.isPending ? <p className="text-[11.5px] text-fg-subtle">리포트를 불러오는 중…</p>
+            : reports.isError ? <p className="text-[11.5px] text-red">리포트를 불러오지 못했습니다.</p>
+              : recent.length ? (
+                <ul className="flex flex-col gap-1.5">
+                  {recent.map((report) => (
+                    <li key={report.id} className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                      <b className="text-fg">{report.date}</b>
+                      <span className="text-fg-2">{subjectName(report)}</span>
+                      <span className="text-fg-subtle">{report.teacherName ?? '담당 기록 없음'}</span>
+                      <LinkButton className="ml-auto" size="sm" variant="ghost"
+                        href={`/reports?serId=${report.serId}&onDate=${report.onDate}`}>
+                        리포트 보기
+                      </LinkButton>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-[11.5px] text-fg-subtle">승인된 리포트가 없습니다.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export interface ComplaintDetailProps {
   complaint: Complaint | null;
@@ -113,6 +175,8 @@ export function ComplaintDetail({ complaint, stages, severities, requesters = []
           {complaint.stage === 'closed' ? <span className="font-bold text-fg-2">마무리 {complaint.closedOn ?? '날짜 기록 없음'}</span> : null}
         </div>
         <p className="rounded-lg border border-line bg-inset p-3 text-[12px] leading-relaxed text-fg">{complaint.body}</p>
+
+        {complaint.studentId ? <ComplaintStudentEvidence studentId={complaint.studentId} subjects={meta.data?.subs} /> : null}
 
         <div>
           <Label hint={stageSub}>단계</Label>

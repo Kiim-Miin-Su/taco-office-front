@@ -7,11 +7,12 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Complaint } from '@/api/types';
+import type { BookIssueDiag, Complaint, ReportList, ReportRow } from '@/api/types';
 import { ComplaintDetail } from './ComplaintDetail';
 
 const meta = {
-  kinds: [], subs: [], staff: [{ id: 4, name: '강민지', role: 'coord', canAdminPage: true, canGpaPack: false, title: null }],
+  kinds: [], subs: [{ key: 'sat-read', name: 'SAT Reading', color: '#4A827B' }],
+  staff: [{ id: 4, name: '강민지', role: 'coord', canAdminPage: true, canGpaPack: false, title: null }],
   rooms: [], students: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [],
 };
 const stages = [
@@ -29,27 +30,48 @@ const complaint: Complaint = {
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const patched: Array<{ url?: string; body: unknown }> = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; patched.length = 0; });
+const gets: Array<{ url?: string; params?: unknown }> = [];
+afterEach(() => {
+  cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter;
+  patched.length = 0; gets.length = 0;
+});
 
-function setup(onPatch: (n: number) => { status: number; data: unknown }, over: Partial<Complaint> = {}) {
+function setup(
+  onPatch: (n: number) => { status: number; data: unknown },
+  over: Partial<Complaint> | null = {},
+  evidence: { diagnostic?: BookIssueDiag; reports?: ReportList } = {},
+) {
   let n = 0;
-  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string; params?: unknown }) => {
     if (config.method === 'patch') {
       patched.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
       const r = onPatch(++n);
       if (r.status >= 400) return Promise.reject(Object.assign(new Error('fail'), { response: { status: r.status, data: r.data } }));
       return { config, status: r.status, statusText: 'OK', headers: {}, data: r.data };
     }
-    return { config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/meta' ? meta : {} };
+    gets.push({ url: config.url, params: config.params });
+    const data = config.url === '/meta' ? meta
+      : config.url === '/books/students/5/latest-diag' ? evidence.diagnostic ?? { studentId: 5, diag: null }
+        : config.url === '/reports' ? evidence.reports ?? { items: [] }
+          : {};
+    return { config, status: 200, statusText: 'OK', headers: {}, data };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   clients.push(client);
   const onClose = vi.fn();
   const onTeacherChange = vi.fn();
   const onWithdraw = vi.fn();
-  const view = render(<QueryClientProvider client={client}><ComplaintDetail complaint={{ ...complaint, ...over }} stages={stages} severities={severities} onClose={onClose} onTeacherChange={onTeacherChange} onWithdraw={onWithdraw} /></QueryClientProvider>);
-  return { view, onClose, onTeacherChange, onWithdraw };
+  const detail = over === null ? null : { ...complaint, ...over };
+  const view = render(<QueryClientProvider client={client}><ComplaintDetail complaint={detail} stages={stages} severities={severities} onClose={onClose} onTeacherChange={onTeacherChange} onWithdraw={onWithdraw} /></QueryClientProvider>);
+  return { view, onClose, onTeacherChange, onWithdraw, gets };
 }
+
+const report = (id: number, date: string, studentId = 5): ReportRow => ({
+  id, serId: 100 + id, date, onDate: date, startMin: 600 + id, endMin: 660 + id,
+  subKey: 'sat-read', kindKey: 'class', teacherId: 4, teacherName: '강민지', state: 'ok', written: true,
+  students: [{ id: studentId, name: studentId === 5 ? '고은설' : '다른 학생', grade: 'G9', deliver: true }],
+  minutesSinceEnd: 60, penalty: 0,
+});
 
 it('심각도·기한 지남·단계 한 줄은 서버 낱말이고, 바뀐 칸만 보내며, 담당 없이 대응은 서버가 거절한 문장을 그대로 띄운다 (J-101 · J-98)', async () => {
   const { view, onClose, onTeacherChange, onWithdraw } = setup((n) => (n === 1
@@ -103,4 +125,60 @@ it('환불 단추는 서버의 canWithdraw 하나로 선다 — 닫히면 자리
   await closed.view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
   expect(closed.view.queryByRole('button', { name: '수강 종료 · 환불' })).toBeNull();
   expect(closed.onWithdraw).not.toHaveBeenCalled();
+});
+
+it('학생이 붙은 컴플레인은 최신 진단의 상담 이력과 최근 승인 리포트 3건으로 이어진다 (J-100)', async () => {
+  const diagnostic: BookIssueDiag = {
+    studentId: 5,
+    diag: {
+      id: 7, leadId: 9, english: 62, math: 71, interview: 58, takenOn: '2026-09-20',
+      level: 'practice', levelLabel: 'Practice', bookId: null, bookTitle: null, note: null,
+      byId: 4, byName: '강민지', at: '2026-09-20T15:00:00+09:00',
+    },
+  };
+  const reports: ReportList = { items: [
+    report(1, '2026-09-22'), report(4, '2026-09-25'), report(2, '2026-09-24'),
+    report(9, '2026-09-27', 99), report(3, '2026-09-23'),
+  ] };
+  const { view } = setup(() => ({ status: 200, data: complaint }), {}, { diagnostic, reports });
+  const panel = await view.findByRole('region', { name: '학생 근거' });
+
+  const scores = await within(panel).findByRole('group', { name: '진단 점수' });
+  expect(scores.textContent).toContain('영어62');
+  expect(scores.textContent).toContain('수학71');
+  expect(within(panel).getByRole('link', { name: '진단 이력 보기' }).getAttribute('href')).toBe('/intake?lead=9');
+
+  const links = within(panel).getAllByRole('link', { name: '리포트 보기' });
+  expect(links).toHaveLength(3);
+  expect(links.map((link) => link.getAttribute('href'))).toEqual([
+    '/reports?serId=104&onDate=2026-09-25',
+    '/reports?serId=102&onDate=2026-09-24',
+    '/reports?serId=103&onDate=2026-09-23',
+  ]);
+  expect(panel.textContent).toContain('SAT Reading');
+  expect(panel.textContent).not.toContain('2026-09-27'); // 다른 학생의 더 최신 리포트는 섞지 않는다
+  expect(gets).toEqual(expect.arrayContaining([
+    expect.objectContaining({ url: '/books/students/5/latest-diag' }),
+    expect.objectContaining({ url: '/reports', params: { state: 'ok' } }),
+  ]));
+});
+
+it('학생 근거가 없으면 없는 상태를 명시하고, 학생이나 열린 창이 없으면 근거 조회를 시작하지 않는다 (J-100)', async () => {
+  const empty = setup(() => ({ status: 200, data: complaint }));
+  const panel = await empty.view.findByRole('region', { name: '학생 근거' });
+  expect(await within(panel).findByText('진단 이력이 없습니다.')).toBeTruthy();
+  expect(await within(panel).findByText('승인된 리포트가 없습니다.')).toBeTruthy();
+  cleanup();
+
+  gets.length = 0;
+  const noStudent = setup(() => ({ status: 200, data: complaint }), { studentId: null, studentName: null });
+  await noStudent.view.findByRole('dialog', { name: '컴플레인 — 문의자 · 선생님' });
+  await waitFor(() => expect(gets.some((request) => request.url === '/meta')).toBe(true));
+  expect(gets.some((request) => request.url === '/reports' || request.url?.includes('/latest-diag'))).toBe(false);
+  cleanup();
+
+  gets.length = 0;
+  setup(() => ({ status: 200, data: complaint }), null);
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  expect(gets).toEqual([]);
 });
