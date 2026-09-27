@@ -22,11 +22,12 @@ import {
 } from '@/components/ui';
 import { apiMessage } from '@/api/client';
 import { useCatalog, useCreateKind, useCreateSub, usePatchKind, usePatchSub } from '@/api/queries';
-import type { CatalogKind, CatalogSub, KindCreate } from '@/api/types';
+import type { CatalogKind, CatalogSub, KindCreate, SubPatch } from '@/api/types';
 
 /* 낱말은 생성 타입에서 그대로 가져온다 — 화면에 코드표를 다시 적으면 서버와 갈린다 (D-R18) */
 type Grp = KindCreate['grp'];
 type RepForm = NonNullable<KindCreate['repForm']>;
+type SubEdit = Omit<CatalogSub, 'sort'> & { sort: number | null };
 
 const GRP: Array<{ value: Grp; label: string }> = [
   { value: 'lesson', label: '수업' },
@@ -67,6 +68,17 @@ export default function ProgramsPage() {
   const [kindForm, setKindForm] = useState({ ...NEW_KIND });
   const [subForm, setSubForm] = useState({ ...NEW_SUB });
   const [editKind, setEditKind] = useState<CatalogKind | null>(null);
+  const [editSub, setEditSub] = useState<SubEdit | null>(null);
+
+  const saveSub = () => {
+    if (!editSub) return;
+    const patch: SubPatch = {
+      name: editSub.name.trim(),
+      color: editSub.color,
+      ...(editSub.sort == null ? {} : { sort: editSub.sort }),
+    };
+    patchSub.mutate({ key: editSub.key, ...patch }, { onSuccess: () => setEditSub(null) });
+  };
 
   const kindCols: Array<Column<CatalogKind>> = [
     { key: 'c', head: '', width: 34, cell: (r) => <Swatch color={r.color} /> },
@@ -93,22 +105,26 @@ export default function ProgramsPage() {
     { key: 'c', head: '', width: 34, cell: (r) => <Swatch color={r.color} /> },
     { key: 'n', head: '이름', width: 180, cell: (r) => <span className="font-bold">{r.name}</span> },
     { key: 'k', head: '코드', width: 150, cell: (r) => <span className="text-fg-subtle">{r.key}</span> },
+    { key: 's', head: '순서', width: 70, align: 'right', cell: (r) => r.sort ?? '—' },
     { key: 'u', head: '쓰는 수업', width: 100, align: 'right', cell: (r) => `${r.serCount}개` },
     {
       key: 'a', head: '상태', width: 90,
       cell: (r) => <Chip tone={r.active ? 'success' : 'neutral'}>{r.active ? '켜짐' : '꺼짐'}</Chip>,
     },
     {
-      key: 'x', head: '', width: 90,
+      key: 'x', head: '', width: 170,
       cell: (r) => (
-        <Button
-          size="sm"
-          variant={r.active ? 'secondary' : 'primary'}
-          disabled={patchSub.isPending}
-          onClick={() => patchSub.mutate({ key: r.key, active: !r.active })}
-        >
-          {r.active ? '끄기' : '켜기'}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" disabled={patchSub.isPending} onClick={() => setEditSub({ ...r, sort: r.sort ?? null })}>고치기</Button>
+          <Button
+            size="sm"
+            variant={r.active ? 'secondary' : 'primary'}
+            disabled={patchSub.isPending}
+            onClick={() => patchSub.mutate({ key: r.key, active: !r.active })}
+          >
+            {r.active ? '끄기' : '켜기'}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -234,6 +250,21 @@ export default function ProgramsPage() {
                 </Button>
               </div>
             </Panel>
+
+            {editSub ? (
+              <Panel className="mb-4" title={`「${editSub.name}」 고치기`} sub={`코드 ${editSub.key} 는 바꾸지 않습니다 — 수업 ${editSub.serCount}개가 이 낱말로 저장돼 있습니다`}>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div><Label htmlFor="se-name">이름</Label><Input id="se-name" maxLength={40} value={editSub.name} onChange={(e) => setEditSub({ ...editSub, name: e.target.value })} /></div>
+                  <div><Label htmlFor="se-color">색</Label><Input id="se-color" type="color" value={editSub.color} onChange={(e) => setEditSub({ ...editSub, color: e.target.value })} /></div>
+                  <div><Label htmlFor="se-sort">순서</Label><Input id="se-sort" type="number" inputMode="numeric" min={0} step={1} value={editSub.sort ?? ''} onChange={(e) => setEditSub({ ...editSub, sort: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+                </div>
+                {patchSub.isError ? <Banner tone="danger" className="mt-3">{apiMessage(patchSub.error)}</Banner> : null}
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button variant="secondary" onClick={() => setEditSub(null)}>취소</Button>
+                  <Button disabled={patchSub.isPending || editSub.name.trim() === '' || (editSub.sort !== null && (!Number.isInteger(editSub.sort) || editSub.sort < 0))} onClick={saveSub}>저장</Button>
+                </div>
+              </Panel>
+            ) : null}
 
             <Panel title={`과목 ${q.data?.subs.length ?? 0}종`} sub="끄면 새 수업에서 고를 수 없습니다. 이미 도는 수업은 그대로 둡니다">
               <Table columns={subCols} rows={q.data?.subs ?? []} rowKey={(r) => r.key} empty="과목이 없습니다" />

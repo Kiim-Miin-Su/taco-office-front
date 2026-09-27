@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -85,6 +85,41 @@ it('과목은 끄고 켠다 — 꺼진 과목도 목록에 남는다', async () 
   await waitFor(() => expect(view.getByText('구 SAT')).toBeTruthy());
   expect(view.getByRole('button', { name: '끄기' })).toBeTruthy();
   expect(view.getByRole('button', { name: '켜기' })).toBeTruthy();
+});
+
+it('과목 이름·색·정렬을 고치면 SubPatchDto 필드만 보낸다 — 코드는 편집하지 않는다', async () => {
+  useSession.getState().signIn('fixture', me);
+  const patched: Array<{ url?: string; body: unknown }> = [];
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method === 'patch') {
+      patched.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
+      return { config, status: 200, statusText: 'OK', headers: {}, data: catalog.subs[0] };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: catalog };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><ProgramsPage /></QueryClientProvider>);
+
+  await waitFor(() => expect(view.getByText('정규 수업')).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: /과목 2/ }));
+  await waitFor(() => expect(view.getByText('AP Chemistry')).toBeTruthy());
+  const row = view.getByText('AP Chemistry').closest('tr')!;
+  fireEvent.click(within(row).getByRole('button', { name: '고치기' }));
+
+  await waitFor(() => expect(view.getByLabelText('순서')).toBeTruthy());
+  expect(view.queryByDisplayValue('ap-chem')).toBeNull();
+  expect((view.container.textContent ?? '').replace(/\s+/g, ' ')).toContain('코드 ap-chem 는 바꾸지 않습니다');
+  fireEvent.change(view.container.querySelector('#se-name')!, { target: { value: 'AP 화학' } });
+  fireEvent.change(view.container.querySelector('#se-color')!, { target: { value: '#123456' } });
+  fireEvent.change(view.getByLabelText('순서'), { target: { value: '7' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+
+  await waitFor(() => expect(patched).toHaveLength(1));
+  expect(patched[0]).toEqual({
+    url: '/catalog/subs/ap-chem',
+    body: { name: 'AP 화학', color: '#123456', sort: 7 },
+  });
 });
 
 it('코드와 이름이 비면 만들기를 누를 수 없다', async () => {
