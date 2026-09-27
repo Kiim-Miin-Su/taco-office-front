@@ -63,33 +63,22 @@ async function pageBuiltWith(env: Record<string, string>) {
 }
 
 describe('LoginPage — 생성 로그인 계약', () => {
-  // W8 · 대표 결정 2026-09-26 — 운영에서는 칩을 숨기고 두 칸만 남긴다(09-23 「운영에도 표시」를 대신한다)
-  it('운영 빌드(시험 모드 꺼짐)는 계정 칩을 그리지 않고 두 칸을 비워 둔다', async () => {
-    const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: '' });
-    const view = render(<ProductionLoginPage />);
-    expect((view.getByLabelText('아이디') as HTMLInputElement).value).toBe('');
-    expect((view.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('');
-    for (const [loginId] of ACCOUNTS) expect(view.queryByText(loginId)).toBeNull();
-    expect(view.queryByText(/시험용 계정/)).toBeNull();
-    expect(view.container.querySelectorAll('input, select, textarea')).toHaveLength(2);
-    expect(view.getAllByRole('button').map((b) => b.textContent)).toEqual(['들어가기']);
-  });
-
-  it('운영 빌드라도 시험 모드(NEXT_PUBLIC_TEST_LOGIN=on)면 칩이 아이디와 비밀번호를 함께 채운다 — 비밀번호는 빌드 환경 값만', async () => {
-    const TestModePage = await pageBuiltWith({
-      NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: 'on', NEXT_PUBLIC_TEST_LOGIN_PASSWORD: 'qa-build-pass-1',
-    });
+  // 대표 지시 2026-09-27 — 시험 계정 단추는 환경 값 없이 운영 빌드에도 선다(운영 전환 때 블록을 지운다). 09-26 W8 의 「운영에서는 숨김」을 대신한다.
+  it('운영 빌드에도 시험 계정 단추 다섯이 서고 두 칸은 비어서 열린다 — 누르면 그 권한의 아이디와 비밀번호를 함께 채운다', async () => {
+    const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production' });
     const onRender = vi.fn();
-    const view = render(<Profiler id="login-test-mode" onRender={onRender}><TestModePage /></Profiler>);
+    const view = render(<Profiler id="login-production" onRender={onRender}><ProductionLoginPage /></Profiler>);
     const idInput = view.getByLabelText('아이디') as HTMLInputElement;
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
     expect(idInput.value).toBe('');
     expect(passwordInput.value).toBe('');
+    expect(view.container.querySelectorAll('input, select, textarea')).toHaveLength(2);
+    expect(view.getByText('시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다')).toBeTruthy();
     for (const [loginId, role] of ACCOUNTS) {
       onRender.mockClear();
       fireEvent.click(view.getByRole('button', { name: `${loginId} · ${role}` }));
       expect(idInput.value).toBe(loginId);
-      expect(passwordInput.value).toBe('qa-build-pass-1');
+      expect(passwordInput.value).toBe('taco1234!');
       // 두 칸을 한 번에 — 폼 update 1회
       expect(onRender).toHaveBeenCalledOnce();
       expect(onRender.mock.calls[0][1]).toBe('update');
@@ -99,18 +88,19 @@ describe('LoginPage — 생성 로그인 계약', () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
-  it('시험 모드인데 빌드에 비밀번호가 없으면 칩은 아이디만 채우고 적어 둔 비밀번호를 지우지 않는다(코드에 기본값이 없다)', async () => {
-    const NoPasswordPage = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: 'on', NEXT_PUBLIC_TEST_LOGIN_PASSWORD: '' });
-    const view = render(<NoPasswordPage />);
+  // 옛 환경 값 스위치(W8 · NEXT_PUBLIC_TEST_LOGIN · NEXT_PUBLIC_TEST_LOGIN_PASSWORD)는 더 읽지 않는다 — 어떤 값이 있어도 단추는 그대로다
+  it('옛 환경 값(NEXT_PUBLIC_TEST_LOGIN=off · NEXT_PUBLIC_TEST_LOGIN_PASSWORD)은 더 읽지 않는다 — 단추는 서고 시드 비밀번호를 채운다', async () => {
+    const Page = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: 'off', NEXT_PUBLIC_TEST_LOGIN_PASSWORD: 'other-pass-1' });
+    const view = render(<Page />);
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
     fireEvent.change(passwordInput, { target: { value: 'typed-by-user' } });
     fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr · 매니저' }));
     expect((view.getByLabelText('아이디') as HTMLInputElement).value).toBe('coord@tnacademy.kr');
-    expect(passwordInput.value).toBe('typed-by-user');
+    expect(passwordInput.value).toBe('taco1234!');
   });
 
-  // 운영 시드 비밀번호의 실제 번들 부재는 build 뒤 bundle-secret-check가 별도로 검사한다.
-  it('개발 빌드에서는 기존 두 칸 자동 채움을 유지하고 칩이 아이디와 비밀번호를 함께 채운다', () => {
+  // 번들의 시드 비밀번호는 build 뒤 bundle-secret-check 가 본다 — 운영 전환 전(TEST_ACCOUNT_BUTTONS 표식이 있는 동안)은 경고, 뒤에는 실패.
+  it('개발 빌드에서는 기존 두 칸 자동 채움을 유지하고 단추가 아이디와 비밀번호를 함께 채운다', () => {
     const view = render(<LoginPage />);
     const idInput = view.getByLabelText('아이디') as HTMLInputElement;
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
@@ -121,7 +111,7 @@ describe('LoginPage — 생성 로그인 계약', () => {
     fireEvent.click(view.getByRole('button', { name: 't02@tnacademy.kr · 강사' }));
     expect(idInput.value).toBe('t02@tnacademy.kr');
     expect(passwordInput.value).toBe('taco1234!');
-    // 조건은 빌드 때 접히는 형태여야 한다 — 런타임 변수로 빼면 문자열이 번들에 남는다
+    // 개발 빌드의 자동 채움 분기는 빌드 때 접히는 형태다(운영 빌드는 두 칸이 비어서 열린다)
     expect(process.env.NODE_ENV).not.toBe('production');
   });
 
@@ -208,9 +198,9 @@ describe('LoginPage — 생성 로그인 계약', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/auth/login', { loginId: '김선생.Kim#1', password: 'taco1234!' }));
   });
 
-  // N-101 (대표 결정 2026-09-26) — 운영 빌드에도 늘 선다(시험 모드와 무관)
+  // N-101 (대표 결정 2026-09-26) — 운영 빌드에도 늘 선다
   it('「비밀번호를 잊으셨나요?」는 비밀번호 찾기로 가는 링크다 — 운영 빌드에도 서고 단추가 아니다', async () => {
-    const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: '' });
+    const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production' });
     const view = render(<ProductionLoginPage />);
     expect(view.getByRole('link', { name: '비밀번호를 잊으셨나요?' }).getAttribute('href')).toBe('/password-reset');
     expect(post).not.toHaveBeenCalled();

@@ -16,15 +16,21 @@ import type { LoginBody, LoginResult } from '@/api/types';
 import { ROLES, type RoleKey } from '@/lib/roles';
 import { PASSWORD_RESET_PATH, fallbackRouteFor } from '@/components/shell/navigation';
 
-/**
- * 시험용 계정 칩 — 2026-09-26 대표 결정이 2026-09-23 「운영·개발 모두 표시」를 대신한다(W8).
- *   ① 시험할 때는 칩을 누르면 아이디와 비밀번호가 **둘 다** 채워진다(시험 계정의 아이디는 옛 계정처럼 이메일 모양이다).
- *   ② 운영에서는 칩을 **그리지 않는다** — 두 칸만 남는다.
- *   ③ 시험 기간에는 운영 사이트도 빌드 환경 값(Vercel `NEXT_PUBLIC_TEST_LOGIN=on`)으로 시험 모드를 켠다.
- *      켜 둔 동안 시험 비밀번호가 그 번들에 실린다 — **운영 전환 전에 반드시 끈다**(번들 검사가 끈 빌드에서 막는다).
- * 표시는 공용 역할 어휘를 재사용하고, 실제 권한은 서버의 LoginResult만 믿는다.
- * 직원 전체 목록을 요청하거나 추가 공개하지 않는다.
+/* ══ 시험 계정 단추 — 운영 전환 때 이 블록(여기부터 「시험 계정 단추 끝」까지)과 아래 JSX 의 칩 줄을 통째로 지운다 ══════════════
+ *
+ * 대표 지시 2026-09-27 「login page 에 button 그냥 삽입 후 나중에 운영시 삭제 — 클릭 시 해당 권한에 맞는 아이디 · 비밀번호 삽입」.
+ * 이것이 09-26 W8 결정(운영에서는 칩을 숨기고 환경 값으로만 시험 모드)을 대신한다 — 환경 값 스위치는 없다. 운영 빌드에도
+ * 단추 다섯이 서고, 누르면 그 권한의 시험 계정 아이디와 비밀번호가 둘 다 채워진다(시험 계정의 아이디는 옛 계정처럼 이메일 모양이다).
+ *
+ * 그동안 시험 비밀번호가 공개 번들에 실린다 — 사이트를 여는 누구나 시험 계정으로 들어갈 수 있다(대표가 받아들인 조건).
+ * 번들 검사(docs/script/bundle-secret-check.mjs)는 아래 `TEST_ACCOUNT_BUTTONS` 표식이 이 파일에 있는 동안만 시드 비밀번호를
+ * 경고로 넘기고, 표식을 지운 뒤에도 번들에 남아 있으면 릴리스를 막는다. 운영 전환 날 할 일: 이 블록 삭제 → `npm run build` →
+ * 번들 검사 0건 확인 → `golive:reset`(docs/CODEX.md §6).
+ *
+ * 표시는 공용 역할 어휘를 재사용하고, 실제 권한은 서버의 LoginResult 만 믿는다. 직원 전체 목록을 요청하거나 추가 공개하지 않는다.
  */
+const TEST_ACCOUNT_BUTTONS = 'until-go-live'; // Next 페이지는 이름 있는 export 를 받지 않는다 — 표식은 이 이름의 const 다
+
 const LOGIN_ACCOUNTS: ReadonlyArray<{ loginId: string; role: RoleKey }> = [
   { loginId: 'ceo@tnacademy.kr', role: 'ceo' },
   { loginId: 'admin@tnacademy.kr', role: 'admin' },
@@ -33,16 +39,9 @@ const LOGIN_ACCOUNTS: ReadonlyArray<{ loginId: string; role: RoleKey }> = [
   { loginId: 't02@tnacademy.kr', role: 'teacher' },
 ];
 
-/** 시험 모드 — 개발 빌드는 늘, 운영 빌드는 빌드 환경 값으로만 켠다. Next 가 빌드 때 두 값을 접는다 */
-const TEST_LOGIN = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_TEST_LOGIN === 'on';
-
-/*
- * S8의 비밀번호 제외는 유지한다 — 시드 비밀번호 글자는 **개발 분기 안에만** 둔다(운영 빌드가 이 분기를 접어 버린다).
- * 운영 빌드의 시험 모드는 빌드 환경 값만 읽는다(코드에 기본값 없음). 시험 모드를 끈 운영 빌드는 그 값도 읽지 않는다.
- */
-const TEST_PASSWORD = process.env.NODE_ENV !== 'production'
-  ? 'taco1234!'
-  : process.env.NEXT_PUBLIC_TEST_LOGIN === 'on' ? (process.env.NEXT_PUBLIC_TEST_LOGIN_PASSWORD ?? '') : '';
+/** 시험 계정 다섯의 비밀번호 — 시드(back scripts/seed.ts)와 같은 값. 운영 전환 때 블록과 함께 사라진다 */
+const TEST_PASSWORD = 'taco1234!';
+/* ══ 시험 계정 단추 끝 ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 const ROLE_BY_KEY = new Map(ROLES.map((role) => [role.key, role]));
 
@@ -50,7 +49,7 @@ export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const signIn = useSession((s) => s.signIn);
-  // 운영 빌드는 시험 모드여도 두 칸을 비워 두고 칩으로만 채운다. 개발 자동 채움은 유지한다.
+  // 운영 빌드는 두 칸을 비워 두고 단추로만 채운다. 개발 빌드의 자동 채움은 유지한다.
   const [loginId, setLoginId] = useState(process.env.NODE_ENV === 'production' ? '' : LOGIN_ACCOUNTS[0].loginId);
   const [password, setPassword] = useState(process.env.NODE_ENV === 'production' ? '' : TEST_PASSWORD);
   const [err, setErr] = useState<string | null>(null);
@@ -108,7 +107,8 @@ export default function LoginPage() {
         {/* 비밀번호 찾기 (N-101 · 대표 결정 2026-09-26) — 등록된 이메일 · 휴대폰 코드를 둘 다 확인한다 */}
         <LinkButton href={PASSWORD_RESET_PATH} variant="ghost" size="sm" className="mt-2 w-full">비밀번호를 잊으셨나요?</LinkButton>
 
-        {TEST_LOGIN ? (
+        {/* 시험 계정 단추 — 운영 전환 때 이 줄(칩 블록 전체)을 지운다 · 위 TEST_ACCOUNT_BUTTONS 주석 */}
+        {TEST_ACCOUNT_BUTTONS ? (
           <div className="mt-5 border-t border-line pt-4">
             <p className="text-[11px] font-bold text-fg-subtle">시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -117,8 +117,7 @@ export default function LoginPage() {
                   key={d.loginId} size="sm" variant="ghost"
                   onClick={() => {
                     setLoginId(d.loginId);
-                    // 빌드에 시험 비밀번호가 없으면 사람이 적어 둔 비밀번호를 지우지 않는다
-                    if (TEST_PASSWORD) setPassword(TEST_PASSWORD);
+                    setPassword(TEST_PASSWORD);
                   }}
                 >
                   <span>{d.loginId}</span>
