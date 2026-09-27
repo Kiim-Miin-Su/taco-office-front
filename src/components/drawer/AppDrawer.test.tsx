@@ -136,7 +136,7 @@ describe('공용 서랍의 제어형 선택', () => {
     ));
   });
 
-  it('§19 창을 닫고 서랍을 닫았다 다시 열어도 변경 요청 초안을 보존하고, 닫힌 조회를 끈다', () => {
+  it('§19 창은 취소·Esc·X 뒤 다시 열면 이전 입력을 비우고, 닫힌 조회를 끈다 (P-157)', () => {
     const change = vi.fn();
     const close = vi.fn();
     const view = render(<AppDrawer open pane="chreqs" onPaneChange={change} onClose={close} />);
@@ -148,6 +148,21 @@ describe('공용 서랍의 제어형 선택', () => {
     fireEvent.change(within(dialog).getByRole('textbox', { name: '왜 바꾸나요' }), { target: { value: '저장하지 않은 변경 사유' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '취소' }));
     expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    let reopened = within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement;
+    expect(reopened.value).toBe('');
+    fireEvent.change(reopened, { target: { value: 'Esc 전에 쓴 사유' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    reopened = within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement;
+    expect(reopened.value).toBe('');
+    fireEvent.change(reopened, { target: { value: 'X 전에 쓴 사유' } });
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '창 닫기' }));
+    expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
+
     fireEvent.click(view.getByRole('button', { name: '닫기' }));
     expect(close).toHaveBeenCalledOnce();
     view.rerender(<AppDrawer open={false} pane="chreqs" onPaneChange={change} onClose={close} />);
@@ -160,7 +175,7 @@ describe('공용 서랍의 제어형 선택', () => {
     view.rerender(<AppDrawer open pane="chreqs" onPaneChange={change} onClose={close} />);
     fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
     expect((within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value)
-      .toBe('저장하지 않은 변경 사유');
+      .toBe('');
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
@@ -202,7 +217,7 @@ describe('공용 서랍의 제어형 선택', () => {
   });
 
   /* 원문 §19 창 머리 — 「변경 요청」 + 부제 + × */
-  it('§19 창 머리에 부제와 × 가 서고, × 는 창만 닫는다 — 서랍과 초안은 남는다', () => {
+  it('§19 창 머리에 부제와 × 가 서고, × 는 서랍을 닫지 않지만 초안은 비운다 (P-157)', () => {
     const close = vi.fn();
     const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={close} />);
     fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
@@ -214,7 +229,7 @@ describe('공용 서랍의 제어형 선택', () => {
     expect(close).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
     expect((within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value)
-      .toBe('초안 사유');
+      .toBe('');
   });
 
   /*
@@ -448,5 +463,28 @@ describe('§19 변경 요청 창 — 어느 날 · 어느 일정 · 무엇을 ·
     fireEvent.click(dialog.getByRole('button', { name: '요청 넣기' }));
     await waitFor(() => expect(dialog.getByText(/1건과 겹칩니다/)).toBeTruthy());
     expect(view.getByRole('dialog', { name: '변경 요청' })).toBeTruthy();
+
+    fireEvent.click(dialog.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const reopened = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect(reopened.queryByText(/1건과 겹칩니다/)).toBeNull();
+    expect((reopened.getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value).toBe('');
+  });
+
+  it('서버 오류 뒤 취소하고 다시 열면 오류와 초안을 비운다 (P-157)', async () => {
+    mocks.write.mockRejectedValue(new ApiError('CHANGE_REQUEST_FAILED', '변경 요청을 넣지 못했습니다', 409));
+    const { view, dialog } = openDialog();
+    fireEvent.change(dialog.getByRole('combobox', { name: '어느 일정' }), { target: { value: '41|2026-09-24' } });
+    fireEvent.change(dialog.getByLabelText('새 시작'), { target: { value: '20:30' } });
+    fireEvent.change(dialog.getByLabelText('새 끝'), { target: { value: '21:30' } });
+    fireEvent.change(dialog.getByRole('textbox', { name: '왜 바꾸나요' }), { target: { value: '오류가 난 초안' } });
+    fireEvent.click(dialog.getByRole('button', { name: '요청 넣기' }));
+    await waitFor(() => expect(dialog.getByText('변경 요청을 넣지 못했습니다')).toBeTruthy());
+
+    fireEvent.click(dialog.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const reopened = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect(reopened.queryByText('변경 요청을 넣지 못했습니다')).toBeNull();
+    expect((reopened.getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value).toBe('');
   });
 });

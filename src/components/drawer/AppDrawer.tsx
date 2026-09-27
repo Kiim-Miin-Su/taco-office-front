@@ -60,7 +60,7 @@ const PANES = [
 ] as const;
 export type DrawerPane = (typeof PANES)[number]['key'];
 
-/** 선택 pane은 셸이 소유한다. 닫기/다른 pane 이동에도 초안과 세부 선택은 여기 남는다. */
+/** 선택 pane은 셸이 소유한다. 닫기/다른 pane 이동에도 선택은 남지만, 생성 모달 초안은 재열 때 비운다(P-157). */
 export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   open: boolean;
   onClose: () => void;
@@ -68,7 +68,6 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   onPaneChange: (pane: DrawerPane) => void;
 }) {
   const [box, setBox] = useState<TodoBox>('in');
-  // 초안은 닫았다 열어도 남는다 — 창을 닫는 것은 넣기를 그만두는 것이 아니다
   const [draft, setDraft] = useState<ChangeReqDraft>(() => newChangeReqDraft());
   /** §19 창이 열려 있는가 — §20 칸의 「+ 변경 요청」이 연다 */
   const [creating, setCreating] = useState(false);
@@ -143,14 +142,26 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
       }) as ChangeReqResult;
       setConflicts(res.conflicts);
       // 넣었으면 창을 닫고 칸에 알린다 — 새 초안은 다시 오늘로 열린다
-      if (res.conflicts.length === 0) { setSent(true); setDraft(newChangeReqDraft()); setCreating(false); }
+      if (res.conflicts.length === 0) { setSent(true); closeCreate(); }
     } catch (error) {
       setSubmitError(apiMessage(error));
     }
   }
 
+  function resetCreate() {
+    setDraft(newChangeReqDraft());
+    setConflicts([]);
+    setSubmitError(null);
+  }
+
+  function closeCreate() {
+    resetCreate();
+    setCreating(false);
+  }
+
   function openCreate() {
-    setSent(false); setSubmitError(null); setConflicts([]);
+    setSent(false);
+    resetCreate();
     setCreating(true);
   }
 
@@ -263,11 +274,11 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
 
       {/* 원문 §19 — 가운데 창. 공용 Dialog 를 그대로 쓴다(스크림·Esc·초점 복귀가 한 벌이다) */}
       <Dialog
-        open={open && creating} onClose={() => setCreating(false)} title="변경 요청" width={640} closeX
+        open={open && creating} onClose={closeCreate} title="변경 요청" width={640} closeX
         sub={<>겹치면 넣을 수 없습니다 · 반영하면 <b className="text-fg">이력</b>에 남습니다</>}
         footer={(
           <>
-            <Button onClick={() => setCreating(false)}>취소</Button>
+            <Button onClick={closeCreate}>취소</Button>
             <Button variant="primary" disabled={!changeReqReady(draft) || write.isPending} onClick={() => void submitChangeReq()}>
               {write.isPending ? '보내는 중…' : '요청 넣기'}
             </Button>
