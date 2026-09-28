@@ -1799,6 +1799,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/marketing/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * §59 마케팅 활동 수정 — 보낸 칸만
+         * @description 활동 이름·채널·항목·URL·날짜·담당·메모만 고친다. 성과 숫자는 받지 않으며 앞뒤 값과 감사 줄이 같은 트랜잭션에 남는다.
+         */
+        patch: operations["OpsController_patchMarketing"];
+        trace?: never;
+    };
     "/ops/marketing/{id}/comments": {
         parameters: {
             query?: never;
@@ -1878,6 +1898,46 @@ export interface paths {
          * @description research 를 쓰는 길은 이것뿐이다 — 그전에는 읽기와 화면 칸만 있고 시드 말고는 아무도 못 채워 §65 「3 · 리서치」가 영원히 「—」였다. 보낸 칸만 고친다(null 은 지우고 없는 키는 그대로 둔다). 고칠 수 있는 단계는 draft·rework 뿐이고 막힌 문장은 읽기의 editBlockedReason 과 같다. 기한은 승인 전에만 바꾼다 — 승인된 날짜를 담당이 옮기면 대표의 승인이 거짓이 된다. 공개 범위(share · pickIds · W11 N-72)는 본문이 아니라 단계와 무관하게 바꾸고, 담당 · 결재권자만 바꾼다(감사 줄 PLAN · share). 새 기한을 내면 반려 표시(dueRejectedOn)가 빈다(N-95).
          */
         patch: operations["OpsController_patchPlan"];
+        trace?: never;
+    };
+    "/ops/plans/{id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 기획 담당 변경 — 결재권자만
+         * @description 활동 중인 구성원으로 바꾸며 새 담당 알림과 앞뒤 감사 줄을 같은 트랜잭션에 남긴다. 본문·단계·공개 범위는 건드리지 않는다.
+         */
+        patch: operations["OpsController_patchPlanOwner"];
+        trace?: never;
+    };
+    "/ops/suggestions/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 건의 관리자 답변 — 강사 화면에 답변자·날짜와 함께 전달
+         * @description 답변·답변자·답변 시각·done 상태, 강사 알림과 감사 줄을 한 트랜잭션에 남긴다. 다시 답하면 같은 건의 답변을 고친다.
+         */
+        patch: operations["OpsController_replySuggestion"];
         trace?: never;
     };
     "/ops/plans/{id}/stage": {
@@ -6969,6 +7029,7 @@ export interface components {
             goal?: string | null;
             ask?: string | null;
             dueOn?: string | null;
+            ownerId?: number | null;
             ownerName?: string | null;
             overdueDays: number;
             /**
@@ -7166,6 +7227,10 @@ export interface components {
             /** @enum {string} */
             state: "open" | "reviewing" | "done";
             reply?: string | null;
+            /** @description 답변한 관리자 이름 */
+            replyBy?: string | null;
+            /** @description 답변일 YYYY-MM-DD (KST) */
+            replyOn?: string | null;
             createdAt: string;
         };
         IntakeFunnelStepDto: {
@@ -7758,9 +7823,18 @@ export interface components {
             firstOn: string;
         };
         TcBookDto: {
+            /** @description 이 교재를 이어받을 새 강사 (STAFF) */
+            teacherId: number;
+            teacherName: string;
+            /** @description 교체 시작일에 실제 명단에 있는 학생 (STU) */
+            studentId: number;
             studentName: string;
+            /** @description 이어받을 배부 행 (ISSUE) */
+            issueId: number;
+            /** @description 배부된 교재 (LIB) */
+            libId: number;
             title: string;
-            /** @description ISSUE 상태 — wait | ok */
+            /** @description ISSUE 활성 상태 — wait | auto | ok */
             state: string;
         };
         TcPayoutMonthDto: {
@@ -7838,6 +7912,31 @@ export interface components {
             /** @description 메모 한 줄 — 카드 제목 아래(원문 「상담 예약 4건 전환」). 비우면 없음 (N-29 ②) */
             memo?: string | null;
         };
+        MarketingPatchDto: {
+            /** @description 활동 이름 — 빈 문자열은 허용하지 않는다 */
+            title?: string;
+            /**
+             * @description 어디에 — 낱말은 GET /ops.mktChannels
+             * @enum {string}
+             */
+            channel?: "kakao" | "naver_ad" | "instagram" | "naver_blog";
+            /**
+             * @description 무엇을 — 낱말은 GET /ops.mktItems
+             * @enum {string}
+             */
+            item?: "reply" | "ad" | "video" | "post";
+            /** @description HTTP(S) URL — null 또는 빈 문자열이면 비운다 */
+            url?: string | null;
+            /**
+             * Format: date
+             * @description 활동 날짜 — null이면 비운다
+             */
+            onDate?: string | null;
+            /** @description 담당 — 활동 중인 구성원 */
+            byId?: number | null;
+            /** @description 메모 — null 또는 빈 문자열이면 비운다 */
+            memo?: string | null;
+        };
         MfbCommentWriteDto: {
             /** @description 코멘트 본문 */
             body: string;
@@ -7877,7 +7976,10 @@ export interface components {
             /** @enum {string} */
             stage: "draft" | "review" | "rework" | "approved" | "done";
             stageLabel: string;
+            ownerId?: number | null;
             ownerName?: string | null;
+            /** @description 담당을 바꿀 수 있는가 — 기획 결재권자만. 쓰기 권한과 같은 판정 */
+            canChangeOwner: boolean;
             /** @description 작성일 YYYY-MM-DD */
             createdOn: string;
             /** @description 1 · 목표 */
@@ -7955,6 +8057,13 @@ export interface components {
             share?: "all" | "picked";
             /** @description 지정 공개로 볼 사람 — 지정 공개일 때만 · 보내면 통째로 갈아 끼운다(활동 중인 구성원만) */
             pickIds?: number[];
+        };
+        PlanOwnerPatchDto: {
+            /** @description 새 담당 — 활동 중인 구성원 */
+            ownerId: number;
+        };
+        SuggestionReplyDto: {
+            reply: string;
         };
         PlanStageMoveDto: {
             /**
@@ -9916,6 +10025,20 @@ export interface components {
             /** @description 값이 지급 확정 근거 줄에서 왔는가 — 확정된 달은 굳은 값이다 */
             frozen: boolean;
         };
+        TeacherSettlementBreakdownDto: {
+            /** @enum {string} */
+            key: "general" | "kinder" | "group" | "diag" | "mock" | "other";
+            /** @description 사람이 읽는 줄 이름 — 낱말은 서버 */
+            label: string;
+            /** @description 이 성분이 든 인정 회차 수 */
+            lessonCount: number;
+            /** @description 이 성분이 든 인정 시수(분) */
+            minutes: number;
+            /** @description 이 성분의 금액 합 */
+            amount: number;
+            /** @description 적용하지 못한 이유 · 없으면 null */
+            note?: string | null;
+        };
         TeacherSettlementDto: {
             /** @description YYYY-MM */
             yearMonth: string;
@@ -9953,6 +10076,12 @@ export interface components {
             lateCount: number;
             /** @description 확정 · 보정 안내 한 문장(서버) — 「확정된 달 — 다음 달 보정」 등 · 없으면 null */
             note: string | null;
+            /** @description 기본 시급·Kinder·그룹·진단·모의·기타 성분별 서버 합계 */
+            breakdown: components["schemas"]["TeacherSettlementBreakdownDto"][];
+            /** @description breakdown 줄 금액의 합 */
+            breakdownTotal: number;
+            /** @description 저장 gross - breakdownTotal. 옛 확정 행처럼 종류별 근거가 없으면 0이 아닐 수 있다 */
+            breakdownUnallocatedAmount: number;
         };
         TeacherBonusRuleDto: {
             /** @description 칸 이름 — 「모의수업」 · 「진단고사」 · 「Kinder 수업」 · 「그룹 학생 한 명 늘 때」 */
@@ -13339,7 +13468,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description ATTENDANCE_NOT_AVAILABLE: 최신 회차가 종료 전 또는 취소됨 */
+            /** @description ATTENDANCE_NOT_AVAILABLE: 최신 회차가 종료 전 또는 취소됨 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13416,7 +13545,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description ATTENDANCE_NOT_AVAILABLE: 최신 회차가 종료 전 또는 취소됨 */
+            /** @description ATTENDANCE_NOT_AVAILABLE: 최신 회차가 종료 전 또는 취소됨 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13493,7 +13622,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description RESOURCE_CONFLICT: 강사·강의실·Zoom 시간이 겹침 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13570,7 +13699,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description RESOURCE_CONFLICT: 강사·강의실·Zoom 시간이 겹침 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13647,7 +13776,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description RESOURCE_CONFLICT: 강사·강의실·Zoom 시간이 겹침 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13724,7 +13853,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13803,7 +13932,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code PAUSE_OVERLAP — 이미 잡힌 휴원 기간과 겹친다 */
+            /** @description PAUSE_OVERLAP: 이미 잡힌 휴원 기간과 겹침 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13883,7 +14012,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code PAUSE_ALREADY_RESUMED */
+            /** @description PAUSE_ALREADY_RESUMED | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14039,7 +14168,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14118,7 +14247,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description SERIES_HAS_REPORTS | SERIES_HAS_EXCEPTIONS — 종류·반복 규칙 변경으로 연결된 리포트·회차 예외가 고아가 되는 것을 막는다 */
+            /** @description SERIES_HAS_REPORTS | SERIES_HAS_EXCEPTIONS — 종류·반복 규칙 변경으로 연결된 리포트·회차 예외가 고아가 되는 것을 막는다 | RESOURCE_CONFLICT: 강사·강의실·Zoom 시간이 겹침 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14197,7 +14326,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description ROSTER_CAP_CONFIRM_REQUIRED: 정원이 찼으므로 confirmOverCapacity=true 재요청 필요 */
+            /** @description ROSTER_CAP_CONFIRM_REQUIRED: 정원이 찼으므로 confirmOverCapacity=true 재요청 필요 | MONTH_CLOSED: 대상 달이 마감됐거나 같은 순간 마감이 먼저 끝남. 대표가 마감을 해제한 뒤 다시 요청해야 하며 실패한 쓰기는 전부 되돌린다. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -19107,6 +19236,81 @@ export interface operations {
             };
         };
     };
+    OpsController_patchMarketing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketingPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MKT_NOT_FOUND | STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code EMPTY_PATCH | MKT_TITLE_REQUIRED | MKT_WORD_UNKNOWN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     OpsController_comment: {
         parameters: {
             query?: never;
@@ -19461,6 +19665,156 @@ export interface operations {
                 content?: never;
             };
             /** @description code PLAN_LOCKED | PLAN_DUE_APPROVED | PLAN_TITLE_REQUIRED | PLAN_PICK_NOT_PICKED | PLAN_SHARE_REQUIRED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_patchPlanOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanOwnerPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PLAN_OWNER_FORBIDDEN — 기획 결재권자만 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PLAN_NOT_FOUND | STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_replySuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionReplyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description SUGGESTION_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code SUGGESTION_REPLY_REQUIRED */
             409: {
                 headers: {
                     [name: string]: unknown;

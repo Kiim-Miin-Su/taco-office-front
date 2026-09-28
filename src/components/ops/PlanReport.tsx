@@ -52,9 +52,6 @@ import { useSession } from '@/store/useSession';
 import { objectParticle } from '@/lib/calendar';
 import type { PlanDetail, PlanPatch, PlanShareWord, PlanTask } from '@/api/types';
 
-/** OpenAPI 재생성 전후 모두 읽히는 추가 필드 — 정본은 백엔드 PlanDetailDto다. */
-type PlanDetailWithOwner = PlanDetail & { ownerId?: number | null; canChangeOwner?: boolean };
-
 /** 화면이 들고 있는 초안 — 서버가 준 글에서 시작하고, 달라진 칸만 보낸다 */
 type Draft = { goal: string; research: string; ask: string };
 const draftOf = (d: PlanDetail | undefined): Draft => ({
@@ -210,7 +207,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
   const [reason, setReason] = useState('');
   const [armed, setArmed] = useState<'rework' | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const d = q.data as PlanDetailWithOwner | undefined;
+  const d = q.data;
   const [ownerId, setOwnerId] = useState('');
 
   /* 서버가 준 글에서 시작한다 — 다른 기획을 열거나 단계가 바뀌면 초안을 버린다

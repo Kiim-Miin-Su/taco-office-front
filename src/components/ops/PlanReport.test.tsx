@@ -34,7 +34,7 @@ const { PlanReport } = await import('./PlanReport');
 
 const base: PlanDetail = {
   id: 3, title: '9월 신규 상담 유입 30% 늘리기', stage: 'review', stageLabel: '검토 요청',
-  ownerName: '홍지승', createdOn: '2026-08-15',
+  ownerName: '홍지승', canChangeOwner: false, createdOn: '2026-08-15',
   goal: '9월 신규 상담을 8월 대비 30% 늘립니다. 목표 42건.',
   tasks: [
     { id: 1, title: '블로그 MAP 준비 시리즈 3편 발행', done: true, toName: '홍지승', dueOn: '2026-08-23', overdueDays: 0 },
@@ -89,7 +89,7 @@ it('막힌 이유는 서버가 준 문장이다 — 화면이 조건을 다시 �
 });
 
 it('결재권자는 활동 중인 구성원으로 담당을 바꾼다 — 서버 플래그가 있을 때만 입력이 선다', async () => {
-  const v = setup({ ...base, ownerId: 7, canChangeOwner: true } as PlanDetail & { ownerId: number; canChangeOwner: boolean });
+  const v = setup({ ...base, ownerId: 7, canChangeOwner: true });
   const select = v.getByRole('combobox', { name: '기획 담당' });
   fireEvent.change(select, { target: { value: '8' } });
   fireEvent.click(v.getByRole('button', { name: '담당 저장' }));
