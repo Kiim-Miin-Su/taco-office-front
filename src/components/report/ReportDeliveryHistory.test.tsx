@@ -14,12 +14,16 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it } from 'vitest';
 import { api } from '@/api/client';
-import type { ReportSendHistory } from '@/api/types';
+import type { FileRef, ReportSendHistory } from '@/api/types';
 import { ReportDeliveryHistory } from './ReportDeliveryHistory';
 
+const savedPng: FileRef = {
+  id: 91, kind: 'report-png', name: '20260918_고은설.png', mime: 'image/png', bytes: 8,
+  url: '/files/91', uploaderName: null, uploadedAt: '2026-09-18T09:00:00+09:00',
+};
 const row = (over: Partial<ReportSendHistory> = {}): ReportSendHistory => ({
   id: 11, sourceSendId: null, studentId: 5, studentName: '고은설', onDate: '2026-09-18',
-  repIds: [7], channel: 'blob', fileCount: 2, canResend: true, resendBlockedReason: null,
+  repIds: [7], channel: 'blob', fileCount: 2, downloadFiles: [savedPng], canResend: true, resendBlockedReason: null,
   sentAt: '2026-09-18T09:00:00+09:00', sentBy: 2, sentByName: '김민수',
   subjectNames: ['MAP Math'], teacherNames: ['김재훈'], ...over,
 });
@@ -88,6 +92,15 @@ it('파일이 한 장도 안 남았으면 단추가 닫히고 서버가 준 이�
 it('재발송 줄은 원본을 가리키고 파일을 그대로 보관한다고 적는다 (§48)', async () => {
   const view = setup([row({ id: 12, sourceSendId: 11, fileCount: 2 })]);
   await waitFor(() => expect(view.container.textContent).toContain('다시 보냄 · 파일 2장 그대로'));
+});
+
+it('Neon에 보존된 기록지 PNG는 공용 FILE 다운로드 단추로 열고 레거시 외부 파일은 단추를 만들지 않는다', async () => {
+  const view = setup([row()]);
+  expect(await view.findByRole('button', { name: '20260918_고은설.png 열기' })).toBeTruthy();
+  cleanup();
+  const legacy = setup([row({ id: 12, downloadFiles: [] })]);
+  await waitFor(() => expect(legacy.container.textContent).toContain('파일 2장 보관'));
+  expect(legacy.queryByRole('button', { name: '20260918_고은설.png 열기' })).toBeNull();
 });
 
 /**

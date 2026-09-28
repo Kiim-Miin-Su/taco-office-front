@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Expense, ExpenseTotal, Me } from '@/api/types';
+import type { Expense, ExpenseTotal, FileRef, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { ExpenseReview } from './ExpenseReview';
 
@@ -17,9 +17,13 @@ const me: Me = {
   canApprove: true, canHide: true, canGpaPack: true,
 };
 
+const receipt: FileRef = {
+  id: 77, kind: 'expense-receipt', name: '영수증.png', mime: 'image/png', bytes: 3,
+  url: '/files/77', uploaderName: '정은채', uploadedAt: '2026-09-08T10:00:00+09:00',
+};
 const card = (over: Partial<Expense> = {}): Expense => ({
   id: 7, spendOn: '2026-09-08', category: 'ent', categoryLabel: '접대비', merchant: '카페 서초',
-  purpose: '학부모 간담회 다과', requestedAmount: 145000, amount: null, reason: null, hasReceipt: true,
+  purpose: '학부모 간담회 다과', requestedAmount: 145000, amount: null, reason: null, hasReceipt: true, receiptFile: receipt,
   requesterId: 4, requesterName: '정은채', filedById: 4, filedByName: '정은채',
   state: 'pending', reviewerName: null, reviewedAt: null, ...over,
 });
@@ -53,6 +57,16 @@ it('신청 금액은 placeholder 로만 보이고 확정 칸은 비어 있다 (A
   const amount = view.getByLabelText('확정 금액') as HTMLInputElement;
   expect(amount.value).toBe('');
   expect(amount.placeholder).toBe('145000');
+});
+
+it('보존된 영수증은 공용 FILE 다운로드 단추로 열고 없는 신청에는 단추를 만들지 않는다', () => {
+  const view = setup([card()]);
+  fireEvent.click(view.getByRole('button', { name: /카페 서초/ }));
+  expect(view.getByRole('button', { name: '영수증 열기' })).toBeTruthy();
+  cleanup();
+  const missing = setup([card({ hasReceipt: true, receiptFile: null })]);
+  fireEvent.click(missing.getByRole('button', { name: /카페 서초/ }));
+  expect(missing.queryByRole('button', { name: '영수증 열기' })).toBeNull();
 });
 
 /**

@@ -21,6 +21,7 @@ import type { Expense, ExpenseCategory, ExpenseTotal, Me } from '@/api/types';
 import { Banner, Button, Chip, Input, Label, Panel } from '@/components/ui';
 import { won } from '@/lib/money';
 import { ExpenseCreateButton } from './ExpenseForm';
+import { ExpenseReceiptButton } from './ExpenseReceiptButton';
 
 const STATE: Record<string, { label: string; tone: 'warning' | 'success' | 'danger' }> = {
   pending: { label: '대기', tone: 'warning' },
@@ -142,6 +143,7 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
                 <span><dt className="text-[11px] text-fg-subtle">신청 금액</dt><dd className="font-bold text-fg">{won(picked.requestedAmount)}</dd></span>
               </dl>
               {picked.purpose ? <p className="mb-3 text-[12.5px] text-fg">{picked.purpose}</p> : null}
+              <ExpenseReceiptButton expense={picked} />
 
               {mine ? (
                 <Banner tone="warning" className="mb-3">
@@ -214,6 +216,7 @@ export function ExpenseReview({ expenses, totals, categories = [], me }: { expen
                 <span className="w-24 shrink-0 text-[12px] font-bold text-fg">{e.spendOn}</span>
                 <span className="w-24 shrink-0 text-[11.5px] text-fg-subtle">{e.categoryLabel}</span>
                 <span className="min-w-0 grow truncate text-[12.5px] text-fg">{e.merchant ?? '—'} <span className="text-fg-subtle">{e.purpose ?? ''}</span></span>
+                <ExpenseReceiptButton expense={e} />
                 <span className="w-28 shrink-0 text-right text-[12.5px] font-bold text-fg">{won(e.amount)}</span>
                 <Chip size="compact" tone={STATE[e.state]?.tone ?? 'warning'}>{STATE[e.state]?.label ?? e.state}</Chip>
               </li>

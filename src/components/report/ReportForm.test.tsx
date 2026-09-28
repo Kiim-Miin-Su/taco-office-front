@@ -50,6 +50,7 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
   it('승인 대기는 읽기 전용이며 반려를 선택할 때만 사유 입력 하나를 연다', () => {
     const detail: ReportDetail = {
       id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
+      mode: 'offline',
       subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
       written: true, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
       body: { content: '수업', progress: '42p', homework: '43p' }, fields,
@@ -67,8 +68,17 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
     expect(view.container.querySelectorAll('textarea')).toHaveLength(0);
     fireEvent.click(view.getByText('반려'));
     expect(view.container.textContent).toContain('16:00–17:00');
+    expect(view.getByText('2026-09-03 · AP Chemistry · 16:00–17:00 · 대면')).toBeTruthy();
     expect(view.container.querySelectorAll('textarea')).toHaveLength(1);
     expect((view.getByText('사유와 함께 반려') as HTMLButtonElement).disabled).toBe(true);
+
+    const online: ReportDetail = { ...detail, mode: 'online' };
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <ReportEditor detail={online} subject="AP Chemistry" />
+      </QueryClientProvider>,
+    );
+    expect(view.getByText('2026-09-03 · AP Chemistry · 16:00–17:00 · 온라인')).toBeTruthy();
 
     // 같은 편집기는 강사 캘린더의 미래 회차에서도 사용한다. 시간 판정은 서버 값을 소비한다.
     view.rerender(
@@ -93,6 +103,7 @@ describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상
   afterEach(() => { cleanup(); useSession.setState({ me: null, ready: false }); });
   const detail = (canEdit: boolean): ReportDetail => ({
     id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
+    mode: 'offline',
     subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: canEdit ? 'none' : 'wait',
     written: !canEdit, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
     body: { content: '', progress: '', homework: '' }, fields,
@@ -144,6 +155,7 @@ describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화
   afterEach(() => { cleanup(); useSession.setState({ me: null, ready: false }); window.localStorage.clear(); });
   const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
     id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
+    mode: 'offline',
     subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'none',
     written: false, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
     body: { content: '', progress: '', homework: '' }, fields,

@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useReportDeliveryHistory, useReportDeliveryResend } from '@/api/queries';
 import type { ReportSendHistory, ReportSendHistoryList } from '@/api/types';
+import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { kstDateTime } from '@/lib/calendar';
 import { Banner, Button, Chip, Segmented } from '../ui';
 
@@ -45,6 +46,9 @@ function SendLine({ row, disabled, onResend }: { row: ReportSendHistory; disable
       <span className="text-fg-subtle">{row.teacherNames.join(' · ') || '강사 없음'}</span>
       <span className="text-fg-subtle">{`${row.onDate.slice(5)} 수업`}</span>
       <span className="text-fg-subtle">{historyAction(row)}</span>
+      {row.downloadFiles.map((file) => (
+        <FileDownloadButton key={file.id} id={file.id} label={file.name} />
+      ))}
       <span className="ml-auto flex items-center gap-3">
         <span className="text-fg-subtle">{kstDateTime(row.sentAt) ?? '—'}</span>
         <span>{row.sentByName}</span>

@@ -1274,7 +1274,7 @@ export function useCreateBookIssue(): UseMutationResult<BookIssue, unknown, Book
 export function useTransitionBookIssue(): UseMutationResult<BookIssue, unknown, { id: number } & BookIssueTransition> {
   const invalidate = useBooksInvalidate({ board: true });
   return useMutation({
-    mutationFn: async ({ id, state }) => (await api.patch<BookIssue>(`/books/issues/${id}/state`, { state })).data,
+    mutationFn: async ({ id, ...body }) => (await api.patch<BookIssue>(`/books/issues/${id}/state`, body)).data,
     onSettled: invalidate,
   });
 }

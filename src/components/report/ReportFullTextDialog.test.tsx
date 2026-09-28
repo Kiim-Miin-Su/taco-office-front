@@ -19,6 +19,7 @@ beforeEach(() => {
 
 const lesson = (id: number, subjectName: string, startMin: number, patch: Partial<ReportDetail> = {}): ReportDetail => ({
   id, serId: id + 100, date: '2026-09-24', onDate: '2026-09-24', startMin, endMin: startMin + 60,
+  mode: 'offline',
   subKey: 'map-math', kindKey: 'class', teacherId: 3, teacherName: '김재훈', state: 'ok', written: true,
   students: [{ id: 21, name: '이담흔', grade: 'G10', deliver: true, late: false }],
   minutesSinceEnd: 30, penalty: 0,

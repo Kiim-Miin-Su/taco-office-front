@@ -43,7 +43,7 @@ const DIAG = {
   byId: 2, byName: '김민수', at: '2026-08-20T10:00:00+09:00',
 };
 
-function setup({ withoutIssuedBooks = false }: { withoutIssuedBooks?: boolean } = {}) {
+function setup({ withoutIssuedBooks = false, withReissueCandidate = false }: { withoutIssuedBooks?: boolean; withReissueCandidate?: boolean } = {}) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     const diag = /^\/books\/students\/(\d+)\/latest-diag$/.exec(config.url ?? '');
@@ -94,6 +94,10 @@ function setup({ withoutIssuedBooks = false }: { withoutIssuedBooks?: boolean } 
                   },
                   { id: 11, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1', form: 'print', formLabel: '실물 책' },
                 ],
+                reissueCandidates: withReissueCandidate ? [{
+                  id: 30, libId: 6, studentId: 3, state: 'canceled', stateLabel: '취소',
+                  endedReason: '학부모 요청', endedBy: 2, endedByName: '김민수', endedAt: '2026-09-27T01:00:00.000Z',
+                }] : [],
               },
             ],
             books: withoutIssuedBooks ? [] : [
@@ -122,6 +126,7 @@ function setup({ withoutIssuedBooks = false }: { withoutIssuedBooks?: boolean } 
               items: [
                 { id: 4, code: 'SAT', title: 'SAT Reading', level: 'Master', levelLabel: 'Master', pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
                 { id: 5, code: 'WR', title: 'Writing', pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 6, code: 'MATH', title: 'Math Practice', pages: 120, hasNewer: false, hasFile: true, issueCount: 1 },
               ],
               bySub: {},
               newerCount: 0,
@@ -182,6 +187,33 @@ it('승인 대기는 공용 전이 hook으로 auto 상태만 보낸다', async (
   fireEvent.click(view.getByRole('button', { name: '고은성 SAT Reading 승인' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues/11/state'));
   expect(mutation.body).toEqual({ state: 'auto' });
+});
+
+it('승인·전달 대기는 사유가 있어야 취소·반려하고 종료 사유를 같이 보낸다', async () => {
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '고은성 펼치기' }));
+  const reject = view.getByRole('button', { name: '고은성 SAT Reading 반려' });
+  expect((reject as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(view.getByLabelText('고은성 SAT Reading 종료 사유'), { target: { value: '  교재 재선정  ' } });
+  expect((reject as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(reject);
+  await waitFor(() => expect(mutation.url).toBe('/books/issues/11/state'));
+  expect(mutation.body).toEqual({ state: 'rejected', reason: '교재 재선정' });
+});
+
+it('종료된 교재의 재배부는 학생·교재를 고정하고 reissuedFrom 계보를 보낸다', async () => {
+  const view = setup({ withReissueCandidate: true });
+  fireEvent.click(await view.findByRole('button', { name: '고은성 펼치기' }));
+  expect(view.getByText('학부모 요청 · 김민수')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '고은성 Math Practice 재배부' }));
+  expect(view.getByText('교재 재배부')).toBeTruthy();
+  expect((view.getByLabelText('학생') as HTMLSelectElement).disabled).toBe(true);
+  expect((view.getByLabelText('교재') as HTMLSelectElement).disabled).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '재배부 등록' }));
+  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
+  expect(mutation.body).toEqual({
+    studentId: 3, libId: 6, state: 'ok', issuedOn: todayKst(), reissuedFrom: 30,
+  });
 });
 
 it('학생 한 줄의 진도는 각 교재와 짝지어 표시한다', async () => {

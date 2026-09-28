@@ -11,6 +11,7 @@ import { TeacherReportList } from './TeacherReportList';
 
 const row: ReportRow = {
   id: 1, serId: 11, date: '2026-09-14', onDate: '2026-09-14', startMin: 600, endMin: 660,
+  mode: 'offline',
   subKey: 'writing', kindKey: 'class', teacherId: 7, teacherName: '김재훈', state: 'none', written: false,
   students: [{ id: 1, name: '학생A', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
 };

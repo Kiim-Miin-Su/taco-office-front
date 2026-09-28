@@ -17,9 +17,9 @@ const data: Unwritten = {
     { teacherId: 9, teacherName: 'KJ', roleLabel: '매니저', title: null, count: 1, oldestDate: '2026-09-01', over1h: 1, over4h: 0, penalty: 0 },
   ],
   items: [
-    { id: 1, serId: 101, date: '2026-08-02', onDate: '2026-08-01', startMin: 600, endMin: 660, subKey: 'vocab', kindKey: 'class', teacherId: 7, teacherName: 'Sophia', state: 'none', written: false, students: [{ id: 1, name: '이담흔', deliver: true, late: false }], minutesSinceEnd: 2880, penalty: 0 },
-    { id: 2, serId: 102, date: '2026-08-03', onDate: '2026-08-03', startMin: 600, endMin: 660, subKey: 'gpa', kindKey: 'class', teacherId: 7, teacherName: 'Sophia', state: 'rej', written: true, students: [{ id: 2, name: '민제인', deliver: true, late: false }], minutesSinceEnd: 1440, penalty: 0 },
-    { id: 3, serId: 103, date: '2026-09-02', onDate: '2026-09-01', startMin: 600, endMin: 660, subKey: 'vocab', kindKey: 'class', teacherId: 9, teacherName: 'KJ', state: 'none', written: false, students: [], minutesSinceEnd: 120, penalty: 0 },
+    { id: 1, serId: 101, date: '2026-08-02', onDate: '2026-08-01', startMin: 600, endMin: 660, mode: 'offline', subKey: 'vocab', kindKey: 'class', teacherId: 7, teacherName: 'Sophia', state: 'none', written: false, students: [{ id: 1, name: '이담흔', deliver: true, late: false }], minutesSinceEnd: 2880, penalty: 0 },
+    { id: 2, serId: 102, date: '2026-08-03', onDate: '2026-08-03', startMin: 600, endMin: 660, mode: 'offline', subKey: 'gpa', kindKey: 'class', teacherId: 7, teacherName: 'Sophia', state: 'rej', written: true, students: [{ id: 2, name: '민제인', deliver: true, late: false }], minutesSinceEnd: 1440, penalty: 0 },
+    { id: 3, serId: 103, date: '2026-09-02', onDate: '2026-09-01', startMin: 600, endMin: 660, mode: 'offline', subKey: 'vocab', kindKey: 'class', teacherId: 9, teacherName: 'KJ', state: 'none', written: false, students: [], minutesSinceEnd: 120, penalty: 0 },
   ],
 };
 

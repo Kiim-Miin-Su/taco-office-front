@@ -15,6 +15,7 @@
 import { useMyExpenses } from '@/api/queries';
 import type { Drawer as DrawerData, Expense } from '@/api/types';
 import { ExpenseCreateButton } from '@/components/accounting/ExpenseForm';
+import { ExpenseReceiptButton } from '@/components/accounting/ExpenseReceiptButton';
 import { Banner, Chip, type Tone } from '@/components/ui';
 import { won } from '@/lib/money';
 
@@ -52,6 +53,7 @@ export function MyExpenses({ summary, enabled }: { summary: DrawerData['myExpens
                   {e.requestedAmount === null ? '—' : won(e.requestedAmount)}
                   {e.state === 'approved' && e.amount !== null && e.amount !== e.requestedAmount ? ` → ${won(e.amount)}` : ''}
                 </span>
+                <ExpenseReceiptButton expense={e} />
                 <Chip size="compact" tone={STATE[e.state].tone}>{STATE[e.state].label}</Chip>
               </div>
               {e.state !== 'pending' && e.reason ? <p className="mt-1 text-[11.5px] text-fg-2">사유 — {e.reason}</p> : null}

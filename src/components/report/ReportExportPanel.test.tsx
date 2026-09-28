@@ -18,6 +18,7 @@ const fields: ReportField[] = [
 
 const detail: ReportDetail = {
   id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
+  mode: 'offline',
   subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
   written: true,
   students: [

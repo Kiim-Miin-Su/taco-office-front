@@ -66,30 +66,57 @@ export function BookTracking({
   const [issueState, setIssueState] = useState<NonNullable<BookIssueCreate['state']>>('ok');
   const [issuedOn, setIssuedOn] = useState(todayKst());
   const [initialProgress, setInitialProgress] = useState('');
+  const [reissuedFrom, setReissuedFrom] = useState<number | null>(null);
   const diag = useBookIssueDiag(adding && studentId ? Number(studentId) : null);
   const [pages, setPages] = useState<Record<number, string>>({});
   const [returnDates, setReturnDates] = useState<Record<number, string>>({});
+  const [endReasons, setEndReasons] = useState<Record<number, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   useEffect(() => {
     if (createRequest > 0) setAdding(true);
   }, [createRequest]);
+  const resetCreate = () => {
+    setAdding(false);
+    setStudentId('');
+    setLibId('');
+    setReason('');
+    setForm('');
+    setIssueState('ok');
+    setIssuedOn(todayKst());
+    setInitialProgress('');
+    setReissuedFrom(null);
+  };
+  const beginReissue = (student: number, issue: { id: number; libId: number }) => {
+    setStudentId(String(student));
+    setLibId(String(issue.libId));
+    setReissuedFrom(issue.id);
+    setReason('');
+    setForm('');
+    setIssueState('ok');
+    setIssuedOn(todayKst());
+    setInitialProgress('');
+    setAdding(true);
+  };
   const error = create.error ?? transition.error ?? progress.error ?? ret.error;
   return (
     <div className="space-y-3">
       {showCreateAction ? (
         <div className="flex justify-end">
-          <Button aria-expanded={adding} aria-controls="book-issue-create" onClick={() => setAdding((x) => !x)}>
+          <Button aria-expanded={adding} aria-controls="book-issue-create" onClick={() => adding ? resetCreate() : setAdding(true)}>
             + 배부
           </Button>
         </div>
       ) : null}
       {adding ? (
         <div id="book-issue-create">
-          <Panel title="교재 배부" sub="학생과 교재는 DB 식별자로 연결하며 중복 배부는 서버가 막습니다">
+          <Panel
+            title={reissuedFrom ? '교재 재배부' : '교재 배부'}
+            sub={reissuedFrom ? '이전 종료 배부와 계보를 연결하여 새 배부를 남깁니다' : '학생과 교재는 DB 식별자로 연결하며 중복 배부는 서버가 막습니다'}
+          >
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="issue-student">학생</Label>
-                <Select id="issue-student" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+                <Select id="issue-student" value={studentId} disabled={reissuedFrom !== null} onChange={(e) => setStudentId(e.target.value)}>
                   <option value="">선택</option>
                   {meta.data?.students.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -100,7 +127,7 @@ export function BookTracking({
               </div>
               <div>
                 <Label htmlFor="issue-book">교재</Label>
-                <Select id="issue-book" value={libId} onChange={(e) => setLibId(e.target.value)}>
+                <Select id="issue-book" value={libId} disabled={reissuedFrom !== null} onChange={(e) => setLibId(e.target.value)}>
                   <option value="">선택</option>
                   {books.data?.items.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -182,7 +209,7 @@ export function BookTracking({
               </div>
             </div>
             <div className="mt-3 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setAdding(false)}>
+              <Button variant="secondary" onClick={resetCreate}>
                 취소
               </Button>
               <Button
@@ -195,23 +222,17 @@ export function BookTracking({
                       ...(issueState === 'ok' && initialProgress !== '' ? { progressPage: Number(initialProgress) } : {}),
                       ...(reason.trim() ? { reason: reason.trim() } : {}),
                       ...(form ? { form: form as BookIssueCreate['form'] } : {}),
+                      ...(reissuedFrom ? { reissuedFrom } : {}),
                     },
                     {
                       onSuccess: () => {
-                        setAdding(false);
-                        setStudentId('');
-                        setLibId('');
-                        setReason('');
-                        setForm('');
-                        setIssueState('ok');
-                        setIssuedOn(todayKst());
-                        setInitialProgress('');
+                        resetCreate();
                       },
                     },
                   )
                 }
               >
-                {issueState === 'wait' ? '승인 요청 등록' : issueState === 'auto' ? '전달 대기 등록' : '배부 완료'}
+                {reissuedFrom ? '재배부 등록' : issueState === 'wait' ? '승인 요청 등록' : issueState === 'auto' ? '전달 대기 등록' : '배부 완료'}
               </Button>
             </div>
           </Panel>
@@ -386,24 +407,43 @@ export function BookTracking({
                                     <Chip size="compact" tone={issue.state === 'ok' ? 'success' : 'warning'}>
                                       {issue.stateLabel}
                                     </Chip>
-                                    {issue.state === 'wait' ? (
-                                      <Button
-                                        size="sm"
-                                        aria-label={`${s.name} ${bookTitle} 승인`}
-                                        disabled={transition.isPending}
-                                        onClick={() => transition.mutate({ id: issue.id, state: 'auto' })}
-                                      >
-                                        승인
-                                      </Button>
-                                    ) : issue.state === 'auto' ? (
-                                      <Button
-                                        size="sm"
-                                        aria-label={`${s.name} ${bookTitle} 전달 완료`}
-                                        disabled={transition.isPending}
-                                        onClick={() => transition.mutate({ id: issue.id, state: 'ok' })}
-                                      >
-                                        전달 완료
-                                      </Button>
+                                    {issue.state === 'wait' || issue.state === 'auto' ? (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          aria-label={`${s.name} ${bookTitle} ${issue.state === 'wait' ? '승인' : '전달 완료'}`}
+                                          disabled={transition.isPending}
+                                          onClick={() => transition.mutate({ id: issue.id, state: issue.state === 'wait' ? 'auto' : 'ok' })}
+                                        >
+                                          {issue.state === 'wait' ? '승인' : '전달 완료'}
+                                        </Button>
+                                        <Input
+                                          aria-label={`${s.name} ${bookTitle} 종료 사유`}
+                                          className="!h-8 !w-48 !px-2"
+                                          maxLength={500}
+                                          value={endReasons[issue.id] ?? ''}
+                                          onChange={(event) => setEndReasons((value) => ({ ...value, [issue.id]: event.target.value }))}
+                                          placeholder="취소·반려 사유"
+                                        />
+                                        <Button
+                                          size="sm"
+                                          variant="secondary"
+                                          aria-label={`${s.name} ${bookTitle} 반려`}
+                                          disabled={!endReasons[issue.id]?.trim() || transition.isPending}
+                                          onClick={() => transition.mutate({ id: issue.id, state: 'rejected', reason: endReasons[issue.id].trim() })}
+                                        >
+                                          반려
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="secondary"
+                                          aria-label={`${s.name} ${bookTitle} 취소`}
+                                          disabled={!endReasons[issue.id]?.trim() || transition.isPending}
+                                          onClick={() => transition.mutate({ id: issue.id, state: 'canceled', reason: endReasons[issue.id].trim() })}
+                                        >
+                                          취소
+                                        </Button>
+                                      </>
                                     ) : issue.state === 'ok' ? (
                                       <>
                                         <Input
@@ -454,6 +494,35 @@ export function BookTracking({
                             ) : (
                               <p className="text-fg-subtle">배부된 교재가 없습니다.</p>
                             )}
+                            {s.reissueCandidates?.length ? (
+                              <div className="border-t border-line pt-2">
+                                <p className="mb-2 font-bold">종료된 교재 재배부</p>
+                                <div className="space-y-2">
+                                  {s.reissueCandidates.map((issue) => {
+                                    const book = books.data?.items.find((item) => item.id === issue.libId);
+                                    const bookTitle = book?.title ?? `교재 #${issue.libId}`;
+                                    return (
+                                      <div key={issue.id} className="flex flex-wrap items-center gap-2">
+                                        <b className="min-w-56">{bookTitle}</b>
+                                        <Chip size="compact">{issue.stateLabel}</Chip>
+                                        <span className="text-fg-subtle">
+                                          {issue.endedReason ?? (issue.returnedOn ? `${issue.returnedOn} 회수` : '종료')}
+                                          {issue.endedByName ? ` · ${issue.endedByName}` : ''}
+                                        </span>
+                                        <Button
+                                          size="sm"
+                                          variant="secondary"
+                                          aria-label={`${s.name} ${bookTitle} 재배부`}
+                                          onClick={() => beginReissue(s.id, issue)}
+                                        >
+                                          재배부
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}

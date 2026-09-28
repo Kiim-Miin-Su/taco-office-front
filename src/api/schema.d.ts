@@ -2286,7 +2286,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** 교재 배부 상태 전이 — 승인 대기→전달 대기→배부 완료 (§38) */
+        /** 교재 배부 상태 전이 — 승인·전달 전이 또는 사유가 남는 취소·반려 (§38) */
         patch: operations["BooksController_issueState"];
         trace?: never;
     };
@@ -5177,6 +5177,11 @@ export interface components {
             startMin: number | null;
             /** @description 실제 SER_OCC.span 종료의 KST 분. 자정 종료는 1440, 회차 투영이 없으면 null; 쓰기 입력이 아니다. */
             endMin: number | null;
+            /**
+             * @description 회차 예외(EXC.mode)를 반영한 실제 수업 방식. 쓰기 입력이 아니다.
+             * @enum {string}
+             */
+            mode: "offline" | "online";
             subKey?: string | null;
             kindKey: string;
             teacherId?: number | null;
@@ -5282,6 +5287,11 @@ export interface components {
             startMin: number | null;
             /** @description 실제 SER_OCC.span 종료의 KST 분. 자정 종료는 1440, 회차 투영이 없으면 null; 쓰기 입력이 아니다. */
             endMin: number | null;
+            /**
+             * @description 회차 예외(EXC.mode)를 반영한 실제 수업 방식. 쓰기 입력이 아니다.
+             * @enum {string}
+             */
+            mode: "offline" | "online";
             subKey?: string | null;
             kindKey: string;
             teacherId?: number | null;
@@ -5332,6 +5342,19 @@ export interface components {
             blocked: number;
             students: components["schemas"]["ReportDeliveryStudentDto"][];
         };
+        FileRefDto: {
+            id: number;
+            /** @enum {string} */
+            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief";
+            name: string;
+            mime: string;
+            /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
+            bytes: number;
+            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
+            url: string;
+            uploaderName?: string | null;
+            uploadedAt: string;
+        };
         ReportSendHistoryDto: {
             id: number;
             /** @description null이면 최초 발송, 값이 있으면 해당 이력의 재발송 */
@@ -5344,6 +5367,8 @@ export interface components {
             channel: "blob";
             /** @description 보존된 파일 수 — 재발송이 세는 것과 같은 것이다(pdflog 의 file_url 이 있는 행 · S5) */
             fileCount: number;
+            /** @description Neon FILE에 보존된 기록지 PNG. 레거시 외부 URL은 내려보내지 않는다. */
+            downloadFiles: components["schemas"]["FileRefDto"][];
             /** @description 다시 보낼 수 있는가 — 보존 파일이 한 장이라도 있어야 한다 (D-R39) */
             canResend: boolean;
             /** @description 재발송이 막힌 이유 — 보낼 수 있으면 null */
@@ -5538,19 +5563,6 @@ export interface components {
             /** @description base64 본문 (data URL 접두사는 붙여도 되고 안 붙여도 된다) */
             base64: string;
         };
-        FileRefDto: {
-            id: number;
-            /** @enum {string} */
-            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief";
-            name: string;
-            mime: string;
-            /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
-            bytes: number;
-            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
-            url: string;
-            uploaderName?: string | null;
-            uploadedAt: string;
-        };
         MoneySummaryDto: {
             /** @description 보낸 청구서 — 초안·취소를 뺀 청구액 합 */
             sent: number | null;
@@ -5686,6 +5698,8 @@ export interface components {
             reason?: string | null;
             /** @description 영수증 없이는 승인할 수 없다 (A-4) */
             hasReceipt: boolean;
+            /** @description Neon FILE에 보존된 영수증. 레거시 외부 URL은 노출하지 않는다. */
+            receiptFile: components["schemas"]["FileRefDto"] | null;
             requesterName?: string | null;
             /** @description 본인 신청은 본인이 승인할 수 없다 (A-5) */
             requesterId: number | null;
@@ -7564,12 +7578,17 @@ export interface components {
             seFileId?: number | null;
             teFileId?: number | null;
             /** @enum {string} */
-            state: "wait" | "auto" | "ok" | "returned";
+            state: "wait" | "auto" | "ok" | "returned" | "canceled" | "rejected";
             stateLabel: string;
             /** Format: date */
             issuedOn?: string | null;
             /** Format: date */
             returnedOn?: string | null;
+            endedReason?: string | null;
+            endedBy?: number | null;
+            endedByName?: string | null;
+            endedAt?: string | null;
+            reissuedFrom?: number | null;
             progressPage?: number | null;
             progressPercent?: number | null;
             /** @description 배부 사유 (N-62) — 옛 배부는 null */
@@ -8321,6 +8340,8 @@ export interface components {
             teacherName?: string | null;
             nextLesson?: string | null;
             issues: components["schemas"]["BookIssueDto"][];
+            /** @description 재배부 계보의 끝인 회수·취소·반려 배부 */
+            reissueCandidates: components["schemas"]["BookIssueDto"][];
             /** @description 행에 보일 할 일 칩 — 분류·건수는 서버가 계산 */
             todos: components["schemas"]["NamedCountDto"][];
             todoLabel: string;
@@ -8377,6 +8398,8 @@ export interface components {
              */
             issuedOn?: string;
             progressPage?: number;
+            /** @description 회수·취소·반려된 배부에서 재배부할 때의 부모 ISSUE id */
+            reissuedFrom?: number;
             /** @description 배부 사유 — 비우면 적지 않는다 */
             reason?: string;
             /**
@@ -8387,7 +8410,9 @@ export interface components {
         };
         BookIssueTransitionDto: {
             /** @enum {string} */
-            state: "auto" | "ok";
+            state: "auto" | "ok" | "canceled" | "rejected";
+            /** @description 취소·반려 사유 — 종료 상태에서 필수 */
+            reason?: string;
         };
         BookIssueProgressDto: {
             progressPage: number;

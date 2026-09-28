@@ -34,6 +34,9 @@ const WRITE_WORDS = {
   teacher: { draft: '임시 저장', submit: '승인 요청하기', drafted: '임시 저장했습니다.', submitted: '승인을 요청했습니다. 이 시각이 정산·지각 기준으로 고정됩니다.' },
 } as const;
 
+/** 회차 예외까지 반영해 서버가 내린 실제 방식만 읽는다. */
+const reportModeLabel = (detail: ReportDetail): string => detail.mode === 'online' ? '온라인' : '대면';
+
 export function ReportForm({ fields, value, onChange, readOnly }: {
   fields: ReportField[];
   value: ReportBody;
@@ -148,8 +151,10 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
           </div>
         ) : <div className="text-[13px] font-bold text-fg">학생 없음</div>}
       </Panel>
-      <Panel title="② 수업" sub="날짜·과목·시간은 회차 레코드에서 자동으로 입력됩니다.">
-        <div className="text-[13px] font-bold text-fg">{detail.date} · {subject} · {reportTimeLabel(detail)}</div>
+      <Panel title="② 수업" sub="날짜·과목·시간·방식은 회차 레코드에서 자동으로 입력됩니다.">
+        <div className="text-[13px] font-bold text-fg">
+          {detail.date} · {subject} · {reportTimeLabel(detail)} · {reportModeLabel(detail)}
+        </div>
       </Panel>
 
       {/* N-69 — 이 브라우저에 남아 있던 쓰던 글을 불러왔을 때만. 버리면 서버 글로 돌아간다 */}

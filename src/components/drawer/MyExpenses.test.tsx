@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Expense, MyExpenseList } from '@/api/types';
+import type { Expense, FileRef, MyExpenseList } from '@/api/types';
 import { MyExpenses } from './MyExpenses';
 
 /**
@@ -18,14 +18,18 @@ import { MyExpenses } from './MyExpenses';
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); });
 
+const receipt: FileRef = {
+  id: 88, kind: 'expense-receipt', name: '문구점.png', mime: 'image/png', bytes: 4,
+  url: '/files/88', uploaderName: '김범준', uploadedAt: '2026-09-20T10:00:00+09:00',
+};
 const expense = (over: Partial<Expense>): Expense => ({
   id: 1, spendOn: '2026-09-20', category: 'supply', categoryLabel: '소모품', merchant: '문구점', purpose: '마커',
-  requestedAmount: 12000, amount: null, reason: null, hasReceipt: true, requesterName: '김범준', requesterId: 3,
+  requestedAmount: 12000, amount: null, reason: null, hasReceipt: true, receiptFile: null, requesterName: '김범준', requesterId: 3,
   filedById: 3, filedByName: '김범준', state: 'pending', reviewerName: null, reviewedAt: null, ...over,
 });
 const list: MyExpenseList = {
   items: [
-    expense({}),
+    expense({ receiptFile: receipt }),
     expense({ id: 2, state: 'approved', amount: 10000, reason: '영수증 금액대로', merchant: '서점', categoryLabel: '교재' }),
     expense({ id: 3, state: 'rejected', reason: '개인 물품입니다', merchant: '카페' }),
   ],
@@ -61,6 +65,8 @@ it('본인 신청을 상태 · 신청 금액 · 확정 금액 · 사유와 함�
   expect(rejected!.textContent).toContain('반려');
   expect(rejected!.textContent).toContain('사유 — 개인 물품입니다');
   expect(pending!.textContent).not.toContain('사유');
+  expect(within(pending!).getByRole('button', { name: '영수증 열기' })).toBeTruthy();
+  expect(within(approved!).queryByRole('button', { name: '영수증 열기' })).toBeNull();
 });
 
 it('「+ 지출 신청」은 회계 탭과 같은 창이고 본문도 같다 — 상태 · 확정 금액을 보내지 않는다', async () => {
