@@ -75,6 +75,28 @@ it('수정은 등록과 같은 입력을 쓰고 달라진 칸만 PATCH한 뒤 �
   await waitFor(() => expect(onClose).toHaveBeenCalled());
 });
 
+it('편집 중 같은 행이 재조회돼도 기준값을 바꾸지 않아 다른 사람의 최신 칸을 되돌려 보내지 않는다', async () => {
+  setup();
+  const client = clients[0]!;
+  const row: Marketing = {
+    id: 8, title: '원래 제목', name: '원래 제목', channel: 'kakao', channelLabel: '카카오채널', item: 'reply', itemLabel: '댓글·응대',
+    memo: '원래 메모', url: null, onDate: '2026-09-20', byId: 3, byName: '김범준',
+    impressions: null, clicks: null, inquiries: null, enrolled: 0, cost: null, costPerEnroll: null,
+  };
+  cleanup();
+  const onClose = vi.fn();
+  const ui = (current: Marketing) => <QueryClientProvider client={client}>
+    <MarketingEditDialog row={current} channels={channels} items={items} onClose={onClose} />
+  </QueryClientProvider>;
+  const view = render(ui(row));
+  fireEvent.change(view.getByLabelText('무엇을'), { target: { value: '내가 고친 제목' } });
+  view.rerender(ui({ ...row, memo: '다른 사람이 고친 메모' }));
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(posted[0]).toEqual({
+    url: '/ops/marketing/8', body: { title: '내가 고친 제목' },
+  }));
+});
+
 it('무엇을·어디에·항목이 있어야 「적기」가 서고, 비운 날짜·담당은 보내지 않는다 — 기본값은 서버가 정한다', async () => {
   const { view, onDone } = setup();
   fireEvent.click(view.getByRole('button', { name: '+ 오늘 한 것' }));

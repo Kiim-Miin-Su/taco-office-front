@@ -19259,7 +19259,7 @@ export interface operations {
                     "application/json": components["schemas"]["MarketingDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description BAD_REQUEST — 형식·허용 밖 필드 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19291,14 +19291,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description code EMPTY_PATCH | MKT_TITLE_REQUIRED | MKT_WORD_UNKNOWN */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
@@ -19705,7 +19709,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlanDetailDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description BAD_REQUEST — 안전한 양의 담당 ID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19728,14 +19732,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description PLAN_NOT_FOUND | STAFF_NOT_FOUND */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             409: {
@@ -19780,7 +19788,7 @@ export interface operations {
                     "application/json": components["schemas"]["SuggestionDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description BAD_REQUEST — 답변 형식·길이·허용 밖 필드 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19812,14 +19820,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description code SUGGESTION_REPLY_REQUIRED */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

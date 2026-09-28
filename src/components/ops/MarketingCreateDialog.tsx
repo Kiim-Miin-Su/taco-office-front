@@ -9,7 +9,7 @@
  * 등록과 수정은 같은 입력 컴포넌트를 사용하며, 수정은 달라진 칸만 PATCH한다.
  */
 'use client';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Banner, Button, Dialog, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
 import { useCreateMarketing, useMeta, usePatchMarketing } from '@/api/queries';
@@ -129,7 +129,10 @@ export function MarketingEditDialog({ row, channels, items, onClose, onDone }: {
 }) {
   const [err, setErr] = useState<string | null>(null);
   const write = usePatchMarketing();
-  const original = useMemo(() => draftOf(row), [row]);
+  // 같은 편집 세션에서 목록이 재조회돼도 비교 기준을 바꾸지 않는다. 기준만 새 행으로 바뀌면
+  // 사용자가 건드리지 않은 옛 초안이 다른 사람의 최신 수정을 되돌려 보내게 된다.
+  const [original, setOriginal] = useState<Draft>(() => draftOf(row));
+  useEffect(() => { setOriginal(draftOf(row)); }, [row?.id]);
   useEffect(() => { setErr(null); }, [row?.id]);
   return <MarketingEditorDialog open={row !== null} onClose={onClose} title="마케팅 활동 수정" submitLabel="저장"
     channels={channels} items={items} initial={row} pending={write.isPending} error={err}

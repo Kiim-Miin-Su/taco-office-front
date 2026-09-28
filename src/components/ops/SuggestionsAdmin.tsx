@@ -46,7 +46,11 @@ export function SuggestionsAdmin({ open, rows, onClose }: {
                       onClick={() => { setEditing(null); setReply(''); }}>취소</Button>
                     <Button size="sm" variant="primary" disabled={write.isPending || !reply.trim()}
                       onClick={() => write.mutate({ id: row.id, reply: reply.trim() }, {
-                        onSuccess: () => { setEditing(null); setReply(''); },
+                        onSuccess: () => setEditing((current) => {
+                          if (current !== row.id) return current;
+                          setReply('');
+                          return null;
+                        }),
                       })}>
                       {write.isPending ? '답변 중…' : row.reply ? '답변 수정' : '답변 보내기'}
                     </Button>
@@ -58,11 +62,11 @@ export function SuggestionsAdmin({ open, rows, onClose }: {
                   <p className="mt-1 text-[11px] text-fg-subtle">
                     {[row.replyBy, row.replyOn].filter(Boolean).join(' · ')}
                   </p>
-                  <Button className="mt-2" size="sm" variant="secondary" onClick={() => start(row)}>답변 수정</Button>
+                  <Button className="mt-2" size="sm" variant="secondary" disabled={write.isPending} onClick={() => start(row)}>답변 수정</Button>
                 </div>
               ) : (
                 <div className="mt-3 flex justify-end">
-                  <Button size="sm" variant="primary" onClick={() => start(row)}>답변하기</Button>
+                  <Button size="sm" variant="primary" disabled={write.isPending} onClick={() => start(row)}>답변하기</Button>
                 </div>
               )}
             </li>

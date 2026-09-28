@@ -3,7 +3,7 @@
  * 책임/재사용: 실제 SuggestionsAdmin을 쓰고 mutation hook만 어댑터로 바꾼다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
@@ -43,4 +43,20 @@ it('기존 답변을 누르면 원문에서 시작해 같은 PATCH 경로로 수
   await waitFor(() => expect(mutate).toHaveBeenCalledWith(
     { id: 2, reply: '새 교재 두 권을 배정했습니다' }, expect.anything(),
   ));
+});
+
+it('먼저 보낸 답변의 늦은 성공 콜백이 그 사이 연 다른 건의 초안을 지우지 않는다', () => {
+  let finish: (() => void) | undefined;
+  mutate.mockImplementationOnce((_body, options) => { finish = options.onSuccess; });
+  const view = render(<SuggestionsAdmin open rows={rows} onClose={() => {}} />);
+  const first = view.getByText('목요일 시간을 옮기고 싶습니다').closest('li')!;
+  fireEvent.click(within(first).getByRole('button', { name: '답변하기' }));
+  fireEvent.change(within(first).getByLabelText('강사 A 건의 답변'), { target: { value: '확인 중입니다' } });
+  fireEvent.click(within(first).getByRole('button', { name: '답변 보내기' }));
+
+  const second = view.getByText('교재를 확인해 주세요').closest('li')!;
+  fireEvent.click(within(second).getByRole('button', { name: '답변 수정' }));
+  expect((within(second).getByLabelText('강사 B 건의 답변') as HTMLTextAreaElement).value).toBe('새 교재로 배정했습니다');
+  act(() => finish?.());
+  expect((within(second).getByLabelText('강사 B 건의 답변') as HTMLTextAreaElement).value).toBe('새 교재로 배정했습니다');
 });
