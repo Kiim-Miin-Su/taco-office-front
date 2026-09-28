@@ -38,9 +38,15 @@
  * ② 반려된 기한은 사라지지 않고 「기한 반려 날짜 · 누가」로 남고, 담당이 새 기한을 내면 비워진다(N-95).
  * ③ 공개 범위(전체 공개 · 지정 공개)와 지정된 사람을 머리에 적고, 바꿀 수 있는 사람(`canEditShare`)에게만 고르는 칸이 선다(N-72).
  *    낱말은 운영 화면이 준 서버 낱말(`planShares`)이다 — 화면이 이름표를 들지 않는다 (D-R18).
+ *
+ * **CR-FE-01 (2026-09-28) — 동시 편집.** 「바뀐 칸만 보낸다」의 비교 기준이 **최신 서버 글(`d`)** 이었다.
+ * 내가 리서치만 Y 로 고치는 사이 남이 목표를 A→B 로 저장하면 재조회 뒤 `d.goal` 은 B 인데 내 초안의 goal 은
+ * 아직 A 라, 비교가 goal 까지 「바뀐 칸」으로 세어 `{goal:A, research:Y}` 를 보내 **남의 B 를 조용히 덮었다.**
+ * 이제 기준은 **편집을 시작한 시점(또는 마지막 저장 응답)의 글 = frozen baseline** 이고, 재조회는 내가 손대지
+ * 않은 칸만 서버로 따라가게 합친다(dirty 칸은 지킨다). 저장 성공은 **서버 응답**으로 기준과 초안을 함께 갱신한다.
  */
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Banner, Button, Checkbox, Chip, Input, Label, Segmented, Select, Textarea } from '../ui';
 import { WideDialog } from '../ui/WideDialog';
 import { TodoCreateDialog, type TodoPerson } from '../drawer/TodoCreateDialog';
@@ -54,16 +60,32 @@ import type { PlanDetail, PlanPatch, PlanShareWord, PlanTask } from '@/api/types
 
 /** 화면이 들고 있는 초안 — 서버가 준 글에서 시작하고, 달라진 칸만 보낸다 */
 type Draft = { goal: string; research: string; ask: string };
+const DRAFT_FIELDS = ['goal', 'research', 'ask'] as const;
 const draftOf = (d: PlanDetail | undefined): Draft => ({
   goal: d?.goal ?? '', research: d?.research ?? '', ask: d?.ask ?? '',
 });
-/** 보낸 칸만 고친다 — 안 고친 칸까지 되돌려 보내면 §65 를 나눠 쓰는 자리에서 남의 줄을 덮는다 */
-function changed(draft: Draft, d: PlanDetail): PlanPatch {
+/**
+ * 초안과 **비교 기준(frozen baseline)** 을 한 상태로 든다 — 둘이 따로 움직이면 한 렌더 안에서 어긋난다.
+ * 기준은 편집을 시작한 시점의 서버 글이거나 마지막 저장 응답이고, `d`(최신 재조회)가 아니다 (CR-FE-01).
+ */
+type Edit = { base: Draft; draft: Draft };
+const editOf = (d: PlanDetail | undefined): Edit => { const b = draftOf(d); return { base: b, draft: b }; };
+/** 기준과 다른 칸만 보낸다 — 안 고친 칸까지 되돌려 보내면 §65 를 나눠 쓰는 자리에서 남의 줄을 덮는다 */
+function changed(draft: Draft, base: Draft): PlanPatch {
   const body: PlanPatch = {};
-  if (draft.goal !== (d.goal ?? '')) body.goal = draft.goal.trim() || null;
-  if (draft.research !== (d.research ?? '')) body.research = draft.research.trim() || null;
-  if (draft.ask !== (d.ask ?? '')) body.ask = draft.ask.trim() || null;
+  if (draft.goal !== base.goal) body.goal = draft.goal.trim() || null;
+  if (draft.research !== base.research) body.research = draft.research.trim() || null;
+  if (draft.ask !== base.ask) body.ask = draft.ask.trim() || null;
   return body;
+}
+/**
+ * 서버가 새 글을 내려보냈을 때(재조회 · 저장 응답) 초안을 합친다 — **내가 손댄 칸**(기준과 다른 칸)은 지키고,
+ * 손대지 않은 칸은 서버를 따른다. 그래서 남이 고친 goal=B 가 화면에 서고, 내 research=Y 는 지워지지 않는다.
+ */
+function mergeDraft(prev: Draft, base: Draft, server: Draft): Draft {
+  const next = { ...prev };
+  for (const f of DRAFT_FIELDS) if (prev[f] === base[f]) next[f] = server[f];
+  return next;
 }
 
 /** 기한 상태 칩 색 — 승인 초록 · 제안 주황 · 반려 빨강(원문 §61 「기한 반려」 칩 · N-95) */
@@ -211,16 +233,27 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
   const [ownerId, setOwnerId] = useState('');
 
   /* 서버가 준 글에서 시작한다 — 다른 기획을 열거나 단계가 바뀌면 초안을 버린다
-     (지난 기획의 초안이 남아 있으면 남의 글을 저장하게 된다) */
-  const [draft, setDraft] = useState<Draft>(() => draftOf(d));
-  /* 일부러 `d` 전체가 아니라 **어느 기획의 어느 단계인가**만 본다 — 저장 뒤 다시 읽어올 때마다
-     초안을 되돌리면 적고 있던 글이 사라진다 */
-  useEffect(() => { setDraft(draftOf(d)); }, [d?.id, d?.stage]);
+     (지난 기획의 초안이 남아 있으면 남의 글을 저장하게 된다).
+     같은 기획 · 같은 단계의 재조회는 초안을 되돌리지 않고 **손대지 않은 칸만** 서버로 따라간다 (CR-FE-01) —
+     저장 뒤 다시 읽어올 때마다 초안을 되돌리면 적고 있던 글이 사라지고, 반대로 `d` 를 비교 기준으로 삼으면
+     남이 그 사이 고친 칸을 내 옛 초안으로 덮는다. */
+  const [edit, setEdit] = useState<Edit>(() => editOf(d));
+  const identRef = useRef<string | null>(d ? `${d.id}:${d.stage}` : null);
+  useEffect(() => {
+    if (!d) return;
+    const server = draftOf(d);
+    const ident = `${d.id}:${d.stage}`;
+    if (identRef.current !== ident) { identRef.current = ident; setEdit({ base: server, draft: server }); return; }
+    setEdit((p) => ({ base: server, draft: mergeDraft(p.draft, p.base, server) }));
+  }, [d?.id, d?.stage, d?.goal, d?.research, d?.ask]);
+  const setDraft = (f: (typeof DRAFT_FIELDS)[number], v: string) =>
+    setEdit((p) => ({ ...p, draft: { ...p.draft, [f]: v } }));
   // 다른 기획을 열면 공개 범위 고르기를 닫는다 — 지난 기획의 고르기가 남아 있으면 남의 기획에 저장한다
   useEffect(() => { setShareOpen(false); }, [d?.id]);
   useEffect(() => { setOwnerId(d?.ownerId == null ? '' : String(d.ownerId)); }, [d?.id, d?.ownerId]);
 
-  const body = d ? changed(draft, d) : {};
+  const { draft } = edit;
+  const body = changed(draft, edit.base);
   const dirty = Object.keys(body).length > 0;
   const busy = patch.isPending || move.isPending;
   const writeError = patch.isError ? patch.error : move.isError ? move.error : null;
@@ -231,11 +264,35 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
     todoWrite.mutate({ kind: 'todo', id, done }, { onError: (e) => setTodoError(apiMessage(e)) });
   };
 
+  /**
+   * 본문 저장 — 기준과 다른 칸만 보내고, 성공하면 **서버 응답**이 새 기준이 된다 (CR-FE-01).
+   * 보낸 칸은 보낸 그 값을 기준으로 합친다 — 보내는 사이 더 적은 글은 새 기준과의 차이로 남는다.
+   * 실패하면 아무것도 건드리지 않는다 — 초안과 「저장」 단추가 그대로 남아 다시 보낼 수 있다.
+   */
+  const save = (after?: () => void) => {
+    if (!d) return;
+    const snapshot = edit.draft;
+    const sent = changed(snapshot, edit.base);
+    patch.mutate({ id: d.id, ...sent }, {
+      onSuccess: (resp) => {
+        if (resp) {
+          const server = draftOf(resp);
+          setEdit((p) => {
+            const base = { ...p.base };
+            for (const f of DRAFT_FIELDS) if (f in sent) base[f] = snapshot[f];
+            return { base: server, draft: mergeDraft(p.draft, base, server) };
+          });
+        }
+        after?.();
+      },
+    });
+  };
+
   /** 올리기 전에 적은 것을 먼저 저장한다 — 안 그러면 대표가 옛 글을 본다 (C85-a 대표 보고와 같은 순서) */
   const send = (to: string) => {
     if (!d) return;
     const go = () => move.mutate({ id: d.id, to });
-    if (d.canEdit && dirty) patch.mutate({ id: d.id, ...body }, { onSuccess: go });
+    if (d.canEdit && dirty) save(go);
     else go();
   };
 
@@ -251,7 +308,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
         <span className="mr-auto flex flex-wrap items-center gap-2">
           {d.canEdit ? (
             <Button size="sm" variant="secondary" disabled={!dirty || busy}
-              onClick={() => patch.mutate({ id: d.id, ...body })}>
+              onClick={() => save()}>
               {dirty ? '저장' : '저장됨'}
             </Button>
           ) : null}
@@ -442,7 +499,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
 
           <Section no={1} name="목표">
             <PlanField label="목표" value={draft.goal} can={d.canEdit} rows={3}
-              onChange={(v) => setDraft((p) => ({ ...p, goal: v }))} />
+              onChange={(v) => setDraft('goal', v)} />
           </Section>
 
           <Section no={2} name="과제" action={d.canAddTask ? (
@@ -461,13 +518,13 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
 
           <Section no={3} name="리서치">
             <PlanField label="리서치" value={draft.research} can={d.canEdit} rows={4}
-              onChange={(v) => setDraft((p) => ({ ...p, research: v }))} />
+              onChange={(v) => setDraft('research', v)} />
           </Section>
 
           <Section no={4} name="결정 요청">
             {d.canEdit ? (
               <PlanField label="결정 요청" value={draft.ask} can rows={3}
-                onChange={(v) => setDraft((p) => ({ ...p, ask: v }))} />
+                onChange={(v) => setDraft('ask', v)} />
             ) : (
               <blockquote className="border-l-2 border-amber bg-amber/5 px-3 py-2 text-[12.5px] leading-relaxed text-fg">
                 {d.ask ?? '—'}

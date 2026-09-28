@@ -3,7 +3,7 @@
  * 책임/재사용: 실제 PlanReport 를 쓰고 질의·쓰기 훅만 어댑터로 갈아 끼운다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { PlanDetail } from '@/api/types';
 
@@ -167,7 +167,7 @@ it('작성 중이면 목표·리서치·결정 요청을 적고, **바뀐 칸만
 
   fireEvent.change(v.getByLabelText('리서치'), { target: { value: '8월 유입 32건 중 블로그 14' } });
   fireEvent.click(v.getByRole('button', { name: '저장' }));
-  await waitFor(() => expect(patch).toHaveBeenCalledWith({ id: 3, research: '8월 유입 32건 중 블로그 14' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledWith({ id: 3, research: '8월 유입 32건 중 블로그 14' }, expect.anything()));
   // 목표·결정 요청은 손대지 않았으므로 본문에 없다 — 남의 줄을 덮지 않는다
   expect(Object.keys(patch.mock.calls[0]![0] as object)).toEqual(['id', 'research']);
 });
@@ -179,8 +179,74 @@ it('「검토 요청 보내기」는 적은 것을 먼저 저장한 뒤에 올�
 
   await waitFor(() => expect(patch).toHaveBeenCalledWith({ id: 3, research: '근거' }, expect.anything()));
   expect(move).not.toHaveBeenCalled(); // 저장이 끝나기 전에는 안 올린다
-  (patch.mock.calls[0]![1] as { onSuccess: () => void }).onSuccess();
+  // 저장 응답은 보고서 전체다 — 그 뒤에 올린다
+  act(() => (patch.mock.calls[0]![1] as { onSuccess: (d: PlanDetail) => void }).onSuccess({ ...drafting, research: '근거' }));
   expect(move).toHaveBeenCalledWith({ id: 3, to: 'review' });
+});
+
+/* ── CR-FE-01 · 동시 편집 — 내가 고친 칸만 보내고, 그 사이 남이 고친 칸을 덮지 않는다 ───────────── */
+
+const rerender = (v: ReturnType<typeof render>, d: PlanDetail) => {
+  state.data = d;
+  v.rerender(<PlanReport planId={3} staff={STAFF} onClose={() => {}} />);
+};
+
+it('CR-FE-01: research 만 고치는 사이 서버 goal 이 A→B 로 바뀌면 — 저장 본문은 {research} 하나뿐이고 goal 은 B 를 따른다', async () => {
+  const v = setup({ ...drafting, goal: 'A', research: 'X' });
+  fireEvent.change(v.getByLabelText('리서치'), { target: { value: 'Y' } });
+
+  // 다른 사용자의 저장이 반영된 재조회 — 같은 기획 · 같은 단계, goal 만 B
+  rerender(v, { ...drafting, goal: 'B', research: 'X' });
+  // 손대지 않은 goal 은 서버의 새 값을 따르고, 내 초안(research=Y)은 지워지지 않는다
+  expect((v.getByLabelText('목표') as HTMLTextAreaElement).value).toBe('B');
+  expect((v.getByLabelText('리서치') as HTMLTextAreaElement).value).toBe('Y');
+
+  fireEvent.click(v.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+  // 옛 draft 의 goal=A 를 실어 B 를 덮지 않는다 — 실제 고친 칸만 간다
+  expect(patch.mock.calls[0]![0]).toEqual({ id: 3, research: 'Y' });
+  expect(Object.keys(patch.mock.calls[0]![0] as object)).toEqual(['id', 'research']);
+});
+
+it('CR-FE-01: 「검토 요청 보내기」의 선행 저장도 같은 기준이다 — 재조회 뒤에도 남이 고친 goal 을 실어 보내지 않는다', async () => {
+  const v = setup({ ...drafting, goal: 'A', research: 'X' });
+  fireEvent.change(v.getByLabelText('리서치'), { target: { value: 'Y' } });
+  rerender(v, { ...drafting, goal: 'B', research: 'X' });
+  fireEvent.click(v.getByRole('button', { name: '검토 요청 보내기' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+  expect(patch.mock.calls[0]![0]).toEqual({ id: 3, research: 'Y' });
+});
+
+it('CR-FE-01: 저장이 실패하면 초안이 남고, 성공하면 서버 응답이 새 기준이 된다 — 그 뒤 재조회(reload)가 초안을 지우지 않는다', async () => {
+  const v = setup({ ...drafting, goal: 'A', research: 'X' });
+  fireEvent.change(v.getByLabelText('리서치'), { target: { value: 'Y' } });
+  fireEvent.click(v.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+
+  // 실패 — 성공 콜백이 오지 않았고 서버는 옛 글(X)을 다시 내려보낸다 → 내 초안 Y 와 「저장」 단추는 그대로다
+  rerender(v, { ...drafting, goal: 'A', research: 'X' });
+  expect((v.getByLabelText('리서치') as HTMLTextAreaElement).value).toBe('Y');
+  expect((v.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false);
+
+  // 성공 — 응답의 글이 기준이 된다: 더 보낼 것이 없다
+  act(() => (patch.mock.calls[0]![1] as { onSuccess: (d: PlanDetail) => void }).onSuccess({ ...drafting, goal: 'A', research: 'Y' }));
+  expect((v.getByRole('button', { name: '저장됨' }) as HTMLButtonElement).disabled).toBe(true);
+
+  // 재조회 · 새 context — 저장된 글이 그대로 선다
+  rerender(v, { ...drafting, goal: 'A', research: 'Y' });
+  expect((v.getByLabelText('리서치') as HTMLTextAreaElement).value).toBe('Y');
+  expect(v.getByRole('button', { name: '저장됨' })).toBeTruthy();
+  cleanup();
+  const fresh = setup({ ...drafting, goal: 'A', research: 'Y' });
+  expect((fresh.getByLabelText('리서치') as HTMLTextAreaElement).value).toBe('Y');
+});
+
+it('CR-FE-01: 다른 기획을 열거나 단계가 바뀌면 초안을 버린다 — 지난 기획의 초안이 남의 글을 덮지 않는다', () => {
+  const v = setup({ ...drafting, goal: 'A', research: 'X' });
+  fireEvent.change(v.getByLabelText('리서치'), { target: { value: 'Y' } });
+  rerender(v, { ...drafting, id: 4, title: '다른 기획', goal: 'C', research: 'Z' });
+  expect((v.getByLabelText('리서치') as HTMLTextAreaElement).value).toBe('Z');
+  expect((v.getByRole('button', { name: '저장됨' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('고친 것이 없으면 바로 올린다 — 빈 저장을 먼저 보내지 않는다', async () => {
