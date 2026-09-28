@@ -16,7 +16,7 @@ const base: Invoice = {
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
   sentAt: null, canDeliver: true, canVoid: true, voidBlockedReason: null, voidReason: null, lines: [],
-  installments: [], nextDueOn: null, nextInstallmentSeq: null,
+  installments: [], nextDueOn: null, nextInstallmentSeq: null, notice: null,
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -31,7 +31,10 @@ function setup(inv: Invoice, status = 201, data: unknown = inv) {
       if (status >= 400) return Promise.reject(Object.assign(new Error('fail'), { response: { status, data } }));
       return { config, status, statusText: 'OK', headers: {}, data };
     }
-    return { config, status: 200, statusText: 'OK', headers: {}, data: {} };
+    // 보호자 발송 창이 여는 두 조회 — 보호자 없음 · 채널 없음(창의 모양만 본다)
+    const url = config.url ?? '';
+    const got = url.includes('/guardians/channels') ? { channels: [] } : url.includes('/guardians') ? { guardians: [] } : {};
+    return { config, status: 200, statusText: 'OK', headers: {}, data: got };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
   clients.push(client);
@@ -84,4 +87,23 @@ it('단추가 둘 다 없으면(대표 아님 · 이미 보냄) 아무것도 그
   cleanup();
   const voided = setup({ ...base, state: 'void', stateLabel: '취소', canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: '단가를 잘못 넣었다' });
   expect(voided.getByText('취소 · 단가를 잘못 넣었다')).toBeTruthy();
+});
+
+it('전달된 청구서는 「학부모 안내」 단추가 서고, 누르면 보호자 발송 창이 그 학생 · 안내(pnotiId) · 서버 본문으로 열린다 (H-76 「학부모 안내가 생성된다」)', async () => {
+  const sent: Invoice = {
+    ...base, state: 'sent', stateLabel: '전달', canDeliver: false, canVoid: true, sentAt: '2026-09-29T00:00:00.000Z',
+    notice: { id: 910, body: '양찬욱 학생 2026년 8월 수업료 청구 — 청구 금액 250,000원 · 납부 기한 2026-09-13', sentAt: null },
+  };
+  const v = setup(sent);
+  expect(v.queryByRole('button', { name: '전달' })).toBeNull();
+  fireEvent.click(v.getByRole('button', { name: '학부모 안내' }));
+  const dialog = await v.findByRole('dialog', { name: /학부모 안내 — 양찬욱/ });
+  expect((await within(dialog).findByLabelText('보낼 내용') as HTMLTextAreaElement).value).toContain('청구 금액 250,000원');
+});
+
+it('안내를 이미 보낸 청구서는 단추 대신 보낸 시각을 적는다 — 보낸 것을 다시 만들지 않는다', () => {
+  const v = setup({ ...base, state: 'sent', stateLabel: '전달', canDeliver: false, canVoid: false, voidBlockedReason: '입금이 붙은 청구서는 취소할 수 없습니다',
+    notice: { id: 910, body: '본문', sentAt: '2026-09-29T03:10:00.000Z' } });
+  expect(v.queryByRole('button', { name: '학부모 안내' })).toBeNull();
+  expect(v.getByText(/안내 보냄/)).toBeTruthy();
 });

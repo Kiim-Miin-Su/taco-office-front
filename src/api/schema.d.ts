@@ -5659,6 +5659,14 @@ export interface components {
             /** @description 누적 입금이 이 회차까지 채웠는가 — 서버가 판정한다 (화면이 더하지 않는다) */
             covered: boolean;
         };
+        InvoiceNoticeDto: {
+            /** @description PNOTI id — 보호자 발송 창에 pnotiId 로 넘긴다 */
+            id: number;
+            /** @description 서버가 만든 안내 본문(학생 · 청구 · 금액 · 납부 기한) */
+            body: string;
+            /** @description 보호자에게 실제로 보낸 시각(ISO) — 안 보냈으면 null */
+            sentAt: string | null;
+        };
         InvoiceDto: {
             id: number;
             studentId: number;
@@ -5704,6 +5712,8 @@ export interface components {
             voidBlockedReason: string | null;
             /** @description 취소 사유 — 취소된 청구서에만 (N-139 「이력에 남는다」) */
             voidReason?: string | null;
+            /** @description 「전달」이 만든 학부모 안내 — 전달 전이면 null (H-76) */
+            notice: components["schemas"]["InvoiceNoticeDto"] | null;
         };
         PaymentDto: {
             id: number;

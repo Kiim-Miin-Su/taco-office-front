@@ -194,6 +194,32 @@ it.each([
   expect(head.queryByRole('button', { name: '지급 확정' }) === null).toBe(confirmed);
 });
 
+/** 테스트 시나리오 H-75 「회계 → 수강·월 청구 → 상단 청구서 발행」 — 그 달의 일괄 발행 창으로 곧장 간다 */
+it('수강·월 청구 탭의 「이 달 청구서 일괄 발행 →」은 청구서 탭의 일괄 발행 창을 **그 달**로 연다 (H-75)', async () => {
+  useSession.getState().signIn('fixture', me);
+  nav.search = 'tab=tuition&month=2026-08';
+  const accounting: Accounting = {
+    summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
+    invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], payCategories: [], expenseCategories: [],
+  };
+  api.defaults.adapter = (async (config: { url?: string }) => {
+    const data = config.url?.includes('/tuition') ? tuitionOf('2026-08')
+      : config.url?.includes('/board') ? { columns: [], candidates: [], canSeeAmounts: true }
+      : config.url === '/meta' ? { invTypes: [] }
+      : accounting;
+    return { config, status: 200, statusText: 'OK', headers: {}, data };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByText('8월 수업 진행')).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '이 달 청구서 일괄 발행 →' }));
+  // 청구서 탭으로 옮겨 일괄 발행 창이 열리고, 달은 보고 있던 달(8월)이다 — 기한은 사람이 정한다(비어 있다)
+  await waitFor(() => expect(view.getByRole('button', { name: '8월 청구서 일괄 발행' })).toBeTruthy());
+  expect((view.getByLabelText('달') as HTMLInputElement).value).toBe('2026-08');
+  expect((view.getByLabelText('납부 기한') as HTMLInputElement).value).toBe('');
+});
+
 /** 단가표 (C94-d) — 그 탭을 열 때만 부르고, 「지금」은 서버의 current 다 */
 it('단가표는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다른 탭으로 가는 사람이 값을 치르지 않는다 (C94-d)', async () => {
   useSession.getState().signIn('fixture', me);

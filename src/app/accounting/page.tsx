@@ -102,6 +102,8 @@ export default function AccountingPage() {
   const [issuerOpen, setIssuerOpen] = useState(false);
   // §53 ① 「청구서 작성 →」이 발행 칸을 그 대상으로 채운다 · ③ 「입금 완료 →」이 입금 기록을 그 청구서로 연다 (N-28 ②)
   const [issuerPreset, setIssuerPreset] = useState<InvoiceIssuerPreset | null>(null);
+  /* §54 「이 달 청구서 일괄 발행 →」(H-75) — 수강·월 청구에서 그 달의 일괄 발행 창으로 */
+  const [batchPreset, setBatchPreset] = useState<{ seq: number; month: string } | null>(null);
   const [payTarget, setPayTarget] = useState<{ seq: number; invId: number } | null>(null);
   // 그 탭을 떠나면 건너온 표시를 버린다 — 나중에 탭을 다시 열 때 옛 대상이 다시 채워지지 않게
   useEffect(() => { if (tab !== 'inv') setIssuerPreset(null); }, [tab]);
@@ -280,6 +282,7 @@ export default function AccountingPage() {
               open={issuerOpen}
               onOpenChange={setIssuerOpen}
               preset={issuerPreset}
+              batchPreset={batchPreset}
               heading={(
                 <h2 className="flex items-baseline gap-2 text-[15px] font-bold text-fg">
                   청구서 <span className="text-[11.5px] font-normal text-fg-subtle">왼쪽에서 오른쪽으로 밀어 갑니다</span>
@@ -317,15 +320,33 @@ export default function AccountingPage() {
           />
         ) : tab === 'tuition' ? (
           /* 월 마감 · 해제 단추는 「정리 · 기준 › 월 마감」에 선다 — 여기에는 마감 배지만 남는다(원문 §54 컷에 단추가 없다) */
-          <TuitionTable
-            data={tuition.data}
-            loading={tuition.isLoading}
-            carryingId={carry.isPending ? carry.variables?.studentId ?? null : null}
-            onCarry={(studentId) => {
-              const month = tuition.data?.month;
-              if (month) carry.mutate({ studentId, month });
-            }}
-          />
+          <>
+            {/* 테스트 시나리오 H-75 「회계 → 수강·월 청구 → 상단 청구서 발행」 — §54 의 계산이 곧 청구서다(「청구서 생성 시 이 계산 결과를 씁니다」).
+                여기서 내지 않고 청구서 탭의 일괄 발행 창(같은 함수)을 그 달로 연다 — 발행 자리는 하나다 */}
+            {tuition.data ? (
+              <div className="mb-2 flex justify-end">
+                <Button size="sm" variant="secondary"
+                  title="청구서 탭의 일괄 발행 창을 이 달로 엽니다 — 이월 · 단가 구간 · 휴강은 같은 계산입니다"
+                  onClick={() => {
+                    const month = tuition.data?.month;
+                    if (!month) return;
+                    setBatchPreset((p) => ({ seq: (p?.seq ?? 0) + 1, month }));
+                    setTab('inv');
+                  }}>
+                  이 달 청구서 일괄 발행 →
+                </Button>
+              </div>
+            ) : null}
+            <TuitionTable
+              data={tuition.data}
+              loading={tuition.isLoading}
+              carryingId={carry.isPending ? carry.variables?.studentId ?? null : null}
+              onCarry={(studentId) => {
+                const month = tuition.data?.month;
+                if (month) carry.mutate({ studentId, month });
+              }}
+            />
+          </>
         ) : tab === 'record' ? (
           <>
             {/*

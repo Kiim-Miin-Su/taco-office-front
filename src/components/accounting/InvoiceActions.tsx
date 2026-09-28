@@ -5,34 +5,46 @@
  */
 
 /**
- * §53 청구서 줄의 「전달」·「취소」 (C94-a · 테스트 시나리오 H-76 · N-139).
+ * §53 청구서 줄의 「전달」·「학부모 안내」·「취소」 (C94-a · 테스트 시나리오 H-76 · N-139).
  *
- * 단추가 서는지는 **서버가 준 `canDeliver`·`canVoid`** 다 (D-R39) — 화면이 상태 낱말이나 역할을 다시 비교하지 않는다.
+ * 단추가 서는지는 **서버가 준 `canDeliver`·`canVoid`·`notice`** 다 (D-R39) — 화면이 상태 낱말이나 역할을 다시 비교하지 않는다.
+ * 「전달」이 만든 학부모 안내(`invoice.notice` · PNOTI 보낼 것)는 §43 회차 안내와 **같은 창**(`GuardianSendDialog` · pnotiId)으로
+ * 보호자에게 보낸다 — 보낸 뒤에는 서버가 찍은 시각만 적고 단추를 다시 세우지 않는다(H-76 「학부모 안내가 생성된다」 · DQ3).
  * 취소는 사유가 필수이고 지우는 것이 아니라 void 로 접는다 — 창이 그 사실을 말한다.
  * 모달은 공용 `Dialog`, 입력은 `Textarea` 그대로다.
  */
 'use client';
 import { useEffect, useId, useState } from 'react';
 import { Banner, Button, Dialog, Label, Textarea } from '@/components/ui';
+import { GuardianSendDialog } from '@/components/guardians/GuardianSendDialog';
 import { apiMessage } from '@/api/client';
 import { useInvoiceAction } from '@/api/queries';
+import { kstDateTime } from '@/lib/calendar';
 import type { Invoice } from '@/api/types';
 
 export function InvoiceActions({ invoice }: { invoice: Invoice }) {
   const id = useId();
   const act = useInvoiceAction();
-  const [dialog, setDialog] = useState<'void' | null>(null);
+  const [dialog, setDialog] = useState<'void' | 'notice' | null>(null);
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { if (dialog === 'void') { setReason(''); setErr(null); } }, [dialog]);
   /* 취소가 막혀 있어도 **왜 막혔는지**는 말한다 (S5) — 단추를 통째로 숨기면 「이 줄만 왜 다르지」가 된다.
      서버가 준 문장 그대로다(마감 · 입금 붙음). 권한 자체가 없으면 이유도 없고 자리도 없다. */
   const voidBlocked = invoice.voidBlockedReason ?? null;
-  if (!invoice.canDeliver && !invoice.canVoid && !voidBlocked) {
+  const notice = invoice.notice;
+  if (!invoice.canDeliver && !invoice.canVoid && !voidBlocked && !notice) {
     return invoice.voidReason ? <span className="text-[11px] text-fg-subtle" title={invoice.voidReason}>취소 · {invoice.voidReason}</span> : null;
   }
   return (
-    <span className="flex justify-end gap-1">
+    <span className="flex flex-wrap items-center justify-end gap-1">
+      {notice && notice.sentAt === null ? (
+        <Button size="sm" variant="ghost" disabled={act.isPending} title="전달하며 만든 학부모 안내를 보호자에게 보냅니다" onClick={() => setDialog('notice')}>
+          학부모 안내
+        </Button>
+      ) : notice ? (
+        <span className="text-[11px] text-fg-subtle" title={notice.body}>안내 보냄 {kstDateTime(notice.sentAt) ?? ''}</span>
+      ) : null}
       {invoice.canDeliver ? (
         <Button size="sm" variant="ghost" disabled={act.isPending}
           title="학부모께 보냈다고 표시합니다"
@@ -46,6 +58,10 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
         <Button size="sm" variant="ghost" disabled title={voidBlocked}>취소</Button>
       ) : null}
       {err && dialog === null ? <span className="text-[11px] text-red">{err}</span> : null}
+      {notice && dialog === 'notice' ? (
+        <GuardianSendDialog open student={{ id: invoice.studentId, name: invoice.studentName }} pnotiId={notice.id}
+          defaultBody={notice.body} title={`학부모 안내 — ${invoice.studentName} · ${invoice.title}`} onClose={() => setDialog(null)} />
+      ) : null}
       <Dialog
         open={dialog === 'void'}
         onClose={() => setDialog(null)}

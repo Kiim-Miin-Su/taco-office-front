@@ -35,7 +35,7 @@ const made: Invoice = {
   title: '2026년 8월 수업료 청구', amount: 250000, paidAmount: 0, state: 'draft', stateLabel: '작성 중',
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0, sentAt: null, canDeliver: true, canVoid: false, voidBlockedReason: null, voidReason: null,
-  installments: [], nextDueOn: null, nextInstallmentSeq: null,
+  installments: [], nextDueOn: null, nextInstallmentSeq: null, notice: null,
   lines: [
     { subKey: 'sat-math', label: 'SAT Math', count: 3, unitPrice: 50000, amount: 150000 },
     { subKey: 'writing', label: 'Writing', count: 2, unitPrice: 50000, amount: 100000 },

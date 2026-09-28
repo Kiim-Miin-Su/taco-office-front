@@ -69,9 +69,11 @@ export interface InvoiceIssuerProps {
   heading?: ReactNode;
   /** §53 ① 카드의 「청구서 작성 →」 — 학생 · 달 · 종류를 채운다. 기한은 비운 채 둔다(S3) */
   preset?: InvoiceIssuerPreset | null;
+  /** §54 「이 달 청구서 일괄 발행 →」(H-75) — 일괄 발행 창을 그 달로 연다. 기한은 비운 채 둔다(S3) */
+  batchPreset?: { seq: number; month: string } | null;
 }
 
-export function InvoiceIssuer({ open: openProp, onOpenChange, heading, preset }: InvoiceIssuerProps = {}) {
+export function InvoiceIssuer({ open: openProp, onOpenChange, heading, preset, batchPreset }: InvoiceIssuerProps = {}) {
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const setOpen = (next: boolean | ((prev: boolean) => boolean)) => {
@@ -114,6 +116,13 @@ export function InvoiceIssuer({ open: openProp, onOpenChange, heading, preset }:
     setIssueErr(null); setMade(null);
     formRef.current?.scrollIntoView?.({ block: 'start' });
   }, [preset]);
+
+  /* §54 「이 달 청구서 일괄 발행 →」 — 보고 있던 달로 일괄 발행 창을 연다. 누구에게 낼지 · 이월 · 단가는 그대로 서버 몫이다 */
+  useEffect(() => {
+    if (!batchPreset) return;
+    setBatchOpen(true); setBatchMonth(batchPreset.month); setBatchDue(''); setBatchResult(null);
+    formRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [batchPreset]);
 
   const types = meta.data?.invTypes ?? [];
   const picked = types.find((t) => t.key === invType);

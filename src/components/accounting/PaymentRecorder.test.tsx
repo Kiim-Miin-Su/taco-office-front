@@ -22,7 +22,7 @@ const inv = (over: Partial<Invoice> = {}): Invoice => ({
   amount: 520000, paidAmount: 200000, remaining: 320000, state: 'partial', stateLabel: '일부 납부',
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-08-01', dueOn: '2026-08-21', paidAt: null, overdueDays: 0, lines: [], sentAt: null, canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null,
-  installments: [], nextDueOn: '2026-08-21', nextInstallmentSeq: null, ...over,
+  installments: [], nextDueOn: '2026-08-21', nextInstallmentSeq: null, notice: null, ...over,
 });
 const line: Payment = {
   id: 3, invId: 9, studentId: 11, studentName: '고은설', amount: 200000, paidOn: '2026-08-23',

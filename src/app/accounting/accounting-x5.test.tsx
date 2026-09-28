@@ -37,7 +37,7 @@ const inv = (over: Partial<Invoice>): Invoice => ({
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0,
   sentAt: null, canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null, lines: [],
-  installments: [], nextDueOn: null, nextInstallmentSeq: null, ...over,
+  installments: [], nextDueOn: null, nextInstallmentSeq: null, notice: null, ...over,
 });
 
 const accounting = (todo = 0, invoices: Invoice[] = []): Accounting => ({
