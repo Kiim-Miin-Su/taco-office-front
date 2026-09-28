@@ -163,10 +163,11 @@ function LessonRow({ l, today }: { l: TeacherLesson; today?: string }) {
   const body = (
     <>
       <div className="w-28 shrink-0 text-[13px] font-bold text-fg">
-        {/* 다가오는 수업 — 덱 slide 8 「8/27 목 · 2일 뒤」 */}
+        {/* 다가오는 수업 — 덱 slide 8 「8/27 목 · 2일 뒤」. 날짜는 **실제 수업일**(date)이다 — 옮긴 회차는 옮긴 날에 선다.
+            onDate 는 회차의 키라 리포트 링크에만 쓴다 (MEETING-MOVE) */}
         {today ? (
           <div className="flex items-center gap-1.5 text-[12px] text-fg-subtle">
-            {md(l.onDate)}<Chip size="compact" tone="info">{daysAfter(today, l.onDate)}일 뒤</Chip>
+            {md(l.date)}<Chip size="compact" tone="info">{daysAfter(today, l.date)}일 뒤</Chip>
           </div>
         ) : null}
         {hm(l.startMin)}–{hm(l.startMin + l.durMin)}

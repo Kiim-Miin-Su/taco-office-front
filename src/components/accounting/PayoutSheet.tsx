@@ -195,7 +195,8 @@ const paysOn = (l: PayoutLesson) => l.settle === 'written' || l.settle === 'corr
 function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }) {
   const q = usePayoutDetail(row.staffId, month);
   const cols: Array<Column<PayoutLesson>> = [
-    { key: 'd', head: '날짜', width: 90, cell: (l) => <span className="font-bold">{dayLabel(l.onDate)}</span> },
+    // 실제 수업일 — 옮긴 회차는 옮긴 날 (onDate 는 키 · 근거 줄의 키 · MEETING-MOVE)
+    { key: 'd', head: '날짜', width: 90, cell: (l) => <span className="font-bold">{dayLabel(l.date)}</span> },
     { key: 't', head: '시각', width: 100, cell: (l) => `${hhmm(l.startMin)}–${hhmm(l.startMin + l.durMin)}` },
     {
       key: 'n', head: '수업', cell: (l) => (

@@ -155,8 +155,9 @@ export default function TeacherHistoryPage() {
             const groups: Array<{ date: string; rows: TeacherHistoryLesson[] }> = [];
             for (const l of d.lessons) {
               const g = groups[groups.length - 1];
-              if (g && g.date === l.onDate) g.rows.push(l);
-              else groups.push({ date: l.onDate, rows: [l] });
+              // 날짜 묶음은 **실제 수업일**(date)로 — 옮긴 회차는 옮긴 날 아래에 선다 (onDate 는 키 · MEETING-MOVE)
+              if (g && g.date === l.date) g.rows.push(l);
+              else groups.push({ date: l.date, rows: [l] });
             }
             const ymLabel = `${Number(d.month.slice(0, 4))}년 ${Number(d.month.slice(5, 7))}월`;
             return (

@@ -277,7 +277,8 @@ export default function TeacherGuidesPage() {
                       <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-fg-subtle">
                         {picked.lessons.map((l) => (
                           <span key={`${l.onDate}-${l.startMin}`}>
-                            {md(l.onDate)} {hm(l.startMin)} <b className="text-fg">{lessonName(l)}</b>
+                            {/* 실제 수업일 — 옮긴 회차는 옮긴 날 (onDate 는 키 · MEETING-MOVE) */}
+                            {md(l.date)} {hm(l.startMin)} <b className="text-fg">{lessonName(l)}</b>
                           </span>
                         ))}
                       </div>

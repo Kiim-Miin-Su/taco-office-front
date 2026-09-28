@@ -34,7 +34,7 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const lesson = (over: Partial<TeacherHistory['lessons'][number]> = {}): TeacherHistory['lessons'][number] => ({
-  serId: 1, onDate: '2026-09-17', startMin: 960, durMin: 90, kindKey: 'class', subKey: 'ap-chem',
+  serId: 1, onDate: '2026-09-17', date: '2026-09-17', startMin: 960, durMin: 90, kindKey: 'class', subKey: 'ap-chem',
   mode: 'offline', title: null, students: '김민준, 송지호', studentCount: 2, repState: 'plan',
   canceled: false, pay: 67500, lateCut: 5000,
   bonus: 0, settle: 'written', settleLabel: '리포트 씀', correctionOf: null, paidIn: null, frozen: false, ...over,
@@ -177,7 +177,7 @@ it('가산 · 보정 — 줄의 가산 · 보정 칩 · 확정 안내 문장 · 
       ...d,
       lessons: [
         lesson({ serId: 2, kindKey: 'mock', subKey: null, title: '모의수업', students: '김민준', studentCount: 1, repState: 'ok', pay: 45000, lateCut: 0, bonus: 15000 }),
-        lesson({ serId: 3, onDate: '2026-08-28', title: 'SAT Reading', subKey: null, students: '송지호', studentCount: 1, repState: 'ok', pay: 45000, lateCut: 0,
+        lesson({ serId: 3, onDate: '2026-08-28', date: '2026-08-28', title: 'SAT Reading', subKey: null, students: '송지호', studentCount: 1, repState: 'ok', pay: 45000, lateCut: 0,
           settle: 'correction', settleLabel: '보정 · 8월 회차', correctionOf: '2026-08', frozen: false }),
       ],
       settlement: { ...d.settlement, bonus: 15000, correctionCount: 1, note: '앞선 확정 달의 회차 1건이 이 달 정산에 보정으로 들어옵니다' },
@@ -205,4 +205,16 @@ it('가산 · 보정 — 줄의 가산 · 보정 칩 · 확정 안내 문장 · 
   expect(rules.textContent).toContain('Kinder 수업을 가르는 표시가 아직 없어 0원으로 셉니다');
   // 옛 안내(「가산은 정책 확정 전」)는 사라졌다
   expect(text).not.toContain('정책 확정 전이라 단일 시급 기준');
+});
+
+/* 옮긴 회차 — 날짜 묶음은 실제 수업일(date)이다 (TBO-54 MEETING-MOVE) */
+it('옮긴 회차는 옮긴 날의 묶음 아래에 선다 — 규칙 날짜(onDate)로 묶지 않는다', async () => {
+  const d = data();
+  d.lessons = [lesson({ serId: 1, onDate: '2026-09-17', date: '2026-09-17' }), lesson({ serId: 2, onDate: '2026-09-10', date: '2026-09-24', startMin: 600 })];
+  mocks.history.mockReturnValue({ data: d, isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  await waitFor(() => expect(view.container.querySelector('li')).toBeTruthy());
+  const heads = [...view.container.querySelectorAll('b')].map((e) => e.textContent ?? '');
+  expect(heads.some((t) => /^24일 \(/.test(t))).toBe(true);
+  expect(heads.some((t) => /^10일 \(/.test(t))).toBe(false);
 });

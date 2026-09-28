@@ -44,9 +44,9 @@ const detailOf = (r: PayoutSheetRow): PayoutDetail => ({
   staffId: r.staffId, staffName: r.staffName, month: '2026-08', row: r,
   rates: [{ fromDate: '2026-01-01', rate: r.gross === null ? null : 60000 }],
   lessons: [
-    { serId: 11, onDate: '2026-08-20', startMin: 900, durMin: 90, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false, settle: 'unwritten', settleLabel: '리포트 미작성', pay: null, lateCut: null,
+    { serId: 11, onDate: '2026-08-20', date: '2026-08-20', startMin: 900, durMin: 90, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false, settle: 'unwritten', settleLabel: '리포트 미작성', pay: null, lateCut: null,
       bonus: null, unitRate: null, correctionOf: null, paidIn: null, frozen: false },
-    { serId: 11, onDate: '2026-08-13', startMin: 900, durMin: 90, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false, settle: 'written', settleLabel: '리포트 씀', pay: r.gross === null ? null : 90000, lateCut: r.gross === null ? null : 5000,
+    { serId: 11, onDate: '2026-08-13', date: '2026-08-13', startMin: 900, durMin: 90, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false, settle: 'written', settleLabel: '리포트 씀', pay: r.gross === null ? null : 90000, lateCut: r.gross === null ? null : 5000,
       bonus: r.gross === null ? null : 0, unitRate: r.gross === null ? null : 60000, correctionOf: null, paidIn: null, frozen: false },
   ],
 });
@@ -221,11 +221,11 @@ const corrSheet: PayoutSheetData = { ...sheet, rows: [corrRow], bonusTotal: 1500
 const corrDetail = (r: PayoutSheetRow): PayoutDetail => ({
   ...detailOf(r),
   lessons: [
-    { serId: 21, onDate: '2026-08-25', startMin: 600, durMin: 60, name: '모의수업', students: '김하윤', studentCount: 1, canceled: false,
+    { serId: 21, onDate: '2026-08-25', date: '2026-08-25', startMin: 600, durMin: 60, name: '모의수업', students: '김하윤', studentCount: 1, canceled: false,
       settle: 'written', settleLabel: '리포트 씀', pay: 60000, lateCut: 0, bonus: 15000, unitRate: 60000, correctionOf: null, paidIn: null, frozen: false },
-    { serId: 22, onDate: '2026-08-11', startMin: 600, durMin: 60, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false,
+    { serId: 22, onDate: '2026-08-11', date: '2026-08-11', startMin: 600, durMin: 60, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false,
       settle: 'late', settleLabel: '확정된 달 — 다음 달 보정', pay: null, lateCut: null, bonus: null, unitRate: 60000, correctionOf: null, paidIn: null, frozen: false },
-    { serId: 23, onDate: '2026-07-28', startMin: 600, durMin: 60, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false,
+    { serId: 23, onDate: '2026-07-28', date: '2026-07-28', startMin: 600, durMin: 60, name: 'SAT Math', students: '김하윤', studentCount: 1, canceled: false,
       settle: 'correction', settleLabel: '보정 · 7월 회차', pay: 60000, lateCut: 5000, bonus: 0, unitRate: 60000, correctionOf: '2026-07', paidIn: null, frozen: true },
   ],
 });
@@ -289,4 +289,14 @@ it('시급 비공개로 가려진 줄도 숨긴 금액 낱말 한 벌(「비공�
 it('합계 카드 밑 자리(below)는 페이지가 채운다 — 원문 §56 「추가로 드리는 돈」', () => {
   const view = setup(sheet, undefined, detailOf, <section aria-label="추가로 드리는 돈">가산 칸</section>);
   expect(view.getByRole('region', { name: '추가로 드리는 돈' }).textContent).toBe('가산 칸');
+});
+
+/* 옮긴 회차 — 「날짜」 칸은 실제 수업일(date)이다. 근거 줄의 키(onDate)와 다를 수 있다 (TBO-54 MEETING-MOVE) */
+it('상세의 수업 날짜는 실제 수업일이다 — 규칙 날짜와 다른 옮긴 회차는 옮긴 날로 적는다', async () => {
+  const view = setup(sheet, undefined, (r) => ({ ...detailOf(r), lessons: [{ ...detailOf(r).lessons[0], onDate: '2026-08-20', date: '2026-08-27' }] }));
+  fireEvent.click(view.getByRole('button', { name: '김재훈 자세히 보기' }));
+  await waitFor(() => expect(view.getByRole('region', { name: '수업 날짜' })).toBeTruthy());
+  const rows = within(view.getByRole('region', { name: '수업 날짜' })).getAllByRole('row').slice(1).map((r) => flat(r));
+  expect(rows[0]).toContain('8/27 (목)');
+  expect(rows[0]).not.toContain('8/20');
 });

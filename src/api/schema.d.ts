@@ -6000,8 +6000,10 @@ export interface components {
         };
         PayoutLessonDto: {
             serId: number;
-            /** @description YYYY-MM-DD */
+            /** @description 규칙상 원래 날짜 YYYY-MM-DD — 회차의 키 (근거 줄 `payout_line` 도 이 키) */
             onDate: string;
+            /** @description 실제 수업일 YYYY-MM-DD — 옮긴 회차는 옮긴 날. 이 달 시트에 드는가 · 끝났는가 · 지각 차감 · 표시는 이 값 (MEETING-MOVE) */
+            date: string;
             startMin: number;
             durMin: number;
             /** @description 수업 이름 — 제목 → 과목 → 종류 순 (서버가 고른다) */
@@ -9875,8 +9877,10 @@ export interface components {
         };
         TeacherLessonDto: {
             serId: number;
-            /** @description YYYY-MM-DD (KST) */
+            /** @description 규칙상 원래 날짜 YYYY-MM-DD (KST) — 회차의 **키**. 리포트 화면이 `serId·onDate` 로 연다 */
             onDate: string;
+            /** @description 실제 수업일 YYYY-MM-DD (KST) — 옮긴 회차는 옮긴 날. 「오늘」·「다가오는」 묶음과 날짜 표시는 이 값 (MEETING-MOVE) */
+            date: string;
             /** @description KST 0~1439 분 */
             startMin: number;
             /** @description 분 단위 수업 길이 */
@@ -9995,8 +9999,10 @@ export interface components {
         };
         TeacherHistoryLessonDto: {
             serId: number;
-            /** @description YYYY-MM-DD (KST) */
+            /** @description 규칙상 원래 날짜 YYYY-MM-DD (KST) — 회차의 키 */
             onDate: string;
+            /** @description 실제 수업일 YYYY-MM-DD (KST) — 옮긴 회차는 옮긴 날. 달 묶음 · 날짜 표시 · 끝났는가 · 지각 차감은 이 값 (MEETING-MOVE) */
+            date: string;
             /** @description KST 0~1439 분 */
             startMin: number;
             /** @description 분 단위 수업 길이 */
@@ -10124,8 +10130,10 @@ export interface components {
         TeacherGuideLessonDto: {
             /** @description 이 회차의 시리즈 id */
             serId: number;
-            /** @description YYYY-MM-DD (KST) */
+            /** @description 규칙상 원래 날짜 YYYY-MM-DD (KST) — 회차의 키 */
             onDate: string;
+            /** @description 실제 수업일 YYYY-MM-DD (KST) — 옮긴 회차는 옮긴 날. 이번 주 판정과 표시는 이 값 (MEETING-MOVE) */
+            date: string;
             startMin: number;
             durMin: number;
             subKey?: string | null;

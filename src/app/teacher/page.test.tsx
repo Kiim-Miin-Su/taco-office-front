@@ -113,7 +113,7 @@ it('시간대 목록에서 지금 쓰는 것은 빠지고, 올린 이력과 반�
 /** 휴강 사유는 서버의 낱말이다 — 오늘 목록의 배지가 「휴강 · 학생 결석」이고 옛 휴강은 「수업 취소」 그대로 (C92 · C-31) */
 it('오늘 목록의 휴강 배지는 서버가 준 사유 낱말을 쓰고, 사유가 없으면 「수업 취소」다', async () => {
   const lesson = {
-    serId: 1, onDate: '2026-09-12', startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline' as const,
+    serId: 1, onDate: '2026-09-12', date: '2026-09-12', startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline' as const,
     title: null, roomName: '강의실 1', roomBranch: '강남', zaccLabel: null, students: '학생 A', canceled: true, repState: 'plan' as const,
   };
   const data = home();
@@ -158,13 +158,13 @@ it('머리줄이 「홈」을 말하므로 본문에 같은 h1 이 없고, 바�
 
 it('다가오는 수업 줄은 날짜와 「N일 뒤」를 적고, 끝난 수업은 그 리포트로 잇는다', async () => {
   const lesson = {
-    serId: 5, onDate: '2026-09-14', startMin: 600, durMin: 120, kindKey: 'class', subKey: 'writing', mode: 'online' as const,
+    serId: 5, onDate: '2026-09-14', date: '2026-09-14', startMin: 600, durMin: 120, kindKey: 'class', subKey: 'writing', mode: 'online' as const,
     title: 'Literature & Writing', roomName: null, roomBranch: null, zaccLabel: 'TN 학원 1번방', students: '고은설',
     canceled: false, cancelKindLabel: null, repState: 'plan' as const,
   };
   const data = home();
   data.upcoming = [lesson];
-  data.today = [{ ...lesson, serId: 6, onDate: '2026-09-12', repState: 'none' as const }];
+  data.today = [{ ...lesson, serId: 6, onDate: '2026-09-12', date: '2026-09-12', repState: 'none' as const }];
   const view = setup(data);
   await waitFor(() => expect(view.getByText('2일 뒤')).toBeTruthy());
   // 오늘 끝난(미작성) 수업은 리포트 작성 화면으로 — 덱 slide 9 「클릭 → 해당 수업의 리포트 작성 화면」
@@ -174,6 +174,22 @@ it('다가오는 수업 줄은 날짜와 「N일 뒤」를 적고, 끝난 수업
   expect(view.getAllByRole('link', { name: /Literature & Writing/ })).toHaveLength(1);
 });
 
+/* 옮긴 회차 — 날짜와 「N일 뒤」는 실제 수업일(date)이고 리포트 링크는 키(onDate)다 (TBO-54 MEETING-MOVE) */
+it('다가오는 수업의 날짜는 실제 수업일이다 — 다음 주로 옮긴 회차는 옮긴 날과 「N일 뒤」로 서고 링크는 원래 키를 쓴다', async () => {
+  const moved = {
+    serId: 7, onDate: '2026-09-12', date: '2026-09-19', startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline' as const,
+    title: 'Moved Writing', roomName: '강의실 1', roomBranch: '강남', zaccLabel: null, students: '고은설',
+    canceled: false, cancelKindLabel: null, repState: 'none' as const,
+  };
+  const data = home();
+  data.today = [];
+  data.upcoming = [moved];
+  const view = setup(data);
+  await waitFor(() => expect(view.getByText('7일 뒤')).toBeTruthy());
+  expect(view.container.textContent).toContain('9/19');
+  expect(view.container.textContent).not.toContain('9/12');
+  expect(view.getByRole('link', { name: /Moved Writing/ }).getAttribute('href')).toBe('/reports?serId=7&onDate=2026-09-12');
+});
 /* 강사 덱 slide 8 「오늘 할 일」 넷째 줄 — 교재 변경 요청 중(서버가 센 수 · N-99). 수업 안내로 간다 */
 it('오늘 할 일 넷째 줄은 「교재 변경 요청 중」이고 서버가 센 수를 그대로 쓰며 수업 안내로 잇는다 (N-99)', async () => {
   const data = home();
