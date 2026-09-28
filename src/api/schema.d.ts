@@ -705,7 +705,7 @@ export interface paths {
         put?: never;
         /**
          * 학생 1명의 승인된 리포트 PNG를 private Blob에 보존하고 발송 이력 생성
-         * @description 업로드 후 준비된 부모 SER→REP 순서로 잠그고 현재 날짜/일정·출결 취소/승인 집합과 출력 원문을 재검증한다. 재검증 시 새 미작성 수업이 포함되면 발송을 거절한다. 변경된 PNG/본문 혼합 저장은 거절하고 이번 요청의 업로드만 보상 삭제한다. 같은 요청 키의 완료 이력은 재사용한다.
+         * @description 업로드 후 준비된 부모 SER→REP 순서로 잠그고 현재 날짜/일정·출결 취소/승인 집합과 출력 원문을 재검증한다. 재검증 시 새 미작성 수업이 포함되면 발송을 거절한다. 변경된 PNG/본문 혼합 저장은 거절하고 이번 요청의 업로드만 보상 삭제한다. 같은 요청 키의 완료 이력은 **같은 학생·날짜·리포트 집합·본문·PNG 바이트(장마다 SHA-256)** 일 때만 재사용하고, 같은 키에 다른 바이트를 보내면 409 REQUEST_KEY_REUSED 다 (CR-BE-03).
          */
         post: operations["ReportsController_deliver"];
         delete?: never;
@@ -5488,7 +5488,7 @@ export interface components {
         ReportDeliveryCreateDto: {
             /**
              * Format: uuid
-             * @description 재시도·더블클릭 중복 방지 키
+             * @description 재시도·더블클릭 중복 방지 키 — 같은 키는 학생·날짜·리포트 집합·본문·PNG 바이트(SHA-256)가 모두 같을 때만 기존 결과로 수렴한다 (CR-BE-03)
              */
             requestKey: string;
             /**
@@ -7791,7 +7791,7 @@ export interface components {
             date: string;
             /** @description 대상 수업(규칙) — 비우면 그 강사의 그날/그 뒤 전부. 미리보기의 series 에서 고른다 */
             serIds?: number[];
-            /** @description 이 학생의 수업만 (컴플레인에서 온 교체 · J-97) — 컴플레인에 학생이 있으면 기본값 */
+            /** @description 이 학생의 수업만 (컴플레인에서 온 교체 · J-97) — 컴플레인에 학생이 있으면 그 학생으로 **고정**되고, 다른 학생을 함께 보내면 400 CPL_STUDENT_MISMATCH (CR-BE-02) */
             studentId?: number;
             /** @description 컴플레인 — 있으면 `cpl.teacher_changed` 를 세우고 접수 건은 대응으로 옮긴다 */
             cplId?: number;
@@ -19038,7 +19038,7 @@ export interface operations {
                     "application/json": components["schemas"]["TeacherChangeResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description SAME_TEACHER | STAFF_INACTIVE | NOTHING_TO_CHANGE | CPL_STUDENT_MISMATCH(컴플레인의 학생과 studentId 가 다르다 — 쓰기 전에 거절 · CR-BE-02) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19111,7 +19111,7 @@ export interface operations {
                     "application/json": components["schemas"]["TeacherChangeResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description SAME_TEACHER | STAFF_INACTIVE | NOTHING_TO_CHANGE | CPL_STUDENT_MISMATCH(컴플레인의 학생과 studentId 가 다르다 — 어느 쓰기도 하기 전에 원자적으로 거절 · CR-BE-02) */
             400: {
                 headers: {
                     [name: string]: unknown;
