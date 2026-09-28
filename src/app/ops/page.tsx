@@ -25,7 +25,7 @@
  */
 'use client';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Segmented, TabCards, Table } from '@/components/ui';
@@ -40,7 +40,8 @@ import { ComplaintDetail } from '@/components/ops/ComplaintDetail';
 import { TeacherChangeWizard, type TeacherChangePreset } from '@/components/ops/TeacherChangeWizard';
 import { MeetingCreateButton } from '@/components/ops/MeetingCreateDialog';
 import { PlanCreateButton } from '@/components/ops/PlanCreateDialog';
-import { MarketingCreateButton } from '@/components/ops/MarketingCreateDialog';
+import { MarketingCreateButton, MarketingEditDialog } from '@/components/ops/MarketingCreateDialog';
+import { SuggestionsAdmin } from '@/components/ops/SuggestionsAdmin';
 import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
 import { TodoRows } from '@/components/drawer/panes';
 import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog';
@@ -149,9 +150,11 @@ const ATTEND_TONE: Record<string, Tone> = { waiting: 'warning', in: 'success', o
 
 export default function OpsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const queryTab = queryEnum(searchParams.get('tab'), ['todo', 'complaint', 'plan', 'meeting', 'mkt'] as const) ?? 'todo';
   const queryPlanId = queryTab === 'plan' ? positiveQueryId(searchParams.get('plan')) : null;
   const queryRequestId = queryTab === 'todo' ? positiveQueryId(searchParams.get('request')) : null;
+  const suggestionOpen = searchParams.get('view') === 'suggestions';
   /* 줄 하나를 곧장 여는 질의 (W11) — 회의 안내 알림의 링크(`?tab=meeting&meeting=`) · 대표 보고 펼칠 줄(`?tab=complaint&cpl=`) */
   const queryMeetingId = queryTab === 'meeting' ? positiveQueryId(searchParams.get('meeting')) : null;
   const queryCplId = queryTab === 'complaint' ? positiveQueryId(searchParams.get('cpl')) : null;
@@ -171,6 +174,7 @@ export default function OpsPage() {
   // 컴플레인 → 수강 종료·환불 (J-99) — C94-c 창을 그대로 연다. 사유에 컴플레인을 적어 잇는다(cplId 칸은 N-135 ①)
   const [withdrawOf, setWithdrawOf] = useState<Complaint | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editingMarketing, setEditingMarketing] = useState<Marketing | null>(null);
   /* 기간 띠는 갈래마다 제 것이다 — 기본값도 컷이 눌러 둔 것(§59 주간 · §63 전체 · §67 월별 · x5 C-5).
      컴플레인 한 건을 질의로 열 때는 「전체」에서 시작한다 — 이번 달 밖에 접수된 건이면 카드가 목록에 없어 창이 안 열린다 */
   const [periods, setPeriods] = useState<Record<PeriodTab, Period>>(
@@ -316,6 +320,9 @@ export default function OpsPage() {
         if (c === null) return <span className="text-[11px] text-fg-subtle">{(r.cost ?? null) === null ? MASKED : '—'}</span>;
         return <span className={c > 100000 ? 'font-bold text-red' : 'font-bold'}>{won(c)}</span>;
       } },
+    { key: 'edit', head: '', width: 68, align: 'right', cell: (r) => (
+      <Button size="sm" variant="secondary" onClick={() => setEditingMarketing(r)} aria-label={`${r.name} 수정`}>수정</Button>
+    ) },
   ];
 
   /*
@@ -737,6 +744,11 @@ export default function OpsPage() {
         }}
       /> : null}
       <PlanReport planId={planId} staff={meta.data?.staff} shareWords={d?.planShares} onClose={() => setPlanId(null)} />
+      <MarketingEditDialog row={editingMarketing} channels={d?.mktChannels ?? []} items={d?.mktItems ?? []}
+        onClose={() => setEditingMarketing(null)}
+        onDone={(row) => { setEditingMarketing(null); setNotice(`고쳤습니다 — ${row.name}`); }} />
+      <SuggestionsAdmin open={suggestionOpen} rows={d?.suggestions ?? []}
+        onClose={() => router.replace(`/ops?tab=${tab}`)} />
       <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} onClose={() => setMeetingId(null)} />
       <ComplaintDetail
         complaint={(d?.complaints ?? []).find((c) => c.id === cplId) ?? null}

@@ -1,147 +1,150 @@
 /** @file-guide
- * 목적: MarketingCreateDialog.tsx — MarketingCreateButton (component)
- * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
+ * 목적: MarketingCreateDialog.tsx — MarketingCreateButton, MarketingEditDialog (component)
+ * 책임/재사용: 등록·수정이 같은 MarketingEditorDialog 입력을 사용한다. 서버 업무 판정과 목록 갱신은 API/query가 소유한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
 /**
- * §59 「+ 오늘 한 것」 — 마케팅 활동 한 줄 · URL 첨부 (x5 · g6 59-3).
- *
- * 화면이 보내는 것은 **무엇을 · 메모 한 줄 · 어디에 · 어떤 항목 · URL · 날짜 · 담당**뿐이다(`MarketingCreateDto`).
- * 채널·항목의 낱말은 `GET /ops` 의 `mktChannels`·`mktItems` 다 (D-R18) — 원문 컷의 넷 · 넷(W11 · N-29 ①)이고 채널과 항목은 따로 고른다.
- * 날짜는 비우면 서버가 **오늘**로, 담당은 비우면 **나**로 정한다 — 화면이 그 기본값을 다시 적지 않는다.
- * 틀린 주소·그만둔 담당은 서버가 막고 그 문장을 그대로 띄운다(§63 「+ 회의 잡기」와 같은 모양).
- * 메모는 카드 제목 아래 한 줄이다(N-29 ② · 원문 「상담 예약 4건 전환」). 성과(노출·문의·등록·비용)는 받지 않는다.
+ * §59 마케팅 활동 등록·수정. 채널·항목 낱말은 GET /ops, 담당 후보는 GET /meta가 정본이다.
+ * 등록과 수정은 같은 입력 컴포넌트를 사용하며, 수정은 달라진 칸만 PATCH한다.
  */
 'use client';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Banner, Button, Dialog, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useCreateMarketing, useMeta } from '@/api/queries';
-import type { CplWord } from '@/api/types';
-import type { components } from '@/api/schema';
+import { useCreateMarketing, useMeta, usePatchMarketing } from '@/api/queries';
+import type { CplWord, Marketing, MarketingCreate, MarketingPatch } from '@/api/types';
 
-type MarketingCreate = components['schemas']['MarketingCreateDto'];
-type MarketingRow = components['schemas']['MarketingDto'];
+type Draft = {
+  title: string; memo: string; channel: string; item: string;
+  url: string; onDate: string; byId: string;
+};
+
+const emptyDraft = (): Draft => ({ title: '', memo: '', channel: '', item: '', url: '', onDate: '', byId: '' });
+const draftOf = (row?: Marketing | null): Draft => row ? ({
+  title: row.title ?? row.name, memo: row.memo ?? '', channel: row.channel, item: row.item,
+  url: row.url ?? '', onDate: row.onDate ?? '', byId: row.byId == null ? '' : String(row.byId),
+}) : emptyDraft();
+
+function MarketingEditorDialog({ open, title, submitLabel, channels, items, initial, pending, error, onClose, onSubmit }: {
+  open: boolean; title: string; submitLabel: string; channels: CplWord[]; items: CplWord[];
+  initial?: Marketing | null; pending: boolean; error: string | null; onClose: () => void; onSubmit: (draft: Draft) => void;
+}) {
+  const id = useId();
+  const meta = useMeta(open);
+  const [draft, setDraft] = useState<Draft>(() => draftOf(initial));
+  useEffect(() => { if (open) setDraft(draftOf(initial)); }, [open, initial?.id]);
+  const issue = !draft.title.trim() ? '무엇을 했는지 적어 주세요'
+    : !draft.channel ? '어디에 올렸는지 고르세요'
+      : !draft.item ? '항목을 고르세요' : null;
+  const set = (key: keyof Draft, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
+  const legacyChannel = initial && !channels.some((c) => c.key === initial.channel) ? initial : null;
+  const legacyItem = initial && !items.some((c) => c.key === initial.item) ? initial : null;
+  return (
+    <Dialog open={open} onClose={onClose} title={title} width={560} footer={(
+      <>
+        <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>취소 (Esc)</Button>
+        <Button type="button" variant="primary" onClick={() => !issue && onSubmit(draft)} disabled={!!issue || pending}>
+          {pending ? '저장 중…' : submitLabel}
+        </Button>
+      </>
+    )}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Label htmlFor={`${id}-title`}>무엇을</Label>
+          <Input id={`${id}-title`} value={draft.title} maxLength={120} disabled={pending}
+            onChange={(e) => set('title', e.target.value)} placeholder="학습실 하루 · 30초 릴스" />
+        </div>
+        <div className="sm:col-span-2">
+          <Label htmlFor={`${id}-memo`} hint="카드 제목 아래 한 줄 — 비워도 됩니다">메모</Label>
+          <Input id={`${id}-memo`} value={draft.memo} maxLength={120} disabled={pending}
+            onChange={(e) => set('memo', e.target.value)} placeholder="상담 예약 4건 전환" />
+        </div>
+        <div>
+          <Label htmlFor={`${id}-channel`}>어디에</Label>
+          <Select id={`${id}-channel`} value={draft.channel} disabled={pending} onChange={(e) => set('channel', e.target.value)}>
+            <option value="">고르세요</option>
+            {legacyChannel ? <option value={legacyChannel.channel}>{legacyChannel.channelLabel} (옛 값)</option> : null}
+            {channels.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor={`${id}-item`}>항목</Label>
+          <Select id={`${id}-item`} value={draft.item} disabled={pending} onChange={(e) => set('item', e.target.value)}>
+            <option value="">고르세요</option>
+            {legacyItem ? <option value={legacyItem.item}>{legacyItem.itemLabel} (옛 값)</option> : null}
+            {items.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </Select>
+        </div>
+        <div className="sm:col-span-2">
+          <Label htmlFor={`${id}-url`} hint="올린 글·광고의 주소 — 비워도 됩니다">URL</Label>
+          <Input id={`${id}-url`} value={draft.url} maxLength={2000} disabled={pending}
+            onChange={(e) => set('url', e.target.value)} placeholder="https://" />
+        </div>
+        <div>
+          <Label htmlFor={`${id}-date`} hint={initial ? '비우면 날짜 없음' : '비우면 오늘'}>날짜</Label>
+          <Input id={`${id}-date`} type="date" value={draft.onDate} disabled={pending} onChange={(e) => set('onDate', e.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor={`${id}-by`} hint="대표 코멘트에 답하는 사람">담당</Label>
+          <Select id={`${id}-by`} value={draft.byId} disabled={pending} onChange={(e) => set('byId', e.target.value)}>
+            <option value="">{initial ? '담당 없음' : '나'}</option>
+            {(meta.data?.staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+        </div>
+      </div>
+      {issue ? <p className="mt-2 text-[11px] text-fg-subtle">{issue}</p> : null}
+      {error ? <Banner tone="danger" className="mt-3">{error}</Banner> : null}
+    </Dialog>
+  );
+}
 
 export interface MarketingCreateButtonProps {
-  /** 채널 · 항목 — 원문 컷의 넷 · 넷 · 낱말은 서버가 만든다 (D-R18 · N-29 ①) */
-  channels: CplWord[];
-  items: CplWord[];
-  /** 단추가 서는지도 서버가 정한다 (D-R39) */
-  can: boolean;
-  onDone?: (row: MarketingRow) => void;
+  channels: CplWord[]; items: CplWord[]; can: boolean; onDone?: (row: Marketing) => void;
 }
 
 export function MarketingCreateButton({ channels, items, can, onDone }: MarketingCreateButtonProps) {
-  const id = useId();
   const [open, setOpen] = useState(false);
-  const meta = useMeta(open);
-  const write = useCreateMarketing();
-  const [title, setTitle] = useState('');
-  const [memo, setMemo] = useState('');
-  const [channel, setChannel] = useState('');
-  const [item, setItem] = useState('');
-  const [url, setUrl] = useState('');
-  const [onDate, setOnDate] = useState('');
-  const [byId, setById] = useState('');
   const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle(''); setMemo(''); setChannel(''); setItem(''); setUrl(''); setOnDate(''); setById(''); setErr(null);
-  }, [open]);
-
-  const built = useMemo((): { body: MarketingCreate } | { issue: string } => {
-    if (!title.trim()) return { issue: '무엇을 했는지 적어 주세요' };
-    if (!channel) return { issue: '어디에 올렸는지 고르세요' };
-    if (!item) return { issue: '항목을 고르세요' };
-    return {
-      body: {
-        title: title.trim(),
-        // 고를 수 있는 값은 서버가 준 목록뿐이다 — 생성 타입의 enum 으로 좁힌다(모르는 값은 서버가 400)
-        channel: channel as MarketingCreate['channel'], item: item as MarketingCreate['item'],
-        ...(memo.trim() ? { memo: memo.trim() } : {}),
-        ...(url.trim() ? { url: url.trim() } : {}),
-        ...(onDate ? { onDate } : {}),
-        ...(byId ? { byId: Number(byId) } : {}),
-      },
-    };
-  }, [title, memo, channel, item, url, onDate, byId]);
-
-  const pending = write.isPending;
-  const canSubmit = 'body' in built && !pending;
-  const submit = () => {
-    if (!('body' in built) || pending) return;
-    setErr(null);
-    write.mutate(built.body, {
-      onSuccess: (row) => { setOpen(false); onDone?.(row); },
-      onError: (e) => setErr(apiMessage(e)),
-    });
-  };
-
+  const write = useCreateMarketing();
   if (!can) return null;
-  return (
-    <>
-      {/* 원문 §59 오른쪽 위 갈색 주 단추 (C-7) */}
-      <Button type="button" variant="primary" onClick={() => setOpen(true)}>+ 오늘 한 것</Button>
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        title="오늘 한 것"
-        width={560}
-        footer={(
-          <>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>취소 (Esc)</Button>
-            <Button type="button" variant="primary" onClick={submit} disabled={!canSubmit}>{pending ? '적는 중…' : '적기'}</Button>
-          </>
-        )}
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Label htmlFor={`${id}-title`}>무엇을</Label>
-            <Input id={`${id}-title`} value={title} maxLength={120} disabled={pending}
-              onChange={(e) => setTitle(e.target.value)} placeholder="학습실 하루 · 30초 릴스" />
-          </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor={`${id}-memo`} hint="카드 제목 아래 한 줄 — 비워도 됩니다">메모</Label>
-            <Input id={`${id}-memo`} value={memo} maxLength={120} disabled={pending}
-              onChange={(e) => setMemo(e.target.value)} placeholder="상담 예약 4건 전환" />
-          </div>
-          <div>
-            <Label htmlFor={`${id}-channel`}>어디에</Label>
-            <Select id={`${id}-channel`} value={channel} disabled={pending} onChange={(e) => setChannel(e.target.value)}>
-              <option value="">고르세요</option>
-              {channels.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor={`${id}-item`}>항목</Label>
-            <Select id={`${id}-item`} value={item} disabled={pending} onChange={(e) => setItem(e.target.value)}>
-              <option value="">고르세요</option>
-              {items.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-            </Select>
-          </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor={`${id}-url`} hint="올린 글·광고의 주소 — 비워도 됩니다">URL</Label>
-            <Input id={`${id}-url`} value={url} maxLength={2000} disabled={pending}
-              onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
-          </div>
-          <div>
-            <Label htmlFor={`${id}-date`} hint="비우면 오늘">날짜</Label>
-            <Input id={`${id}-date`} type="date" value={onDate} disabled={pending} onChange={(e) => setOnDate(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor={`${id}-by`} hint="대표 코멘트에 답하는 사람">담당</Label>
-            <Select id={`${id}-by`} value={byId} disabled={pending} onChange={(e) => setById(e.target.value)}>
-              <option value="">나</option>
-              {(meta.data?.staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </div>
-        </div>
-        {'issue' in built ? <p className="mt-2 text-[11px] text-fg-subtle">{built.issue}</p> : null}
-        {err ? <Banner tone="danger" className="mt-3">{err}</Banner> : null}
-      </Dialog>
-    </>
-  );
+  return <>
+    <Button type="button" variant="primary" onClick={() => { setErr(null); setOpen(true); }}>+ 오늘 한 것</Button>
+    <MarketingEditorDialog open={open} onClose={() => setOpen(false)} title="오늘 한 것" submitLabel="적기"
+      channels={channels} items={items} pending={write.isPending} error={err}
+      onSubmit={(draft) => {
+        const body: MarketingCreate = {
+          title: draft.title.trim(), channel: draft.channel as MarketingCreate['channel'], item: draft.item as MarketingCreate['item'],
+          ...(draft.memo.trim() ? { memo: draft.memo.trim() } : {}), ...(draft.url.trim() ? { url: draft.url.trim() } : {}),
+          ...(draft.onDate ? { onDate: draft.onDate } : {}), ...(draft.byId ? { byId: Number(draft.byId) } : {}),
+        };
+        setErr(null);
+        write.mutate(body, { onSuccess: (row) => { setOpen(false); onDone?.(row); }, onError: (e) => setErr(apiMessage(e)) });
+      }} />
+  </>;
+}
+
+export function MarketingEditDialog({ row, channels, items, onClose, onDone }: {
+  row: Marketing | null; channels: CplWord[]; items: CplWord[]; onClose: () => void; onDone?: (row: Marketing) => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const write = usePatchMarketing();
+  const original = useMemo(() => draftOf(row), [row]);
+  useEffect(() => { setErr(null); }, [row?.id]);
+  return <MarketingEditorDialog open={row !== null} onClose={onClose} title="마케팅 활동 수정" submitLabel="저장"
+    channels={channels} items={items} initial={row} pending={write.isPending} error={err}
+    onSubmit={(draft) => {
+      if (!row) return;
+      const body: MarketingPatch = {};
+      if (draft.title.trim() !== original.title) body.title = draft.title.trim();
+      if (draft.channel !== original.channel) body.channel = draft.channel as MarketingCreate['channel'];
+      if (draft.item !== original.item) body.item = draft.item as MarketingCreate['item'];
+      if (draft.url.trim() !== original.url) body.url = draft.url.trim() || null;
+      if (draft.onDate !== original.onDate) body.onDate = draft.onDate || null;
+      if (draft.byId !== original.byId) body.byId = draft.byId ? Number(draft.byId) : null;
+      if (draft.memo.trim() !== original.memo) body.memo = draft.memo.trim() || null;
+      if (!Object.keys(body).length) { onClose(); return; }
+      setErr(null);
+      write.mutate({ id: row.id, ...body }, { onSuccess: (saved) => { onClose(); onDone?.(saved); }, onError: (e) => setErr(apiMessage(e)) });
+    }} />;
 }

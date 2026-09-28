@@ -7,11 +7,12 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import type { PlanDetail } from '@/api/types';
 
-const { state, decide, review, patch, move, todo, addTask } = vi.hoisted(() => ({
+const { state, decide, review, patch, owner, move, todo, addTask } = vi.hoisted(() => ({
   state: { data: undefined as PlanDetail | undefined, isLoading: false, isError: false, error: null },
   decide: vi.fn(),
   review: vi.fn(),
   patch: vi.fn(),
+  owner: vi.fn(),
   move: vi.fn(),
   todo: vi.fn(),
   addTask: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('@/api/queries', () => ({
   useDecidePlanDue: () => ({ mutate: decide, isPending: false, isError: false, error: null }),
   useReviewPlan: () => ({ mutate: review, isPending: false, isError: false, error: null }),
   usePatchPlan: () => ({ mutate: patch, isPending: false, isError: false, error: null }),
+  usePatchPlanOwner: () => ({ mutate: owner, isPending: false, isError: false, error: null }),
   useMovePlanStage: () => ({ mutate: move, isPending: false, isError: false, error: null }),
   // 과제 체크는 **서랍·운영 할 일과 같은 쓰기**다 — 새 경로를 만들지 않는다
   useDrawerWrite: () => ({ mutate: todo, isPending: false, isError: false, error: null }),
@@ -84,6 +86,14 @@ it('막힌 이유는 서버가 준 문장이다 — 화면이 조건을 다시 �
   const v = setup({ ...base, canDecideDue: false, reviewBlockedReason: '기획 결재는 대표만 합니다' });
   expect(v.getByText('기획 결재는 대표만 합니다')).toBeTruthy();
   expect(v.queryByRole('button', { name: '기한 승인' })).toBeNull();
+});
+
+it('결재권자는 활동 중인 구성원으로 담당을 바꾼다 — 서버 플래그가 있을 때만 입력이 선다', async () => {
+  const v = setup({ ...base, ownerId: 7, canChangeOwner: true } as PlanDetail & { ownerId: number; canChangeOwner: boolean });
+  const select = v.getByRole('combobox', { name: '기획 담당' });
+  fireEvent.change(select, { target: { value: '8' } });
+  fireEvent.click(v.getByRole('button', { name: '담당 저장' }));
+  await waitFor(() => expect(owner).toHaveBeenCalledWith({ id: 3, ownerId: 8 }));
 });
 
 it('기한 승인·반려를 서버에 그대로 보낸다 — 대표가 본 날짜를 함께 실어 그 사이 바뀐 날짜가 승인되지 않게 한다 (PB-12-2)', async () => {

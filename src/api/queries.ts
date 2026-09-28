@@ -219,7 +219,7 @@ import type {
   LeadDiagList, LeadDiagWrite,
   // 옛 로컬 훅 파일 셋(intake · ops · accounting)에서 옮긴 훅이 쓰는 별칭 (W11 D)
   AcctPrivacy, AcctPrivacyWrite, Cashflow, InvoiceDraft, LeadAppt, LeadApptScheduleResult, LeadApptWrite, LeadPlanWrite,
-  Marketing, MarketingCreate, PayoutBonusBook, PayoutBonusRule, PayoutBonusRuleWrite, PayoutDetail, PlanTaskCreate,
+  Marketing, MarketingCreate, PayoutBonusBook, PayoutBonusRule, PayoutBonusRuleWrite, PayoutDetail, PlanTaskCreate, Suggestion,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -2897,6 +2897,15 @@ export function usePatchPlan(): UseMutationResult<PlanDetail, unknown, { id: num
   });
 }
 
+/** 기획 담당 변경 — 결재권자만. 새 담당 알림·감사 줄은 서버 트랜잭션이 소유한다. */
+export function usePatchPlanOwner(): UseMutationResult<PlanDetail, unknown, { id: number; ownerId: number }> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ownerId }) => (await api.patch<PlanDetail>(`/ops/plans/${id}/owner`, { ownerId })).data,
+    onSettled: invalidate,
+  });
+}
+
 /**
  * §61 단계 이동 — 갈 수 있는 곳은 서버가 준 `nextStages` 뿐이다 (S6 · 409: PLAN_STAGE_LOCKED · PLAN_STAGE_INVALID).
  * 화면이 전이표를 들면 서버와 갈린다 (D-R18 · D-R39 · C90 `useMoveLeadStage` 와 같은 모양).
@@ -2937,6 +2946,24 @@ export function useCreateMarketing(): UseMutationResult<Marketing, unknown, Mark
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body) => (await api.post<Marketing>('/ops/marketing', body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
+  });
+}
+
+/** §59 활동 수정 — 보낸 칸만 고친 뒤 목록·필터 수를 서버에서 다시 읽는다. */
+export function usePatchMarketing(): UseMutationResult<Marketing, unknown, { id: number } & import('./types').MarketingPatch> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.patch<Marketing>(`/ops/marketing/${id}`, body)).data,
+    onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
+  });
+}
+
+/** 건의 관리자 답변 — 강사 화면이 같은 행을 다시 읽으므로 운영 목록도 서버에서 재조회한다. */
+export function useReplySuggestion(): UseMutationResult<Suggestion, unknown, { id: number; reply: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reply }) => (await api.patch<Suggestion>(`/ops/suggestions/${id}/reply`, { reply })).data,
     onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
   });
 }

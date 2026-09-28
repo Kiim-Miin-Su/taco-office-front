@@ -190,6 +190,8 @@ export type PlanTask = S['PlanTaskDto'];
 /** §65 「+ 대표 지시」 · §59 「+ 오늘 한 것」 입력 (w5 · x5) — 옛 `ops-queries.ts` 의 별칭(W11 D) */
 export type PlanTaskCreate = S['PlanTaskCreateDto'];
 export type MarketingCreate = S['MarketingCreateDto'];
+/** §59 활동 수정 — 생성 입력의 활동 칸만 선택적으로 보낸다. 성과 숫자는 별도 소유자다. */
+export type MarketingPatch = Partial<Omit<MarketingCreate, 'byId'>> & { byId?: number | null };
 /** S6 — 본문 고치기 · 단계 이동 */
 export type PlanPatch = S['PlanPatchDto'];
 export type PlanNextStage = S['PlanNextStageDto'];

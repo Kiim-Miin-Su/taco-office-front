@@ -41,16 +41,19 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { Banner, Button, Checkbox, Chip, Input, Label, Segmented, Textarea } from '../ui';
+import { Banner, Button, Checkbox, Chip, Input, Label, Segmented, Select, Textarea } from '../ui';
 import { WideDialog } from '../ui/WideDialog';
 import { TodoCreateDialog, type TodoPerson } from '../drawer/TodoCreateDialog';
 import { apiMessage } from '@/api/client';
 import {
-  useAddPlanTask, useDecidePlanDue, useDrawerWrite, useMovePlanStage, usePatchPlan, usePlanDetail, useReviewPlan,
+  useAddPlanTask, useDecidePlanDue, useDrawerWrite, useMovePlanStage, usePatchPlan, usePatchPlanOwner, usePlanDetail, useReviewPlan,
 } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { objectParticle } from '@/lib/calendar';
 import type { PlanDetail, PlanPatch, PlanShareWord, PlanTask } from '@/api/types';
+
+/** OpenAPI 재생성 전후 모두 읽히는 추가 필드 — 정본은 백엔드 PlanDetailDto다. */
+type PlanDetailWithOwner = PlanDetail & { ownerId?: number | null; canChangeOwner?: boolean };
 
 /** 화면이 들고 있는 초안 — 서버가 준 글에서 시작하고, 달라진 칸만 보낸다 */
 type Draft = { goal: string; research: string; ask: string };
@@ -200,13 +203,15 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
   const due = useDecidePlanDue();
   const review = useReviewPlan();
   const patch = usePatchPlan();
+  const ownerWrite = usePatchPlanOwner();
   const move = useMovePlanStage();
   const todoWrite = useDrawerWrite();
   const [todoError, setTodoError] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [armed, setArmed] = useState<'rework' | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const d = q.data;
+  const d = q.data as PlanDetailWithOwner | undefined;
+  const [ownerId, setOwnerId] = useState('');
 
   /* 서버가 준 글에서 시작한다 — 다른 기획을 열거나 단계가 바뀌면 초안을 버린다
      (지난 기획의 초안이 남아 있으면 남의 글을 저장하게 된다) */
@@ -216,6 +221,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
   useEffect(() => { setDraft(draftOf(d)); }, [d?.id, d?.stage]);
   // 다른 기획을 열면 공개 범위 고르기를 닫는다 — 지난 기획의 고르기가 남아 있으면 남의 기획에 저장한다
   useEffect(() => { setShareOpen(false); }, [d?.id]);
+  useEffect(() => { setOwnerId(d?.ownerId == null ? '' : String(d.ownerId)); }, [d?.id, d?.ownerId]);
 
   const body = d ? changed(draft, d) : {};
   const dirty = Object.keys(body).length > 0;
@@ -327,7 +333,21 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
           <dl className="mt-3 flex flex-wrap gap-x-10 gap-y-2">
             <div>
               <dt className="text-[10.5px] text-fg-subtle">담당</dt>
-              <dd className="text-[14px] font-bold text-fg">{d.ownerName ?? '—'}</dd>
+              <dd className="text-[14px] font-bold text-fg">
+                {d.canChangeOwner && staff?.length ? (
+                  <span className="flex items-center gap-1">
+                    <Select aria-label="기획 담당" value={ownerId} disabled={ownerWrite.isPending}
+                      onChange={(e) => setOwnerId(e.target.value)}>
+                      <option value="">고르세요</option>
+                      {(d.ownerId != null && !staff.some((p) => p.id === d.ownerId))
+                        ? <option value={d.ownerId}>{d.ownerName ?? d.ownerId}</option> : null}
+                      {staff.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </Select>
+                    <Button size="sm" variant="secondary" disabled={!ownerId || Number(ownerId) === d.ownerId || ownerWrite.isPending}
+                      onClick={() => ownerWrite.mutate({ id: d.id, ownerId: Number(ownerId) })}>담당 저장</Button>
+                  </span>
+                ) : d.ownerName ?? '—'}
+              </dd>
             </div>
             <div>
               <dt className="text-[10.5px] text-fg-subtle">마감</dt>
@@ -353,6 +373,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
               <dd className="text-[14px] font-bold text-fg" aria-label={`과제 ${d.taskDone}/${d.tasks.length}`}>{d.taskDone}/{d.tasks.length}</dd>
             </div>
           </dl>
+          {ownerWrite.isError ? <Banner tone="danger" className="mt-2">{apiMessage(ownerWrite.error)}</Banner> : null}
           {d.canEditShare && shareWords?.length ? (
             shareOpen ? (
               <ShareEditor detail={d} words={shareWords} people={staff ?? []} busy={patch.isPending}

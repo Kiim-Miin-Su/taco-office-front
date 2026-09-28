@@ -7,7 +7,8 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import { MarketingCreateButton } from './MarketingCreateDialog';
+import { MarketingCreateButton, MarketingEditDialog } from './MarketingCreateDialog';
+import type { Marketing } from '@/api/types';
 
 const meta = {
   kinds: [], subs: [], staff: [{ id: 3, name: '김범준', role: 'manager', canAdminPage: true, canGpaPack: false, title: null }],
@@ -25,7 +26,7 @@ afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.de
 
 function setup({ can = true, status = 201 }: { can?: boolean; status?: number } = {}) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
-    if (config.method === 'post') {
+    if (config.method === 'post' || config.method === 'patch') {
       posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
       if (status >= 400) return Promise.reject(Object.assign(new Error('fail'), { response: { status, data: { code: 'STAFF_NOT_FOUND', message: '그 담당자를 찾을 수 없습니다' } } }));
       return { config, status, statusText: 'OK', headers: {}, data: { id: 99, title: '학습실 하루', channel: 'instagram', channelLabel: '인스타그램', item: 'video', itemLabel: '영상' } };
@@ -48,6 +49,30 @@ it('서버가 열지 않으면 단추가 없고 코드표도 읽지 않는다 (D
   const { view } = setup({ can: false });
   expect(view.queryByRole('button', { name: '+ 오늘 한 것' })).toBeNull();
   expect(got).toEqual([]);
+});
+
+it('수정은 등록과 같은 입력을 쓰고 달라진 칸만 PATCH한 뒤 닫는다', async () => {
+  setup();
+  const client = clients[0]!;
+  const row: Marketing = {
+    id: 7, title: '수정 전', name: '수정 전', channel: 'kakao', channelLabel: '카카오채널', item: 'reply', itemLabel: '댓글·응대',
+    memo: '전 메모', url: null, onDate: '2026-09-20', byId: 3, byName: '김범준',
+    impressions: null, clicks: null, inquiries: null, enrolled: 0, cost: null, costPerEnroll: null,
+  };
+  cleanup();
+  const onClose = vi.fn();
+  const view = render(<QueryClientProvider client={client}>
+    <MarketingEditDialog row={row} channels={channels} items={items} onClose={onClose} />
+  </QueryClientProvider>);
+  const dialog = view.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('무엇을'), { target: { value: '수정 후' } });
+  fireEvent.change(within(dialog).getByLabelText('메모'), { target: { value: '' } });
+  fireEvent.change(within(dialog).getByLabelText('어디에'), { target: { value: 'naver_blog' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(posted[0]).toEqual({
+    url: '/ops/marketing/7', body: { title: '수정 후', channel: 'naver_blog', memo: null },
+  }));
+  await waitFor(() => expect(onClose).toHaveBeenCalled());
 });
 
 it('무엇을·어디에·항목이 있어야 「적기」가 서고, 비운 날짜·담당은 보내지 않는다 — 기본값은 서버가 정한다', async () => {

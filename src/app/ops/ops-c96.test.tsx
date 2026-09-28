@@ -24,7 +24,7 @@ import OpsPage from './page';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams('') }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/ops/PlanReport', () => ({ PlanReport: () => null }));

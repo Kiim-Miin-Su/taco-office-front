@@ -17,7 +17,7 @@ import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
 
 const nav = vi.hoisted(() => ({ search: '' }));
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search), useRouter: () => ({ replace: vi.fn() }) }));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children, drawerEntry }: {
   children: ReactNode; drawerEntry?: { pane: string; identity: string } | null;
@@ -81,6 +81,18 @@ it('§75 운영 deep link는 기획 상세 또는 §14 원 요청 서랍으로 �
   const request = setup();
   expect(request.container.querySelector('[data-drawer-entry]')?.getAttribute('data-drawer-entry'))
     .toBe('approvals:request-44');
+});
+
+it('§14 건의 줄의 `/ops?view=suggestions` 링크는 기존 다섯 탭을 바꾸지 않고 관리자 답변 창을 연다', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: {
+    ...response,
+    suggestions: [{ id: 9, staffName: '강사 A', category: 'schedule', body: '목요일 수업을 옮기고 싶습니다', state: 'open', reply: null, createdAt: '2026-09-28' }],
+  } });
+  nav.search = 'view=suggestions';
+  const view = setup(me, false);
+  expect(await view.findByRole('dialog', { name: '건의 사항 답변' })).toBeTruthy();
+  expect(await view.findByText('목요일 수업을 옮기고 싶습니다')).toBeTruthy();
+  expect(within(view.getByRole('tablist', { name: '운영 보기' })).getAllByRole('tab')).toHaveLength(5);
 });
 
 describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () => {
@@ -188,9 +200,10 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup();
     await waitFor(() => expect(view.getByText('₩0')).toBeTruthy());
     expect(view.queryByText(MASKED)).toBeNull();
-    // 「등록당」은 표의 마지막 칸이다 — C53 이 담당 칸을 더하면서 「—」가 화면에 둘이 되었다
+    const heads = [...view.container.querySelectorAll('thead th')];
+    const costPerEnroll = heads.findIndex((head) => head.textContent === '등록당');
     const cells = view.container.querySelectorAll('tbody tr td');
-    expect(cells[cells.length - 1]?.textContent).toBe('—');
+    expect(cells[costPerEnroll]?.textContent).toBe('—');
   });
 
   it('같은 사용자 권한 회수 직후 기존 비용을 숨기고 새 응답도 비공개로 유지한다', async () => {
