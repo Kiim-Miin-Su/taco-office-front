@@ -149,6 +149,10 @@ export function ConsultingActivity({ item, detail, onAddSession }: { item: Consu
         {detail?.capabilities.canAddSession && onAddSession
           ? <Button type="button" variant="primary" onClick={onAddSession}>+ 회차 기록</Button>
           : null}
+        {/* 잠긴 까닭 — 서버 문장 그대로(쓰기의 409 와 같은 말 · S5). 수납 전 계약의 진행 탭이 「진행이 잠겨 있다」를 말한다 (I-89) */}
+        {detail && !detail.capabilities.canAddSession && detail.capabilities.addSessionBlockedReason
+          ? <span className="text-[12px] text-fg-subtle" role="status">{detail.capabilities.addSessionBlockedReason}</span>
+          : null}
       </div>
 
       {/* 해야 할 항목 — 머리의 「4 / 7 · 57%」와 4열 카드 (31-02 · 31-03) */}

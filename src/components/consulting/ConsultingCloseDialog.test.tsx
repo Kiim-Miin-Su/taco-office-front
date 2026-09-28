@@ -22,7 +22,7 @@ const base = {
     canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
     canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
     externalParentSendSupported: false, externalParentSendReason: null,
-    canAddSession: true, canClose: false, closeBlockedReason: '약정 8회 중 3회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다',
+    canAddSession: true, addSessionBlockedReason: null, canClose: false, closeBlockedReason: '약정 8회 중 3회를 했습니다 — 남은 5회를 마쳐야 종료할 수 있습니다',
     archiveBlockedReason: '받은 돈이 있는 컨설팅은 지울 수 없습니다', canSendContract: false, canCloseException: false, canEditItems: true,
   },
   contractFiles: [], signedFiles: [], feedback: [], delivery: null, payment: { paid: 3600000, due: 0, invoiceId: null },

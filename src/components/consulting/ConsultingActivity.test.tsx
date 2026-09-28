@@ -32,7 +32,7 @@ const item = consultingItem({
 const capabilities = {
   canEdit: false, canChangeShare: false, canSetPrivate: false, canAddContractFile: false, canRemoveContractFile: false, canAddFeedback: false, canResolveFeedback: false,
   canDeliver: false, canAddSignedFile: false, canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
-  externalParentSendSupported: false, externalParentSendReason: null, canAddSession: true, canClose: false, closeBlockedReason: '남았다',
+  externalParentSendSupported: false, externalParentSendReason: null, canAddSession: true, addSessionBlockedReason: null, canClose: false, closeBlockedReason: '남았다',
   archiveBlockedReason: null, canSendContract: false, canCloseException: false, canEditItems: false,
 } satisfies ConsultingDetail['capabilities'];
 
@@ -66,8 +66,10 @@ it('머리는 서버의 「한 회차」이고 잡아 둔 날짜는 「앞으로
   fireEvent.click(view.getByRole('button', { name: '+ 회차 기록' }));
   expect(onAddSession).toHaveBeenCalled();
   cleanup();
-  const locked = setup({ capabilities: { ...capabilities, canAddSession: false } });
+  const locked = setup({ capabilities: { ...capabilities, canAddSession: false, addSessionBlockedReason: '수납이 끝나야 회차를 기록할 수 있습니다 (계약 → 진행)' } });
   expect(locked.view.queryByRole('button', { name: '+ 회차 기록' })).toBeNull();
+  // 단추가 없는 것과 **왜** 없는지는 다른 정보다 — 진행 탭이 잠긴 까닭을 서버 문장 그대로 말한다 (I-89 「진행이 잠겨 있다」)
+  expect(locked.view.getByText('수납이 끝나야 회차를 기록할 수 있습니다 (계약 → 진행)')).toBeTruthy();
 });
 
 it('「고치기」를 펼쳐 왜·어떻게만 적으면 그 둘만 보낸다 (보낸 칸만 · C93 PATCH 규약 · 31-10)', async () => {

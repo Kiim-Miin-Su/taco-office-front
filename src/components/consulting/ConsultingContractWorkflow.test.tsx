@@ -52,7 +52,7 @@ const capabilities: ConsultingDetail['capabilities'] = {
   canAddFeedback: true, canResolveFeedback: true, canDeliver: false, canAddSignedFile: false,
   canAddPayment: false, payBlockedReason: null, canCreateInvoice: false, canArchive: true,
   externalParentSendSupported: false, externalParentSendReason: '외부 수신처 정책 미정',
-  canAddSession: false, canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
+  canAddSession: false, addSessionBlockedReason: '수납이 끝나야 회차를 기록할 수 있습니다 (계약 → 진행)', canClose: false, closeBlockedReason: '수납이 끝나 진행 중인 컨설팅만 종료할 수 있습니다',
   archiveBlockedReason: null, canSendContract: false, canCloseException: false, canEditItems: true,
 };
 
