@@ -205,7 +205,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
               ))}
             </ol>
             {preview.books.length ? (
-              <p className="mt-2 border-t border-line pt-2 text-fg-2">교재 — {preview.books.map((b) => `${b.studentName} · ${b.title}`).join(' / ')}</p>
+              <p className="mt-2 border-t border-line pt-2 text-fg-2">교재 — {preview.books.map((b) => `${b.studentName} · ${b.title} → ${b.teacherName}`).join(' / ')}</p>
             ) : null}
             {preview.unavailable.length ? (
               <Banner tone="warning" className="mt-2">

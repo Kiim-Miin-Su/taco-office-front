@@ -191,11 +191,22 @@ export default function TeacherHistoryPage() {
                           {s.confirmed ? '확정' : s.saved ? '마감 작성 중' : '실시간 계산'}
                         </Chip>
                       </div>
+                      {s.breakdown
+                        .filter((row) => row.key !== 'other' || row.lessonCount > 0 || row.amount !== 0 || row.note)
+                        .map((row) => (
+                          <SRow key={row.key} name={row.label}
+                            how={`${row.lessonCount}건 · ${hours(row.minutes)}시간${row.note ? ` · ${row.note}` : ''}`}
+                            amount={won(row.amount)} />
+                        ))}
                       <SRow
-                        name="수업료 · 시급 기준"
+                        name="수업료 합계"
                         how={`제출 인정 ${hours(s.writtenMinutes)}시간 (리포트 쓴 수업만)${s.bonus > 0 ? ` · 가산 ${won(s.bonus)} 포함` : ''}`}
                         amount={won(s.gross)}
                       />
+                      {s.breakdownUnallocatedAmount !== 0 ? (
+                        <SRow name="저장값과 현재 근거 차이" how="종류별 근거가 없는 옛 저장 정산입니다"
+                          amount={`${s.breakdownUnallocatedAmount > 0 ? '+' : '−'}${won(Math.abs(s.breakdownUnallocatedAmount))}`} />
+                      ) : null}
                       <SRow name="리포트 지각 제출 차감" how="수업 종료 시각 기준 두 구간" amount={s.lateCut > 0 ? `−${won(s.lateCut)}` : '없음'} />
                       <SRow name="원천징수" how="소득세 3% + 지방소득세 · 각각 절사" amount={`−${won(s.incomeTax + s.localTax)}`} />
                       <div className="mt-2 flex items-baseline justify-between border-t border-card/25 pt-3">

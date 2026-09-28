@@ -51,6 +51,15 @@ const data = (): TeacherHistory => ({
     unwrittenCount: 1, unwrittenMinutes: 60, unwrittenAmount: 42000,
     remainingCount: 4, remainingMinutes: 300, remainingAmount: 225000,
     bonus: 0, correctionCount: 0, lateCount: 0, note: null,
+    breakdown: [
+      { key: 'general', label: '일반 수업', lessonCount: 7, minutes: 540, amount: 378000, note: null },
+      { key: 'kinder', label: 'Kinder 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: '현재 모델에 Kinder 표시 없음' },
+      { key: 'group', label: '그룹 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
+      { key: 'diag', label: '진단고사 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
+      { key: 'mock', label: '모의수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
+      { key: 'other', label: '그 밖의 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
+    ],
+    breakdownTotal: 378000, breakdownUnallocatedAmount: 0,
   },
   bonusRules: [],
 });
@@ -96,6 +105,31 @@ it('정산 줄의 산식은 좁은 화면에서 **잘리지 않고 아래로 내
   expect(how.className).toContain('w-full');
   expect(how.className).toContain('sm:truncate');
   expect(how.className).not.toMatch(/(^|\s)truncate(\s|$)/);
+});
+
+it('정산 금액은 서버가 내려준 기본 시급·Kinder·그룹·진단·모의 breakdown을 그대로 펼쳐 보여 준다', async () => {
+  const d = data();
+  d.settlement.breakdown = [
+    { key: 'general', label: '일반 수업', lessonCount: 4, minutes: 240, amount: 180000, note: null },
+    { key: 'kinder', label: 'Kinder 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: '현재 모델에 Kinder 표시가 없어 적용하지 않습니다' },
+    { key: 'group', label: '그룹 수업 가산', lessonCount: 1, minutes: 60, amount: 10000, note: null },
+    { key: 'diag', label: '진단고사 가산', lessonCount: 1, minutes: 60, amount: 15000, note: null },
+    { key: 'mock', label: '모의수업 가산', lessonCount: 1, minutes: 60, amount: 15000, note: null },
+    { key: 'other', label: '그 밖의 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
+  ];
+  d.settlement.breakdownTotal = 220000;
+  d.settlement.breakdownUnallocatedAmount = 0;
+  d.settlement.gross = 220000;
+  mocks.history.mockReturnValue({ data: d, isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  const base = await view.findByText('일반 수업');
+  const text = (view.container.textContent ?? '').replace(/\s+/g, ' ');
+  expect(base.parentElement?.textContent).toContain('4건 · 4시간');
+  expect(view.getByText('그룹 수업 가산').parentElement?.textContent).toContain('1건 · 1시간');
+  expect(view.getByText('진단고사 가산').parentElement?.textContent).toContain('1건 · 1시간');
+  expect(view.getByText('모의수업 가산').parentElement?.textContent).toContain('1건 · 1시간');
+  expect(text).toContain('현재 모델에 Kinder 표시가 없어 적용하지 않습니다');
+  expect(text).toContain(won(220000));
 });
 
 /**

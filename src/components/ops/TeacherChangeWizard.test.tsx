@@ -25,7 +25,10 @@ const result: TeacherChangeResult = {
     { serId: 12, newSerId: 40, title: '', kindName: '수업', subName: 'Writing', ruleLabel: '매주 월·수', startMin: 960, endMin: 1020, students: ['진예람'], occurrences: 8, firstOn: '2026-10-05' },
     { serId: 15, newSerId: 41, title: '', kindName: '수업', subName: 'SAT Math', ruleLabel: '매주 금', startMin: 1080, endMin: 1140, students: ['차서윤'], occurrences: 4, firstOn: '2026-10-09' },
   ],
-  occurrences: 12, guideDrafts: 2, parentNotices: 2, books: [{ studentName: '진예람', title: 'Writing Builder 2', state: 'wait' }],
+  occurrences: 12, guideDrafts: 2, parentNotices: 2, books: [{
+    teacherId: 3, teacherName: '김범준', studentId: 21, studentName: '진예람', issueId: 31, libId: 8,
+    title: 'Writing Builder 2', state: 'wait',
+  }],
   payout: [{ month: '2026-10', occurrences: 12, fromConfirmed: false, toConfirmed: false }], notifiedTeachers: 2, notifiedStaff: 3,
   unavailable: [{ serId: 40, date: '2026-10-07', teacherId: 3, teacherName: '김범준', startMin: 960, endMin: 1020, reason: '병원' }],
   cpl: { id: 2, stage: 'acting', teacherChanged: true },
@@ -93,6 +96,7 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
   expect(text).toContain('김재훈 → 김범준 · 2026-10-05부터 · 회차 12회');
   for (const w of ['1. 스케줄 12회', '2. 안내 초안 2건', '3. 학부모 안내 2건', '4. 교재 확인 1권', '5. 정산 시수 12회', '6. 선생님 전달 2명']) expect(text).toContain(w);
   expect(text).toContain('학부모 수신처는 아직 없습니다');
+  expect(text).toContain('진예람 · Writing Builder 2 → 김범준');
   expect(text).toContain('2026-10-07 16:00–17:00 · 김범준 — 병원');
   expect(text).toContain('컴플레인 #2 → 「강사 교체됨」 · 대응 칸으로');
   await waitFor(() => expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(false));
