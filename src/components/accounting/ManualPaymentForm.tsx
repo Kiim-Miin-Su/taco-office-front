@@ -18,6 +18,7 @@ import { Banner, Button, Dialog, Input, Label, Select } from '@/components/ui';
 import { apiMessage } from '@/api/client';
 import { useCreateManualPayment, useMeta } from '@/api/queries';
 import { todayKst } from '@/lib/calendar';
+import { useRequestKey } from '@/lib/request-key';
 import { METHOD_LABEL, type PayMethod } from './PaymentRecorder';
 
 export function ManualPaymentButton() {
@@ -32,6 +33,8 @@ export function ManualPaymentButton() {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const create = useCreateManualPayment();
+  // 안건 N-132 — 실패 뒤 같은 내용으로 다시 누르면 같은 키(서버가 앞선 줄로 수렴) · 고치면 새 키 · 성공하면 다음은 새 입금
+  const requestKey = useRequestKey();
 
   const openDialog = () => {
     setStudentId(''); setPaidOn(todayKst()); setAmount(''); setMethod('transfer'); setReason(''); setErr(null);
@@ -46,7 +49,9 @@ export function ManualPaymentButton() {
     if (!ready) return;
     setErr(null);
     try {
-      await create.mutateAsync({ studentId: Number(studentId), amount: won, paidOn, method, reason: reason.trim() });
+      const body = { studentId: Number(studentId), amount: won, paidOn, method, reason: reason.trim() };
+      await create.mutateAsync({ ...body, requestKey: requestKey.keyFor(body) });
+      requestKey.reset();
       close();
     } catch (e) {
       setErr(apiMessage(e));

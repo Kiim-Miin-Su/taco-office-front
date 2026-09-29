@@ -6570,6 +6570,11 @@ export interface components {
             method?: "transfer" | "cash";
             /** @description 청구액과 다를 때의 사유 — 분납 회차 메모로도 쓴다 */
             reason?: string;
+            /**
+             * Format: uuid
+             * @description 재시도 · 더블클릭 중복 방지 키(안건 N-132) — 같은 키 · 같은 내용은 앞선 결과를 그대로 돌려주고 줄을 더하지 않는다. 같은 키 · 다른 내용이나 지운 줄의 키는 409 PAY_REQUEST_KEY_REUSED.
+             */
+            requestKey: string;
         };
         ManualPaymentCreateDto: {
             /** @description 누구의 돈인가 — 학생 번호 */
@@ -6585,6 +6590,11 @@ export interface components {
             method?: "transfer" | "cash";
             /** @description 무엇에 대한 돈인가 — 교재비 · 조정 등. 청구서가 없으니 필수(공백뿐이면 409 PAY_REASON_REQUIRED) */
             reason: string;
+            /**
+             * Format: uuid
+             * @description 재시도 · 더블클릭 중복 방지 키(안건 N-132) — 같은 키 · 같은 내용은 앞선 결과를 그대로 돌려주고 줄을 더하지 않는다. 같은 키 · 다른 내용이나 지운 줄의 키는 409 PAY_REQUEST_KEY_REUSED.
+             */
+            requestKey: string;
         };
         ExpenseReviewDto: {
             /** @enum {string} */
@@ -9723,6 +9733,11 @@ export interface components {
             /** @example 2026-07-12 */
             paidOn: string;
             memo?: string;
+            /**
+             * Format: uuid
+             * @description 재시도 · 더블클릭 중복 방지 키(안건 N-132) — 같은 키 · 같은 내용은 앞선 결과를 그대로 돌려주고 줄을 더하지 않는다. 같은 키 · 다른 내용이나 지운 줄의 키는 409 PAY_REQUEST_KEY_REUSED.
+             */
+            requestKey: string;
         };
         ConsToInvoiceDto: {
             /** @description 청구서를 받을 학생 — 그 컨설팅의 학생이어야 한다. 학생이 여럿이면 필수 */
@@ -17300,7 +17315,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code OVERPAY(남은 금액 초과) | INV_NOT_BILLABLE(초안·취소) */
+            /** @description code OVERPAY(남은 금액 초과) | INV_NOT_BILLABLE(초안·취소) | PAY_REQUEST_KEY_REUSED(같은 요청 키 · 다른 내용 또는 지운 줄의 키 · N-132) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17376,7 +17391,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code PAY_REASON_REQUIRED(사유가 공백뿐) */
+            /** @description code PAY_REASON_REQUIRED(사유가 공백뿐) | PAY_REQUEST_KEY_REUSED(같은 요청 키 · 다른 내용 또는 지운 줄의 키 · N-132) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -25351,7 +25366,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code CONS_PAY_LOCKED(종료된 건) | CONS_PAY_NOT_READY(서명 전) | OVERPAY(남은 금액 초과) */
+            /** @description code CONS_PAY_LOCKED(종료된 건) | CONS_PAY_NOT_READY(서명 전) | OVERPAY(남은 금액 초과) | PAY_REQUEST_KEY_REUSED(같은 요청 키 · 다른 내용 · N-132) */
             409: {
                 headers: {
                     [name: string]: unknown;

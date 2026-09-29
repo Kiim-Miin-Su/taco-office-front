@@ -29,6 +29,7 @@ const line: Payment = {
   method: 'transfer', reason: '1회차 분납', category: 'tuition', categoryLabel: '수업료',
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 afterEach(() => {
@@ -67,8 +68,61 @@ it('등록은 입력한 금액 그대로 서버로 보내고, 누계는 화면�
   fireEvent.click(view.getByRole('button', { name: '입금 기록' }));
   await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
   expect(JSON.parse(String(post.mock.calls[0][0].data))).toEqual({
-    invId: 9, amount: 120000, paidOn: '2026-08-30', method: 'transfer',
+    invId: 9, amount: 120000, paidOn: '2026-08-30', method: 'transfer', requestKey: expect.stringMatching(UUID),
   });
+});
+
+/**
+ * 안건 N-132 — 같은 부분 입금이 두 줄이 되지 않게 요청마다 키를 싣는다. 끊긴 응답 뒤 다시 누르면 **같은 키**(서버가 앞선 줄로 수렴),
+ * 내용을 고치면 새 키(다른 입금), 성공한 뒤의 다음 입금도 새 키(같은 금액을 한 번 더 받는 것은 막지 않는다).
+ */
+it('끊긴 응답 뒤 다시 누르면 같은 요청 키 · 고치거나 성공한 뒤에는 새 키 (N-132)', async () => {
+  let n = 0;
+  const post = vi.fn(async (config) => {
+    n += 1;
+    if (n === 1) throw Object.assign(new Error('Network Error'), { isAxiosError: true, code: 'ERR_NETWORK' });
+    return { config, status: 201, statusText: 'Created', headers: {}, data: inv({ paidAmount: 320000, remaining: 200000 }) };
+  });
+  const view = setup([inv()], [line], post as never);
+  const keyOf = (i: number) => JSON.parse(String(post.mock.calls[i][0].data)).requestKey as string;
+  fireEvent.click(view.getByRole('button', { name: /고은설/ }));
+  fireEvent.change(view.getByLabelText('이번에 들어온 금액'), { target: { value: '120000' } });
+  fireEvent.change(view.getByLabelText('입금일'), { target: { value: '2026-08-30' } });
+  fireEvent.click(view.getByRole('button', { name: '입금 기록' }));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(view.getByRole('button', { name: '입금 기록' }).hasAttribute('disabled')).toBe(false));
+  // 같은 내용으로 다시 — 같은 키
+  fireEvent.click(view.getByRole('button', { name: '입금 기록' }));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+  expect(keyOf(0)).toMatch(UUID);
+  expect(keyOf(1)).toBe(keyOf(0));
+  // 성공해 칸이 비었다 — 같은 금액을 다시 적어 보내면 새 입금이다
+  await waitFor(() => expect((view.getByLabelText('이번에 들어온 금액') as HTMLInputElement).value).toBe(''));
+  fireEvent.change(view.getByLabelText('이번에 들어온 금액'), { target: { value: '120000' } });
+  fireEvent.change(view.getByLabelText('입금일'), { target: { value: '2026-08-30' } });
+  fireEvent.click(view.getByRole('button', { name: '입금 기록' }));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(3));
+  expect(keyOf(2)).toMatch(UUID);
+  expect(keyOf(2)).not.toBe(keyOf(0));
+});
+
+it('실패 뒤 금액을 고치면 새 요청 키 — 다른 입금을 앞선 키에 묶지 않는다 (N-132)', async () => {
+  const post = vi.fn(async () => {
+    throw Object.assign(new Error('Network Error'), { isAxiosError: true, code: 'ERR_NETWORK' });
+  });
+  const view = setup([inv()], [line], post as never);
+  const keyOf = (i: number) => JSON.parse(String((post.mock.calls[i] as unknown as [{ data: string }])[0].data)).requestKey as string;
+  fireEvent.click(view.getByRole('button', { name: /고은설/ }));
+  fireEvent.change(view.getByLabelText('이번에 들어온 금액'), { target: { value: '120000' } });
+  fireEvent.change(view.getByLabelText('입금일'), { target: { value: '2026-08-30' } });
+  fireEvent.click(view.getByRole('button', { name: '입금 기록' }));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(view.getByRole('button', { name: '입금 기록' }).hasAttribute('disabled')).toBe(false));
+  fireEvent.change(view.getByLabelText('이번에 들어온 금액'), { target: { value: '100000' } });
+  fireEvent.click(view.getByRole('button', { name: '입금 기록' }));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+  expect(keyOf(1)).toMatch(UUID);
+  expect(keyOf(1)).not.toBe(keyOf(0));
 });
 
 it('서버 거절(OVERPAY) 문구를 그대로 그린다 — 화면이 초과를 다시 판정하지 않는다', async () => {

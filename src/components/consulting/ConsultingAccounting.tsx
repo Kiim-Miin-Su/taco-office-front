@@ -25,6 +25,7 @@ import {
 } from '@/components/ui';
 import { CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
 import { MASKED, won } from '@/lib/money';
+import { useRequestKey } from '@/lib/request-key';
 
 /** 단계 글자색 — 점 색과 같은 토큰(계약 파랑 · 진행 보라 · 종료 초록) */
 const STAGE_TEXT: Record<string, string> = { info: 'text-blue', purple: 'text-violet', success: 'text-green', neutral: 'text-fg-2' };
@@ -47,6 +48,8 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
   const [invStudent, setInvStudent] = useState('');
 
   const addPayment = useAddConsPayment();
+  // 안건 N-132 — 실패 뒤 다시 넣으면 같은 키(서버가 앞선 줄로 수렴) · 고치면 새 키 · 성공하면 다음은 새 납부
+  const requestKey = useRequestKey();
   const toInvoice = useConsToInvoice();
 
   const rows = data?.items ?? [];
@@ -62,9 +65,10 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
 
   const submitPayment = () => {
     if (!payFor) return;
+    const body = { consId: payFor.id, amount: Number(amount), paidOn, memo: memo.trim() || undefined };
     addPayment.mutate(
-      { consId: payFor.id, amount: Number(amount), paidOn, memo: memo.trim() || undefined },
-      { onSuccess: closePay },
+      { ...body, requestKey: requestKey.keyFor(body) },
+      { onSuccess: () => { requestKey.reset(); closePay(); } },
     );
   };
 

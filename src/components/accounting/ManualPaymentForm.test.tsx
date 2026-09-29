@@ -59,7 +59,10 @@ it('학생·금액·입금일·수단·사유만 보낸다 — 청구서 번호�
   await waitFor(() => expect(posted).toHaveLength(1));
   expect(posted[0]).toEqual({
     url: '/accounting/payments/manual',
-    body: { studentId: 11, amount: 35000, paidOn: '2026-09-21', method: 'transfer', reason: '교재비' },
+    body: {
+      studentId: 11, amount: 35000, paidOn: '2026-09-21', method: 'transfer', reason: '교재비',
+      requestKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+    },
   });
   await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
 });
@@ -75,4 +78,25 @@ it('서버 거절 문장은 창 안에 그대로 — 창은 닫히지 않는다'
   fireEvent.click(within(dialog).getByRole('button', { name: '등록' }));
   expect(await within(dialog).findByText('학생을 찾을 수 없습니다')).toBeTruthy();
   expect(view.getByRole('dialog')).toBeTruthy();
+});
+
+/** 안건 N-132 — 끊긴 응답 뒤 「등록」을 다시 누르면 같은 요청 키(서버가 앞선 줄로 수렴) · 사유를 고치면 새 키 */
+it('실패 뒤 같은 내용으로 다시 누르면 같은 요청 키 · 고치면 새 키 (N-132)', async () => {
+  const { view } = setup(() => ({ status: 503, data: { code: 'UPSTREAM', message: '잠시 뒤 다시 시도해 주세요' } }));
+  fireEvent.click(view.getByRole('button', { name: '+ 결제 등록' }));
+  const dialog = await view.findByRole('dialog');
+  await within(dialog).findByRole('option', { name: '김하윤 · 중2' });
+  fireEvent.change(within(dialog).getByLabelText('학생'), { target: { value: '11' } });
+  fireEvent.change(within(dialog).getByLabelText('금액'), { target: { value: '35000' } });
+  fireEvent.change(within(dialog).getByLabelText('무엇에 대한 돈인가'), { target: { value: '교재비' } });
+  const submit = () => fireEvent.click(within(dialog).getByRole('button', { name: '등록' }));
+  submit();
+  await within(dialog).findByText('잠시 뒤 다시 시도해 주세요');
+  submit();
+  await waitFor(() => expect(posted).toHaveLength(2));
+  expect(posted[1].body.requestKey).toBe(posted[0].body.requestKey);
+  fireEvent.change(within(dialog).getByLabelText('무엇에 대한 돈인가'), { target: { value: '교재비 2권' } });
+  submit();
+  await waitFor(() => expect(posted).toHaveLength(3));
+  expect(posted[2].body.requestKey).not.toBe(posted[0].body.requestKey);
 });

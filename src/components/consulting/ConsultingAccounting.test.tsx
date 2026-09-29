@@ -96,7 +96,32 @@ it('납부 넣기 — 화면은 서버에 보낼 세 값만 모은다', () => {
   fireEvent.change(v.getByLabelText('메모'), { target: { value: '2회차' } });
   fireEvent.click(v.getByRole('button', { name: '넣기' }));
   expect(pay).toHaveBeenCalledTimes(1);
-  expect(pay.mock.calls[0][0]).toEqual({ consId: 2, amount: 100000, paidOn: '2026-09-01', memo: '2회차' });
+  expect(pay.mock.calls[0][0]).toEqual({
+    consId: 2, amount: 100000, paidOn: '2026-09-01', memo: '2회차',
+    requestKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+  });
+});
+
+/** 안건 N-132 — 실패 뒤 다시 넣으면 같은 요청 키(서버가 앞선 줄로 수렴) · 성공한 뒤의 다음 납부는 새 키 */
+it('실패 뒤 다시 넣으면 같은 요청 키 · 성공한 뒤의 다음 납부는 새 키 (N-132)', () => {
+  const v = render(<ConsultingAccounting data={clone()} />);
+  const fill = () => {
+    fireEvent.change(v.getByLabelText('받은 금액'), { target: { value: '100000' } });
+    fireEvent.change(v.getByLabelText('받은 날'), { target: { value: '2026-09-01' } });
+  };
+  fireEvent.click(v.getAllByRole('button', { name: '납부 넣기' })[1]);
+  fill();
+  fireEvent.click(v.getByRole('button', { name: '넣기' }));
+  fireEvent.click(v.getByRole('button', { name: '넣기' }));
+  expect(pay).toHaveBeenCalledTimes(2);
+  const key0 = pay.mock.calls[0][0].requestKey as string;
+  expect(pay.mock.calls[1][0].requestKey).toBe(key0);
+  // 성공 — 창이 닫힌다. 같은 금액을 다시 적어 넣으면 새 납부다
+  (pay.mock.calls[1][1] as { onSuccess: () => void }).onSuccess();
+  fireEvent.click(v.getAllByRole('button', { name: '납부 넣기' })[1]);
+  fill();
+  fireEvent.click(v.getByRole('button', { name: '넣기' }));
+  expect(pay.mock.calls[2][0].requestKey).not.toBe(key0);
 });
 
 it('날짜 없이 또는 0 원으로는 넣을 수 없다 — 0 원은 기록이 아니라 실수다', () => {

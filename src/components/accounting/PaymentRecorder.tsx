@@ -12,6 +12,7 @@
  * 구분되지 않으면 대사(reconciliation) 자체가 성립하지 않는다.
  *
  * 누계·상태 전이·초과 거절은 **서버가 한다.** 화면은 더하지 않고, 거절 문구를 그대로 그린다.
+ * 같은 입금이 두 줄이 되지 않게 요청 키를 싣는다(N-132 · `lib/request-key`) — 수렴 판정은 서버다.
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
@@ -20,6 +21,7 @@ import { useCreatePayment, useDeletePayment } from '@/api/queries';
 import type { Invoice, Payment, PaymentCreate } from '@/api/types';
 import { Banner, Button, Chip, Input, Label, Panel, Select } from '@/components/ui';
 import { won } from '@/lib/money';
+import { useRequestKey } from '@/lib/request-key';
 
 /** 받을 돈 — 발행됐고 아직 다 안 들어온 청구서만 고를 수 있다 (§53 ②③⑤ 단계) */
 const OPEN_STATES = new Set(['sent', 'unpaid', 'partial']);
@@ -59,17 +61,25 @@ export function PaymentRecorder({ invoices, payments, initialInvId = null }: {
   const canSubmit =
     picked !== null && form.paidOn !== '' && Number.isInteger(amount) && amount > 0 && !create.isPending;
 
+  // 안건 N-132 — 끊긴 응답 뒤 다시 누르면 같은 키(서버가 앞선 줄로 수렴) · 고치면 새 키 · 성공하면 다음은 새 입금
+  const requestKey = useRequestKey();
   const submit = () => {
     if (!picked || !canSubmit) return;
+    const body = {
+      invId: picked.id,
+      amount,
+      paidOn: form.paidOn,
+      ...(form.method ? { method: form.method } : {}),
+      ...(form.reason.trim() ? { reason: form.reason.trim() } : {}),
+    };
     create.mutate(
+      { ...body, requestKey: requestKey.keyFor(body) },
       {
-        invId: picked.id,
-        amount,
-        paidOn: form.paidOn,
-        ...(form.method ? { method: form.method } : {}),
-        ...(form.reason.trim() ? { reason: form.reason.trim() } : {}),
+        onSuccess: () => {
+          requestKey.reset();
+          setForm({ amount: '', paidOn: '', method: form.method, reason: '' });
+        },
       },
-      { onSuccess: () => setForm({ amount: '', paidOn: '', method: form.method, reason: '' }) },
     );
   };
 
