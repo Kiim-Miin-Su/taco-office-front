@@ -8,8 +8,9 @@ import { afterEach, expect, it } from 'vitest';
 import { CancelLessonDialog } from './CancelLessonDialog';
 
 const reasons = [
-  { key: 'student_absent' as const, label: '학생 결석', deductible: true },
-  { key: 'holiday' as const, label: '공휴일', deductible: false },
+  { key: 'student_absent' as const, label: '학생 결석', deductible: true, parentNotice: false },
+  { key: 'holiday' as const, label: '공휴일', deductible: false, parentNotice: false },
+  { key: 'academy' as const, label: '학원 사정', deductible: false, parentNotice: true },
 ];
 const treats = [
   { key: 'carry' as const, label: '이월', sub: '이번 달 청구에서 빼고 다음 달로 넘깁니다 (기본)' },
@@ -38,4 +39,13 @@ it('닫았다 다시 열면 비운다 — 지난 휴강의 사유가 다음 창�
   v.rerender(<CancelLessonDialog {...props} open={false} />);
   v.rerender(<CancelLessonDialog {...props} open />);
   expect((v.getByLabelText('사유', { exact: true }) as HTMLSelectElement).value).toBe('');
+});
+
+it('학원 사정을 고르면 학부모 안내가 준비된다고 먼저 말한다 — 서버의 parentNotice 를 읽고 사유 코드를 비교하지 않는다 (C-32 · D-R39)', () => {
+  const props = { open: true, title: '휴강 — 시험', reasons, treats, onSubmit: () => {}, onClose: () => {} };
+  const v = render(<CancelLessonDialog {...props} />);
+  fireEvent.change(v.getByLabelText('사유', { exact: true }), { target: { value: 'holiday' } });
+  expect(v.queryByText(/학부모 안내를 준비합니다/)).toBeNull();
+  fireEvent.change(v.getByLabelText('사유', { exact: true }), { target: { value: 'academy' } });
+  expect(v.getByText(/학부모 안내를 준비합니다/)).toBeTruthy();
 });

@@ -36,14 +36,19 @@ export interface StudentWithdrawDialogProps {
   serId?: number | null;
   /** 기본 종료일 — 보통 열어 둔 회차의 날짜 */
   defaultEndedOn?: string;
-  /** 기본 사유 — 컴플레인에서 열면 「컴플레인 #N · 내용」 (N-135 ① 의 cplId 칸 전까지는 사유 글로만 잇는다) */
+  /** 기본 사유 — 컴플레인에서 열면 「컴플레인 #N · 내용」 */
   defaultReason?: string;
+  /**
+   * 이 종료를 연 컴플레인 (J-99 · N-135 「연결이 끊기면 실패」) — 미리보기와 확정 둘 다 싣는다.
+   * 연결의 정본은 서버다: 같은 학생 · 열린 건인지 서버가 보고, 이어지면 컴플레인 이력에 금액이 선다.
+   */
+  cplId?: number | null;
   onClose: () => void;
   /** 처리가 끝난 뒤 — 부모가 창을 닫고 갱신한다 */
   onDone?: (result: WithdrawResult) => void;
 }
 
-export function StudentWithdrawDialog({ open, title, student, serId, defaultEndedOn, defaultReason, onClose, onDone }: StudentWithdrawDialogProps) {
+export function StudentWithdrawDialog({ open, title, student, serId, defaultEndedOn, defaultReason, cplId, onClose, onDone }: StudentWithdrawDialogProps) {
   const id = useId();
   const write = useWithdrawStudent();
   const [endedOn, setEndedOn] = useState('');
@@ -62,7 +67,8 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
     setErr(null);
   }, [open, defaultEndedOn, defaultReason, serId]);
 
-  const body = () => ({ studentId: student.id, endedOn, serIds: scope === 'this' && serId ? [serId] : undefined, reason: reason.trim() || undefined });
+  const link = cplId ? { cplId } : {};
+  const body = () => ({ studentId: student.id, endedOn, serIds: scope === 'this' && serId ? [serId] : undefined, reason: reason.trim() || undefined, ...link });
   const dateOk = ISO.test(endedOn);
 
   // 날짜·범위가 정해질 때마다 서버에 미리 보인다 — 값은 서버 것이다
@@ -70,13 +76,13 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
     if (!open || !dateOk) { setPreview(null); return; }
     let alive = true;
     setErr(null);
-    write.mutate({ kind: 'preview', body: { studentId: student.id, endedOn, serIds: scope === 'this' && serId ? [serId] : undefined } }, {
+    write.mutate({ kind: 'preview', body: { studentId: student.id, endedOn, serIds: scope === 'this' && serId ? [serId] : undefined, ...link } }, {
       onSuccess: (r) => { if (alive) setPreview(r); },
       onError: (e) => { if (alive) { setPreview(null); setErr(apiMessage(e)); } },
     });
     return () => { alive = false; };
     // write 는 매 렌더 새 객체라 의존성에서 뺀다 — 날짜·범위·열림만 본다 (이 저장소는 exhaustive-deps 규칙을 켜지 않았다)
-  }, [open, dateOk, endedOn, scope, student.id, serId]);
+  }, [open, dateOk, endedOn, scope, student.id, serId, cplId]);
 
   const pending = write.isPending;
   /* 확정이 열리는지는 **서버가 정한다** — 청구서가 통째로 비어 취소되는 종료는 대표만 할 수 있다(N-139 · S2).

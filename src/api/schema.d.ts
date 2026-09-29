@@ -290,7 +290,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 전일 휴원 학부모 안내 준비행 — 새로고침 뒤 선택 발송 재개 (N-133) */
+        /** 학원 사유 휴강 학부모 안내 준비행(전일 휴원 N-133 · 한 회차 학원 사정 휴강 C-32) — 새로고침 뒤 선택 발송 재개 */
         get: operations["ScheduleController_dayCancelNotices"];
         put?: never;
         post?: never;
@@ -4440,6 +4440,8 @@ export interface components {
             label: string;
             /** @description 이 사유로 차감(소진) 처리를 고를 수 있는가 — 학생 결석만 true */
             deductible: boolean;
+            /** @description 이 사유로 한 회차를 접으면 학부모 안내 준비행을 남기는가 — 학원 사정만 true (C-32 · lib/rules.PARENT_NOTICE_CANCEL_REASONS) */
+            parentNotice: boolean;
         };
         CancelTreatDto: {
             /**
@@ -4675,8 +4677,10 @@ export interface components {
             id: number;
             studentId: number;
             studentName: string;
-            /** @description 서버가 만든 전일 휴원 안내문 — 화면은 이 본문으로 공용 보호자 선택 발송 창을 연다 */
+            /** @description 서버가 만든 휴강 안내문 — 화면은 이 본문으로 공용 보호자 선택 발송 창을 연다 */
             body: string;
+            /** @description 안내 이름 — 「전일 휴원 안내」 · 「휴강 안내」 (서버 낱말 · 본문 머리말에서 고른다 · lib/cancel-notice) */
+            title: string;
             /**
              * Format: date-time
              * @description 실제 외부 발송이 한 건이라도 성공한 시각
@@ -6229,6 +6233,8 @@ export interface components {
             serIds?: number[];
             /** @description 사유 — 장부(환불 줄)와 이력에 남는다 */
             reason?: string;
+            /** @description 이 종료를 연 컴플레인(J-99 · N-135) — 같은 학생의 열린 건만 받는다(다른 학생 400 CPL_STUDENT_MISMATCH · 없으면 404 · 마무리한 건 409 CPL_CLOSED). 이어지면 같은 트랜잭션에 컴플레인 감사 줄이 남아 §67 컴플레인 이력에 환불 금액이 선다 */
+            cplId?: number;
         };
         WithdrawSeriesDto: {
             serId: number;
@@ -6268,6 +6274,8 @@ export interface components {
             reason?: string | null;
             /** @description 미리보기인가 — true 면 아무것도 쓰지 않았다 */
             preview: boolean;
+            /** @description 이어진 컴플레인(J-99) — 컴플레인에서 열지 않았으면 null */
+            cplId: number | null;
             series: components["schemas"]["WithdrawSeriesDto"][];
             /** @description 종료일 뒤 회차가 들어 있던 청구서 — 줄이 빠지고 넘친 돈은 환불 줄로 */
             invoices: components["schemas"]["WithdrawInvoiceDto"][];
@@ -6967,6 +6975,19 @@ export interface components {
             /** @description 카드 단추 줄(원본 §23 단계별 단추) — 서는 단추와 낱말은 서버 한 곳(lib/intake-words.leadCardActions). 단계 이동은 nextStages 안에서만 */
             cardActions?: components["schemas"]["LeadCardActionDto"][];
         };
+        ComplaintRefundDto: {
+            /** @description 처리한 때 (KST · YYYY-MM-DD HH:MM) */
+            at: string;
+            /**
+             * Format: date
+             * @description 수강 종료일 — 이 날 뒤의 회차가 정리됐다
+             */
+            endedOn: string;
+            /** @description 돌려준 돈 합계 — 금액 권한이 없으면 null(줄은 선다 · D-R39) */
+            refundTotal: number | null;
+            /** @description 처리한 사람 */
+            byName: string | null;
+        };
         ComplaintDto: {
             id: number;
             /** @enum {string} */
@@ -7009,6 +7030,8 @@ export interface components {
              * @description 마무리한 날(KST) — 「결과」로 옮긴 순간 서버가 찍는다(입력 칸 아님). 열린 건 · 옛 「결과」 행(모름)은 null
              */
             closedOn?: string | null;
+            /** @description 이 컴플레인에서 연 수강 종료 · 환불 (J-99 · 오래된 것부터) — 없으면 빈 배열 */
+            refunds: components["schemas"]["ComplaintRefundDto"][];
         };
         TodoLessonDto: {
             /** @description 「학습실 09:30」 — 수업 이름(제목 → 과목 → 종류) + 그려지는 회차의 시작 시각 */
@@ -16361,7 +16384,7 @@ export interface operations {
                     "application/json": components["schemas"]["WithdrawResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description CPL_STUDENT_MISMATCH(컴플레인의 학생과 다르다 · J-99) · 입력 검증 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16388,7 +16411,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description STUDENT_NOT_FOUND | CPL_NOT_FOUND */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16397,7 +16420,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | WITHDRAW_MIXED_INVOICE | MONTH_CLOSED */
+            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | WITHDRAW_MIXED_INVOICE | MONTH_CLOSED | CPL_CLOSED(마무리한 컴플레인 · J-99) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16438,7 +16461,7 @@ export interface operations {
                     "application/json": components["schemas"]["WithdrawResultDto"];
                 };
             };
-            /** @description WITHDRAW_BAD_SERIES · 입력 검증 */
+            /** @description WITHDRAW_BAD_SERIES · CPL_STUDENT_MISMATCH(컴플레인의 학생과 다르다 · J-99) · 입력 검증 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16465,7 +16488,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description STUDENT_NOT_FOUND | CPL_NOT_FOUND */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16474,7 +16497,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | WITHDRAW_NEEDS_CEO_VOID | WITHDRAW_MIXED_INVOICE | MONTH_CLOSED */
+            /** @description WITHDRAW_NOTHING | WITHDRAW_NO_RATE | WITHDRAW_EXCEEDS | WITHDRAW_NEEDS_CEO_VOID | WITHDRAW_MIXED_INVOICE | MONTH_CLOSED | CPL_CLOSED(마무리한 컴플레인 · J-99) */
             409: {
                 headers: {
                     [name: string]: unknown;

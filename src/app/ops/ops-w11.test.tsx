@@ -168,7 +168,7 @@ describe('줄 하나를 곧장 여는 질의 (N-32 · 7-3 ①)', () => {
       cplStages: [{ key: 'received', label: '접수', sub: '받았습니다' }],
       complaints: [
         { id: 9, area: 'lesson', areaLabel: '수업', studentName: '양찬욱', stage: 'received', body: '진도가 느리다는 말씀',
-          action: null, result: null, createdAt: '2026-06-02', ageDays: 80, ownerName: null, overdueDays: 0, teacherChanged: false, canWithdraw: false },
+          action: null, result: null, createdAt: '2026-06-02', ageDays: 80, ownerName: null, overdueDays: 0, teacherChanged: false, canWithdraw: false, refunds: [] },
       ],
     }), 'tab=complaint&cpl=9');
     await waitFor(() => expect(view.getByRole('dialog', { name: '컴플레인 — 양찬욱 · 수업' })).toBeTruthy());
@@ -187,7 +187,7 @@ describe('§67 카드 갈래 칩 (W11 재대조 · 67-7)', () => {
       complaints: [
         { id: 3, area: 'teacher', areaLabel: '선생님', studentName: '이하린', stage: 'closed', body: '강사 교체 요청',
           action: null, result: '교체', createdAt: '2026-08-10', ageDays: 12, ownerName: '김범준', overdueDays: 0,
-          severity: 'severe', severityLabel: '심각', teacherChanged: false, canWithdraw: false },
+          severity: 'severe', severityLabel: '심각', teacherChanged: false, canWithdraw: false, refunds: [] },
       ],
     }), 'tab=complaint');
     const card = await waitFor(() => view.getByRole('button', { name: '컴플레인 강사 교체 요청' }));

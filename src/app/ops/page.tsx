@@ -766,8 +766,9 @@ export default function OpsPage() {
           student={{ id: withdrawOf.studentId, name: withdrawOf.studentName ?? '' }}
           defaultEndedOn={todayKst()}
           defaultReason={`컴플레인 #${withdrawOf.id} · ${withdrawOf.body.slice(0, 60)}`}
+          cplId={withdrawOf.id}
           onClose={() => setWithdrawOf(null)}
-          onDone={(r) => { setWithdrawOf(null); setNotice(`수강 종료 — ${withdrawOf.studentName ?? ''} · 환불 ${won(r.refundTotal)} · 컴플레인 #${withdrawOf.id} 사유로 남김`); }}
+          onDone={(r) => { setWithdrawOf(null); setNotice(`수강 종료 — ${withdrawOf.studentName ?? ''} · 환불 ${won(r.refundTotal)} · 컴플레인 #${r.cplId ?? withdrawOf.id} 이력에 이었습니다`); }}
         />
       ) : null}
       <TeacherChangeWizard

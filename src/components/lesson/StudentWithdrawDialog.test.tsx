@@ -11,7 +11,7 @@ import type { WithdrawResult } from '@/api/types';
 import { StudentWithdrawDialog } from './StudentWithdrawDialog';
 
 const preview: WithdrawResult = {
-  studentId: 18, studentName: '문채원', endedOn: '2026-10-02', reason: null, preview: true,
+  studentId: 18, studentName: '문채원', endedOn: '2026-10-02', reason: null, preview: true, cplId: null,
   series: [
     { serId: 3, kindKey: 'class', subKey: 'sat-math', title: 'SAT Math', endedOn: '2026-10-02', remainingCount: 3 },
   ],
@@ -25,7 +25,10 @@ const clients: QueryClient[] = [];
 const posted: Array<{ url?: string; body: unknown }> = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; });
 
-function setup(onPost: (url: string) => { status: number; data: unknown } = (url) => ({ status: 201, data: url.endsWith('/preview') ? preview : { ...preview, preview: false } })) {
+function setup(
+  onPost: (url: string) => { status: number; data: unknown } = (url) => ({ status: 201, data: url.endsWith('/preview') ? preview : { ...preview, preview: false } }),
+  extra: { cplId?: number; serId?: number | null } = {},
+) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') {
       posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
@@ -41,7 +44,7 @@ function setup(onPost: (url: string) => { status: number; data: unknown } = (url
   const onDone = vi.fn();
   const view = render(
     <QueryClientProvider client={client}>
-      <StudentWithdrawDialog open title="수강 종료 — 문채원" student={{ id: 18, name: '문채원' }} serId={3} defaultEndedOn="2026-10-02" onClose={onClose} onDone={onDone} />
+      <StudentWithdrawDialog open title="수강 종료 — 문채원" student={{ id: 18, name: '문채원' }} serId={'serId' in extra ? extra.serId : 3} defaultEndedOn="2026-10-02" cplId={extra.cplId} onClose={onClose} onDone={onDone} />
     </QueryClientProvider>,
   );
   return { view, onClose, onDone };
@@ -132,4 +135,16 @@ it('서버가 확정을 닫으면 단추도 닫히고 이유가 선다 — 「�
   // 눌러도 보내지 않는다 — 미리보기 한 번뿐이다
   fireEvent.click(within(dialog).getByRole('button', { name: '수강 종료' }));
   expect(posted).toHaveLength(1);
+});
+
+it('컴플레인에서 열면 미리보기와 확정 둘 다 그 컴플레인을 싣는다 — 연결이 서버 칸으로 간다 (J-99 · N-135)', async () => {
+  const { view } = setup(undefined, { cplId: 7, serId: null });
+  const invalidate = vi.spyOn(clients[0]!, 'invalidateQueries');
+  await view.findByLabelText('종료 미리보기');
+  expect(posted[0]).toEqual({ url: '/accounting/withdrawals/preview', body: { studentId: 18, endedOn: '2026-10-02', cplId: 7 } });
+  fireEvent.click(view.getByRole('button', { name: '수강 종료' }));
+  await waitFor(() => expect(posted.some((p) => p.url === '/accounting/withdrawals')).toBe(true));
+  expect(posted.find((p) => p.url === '/accounting/withdrawals')!.body).toMatchObject({ studentId: 18, endedOn: '2026-10-02', cplId: 7 });
+  // 컴플레인 이력(§67)이 새 환불 줄을 다시 읽는다 — 운영 갈래를 버린다
+  await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['ops'] }));
 });

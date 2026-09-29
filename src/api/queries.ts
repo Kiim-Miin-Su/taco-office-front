@@ -1014,6 +1014,8 @@ export function useWithdrawStudent(): UseMutationResult<WithdrawResult, unknown,
       void qc.invalidateQueries({ queryKey: family.accounting });
       void qc.invalidateQueries({ queryKey: family.occurrences });
       void qc.invalidateQueries({ queryKey: family.tracking });
+      // 컴플레인에서 연 종료(J-99) — §67 컴플레인 이력이 새 환불 줄을 다시 읽는다
+      if (w.body.cplId) void qc.invalidateQueries({ queryKey: family.ops });
     },
   });
 }

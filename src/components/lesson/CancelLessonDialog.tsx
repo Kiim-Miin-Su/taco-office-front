@@ -138,6 +138,12 @@ export function CancelLessonDialog({
             ))}
           </Select>
           {!reasons?.length ? <p className="mt-1 text-[11px] text-fg-subtle">코드표를 읽는 중입니다…</p> : null}
+          {/* C-32 — 안내를 남기는 사유인지도 서버의 코드표(parentNotice)다. 화면이 사유 코드를 비교하지 않는다 (D-R39) */}
+          {reason?.parentNotice && !wholeDayOn ? (
+            <p className="mt-1 text-[11px] text-fg-subtle">
+              이 회차 학생마다 학부모 안내를 준비합니다 — 저장 뒤 화면 위 「학부모 일괄 안내」에서 보호자와 채널을 골라 보냅니다.
+            </p>
+          ) : null}
         </div>
 
         <fieldset>

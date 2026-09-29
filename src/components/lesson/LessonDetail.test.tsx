@@ -152,8 +152,8 @@ describe('LessonDetail 명단 결과', () => {
   /** 휴강 창의 낱말은 서버 코드표다 — 이 파일은 그 표를 그대로 넘겨 계약만 본다 (C92 · D-R18) */
   const cancelMeta = {
     cancelReasons: [
-      { key: 'student_absent' as const, label: '학생 결석', deductible: true },
-      { key: 'academy' as const, label: '학원 사정', deductible: false },
+      { key: 'student_absent' as const, label: '학생 결석', deductible: true, parentNotice: false },
+      { key: 'academy' as const, label: '학원 사정', deductible: false, parentNotice: true },
     ],
     cancelTreats: [
       { key: 'carry' as const, label: '이월', sub: '다음 달로' },
@@ -804,5 +804,5 @@ describe('W11 수업 상세 — 방식 · 메모 · 겹침 알림 · 출결 안�
   });
 });
 
-const cancelReasonsW11 = [{ key: 'student_absent' as const, label: '학생 결석', deductible: true }];
+const cancelReasonsW11 = [{ key: 'student_absent' as const, label: '학생 결석', deductible: true, parentNotice: false }];
 const cancelTreatsW11 = [{ key: 'carry' as const, label: '이월', sub: '다음 달로' }];

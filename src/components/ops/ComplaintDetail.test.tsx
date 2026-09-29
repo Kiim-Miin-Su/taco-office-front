@@ -24,7 +24,7 @@ const severities = [{ key: 'light', label: '가벼움' }, { key: 'normal', label
 const complaint: Complaint = {
   id: 2, area: 'teacher', areaLabel: '선생님', studentId: 5, studentName: '고은설', stage: 'received', body: '수업 시작이 10분씩 늦습니다',
   action: null, result: null, createdAt: '2026-09-17', ageDays: 1, ownerId: null, ownerName: null, dueOn: '2026-09-16', overdueDays: 2,
-  severity: 'severe', severityLabel: '심각', teacherChanged: false, canWithdraw: true,
+  severity: 'severe', severityLabel: '심각', teacherChanged: false, canWithdraw: true, refunds: [],
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -182,4 +182,26 @@ it('학생 근거가 없으면 없는 상태를 명시하고, 학생이나 열�
   setup(() => ({ status: 200, data: complaint }), null);
   await new Promise<void>((resolve) => queueMicrotask(resolve));
   expect(gets).toEqual([]);
+});
+
+it('이 컴플레인에서 연 환불이 이력에 금액과 함께 선다 · 금액 권한이 없으면 줄은 서되 금액만 가린다 (J-99 · N-135 · D-R39)', async () => {
+  const { view } = setup(() => ({ status: 200, data: complaint }), {
+    refunds: [
+      { at: '2026-09-29 14:10', endedOn: '2026-09-30', refundTotal: 135000, byName: '김민선' },
+      { at: '2026-09-29 15:00', endedOn: '2026-10-02', refundTotal: null, byName: '김범준' },
+    ],
+  });
+  const dialog = await view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
+  const box = within(dialog).getByLabelText('환불 이력');
+  const text = (box.textContent ?? '').replace(/\s+/g, ' ');
+  expect(text).toContain('환불 ₩135,000');
+  expect(text).toContain('9/30까지 수업');
+  expect(text).toContain('김민선');
+  expect(text).toContain('환불 비공개');
+});
+
+it('이어진 환불이 없으면 환불 이력 칸이 서지 않는다 — 빈 칸을 짓지 않는다', async () => {
+  const { view } = setup(() => ({ status: 200, data: complaint }));
+  const dialog = await view.findByRole('dialog', { name: '컴플레인 — 고은설 · 선생님' });
+  expect(within(dialog).queryByLabelText('환불 이력')).toBeNull();
 });

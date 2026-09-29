@@ -199,9 +199,9 @@ describe('§61 · §62 · §63 · §64 · §67', () => {
       complaints: [
         { id: 1, area: 'lesson', areaLabel: '수업', studentName: '양찬욱', stage: 'acting', body: '수업 진도가 느리다는 말씀',
           action: '분반 검토 중', result: null, createdAt: '2026-08-20', ageDays: 1, ownerName: '김범준',
-          dueOn: '2026-08-20', overdueDays: 1, severity: 'normal', severityLabel: '보통', teacherChanged: false, canWithdraw: false },
+          dueOn: '2026-08-20', overdueDays: 1, severity: 'normal', severityLabel: '보통', teacherChanged: false, canWithdraw: false, refunds: [] },
         { id: 2, area: 'intake', areaLabel: '상담', studentName: '고은설', stage: 'received', body: '안내가 늦음',
-          action: null, result: null, createdAt: '2026-08-21', ageDays: 0, ownerName: null, overdueDays: 0, teacherChanged: false, canWithdraw: false },
+          action: null, result: null, createdAt: '2026-08-21', ageDays: 0, ownerName: null, overdueDays: 0, teacherChanged: false, canWithdraw: false, refunds: [] },
       ],
       areaCounts: [{ key: 'lesson', label: '수업', count: 1 }, { key: 'intake', label: '상담', count: 0 }],
     }), 'tab=complaint');

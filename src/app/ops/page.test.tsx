@@ -414,7 +414,7 @@ it('§67 — 「기한 지남 N」 칩과 탭 동그라미는 서버 cplOverdue 
     complaints: [{ id: 5, area: 'lesson', areaLabel: '수업', studentId: null, studentName: '양찬욱', stage: 'received',
       body: '진도가 느리다는 말씀', action: null, result: null, createdAt: '2026-08-20', ageDays: 1,
       ownerId: null, ownerName: null, dueOn: '2026-08-19', overdueDays: 2, severity: null, severityLabel: null,
-      teacherChanged: false, canWithdraw: false }],
+      teacherChanged: false, canWithdraw: false, refunds: [] }],
   } });
   const view = setup(me, false);
   await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인 2건/ })).toBeTruthy());

@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: N-133 전일 휴원 직후 학생별 학부모 안내 준비행을 실제 보호자 선택 발송으로 잇는다.
+ * 목적: 학원 사유 휴강(N-133 전일 휴원 · C-32 한 회차 학원 사정 휴강) 직후 학생별 학부모 안내 준비행을 실제 보호자 선택 발송으로 잇는다.
  * 책임/재사용: 서버가 만든 본문/대상만 표시하고 기존 GuardianSendDialog에 보호자·채널 선택과 발송 원장을 위임한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -32,7 +32,7 @@ export function DayCancelNoticePanel({ notices, onDismiss }: {
       right={<Button size="sm" variant="ghost" onClick={onDismiss}>나중에</Button>}
     >
       <Banner tone="warning">
-        휴원과 안내 준비는 저장됐습니다. 보호자와 이메일·문자 채널을 확인해 학생별로 실제 발송하세요.
+        휴강과 안내 준비는 저장됐습니다. 보호자와 이메일·문자 채널을 확인해 학생별로 실제 발송하세요.
       </Banner>
       <ul className="mt-3 flex flex-wrap gap-2">
         {notices.map((notice) => {
@@ -54,7 +54,7 @@ export function DayCancelNoticePanel({ notices, onDismiss }: {
           student={{ id: target.studentId, name: target.studentName }}
           pnotiId={target.id}
           defaultBody={target.body}
-          title={`전일 휴원 안내 — ${target.studentName}`}
+          title={`${target.title} — ${target.studentName}`}
           onSent={onSent}
           onClose={() => setTarget(null)}
         />

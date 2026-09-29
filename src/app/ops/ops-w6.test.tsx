@@ -29,7 +29,7 @@ const me: Me = {
 
 const cpl = (over: Partial<Complaint>): Complaint => ({
   id: 1, area: 'schedule', areaLabel: '스케줄', studentId: 5, studentName: '고은설', stage: 'received', body: '수업 시간 변경 안내가 늦었다는 말씀',
-  action: null, result: null, createdAt: '2026-08-19', ageDays: 2, ownerName: null, overdueDays: 0, teacherChanged: false, canWithdraw: false,
+  action: null, result: null, createdAt: '2026-08-19', ageDays: 2, ownerName: null, overdueDays: 0, teacherChanged: false, canWithdraw: false, refunds: [],
   ...over,
 });
 
