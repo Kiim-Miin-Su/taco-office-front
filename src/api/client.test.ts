@@ -267,3 +267,74 @@ describe('공용 API 오류 경계', () => {
     expect(refreshes).toBe(2);
   });
 });
+
+/**
+ * P1 DELIVERY — 한 틱 연타(같은 쓰기가 끝나기 전에 또 옴)는 서버에 **한 번만** 보낸다.
+ * 입금(N-132)처럼 서버가 키로 막는 쓰기도 있지만, 컴플레인 · 할 일 · 상담 · 회의 · 지출 같은 만들기에는 키가 없어
+ * 연타가 두 줄이 됐다(2026-09-29 실측 — 한 틱 두 번 click 에 요청 둘). 판정은 한 곳(api client)이다.
+ */
+describe('같은 쓰기가 끝나기 전에 또 오면 — 서버에 한 번만 (DELIVERY)', () => {
+  const slow = () => {
+    const gate = deferred();
+    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+      await gate.promise;
+      return response(config, { id: 1 }, 201);
+    });
+    return { gate, adapter };
+  };
+
+  it('같은 경로 · 같은 본문의 쓰기 둘은 요청 하나를 함께 기다린다 — 둘 다 같은 응답을 받는다', async () => {
+    const { gate, adapter } = slow();
+    api.defaults.adapter = adapter as unknown as AxiosAdapter;
+    const a = api.post('/ops/complaints', { area: 'lesson', body: 'x' });
+    const b = api.post('/ops/complaints', { area: 'lesson', body: 'x' });
+    gate.resolve();
+    const [ra, rb] = await Promise.all([a, b]);
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(ra.data).toEqual({ id: 1 });
+    expect(rb.data).toEqual({ id: 1 });
+  });
+
+  it('본문이 다르거나 끝난 뒤 다시 보내면 따로 보낸다 · 읽기(GET)는 묶지 않는다', async () => {
+    const { gate, adapter } = slow();
+    api.defaults.adapter = adapter as unknown as AxiosAdapter;
+    const a = api.post('/ops/complaints', { area: 'lesson', body: 'x' });
+    const b = api.post('/ops/complaints', { area: 'lesson', body: 'y' });
+    const g1 = api.get('/ops');
+    const g2 = api.get('/ops');
+    gate.resolve();
+    await Promise.all([a, b, g1, g2]);
+    expect(adapter).toHaveBeenCalledTimes(4);
+    await api.post('/ops/complaints', { area: 'lesson', body: 'x' });
+    expect(adapter).toHaveBeenCalledTimes(5);
+  });
+
+  it('파일(FormData)은 본문을 견줄 수 없어 묶지 않는다', async () => {
+    const { gate, adapter } = slow();
+    api.defaults.adapter = adapter as unknown as AxiosAdapter;
+    const f1 = new FormData(); f1.append('file', new Blob(['a']), 'a.txt');
+    const f2 = new FormData(); f2.append('file', new Blob(['b']), 'b.txt');
+    const a = api.post('/files', f1);
+    const b = api.post('/files', f2);
+    gate.resolve();
+    await Promise.all([a, b]);
+    expect(adapter).toHaveBeenCalledTimes(2);
+  });
+
+  it('실패도 함께 받는다 — 두 번째가 따로 가서 다른 답을 받지 않는다', async () => {
+    const gate = deferred();
+    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+      await gate.promise;
+      throw new AxiosError('conflict', AxiosError.ERR_BAD_REQUEST, config, undefined,
+        response(config, { code: 'OVERPAY', message: '남은 금액을 넘습니다' }, 409));
+    });
+    api.defaults.adapter = adapter as unknown as AxiosAdapter;
+    const a = api.post('/accounting/payments', { invId: 1, amount: 1 }).catch((e) => e);
+    const b = api.post('/accounting/payments', { invId: 1, amount: 1 }).catch((e) => e);
+    gate.resolve();
+    const [ea, eb] = await Promise.all([a, b]);
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(ea).toBeInstanceOf(ApiError);
+    expect((eb as ApiError).code).toBe('OVERPAY');
+  });
+});

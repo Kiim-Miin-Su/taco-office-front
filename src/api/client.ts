@@ -14,7 +14,7 @@
  * 동시에 여러 요청이 401 이 되어도 재발급은 한 번만 하고 나머지는 그 결과를 기다린다.
  * 그렇게 하지 않으면 새로고침 한 번에 재발급이 열 번 날아간다.
  */
-import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
+import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import type { ApiErrorResponse, RefreshResult } from './types';
 
 export class ApiError extends Error {
@@ -102,6 +102,32 @@ api.interceptors.request.use((cfg) => {
   // 이 인스턴스의 Bearer는 메모리 토큰 하나만 권위다. 재시도 config의 오래된 헤더도 제거한다.
   if (accessToken && !isAuthAction(cfg.url)) cfg.headers.Authorization = `Bearer ${accessToken}`;
   else cfg.headers.delete('Authorization');
+  return cfg;
+});
+
+/**
+ * 같은 쓰기가 끝나기 전에 또 오면 앞선 요청을 함께 기다린다 — 서버에 두 번 보내지 않는다 (P1 DELIVERY · 2026-09-29).
+ *
+ * 단추의 `disabled={isPending}` 은 다음 그리기 뒤에야 잠겨서, **한 틱에 두 번** 누르면 요청이 둘 나갔다(실측). 입금(N-132)처럼 서버가
+ * 요청 키로 수렴시키는 쓰기도 있지만 만들기(컴플레인 · 할 일 · 상담 · 회의 · 지출)에는 키가 없어 두 줄이 됐다. 판정은 여기 한 곳이다 —
+ * 방법 · 주소 · **보낼 본문 글자**가 같고 앞선 것이 아직 안 끝났으면 같은 약속을 돌려준다(성공도 실패도 함께 받는다).
+ * 읽기는 묶지 않는다(TanStack Query 가 이미 한 벌로 모은다) · 본문을 글자로 견줄 수 없는 파일(FormData)도 묶지 않는다 ·
+ * 끝나면 곧바로 풀어 다음 쓰기는 따로 간다(같은 금액을 한 번 더 받는 정상 분납은 막지 않는다). 두 창 · 끊긴 응답의 재시도는 서버 몫이다.
+ */
+const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const pendingWrites = new Map<string, Promise<AxiosResponse>>();
+api.interceptors.request.use((cfg) => {
+  if (!WRITE_METHODS.has((cfg.method ?? 'get').toLowerCase()) || isAuthAction(cfg.url)) return cfg;
+  const send = axios.getAdapter(cfg.adapter ?? api.defaults.adapter);
+  cfg.adapter = (c) => {
+    if (c.data !== undefined && typeof c.data !== 'string') return send(c);
+    const key = `${String(c.method).toLowerCase()} ${c.baseURL ?? ''}${c.url ?? ''} ${c.data ?? ''}`;
+    const running = pendingWrites.get(key);
+    if (running) return running;
+    const flight = send(c).finally(() => { if (pendingWrites.get(key) === flight) pendingWrites.delete(key); });
+    pendingWrites.set(key, flight);
+    return flight;
+  };
   return cfg;
 });
 
