@@ -52,6 +52,15 @@ export const GUIDE_STATE_BAR: Record<Guide['state'], string> = {
 /** 상태 칩을 놓는 차례 — 원장 흐름(작성 → 발송 대기 → 발송 → 확인) */
 export const GUIDE_STATE_ORDER: ReadonlyArray<Guide['state']> = ['draft', 'ready', 'sent', 'read'];
 
+/**
+ * 안내의 「누구 → 누구」 — 강사 교체 안내(간이 안내)는 서버가 되짚은 이전 강사와 받는 강사(교체 강사)를 화살표로 잇는다
+ * (TEACHER-LINEAGE 2026-09-29 · `previousTeacherName` 은 첫 수업 안내에서 null). 값을 다시 판정하지 않는다 — 서버 칸 둘을 잇기만 한다.
+ */
+export function guideTeacherLabel(guide: Pick<Guide, 'teacherName' | 'previousTeacherName'>, fallback = '강사 미정'): string {
+  const current = guide.teacherName ?? fallback;
+  return guide.previousTeacherName ? `${guide.previousTeacherName} → ${current}` : current;
+}
+
 /** 안내 줄의 「어느 수업」 칸 — 서버가 준 과목·종류·시각·강의실만 잇는다. 규칙 제목이 비어 있는 정규 수업도 이름이 선다 */
 type GuideLessonFacts = {
   serTitle?: string | null; subName?: string | null; kindName?: string | null;

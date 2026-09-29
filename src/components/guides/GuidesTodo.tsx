@@ -20,7 +20,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Table, type Column } from '@/components/ui/Table';
 import { hm } from '@/components/teacher/format';
 import { longDateLabel, todayKst } from '@/lib/calendar';
-import { GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
+import { GuideReasonChip, GuideStateChip, guideLessonLabel, guideTeacherLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 import { GuardianSendDialog } from '@/components/guardians/GuardianSendDialog';
 
@@ -345,8 +345,12 @@ export function GuidesTodo({ data }: { data: Guides }) {
         return (
           <span>
             <b className="block text-fg">{item.studentName ?? '학생 미상'}</b>
-            {/* 원문 §43 「Megan 강사」 */}
-            <span className="text-[11px] text-fg-subtle">{item.teacherName ? `${item.teacherName} 강사` : '강사 미정'}</span>
+            {/* 원문 §43 「Megan 강사」 — 강사 교체 안내는 「이전 → 교체」(서버가 되짚은 이전 강사 · TEACHER-LINEAGE) */}
+            <span className="text-[11px] text-fg-subtle">
+              {row.kind === 'guide' && row.guide.previousTeacherName
+                ? `${guideTeacherLabel(row.guide)} 강사`
+                : item.teacherName ? `${item.teacherName} 강사` : '강사 미정'}
+            </span>
           </span>
         );
       },

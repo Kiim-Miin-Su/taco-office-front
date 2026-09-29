@@ -24,7 +24,8 @@ const me: Me = { id: 1, name: '관리자', role: 'admin', roleLabel: '관리자'
 const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'ready', pending: true,
   studentName: '학생', teacherName: '강사', serTitle: '수업', body: '저장한 안내', dueOn: null, eventOn: '2026-09-24',
   sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00', sentAt: null, acknowledgedAt: null,
-  overdueDays: 0, siblingCount: 0, deadline: null, canSend: true, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null };
+  overdueDays: 0, siblingCount: 0, deadline: null, canSend: true, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
+  previousTeacherId: null, previousTeacherName: null };
 const clients: QueryClient[] = [];
 const originalAdapter = api.defaults.adapter;
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; useSession.getState().signOut(); vi.clearAllMocks(); });

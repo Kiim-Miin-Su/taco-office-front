@@ -22,7 +22,7 @@ import { useAcknowledgeGuide, useReceivedGuides, useTeacherGuides } from '@/api/
 import { apiMessage } from '@/api/client';
 import { positiveQueryId } from '@/lib/url-state';
 import { GuideBody, GuideNote, GuideTimeline } from '@/components/guides/GuideReadout';
-import { GuideReasonChip, GuideStateChip, guideLessonLabel } from '@/components/guides/GuideStatus';
+import { GuideReasonChip, GuideStateChip, guideLessonLabel, guideTeacherLabel } from '@/components/guides/GuideStatus';
 import type { Guide, TeacherGuideStudent } from '@/api/types';
 import { hm, md } from '@/components/teacher/format';
 import { DiagnosticForm } from '@/components/teacher/DiagnosticForm';
@@ -73,29 +73,40 @@ function StudentRow({ s, active, onPick }: { s: TeacherGuideStudent; active: boo
   );
 }
 
+type TeacherBook = TeacherGuideStudent['books'][number];
+
+/** 배부 상태 → 칩 — 낱말은 서버 `stateLabel`(서가와 같은 표)이고 여기서는 색만 고른다 (D-R18) */
+function bookStateTone(state: TeacherBook['state']): 'success' | 'neutral' | 'info' {
+  if (state === 'ok') return 'success';
+  if (state === 'returned') return 'neutral';
+  return 'info';
+}
+
+/**
+ * 학생 교재 한 줄 — 강사 덱 §27 「① 학생 교재 · 사용 중 / 변경 요청 · 교재 변경 요청 및 변경 이력(빗금 + 교재 완료)」.
+ * 상태는 서버 낱말(`state`)로 가른다 — 전에는 회수일 유무로만 갈라 배부 전(승인·전달 대기) 줄이 「사용 중」으로 섰다.
+ * 재배부 계보(`reissuedFrom` · `reissuedTo`)는 **같은 목록의 형제 줄**로 잇는다 — 옛 줄에는 「→ 재배부」, 새 줄에는 「이전 배부에서 재배부」
+ * (TEACHER-LINEAGE 2026-09-29 · 다른 교재로 바꾼 것은 원장에 링크가 없어 잇지 않는다 · N-134).
+ */
 function BookCard({
-  code,
-  title,
-  level,
-  seTe,
-  issuedOn,
-  returnedOn,
+  book,
+  siblings,
   action,
 }: {
-  code: string;
-  title: string;
-  /** 서버 레벨 낱말(코드표 레벨 · 아직이면 옛 원문) — 없으면 사각을 세우지 않는다 */
-  level?: string | null;
-  seTe: string;
-  issuedOn: string;
-  returnedOn: string | null | undefined;
+  book: TeacherBook;
+  /** 같은 학생의 교재 목록 — 재배부 계보의 상대 줄을 찾는다 */
+  siblings: TeacherBook[];
   /** 사용 중 칩 옆 「변경 요청」 자리 (N-99) */
   action?: ReactNode;
 }) {
-  const done = Boolean(returnedOn);
+  const { code, title, level, seTe, state, stateLabel, issuedOn, returnedOn } = book;
+  const done = state === 'returned';
+  const inUse = state === 'ok';
   const shown = level ? bookLevelPresentation(level) : null;
+  const from = book.reissuedFrom == null ? null : siblings.find((b) => b.issueId === book.reissuedFrom) ?? null;
+  const to = book.reissuedTo == null ? null : siblings.find((b) => b.issueId === book.reissuedTo) ?? null;
   return (
-    <div className={`flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 ${done ? 'opacity-60' : ''}`}>
+    <div data-book-card={state} className={`flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 ${done ? 'opacity-60' : ''}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-fg text-[10px] font-bold text-card">
         {seTe}
       </span>
@@ -108,11 +119,18 @@ function BookCard({
               {shown.marker}
             </span>
           ) : null}
-          <span className="truncate text-[13.5px] font-bold text-fg">{title}</span>
+          <span className={`truncate text-[13.5px] font-bold text-fg ${done ? 'line-through' : ''}`}>{title}</span>
         </div>
         <div className="text-[11.5px] text-fg-subtle">
-          {code} · {issuedOn}부터{done ? ` ~ ${returnedOn} 교체` : ''}
+          {code} · {issuedOn ? `${issuedOn}부터` : '배부 전'}{done && returnedOn ? ` ~ ${returnedOn} 회수` : ''}
         </div>
+        {/* 재배부 계보 — 서버 id 둘을 형제 줄과 잇는다 · 없으면 줄 자체가 없다 */}
+        {from || to ? (
+          <div className="text-[11px] text-fg-subtle" data-book-lineage>
+            {from ? `이전 배부(${from.issuedOn ?? '배부 전'}${from.returnedOn ? ` ~ ${from.returnedOn}` : ''})에서 재배부` : null}
+            {to ? `→ ${to.issuedOn ?? '배부 전'} 재배부됨` : null}
+          </div>
+        ) : null}
       </div>
       {done ? (
         <Chip size="compact" tone="neutral">
@@ -120,10 +138,10 @@ function BookCard({
         </Chip>
       ) : (
         <div className="flex shrink-0 items-center gap-1.5">
-          <Chip size="compact" tone="success">
-            사용 중
+          <Chip size="compact" tone={bookStateTone(state)}>
+            {inUse ? '사용 중' : stateLabel}
           </Chip>
-          {action}
+          {inUse ? action : null}
         </div>
       )}
     </div>
@@ -172,6 +190,12 @@ function ReceivedGuidesSection() {
                   <GuideStateChip state={selected.state} /><GuideReasonChip reason={selected.reason} />
                   <b className="min-w-0 break-words text-[13px]">{selected.studentName ?? '학생 미상'} · {guideLessonLabel(selected)}</b>
                 </div>
+                {/* 강사 교체 안내 — 누구에게서 넘겨받는지(서버가 장부에서 되짚은 이전 강사 · TEACHER-LINEAGE). 첫 수업 안내에는 줄이 없다 */}
+                {selected.previousTeacherName ? (
+                  <p className="mt-2 text-[12px] text-fg-subtle" data-teacher-lineage>
+                    이전 강사 <b className="text-fg">{guideTeacherLabel(selected, '나')}</b>
+                  </p>
+                ) : null}
                 <GuideBody body={selected.body} />
                 {/* 관리자가 적은 두 상자 — 서버가 받는 강사에게만 싣는다(g4 §44-3). 비었으면 상자가 「적지 않음」이라 말한다 */}
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -291,12 +315,8 @@ export default function TeacherGuidesPage() {
                             {picked.books.map((b) => (
                               <BookCard
                                 key={b.issueId}
-                                code={b.code}
-                                title={b.title}
-                                level={b.level}
-                                seTe={b.seTe}
-                                issuedOn={b.issuedOn}
-                                returnedOn={b.returnedOn}
+                                book={b}
+                                siblings={picked.books}
                                 action={<BookChangeRequestButton studentId={picked.studentId} studentName={picked.name} book={b} />}
                               />
                             ))}

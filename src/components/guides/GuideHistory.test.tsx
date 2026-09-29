@@ -33,6 +33,7 @@ const me: Me = {
 
 const guide: Guide = {
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null, kindLabel: '포괄 안내',
+  previousTeacherId: null, previousTeacherName: null,
   id: 12,
   serId: 10,
   studentId: 7,
@@ -188,4 +189,35 @@ it('안 한 것 카드 전체가 단추이고, 요약 칩은 기간 줄에, 날�
   expect(rows[0].className).toContain('border-l-blue');
   expect(rows[1].className).toContain('border-l-amber');
   expect(rows[1].textContent).not.toContain('첫 수업');
+});
+
+it('이력 줄의 강사 칸은 강사 교체 안내에서 「이전 강사 → 지금 강사」다 — F-62 「확인 위치 수업 안내 → 이력」 (TEACHER-LINEAGE)', async () => {
+  const today = todayKst();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const swapped: Guide = { ...guide, id: 21, reason: 'teacher_change', kindLabel: '간이 안내', state: 'read', pending: false, teacherName: '강사B', previousTeacherId: 7, previousTeacherName: '강사A' };
+  const data: GuideHistoryDto = {
+    ...history(today),
+    days: [{
+      date: '2026-09-15',
+      events: [
+        { id: 911, action: 'guide_ack', label: '강사 확인', stateAfter: 'read', at: '2026-09-15T17:00:00+09:00', time: '17:00', byId: 9, byName: '강사B', guide: swapped },
+        { id: 910, action: 'guide_send', label: '안내 발송', stateAfter: 'sent', at: '2026-09-15T16:40:00+09:00', time: '16:40', byId: 4, byName: '대표', guide: { ...guide, id: 22, state: 'sent', pending: false } },
+      ],
+      tally: [
+        { action: 'guide_ack', stateAfter: 'read', label: '강사 확인', count: 1 },
+        { action: 'guide_send', stateAfter: 'sent', label: '안내 발송', count: 1 },
+      ],
+    }],
+    counts: { created: 0, sent: 1, missing: 1 },
+  };
+  client.setQueryData(sessionQueryKey(qk.guideHistory({ span: 'month', anchor: today }), me.id), data);
+  clients.push(client);
+  useSession.setState({ me, ready: true });
+  const view = render(<QueryClientProvider client={client}><GuideHistory /></QueryClientProvider>);
+  const rows = view.getAllByRole('listitem').filter((row) => row.getAttribute('aria-label')?.includes('학생1'));
+  expect(rows[0].getAttribute('aria-label')).toBe('강사 확인 · 학생1 · 17:00');
+  expect(rows[0].textContent).toContain('강사A → 강사B');
+  // 첫 수업 안내의 줄은 지금 강사만 — 화살표가 없다
+  expect(rows[1].textContent).toContain('강사1');
+  expect(rows[1].textContent).not.toContain('→');
 });

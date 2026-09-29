@@ -8703,8 +8703,11 @@ export interface components {
             urgencyLabel: string | null;
         };
         GuideFactDto: {
-            /** @enum {string} */
-            key: "student" | "grade" | "teacher" | "subject" | "mode" | "startOn" | "books";
+            /**
+             * @description 일곱 칸(F-60) — 강사 교체 안내는 여덟째 「이전 강사」(previousTeacher)가 붙는다
+             * @enum {string}
+             */
+            key: "student" | "grade" | "teacher" | "subject" | "mode" | "startOn" | "books" | "previousTeacher";
             /** @description 칸 이름 — 본문 머리말과 같은 낱말 */
             label: string;
             /** @description 못 채웠으면 null */
@@ -8743,6 +8746,10 @@ export interface components {
             acknowledgedAfterSeconds: number | null;
             studentName?: string | null;
             teacherName?: string | null;
+            /** @description 이전 강사 id — 강사 교체 안내(reason=teacher_change)만. 받는 강사(teacherId)가 교체 강사다. 첫 수업 안내는 null */
+            previousTeacherId: number | null;
+            /** @description 이전 강사 이름 — 「이전 강사 → 교체 강사」 readback. 첫 수업 안내 · 되짚을 수 없으면 null */
+            previousTeacherName: string | null;
             serTitle?: string | null;
             /** @description 과목 이름(sub.name) — 과목 없는 회차는 null */
             subName?: string | null;
@@ -10148,10 +10155,21 @@ export interface components {
             level?: string | null;
             /** @description SE | TE */
             seTe: string;
-            /** @description 배부일 YYYY-MM-DD */
-            issuedOn: string;
+            /**
+             * @description 배부 상태 — wait 승인 대기 · auto 전달 대기 · ok 사용 중 · returned 회수(교재 완료)
+             * @enum {string}
+             */
+            state: "wait" | "auto" | "ok" | "returned";
+            /** @description 상태 낱말 — 서가·§38 과 같은 표(ISSUE_STATE_LABEL) */
+            stateLabel: string;
+            /** @description 배부일 YYYY-MM-DD — 배부 전(wait · auto)이면 null */
+            issuedOn: string | null;
             /** @description 반환일 — null 이면 사용 중 */
             returnedOn?: string | null;
+            /** @description 이 배부가 이어받은 이전 배부(회수·취소·반려)의 issueId — 없으면 null */
+            reissuedFrom: number | null;
+            /** @description 이 배부를 이어받은 새 배부의 issueId — 없으면 null(아직 재배부하지 않음) */
+            reissuedTo: number | null;
             /** @description 이 교재에 진행 중인 변경 요청이 있는가 — 「변경 요청」이 「변경 요청 중」으로 선다(N-99) */
             changePending?: boolean;
             /** @description 「변경 요청」이 눌리는가 — 쓰는 중(사용 중)이고 열린 요청이 없을 때만. 쓰기와 같은 판정(N-99) */

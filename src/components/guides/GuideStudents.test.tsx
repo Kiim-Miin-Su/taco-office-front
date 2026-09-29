@@ -34,6 +34,7 @@ const me: Me = {
 function student(studentId: number, name: string): GuideStudent {
   const latestGuide: Guide = {
     canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
+    previousTeacherId: null, previousTeacherName: null,
     id: studentId,
     serId: 10 + studentId,
     studentId,
@@ -340,4 +341,27 @@ it('교재 줄 앞에 서버 레벨의 사각이 선다 — Practice 는 P · �
   expect(marker.className).toContain('bg-amber');
   expect((row('옛 교재').querySelector('[data-level-marker]') as HTMLElement).className).toContain('bg-fg-2');
   expect(row('레벨 없는 교재').querySelector('[data-level-marker]')).toBeNull();
+});
+
+it('강사 교체 안내의 머리는 「이전 강사 → 지금 강사」로 적고, 첫 수업 안내는 지금 강사만 적는다 (§44 · TEACHER-LINEAGE)', async () => {
+  const swapped = student(1, '강라율');
+  swapped.latestGuide = {
+    ...swapped.latestGuide,
+    reason: 'teacher_change',
+    kindLabel: '간이 안내',
+    teacherName: '강사B',
+    previousTeacherId: 7,
+    previousTeacherName: '강사A',
+  };
+  const fresh = student(2, '고은설');
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [swapped, fresh] } });
+  useSession.getState().signIn('fixture', me);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><GuideStudents /></QueryClientProvider>);
+  await waitFor(() => expect(view.getByText('강라율 서버 최신 안내')).toBeTruthy());
+  expect(view.getByText(/강사A → 강사B · 강라율 수업/)).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: /고은설.*안내 2건/ }));
+  expect(view.getByText(/^강사1 · 고은설 수업/)).toBeTruthy();
+  expect(view.queryByText(/→ 강사1/)).toBeNull();
 });

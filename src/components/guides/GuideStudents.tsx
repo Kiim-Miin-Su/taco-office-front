@@ -20,7 +20,7 @@ import { kstDateTime } from '@/lib/calendar';
 import { downloadElementPng } from '@/lib/png-export';
 import { GuideDiagnosticSummary, GuideScoreCards } from './GuideDiagnosticSummary';
 import { GuideBody, GuideNote, GuideTimeline } from './GuideReadout';
-import { GuideKindChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
+import { GuideKindChip, GuideStateChip, guideLessonLabel, guideTeacherLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 import { GuardianSendDialog } from '@/components/guardians/GuardianSendDialog';
 
@@ -122,8 +122,9 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           <h2 className="text-[20px] font-bold">{student.studentName}</h2>
           {student.grade ? <Chip>{student.grade}</Chip> : null}
           <GuideStateChip state={guide.state} />
+          {/* 강사 교체 안내는 「이전 → 교체」(서버가 되짚은 이전 강사 · TEACHER-LINEAGE) */}
           <span className="ml-auto text-[12px] font-bold text-fg-subtle">
-            {guide.teacherName ?? '강사 미정'} · {guideLessonLabel(guide)}
+            {guideTeacherLabel(guide)} · {guideLessonLabel(guide)}
           </span>
         </header>
 

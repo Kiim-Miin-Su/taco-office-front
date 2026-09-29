@@ -18,7 +18,7 @@ import { QueryState } from '@/components/ui/QueryState';
 import { Segmented } from '@/components/ui/Segmented';
 import { addDays, longDateLabel, todayKst } from '@/lib/calendar';
 import { cn } from '@/components/ui/cn';
-import { GUIDE_STATE_BAR, GuideReasonChip, GuideStateChip, guideLessonLabel } from './GuideStatus';
+import { GUIDE_STATE_BAR, GuideReasonChip, GuideStateChip, guideLessonLabel, guideTeacherLabel } from './GuideStatus';
 import { GuideWriter } from './GuideWriter';
 
 const SPANS: Array<{ value: GuideHistorySpan; label: string }> = [
@@ -80,7 +80,8 @@ function HistoryRow({ event }: { event: GuideHistoryEvent }) {
       <GuideStateChip state={state} look="dot" />
       <b className="text-[12.5px]">{guide.studentName ?? '학생 미상'}</b>
       <span className="text-[11.5px] text-fg-subtle">{guideLessonLabel(guide)}</span>
-      <span className="text-[11.5px] text-fg-subtle">{guide.teacherName ?? '강사 미정'}</span>
+      {/* 강사 칸 — 강사 교체 안내는 「이전 강사 → 지금 강사」(F-62 확인 위치 「수업 안내 → 이력」 · TEACHER-LINEAGE) */}
+      <span className="text-[11.5px] text-fg-subtle">{guideTeacherLabel(guide)}</span>
       <time className="ml-auto text-[11px] text-fg-subtle" dateTime={event.at} title={event.byName ? `${event.label} · ${event.byName}` : event.label}>
         {event.time}
       </time>
