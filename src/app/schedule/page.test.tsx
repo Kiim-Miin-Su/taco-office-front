@@ -138,6 +138,17 @@ it('변경 요청 deep link는 기존 chreqs 서랍 진입을 식별한다', () 
     .toBe('chreqs:change-request-52');
 });
 
+it('다른 화면이 넘긴 결과 한 줄(A-05 등록 확정)을 학생별 시간표 위에 한 번 띄우고 셸에서 비운다', () => {
+  nav.search = 'studentId=1&date=2026-09-01';
+  useWorkspace.setState({ handoff: { to: '/schedule', text: '선택 학생 등록 확정 — 수업 1개 · 첫 수업 2026-09-01 · 안내 초안 1건' } });
+  const view = render(<SchedulePage />);
+  const status = view.getByText('선택 학생 등록 확정 — 수업 1개 · 첫 수업 2026-09-01 · 안내 초안 1건');
+  expect(status.closest('[role="status"]')).toBeTruthy();
+  expect(useWorkspace.getState().handoff).toBeNull();
+  // 등록은 일정 쓰기가 아니다 — 되돌리기 단추를 붙이지 않는다
+  expect(within(status.closest('[role="status"]') as HTMLElement).queryByRole('button', { name: /되돌리기/ })).toBeNull();
+});
+
 it('리포트 일정 deep link는 검증된 SER·원래 날짜가 실제 조회 행과 일치할 때만 상세를 연다', () => {
   nav.search = 'serId=1&onDate=2026-09-01&date=2026-09-01';
   render(<SchedulePage />);

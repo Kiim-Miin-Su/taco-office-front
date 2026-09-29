@@ -13,6 +13,16 @@ export function hrefForScheduleOccurrence(row: { serId: number; onDate: string; 
   return `/schedule?${params.toString()}`;
 }
 
+/**
+ * 학생별 주간 시간표 — 그 학생 · 그 주(날짜가 든 주 · 없으면 오늘 주). 스케줄 화면의 `studentId`·`date` 방어가 다시 검증한다.
+ * PDF A-05 「화면이 그 학생 주간 시간표로 이동한다」(등록 확정 뒤 · all160 2026-09-30).
+ */
+export function hrefForStudentTimetable(studentId: number, date: string | null): string {
+  const params = new URLSearchParams({ studentId: String(studentId) });
+  if (date) params.set('date', date);
+  return `/schedule?${params.toString()}`;
+}
+
 /** 과거 NOTI의 `/reports/unwritten` 링크를 깨지 않되 알 수 없는 segment는 안전한 기본 탭으로 보낸다. */
 export function hrefForLegacyReportSection(section: string): string {
   const mapped = section === 'unwritten' ? 'unwritten'

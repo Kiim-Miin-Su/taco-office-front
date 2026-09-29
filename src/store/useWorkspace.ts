@@ -49,25 +49,40 @@ export const UNDO_STACK_MAX = 10;
 export const liveUndoSteps = (stack: WorkspaceUndo[], now = Date.now()): WorkspaceUndo[] =>
   stack.filter((step) => !step.expiresAt || Date.parse(step.expiresAt) > now);
 
+/**
+ * 쓰기 뒤 **다른 화면으로 옮길 때** 그 결과 한 줄을 목적지가 한 번 보여 준다 (PDF A-05 · 등록 확정 → 학생 주간 시간표 · all160 2026-09-30).
+ * 옮기면 보낸 화면이 사라지므로 결과 문장을 셸이 잠깐 들고 있다 — 목적지(`to`)가 읽고 비운다. 서버에 저장하지 않는다.
+ */
+export interface WorkspaceHandoff {
+  to: '/schedule';
+  text: string;
+}
+
 interface WorkspaceState {
   sidebarOpen: boolean;
   railOpen: boolean;
   /** 되돌릴 수 있는 일정 쓰기 — 뒤가 가장 최근 */
   undoStack: WorkspaceUndo[];
+  /** 옮겨 간 화면이 한 번 보여 줄 결과 한 줄 — 없으면 null */
+  handoff: WorkspaceHandoff | null;
   toggleSidebar: () => void;
   toggleRail: () => void;
   /** 성공한 쓰기의 토큰을 맨 뒤에 쌓는다 — 지난 단계는 이때 버린다 */
   pushUndo: (step: WorkspaceUndo) => void;
   /** 쓴(성공·실패) 토큰을 버린다 — 같은 토큰은 다시 눌러도 같은 답이라 남기지 않는다 */
   dropUndo: (token: string) => void;
+  /** 결과 한 줄을 넘긴다(null 이면 비운다) — 목적지가 읽은 뒤 null 로 비운다 */
+  setHandoff: (handoff: WorkspaceHandoff | null) => void;
 }
 
 export const useWorkspace = create<WorkspaceState>((set) => ({
   sidebarOpen: false,
   railOpen: true,
   undoStack: [],
+  handoff: null,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   toggleRail: () => set((s) => ({ railOpen: !s.railOpen })),
   pushUndo: (step) => set((s) => ({ undoStack: [...liveUndoSteps(s.undoStack), step].slice(-UNDO_STACK_MAX) })),
   dropUndo: (token) => set((s) => ({ undoStack: s.undoStack.filter((step) => step.token !== token) })),
+  setHandoff: (handoff) => set({ handoff }),
 }));

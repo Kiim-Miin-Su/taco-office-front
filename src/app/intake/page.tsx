@@ -49,7 +49,9 @@ import { LeadCardActions, type LeadCardFocus } from '@/components/intake/LeadCar
 import { LeadCoreEditor } from '@/components/intake/LeadCoreEditor';
 import { won } from '@/lib/money';
 import { positiveQueryId } from '@/lib/url-state';
+import { hrefForStudentTimetable } from '@/lib/report-links';
 import { useCan } from '@/store/useSession';
+import { useWorkspace } from '@/store/useWorkspace';
 
 /**
  * 칸의 **색만** 화면이 정한다 — 이름도 순서도 서버의 `intakeHead.funnel` 이 쥔다 (D-R18 · D-R25).
@@ -220,7 +222,7 @@ export default function IntakePage() {
   const [armed, setArmed] = useState<'fail' | 'resume' | null>(null);
   // 등록 확정 창 (C91 · A-05) — 열려 있는 동안만 코드표·교재를 읽는다
   const [enrolling, setEnrolling] = useState(false);
-  const [enrolled, setEnrolled] = useState<string | null>(null);
+  const setHandoff = useWorkspace((w) => w.setHandoff);
   /** 카드 단추가 연 서랍의 칸 (23-14) — 실패의 사유 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계. 서랍을 닫거나 다른 건을 고르면 비운다 */
   const [drawerFocus, setDrawerFocus] = useState<LeadCardFocus | null>(null);
   const fail = useFailLead();
@@ -229,7 +231,7 @@ export default function IntakePage() {
 
   const pick = (l: Lead) => {
     setSelectedId((cur) => (cur === l.id ? null : l.id));
-    setReasonKind(''); setReason(''); setRecontactOn(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
+    setReasonKind(''); setReason(''); setRecontactOn(''); setResumeTo(''); setArmed(null); setNotice(null); setDrawerFocus(null);
     fail.reset(); resume.reset();
   };
   /** 카드 단추가 서랍을 연다 (23-14) — 이미 열린 건이면 닫지 않고 그 칸으로만 옮긴다 */
@@ -246,7 +248,7 @@ export default function IntakePage() {
   useEffect(() => {
     if (queryLeadId === null) return;
     setSelectedId(queryLeadId);
-    setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setEnrolled(null); setNotice(null); setDrawerFocus(null);
+    setReasonKind(''); setReason(''); setResumeTo(''); setArmed(null); setNotice(null); setDrawerFocus(null);
     fail.reset(); resume.reset();
     // 주소의 번호가 바뀔 때만 연다(의존은 번호 하나) — 같은 번호로 다시 그려질 때마다 닫은 서랍을 되여는 일이 없게
   }, [queryLeadId]);
@@ -685,8 +687,6 @@ export default function IntakePage() {
         {selected ? (
           <>
             {notice ? <Banner tone="success" className="mb-2">{notice}</Banner> : null}
-            {/* 등록 확정 직후 — 카드가 「등록」 칸으로 옮겨 간 뒤에도 무엇이 만들어졌는지 한 줄 남긴다 (C91) */}
-            {enrolled ? <Banner tone="success" className="mb-2">{enrolled}</Banner> : null}
             <div className="mb-3">
               <LeadCoreEditor lead={selected} sources={head?.sources ?? []} onDone={(row) => setNotice(`${row.name} 문의 정보를 고쳤습니다`)} />
             </div>
@@ -837,7 +837,15 @@ export default function IntakePage() {
           open={enrolling}
           lead={selected}
           onClose={() => setEnrolling(false)}
-          onDone={(r) => setEnrolled(`${r.studentName} 등록 확정 — 수업 ${r.series.length}개${r.series[0]?.firstLessonOn ? ` · 첫 수업 ${r.series[0].firstLessonOn}` : ''}${r.invoice ? ` · 청구서 ${r.invoice.yearMonth}` : ''} · 안내 초안 ${r.guideDrafts}건${r.aftercare?.happyCallOn ? ` · 해피콜 ${r.aftercare.happyCallOn}` : ''}${r.aftercare?.monthlyOn ? ` · 첫 월간 상담 ${r.aftercare.monthlyOn}` : ''}`)}
+          onDone={(r) => {
+            /*
+              PDF A-05 「화면이 그 학생 주간 시간표로 이동한다」(all160 2026-09-30) — 가장 이른 첫 수업의 주로 학생별 시간표를 연다.
+              무엇이 만들어졌는지 한 줄(C91)은 이 화면이 사라지므로 셸에 넘겨 목적지가 한 번 보여 준다.
+            */
+            const firstOn = r.series.map((x) => x.firstLessonOn).filter((d): d is string => Boolean(d)).sort()[0] ?? null;
+            setHandoff({ to: '/schedule', text: `${r.studentName} 등록 확정 — 수업 ${r.series.length}개${firstOn ? ` · 첫 수업 ${firstOn}` : ''}${r.invoice ? ` · 청구서 ${r.invoice.yearMonth}` : ''} · 안내 초안 ${r.guideDrafts}건${r.aftercare?.happyCallOn ? ` · 해피콜 ${r.aftercare.happyCallOn}` : ''}${r.aftercare?.monthlyOn ? ` · 첫 월간 상담 ${r.aftercare.monthlyOn}` : ''}` });
+            router.push(hrefForStudentTimetable(r.studentId, firstOn));
+          }}
         />
       ) : null}
     </AppShell></RequireAuth>

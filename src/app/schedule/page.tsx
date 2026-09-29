@@ -362,6 +362,18 @@ function AdminSchedulePage() {
   const pushUndo = useWorkspace((w) => w.pushUndo);
   const undoLast = useUndoLast();
   const [notice, setNotice] = useState<string | null>(null);
+  /*
+    다른 화면이 쓰기 뒤 여기로 옮기며 넘긴 결과 한 줄(PDF A-05 등록 확정 → 학생 주간 시간표 · all160 2026-09-30).
+    한 번 읽어 이 화면에 두고 셸에서는 비운다 — 일정 쓰기가 아니라 되돌리기 단추를 붙이지 않는다.
+  */
+  const handoff = useWorkspace((w) => w.handoff);
+  const setHandoff = useWorkspace((w) => w.setHandoff);
+  const [handoffText, setHandoffText] = useState<string | null>(null);
+  useEffect(() => {
+    if (handoff?.to !== '/schedule') return;
+    setHandoffText(handoff.text);
+    setHandoff(null);
+  }, [handoff, setHandoff]);
   const [dismissedDayCancelDate, setDismissedDayCancelDate] = useState<string | null>(null);
   /**
    * 저장은 됐는데 **강사가 불가로 적어 둔 시간**에 걸쳤다 (원본 §15·§16).
@@ -1467,6 +1479,12 @@ function AdminSchedulePage() {
           <div className="mb-3" role="alert">
             {/* 서버 오류는 충돌만이 아니다. rollback 후 원래 오류 메시지를 그대로 알린다. */}
             <Banner tone="danger">{err}</Banner>
+          </div>
+        ) : null}
+
+        {handoffText ? (
+          <div className="mb-3" role="status">
+            <Banner tone="success">{handoffText}</Banner>
           </div>
         ) : null}
 
