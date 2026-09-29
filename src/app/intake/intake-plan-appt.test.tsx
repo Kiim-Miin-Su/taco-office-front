@@ -120,7 +120,8 @@ describe('상세 서랍 — 배치안 · 연장 +2일 · 일정 · 스케줄에 
     fireEvent.click(within(sec).getByRole('button', { name: '진단 일정 고치기' }));
     fireEvent.change(within(sec).getByLabelText('시작'), { target: { value: '11:00' } });
     fireEvent.change(within(sec).getByLabelText('끝'), { target: { value: '12:00' } });
-    fireEvent.click(within(sec).getByRole('button', { name: '저장' }));
+    // 「적어만 두기」 — 카드에만 적는다(시간표는 나중에 「스케줄에 N건 만들기」)
+    fireEvent.click(within(sec).getByRole('button', { name: '적어만 두기' }));
     await waitFor(() => expect(put).toHaveBeenCalledWith('/ops/leads/2/appts', {
       kind: 'diag', onDate: '2026-09-27', startMin: 660, endMin: 720, mode: 'offline', roomId: 3,
     }));

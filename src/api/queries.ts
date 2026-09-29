@@ -218,7 +218,7 @@ import type {
   GuardianChannels, GuardianCreate, Guardian, GuardianList, GuardianPatch, GuardianSend, GuardianSendResult,
   LeadDiagList, LeadDiagWrite,
   // 옛 로컬 훅 파일 셋(intake · ops · accounting)에서 옮긴 훅이 쓰는 별칭 (W11 D)
-  AcctPrivacy, AcctPrivacyWrite, Cashflow, InvoiceDraft, LeadAppt, LeadApptScheduleResult, LeadApptWrite, LeadPlanWrite,
+  AcctPrivacy, AcctPrivacyWrite, Cashflow, InvoiceDraft, LeadAppt, LeadApptBook, LeadApptScheduleResult, LeadApptWrite, LeadPlanWrite,
   Marketing, MarketingCreate, PayoutBonusBook, PayoutBonusRule, PayoutBonusRuleWrite, PayoutDetail, PlanTaskCreate, Suggestion,
 } from './types';
 
@@ -2823,17 +2823,34 @@ export function useDeleteLeadAppt(): UseMutationResult<Lead, unknown, { id: numb
 
 /** 「스케줄에 N건 만들기」 — 시간표에 회차가 생기므로 시간표 갈래도 버린다 */
 export function useScheduleLeadAppts(): UseMutationResult<LeadApptScheduleResult, unknown, { id: number }> {
-  const qc = useQueryClient();
+  const invalidate = useLeadApptScheduledInvalidate();
   return useMutation({
     mutationFn: async ({ id }) => (await api.post<LeadApptScheduleResult>(`/ops/leads/${id}/appts/schedule`)).data,
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: family.ops });
-      void qc.invalidateQueries({ queryKey: family.occurrences });
-      void qc.invalidateQueries({ queryKey: family.horizon });
-      // 상담 일정이 시간표 회차(SER)가 된다 — §07 사이드바의 일정 원본 수도
-      void qc.invalidateQueries({ queryKey: family.seriesCounts });
-    },
+    onSettled: invalidate,
   });
+}
+
+/**
+ * A-02 「상담 일정 잡기」 — 적기 · 시간표 회차 · 담당 지정 · 1차 → 2차 대기 · 상담 예약 접촉이 서버 한 트랜잭션이다.
+ * 시간표에 회차가 생기므로 「스케줄에 N건 만들기」와 같은 갈래를 버린다.
+ */
+export function useBookLeadAppt(): UseMutationResult<LeadApptScheduleResult, unknown, { id: number } & LeadApptBook> {
+  const invalidate = useLeadApptScheduledInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<LeadApptScheduleResult>(`/ops/leads/${id}/appts/book`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 상담 일정이 시간표 회차(SER)가 된 뒤 — 운영 · 회차 · 지평 · §07 사이드바의 일정 원본 수 */
+function useLeadApptScheduledInvalidate(): () => void {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.ops });
+    void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.horizon });
+    void qc.invalidateQueries({ queryKey: family.seriesCounts });
+  };
 }
 
 /* ══ §65 기획 보고서 — 창을 열 때만 부른다 (C56) ═══════════════════════

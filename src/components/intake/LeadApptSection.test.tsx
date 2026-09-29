@@ -63,3 +63,63 @@ it('서버가 막으면(409) 그 문장을 그대로 보인다', async () => {
   await waitFor(() => expect(section.textContent).toContain(message));
   expect(onDone).not.toHaveBeenCalled();
 });
+
+/* ── A-02 「상담 일정 잡기」 — ② 날짜 · 시각 ③ 담당 지정 · 방식 현장 ④ 저장 → 시간표 · 단계 · 접촉이 서버 한 번 ── */
+const firstLead = { id: 6, name: '카카오학생', stage: 'first', ownerId: null, ownerName: null, appts: [] } as unknown as Lead;
+
+function setupFirst() {
+  vi.spyOn(api, 'get').mockImplementation(async (url: string) => ({
+    data: url === '/meta' ? { staff: [{ id: 3, name: '김범준' }, { id: 4, name: 'Grace' }], rooms: [{ id: 7, name: '본원 상담실' }], students: [], kinds: [], subs: [], lib: [] } : {},
+  }) as never);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(client);
+  const onDone = vi.fn();
+  const view = render(
+    <QueryClientProvider client={client}><LeadApptSection lead={firstLead} kinds={KINDS} editable onDone={onDone} /></QueryClientProvider>,
+  );
+  return { onDone, section: view.getByRole('region', { name: '2차 · 진단 일정' }) };
+}
+
+async function fillSecond(section: HTMLElement) {
+  fireEvent.click(within(section).getByRole('button', { name: '2차 일정 잡기' }));
+  fireEvent.change(within(section).getByLabelText('2차 날짜'), { target: { value: '2026-08-25' } });
+  fireEvent.change(within(section).getByLabelText('시작'), { target: { value: '16:00' } });
+  fireEvent.change(within(section).getByLabelText('끝'), { target: { value: '17:00' } });
+  await waitFor(() => expect(within(section).getByRole('option', { name: '본원 상담실' })).toBeTruthy());
+  fireEvent.change(within(section).getByLabelText('강의실'), { target: { value: '7' } });
+}
+
+it('A-02 — 담당을 고르기 전에는 「시간표에 넣기」가 잠기고, 고르면 날짜 · 시각 · 방식 · 강의실 · 담당을 한 번에 보낸다 · 결과 문장은 서버가 돌려준 줄', async () => {
+  const booked = {
+    ...firstLead, stage: 'wait2nd', ownerId: 3, ownerName: '김범준',
+    appts: [{ kind: 'second', kindLabel: '2차', onDate: '2026-08-25', startMin: 960, endMin: 1020, mode: 'offline', roomId: 7, placeLabel: '본원 상담실', serId: 90, scheduled: true }],
+  };
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { lead: booked, created: 1, unavailable: [] } } as never);
+  const { section, onDone } = setupFirst();
+  await fillSecond(section);
+  const bookBtn = within(section).getByRole('button', { name: '저장 · 시간표에 넣기' }) as HTMLButtonElement;
+  expect(bookBtn.disabled).toBe(true);
+  // 카드에만 적는 길은 담당 없이도 선다
+  expect((within(section).getByRole('button', { name: '적어만 두기' }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.change(within(section).getByLabelText('담당'), { target: { value: '3' } });
+  expect(bookBtn.disabled).toBe(false);
+  fireEvent.click(bookBtn);
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/leads/6/appts/book', {
+    kind: 'second', onDate: '2026-08-25', startMin: 960, endMin: 1020, mode: 'offline', roomId: 7, ownerId: 3,
+  }));
+  await waitFor(() => expect(onDone).toHaveBeenCalledWith('2차 일정을 시간표에 넣었습니다 — 08-25 16:00 · 본원 상담실 · 담당 김범준 · 2차 대기로 옮겼습니다'));
+});
+
+it('A-02 — 겹치면 서버 문장(409)을 그대로 보이고 폼을 닫지 않는다', async () => {
+  const message = '같은 시간에 담당·강의실이 이미 잡혀 있습니다 — 2차 · 2026-08-25 16:00';
+  vi.spyOn(api, 'post').mockRejectedValue(Object.assign(new Error('409'), {
+    isAxiosError: true, response: { status: 409, data: { code: 'RESOURCE_CONFLICT', message } },
+  }));
+  const { section, onDone } = setupFirst();
+  await fillSecond(section);
+  fireEvent.change(within(section).getByLabelText('담당'), { target: { value: '4' } });
+  fireEvent.click(within(section).getByRole('button', { name: '저장 · 시간표에 넣기' }));
+  await waitFor(() => expect(section.textContent).toContain(message));
+  expect(onDone).not.toHaveBeenCalled();
+  expect(within(section).getByRole('button', { name: '저장 · 시간표에 넣기' })).toBeTruthy();
+});

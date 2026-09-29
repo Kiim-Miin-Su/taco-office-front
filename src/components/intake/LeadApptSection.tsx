@@ -12,19 +12,23 @@
  * 「스케줄에 N건 만들기」는 시간표 회차를 서버가 만든다 — 겹치면 서버 문장(409)을 그대로 보인다. 담당의 불가 시간은 막지 않고 알린다.
  * 시간표에 만든 줄은 여기서 고치지도 지우지도 않는다(시간표가 정본 · 서버도 409 로 막는다). 끝난 건은 읽기만 한다. 부모는 `key={lead.id}` 로 세운다.
  * 「지우기」는 두 번 눌러야 지운다(상담 단계 이동과 같은 `armed` 모양) — 한 번 눌러 잘못 지우는 일이 없게.
+ *
+ * A-02 「상담 일정 잡기」 — 폼에 **담당**이 있고 주 단추는 「저장 · 시간표에 넣기」다. 적기 · 시간표 회차 · 담당 지정 · 1차 → 2차 대기 ·
+ * 상담 예약 접촉을 서버가 한 트랜잭션에서 한다(`POST …/appts/book`) — 겹치면 서버 문장(409)을 그대로 보이고 아무것도 남지 않는다.
+ * 「적어만 두기」는 전처럼 카드에만 적는다(「미생성」 · 나중에 「스케줄에 N건 만들기」).
  */
 'use client';
 import { useId, useState } from 'react';
 import { Banner, Button, Chip, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
-import { useDeleteLeadAppt, useMeta, useSaveLeadAppt, useScheduleLeadAppts } from '@/api/queries';
+import { useBookLeadAppt, useDeleteLeadAppt, useMeta, useSaveLeadAppt, useScheduleLeadAppts } from '@/api/queries';
 import type { Lead, LeadAppt } from '@/api/types';
 import { hhmm, parseHm } from '@/lib/calendar';
 
 /** 카드 한 줄 — 「08-24 10:00 · 3층 컨설팅룸」 (원본 §23 모양 · 월-일) */
 export const leadApptLine = (a: LeadAppt) => `${a.onDate.slice(5)} ${hhmm(a.startMin)} · ${a.placeLabel}`;
 
-interface Draft { kind: string; onDate: string; start: string; end: string; mode: 'offline' | 'online'; roomId: string }
+interface Draft { kind: string; onDate: string; start: string; end: string; mode: 'offline' | 'online'; roomId: string; ownerId: string }
 
 export interface LeadApptSectionProps {
   lead: Lead;
@@ -43,6 +47,8 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
   const [warn, setWarn] = useState<string[]>([]);
   const meta = useMeta(draft !== null);
   const save = useSaveLeadAppt();
+  const book = useBookLeadAppt();
+  const busy = save.isPending || book.isPending;
   const remove = useDeleteLeadAppt();
   /** 지우기를 한 번 누른 줄의 종류 — 한 번 더 눌러야 지운다 */
   const [armed, setArmed] = useState<string | null>(null);
@@ -52,10 +58,12 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
 
   const edit = (kind: string) => {
     const cur = appts.find((a) => a.kind === kind);
+    // 담당은 카드 담당이 기본값이다 — 바꾸면 「시간표에 넣기」가 카드 담당도 바꾼다(A-02 「담당 지정」)
+    const ownerId = lead.ownerId == null ? '' : String(lead.ownerId);
     setErr(null);
     setDraft(cur
-      ? { kind, onDate: cur.onDate, start: hhmm(cur.startMin), end: hhmm(cur.endMin), mode: cur.mode === 'online' ? 'online' : 'offline', roomId: cur.roomId ? String(cur.roomId) : '' }
-      : { kind, onDate: '', start: '', end: '', mode: 'offline', roomId: '' });
+      ? { kind, onDate: cur.onDate, start: hhmm(cur.startMin), end: hhmm(cur.endMin), mode: cur.mode === 'online' ? 'online' : 'offline', roomId: cur.roomId ? String(cur.roomId) : '', ownerId }
+      : { kind, onDate: '', start: '', end: '', mode: 'offline', roomId: '', ownerId });
   };
   const s = draft ? parseHm(draft.start) : null;
   const e = draft ? parseHm(draft.end) : null;
@@ -63,14 +71,32 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
     : !/^\d{4}-\d{2}-\d{2}$/.test(draft.onDate) ? '날짜를 고르세요'
     : s === null || e === null || s >= 1440 ? '시각은 HH:MM 입니다'
     : e <= s ? '끝나는 시각이 시작보다 뒤여야 합니다' : null;
+  const body = () => (draft && s !== null && e !== null ? {
+    id: lead.id, kind: draft.kind as LeadAppt['kind'], onDate: draft.onDate, startMin: s, endMin: e, mode: draft.mode,
+    roomId: draft.mode === 'offline' && draft.roomId ? Number(draft.roomId) : null,
+  } : null);
   const submit = () => {
-    if (!draft || issue || s === null || e === null) return;
+    const b = body();
+    if (!draft || issue || !b) return;
     setErr(null);
-    save.mutate({
-      id: lead.id, kind: draft.kind as LeadAppt['kind'], onDate: draft.onDate, startMin: s, endMin: e, mode: draft.mode,
-      roomId: draft.mode === 'offline' && draft.roomId ? Number(draft.roomId) : null,
-    }, {
+    save.mutate(b, {
       onSuccess: () => { setDraft(null); onDone?.(`${labelOf(draft.kind)} 일정을 적었습니다 — 시간표에는 아직 없습니다`); },
+      onError: (x) => setErr(apiMessage(x)),
+    });
+  };
+  /** A-02 — 저장하면 시간표 회차 · 담당 · 단계 · 예약 접촉이 한 번에(서버). 결과 문장은 서버가 돌려준 줄로 짓는다 */
+  const submitBook = () => {
+    const b = body();
+    if (!draft || issue || !b || !draft.ownerId) return;
+    setErr(null); setWarn([]);
+    book.mutate({ ...b, ownerId: Number(draft.ownerId) }, {
+      onSuccess: (r) => {
+        setDraft(null);
+        setWarn(r.unavailable.map((u) => `${u.date} ${hhmm(u.startMin)}–${hhmm(u.endMin)} · ${u.teacherName} 불가 시간 — ${u.reason}`));
+        const made = (r.lead.appts ?? []).find((a) => a.kind === draft.kind);
+        const moved = r.lead.stage !== lead.stage;
+        onDone?.(`${labelOf(draft.kind)} 일정을 시간표에 넣었습니다${made ? ` — ${leadApptLine(made)}` : ''}${r.lead.ownerName ? ` · 담당 ${r.lead.ownerName}` : ''}${moved ? ' · 2차 대기로 옮겼습니다' : ''}`);
+      },
       onError: (x) => setErr(apiMessage(x)),
     });
   };
@@ -133,21 +159,21 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
           <div className="grid grid-cols-[1.3fr_1fr_1fr] gap-2">
             <div>
               <Label htmlFor={`${id}-d`}>{labelOf(draft.kind)} 날짜</Label>
-              <Input id={`${id}-d`} type="date" value={draft.onDate} disabled={save.isPending} onChange={(x) => setDraft({ ...draft, onDate: x.target.value })} />
+              <Input id={`${id}-d`} type="date" value={draft.onDate} disabled={busy} onChange={(x) => setDraft({ ...draft, onDate: x.target.value })} />
             </div>
             <div>
               <Label htmlFor={`${id}-s`}>시작</Label>
-              <Input id={`${id}-s`} value={draft.start} placeholder="14:30" disabled={save.isPending} onChange={(x) => setDraft({ ...draft, start: x.target.value })} />
+              <Input id={`${id}-s`} value={draft.start} placeholder="14:30" disabled={busy} onChange={(x) => setDraft({ ...draft, start: x.target.value })} />
             </div>
             <div>
               <Label htmlFor={`${id}-e`}>끝</Label>
-              <Input id={`${id}-e`} value={draft.end} placeholder="15:30" disabled={save.isPending} onChange={(x) => setDraft({ ...draft, end: x.target.value })} />
+              <Input id={`${id}-e`} value={draft.end} placeholder="15:30" disabled={busy} onChange={(x) => setDraft({ ...draft, end: x.target.value })} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label htmlFor={`${id}-m`}>방식</Label>
-              <Select id={`${id}-m`} value={draft.mode} disabled={save.isPending} onChange={(x) => setDraft({ ...draft, mode: x.target.value === 'online' ? 'online' : 'offline', roomId: '' })}>
+              <Select id={`${id}-m`} value={draft.mode} disabled={busy} onChange={(x) => setDraft({ ...draft, mode: x.target.value === 'online' ? 'online' : 'offline', roomId: '' })}>
                 <option value="offline">현장</option>
                 <option value="online">온라인</option>
               </Select>
@@ -155,17 +181,28 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
             {draft.mode === 'offline' ? (
               <div>
                 <Label htmlFor={`${id}-r`} hint="비우면 장소 미정">강의실</Label>
-                <Select id={`${id}-r`} value={draft.roomId} disabled={save.isPending} onChange={(x) => setDraft({ ...draft, roomId: x.target.value })}>
+                <Select id={`${id}-r`} value={draft.roomId} disabled={busy} onChange={(x) => setDraft({ ...draft, roomId: x.target.value })}>
                   <option value="">—</option>
                   {(meta.data?.rooms ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </Select>
               </div>
             ) : null}
           </div>
+          <div>
+            <Label htmlFor={`${id}-o`} hint="시간표의 강사 자리 · 바꾸면 카드 담당도 바뀝니다">담당</Label>
+            <Select id={`${id}-o`} value={draft.ownerId} disabled={busy} onChange={(x) => setDraft({ ...draft, ownerId: x.target.value })}>
+              <option value="">고르세요</option>
+              {(meta.data?.staff ?? []).map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
+            </Select>
+          </div>
           {issue ? <p className="text-[11.5px] text-amber">{issue}</p> : null}
-          <div className="flex items-center gap-2">
-            <Button type="button" size="sm" onClick={submit} disabled={save.isPending || issue !== null}>{save.isPending ? '적는 중…' : '저장'}</Button>
-            <Button type="button" size="sm" variant="ghost" disabled={save.isPending} onClick={() => { setDraft(null); setErr(null); }}>취소</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="primary" onClick={submitBook} disabled={busy || issue !== null || !draft.ownerId}
+              title={!draft.ownerId ? '담당을 고르면 시간표에 넣습니다' : undefined}>
+              {book.isPending ? '넣는 중…' : '저장 · 시간표에 넣기'}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={submit} disabled={busy || issue !== null}>{save.isPending ? '적는 중…' : '적어만 두기'}</Button>
+            <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { setDraft(null); setErr(null); }}>취소</Button>
           </div>
         </div>
       ) : null}

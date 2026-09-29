@@ -155,6 +155,7 @@ export type LeadPlanLine = S['LeadPlanLineDto'];
 export type LeadAppt = S['LeadApptDto'];
 export type LeadPlanWrite = S['LeadPlanWriteDto'];
 export type LeadApptWrite = S['LeadApptWriteDto'];
+export type LeadApptBook = S['LeadApptBookDto'];
 export type LeadApptScheduleResult = S['LeadApptScheduleResultDto'];
 /** §23 상담 머리 — 낱말·순서·수가 전부 서버에서 온다 (C86-a · C86-b) */
 export type IntakeHead = S['IntakeHeadDto'];

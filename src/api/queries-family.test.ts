@@ -15,7 +15,7 @@ import { useSession } from '@/store/useSession';
 import {
   family, qk, sessionQueryKey, useCreateBookIssue, useCreateBookPack, useDrawerWrite, useWriteGuideBody, useCreateZoomAccount, usePatchZoomAccount, useMeta, useAssignZoom, useGuides, useLessonTracking, useOccurrences,
   // W11 D — 옛 로컬 훅 파일(intake · ops · accounting)에서 옮긴 쓰기 훅
-  useAddPlanTask, useCreateMarketing, useDeleteLeadAppt, useExtendLeadHold, useSaveLeadAppt, useSaveLeadPlan, useScheduleLeadAppts,
+  useAddPlanTask, useBookLeadAppt, useCreateMarketing, useDeleteLeadAppt, useExtendLeadHold, useSaveLeadAppt, useSaveLeadPlan, useScheduleLeadAppts,
   useSetAcctPrivacy, useWriteBonusRule,
 } from './queries';
 
@@ -494,6 +494,9 @@ describe('C77 — 실제 mutation의 query cache 무효화', () => {
 
   it('상담 일정을 시간표로 만들면 운영 · 회차 · 지평 · 일정 원본 수를 버린다', async () => {
     expect(await run(useScheduleLeadAppts, { id: 3 })).toEqual([family.ops, family.occurrences, family.horizon, family.seriesCounts]);
+    // A-02 「상담 일정 잡기」도 시간표 회차를 만든다 — 같은 갈래
+    expect(await run(useBookLeadAppt, { id: 3, kind: 'second', onDate: '2026-09-27', startMin: 960, endMin: 1020, mode: 'offline', ownerId: 4 }))
+      .toEqual([family.ops, family.occurrences, family.horizon, family.seriesCounts]);
   });
 
   it('대표 지시 · 오늘 한 것은 family.ops 만 버린다', async () => {
