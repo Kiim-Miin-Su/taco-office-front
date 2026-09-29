@@ -16,10 +16,13 @@
  * **자동 채움으로 열린다** (C98 · F-60). 일곱 칸(학생·학년·강사·과목·형태·시작일·교재)은 서버가
  * 지금 사실로 만들어 `guide.autoFill` 에 실어 보내고, 화면은 그 문자열로 칸을 채울 뿐이다.
  * 사람이 지우면 지워진다 — 서버 값을 다시 밀어 넣지 않는다. 못 채운 칸의 문장도 서버 것이다 (D-R18).
+ *
+ * **같은 반 학생이 함께 골라져 있다** (PDF F-60 · all160 2026-09-30). 형제 목록 · 옮길 수 있는가 · 못 옮기는 까닭은
+ * 서버(`guide.siblings`)가 복사와 같은 규칙으로 준다. 화면은 고르기만 하고 「나머지 학생에게 복사」가 고른 학생에게만 옮긴다.
  */
 'use client';
 import { useState } from 'react';
-import { Banner, Button, Chip, Label, Panel, Select, Textarea } from '@/components/ui';
+import { Banner, Button, Checkbox, Chip, Label, Panel, Select, Textarea } from '@/components/ui';
 import { apiMessage } from '@/api/client';
 import { useCopyGuide, useGuideTemplates, useWriteGuideBody } from '@/api/queries';
 import type { Guide, GuideCopyResult } from '@/api/types';
@@ -36,7 +39,11 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
   const [pick, setPick] = useState('');
   const [copied, setCopied] = useState<GuideCopyResult | null>(null);
   const facts = guide.autoFill?.facts ?? [];
+  const siblings = guide.siblings ?? [];
   const canCopy = guide.siblingCount > 0;
+  // 옮길 수 있는 형제는 처음부터 골라 둔다 — 「같은 반 학생이 함께 선택됨」
+  const [picked, setPicked] = useState<number[]>(() => siblings.filter((x) => x.copyable).map((x) => x.id));
+  const togglePick = (id: number) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const payload = {
     id: guide.id, body,
     ...(direction !== (guide.direction ?? '') ? { direction } : {}),
@@ -79,6 +86,27 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
         </Select>
       </div>
 
+      {siblings.length > 0 ? (
+        <fieldset className="mb-3 rounded-lg border border-line px-3 py-2" aria-label="같은 반 학생">
+          <legend className="px-1 text-[12px] font-bold text-fg">
+            같은 반 학생 — 함께 보냅니다 · {picked.length}명 골라짐
+          </legend>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {siblings.map((x) => (
+              <li key={x.id} className="flex items-center gap-1.5">
+                <Checkbox
+                  label={x.studentName ?? '이름 없음'}
+                  checked={picked.includes(x.id)}
+                  disabled={!x.copyable || write.isPending || copy.isPending}
+                  onChange={() => togglePick(x.id)}
+                />
+                {x.skipReason ? <span className="text-[11px] text-fg-subtle">{x.skipReason}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </fieldset>
+      ) : null}
+
       <Label htmlFor="g-body">안내 본문</Label>
       <Textarea id="g-body" rows={6} value={body} onChange={(e) => setBody(e.target.value)} />
 
@@ -112,11 +140,14 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
         {canCopy ? (
           <Button
             variant="secondary"
-            disabled={write.isPending || copy.isPending || body.trim() === ''}
-            title={`같은 수업 같은 날의 다른 학생 ${guide.siblingCount}명에게 옮깁니다`}
+            disabled={write.isPending || copy.isPending || body.trim() === '' || (siblings.length > 0 && picked.length === 0)}
+            title={`같은 수업 같은 날의 다른 학생 ${siblings.length > 0 ? picked.length : guide.siblingCount}명에게 옮깁니다`}
             onClick={() =>
               write.mutate(payload, {
-                onSuccess: () => copy.mutate({ id: guide.id }, { onSuccess: setCopied }),
+                onSuccess: () => copy.mutate(
+                  { id: guide.id, ...(siblings.length > 0 ? { targetIds: picked } : {}) },
+                  { onSuccess: setCopied },
+                ),
               })
             }
           >

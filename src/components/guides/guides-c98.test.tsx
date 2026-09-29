@@ -29,6 +29,10 @@ const guide: Guide = {
   teacherName: 'Sophia', serTitle: 'Vocabulary', body: null, dueOn: '2026-09-20', eventOn: '2026-09-20',
   sourceOccurrenceId: 55, createdAt: '2026-09-10', sentAt: null, acknowledgedAt: null, overdueDays: 0, deadline: null,
   siblingCount: 2,
+  siblings: [
+    { id: 7, studentName: '강라율', state: 'ready', copyable: false, skipReason: '이미 쓴 안내라 덮지 않았습니다' },
+    { id: 6, studentName: '이하린', state: 'draft', copyable: true, skipReason: null },
+  ],
   autoFill: {
     body: AUTO_BODY,
     facts: [
@@ -102,7 +106,7 @@ it('형제가 없으면 복사 단추가 서지 않는다 (F-61 · 서버 siblin
   adapter(() => []);
   const view = render(
     <QueryClientProvider client={client()}>
-      <GuideWriter guide={{ ...guide, siblingCount: 0 }} onClose={() => {}} />
+      <GuideWriter guide={{ ...guide, siblingCount: 0, siblings: [] }} onClose={() => {}} />
     </QueryClientProvider>,
   );
   expect(view.queryByRole('button', { name: /나머지 학생에게 복사/ })).toBeNull();
@@ -129,9 +133,51 @@ it('작성하고 복사하면 쓰기 → 복사 순서로 한 번씩 부르고 �
   await waitFor(() => expect(view.getByText(/1명에게 옮겼습니다/)).toBeTruthy());
   const writes = calls.filter((c) => c.method === 'put' || c.method === 'post');
   expect(writes.map((c) => c.url)).toEqual(['/guides/5/body', '/guides/5/copy']);
-  expect(view.getByText(/이하린/)).toBeTruthy();
+  // 같은 반 학생 칸에도 이름이 있다 — 결과 문장 안에서만 찾는다
+  expect(view.getByText(/1명에게 옮겼습니다/).textContent).toContain('이하린');
   expect(view.getByText(/머리말은 각 학생 것으로 다시 만들었습니다/)).toBeTruthy();
   expect(view.getByText(/강라율\(이미 쓴 안내라 덮지 않았습니다\)/)).toBeTruthy();
+});
+
+it('같은 반 학생이 작성 창에 함께 골라져 있고, 고른 학생에게만 옮긴다 — 쓴 형제는 까닭과 함께 잠긴다 (F-60 · all160)', async () => {
+  useSession.getState().signIn('fixture', me);
+  const three = {
+    ...guide, siblingCount: 3,
+    siblings: [
+      { id: 7, studentName: '강라율', state: 'ready', copyable: false, skipReason: '이미 쓴 안내라 덮지 않았습니다' },
+      { id: 6, studentName: '이하린', state: 'draft', copyable: true, skipReason: null },
+      { id: 8, studentName: '한서준', state: 'draft', copyable: true, skipReason: null },
+    ],
+  };
+  adapter((c) => {
+    if (c.method === 'put') return { ...three, state: 'ready', body: (c.body as { body: string }).body };
+    if (c.method === 'post') return { copied: [{ ...three, id: 6, studentName: '이하린', state: 'ready' }], skipped: [], headReplaced: true };
+    return [];
+  });
+  const view = render(
+    <QueryClientProvider client={client()}><GuideWriter guide={three} onClose={() => {}} /></QueryClientProvider>,
+  );
+  const group = view.getByRole('group', { name: '같은 반 학생' });
+  const pickOf = (name: string) => within(group).getByRole('checkbox', { name: new RegExp(name) }) as HTMLInputElement;
+  // 옮길 수 있는 형제는 처음부터 골라져 있다 — 「함께 선택됨」
+  expect(pickOf('이하린').checked).toBe(true);
+  expect(pickOf('한서준').checked).toBe(true);
+  // 이미 쓴 형제는 덮지 않는다 — 고를 수 없고 까닭(서버 문장)이 곁에 선다
+  expect(pickOf('강라율').checked).toBe(false);
+  expect(pickOf('강라율').disabled).toBe(true);
+  expect(within(group).getByText(/이미 쓴 안내라 덮지 않았습니다/)).toBeTruthy();
+  expect(view.getByRole('button', { name: /나머지 학생에게 복사/ }).getAttribute('title')).toContain('2명');
+
+  fireEvent.click(pickOf('한서준'));
+  expect(view.getByRole('button', { name: /나머지 학생에게 복사/ }).getAttribute('title')).toContain('1명');
+  fireEvent.change(view.getByLabelText('안내 본문'), { target: { value: `${AUTO_BODY}공통 문단` } });
+  fireEvent.click(view.getByRole('button', { name: /나머지 학생에게 복사/ }));
+  await waitFor(() => expect(view.getByText(/1명에게 옮겼습니다/)).toBeTruthy());
+  expect(calls.find((c) => c.url === '/guides/5/copy')?.body).toEqual({ targetIds: [6] });
+
+  // 하나도 안 고르면 복사 단추가 잠긴다
+  fireEvent.click(pickOf('이하린'));
+  expect((view.getByRole('button', { name: /나머지 학생에게 복사/ }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 /* ── F-63 줌 안내 ─────────────────────────────────────────────────────────── */

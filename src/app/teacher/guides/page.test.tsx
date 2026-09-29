@@ -24,7 +24,7 @@ const teacher: Me = { id: 2, name: '강사A', role: 'teacher', roleLabel: '강�
 const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'sent', pending: false,
   studentName: '수신 학생', teacherName: '강사A', serTitle: '수신 수업', body: '<img src=x onerror=alert(1)>\nhttps://example.test/'+ 'a'.repeat(400),
   dueOn: null, eventOn: '2026-09-24', sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00',
-  sentAt: '2026-09-24T10:00:00+09:00', acknowledgedAt: null, overdueDays: 0, siblingCount: 0, deadline: null,
+  sentAt: '2026-09-24T10:00:00+09:00', acknowledgedAt: null, overdueDays: 0, siblingCount: 0, siblings: [], deadline: null,
   canSend: false, canAck: true, sendBlockedReason: '권한이 없습니다', acknowledgedAfterSeconds: null,
   previousTeacherId: null, previousTeacherName: null };
 type Received = components['schemas']['ReceivedGuidesDto'];

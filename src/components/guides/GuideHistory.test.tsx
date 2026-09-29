@@ -51,7 +51,7 @@ const guide: Guide = {
   createdAt: '2026-09-14T10:00:00+09:00',
   sentAt: null,
   acknowledgedAt: null,
-  overdueDays: 0, siblingCount: 0, deadline: null,
+  overdueDays: 0, siblingCount: 0, siblings: [], deadline: null,
 };
 
 function history(anchor: string, sourceOccurrenceId = 99): GuideHistoryDto {

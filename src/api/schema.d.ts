@@ -2676,7 +2676,7 @@ export interface paths {
         put?: never;
         /**
          * 나머지 학생에게 복사 — 그룹 수업 안내 (§43 · F-61)
-         * @description 같은 규칙·같은 날·같은 사유의 다른 학생 **초안**에만 옮긴다. 이미 쓴 형제는 덮지 않고 이유를 돌려준다. 머리말은 받는 학생 것으로 다시 만든다 — 그대로 옮기면 남의 이름이 학부모에게 간다.
+         * @description 같은 규칙·같은 날·같은 사유의 다른 학생 **초안**에만 옮긴다. 이미 쓴 형제는 덮지 않고 이유를 돌려준다. 머리말은 받는 학생 것으로 다시 만든다 — 그대로 옮기면 남의 이름이 학부모에게 간다. `targetIds` 를 보내면 작성 창에서 고른 형제에게만 옮긴다(F-60 「같은 반 학생이 함께 선택됨」) — 안 보내면 형제 전부.
          */
         post: operations["GuidesController_copyBody"];
         delete?: never;
@@ -8821,6 +8821,17 @@ export interface components {
             /** @description 「마감 지남」 · 「오늘 안에」 — 여유가 있으면 null */
             urgencyLabel: string | null;
         };
+        GuideSiblingDto: {
+            id: number;
+            /** @description 학생 이름 — 학생이 지워졌으면 null */
+            studentName: string | null;
+            /** @description 그 형제 안내의 상태 낱말 (draft | ready | sent | read) */
+            state: string;
+            /** @description 본문을 옮길 수 있는가 — 아직 안 쓴 초안만 받는다(쓴 글은 덮지 않는다) */
+            copyable: boolean;
+            /** @description 못 옮기는 까닭 — 복사 결과의 「건너뛴 이유」와 같은 문장. 옮길 수 있으면 null */
+            skipReason: string | null;
+        };
         GuideFactDto: {
             /**
              * @description 일곱 칸(F-60) — 강사 교체 안내는 여덟째 「이전 강사」(previousTeacher)가 붙는다
@@ -8906,8 +8917,10 @@ export interface components {
             overdueDays: number;
             /** @description 아직 안 보낸 안내의 기한(N-89) — 첫 수업 시작(없으면 기한 날 00:00)까지 남은 시간 · 사다리 · 긴급도. 보냈으면 null */
             deadline: components["schemas"]["GuideDeadlineDto"] | null;
-            /** @description 같은 규칙·같은 날·같은 사유의 다른 학생 안내 수 — 0이면 그룹이 아니다 (F-61) */
+            /** @description 같은 규칙·같은 날·같은 사유의 다른 학생 안내 수 — 0이면 그룹이 아니다 (F-61). `siblings` 의 길이다 */
             siblingCount: number;
+            /** @description 같은 반 학생 — 이름 차례 (F-60 · 작성 창이 함께 보낼 학생을 고른다). 그룹이 아니면 빈 목록 */
+            siblings: components["schemas"]["GuideSiblingDto"][];
             /** @description 아직 안 쓴 초안의 자동 채움 일곱 칸 (F-60). 이미 쓴/보낸 안내는 null — 저장하지 않는다 */
             autoFill?: components["schemas"]["GuideAutoFillDto"] | null;
         };
@@ -9144,6 +9157,10 @@ export interface components {
             direction?: string | null;
             /** @description 「관리자 코멘트 · 강사만」 — 강사에게만 보인다(학부모 발송 본문·안내문 PNG 에 싣지 않는다). 안 보내면 그대로, 빈 글자·null 은 비운다 */
             adminNote?: string | null;
+        };
+        GuideCopyDto: {
+            /** @description 받을 형제 안내 id — 같은 규칙·같은 날·같은 사유의 다른 학생 안내만. 하나라도 형제가 아니면 400 GUIDE_COPY_NOT_SIBLING */
+            targetIds?: number[];
         };
         GuideCopySkippedDto: {
             id: number;
@@ -23179,7 +23196,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuideCopyDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -23189,14 +23210,12 @@ export interface operations {
                     "application/json": components["schemas"]["GuideCopyResultDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code GUIDE_COPY_NOT_SIBLING — 형제가 아닌 번호 · 아무것도 쓰지 않았다 */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             401: {

@@ -1435,10 +1435,12 @@ export function useWriteGuideBody(): UseMutationResult<Guide, unknown, { id: num
  * §43 「나머지 학생에게 복사」 — F-61.
  * 머리말을 받는 학생 것으로 갈아 끼우는 일도, 어떤 형제를 건너뛸지도 서버가 정한다.
  */
-export function useCopyGuide(): UseMutationResult<GuideCopyResult, unknown, { id: number }> {
+export function useCopyGuide(): UseMutationResult<GuideCopyResult, unknown, { id: number; targetIds?: number[] }> {
   const invalidate = useGuidesInvalidate();
   return useMutation({
-    mutationFn: async ({ id }) => (await api.post<GuideCopyResult>(`/guides/${id}/copy`)).data,
+    // 받을 형제는 작성 창이 고른 것만(F-60 · all160) — 안 보내면 서버가 형제 전부로 읽는다(F-61)
+    mutationFn: async ({ id, targetIds }) =>
+      (await api.post<GuideCopyResult>(`/guides/${id}/copy`, targetIds ? { targetIds } : undefined)).data,
     onSettled: invalidate,
   });
 }

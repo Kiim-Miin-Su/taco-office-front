@@ -55,7 +55,7 @@ const guide = (id: number, state: Guide['state'], pending: boolean): Guide => ({
   createdAt: '2026-09-01T10:00:00+09:00',
   sentAt: null,
   acknowledgedAt: null,
-  overdueDays: 0, siblingCount: 0, deadline: null,
+  overdueDays: 0, siblingCount: 0, siblings: [], deadline: null,
 });
 
 /** 서버 기한(N-89) 표본 — 사다리 칸 · 문장 · 긴급도는 서버가 준다 */
