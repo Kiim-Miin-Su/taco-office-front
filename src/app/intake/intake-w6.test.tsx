@@ -38,7 +38,7 @@ const hold: Lead = {
   cardActions: [{ key: 'enroll', label: '등록', to: null }, { key: 'fail', label: '실패', to: null }, { key: 'extend', label: '연장 +2일', to: null }],
 };
 const waiting: Lead = {
-  ...base, id: 33, name: '임채린', stage: 'wait2nd',
+  ...base, id: 33, name: '임채린', stage: 'wait2nd', want: '겨울 특강',
   nextStages: [{ key: 'second', label: '2차 상담' }, { key: 'hold', label: '보류' }],
   cardActions: [{ key: 'schedule', label: '스케줄에 2건 만들기', to: null }, { key: 'move', label: '2차 진행', to: 'second' }],
 };
@@ -47,7 +47,7 @@ const failed: Lead = {
   cardActions: [{ key: 'detail', label: '내역 · 상태', to: null }, { key: 'resume', label: '되살리기', to: null }],
 };
 const first: Lead = {
-  ...base, id: 35, name: '백승우', stage: 'first',
+  ...base, id: 35, name: '백승우', stage: 'first', want: 'MAP Reading 점수 올리기',
   nextStages: [{ key: 'wait2nd', label: '2차 대기' }, { key: 'second', label: '2차 상담' }, { key: 'hold', label: '보류' }],
   cardActions: [{ key: 'appt', label: '2차 · 진단 잡기', to: null }, { key: 'enroll', label: '바로 등록', to: null }, { key: 'fail', label: '여기서 종료', to: null }],
 };
@@ -84,6 +84,16 @@ describe('§23 등록 카드의 「등록 수업」 한 줄 (23-11)', () => {
     // 읽는 사람에게는 앞말 「등록 수업:」이 붙는다(보이지 않는 글) — 등록 건 하나에만 선다(서버 undefined/null 이면 줄이 없다)
     expect(view.getAllByText(/^등록 수업:/)).toHaveLength(1);
     expect(view.getByRole('button', { name: /^박시온.*등록 수업: 모의수업 A 주1/ })).toBeTruthy();
+  });
+});
+
+describe('§23 1차 카드의 「원하는 것」 한 줄 (23-11 · A-01)', () => {
+  it('1차 카드에만 서버 칸(want) 그대로 — 다른 단계는 배치안 자리라 싣지 않는다', async () => {
+    const { view } = await setup();
+    expect(view.getByText('MAP Reading 점수 올리기')).toBeTruthy();
+    expect(view.getByRole('button', { name: /^백승우.*원하는 것: MAP Reading 점수 올리기/ })).toBeTruthy();
+    expect(view.queryByText('겨울 특강')).toBeNull();
+    expect(view.getAllByText(/^원하는 것:/)).toHaveLength(1);
   });
 });
 

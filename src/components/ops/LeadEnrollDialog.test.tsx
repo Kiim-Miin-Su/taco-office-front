@@ -124,6 +124,23 @@ it('학생 칸·시작일·배치안 줄만 보낸다 — 미리 본 뒤에야 �
   expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ preview: false, studentId: 99 }));
 });
 
+it('A-01 — 문의 연락처가 보호자로 이어지면 미리보기에 이름 · 서버의 번호 모양 · 「받는 채널은 보호자 화면에서」가 선다 · 없으면 줄이 없다', async () => {
+  const carried = { ...result, guardianCarried: { name: '문채원 어머니', relation: '어머니', phoneDisplay: '010-5555-6666' } };
+  const { view } = setup((url) => ({ status: 201, data: url.endsWith('/preview') ? carried : { ...carried, preview: false } }));
+  const dialog = await fillOneLine(view);
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  const box = await view.findByLabelText('등록 미리보기');
+  expect((box.textContent ?? '').replace(/\s+/g, ' ')).toContain('보호자 — 문채원 어머니 · 010-5555-6666 (받는 채널은 보호자 화면에서 켭니다)');
+});
+
+it('A-01 — 이을 연락처가 없으면(guardianCarried null) 보호자 줄이 없다', async () => {
+  const { view } = setup();
+  const dialog = await fillOneLine(view);
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  const box = await view.findByLabelText('등록 미리보기');
+  expect(box.textContent).not.toContain('보호자 —');
+});
+
 it('회차 칸의 너비는 감싼 칸이 정한다 — Input 에 w-16 을 겹쳐 주면 공용 w-full 이 이겨 옆 「교재」 칸이 눌려 이름이 잘린다(QA 0926)', async () => {
   const { view } = setup();
   const dialog = await view.findByRole('dialog');

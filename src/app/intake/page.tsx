@@ -499,7 +499,11 @@ export default function IntakePage() {
                 </div>
                 {/* 학교 · 담당 — 학교를 모르면 「—」 자리를 남긴다(원본 §23 등록 카드 「— · 김민선」 · W11 1:1) */}
                 <div className="mt-0.5 text-[10.5px] text-fg-subtle">{`${l.school || '—'} · ${l.ownerName ?? '미배정'}`}</div>
-                {/* 카드 한 줄 메모 (23-11) — 실패 건은 사유(기울임), 그 밖은 배치안. 1차의 「원하는 것」은 접촉 원장 글이라(연락처가 섞일 수 있다) 카드에 올리지 않는다 */}
+                {/* 카드 한 줄 메모 (23-11) — 실패 건은 사유(기울임), 1차는 「원하는 것」, 그 밖은 배치안.
+                    「원하는 것」은 이제 LEAD 칸이다(A-01 · v4.57) — 접촉 원장 글이 아니라 연락처가 섞이지 않는다(전에 카드에 안 올린 까닭이 사라졌다) */}
+                {l.stage === 'first' && l.want ? (
+                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] text-fg-2"><span className="sr-only">원하는 것: </span>{l.want}</p>
+                ) : null}
                 {l.stage === 'failed' && l.reason ? (
                   <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] italic text-fg-2">{l.reason}</p>
                 ) : null}
@@ -515,7 +519,7 @@ export default function IntakePage() {
                   <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] font-bold text-fg-2">{leadPlanSummary(l.plan)}</p>
                 ) : null}
                 {/* 등록 카드의 「등록 수업」 한 줄 (23-11) — 원본 「모의수업 A 주1 · KJ」. 그 학생의 지금 명단을 서버가 낱말로 만든다(배치안과 같은 모양) ·
-                    등록 건에만 선다. 1차 카드의 「원하는 것」은 여전히 싣지 않는다(접촉 원장 글이라 연락처가 섞일 수 있다 · wave 3 판단 유지) */}
+                    등록 건에만 선다 */}
                 {l.lessons?.length ? (
                   <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] font-bold text-fg-2">
                     <span className="sr-only">등록 수업: </span><span>{l.lessons.join(' · ')}</span>

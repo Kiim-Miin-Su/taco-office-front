@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: 문의 카드의 이름·학년·학교·유입 경로·담당을 같은 PATCH로 수정한다.
+ * 목적: 문의 카드의 이름·학년·학교·학부모 관계·연락처·원하는 것·유입 경로·담당을 같은 PATCH로 수정한다.
  * 책임/재사용: 서버 LeadPatch 계약과 공용 입력만 조립한다. 단계/등록 학생 정보는 각 전용 흐름에 둔다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -19,11 +19,16 @@ export function LeadCoreEditor({ lead, sources, onDone }: { lead: Lead; sources:
   const [school, setSchool] = useState(lead.school ?? '');
   const [source, setSource] = useState(lead.source ?? '');
   const [ownerId, setOwnerId] = useState(lead.ownerId == null ? '' : String(lead.ownerId));
+  const [parentRelation, setParentRelation] = useState(lead.parentRelation ?? '');
+  // 고칠 때는 보이는 모양(서버)으로 편다 — 되보낼 때 숫자만으로 줄이는 것도 서버다
+  const [parentPhone, setParentPhone] = useState(lead.parentPhoneDisplay ?? '');
+  const [want, setWant] = useState(lead.want ?? '');
 
   useEffect(() => {
     setName(lead.name); setGrade(lead.grade ?? ''); setSchool(lead.school ?? '');
     setSource(lead.source ?? ''); setOwnerId(lead.ownerId == null ? '' : String(lead.ownerId));
-  }, [lead.id, lead.name, lead.grade, lead.school, lead.source, lead.ownerId]);
+    setParentRelation(lead.parentRelation ?? ''); setParentPhone(lead.parentPhoneDisplay ?? ''); setWant(lead.want ?? '');
+  }, [lead.id, lead.name, lead.grade, lead.school, lead.source, lead.ownerId, lead.parentRelation, lead.parentPhoneDisplay, lead.want]);
 
   const save = () => {
     const body: LeadPatch = {};
@@ -36,6 +41,12 @@ export function LeadCoreEditor({ lead, sources, onDone }: { lead: Lead; sources:
     if (nextSchool !== (lead.school ?? null)) body.school = nextSchool;
     if (nextOwnerId !== (lead.ownerId ?? null)) body.ownerId = nextOwnerId;
     if (source && source !== lead.source) body.source = source as LeadPatch['source'];
+    const nextRelation = parentRelation.trim() || null;
+    const nextPhone = parentPhone.trim() || null;
+    const nextWant = want.trim() || null;
+    if (nextRelation !== (lead.parentRelation ?? null)) body.parentRelation = nextRelation;
+    if (nextPhone !== (lead.parentPhoneDisplay ?? null)) body.parentPhone = nextPhone;
+    if (nextWant !== (lead.want ?? null)) body.want = nextWant;
     if (Object.keys(body).length === 0) { setEditing(false); return; }
     patch.mutate({ id: lead.id, ...body }, { onSuccess: (row) => { setEditing(false); onDone?.(row); } });
   };
@@ -48,6 +59,11 @@ export function LeadCoreEditor({ lead, sources, onDone }: { lead: Lead; sources:
             <div><Label htmlFor="lead-core-grade">학년</Label><Input id="lead-core-grade" value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} /></div>
             <div><Label htmlFor="lead-core-school">학교</Label><Input id="lead-core-school" value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} /></div>
           </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[96px_1fr]">
+            <div><Label htmlFor="lead-core-prel">학부모</Label><Input id="lead-core-prel" value={parentRelation} maxLength={20} onChange={(e) => setParentRelation(e.target.value)} placeholder="어머니" /></div>
+            <div><Label htmlFor="lead-core-pphone" hint="등록하면 보호자로 이어집니다">연락처</Label><Input id="lead-core-pphone" type="tel" inputMode="tel" autoComplete="off" value={parentPhone} maxLength={20} onChange={(e) => setParentPhone(e.target.value)} placeholder="010-1234-5678" /></div>
+          </div>
+          <div><Label htmlFor="lead-core-want">원하는 것</Label><Input id="lead-core-want" value={want} maxLength={120} onChange={(e) => setWant(e.target.value)} /></div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div><Label htmlFor="lead-core-source">유입 경로</Label><Select id="lead-core-source" value={source} onChange={(e) => setSource(e.target.value)}>
               {!source ? <option value="">기록 없음</option> : null}
@@ -62,7 +78,11 @@ export function LeadCoreEditor({ lead, sources, onDone }: { lead: Lead; sources:
           {patch.isError ? <Banner tone="danger">{apiMessage(patch.error)}</Banner> : null}
         </div>
       ) : (
-        <p className="text-[12px] text-fg-2">{lead.name} · {lead.grade ?? '학년 없음'} · {lead.school ?? '학교 없음'} · {lead.sourceLabel ?? '유입 경로 없음'} · {lead.ownerName ?? '미배정'}</p>
+        <div className="space-y-0.5 text-[12px] text-fg-2">
+          <p>{lead.name} · {lead.grade ?? '학년 없음'} · {lead.school ?? '학교 없음'} · {lead.sourceLabel ?? '유입 경로 없음'} · {lead.ownerName ?? '미배정'}</p>
+          {/* A-01 — 학부모 · 연락처 · 원하는 것. 번호 모양은 서버(parentPhoneDisplay) */}
+          <p>학부모 {lead.parentRelation ?? '—'} · {lead.parentPhoneDisplay ?? '연락처 없음'} · 원하는 것 {lead.want ?? '—'}</p>
+        </div>
       )}
     </Panel>
   );

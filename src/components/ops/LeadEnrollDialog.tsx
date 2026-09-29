@@ -360,6 +360,12 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 교재 — 요청 {preview.bookIssues.length}건{preview.diagBookApplied ? ' (상담에서 담당자가 고른 교재 포함)' : ''}{preview.booksMissing.length ? <span className="text-amber"> · 배정 필요 {preview.booksMissing.map((b) => b.label).join(' · ')}</span> : null}
               </li>
               <li className="text-fg-2">안내 초안 {preview.guideDrafts}건 · 알림 강사 {preview.notifiedTeachers}명 · 관리자 {preview.notifiedStaff}명</li>
+              {/* A-01 — 문의 때 적은 학부모 연락처가 보호자로 이어진다. 받는 채널은 꺼 둔 채다(보호자 화면에서 켠다) · 번호 모양은 서버 */}
+              {preview.guardianCarried ? (
+                <li className="text-fg-2">
+                  보호자 — {preview.guardianCarried.name} · {preview.guardianCarried.phoneDisplay} <span className="text-fg-subtle">(받는 채널은 보호자 화면에서 켭니다)</span>
+                </li>
+              ) : null}
               {/* 사후 관리 (W11 · N-86) — 해피콜(첫 실제 수업 + 7일) · 첫 월간 상담(다음 달 같은 날)이 상담 담당의 할 일로 선다. 날은 서버가 정한다 */}
               {preview.aftercare ? (
                 <li className="text-fg-2">

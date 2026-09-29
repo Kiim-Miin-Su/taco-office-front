@@ -164,4 +164,23 @@ describe('§23 상담 입구 (C90 · N-44 · N-45)', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/leads', { name: '민지수', source: 'kakao', ownerId: 3, note: 'SAT 여름 특강 문의' }));
     await waitFor(() => expect(view.getByText('민지수 신규 문의 접수 — 카카오채널 · 1차 상담 칸')).toBeTruthy());
   });
+
+  it('A-01 ③ ⑤ — 학부모 · 연락처 · 원하는 것은 칸으로 보낸다(연락처 모양은 서버가 가른다 · 화면은 적은 그대로) · 1차 카드에 원하는 것 한 줄', async () => {
+    const view = await setup();
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { ...base, id: 9, name: '카카오학생', sourceLabel: '카카오채널' } } as never);
+    fireEvent.click(view.getByRole('button', { name: '+ 신규 문의' }));
+    const dialog = await view.findByRole('dialog', { name: '신규 문의' });
+    fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: '카카오학생' } });
+    fireEvent.change(within(dialog).getByLabelText('학년'), { target: { value: 'G8' } });
+    fireEvent.change(within(dialog).getByLabelText('학교'), { target: { value: '역삼중' } });
+    fireEvent.change(within(dialog).getByLabelText('학부모'), { target: { value: ' 어머니 ' } });
+    fireEvent.change(within(dialog).getByLabelText('연락처'), { target: { value: '010-1234-5678' } });
+    fireEvent.change(within(dialog).getByLabelText('원하는 것'), { target: { value: 'MAP Reading 점수 올리기' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '카카오채널' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '접수' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/leads', {
+      name: '카카오학생', source: 'kakao', school: '역삼중', grade: 'G8',
+      parentRelation: '어머니', parentPhone: '010-1234-5678', want: 'MAP Reading 점수 올리기',
+    }));
+  });
 });

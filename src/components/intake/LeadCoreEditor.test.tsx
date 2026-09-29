@@ -41,4 +41,25 @@ describe('LeadCoreEditor', () => {
     fireEvent.click(view.getByRole('button', { name: '저장' }));
     expect(mutate).toHaveBeenCalledWith({ id: 7, school: '새 학교' }, expect.any(Object));
   });
+
+  it('A-01 — 학부모 · 연락처(서버의 보이는 모양으로 편다) · 원하는 것을 보여 주고, 바꾼 칸만 보내며 비우면 null', () => {
+    const withParent = { ...lead, parentRelation: '어머니', parentPhone: '01012345678', parentPhoneDisplay: '010-1234-5678', want: 'MAP Reading' } as Lead;
+    const view = render(<LeadCoreEditor lead={withParent} sources={sources} />);
+    expect(view.getByText('학부모 어머니 · 010-1234-5678 · 원하는 것 MAP Reading')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '고치기' }));
+    expect((view.getByLabelText('연락처') as HTMLInputElement).value).toBe('010-1234-5678');
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    // 아무것도 안 바꿨으면 보내지 않는다 — 보이는 모양을 숫자로 바꿔 되보내지 않는다
+    expect(mutate).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole('button', { name: '고치기' }));
+    fireEvent.change(view.getByLabelText('연락처'), { target: { value: '010-2222-3333' } });
+    fireEvent.change(view.getByLabelText('원하는 것'), { target: { value: '' } });
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    expect(mutate).toHaveBeenCalledWith({ id: 7, parentPhone: '010-2222-3333', want: null }, expect.any(Object));
+  });
+
+  it('A-01 — 칸이 비어 있던 옛 건은 「—」 · 「연락처 없음」', () => {
+    const view = render(<LeadCoreEditor lead={lead} sources={sources} />);
+    expect(view.getByText('학부모 — · 연락처 없음 · 원하는 것 —')).toBeTruthy();
+  });
 });
