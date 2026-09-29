@@ -8,7 +8,7 @@
 import { useRef, useState } from 'react';
 import type { ReportDeliveryStudent } from '@/api/types';
 import { longDateLabel } from '@/lib/calendar';
-import { copyReportText, downloadReportPng, reportExportContent } from '@/lib/report-export';
+import { copyReportText, downloadReportPng, joinReportTexts, reportExportContent } from '@/lib/report-export';
 import { Banner, Button, Dialog } from '../ui';
 import { ReportPreview } from './ReportForm';
 
@@ -52,7 +52,8 @@ export function ReportFullTextDialog({ group, subjectColorOf, onClose }: {
     setBusy('copy');
     setMessage(null);
     try {
-      await copyReportText(documents.map((item) => item.descriptor.plainText).join('\n\n'));
+      // 여러 건은 구분선으로 가른다(G-70) — 줄은 서버 발송 본문과 같은 한 벌(lib/report-export)
+      await copyReportText(joinReportTexts(documents.map((item) => item.descriptor.plainText)));
       setMessage({ tone: 'success', text: '리포트 본문을 복사했습니다.' });
     } catch {
       setMessage({ tone: 'danger', text: '본문을 복사하지 못했습니다. 브라우저 권한을 확인해 주세요.' });

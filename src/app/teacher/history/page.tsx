@@ -188,7 +188,8 @@ export default function TeacherHistoryPage() {
                           마감 작성 중인 정산이 「확정」으로 보였다. 「지급 완료」는 낱말이 정해지면
                           그때 다시 만든다 — 지금 없는 구분을 있는 척 보여 주지 않는다.
                         */}
-                        <Chip size="compact" tone={s.confirmed ? 'success' : 'info'}>
+                        {/* 어두운 판(bg-fg) 위라 옅은 바탕 칩(soft)은 글자가 묻힌다(2.3:1 · P-159 all160 QA) — 채운 칩(solid · 흰 글자)으로 */}
+                        <Chip size="compact" styleKind="solid" tone={s.confirmed ? 'success' : 'info'}>
                           {s.confirmed ? '확정' : s.saved ? '마감 작성 중' : '실시간 계산'}
                         </Chip>
                       </div>

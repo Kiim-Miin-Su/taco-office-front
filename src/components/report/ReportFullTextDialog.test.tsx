@@ -72,8 +72,9 @@ it('학생 카드의 전문은 그날 수업을 한 창에 싣고 복사·PNG·�
 
   fireEvent.click(copy);
   await waitFor(() => expect(reportExport.copyReportText).toHaveBeenCalledOnce());
-  // 본문 글은 서버 descriptor 두 벌을 수업 차례 그대로 잇는다 — 화면이 본문을 다시 짓지 않는다
-  expect(vi.mocked(reportExport.copyReportText).mock.calls[0]?.[0]).toBe('Vocabulary 서버 본문\n\nMAP Math 서버 본문');
+  // 본문 글은 서버 descriptor 두 벌을 수업 차례 그대로 잇는다 — 화면이 본문을 다시 짓지 않는다.
+  // 여러 건 사이에는 구분선(PDF G-70 「여러 건은 구분선으로 분리」) — 서버가 학부모에게 보내는 하루 묶음과 같은 줄이다(all160 · 2026-09-29)
+  expect(vi.mocked(reportExport.copyReportText).mock.calls[0]?.[0]).toBe('Vocabulary 서버 본문\n\n────────\n\nMAP Math 서버 본문');
 
   fireEvent.click(png);
   await waitFor(() => expect(reportExport.downloadReportPng).toHaveBeenCalledTimes(2));

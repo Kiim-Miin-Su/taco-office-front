@@ -116,6 +116,14 @@ describe('useDraftAutosave — 쓰는 동안 남기고 · 같은 서버 글에�
     expect(readDraft<string>(KEY)?.value).toBe('어제 쓰던 글');
   });
 
+  it('탭을 닫았다 다시 열어 되살리면 머리줄에 그 초안의 저장 시각이 선다 — 「—」로 두지 않는다 (N-141 · all160)', () => {
+    // 새 탭 = 모듈 기억이 빈 채로 저장소만 남은 상태 — writeDraft 를 부르면 기억이 채워지므로 저장소에 직접 넣는다
+    window.localStorage.setItem(KEY, JSON.stringify({ value: '닫기 전 쓰던 글', base: 'none|a', savedAt: Date.parse('2026-09-30T02:35:00+09:00') }));
+    const view = render(<><Harness server="" base="none|a" /><Status /></>);
+    expect((view.getByLabelText('글') as HTMLInputElement).value).toBe('닫기 전 쓰던 글');
+    expect(view.getByTestId('status').textContent).toBe('02:35');
+  });
+
   it('서버 글이 그새 바뀌었으면(제출 · 다른 사람의 저장) 되살리지 않고 지운다 — 덮지 않는다', () => {
     writeDraft(KEY, '옛 초안', 'none|a');
     const view = render(<Harness server="제출된 글" base="wait|b" />);

@@ -33,9 +33,13 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
      서버가 준 문장 그대로다(마감 · 입금 붙음). 권한 자체가 없으면 이유도 없고 자리도 없다. */
   const voidBlocked = invoice.voidBlockedReason ?? null;
   const notice = invoice.notice;
-  if (!invoice.canDeliver && !invoice.canVoid && !voidBlocked && !notice) {
-    return invoice.voidReason ? <span className="text-[11px] text-fg-subtle" title={invoice.voidReason}>취소 · {invoice.voidReason}</span> : null;
+  /* 취소된 줄은 **누가 보든** 사유를 적는다(N-139 「이력에 남는다」). 권한이 있으면 서버가 같은 줄에
+     「이미 취소된 청구서입니다」를 막힌 이유로도 싣는데, 그 문장이 사유를 가리면 취소할 수 있는 사람만 사유를 못 본다
+     (all160 실브라우저 QA 2026-09-29). 사유가 있는 줄에는 다시 누를 단추를 세우지 않는다. */
+  if (invoice.voidReason) {
+    return <span className="text-[11px] text-fg-subtle" title={invoice.voidReason}>취소 · {invoice.voidReason}</span>;
   }
+  if (!invoice.canDeliver && !invoice.canVoid && !voidBlocked && !notice) return null;
   return (
     <span className="flex flex-wrap items-center justify-end gap-1">
       {notice && notice.sentAt === null ? (

@@ -80,7 +80,9 @@ function GroupedReportList({ rows, subjectName, onOpen, head, selected, status }
       {head ? (
         <div className={cn('flex items-center justify-between gap-2 px-3 py-2.5 text-[13px] font-bold text-white', HEAD_TONE[head.tone])}>
           <span>{head.title}</span>
-          <span className="rounded-full bg-white/20 px-2 text-[11px] tabular-nums">{head.count ?? rows.length}</span>
+          {/* 수 알약은 테두리만 — 흰 바탕을 겹치면 붉은 머리가 옅어져 흰 글자가 4.5:1 아래로 내려간다(4.17:1 · P-159 all160 QA).
+              글자는 머리 제목과 같은 바탕 위에 선다 */}
+          <span className="rounded-full border border-white/60 px-2 text-[11px] tabular-nums">{head.count ?? rows.length}</span>
         </div>
       ) : null}
       {body ?? <p className="px-3 py-8 text-center text-[12px] text-fg-subtle">리포트가 없습니다</p>}

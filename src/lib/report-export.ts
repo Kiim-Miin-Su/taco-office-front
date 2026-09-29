@@ -47,6 +47,18 @@ export function reportExportContent(detail: ReportDetail, studentId: number):
   };
 }
 
+/**
+ * 여러 리포트를 한 글로 이을 때의 구분선 — PDF G-70 「여러 건은 구분선으로 분리」.
+ * 서버가 학부모에게 보내는 하루 묶음(`RSEND.body` · reports.service `deliveryBody`)과 주간 묶음(weekly-bundle `DIVIDER`)이
+ * 리포트를 잇는 줄과 **같은 글자**다 — 화면에서 복사한 글과 실제로 나간 글이 갈리지 않게 한다.
+ */
+export const REPORT_TEXT_DIVIDER = '\n\n────────\n\n';
+
+/** 서버 descriptor 의 본문을 수업 차례 그대로 잇는다 — 한 건이면 구분선이 없다 */
+export function joinReportTexts(texts: readonly string[]): string {
+  return texts.join(REPORT_TEXT_DIVIDER);
+}
+
 export async function copyReportText(
   plainText: string,
   clipboard: ClipboardWriter = navigator.clipboard,

@@ -89,6 +89,17 @@ it('단추가 둘 다 없으면(대표 아님 · 이미 보냄) 아무것도 그
   expect(voided.getByText('취소 · 단가를 잘못 넣었다')).toBeTruthy();
 });
 
+it('취소 권한이 있는 사람에게도 취소된 줄은 사유를 적는다 — 서버는 취소된 줄에 「이미 취소된 청구서입니다」를 막힌 이유로 싣는다 (N-139 「이력에 남는다」 · all160)', () => {
+  // 서버 voidGate 의 실제 모양: 권한이 있으면 void 줄에도 voidBlockedReason 이 온다(accounting.service voidGate)
+  const voided = setup({
+    ...base, state: 'void', stateLabel: '취소', canDeliver: false, canVoid: false,
+    voidBlockedReason: '이미 취소된 청구서입니다', voidReason: '단가를 잘못 넣었다',
+  });
+  expect(voided.getByText('취소 · 단가를 잘못 넣었다')).toBeTruthy();
+  // 취소된 청구서에 다시 누를 「취소」 단추를 세우지 않는다 — 사유가 그 자리를 대신한다
+  expect(voided.queryByRole('button', { name: '취소' })).toBeNull();
+});
+
 it('전달된 청구서는 「학부모 안내」 단추가 서고, 누르면 보호자 발송 창이 그 학생 · 안내(pnotiId) · 서버 본문으로 열린다 (H-76 「학부모 안내가 생성된다」)', async () => {
   const sent: Invoice = {
     ...base, state: 'sent', stateLabel: '전달', canDeliver: false, canVoid: true, sentAt: '2026-09-29T00:00:00.000Z',

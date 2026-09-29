@@ -147,4 +147,21 @@ describe('BoardViews', () => {
     fireEvent.click(within(mon).getByRole('button'));
     expect(onDay).toHaveBeenCalledWith('2026-09-14');
   });
+
+  /** P-156 「데이터가 하나도 없을 때」 — 일별 「수업이 없습니다」 · 주별 「없음」처럼 월별도 빈 달을 말한다 (all160 실브라우저 QA 2026-09-29) */
+  it('월별은 그 달 수업이 하나도 없으면 빈 달이라고 말하고, 한 건이라도 있으면 말하지 않는다 · 불러오는 동안은 말하지 않는다', () => {
+    const colorOf = () => null;
+    const empty = render(<MonthBoard anchor="2026-09-10" dayStats={[]} today="2026-09-15" loading={false} onDay={vi.fn()} colorOf={colorOf} />);
+    expect(empty.getByRole('status').textContent).toBe('이 달 수업이 아직 없습니다');
+    empty.unmount();
+    const loading = render(<MonthBoard anchor="2026-09-10" dayStats={[]} today="2026-09-15" loading onDay={vi.fn()} colorOf={colorOf} />);
+    expect(loading.queryByText('이 달 수업이 아직 없습니다')).toBeNull();
+    loading.unmount();
+    // 이웃 달 칸(8/30)에만 수업이 있어도 이 달은 비었다
+    const other = render(<MonthBoard anchor="2026-09-10" dayStats={[{ date: '2026-08-31', lessons: 2, remaining: 0, canceled: 0, subKeys: [] }]} today="2026-09-15" loading={false} onDay={vi.fn()} colorOf={colorOf} />);
+    expect(other.getByText('이 달 수업이 아직 없습니다')).toBeTruthy();
+    other.unmount();
+    const busy = render(<MonthBoard anchor="2026-09-10" dayStats={[{ date: '2026-09-14', lessons: 1, remaining: 0, canceled: 0, subKeys: [] }]} today="2026-09-15" loading={false} onDay={vi.fn()} colorOf={colorOf} />);
+    expect(busy.queryByText('이 달 수업이 아직 없습니다')).toBeNull();
+  });
 });

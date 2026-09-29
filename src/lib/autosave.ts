@@ -144,6 +144,8 @@ export function useDraftAutosave<T>({
     skipOnce.current = true;
     lastJson.current = JSON.stringify(stored.value);
     setRestoredAt(stored.savedAt);
+    // 새 탭은 모듈 기억이 비어 머리줄이 「—」다 — 되살린 초안의 시각을 올린다(N-141 「마지막 저장 시각이 표시된다」 · all160 2026-09-30)
+    if (lastSavedAt === null || stored.savedAt > lastSavedAt) { lastSavedAt = stored.savedAt; emit(); }
     restore.current(stored.value);
   }, [key, base, enabled]);
 

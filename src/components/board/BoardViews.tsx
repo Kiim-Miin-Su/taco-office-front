@@ -320,7 +320,12 @@ export function MonthBoard({
   const grid = sundayMonthGrid(anchor);
   const month = anchor.slice(0, 7);
   const statOf = new Map(dayStats.map((stat) => [stat.date, stat]));
+  /* 빈 달 — 일별 「수업이 없습니다」 · 주별 「없음」처럼 월별도 말한다(P-156 「데이터가 하나도 없을 때」 · all160 실브라우저 QA).
+     건수는 서버 days[] 그대로 읽는다 — 이웃 달 칸의 수업은 이 달이 아니다 */
+  const emptyMonth = !loading && !dayStats.some((stat) => stat.date.startsWith(month) && stat.lessons > 0);
   return (
+    <>
+    {emptyMonth ? <p role="status" className="mb-2 text-[12px] text-fg-subtle">이 달 수업이 아직 없습니다</p> : null}
     <div role="grid" aria-label={`${+anchor.slice(0, 4)}년 ${+anchor.slice(5, 7)}월 달력`} aria-busy={loading || undefined}
       className="overflow-hidden rounded-xl border border-line bg-card">
       <div role="row" className="grid grid-cols-7 bg-header">
@@ -394,5 +399,6 @@ export function MonthBoard({
         </div>
       ))}
     </div>
+    </>
   );
 }
