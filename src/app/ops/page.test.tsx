@@ -408,6 +408,36 @@ it('§61 카드 — 「과제 N/M」·기한 낱말·기한 상태 칩은 서버
   expect((view.container.querySelector('[data-board-column="done"]') as HTMLElement).className).toContain('border-t-green');
 });
 
+it('§67 「이력」 — 줄을 펼치면 대응 기록 전부(조치 · 결과 · 담당 · 기한 · 마무리 날짜 · 환불)가 보이고 다시 누르면 접힌다 (PDF J-102 · all160)', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplOverdue: 0,
+    cplStages: [{ key: 'closed', label: '결과', sub: '마무리' }],
+    complaints: [{ id: 6, area: 'lesson', areaLabel: '수업', studentId: 3, studentName: '서지안', stage: 'closed',
+      body: '수업 취소 환불이 지연됩니다.', action: '회계에 환불 일정 확인 요청', result: '9/12 환불 완료 안내', createdAt: '2026-09-01', ageDays: 20,
+      ownerId: 3, ownerName: '김범준', dueOn: '2026-09-10', overdueDays: 0, severity: 'normal', severityLabel: '보통',
+      teacherChanged: false, canWithdraw: false, closedOn: '2026-09-12',
+      refunds: [{ at: '2026-09-12 14:10', endedOn: '2026-09-15', refundTotal: 120000, byName: '김민선' }] }],
+  } });
+  const view = setup(me, false);
+  await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ })).toBeTruthy());
+  fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^컴플레인/ }));
+  fireEvent.click(within(await waitFor(() => view.getByRole('tablist', { name: '컴플레인 보기' }))).getByRole('tab', { name: /^이력/ }));
+  const table = await waitFor(() => view.getByRole('table'));
+  const toggle = within(table).getByRole('button', { name: /수업 취소 환불이 지연됩니다/ });
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(within(table).queryByText('회계에 환불 일정 확인 요청')).toBeNull();
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  const record = within(table).getByRole('region', { name: '수업 취소 환불이 지연됩니다. 대응 기록' });
+  expect(within(record).getByText('회계에 환불 일정 확인 요청')).toBeTruthy();
+  expect(within(record).getByText('9/12 환불 완료 안내')).toBeTruthy();
+  expect(within(record).getByText('김범준')).toBeTruthy();
+  expect(within(record).getByText('2026-09-10')).toBeTruthy();
+  expect(within(record).getByText('2026-09-12')).toBeTruthy();
+  expect(within(record).getByRole('region', { name: '환불 이력' }).textContent).toContain('김민선');
+  fireEvent.click(toggle);
+  expect(within(table).queryByRole('region', { name: '수업 취소 환불이 지연됩니다. 대응 기록' })).toBeNull();
+});
+
 it('§67 — 「기한 지남 N」 칩과 탭 동그라미는 서버 cplOverdue 이고, 「이력」은 같은 컴플레인을 표로 보인다 (67-1 · 67-2 · C-4)', async () => {
   vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response, cplOverdue: 2,
     cplStages: [{ key: 'received', label: '접수', sub: '받았습니다' }],

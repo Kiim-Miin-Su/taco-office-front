@@ -37,6 +37,7 @@ import { PlanReport } from '@/components/ops/PlanReport';
 import { MeetingDetail } from '@/components/ops/MeetingDetail';
 import { ComplaintCreateButton } from '@/components/ops/ComplaintForm';
 import { ComplaintDetail } from '@/components/ops/ComplaintDetail';
+import { ComplaintRefunds } from '@/components/ops/ComplaintRefunds';
 import { TeacherChangeWizard, type TeacherChangePreset } from '@/components/ops/TeacherChangeWizard';
 import { MeetingCreateButton } from '@/components/ops/MeetingCreateDialog';
 import { PlanCreateButton } from '@/components/ops/PlanCreateDialog';
@@ -50,6 +51,7 @@ import { MASKED, won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
 import { hhmm, longDateLabel, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
 import type { ChipColor, ChipTone, Tone } from '@/components/ui';
+import { cn } from '@/components/ui/cn';
 
 type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
 
@@ -164,6 +166,9 @@ export default function OpsPage() {
   // 원문 §63 의 속 갈래 — 「회의 목록 / 할 일」 · §67 의 속 갈래 — 「단계 보드 / 이력」 (w5 · 63-4 · 67-1)
   const [mtTab, setMtTab] = useState<'list' | 'todo'>('list');
   const [cplTab, setCplTab] = useState<'board' | 'history'>('board');
+  /** §67 「이력」에서 펼친 줄 — PDF J-102 「펼치면 대응 기록 전부가 보인다」. 한 번에 한 줄 · 다시 누르면 접힌다 */
+  const [cplHistOpen, setCplHistOpen] = useState<number | null>(null);
+  const toggleCplHist = (id: number) => setCplHistOpen((cur) => (cur === id ? null : id));
   // 원문 §61·§62 의 속 갈래 — 「단계 보드 / 기한」
   const [planTab, setPlanTab] = useState<'board' | 'due'>('board');
   const [planId, setPlanId] = useState<number | null>(queryPlanId);
@@ -391,7 +396,35 @@ export default function OpsPage() {
   const cplHistoryCols: Array<Column<Complaint>> = [
     { key: 'd', head: '접수일', width: 100, cell: (r) => r.createdAt },
     { key: 'a', head: '갈래', width: 90, cell: (r) => <Chip size="compact" tone="purple">{r.areaLabel}</Chip> },
-    { key: 'b', head: '내용', cell: (r) => <span className="font-bold">{r.body}</span> },
+    /*
+      PDF J-102 「펼치면 대응 기록 전부가 보인다」(all160 2026-09-30) — 줄(또는 이 단추)을 누르면 그 줄 안에 조치 · 결과 · 담당 · 기한 ·
+      마무리 날짜 · 환불이 선다. 글은 서버 값 그대로이고 처리 창(ComplaintDetail)과 같은 환불 부품을 쓴다 — 고치는 것은 보드의 처리 창이다.
+    */
+    { key: 'b', head: '내용', cell: (r) => {
+      const open = cplHistOpen === r.id;
+      return (
+        <div>
+          <button type="button" aria-expanded={open} className="flex items-start gap-1.5 text-left font-bold"
+            onClick={(e) => { e.stopPropagation(); toggleCplHist(r.id); }}>
+            <span aria-hidden className={cn('mt-0.5 text-[10px] text-fg-subtle transition-transform', open && 'rotate-90')}>▶</span>
+            <span>{r.body}</span>
+          </button>
+          {open ? (
+            <section aria-label={`${r.body} 대응 기록`} className="mt-2 flex flex-col gap-2 rounded-lg border border-line bg-inset p-3 font-normal">
+              <dl className="grid grid-cols-[72px_1fr] gap-x-2 gap-y-1 text-[12px]">
+                <dt className="text-fg-subtle">조치</dt><dd className="text-fg">{r.action ?? '적지 않았습니다'}</dd>
+                <dt className="text-fg-subtle">결과</dt><dd className="text-fg">{r.result ?? '아직 없습니다'}</dd>
+                <dt className="text-fg-subtle">담당</dt><dd className="text-fg">{r.ownerName ?? '담당 없음'}</dd>
+                <dt className="text-fg-subtle">기한</dt><dd className="text-fg">{r.dueOn ?? '없음'}</dd>
+                <dt className="text-fg-subtle">마무리</dt>
+                <dd className="text-fg">{r.closedOn ?? (r.stage === 'closed' ? '날짜 기록 없음' : '아직 열려 있습니다')}</dd>
+              </dl>
+              <ComplaintRefunds refunds={r.refunds} />
+            </section>
+          ) : null}
+        </div>
+      );
+    } },
     { key: 's', head: '학생', width: 110, cell: (r) => r.studentName ?? '문의자' },
     { key: 'o', head: '담당', width: 90, cell: (r) => r.ownerName ?? <span className="font-bold text-red">담당 없음</span> },
     { key: 'st', head: '단계', width: 90,
@@ -683,7 +716,8 @@ export default function OpsPage() {
             ))}
             <p className="mb-2 text-[11px] text-fg-subtle">카드를 누르면 담당 · 단계 · 조치 · 결과를 적습니다</p>
             {cplTab === 'history' ? (
-              <Table columns={cplHistoryCols} rows={d?.complaints ?? []} rowKey={(r) => r.id} empty="이 기간에는 컴플레인이 없습니다" />
+              <Table columns={cplHistoryCols} rows={d?.complaints ?? []} rowKey={(r) => r.id} empty="이 기간에는 컴플레인이 없습니다"
+                onRowClick={(r) => toggleCplHist(r.id)} />
             ) : (
             <Board numbered accent countStyle="big" columns={cplCols} itemKey={(c) => c.id}
               cardClassName={(c) => (c.overdueDays > 0 ? OVERDUE_CARD : undefined)} renderCard={(c) => (
