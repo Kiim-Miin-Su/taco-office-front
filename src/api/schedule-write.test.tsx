@@ -47,9 +47,11 @@ it.each(['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'])('%s404는 낙
   expect(set).toHaveBeenCalledWith(key, original);
   await waitFor(() => expect(client.getQueryData<OccurrenceList>(key)?.items).toHaveLength(0));
   expect(get).toHaveBeenCalledOnce();
-  // 일정 저장은 회차·보드·기간·이력·원본 수·학생 추적을 한 묶음으로 새로 읽는다.
+  // 일정 저장은 회차·보드·기간·이력·원본 수·학생 추적을 한 묶음으로 새로 읽는다. 수정은 휴강을 되살릴 수 있어
+  // 회계와 휴강 안내 목록도 함께 버린다 (C-32 · SCHEDULE-EDGES — 되살리면 이월이 풀리고 보내지 않은 안내가 걷힌다).
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
     ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'history'], ['schedule', 'series-counts'], ['schedule', 'tracking'],
+    ['accounting'], ['schedule', 'day-cancel-notices'],
   ]);
 });
 
@@ -71,7 +73,7 @@ it.each([
   expect(invalidate).not.toHaveBeenCalled();
 });
 
-it('정상 저장도 같은 여섯 key만 갱신하고 mutation 결과를 그대로 반환한다', async () => {
+it('정상 저장도 같은 여덟 key만 갱신하고 mutation 결과를 그대로 반환한다 — 수정은 휴강을 되살릴 수 있어 회계 · 휴강 안내도', async () => {
   const data = { effScope: 'this', log: [], projected: 1, serIds: [1] };
   vi.spyOn(api, 'patch').mockResolvedValue({ data });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
@@ -83,6 +85,7 @@ it('정상 저장도 같은 여섯 key만 갱신하고 mutation 결과를 그대
   // 변경 이력까지 포함해 일정의 파생 화면이 같은 저장 결과를 보게 한다.
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
     ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'history'], ['schedule', 'series-counts'], ['schedule', 'tracking'],
+    ['accounting'], ['schedule', 'day-cancel-notices'],
   ]);
 });
 
@@ -157,7 +160,8 @@ it.each(['different fields', 'same field', 'different occurrences'])(
     expect(items[mode === 'different occurrences' ? 1 : 0][mode === 'different fields' ? 'endMin' : 'startMin']).toBe(mode === 'different fields' ? 680 : 620);
     expect(invalidate).not.toHaveBeenCalled();
     await act(async () => { b.resolve(saved); await pb; });
-    expect(invalidate).toHaveBeenCalledTimes(6);
+    // 마지막 정착은 수정(patch)이라 회계 · 휴강 안내까지 여덟 갈래 (C-32 · SCHEDULE-EDGES)
+    expect(invalidate).toHaveBeenCalledTimes(8);
   },
 );
 
@@ -261,7 +265,7 @@ it('낙관하지 않는 명단 성공도 진행 중 이동과 묶고 마지막�
   await act(async () => { roster.resolve(saved); await pb; });
   expect(invalidate).not.toHaveBeenCalled();
   await act(async () => { move.reject(failure); await pa; });
-  expect(invalidate).toHaveBeenCalledTimes(6);
+  expect(invalidate).toHaveBeenCalledTimes(8);
 });
 
 it('다중 이동 실패는 같은 묶음의 취소 낙관값만 보존한다', async () => {

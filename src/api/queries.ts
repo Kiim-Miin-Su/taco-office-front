@@ -1964,6 +1964,12 @@ export function useScheduleWrite(): UseMutationResult<
       void qc.invalidateQueries({ queryKey: family.drawer });
       void qc.invalidateQueries({ queryKey: family.dayCancelNotices });
     }
+    // 수정 · 옮기기 · 붙여넣기는 **휴강한 회차를 되살릴 수 있다**(서버 applyEdit) — 되살리면 이월이 풀리고 보내지 않은
+    // 휴강 안내가 걷힌다(C-32 · SCHEDULE-EDGES). 안내 패널이 사라진 줄을 「발송 대기」로 들고 있지 않게 같은 두 갈래를 버린다.
+    if (w?.kind === 'patch' || w?.kind === 'moveMany' || w?.kind === 'paste') {
+      void qc.invalidateQueries({ queryKey: family.accounting });
+      void qc.invalidateQueries({ queryKey: family.dayCancelNotices });
+    }
   };
   return useMutation({
     mutationFn: async (w: ScheduleWrite) => {
