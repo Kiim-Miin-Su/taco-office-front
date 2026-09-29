@@ -404,7 +404,8 @@ function Board({ d, anchor, setAnchor }: { d: GpaBoard; anchor: string | undefin
               {/* 학생을 바꾸면 연결을 푼다 — 앞 학생의 회차는 이 학생의 회차가 아니다 */}
               <select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value, lesson: '' })} className="rounded border border-line bg-card px-2 py-1.5 text-fg">
                 <option value="">선택</option>
-                {d.students.map((s) => <option key={s.studentId} value={s.studentId}>{s.name}</option>)}
+                {/* 동명이인은 서버 꼬리로 가른다 (N-137) */}
+                {d.students.map((s) => <option key={s.studentId} value={s.studentId}>{s.label}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">

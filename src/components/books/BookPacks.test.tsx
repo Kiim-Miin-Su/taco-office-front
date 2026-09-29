@@ -70,7 +70,7 @@ function setup({ delivered = false, canReceive = false, focusPackId = null, deli
                 receivedByName: receivedAt ? '김범준' : null,
                 coordinatorId: 3,
                 coordinatorName: '김범준',
-                students: [{ id: 10, name: '고은성', grade: 'G12' }],
+                students: [{ id: 10, name: '고은성', grade: 'G12', tag: 'G12', label: '고은성 · G12' }],
                 books: [{ id: 4, code: 'SAT', title: 'SAT Reading', level: 'Practice', versId: 3, seFileId: 1, teFileId: 2 }],
                 canDeliver: true,
                 canReceive,
@@ -107,8 +107,8 @@ function setup({ delivered = false, canReceive = false, focusPackId = null, deli
                 { id: 6, name: '김재훈', canGpaPack: false },
               ],
               students: [
-                { id: 10, name: '고은성', grade: 'G12' },
-                { id: 11, name: '강라율', grade: 'G11' },
+                { id: 10, name: '고은성', grade: 'G12', tag: 'G12', label: '고은성 · G12' },
+                { id: 11, name: '강라율', grade: 'G11', tag: 'G11', label: '강라율 · G11' },
               ],
             };
     return { config, status: 200, statusText: 'OK', headers: {}, data };
@@ -148,8 +148,8 @@ it('다학생·다교재와 관리 권한 코디네이터만 BookPackWrite로 �
   fireEvent.change(view.getByLabelText('받는 코디네이터'), { target: { value: '3' } });
   fireEvent.change(view.getByLabelText('적용일'), { target: { value: '2026-09-21' } });
   fireEvent.change(view.getByLabelText('제목'), { target: { value: '신규 요청' } });
-  fireEvent.click(view.getByLabelText('고은성 G12'));
-  fireEvent.click(view.getByLabelText('강라율 G11'));
+  fireEvent.click(view.getByLabelText('고은성 · G12'));
+  fireEvent.click(view.getByLabelText('강라율 · G11'));
   fireEvent.click(view.getByLabelText('SAT Reading'));
   fireEvent.click(view.getByLabelText('Writing'));
   fireEvent.click(view.getByRole('button', { name: '저장' }));

@@ -23,7 +23,7 @@ const book: RateBookData = {
 const meta = {
   kinds: [{ key: 'class', name: '수업', extra: false }, { key: 'extra', name: '추가 수업', extra: true }],
   subs: [{ key: 'writing', name: 'Writing' }],
-  students: [{ id: 7, name: '정하람', grade: '10' }, { id: 8, name: '윤도현', grade: '11' }],
+  students: [{ id: 7, name: '정하람', grade: '10', tag: '10', label: '정하람 · 10' }, { id: 8, name: '윤도현', grade: '11', tag: '11', label: '윤도현 · 11' }],
   rooms: [], zaccs: [], staff: [], invTypes: [], cancelReasons: [], cancelTreats: [],
 };
 

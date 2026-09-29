@@ -33,15 +33,15 @@ const board: GpaBoard = {
   ],
   totalAlloc: 56, totalUsed: 32, totalWait: 3, totalRemain: 21, totalUses: 18,
   students: [
-    { studentId: 5, name: '이하린', grade: null, coordName: 'Hoon', alloc: 12, used: 16, wait: 0, remain: -4, over: true,
+    { studentId: 5, name: '이하린', grade: null, tag: null, label: '이하린', coordName: 'Hoon', alloc: 12, used: 16, wait: 0, remain: -4, over: true,
       svcs: [{ key: 'test', name: 'Test 대비', count: 4, points: 16 }] },
-    { studentId: 4, name: '박하경', grade: null, coordName: '김범준', alloc: 8, used: 8, wait: 2, remain: -2, over: true,
+    { studentId: 4, name: '박하경', grade: null, tag: null, label: '박하경', coordName: '김범준', alloc: 8, used: 8, wait: 2, remain: -2, over: true,
       svcs: [{ key: 'hw', name: '숙제 지원', count: 8, points: 8 }, { key: 'quiz', name: 'Quiz 대비', count: 1, points: 2 }] },
-    { studentId: 3, name: '민제인', grade: null, coordName: 'Sophia', alloc: 14, used: 8, wait: 0, remain: 6, over: false,
+    { studentId: 3, name: '민제인', grade: null, tag: null, label: '민제인', coordName: 'Sophia', alloc: 14, used: 8, wait: 0, remain: 6, over: false,
       svcs: [{ key: 'hw', name: '숙제 지원', count: 4, points: 4 }, { key: 'prj', name: '프로젝트 피드백', count: 2, points: 4 }] },
-    { studentId: 2, name: '강라울', grade: null, coordName: 'Kim', alloc: 10, used: 0, wait: 1, remain: 9, over: false,
+    { studentId: 2, name: '강라울', grade: null, tag: null, label: '강라울', coordName: 'Kim', alloc: 10, used: 0, wait: 1, remain: 9, over: false,
       svcs: [{ key: 'hw', name: '숙제 지원', count: 1, points: 1 }] },
-    { studentId: 1, name: '고은성', grade: null, coordName: null, alloc: 12, used: 0, wait: 0, remain: 12, over: false, svcs: [] },
+    { studentId: 1, name: '고은성', grade: null, tag: null, label: '고은성', coordName: null, alloc: 12, used: 0, wait: 0, remain: 12, over: false, svcs: [] },
   ],
   uses: [],
   // 기록 창 「수업 연결」 줄 — 이 사이클 창 안의 GPA 회차와 그날 명단(서버가 준다 · wave 5)
@@ -460,4 +460,16 @@ it('머리 다섯 칸은 숫자가 위 · 라벨이 아래다 — 원본 §82 �
     const el = [...view.container.querySelectorAll('div')].find((d) => d.textContent === label && d.previousElementSibling?.textContent === value);
     expect(el, label).toBeTruthy();
   }
+});
+
+it('N-137 — 기록 창의 학생 고르기는 서버가 붙인 꼬리 이름(label)을 적는다(같은 이름 둘을 가른다)', async () => {
+  const twin = (studentId: number, school: string) => ({
+    studentId, name: '김하윤', grade: 'G8', tag: `G8 · ${school}`, label: `김하윤 · G8 · ${school}`, coordName: null,
+    alloc: 4, used: 0, wait: 0, remain: 4, over: false, svcs: [],
+  });
+  const view = setup({ students: [twin(31, '채드윅'), twin(32, '역삼중')] });
+  await waitFor(() => expect(view.container.textContent).toContain('회차 소비 기록'));
+  const panel = view.getByText('회차 소비 기록').closest('section') ?? view.container;
+  const select = Array.from(panel.querySelectorAll('select')).find((el) => Array.from(el.options).some((o) => o.value === '31'))!;
+  expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['선택', '김하윤 · G8 · 채드윅', '김하윤 · G8 · 역삼중']);
 });

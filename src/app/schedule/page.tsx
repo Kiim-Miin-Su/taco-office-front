@@ -946,7 +946,8 @@ function AdminSchedulePage() {
     const genderLabel = new Map((meta.data?.genders ?? []).map((g) => [g.key as string, g.label]));
     const peopleSource = pane.view === 'student'
       ? (meta.data?.students ?? []).map((x) => ({
-        id: x.id, name: x.name, sub: x.grade ?? '',
+        // 이름 아래 한 줄 — 학년, 같은 이름이 있으면 학교까지(서버 꼬리 · N-137)
+        id: x.id, name: x.name, sub: x.tag ?? '',
         // 원문 §10 성별 아바타 — 낱말은 서버, 비어 있으면 「—」 (N-83)
         avatar: {
           text: (x.gender ? genderLabel.get(x.gender) : undefined) ?? '—',

@@ -345,7 +345,8 @@ function BookPackEditor({
 }: {
   idPrefix: string;
   staff: Array<{ id: number; name: string; canGpaPack: boolean }>;
-  students: Array<{ id: number; name: string; grade?: string | null }>;
+  /** 코드표 학생 — label 은 동명이인 꼬리가 붙은 서버 표기 (N-137) */
+  students: Array<{ id: number; name: string; label: string }>;
   books: Array<{ id: number; title: string }>;
   initial?: Omit<BookPackWrite, 'effectiveOn'> & { effectiveOn?: string };
   busy: boolean;
@@ -415,7 +416,7 @@ function BookPackEditor({
                 key={student.id}
                 checked={studentIds.includes(student.id)}
                 onChange={() => toggle(studentIds, student.id, setStudentIds)}
-                label={`${student.name} ${student.grade ?? ''}`}
+                label={student.label}
               />
             ))}
           </div>

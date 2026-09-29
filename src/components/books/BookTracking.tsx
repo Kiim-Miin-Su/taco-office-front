@@ -120,7 +120,7 @@ export function BookTracking({
                   <option value="">선택</option>
                   {meta.data?.students.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} · {s.grade ?? '학년 미정'}
+                      {s.label}
                     </option>
                   ))}
                 </Select>

@@ -168,7 +168,8 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
       cell: (r) => (
         <span className="flex items-center gap-1.5">
           <span className="font-bold">{r.name}</span>
-          {r.grade ? <Chip tone="neutral">{r.grade}</Chip> : null}
+          {/* 동명이인이면 학교까지 붙은 서버 꼬리 (N-137) */}
+          {r.tag ? <Chip tone="neutral">{r.tag}</Chip> : null}
         </span>
       ),
     },

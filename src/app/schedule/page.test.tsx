@@ -94,7 +94,7 @@ const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#654321', cap: 4, grp: 'lesson', rep: true, extra: false }],
   subs: [{ key: 'writing', name: 'Writing', color: '#123456' }], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
   genders: [{ key: 'female', label: '여' }, { key: 'male', label: '남' }],
-  students: [{ id: 1, name: '선택 학생', grade: 'G10', gender: 'female' }, { id: 2, name: '다른 학생' }],
+  students: [{ id: 1, name: '선택 학생', grade: 'G10', gender: 'female', tag: 'G10', label: '선택 학생 · G10' }, { id: 2, name: '다른 학생', tag: null, label: '다른 학생' }],
   staff: [
     { id: 11, name: '선택 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },
     { id: 22, name: '다른 강사', role: 'teacher', canAdminPage: false, canGpaPack: false },

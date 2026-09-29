@@ -106,7 +106,7 @@ export function PaymentRecorder({ invoices, payments, initialInvId = null }: {
                 >
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="min-w-0 truncate text-[13px] font-bold text-fg">
-                      {i.studentName} <span className="font-normal text-fg-subtle">{i.grade ?? ''}</span>
+                      {i.studentName} <span className="font-normal text-fg-subtle">{i.studentTag ?? ''}</span>
                       <span className="ml-1 font-normal text-fg-subtle">{i.yearMonth}</span>
                     </span>
                     <span className="shrink-0 text-[12px] font-bold text-fg">{won(i.amount)}</span>

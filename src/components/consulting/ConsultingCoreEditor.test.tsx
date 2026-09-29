@@ -10,7 +10,7 @@ import { ConsultingCoreEditor } from './ConsultingCoreEditor';
 const mutate = vi.fn();
 vi.mock('@/api/queries', () => ({
   useMeta: () => ({ data: {
-    students: [{ id: 10, name: '학생1' }, { id: 11, name: '학생2' }],
+    students: [{ id: 10, name: '학생1', tag: null, label: '학생1' }, { id: 11, name: '학생2', tag: null, label: '학생2' }],
     staff: [{ id: 2, name: '담당1', canAdminPage: true }, { id: 3, name: '담당2', canAdminPage: true }],
   } }),
   useUpdateConsultingCore: () => ({ mutate, isPending: false, isError: false, error: null }),

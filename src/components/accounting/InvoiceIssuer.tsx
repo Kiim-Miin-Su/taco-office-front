@@ -241,7 +241,7 @@ export function InvoiceIssuer({ open: openProp, onOpenChange, heading, preset, b
                 <Select id="iv-stu" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
                   <option value="">고르세요</option>
                   {(meta.data?.students ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}{s.grade ? ` · ${s.grade}` : ''}</option>
+                    <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </Select>
               </div>

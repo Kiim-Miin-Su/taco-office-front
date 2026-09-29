@@ -2244,6 +2244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/leads/{id}/appts/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 「상담 일정 잡기」 — 날짜 · 시각 · 담당 · 방식을 한 번에: 시간표 회차 · 담당 지정 · 1차 → 2차 대기 · 상담 예약 접촉 (A-02)
+         * @description 한 트랜잭션 — 적기(PUT appts 와 같은 판정) → 담당 지정(상담 건의 담당이 바뀐다) → 시간표 회차(ONCE · 진단 = 진단고사, 2차 = 상담 · 입학 상담 · 강사 자리 = 담당) → 1차면 2차 대기로(도달 기록 · 그 밖 단계는 그대로) → 상담 예약 접촉(다음은 그날) → LOG(LEAD appt_book). 겹치면 409 RESOURCE_CONFLICT 로 전부 되돌린다. 이미 시간표에 만든 종류 409 LEAD_APPT_SCHEDULED · 깔때기 밖 409 LEAD_APPT_LOCKED · 그만둔 담당 404 STAFF_NOT_FOUND · 담당 빠짐 400. 담당의 불가 시간은 막지 않고 unavailable 로 돌려준다.
+         */
+        post: operations["LeadPlanController_bookAppt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/books": {
         parameters: {
             query?: never;
@@ -4414,6 +4434,10 @@ export interface components {
              * @enum {string|null}
              */
             gender?: "female" | "male" | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 없으면 null. 판정은 서버 한 곳(lib/student-label) */
+            tag: string | null;
+            /** @description 고르기에 적는 이름 — 「이름 · 꼬리」(꼬리가 없으면 이름). 화면은 이 글을 그대로 쓴다 (D-R18) */
+            label: string;
         };
         InvTypeDto: {
             /** @description 저장되는 코드값 */
@@ -5676,6 +5700,8 @@ export interface components {
             studentId: number;
             studentName: string;
             grade?: string | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 화면은 학년 칩 대신 이 글을 적는다(lib/student-label 한 곳) */
+            studentTag: string | null;
             yearMonth: string;
             title: string;
             /** @description 금액 — canMoney 가 아니면 null 로 내려간다 (D-R39) */
@@ -5826,6 +5852,8 @@ export interface components {
             studentId: number;
             name: string;
             grade?: string | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 화면은 학년 칩 대신 이 글을 적는다(lib/student-label 한 곳) */
+            tag: string | null;
             /** @description 이번 달에 **이미 한** 수업 수 */
             done: number;
             /** @description 이번 달 전체 수업 수 (결강 제외) */
@@ -6312,6 +6340,8 @@ export interface components {
             studentId: number;
             studentName: string;
             grade?: string | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 화면은 학년 칩 대신 이 글을 적는다(lib/student-label 한 곳) */
+            studentTag: string | null;
             /** @description 청구 종류 코드 */
             invType: string;
             /** @description 종류 이름 — §53 카드의 배지 (D-R18) */
@@ -6346,6 +6376,8 @@ export interface components {
             studentId: number;
             studentName: string;
             grade?: string | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 화면은 학년 칩 대신 이 글을 적는다(lib/student-label 한 곳) */
+            studentTag: string | null;
             /** @description 청구할 달 — YYYY-MM */
             yearMonth: string;
             /** @description 청구 종류 코드 — 수업료 · 진단고사 + 상담 */
@@ -6946,6 +6978,14 @@ export interface components {
             latestDiag?: components["schemas"]["LeadDiagDto"] | null;
             /** @description 학년 — 원본 §23 카드의 학년 칩. 적은 그대로(표기 규약을 서버가 바꾸지 않는다) · 옛 건 null */
             grade?: string | null;
+            /** @description 학부모 관계 — 「어머니」 · 사람이 적는 짧은 말(코드 아님) · 보호자 relation 과 같은 칸 */
+            parentRelation?: string | null;
+            /** @description 학부모 연락처 — 숫자만(010xxxxxxxx · 보호자 번호와 같은 모양) */
+            parentPhone?: string | null;
+            /** @description 보이는 모양 010-1234-5678 — 서버가 만든다 */
+            parentPhoneDisplay?: string | null;
+            /** @description 원하는 것 — 1차 카드의 한 줄(원본 §23 · 23-11) */
+            want?: string | null;
             /** @description 실패 사유 분류 — unreachable | other_academy | schedule | cost | timing (원본 §24 다섯) · 분류 전·옛 건 null */
             reasonKind?: string | null;
             /** @description 실패 사유 분류 낱말 — 「연락 두절」. 서버가 만든다 (D-R18) */
@@ -7530,6 +7570,12 @@ export interface components {
             note?: string | null;
             /** @description 학년 — 원본 §23 카드의 학년 칩(23-10). 비우면 null */
             grade?: string | null;
+            /** @description 학부모 관계 — 「어머니」 */
+            parentRelation?: string | null;
+            /** @description 학부모 연락처 — 010-1234-5678 처럼. 숫자만 저장한다(보호자 번호와 같은 모양) */
+            parentPhone?: string | null;
+            /** @description 원하는 것 — 「MAP Reading 점수 올리기」 · 1차 카드의 한 줄 */
+            want?: string | null;
         };
         LeadPatchDto: {
             /** @description 학생 이름 */
@@ -7545,6 +7591,12 @@ export interface components {
             ownerId?: number | null;
             /** @description 학년 — null 또는 빈 문자열이면 비운다 */
             grade?: string | null;
+            /** @description 학부모 관계 — null 또는 빈 문자열이면 비운다 (A-01) */
+            parentRelation?: string | null;
+            /** @description 학부모 연락처 — null 또는 빈 문자열이면 비운다 (A-01) */
+            parentPhone?: string | null;
+            /** @description 원하는 것 — null 또는 빈 문자열이면 비운다 (A-01) */
+            want?: string | null;
         };
         LeadStageMoveDto: {
             /**
@@ -7717,6 +7769,13 @@ export interface components {
             /** @description 과목 이름(없으면 종류 이름) */
             label: string;
         };
+        EnrollGuardianCarryDto: {
+            /** @description 보호자 이름 — 「학생 이름 + 관계」(관계가 없으면 「보호자」) */
+            name: string;
+            relation: string | null;
+            /** @description 010-1234-5678 모양 */
+            phoneDisplay: string;
+        };
         EnrollAftercareDto: {
             /**
              * Format: date
@@ -7769,6 +7828,8 @@ export interface components {
             diagBookApplied: boolean;
             /** @description 그 학생의 최신 상담 진단 — 등록으로 생긴 연결(lead.student_id)을 따라 읽은 값. 없으면 null */
             latestDiag?: components["schemas"]["LeadDiagDto"] | null;
+            /** @description 문의 연락처(A-01)를 이은 보호자 — 받는 채널은 꺼 둔 채(「+ 보호자 추가」 기본). 문의에 연락처가 없거나 같은 번호의 보호자가 이미 있으면 null */
+            guardianCarried?: components["schemas"]["EnrollGuardianCarryDto"] | null;
             /** @description 해피콜 · 첫 월간 상담 — 날짜와 담당(할 일로 만들어졌다) */
             aftercare?: components["schemas"]["EnrollAftercareDto"];
         };
@@ -8302,6 +8363,31 @@ export interface components {
             created: number;
             /** @description 담당(시간표의 강사 자리)이 적어 둔 불가 시간과 겹친 회차 — 경고일 뿐 막지 않는다 */
             unavailable: components["schemas"]["UnavWarnDto"][];
+        };
+        LeadApptBookDto: {
+            /**
+             * @description diag(진단고사) | second(2차 상담)
+             * @enum {string}
+             */
+            kind: "diag" | "second";
+            /**
+             * Format: date
+             * @description 날짜
+             */
+            onDate: string;
+            /** @description 시작 분 (0~1439 · 시간표 회차와 같은 범위) */
+            startMin: number;
+            /** @description 끝 분 — 시작보다 뒤 */
+            endMin: number;
+            /**
+             * @description 현장이면 강의실, 온라인이면 강의실 없음
+             * @enum {string}
+             */
+            mode: "offline" | "online";
+            /** @description 강의실 — 현장일 때(비우면 「장소 미정」) */
+            roomId?: number | null;
+            /** @description 담당 — 재직 중인 직원. 상담 건의 담당이 되고 시간표 회차의 강사 자리가 된다 */
+            ownerId: number;
         };
         BookDto: {
             /** @description 교재 코드 — 카드에 그대로 보인다 */
@@ -10465,6 +10551,10 @@ export interface components {
             studentId: number;
             name: string;
             grade?: string | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. lib/student-label 한 곳 */
+            tag: string | null;
+            /** @description 기록 창 학생 고르기에 적는 이름 — 「이름 · 꼬리」 */
+            label: string;
             /** @description 담당 코디네이터 이름 (배정 기준) */
             coordName?: string | null;
             /** @description 이 사이클 배정량 (배정 없이 소비만 있으면 0) */
@@ -21087,6 +21177,81 @@ export interface operations {
                 content?: never;
             };
             /** @description LEAD_APPT_LOCKED | LEAD_APPT_NONE | LEAD_APPT_CODE_MISSING | RESOURCE_CONFLICT */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    LeadPlanController_bookAppt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadApptBookDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadApptScheduleResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description LEAD_NOT_FOUND | STAFF_NOT_FOUND | ROOM_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description LEAD_APPT_LOCKED | LEAD_APPT_SCHEDULED | LEAD_APPT_PLACE | LEAD_APPT_CODE_MISSING | RESOURCE_CONFLICT | BAD_RANGE */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -12,12 +12,12 @@ import { InvoiceStageBoard } from './InvoiceStageBoard';
 import { MASKED } from '@/lib/money';
 
 const card = (over: Partial<InvBoardCard> = {}): InvBoardCard => ({
-  invId: 1, studentId: 1, studentName: '고은성', grade: 'G12', invType: 'consulting', invTypeLabel: '컨설팅비 청구',
+  invId: 1, studentId: 1, studentName: '고은성', grade: 'G12', studentTag: 'G12', invType: 'consulting', invTypeLabel: '컨설팅비 청구',
   title: '대입 컨설팅 · 연간 패키지', stateLabel: '작성 중', amount: 4_800_000, paid: 0, paidPercent: null,
   dueOn: '2026-09-20', overdueDays: 0, whenLabel: 'D-21', ...over,
 });
 const cand = (over: Partial<InvBoardCandidate> = {}): InvBoardCandidate => ({
-  studentId: 5, studentName: '서지호', grade: 'G9', yearMonth: '2026-09', invType: 'diag_intake', invTypeLabel: '진단고사 + 상담 비용',
+  studentId: 5, studentName: '서지호', grade: 'G9', studentTag: 'G9', yearMonth: '2026-09', invType: 'diag_intake', invTypeLabel: '진단고사 + 상담 비용',
   title: '2026년 9월 진단고사 + 상담 비용', amount: 150_000, canIssue: true, issueBlockedReason: null, ...over,
 });
 const col = (key: string, label: string, sub: string, next: InvStageColumn['next'], nextLabel: string | null, over: Partial<InvStageColumn> = {}): InvStageColumn => ({

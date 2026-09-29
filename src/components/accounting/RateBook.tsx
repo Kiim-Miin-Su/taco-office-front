@@ -148,7 +148,7 @@ function StudentRateForm({ open, onClose, meta }: { open: boolean; onClose: () =
             <Label htmlFor={`${id}-stu`}>학생</Label>
             <Select id={`${id}-stu`} value={studentId} onChange={(e) => setStudentId(e.target.value)} disabled={write.isPending}>
               <option value="">고르세요</option>
-              {(meta?.students ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}{s.grade ? ` · ${s.grade}` : ''}</option>)}
+              {(meta?.students ?? []).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </Select>
           </div>
           <div>

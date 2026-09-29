@@ -612,7 +612,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
           <div className="mt-1 flex max-h-24 flex-wrap gap-1 overflow-y-auto">
             {(meta?.students ?? []).map((st) => (
               <button key={st.id} type="button" onClick={() => toggle('studentIds', st.id)}>
-                <Chip tone={students.includes(st.id) ? 'info' : 'neutral'}>{st.name}</Chip>
+                <Chip tone={students.includes(st.id) ? 'info' : 'neutral'}>{st.label}</Chip>
               </button>
             ))}
           </div>

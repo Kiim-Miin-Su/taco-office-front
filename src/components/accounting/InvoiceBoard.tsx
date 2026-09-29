@@ -43,7 +43,8 @@ function Card({ c, onOpen }: { c: InvBoardCard; onOpen?: (invId: number) => void
   return (
     <div className="flex items-center gap-1.5" title={`${c.invTypeLabel} · ${c.title}`}>
       <span className="text-[13px] font-bold text-fg">{c.studentName}</span>
-      {c.grade ? <Chip size="compact" tone="neutral">{c.grade}</Chip> : null}
+      {/* 학년 칩 자리 — 동명이인이면 학교까지 붙은 서버 꼬리 (N-137) */}
+      {c.studentTag ? <Chip size="compact" tone="neutral">{c.studentTag}</Chip> : null}
       {c.overdueDays > 0 ? <Chip size="compact" styleKind="solid" tone="danger">연체</Chip> : null}
       {onOpen ? (
         <button type="button" className="ml-auto shrink-0 text-[11px] font-bold text-fg-2 hover:underline"

@@ -9,7 +9,7 @@ import type { InvBoard } from '@/api/types';
 import { InvoiceBoard } from './InvoiceBoard';
 
 const card = (over: Partial<InvBoard['columns'][number]['cards'][number]> = {}) => ({
-  invId: 1, studentId: 1, studentName: '고은설', grade: 'G8',
+  invId: 1, studentId: 1, studentName: '고은설', grade: 'G8', studentTag: 'G8',
   invType: 'consulting', invTypeLabel: '컨설팅비 청구', title: 'BHA 원서 컨설팅 · 1차',
   stateLabel: '일부 납부', amount: 2_200_000, paid: 1_100_000, paidPercent: 50,
   dueOn: '2026-08-16', overdueDays: 0, whenLabel: 'D-16', ...over,

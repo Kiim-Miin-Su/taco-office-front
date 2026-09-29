@@ -147,7 +147,7 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords
                     onClick={() => setStudentIds((current) => toggleId(current, student.id))}
                     className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-bold ${selected ? 'border-fg bg-fg text-white' : 'border-line bg-card text-fg'}`}
                   >
-                    {student.name}
+                    {student.label}
                   </button>
                 );
               })}

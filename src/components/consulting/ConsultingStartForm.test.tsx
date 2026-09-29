@@ -28,8 +28,8 @@ const meta = {
     { id: 6, name: '김재훈', role: 'teacher', canAdminPage: false, canGpaPack: false },
   ],
   students: [
-    { id: 10, name: '고은성', grade: 'G12' },
-    { id: 11, name: '강라율', grade: 'G11' },
+    { id: 10, name: '고은성', grade: 'G12', tag: null, label: '고은성' },
+    { id: 11, name: '강라율', grade: 'G11', tag: null, label: '강라율' },
   ],
 } satisfies Meta;
 
@@ -151,5 +151,17 @@ describe('ConsultingStartForm', () => {
     const footer = view.getByRole('button', { name: '시작하기' }).parentElement!;
     expect(footer.className).toContain('justify-between');
     expect(footer.firstElementChild?.textContent).toBe('취소');
+  });
+  it('N-137 — 학생 칩은 서버가 붙인 꼬리 이름(label)을 적고 고른 번호를 보낸다(같은 이름 둘을 가른다)', () => {
+    const submit = vi.fn<(body: ConsultingCreate) => void>();
+    const twins = { ...meta, students: [
+      { id: 41, name: '김하윤', grade: 'G8', school: '채드윅', tag: 'G8 · 채드윅', label: '김하윤 · G8 · 채드윅' },
+      { id: 42, name: '김하윤', grade: 'G8', school: '역삼중', tag: 'G8 · 역삼중', label: '김하윤 · G8 · 역삼중' },
+    ] } satisfies Meta;
+    const view = render(<ConsultingStartForm {...PICK_WORDS} meta={twins} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
+    expect(view.getByRole('button', { name: '김하윤 · G8 · 채드윅' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '김하윤 · G8 · 역삼중' }));
+    expect(view.getByRole('button', { name: '김하윤 · G8 · 역삼중', pressed: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: '김하윤 · G8 · 채드윅', pressed: false })).toBeTruthy();
   });
 });

@@ -94,7 +94,7 @@ export function ComplaintCreateButton({ areas, severities, requesters = [], onDo
               <Label htmlFor={`${id}-stu`} hint="없으면 문의자">학생</Label>
               <Select id={`${id}-stu`} value={studentId} onChange={(e) => setStudentId(e.target.value)} disabled={pending}>
                 <option value="">문의자</option>
-                {(meta.data?.students ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}{s.grade ? ` · ${s.grade}` : ''}</option>)}
+                {(meta.data?.students ?? []).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </Select>
             </div>
           </div>

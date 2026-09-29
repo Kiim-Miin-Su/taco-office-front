@@ -19,7 +19,7 @@ const me: Me = {
 
 const meta = {
   kinds: [], subs: [], rooms: [], zaccs: [], staff: [],
-  students: [{ id: 7, name: '양찬욱', grade: 'G10', school: null }],
+  students: [{ id: 7, name: '양찬욱', grade: 'G10', school: null, tag: 'G10', label: '양찬욱 · G10' }],
   // 종류 목록도 서버가 준다 — 화면이 코드표를 다시 적지 않는다 (D-R18 · C64)
   // W11 N-75 — 진단고사 + 상담은 서버가 회차로 세고, 응시료는 사람이 줄을 적고(manualLines), 컨설팅비는 「청구서로 전환」 한 길이다
   invTypes: [
@@ -31,7 +31,7 @@ const meta = {
 };
 
 const made: Invoice = {
-  id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', yearMonth: '2026-08',
+  id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', studentTag: 'G10', yearMonth: '2026-08',
   title: '2026년 8월 수업료 청구', amount: 250000, paidAmount: 0, state: 'draft', stateLabel: '작성 중',
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: null, paidAt: null, remaining: 250000, overdueDays: 0, sentAt: null, canDeliver: true, canVoid: false, voidBlockedReason: null, voidReason: null,

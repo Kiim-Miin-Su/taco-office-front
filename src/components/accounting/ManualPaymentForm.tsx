@@ -81,7 +81,7 @@ export function ManualPaymentButton() {
             <Select id={`${id}-stu`} value={studentId} onChange={(e) => setStudentId(e.target.value)} disabled={create.isPending}>
               <option value="">학생을 고르세요</option>
               {(meta.data?.students ?? []).map((s) => (
-                <option key={s.id} value={s.id}>{s.name}{s.grade ? ` · ${s.grade}` : ''}</option>
+                <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </Select>
           </div>

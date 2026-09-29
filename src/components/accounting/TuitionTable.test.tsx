@@ -17,7 +17,7 @@ const base: Tuition = {
   close: null, canClose: false, canReopen: false,
   items: [
     {
-      studentId: 1, name: '이하린', grade: 'G9',
+      studentId: 1, name: '이하린', grade: 'G9', tag: 'G9 · 채드윅',
       done: 8, total: 11, percent: 73, canceled: 2, deducted: 0, extra: 1,
       unitPrice: 140_000, unitPriceOverride: true, priceCount: 1,
       carryable: false, carriedAt: null, carriedIn: 0, carriedInSessions: 0,
@@ -27,7 +27,7 @@ const base: Tuition = {
       ],
     },
     {
-      studentId: 2, name: '김태린', grade: 'G5',
+      studentId: 2, name: '김태린', grade: 'G5', tag: 'G5',
       done: 13, total: 20, percent: 65, canceled: 0, deducted: 0, extra: 0,
       unitPrice: 120_000, unitPriceOverride: false, priceCount: 1,
       carryable: false, carriedAt: null, carriedIn: 0, carriedInSessions: 0,
@@ -308,4 +308,11 @@ it('넘길 돈이 남은 줄(서버 carryPending)만 옅게 칠하고, 받은 �
   expect(rows.map((r) => (r.textContent ?? '').includes('이하린') ? '이하린' : '김태린')).toEqual(['이하린', '김태린']);
   expect(rows[0].className).toContain('bg-amber/5');
   expect(rows[1].className).not.toContain('bg-amber/5');
+});
+
+it('N-137 — 줄의 학년 칩은 서버 꼬리(tag)다: 같은 이름이 있는 학생은 학교까지 적힌다', () => {
+  const v = render(<TuitionTable data={clone()} />);
+  const text = v.container.textContent ?? '';
+  expect(text).toContain('G9 · 채드윅');
+  expect(text).toContain('G5');
 });

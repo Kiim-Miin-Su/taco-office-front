@@ -149,7 +149,7 @@ export default function AccountingPage() {
       width: 130,
       cell: (r) => (
         <span className="font-bold">
-          {r.studentName} <span className="font-normal text-fg-subtle">{r.grade}</span>
+          {r.studentName} <span className="font-normal text-fg-subtle">{r.studentTag}</span>
         </span>
       ),
     },

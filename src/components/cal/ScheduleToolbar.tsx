@@ -199,7 +199,8 @@ export function ScheduleToolbar({
           onChange={(event) => change('studentId', optionalNumber(event.target.value))}
           className="!h-8 !w-auto min-w-[96px] text-[12px]">
           <option value="">학생 전체</option>
-          {(meta?.students ?? []).map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+          {/* 동명이인은 서버가 붙인 꼬리(학년 · 학교)로 가른다 — 화면은 label 을 그대로 적는다 (N-137 · D-R18) */}
+          {(meta?.students ?? []).map((student) => <option key={student.id} value={student.id}>{student.label}</option>)}
         </Select>
         {/* 원문 낱말 「구성원」 — 회차의 담당(강사 칸)으로 좁힌다 */}
         <Select aria-label="구성원 필터" value={filters.teacherId ?? ''}

@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 const inv = (over: Partial<Invoice>): Invoice => ({
-  id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', yearMonth: '2026-09',
+  id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', studentTag: 'G10', yearMonth: '2026-09',
   title: '2026년 9월 수업료 청구', amount: 250000, paidAmount: 0, state: 'sent', stateLabel: '보냄',
   invType: 'tuition', invTypeLabel: '수업료 청구',
   issuedOn: '2026-09-12', dueOn: '2026-09-30', paidAt: null, remaining: 250000, overdueDays: 0,
@@ -57,17 +57,17 @@ const board = (): InvBoard => ({
   canSeeAmounts: true, candidateMonth: '2026-09', columns: [],
   stages: [
     { key: 'todo', label: '아직 안 씀', sub: '청구서를 만들어야 합니다', next: 'issue', nextLabel: '청구서 작성 →', count: 1, amount: 150000, cards: [],
-      candidates: [{ studentId: 7, studentName: '양찬욱', grade: 'G10', yearMonth: '2026-09', invType: 'diag_intake', invTypeLabel: '진단고사 + 상담 비용', title: '2026년 9월 진단고사 + 상담 비용', amount: 150000, canIssue: true, issueBlockedReason: null }] },
+      candidates: [{ studentId: 7, studentName: '양찬욱', grade: 'G10', studentTag: 'G10', yearMonth: '2026-09', invType: 'diag_intake', invTypeLabel: '진단고사 + 상담 비용', title: '2026년 9월 진단고사 + 상담 비용', amount: 150000, canIssue: true, issueBlockedReason: null }] },
     { key: 'draft', label: '청구서 작성', sub: '보낼 준비가 됐습니다', next: 'deliver', nextLabel: '학부모 안내 →', count: 0, amount: 0, cards: [], candidates: [] },
     { key: 'sent', label: '학부모 안내', sub: '보냈습니다 · 입금을 기다립니다', next: 'pay', nextLabel: '입금 완료 →', count: 1, amount: 250000, candidates: [],
-      cards: [{ invId: 43, studentId: 8, studentName: '이하린', grade: 'G9', invType: 'tuition', invTypeLabel: '수업료 청구', title: '2026년 9월 수업료 청구', stateLabel: '보냄', amount: 250000, paid: 0, paidPercent: null, dueOn: '2026-09-30', overdueDays: 0, whenLabel: 'D-12' }] },
+      cards: [{ invId: 43, studentId: 8, studentName: '이하린', grade: 'G9', studentTag: 'G9', invType: 'tuition', invTypeLabel: '수업료 청구', title: '2026년 9월 수업료 청구', stateLabel: '보냄', amount: 250000, paid: 0, paidPercent: null, dueOn: '2026-09-30', overdueDays: 0, whenLabel: 'D-12' }] },
     { key: 'paid', label: '입금 완료', sub: '돈이 들어왔습니다', next: null, nextLabel: null, count: 0, amount: 0, cards: [], candidates: [] },
     { key: 'record', label: '입금 기록', sub: '장부에 넣었습니다', next: null, nextLabel: null, count: 0, amount: 0, cards: [], candidates: [] },
   ],
 });
 const META = {
   kinds: [], subs: [], rooms: [], zaccs: [], staff: [],
-  students: [{ id: 7, name: '양찬욱', grade: 'G10', school: null }],
+  students: [{ id: 7, name: '양찬욱', grade: 'G10', school: null, tag: 'G10', label: '양찬욱 · G10' }],
   invTypes: [
     { key: 'tuition', label: '수업료 청구', sub: '정규 수업', other: false, issuable: true, issueBlockedReason: null, manualLines: false },
     { key: 'diag_intake', label: '진단고사 + 상담 비용', sub: '진단고사 · 입학 상담', other: true, issuable: true, issueBlockedReason: null, manualLines: false },
@@ -154,7 +154,7 @@ it('탭은 두 층이다 — 처음은 받을 돈 › 트래킹 보드 · 묶음
  */
 it('처음 화면은 받을 돈 › 트래킹 보드다 — 판 질의 한 번 · 「자세히 ›」로 청구서 탭에 가도 다시 묻지 않는다 · `?tab=inv&invId=` 는 청구서 탭 (C-08)', async () => {
   const card = {
-    invId: 43, studentId: 8, studentName: '이하린', grade: 'G9', invType: 'tuition', invTypeLabel: '수업료 청구', title: '2026년 9월 수업료 청구',
+    invId: 43, studentId: 8, studentName: '이하린', grade: 'G9', studentTag: 'G9', invType: 'tuition', invTypeLabel: '수업료 청구', title: '2026년 9월 수업료 청구',
     stateLabel: '보냄', amount: 250000, paid: 0, paidPercent: null, dueOn: '2026-09-30', overdueDays: 0, whenLabel: 'D-12',
   };
   const tracking: InvBoard = {
@@ -292,7 +292,7 @@ it('청구서 표의 예정일은 분납이면 지금 기한과 그 회차다 �
 it('「학부모 안내 →」(전달) 뒤에는 판을 다시 읽는다 — 카드가 저절로 다음 칸으로 옮는다', async () => {
   const b = board();
   b.stages[1] = { ...b.stages[1], count: 1, amount: 200000, cards: [{
-    invId: 45, studentId: 9, studentName: '박하경', grade: 'G11', invType: 'tuition', invTypeLabel: '수업료 청구', title: '2026년 9월 수업료 청구',
+    invId: 45, studentId: 9, studentName: '박하경', grade: 'G11', studentTag: 'G11', invType: 'tuition', invTypeLabel: '수업료 청구', title: '2026년 9월 수업료 청구',
     stateLabel: '작성 중', amount: 200000, paid: 0, paidPercent: null, dueOn: '2026-09-30', overdueDays: 0, whenLabel: 'D-12' }] };
   let boardReads = 0;
   nav.search = 'tab=inv';

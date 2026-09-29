@@ -118,7 +118,7 @@ export function InvoiceStageBoard({ data, loading, invoices, onIssue, onPay, onO
             {/* 아직 청구서가 없어 종류 칩 자리가 「—」다(원문 §53 ① 카드) — 종류는 아래 제목 띠가 말한다 */}
             <span aria-hidden className="text-[12px] font-bold text-fg-subtle">—</span>
             <span className="min-w-0 truncate text-[13px] font-bold text-fg">{c.studentName}</span>
-            {c.grade ? <Chip size="compact" tone="neutral">{c.grade}</Chip> : null}
+            {c.studentTag ? <Chip size="compact" tone="neutral">{c.studentTag}</Chip> : null}
           </div>
           <div className={cn('truncate rounded px-2 py-0.5 text-[11px] font-bold text-white', BAR.todo)} title={c.title}>{c.title}</div>
           {c.canIssue ? (

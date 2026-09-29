@@ -19,7 +19,7 @@ const meta: Meta = {
   subs: [{ key: 'writing', name: 'Writing', color: '#654321' }],
   rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [{ id: 5, label: 'TN Zoom 1' }], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
   genders: [{ key: 'female', label: '여' }, { key: 'male', label: '남' }],
-  students: [{ id: 3, name: '학생 3' }],
+  students: [{ id: 3, name: '학생 3', tag: null, label: '학생 3' }],
   staff: [
     { id: 11, name: '강사 11', role: 'teacher', canAdminPage: false, canGpaPack: false },
     { id: 12, name: '관리자 12', role: 'admin', canAdminPage: true, canGpaPack: true },
@@ -185,4 +185,22 @@ it('줌 계정 필터는 회차의 줌 계정으로만 좁힌다', () => {
   const online = occurrence({ serId: 8, mode: 'online', zaccId: 5 });
   const other = occurrence({ serId: 9, mode: 'online', zaccId: 6 });
   expect(filterScheduleOccurrences([online, other], { ...INITIAL_SCHEDULE_FILTERS, zaccId: 5 })).toEqual([online]);
+});
+
+it('N-137 — 학생 필터의 선택지는 서버가 붙인 꼬리 이름(label)을 그대로 적는다(같은 이름 둘을 가른다)', () => {
+  const twins: Meta = {
+    ...meta,
+    students: [
+      { id: 21, name: '김하윤', grade: 'G8', school: '채드윅', tag: 'G8 · 채드윅', label: '김하윤 · G8 · 채드윅' },
+      { id: 22, name: '김하윤', grade: 'G8', school: '역삼중', tag: 'G8 · 역삼중', label: '김하윤 · G8 · 역삼중' },
+    ],
+  };
+  const view = render(
+    <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={INITIAL_SCHEDULE_FILTERS} meta={twins}
+      roomColumnsOn={false} roomColumnsAvailable
+      onPeriodChange={vi.fn()} onTargetChange={vi.fn()} onFiltersChange={vi.fn()}
+      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onRoomColumnsToggle={vi.fn()} onExport={vi.fn()} />,
+  );
+  const picker = within(view.getByRole('combobox', { name: '학생 필터' }));
+  expect(picker.getAllByRole('option').map((o) => o.textContent)).toEqual(['학생 전체', '김하윤 · G8 · 채드윅', '김하윤 · G8 · 역삼중']);
 });

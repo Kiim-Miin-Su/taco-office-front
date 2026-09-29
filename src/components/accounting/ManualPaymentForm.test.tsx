@@ -14,7 +14,7 @@ const made: Payment = {
   id: 91, paidOn: '2026-09-21', studentId: 11, studentName: '김하윤', amount: 35000, method: 'transfer',
   reason: '교재비', invId: null, category: 'etc', categoryLabel: '기타',
 };
-const meta = { students: [{ id: 11, name: '김하윤', grade: '중2' }, { id: 12, name: '이서우', grade: '중1' }] };
+const meta = { students: [{ id: 11, name: '김하윤', grade: '중2', tag: '중2', label: '김하윤 · 중2' }, { id: 12, name: '이서우', grade: '중1', tag: '중1', label: '이서우 · 중1' }] };
 
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
