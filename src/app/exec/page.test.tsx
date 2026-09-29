@@ -495,6 +495,30 @@ it('월간 퍼널은 서버 줄·비율 그대로이고 부제가 도달 기록 
   expect(view.container.textContent).toContain('도달 기록은 2026-09-18 부터 — 그 전 건은 지금 단계로만 셉니다');
 });
 
+/*
+ * PDF K-108 「6영역이 함께 한 페이지에 — 스크롤이 생기면 실패」(all160 2026-09-30) — 월간 시트는 **한 장**이다.
+ * 판정은 서버가 월간 판(`monthly`)을 줬는가 하나다(기간을 화면이 다시 가르지 않는다). 칸은 그대로 · 모양만 촘촘히.
+ * 실제로 세로가 넘치지 않는지는 실브라우저(1440×900 · qa-intake-c90 K-108+)가 잰다 — jsdom 은 높이를 모른다.
+ */
+it('월간 시트는 한 장 모양이다 — 영역 카드 여섯이 촘촘한 모양으로 한 줄에 서고, 일일 시트는 그대로다 (K-108)', async () => {
+  const month = setupWrite({ ...monthSeed, head: monthHead });
+  const sheet = await month.findByRole('region', { name: '월간 업무 보고' });
+  expect(sheet.getAttribute('data-sheet-density')).toBe('one-page');
+  const cards = within(sheet).getAllByRole('region').filter((el) => el.getAttribute('data-density') !== null);
+  expect(cards).toHaveLength(6);
+  expect(cards.every((c) => c.getAttribute('data-density') === 'dense')).toBe(true);
+  // 줄인 것은 모양뿐 — 한 줄 요약은 잘려도 title 로 되찾는다(P-154), 숫자 칸 이름 · 값은 그대로다
+  const money = within(sheet).getByRole('region', { name: '회계' });
+  expect(money.querySelector('[title]')?.getAttribute('title')).toBe(areas[0].headline);
+  expect(within(money).getByRole('list', { name: '회계 숫자' }).querySelectorAll('li')).toHaveLength(areas[0].tiles.length);
+  cleanup();
+
+  const day = setup();
+  const daySheet = await day.findByRole('region', { name: '일일 업무 보고' });
+  expect(daySheet.getAttribute('data-sheet-density')).toBeNull();
+  expect(within(daySheet).getAllByRole('region').filter((el) => el.getAttribute('data-density') === 'dense')).toHaveLength(0);
+});
+
 it('도달 기록이 아직 없으면 퍼널 부제가 그 사실을 말한다 — 화면이 「언제부터」를 지어내지 않는다', async () => {
   const view = setupWrite({ monthly: { leads: 4, lost: 0, lostRows: [], funnel: [{ key: 'inflow', label: '유입', count: 4, pct: 100 }], funnelSince: null } });
   await view.findByRole('list', { name: '상담 퍼널' });

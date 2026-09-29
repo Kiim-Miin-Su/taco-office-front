@@ -13,6 +13,9 @@
  * **세는 일은 하나도 하지 않는다.** 배지 · 한 줄 요약 · 타일의 이름·값·부제·붉은 칸은 전부 서버가 준다
  * (`lib/exec-areas` · D-R18 · D-R37). 금액을 못 보는 사람에게는 서버가 값을 null 로 주고 문장에서도 뺀다(D-R39).
  * 펼칠 줄(「기한 지난 청구서 2건 펼치기 ▾」 · N-67 · K-111)도 서버가 머리 낱말과 줄을 준다 — 화면은 여닫고 이동만 한다.
+ * **촘촘한 모양(`dense`)** — 월간 시트는 한 장이어야 한다(PDF K-108 「6영역이 함께 한 페이지에 — 스크롤이 생기면 실패」 · all160 2026-09-30).
+ * 칸 · 낱말 · 순서는 그대로이고 모양만 줄인다: 한 줄 요약은 두 줄에서 자르고 title 로 되찾게(P-154), 숫자 칸은 한 줄씩 쌓는다.
+ * 일일 · 주간은 지금 모양 그대로다.
  * **영역 담당 이름 (W11 · N-81)** — 원문 §69 메모 칸 위의 「Grace」·「김범준」. 영역마다 고정 한 명이고 대표가 정한다
  * (서버의 `canSetOwner` · 쓰기는 `PUT /exec/areas/:key/owner`). 처음엔 비어 있다 — 이름을 지어 넣지 않는다.
  */
@@ -50,7 +53,7 @@ function tileValue(t: Tile): string {
 }
 
 export function ExecAreaCard({
-  area, memo, onMemoChange, memoDisabled, onGo, onOpenItem, owners, onOwnerChange, ownerBusy = false, className,
+  area, memo, onMemoChange, memoDisabled, onGo, onOpenItem, owners, onOwnerChange, ownerBusy = false, dense = false, className,
 }: {
   area: ExecArea;
   memo: string;
@@ -64,6 +67,8 @@ export function ExecAreaCard({
   /** 담당 바꾸기 — `null` 은 비우기 */
   onOwnerChange?: (staffId: number | null) => void;
   ownerBusy?: boolean;
+  /** 월간 한 장 시트의 촘촘한 모양 (K-108) — 칸은 그대로, 여백 · 숫자 칸 배치만 줄인다 */
+  dense?: boolean;
   className?: string;
 }): ReactNode {
   const color = AREA_COLOR[area.key] ?? { dot: 'bg-fg-subtle', border: 'border-line' };
@@ -75,8 +80,9 @@ export function ExecAreaCard({
   const [picking, setPicking] = useState(false);
   const pickable = area.canSetOwner && onOwnerChange !== undefined;
   return (
-    <section aria-labelledby={headId} className={cn('flex flex-col overflow-hidden rounded-xl border bg-card', color.border, className)}>
-      <header className="flex items-center gap-2 bg-inset px-3.5 py-2">
+    <section aria-labelledby={headId} data-density={dense ? 'dense' : 'normal'}
+      className={cn('flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card', color.border, className)}>
+      <header className={cn('flex items-center gap-2 bg-inset', dense ? 'px-3 py-1.5' : 'px-3.5 py-2')}>
         <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-full', color.dot)} />
         <h3 id={headId} className="text-[14px] font-bold text-fg">{area.label}</h3>
         {/*
@@ -101,18 +107,34 @@ export function ExecAreaCard({
         </button>
       </header>
 
-      <div className="px-3.5 py-3">
-        <p className="text-[13px] font-bold text-fg">{area.headline}</p>
-        <ul className={cn('mt-2 grid gap-2', area.tiles.length >= 3 ? 'grid-cols-3' : 'grid-cols-2')} aria-label={`${area.label} 숫자`}>
-          {area.tiles.map((t) => (
-            <li key={t.key} className={cn('rounded-lg border px-2.5 py-2', t.alert ? 'border-red/30 bg-red/5' : 'border-line bg-card')}>
-              <div className="text-[11px] font-bold text-fg-2">{t.label}</div>
-              <div className={cn('mt-0.5 text-[16px] font-bold leading-tight', t.alert ? 'text-red' : 'text-fg')}>{tileValue(t)}</div>
-              {t.sub ? <div className="mt-0.5 truncate text-[11px] text-fg-subtle" title={t.sub}>{t.sub}</div> : null}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {dense ? (
+        /* 촘촘한 모양 — 요약은 두 줄에서 자르고(title 로 되찾는다) 숫자 칸은 「이름 · 부제 … 값」 한 줄씩 쌓는다 */
+        <div className="px-3 py-2">
+          <p className="line-clamp-2 text-[12px] font-bold leading-snug text-fg" title={area.headline}>{area.headline}</p>
+          <ul className="mt-1.5 flex flex-col gap-0.5" aria-label={`${area.label} 숫자`}>
+            {area.tiles.map((t) => (
+              <li key={t.key} className={cn('flex min-w-0 items-baseline gap-1.5 rounded-md border px-2 py-0.5', t.alert ? 'border-red/30 bg-red/5' : 'border-line bg-card')}>
+                <span className="shrink-0 text-[11px] font-bold text-fg-2">{t.label}</span>
+                {t.sub ? <span className="min-w-0 truncate text-[10.5px] text-fg-subtle" title={t.sub}>{t.sub}</span> : null}
+                <b className={cn('ml-auto shrink-0 text-[13px] leading-tight', t.alert ? 'text-red' : 'text-fg')}>{tileValue(t)}</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="px-3.5 py-3">
+          <p className="text-[13px] font-bold text-fg">{area.headline}</p>
+          <ul className={cn('mt-2 grid gap-2', area.tiles.length >= 3 ? 'grid-cols-3' : 'grid-cols-2')} aria-label={`${area.label} 숫자`}>
+            {area.tiles.map((t) => (
+              <li key={t.key} className={cn('rounded-lg border px-2.5 py-2', t.alert ? 'border-red/30 bg-red/5' : 'border-line bg-card')}>
+                <div className="text-[11px] font-bold text-fg-2">{t.label}</div>
+                <div className={cn('mt-0.5 text-[16px] font-bold leading-tight', t.alert ? 'text-red' : 'text-fg')}>{tileValue(t)}</div>
+                {t.sub ? <div className="mt-0.5 truncate text-[11px] text-fg-subtle" title={t.sub}>{t.sub}</div> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/*
        * 원본 §69~§71 의 펼칠 줄 — 타일 아래 옅은 띠 「기한 지난 청구서 2건 펼치기 ▾」(N-67 · K-111).
@@ -125,9 +147,10 @@ export function ExecAreaCard({
             aria-expanded={open}
             aria-controls={listId}
             onClick={() => setOpen((v) => !v)}
-            className="flex w-full items-center gap-1 px-3.5 py-2 text-left text-[12px] font-bold text-fg hover:bg-inset"
+            className={cn('flex w-full items-center gap-1 text-left font-bold text-fg hover:bg-inset', dense ? 'px-3 py-1 text-[11.5px]' : 'px-3.5 py-2 text-[12px]')}
+            title={dense ? `${area.itemsLabel} ${open ? '접기' : '펼치기'}` : undefined}
           >
-            {area.itemsLabel} {open ? '접기' : '펼치기'} <span aria-hidden>{open ? '▴' : '▾'}</span>
+            <span className={cn(dense && 'min-w-0 truncate')}>{area.itemsLabel} {open ? '접기' : '펼치기'}</span> <span aria-hidden>{open ? '▴' : '▾'}</span>
           </button>
           {open ? (
             <ul id={listId} aria-label={area.itemsLabel} className="flex flex-col gap-1 px-3.5 pb-2.5">
@@ -149,9 +172,9 @@ export function ExecAreaCard({
         </div>
       ) : null}
 
-      <div className="mt-auto border-t border-line px-3.5 py-2.5">
+      <div className={cn('mt-auto border-t border-line', dense ? 'px-3 py-1.5' : 'px-3.5 py-2.5')}>
         {/* 원본 §69 메모 칸 위의 담당 이름 (N-81) — 없으면 없다고 적는다. 고르기는 도구라 인쇄에서 빠진다 */}
-        <div className="mb-1.5 flex min-h-5 flex-wrap items-center gap-2">
+        <div className={cn('flex flex-wrap items-center gap-2', dense ? 'mb-0.5 min-h-4' : 'mb-1.5 min-h-5')}>
           {area.ownerName
             ? <b className="text-[12px] text-fg">{area.ownerName}</b>
             : <span className="text-[11.5px] text-fg-subtle">담당 없음</span>}
@@ -191,7 +214,8 @@ export function ExecAreaCard({
         </div>
         <Textarea
           rows={1}
-          style={{ minHeight: 44 }}
+          className={dense ? 'py-1' : undefined}
+          style={{ minHeight: dense ? 30 : 44 }}
           aria-label={`${area.label} 메모`}
           placeholder="숫자만으로는 모를 것"
           /* 이미 올린 보고는 칸도 닫는다 (S5) — 단추만 닫으면 여섯 칸을 다 적고 나서야

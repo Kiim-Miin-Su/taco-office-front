@@ -31,6 +31,7 @@ import { draftKey, useDraftAutosave } from '@/lib/autosave';
 import { MASKED, won } from '@/lib/money';
 import { addDays, longDateLabel, mondayOf, monthBounds, todayKst } from '@/lib/calendar';
 import { queryEnum, queryIsoDate } from '@/lib/url-state';
+import { cn } from '@/components/ui/cn';
 
 /** 원문 §69~§73 의 네 뷰. 결재함은 기간이 없다 — 목록이다 */
 type View = 'day' | 'week' | 'month' | 'inbox';
@@ -154,6 +155,8 @@ export default function ExecPage() {
   /** 올릴 수 있는 사람·보고인데 **비어서만** 막힌 때 — 다른 잠금은 서버의 writeBlockedReason 이 따로 말한다 */
   const emptyBlocked = canWrite && writable && filledNow === 0;
   const stateNote = STATE_NOTE[report?.state ?? 'draft'] ?? '';
+  /** 월간 한 장 시트 (K-108) — 서버가 월간 판을 줬을 때만 */
+  const onePage = Boolean(d?.monthly);
 
   // 기간·뷰가 바뀌면 남의 기간 초안을 들고 가지 않는다
   useEffect(() => { setDraft({}); setReason(''); setWriteError(null); }, [view, range.from, range.to]);
@@ -355,8 +358,14 @@ export default function ExecPage() {
               보고서 시트 — 원본 §69~§71 은 이 한 장이 곧 보고다(인쇄물의 첫 줄이 제목이 된다 · 69-1).
               제목·기간 낱말·머리 지표·카드의 문장은 전부 서버가 준다 — 화면은 칸을 만들지 않는다 (D-R18).
             */}
-            <section aria-labelledby="exec-sheet-title" className="mt-3 rounded-xl border border-line bg-card p-4">
-              <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b-2 border-fg pb-2.5">
+            {/*
+              PDF K-108 「6영역이 함께 한 페이지에 — 스크롤이 생기면 실패」(all160 2026-09-30) — 월간 시트는 **한 장**이다.
+              월간인지는 서버가 월간 판(`monthly`)을 줬는가 하나로 본다(기간을 다시 가르지 않는다 · D-R37). 칸 · 순서 · 낱말은
+              그대로이고 모양만 촘촘히 — 넓은 화면(1280px 이상)에서는 영역 카드 여섯이 한 줄에 선다. 일일 · 주간은 지금 모양이다.
+            */}
+            <section aria-labelledby="exec-sheet-title" data-sheet-density={onePage ? 'one-page' : undefined}
+              className={cn('mt-3 rounded-xl border border-line bg-card', onePage ? 'px-4 py-3' : 'p-4')}>
+              <header className={cn('flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b-2 border-fg', onePage ? 'pb-1.5' : 'pb-2.5')}>
                 <h2 id="exec-sheet-title" className="text-[18px] font-bold text-fg">{d?.sheetTitle ?? ''}</h2>
                 <span className="text-[13px] text-fg-2">{periodLabel}</span>
                 <span className="ml-auto flex items-center gap-2">
@@ -370,9 +379,10 @@ export default function ExecPage() {
 
               {/* 머리 지표 넷 — **기간마다 원문 칸이 다르다**(일일 돈·결재·컴플레인 · 주간 입금·문의·게시·준비 · 월간 돈 넷).
                   칸과 값은 서버(`head`)가 정한다 — 강사료·이익은 달 전체일 때만 서버가 준다(69-15). */}
-              <div className="mt-3 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              <div className={cn('grid grid-cols-2 gap-2.5 lg:grid-cols-4', onePage ? 'mt-2' : 'mt-3')}>
                 {(d?.head ?? []).map((h) => (
                   <StatCard
+                    className={onePage ? '!py-1.5' : undefined}
                     key={h.key}
                     label={h.label}
                     value={headValue(h, canSeeAmounts)}
@@ -387,9 +397,9 @@ export default function ExecPage() {
                 기간이 달력 한 달 전체가 아니면 `monthly` 가 null 이다. 원본처럼 머리 바로 아래 한 줄에 나란히 (71-4).
               */}
               {d?.monthly ? (
-                <div className="mt-3 grid grid-cols-1 gap-2.5 lg:grid-cols-[2fr_1fr]">
+                <div className="mt-2 grid grid-cols-1 gap-2.5 lg:grid-cols-[2fr_1fr]">
                   <Panel className="!p-3" title={<>상담 퍼널 <span className="ml-1 text-[11px] font-normal text-fg-subtle">유입에서 등록까지</span></>}>
-                    <ol className="flex flex-col gap-1.5" aria-label="상담 퍼널">
+                    <ol className="flex flex-col gap-1" aria-label="상담 퍼널">
                       {d.monthly.funnel.map((r) => (
                         <li key={r.key} className="flex items-center gap-3">
                           <span className="w-20 shrink-0 text-[12px] font-bold text-fg">{r.label}</span>
@@ -404,7 +414,7 @@ export default function ExecPage() {
                       ))}
                     </ol>
                     {/* 옛 건은 도달 기록이 없다(보정 0) — **언제부터의 값인지** 한 줄로 남긴다 */}
-                    <p className="mt-2 text-[10.5px] text-fg-subtle">
+                    <p className="mt-1.5 text-[10.5px] text-fg-subtle">
                       {d.monthly.funnelSince
                         ? `도달 기록은 ${d.monthly.funnelSince} 부터 — 그 전 건은 지금 단계로만 셉니다`
                         : '도달 기록이 아직 없습니다 — 지금 단계로만 셉니다'}
@@ -414,10 +424,10 @@ export default function ExecPage() {
                     {d.monthly.lostRows.length === 0 ? (
                       <p className="px-1 py-2 text-[12px] text-fg-subtle">이번 달 들어온 문의 중 놓친 건이 없습니다</p>
                     ) : (
-                      <ul className="flex flex-col gap-1.5">
+                      <ul className="flex flex-col gap-1">
                         {/* 줄들의 합이 머리의 수와 같다 (N-19) — 원본처럼 이름과 빨강 숫자만 (71-6) */}
                         {d.monthly.lostRows.map((r) => (
-                          <li key={r.key} className="flex items-center gap-3 rounded-lg border border-line bg-card px-3 py-1.5">
+                          <li key={r.key} className="flex items-center gap-3 rounded-lg border border-line bg-card px-3 py-0.5">
                             <span className="text-[12px] text-fg">{r.label}</span>
                             <b className="ml-auto text-[13px] text-red">{r.count}</b>
                           </li>
@@ -433,9 +443,11 @@ export default function ExecPage() {
                 칸 목록·순서·낱말은 서버가 준 것 그대로다 (D-R18 · D-R25) — 화면이 표를 들면
                 「담당 x/6 기재」의 x 와 실제 칸이 갈린다.
               */}
-              <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+              <div className={cn('grid grid-cols-1 md:grid-cols-2',
+                onePage ? 'mt-2 gap-2 lg:grid-cols-3 xl:grid-cols-6' : 'mt-3 gap-2.5 xl:grid-cols-3')}>
                 {(d?.areas ?? []).map((a) => (
                   <ExecAreaCard
+                    dense={onePage}
                     key={a.key}
                     area={a}
                     memo={memoOf(a.key)}
@@ -474,11 +486,11 @@ export default function ExecPage() {
               ) : null}
 
               {/* 원본 §69 아래 두 칸 — 시각만 있는 서명은 서명이 아니라 사람 이름을 적는다 */}
-              <div className="mt-3 grid grid-cols-1 rounded-lg border border-line sm:grid-cols-2">
-                <p className="px-3 py-3 text-center text-[12px] text-fg-2 sm:border-r sm:border-line">
+              <div className={cn('grid grid-cols-1 rounded-lg border border-line sm:grid-cols-2', onePage ? 'mt-2' : 'mt-3')}>
+                <p className={cn('px-3 text-center text-[12px] text-fg-2 sm:border-r sm:border-line', onePage ? 'py-2' : 'py-3')}>
                   올린 사람 <b className="ml-1 text-fg">{report?.sentByName ?? '—'}</b>
                 </p>
-                <p className="px-3 py-3 text-center text-[12px] text-fg-2">
+                <p className={cn('px-3 text-center text-[12px] text-fg-2', onePage ? 'py-2' : 'py-3')}>
                   대표 승인 <b className="ml-1 text-fg">{report?.reviewedByName ?? '—'}</b>
                 </p>
               </div>
