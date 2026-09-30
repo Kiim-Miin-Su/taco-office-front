@@ -106,7 +106,8 @@ describe('session query cache boundary', () => {
 
     useWorkspace.getState().openDrawer('admin-5', 'chreqs');
     useWorkspace.getState().beginChangeReq('admin-5');
-    useWorkspace.getState().startChangeReqSubmission('admin-5', getSessionGeneration());
+    useWorkspace.getState().startChangeReqSubmission('admin-5', getSessionGeneration(),
+      { reqType: 'cancel', serId: 1, onDate: '2026-09-25', reason: '취소 요청' });
 
     clearSessionQueries({ clear });
 
@@ -114,6 +115,7 @@ describe('session query cache boundary', () => {
     expect(useWorkspace.getState().drawer.open).toBe(false);
     expect(useWorkspace.getState().drawer.draft).toBeNull();
     expect(useWorkspace.getState().drawer.submission).toBeNull();
+    expect(useWorkspace.getState().drawer.requestKeys).toEqual([]);
   });
 
   it('운영 캐시는 사용자와 비용 권한과 **기간·갈래**를 모두 구분하고 기존 무효화 prefix를 유지한다', () => {

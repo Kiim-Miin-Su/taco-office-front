@@ -41,16 +41,65 @@ describe('워크스페이스 접힘 상태 — 단일 소유자', () => {
 describe('UX-15 변경 요청 전송 경계', () => {
   beforeEach(() => useWorkspace.getState().clearDrawer());
 
+  const body = { serId: 41, onDate: '2026-09-25', reason: '시간 변경', reqType: 'time_move' as const, startMin: 600, endMin: 660 };
+
+  it('타임아웃 뒤 같은 본문은 라우트 재마운트·취소를 지나도 같은 UUID로 재확인한다', () => {
+    const workspace = useWorkspace.getState();
+    workspace.openDrawer('viewer-1', 'chreqs');
+    workspace.beginChangeReq('viewer-1');
+    const first = workspace.startChangeReqSubmission('viewer-1', 7, body)!;
+    expect(first.requestKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    workspace.finishChangeReqSubmission('viewer-1', first.token, 7, { kind: 'error', message: '응답 시간 초과' });
+    workspace.endChangeReq('viewer-1');
+    workspace.beginChangeReq('viewer-1');
+    const retry = workspace.startChangeReqSubmission('viewer-1', 7, body)!;
+    expect(retry.token).not.toBe(first.token);
+    expect(retry.requestKey).toBe(first.requestKey);
+  });
+
+  it('보낸 본문을 고치면 새 UUID, 이전 본문으로 돌아가면 원래 UUID를 쓰고 성공한 본문 키만 초기화한다', () => {
+    const workspace = useWorkspace.getState();
+    workspace.openDrawer('viewer-1', 'chreqs');
+    workspace.beginChangeReq('viewer-1');
+    const first = workspace.startChangeReqSubmission('viewer-1', 7, body)!;
+    workspace.finishChangeReqSubmission('viewer-1', first.token, 7, { kind: 'error', message: '응답 시간 초과' });
+    const changed = { ...body, reason: '다른 시간 변경' };
+    const second = workspace.startChangeReqSubmission('viewer-1', 7, changed)!;
+    expect(second.requestKey).not.toBe(first.requestKey);
+    workspace.finishChangeReqSubmission('viewer-1', second.token, 7, { kind: 'error', message: '응답 시간 초과' });
+    const reverted = workspace.startChangeReqSubmission('viewer-1', 7, body)!;
+    expect(reverted.requestKey).toBe(first.requestKey);
+    workspace.finishChangeReqSubmission('viewer-1', reverted.token, 7, { kind: 'success' });
+    workspace.beginChangeReq('viewer-1');
+    const newRequest = workspace.startChangeReqSubmission('viewer-1', 7, body)!;
+    expect(newRequest.requestKey).not.toBe(first.requestKey);
+  });
+
+  it('계정 세션 경계에서는 같은 계정·같은 본문이어도 이전 UUID를 재사용하지 않는다', () => {
+    const workspace = useWorkspace.getState();
+    workspace.openDrawer('viewer-1', 'chreqs');
+    workspace.beginChangeReq('viewer-1');
+    const old = workspace.startChangeReqSubmission('viewer-1', 7, body)!;
+    workspace.clearDrawer();
+    workspace.openDrawer('viewer-1', 'chreqs');
+    workspace.beginChangeReq('viewer-1');
+    const fresh = workspace.startChangeReqSubmission('viewer-1', 8, body)!;
+    expect(fresh.requestKey).not.toBe(old.requestKey);
+    expect(workspace.finishChangeReqSubmission('viewer-1', old.token, 8, { kind: 'success' })).toBe(false);
+    expect(useWorkspace.getState().drawer.submission?.requestKey).toBe(fresh.requestKey);
+  });
+
   it('진행 중인 같은 초안은 한 번만 시작하고 올바른 세대에서만 현재 초안에 결과를 적용한다', () => {
     const workspace = useWorkspace.getState();
     workspace.openDrawer('viewer-1', 'chreqs');
     workspace.beginChangeReq('viewer-1');
-    const token = workspace.startChangeReqSubmission('viewer-1', 7);
-    expect(token).not.toBeNull();
-    expect(workspace.startChangeReqSubmission('viewer-1', 7)).toBeNull();
-    expect(workspace.startChangeReqSubmission('viewer-2', 7)).toBeNull();
-    expect(workspace.finishChangeReqSubmission('viewer-1', token!, 8, { kind: 'success' })).toBe(false);
+    const submission = workspace.startChangeReqSubmission('viewer-1', 7, body);
+    expect(submission).not.toBeNull();
+    expect(workspace.startChangeReqSubmission('viewer-1', 7, body)).toBeNull();
+    expect(workspace.startChangeReqSubmission('viewer-2', 7, body)).toBeNull();
+    expect(workspace.finishChangeReqSubmission('viewer-1', submission!.token, 8, { kind: 'success' })).toBe(false);
     expect(useWorkspace.getState().drawer.submission).toBeNull();
+    expect(useWorkspace.getState().drawer.requestKeys).toEqual([]);
     expect(useWorkspace.getState().drawer.feedback).toBeNull();
   });
 
@@ -58,31 +107,31 @@ describe('UX-15 변경 요청 전송 경계', () => {
     const workspace = useWorkspace.getState();
     workspace.openDrawer('viewer-1', 'chreqs');
     workspace.beginChangeReq('viewer-1');
-    const token = workspace.startChangeReqSubmission('viewer-1', 7)!;
+    const token = workspace.startChangeReqSubmission('viewer-1', 7, body)!.token;
     const draft = useWorkspace.getState().drawer.draft!;
     workspace.setChangeReqDraft('viewer-1', { ...draft, reason: '전송 뒤 수정' });
     workspace.endChangeReq('viewer-1');
     workspace.beginChangeReq('viewer-1');
-    expect(workspace.startChangeReqSubmission('viewer-1', 7)).toBeNull();
+    expect(workspace.startChangeReqSubmission('viewer-1', 7, body)).toBeNull();
     expect(workspace.finishChangeReqSubmission('viewer-1', token, 7, { kind: 'success' })).toBe(false);
     expect(useWorkspace.getState().drawer.creating).toBe(true);
     expect(useWorkspace.getState().drawer.submission).toBeNull();
     expect(useWorkspace.getState().drawer.feedback).toEqual({ kind: 'success', token, priorDraft: true });
-    expect(workspace.startChangeReqSubmission('viewer-1', 7)).toBeNull();
+    expect(workspace.startChangeReqSubmission('viewer-1', 7, body)).toBeNull();
     workspace.acknowledgeChangeReqFeedback('viewer-1');
     expect(useWorkspace.getState().drawer.feedback).toBeNull();
-    expect(workspace.startChangeReqSubmission('viewer-1', 7)).not.toBeNull();
+    expect(workspace.startChangeReqSubmission('viewer-1', 7, body)).not.toBeNull();
   });
 
   it('계정 경계 초기화 뒤 토큰은 재사용되지 않고 이전 settle은 새 초안을 건드리지 않는다', () => {
     const workspace = useWorkspace.getState();
     workspace.openDrawer('viewer-1', 'chreqs');
     workspace.beginChangeReq('viewer-1');
-    const oldToken = workspace.startChangeReqSubmission('viewer-1', 7)!;
+    const oldToken = workspace.startChangeReqSubmission('viewer-1', 7, body)!.token;
     workspace.clearDrawer();
     workspace.openDrawer('viewer-1', 'chreqs');
     workspace.beginChangeReq('viewer-1');
-    const newToken = workspace.startChangeReqSubmission('viewer-1', 8)!;
+    const newToken = workspace.startChangeReqSubmission('viewer-1', 8, body)!.token;
     expect(newToken).not.toBe(oldToken);
     expect(workspace.finishChangeReqSubmission('viewer-1', oldToken, 8, { kind: 'success' })).toBe(false);
     expect(useWorkspace.getState().drawer.submission?.token).toBe(newToken);

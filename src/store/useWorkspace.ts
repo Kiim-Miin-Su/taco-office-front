@@ -14,7 +14,7 @@
 import { create } from 'zustand';
 import type { DrawerPane } from '@/components/drawer/AppDrawer';
 import { newChangeReqDraft, type ChangeReqDraft } from '@/components/drawer/change-request';
-import type { ChangeReqResult } from '@/api/types';
+import type { ChangeReqCreate, ChangeReqResult } from '@/api/types';
 
 /**
  * 되돌릴 **직전 일정 쓰기** — 상단바 단추가 그것을 읽는다 (N-138 · C99).
@@ -77,13 +77,15 @@ export interface WorkspaceDrawer {
   /** 초안 생성·편집·취소가 바뀔 때 증가한다. 늦은 응답이 새 초안을 닫지 못하게 한다. */
   draftVersion: number;
   /** mutation hook은 라우트마다 재생성되므로 전송 중 여부는 공통 셸이 소유한다. */
-  submission: { token: number; ownerKey: string; generation: number; draftVersion: number } | null;
+  submission: { token: number; ownerKey: string; generation: number; draftVersion: number; bodySignature: string; requestKey: string } | null;
+  /** 응답이 끊긴 본문을 다시 보낼 때 같은 키를 쓰도록 세션 메모리에만 보존한다. */
+  requestKeys: { bodySignature: string; requestKey: string }[];
   /** 전송 결과도 라우트 재마운트 뒤 남긴다. 이전 초안 결과면 확인 전 새 제출을 잠근다. */
   feedback: ChangeReqFeedback | null;
 }
 
 const emptyDrawer = (): WorkspaceDrawer => ({
-  ownerKey: null, open: false, pane: 'approvals', creating: false, draft: null, draftVersion: 0, submission: null, feedback: null,
+  ownerKey: null, open: false, pane: 'approvals', creating: false, draft: null, draftVersion: 0, submission: null, requestKeys: [], feedback: null,
 });
 
 // clearDrawer 뒤 같은 계정이 다시 로그인해도 이전 요청 토큰과 새 요청 토큰이 재사용되지 않는다.
@@ -112,7 +114,7 @@ interface WorkspaceState {
   setChangeReqDraft: (ownerKey: string, draft: ChangeReqDraft) => void;
   endChangeReq: (ownerKey: string) => void;
   /** null이면 같은 계정의 요청이 이미 전송 중이거나 지금 작성 중인 초안이 아니다. */
-  startChangeReqSubmission: (ownerKey: string, generation: number) => number | null;
+  startChangeReqSubmission: (ownerKey: string, generation: number, body: ChangeReqCreate) => { token: number; requestKey: string } | null;
   /** 일치하는 요청의 pending을 해제하고, 응답이 아직 현재 초안에 적용 가능한지 돌려준다. */
   finishChangeReqSubmission: (ownerKey: string, token: number, currentGeneration: number,
     outcome: { kind: 'success' } | { kind: 'conflict'; conflicts: ChangeReqResult['conflicts'] } | { kind: 'error'; message: string }) => boolean;
@@ -150,25 +152,33 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   endChangeReq: (ownerKey) => set((state) => state.drawer.ownerKey === ownerKey
     ? { drawer: { ...state.drawer, creating: false, draft: null, draftVersion: state.drawer.draftVersion + 1,
       feedback: state.drawer.feedback?.priorDraft ? state.drawer.feedback : null } } : state),
-  startChangeReqSubmission: (ownerKey, generation) => {
+  startChangeReqSubmission: (ownerKey, generation, body) => {
     const state = get().drawer;
     if (state.ownerKey !== ownerKey || !state.creating || !state.draft || state.submission || state.feedback?.priorDraft) return null;
+    // 키 자체는 본문 동일성에 넣지 않는다. 사용자가 편집 후 원래 본문으로 돌아와도 첫 키로 재확인한다.
+    const bodySignature = JSON.stringify({ ...body, requestKey: undefined });
+    const prior = state.requestKeys.find((entry) => entry.bodySignature === bodySignature);
+    const requestKey = prior?.requestKey ?? crypto.randomUUID();
     const token = ++submissionSerial;
-    set({ drawer: { ...state, submission: { token, ownerKey, generation, draftVersion: state.draftVersion } } });
-    return token;
+    set({ drawer: { ...state,
+      requestKeys: prior ? state.requestKeys : [...state.requestKeys, { bodySignature, requestKey }],
+      submission: { token, ownerKey, generation, draftVersion: state.draftVersion, bodySignature, requestKey },
+    } });
+    return { token, requestKey };
   },
   finishChangeReqSubmission: (ownerKey, token, currentGeneration, outcome) => {
     const state = get().drawer;
     const submitted = state.submission;
     if (state.ownerKey !== ownerKey || !submitted || submitted.token !== token || submitted.ownerKey !== ownerKey) return false;
     if (currentGeneration !== submitted.generation) {
-      set({ drawer: { ...state, submission: null } });
+      set({ drawer: { ...state, submission: null, requestKeys: [] } });
       return false;
     }
     const appliesToDraft = Boolean(state.creating && state.draft && state.draftVersion === submitted.draftVersion);
     const closeCurrent = appliesToDraft && outcome.kind === 'success';
     set({ drawer: {
       ...state, submission: null, feedback: { ...outcome, token, priorDraft: !appliesToDraft },
+      requestKeys: outcome.kind === 'success' ? state.requestKeys.filter((entry) => entry.bodySignature !== submitted.bodySignature) : state.requestKeys,
       ...(closeCurrent ? { creating: false, draft: null, draftVersion: state.draftVersion + 1 } : {}),
     } });
     return appliesToDraft;

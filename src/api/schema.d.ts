@@ -11157,6 +11157,11 @@ export interface components {
             reason?: string;
         };
         TimeMoveChangeReqDto: {
+            /**
+             * Format: uuid
+             * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
+             */
+            requestKey?: string;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11174,6 +11179,11 @@ export interface components {
             endMin: number;
         };
         TeacherChangeReqDto: {
+            /**
+             * Format: uuid
+             * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
+             */
+            requestKey?: string;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11190,6 +11200,11 @@ export interface components {
             teacherId: number;
         };
         RoomChangeReqDto: {
+            /**
+             * Format: uuid
+             * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
+             */
+            requestKey?: string;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11206,6 +11221,11 @@ export interface components {
             roomId: number;
         };
         ZoomChangeReqDto: {
+            /**
+             * Format: uuid
+             * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
+             */
+            requestKey?: string;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11225,6 +11245,11 @@ export interface components {
             zaccId: number;
         };
         CancelChangeReqDto: {
+            /**
+             * Format: uuid
+             * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
+             */
+            requestKey?: string;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**

@@ -129,6 +129,57 @@ describe('공용 서랍의 제어형 선택', () => {
     expect(within(again.getByRole('dialog', { name: '변경 요청' })).getByText('변경 요청을 넣지 못했습니다')).toBeTruthy();
   });
 
+  it('타임아웃은 실패 확정으로 말하지 않고 접수 여부 미확인과 같은 요청 재확인을 안내한다', async () => {
+    mocks.write.mockRejectedValueOnce(new ApiError('TIMEOUT', '서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.', 0));
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(view);
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    expect(await within(view.getByRole('dialog', { name: '변경 요청' })).findByText(/접수 여부를 확인하지 못했습니다/)).toBeTruthy();
+    expect(within(view.getByRole('dialog', { name: '변경 요청' })).getByText(/같은 요청을 다시 보내/)).toBeTruthy();
+  });
+
+  it('타임아웃 후 라우트가 재마운트되어도 같은 본문 재확인은 동일 요청 키를 보낸다', async () => {
+    mocks.write.mockRejectedValueOnce(new ApiError('TIMEOUT', '서버 응답 시간이 초과되었습니다.', 0))
+      .mockResolvedValueOnce({ id: 9, conflicts: [] });
+    const first = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(first);
+    fireEvent.click(within(first.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    expect(await within(first.getByRole('dialog', { name: '변경 요청' })).findByText(/접수 여부를 확인하지 못했습니다/)).toBeTruthy();
+    first.unmount();
+
+    const next = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(within(next.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    await waitFor(() => expect(mocks.write).toHaveBeenCalledTimes(2));
+    const firstBody = mocks.write.mock.calls[0][0].body;
+    const retryBody = mocks.write.mock.calls[1][0].body;
+    expect(firstBody.requestKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(retryBody).toEqual(firstBody);
+  });
+
+  it('타임아웃 뒤 입력을 바꾸면 새 키를 보내고 원래 내용으로 되돌리면 첫 키로 재확인한다', async () => {
+    const timeout = new ApiError('TIMEOUT', '서버 응답 시간이 초과되었습니다.', 0);
+    mocks.write.mockRejectedValue(timeout);
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(view);
+    const dialog = within(view.getByRole('dialog', { name: '변경 요청' }));
+    const reason = dialog.getByRole('textbox', { name: '왜 바꾸나요' });
+    const submit = dialog.getByRole('button', { name: '요청 넣기' });
+
+    fireEvent.click(submit);
+    await waitFor(() => expect(dialog.getByText(/접수 여부를 확인하지 못했습니다/)).toBeTruthy());
+    const firstKey = mocks.write.mock.calls[0][0].body.requestKey;
+    fireEvent.change(reason, { target: { value: '수정한 요청' } });
+    fireEvent.click(submit);
+    await waitFor(() => expect(mocks.write).toHaveBeenCalledTimes(2));
+    expect(mocks.write.mock.calls[1][0].body.requestKey).not.toBe(firstKey);
+
+    await waitFor(() => expect(dialog.getByText(/접수 여부를 확인하지 못했습니다/)).toBeTruthy());
+    fireEvent.change(reason, { target: { value: '첫 요청' } });
+    fireEvent.click(submit);
+    await waitFor(() => expect(mocks.write).toHaveBeenCalledTimes(3));
+    expect(mocks.write.mock.calls[2][0].body.requestKey).toBe(firstKey);
+  });
+
   it('이전 요청의 늦은 성공은 취소 후 다시 쓴 초안을 닫지 않는다', async () => {
     let resolve!: (value: { id: number; conflicts: [] }) => void;
     mocks.write.mockReturnValue(new Promise((done) => { resolve = done; }));
@@ -573,6 +624,7 @@ describe('§19 변경 요청 창 — 어느 날 · 어느 일정 · 무엇을 ·
       body: {
         reqType: 'time_move', serId: 41, onDate: '2026-09-24', startMin: 1230, endMin: 1290,
         reason: '어머니 요청', applyAll: undefined,
+        requestKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
       },
     }));
     // 넣었으면 창이 닫히고 칸이 알린다

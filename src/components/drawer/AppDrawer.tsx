@@ -147,17 +147,21 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
 
   async function submitChangeReq() {
     if (!ownerKey || !changeReqReady(draft)) return;
-    const token = startChangeReqSubmission(ownerKey, getSessionGeneration());
-    if (token === null) return; // 라우트 재마운트 직후 이전 mutation이 아직 전송 중일 수 있다
+    const body = changeReqBody(draft);
+    const submission = startChangeReqSubmission(ownerKey, getSessionGeneration(), body);
+    if (submission === null) return; // 라우트 재마운트 직후 이전 mutation이 아직 전송 중일 수 있다
     try {
       const res = await write.mutateAsync({
         kind: 'changeReq',
-        body: changeReqBody(draft),
+        body: { ...body, requestKey: submission.requestKey },
       }) as ChangeReqResult;
-      finishChangeReqSubmission(ownerKey, token, getSessionGeneration(), res.conflicts.length
+      finishChangeReqSubmission(ownerKey, submission.token, getSessionGeneration(), res.conflicts.length
         ? { kind: 'conflict', conflicts: res.conflicts } : { kind: 'success' });
     } catch (error) {
-      finishChangeReqSubmission(ownerKey, token, getSessionGeneration(), { kind: 'error', message: apiMessage(error) });
+      const message = error instanceof ApiError && error.code === 'TIMEOUT'
+        ? '서버 응답 시간이 초과되어 접수 여부를 확인하지 못했습니다. 변경 요청 이력에서 확인하거나 같은 요청을 다시 보내 결과를 확인해 주세요.'
+        : apiMessage(error);
+      finishChangeReqSubmission(ownerKey, submission.token, getSessionGeneration(), { kind: 'error', message });
     }
   }
 
