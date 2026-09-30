@@ -18,8 +18,8 @@ import { useState } from 'react';
 import { Banner, Button, Chip, ChipButton, Input, Label, Panel, Segmented, cn } from '@/components/ui';
 import { SearchField } from '@/components/ui/SearchField';
 import { apiMessage } from '@/api/client';
-import { useAddBookVersion, useBookHistory, useUseBookVersion } from '@/api/queries';
-import type { Book, BookHistoryQuery } from '@/api/types';
+import { useAddBookVersion, useBookHistory, useBookHolders, useUseBookVersion } from '@/api/queries';
+import type { Book, BookHistoryQuery, BookVersion } from '@/api/types';
 import { longDateLabel, todayKst } from '@/lib/calendar';
 import { fileSelectionIssue, fileUploadBody } from '@/lib/file-upload';
 
@@ -100,9 +100,20 @@ export function BookVersionBadge({ book }: { book: Book }) {
   return <Chip size="compact" tone="neutral">{book.edition}</Chip>;
 }
 
-/** §39 「+ 판 올리기」 */
+/**
+ * §39 「+ 판 올리기」.
+ *
+ * E-53 「기존 배부자 목록이 표시된다 · 교체 여부를 고를 수 있다」 — 창을 열면 그 교재를 **지금 가진** 학생과 받은 판을 서버에서 읽어 보인다
+ * (배부는 받은 판에 묶인다 — 이미 준 책은 새 판을 올려도 그대로다). 올린 판이 아직 지금 판이 아니면(「언제부터」가 뒤) 창을 닫지 않고
+ * 「지금부터 바꿀지」를 그 자리에서 고른다. 바꾸는 쓰기는 서가 카드의 판 단추와 같은 것(`PATCH versions/:id/use`)이다.
+ */
 export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxBytes: number; onClose: () => void }) {
   const add = useAddBookVersion();
+  const use = useUseBookVersion();
+  const holders = useBookHolders(book.id);
+  const holderRows = holders.data?.items ?? [];
+  /** 방금 올린 판 — 아직 지금 판이 아니면 바꿀지 고른다 */
+  const [added, setAdded] = useState<BookVersion | null>(null);
   const [edition, setEdition] = useState('');
   const [seFile, setSeFile] = useState<File | null>(null);
   const [teFile, setTeFile] = useState<File | null>(null);
@@ -135,6 +146,22 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
           <Input id="v-te" type="file" onChange={(event) => setTeFile(event.currentTarget.files?.[0] ?? null)} />
         </div>
       </div>
+      <section className="mt-3 rounded-lg border border-line px-3 py-2" aria-label="기존 배부자">
+        <p className="text-[12px] font-bold text-fg">
+          기존 배부자 {holders.isLoading ? '…' : `${holderRows.length}명`}
+          <span className="ml-2 font-normal text-fg-subtle">이미 준 책은 받은 판 그대로입니다 — 새 판은 바꾼 뒤 새로 배부하는 책부터입니다</span>
+        </p>
+        {holderRows.length ? (
+          <ul aria-label="이 교재를 가진 학생" className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
+            {holderRows.map((h) => (
+              <li key={h.issueId}>
+                <b>{h.studentName}</b>
+                <span className="ml-1 text-fg-subtle">{h.edition ?? '판 없음'} · {h.stateLabel}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
       {fileIssue ? (
         <Banner tone="danger" className="mt-3">
           {fileIssue}
@@ -145,7 +172,23 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
           {apiMessage(add.error)}
         </Banner>
       ) : null}
-      <div className="mt-3 flex justify-end gap-2">
+      {use.isError ? (
+        <Banner tone="danger" className="mt-3">
+          {apiMessage(use.error)}
+        </Banner>
+      ) : null}
+      {added ? (
+        <div role="group" aria-label="새 판으로 바꿀지" className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-inset px-3 py-2 text-[12px]">
+          <span>
+            {added.edition} 을 올렸습니다{added.fromDate ? ` — ${added.fromDate}부터 씁니다` : ''}. 기존 배부자 {holderRows.length}명은 받은 판 그대로입니다.
+          </span>
+          <Button size="sm" disabled={use.isPending} onClick={() => use.mutate(added.id, { onSuccess: onClose })}>
+            {`지금부터 ${added.edition} 로 바꿉니다`}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onClose}>지금 판 유지</Button>
+        </div>
+      ) : null}
+      <div className={cn('mt-3 flex justify-end gap-2', added ? 'hidden' : '')}>
         <Button variant="secondary" onClick={onClose}>
           취소
         </Button>
@@ -154,14 +197,16 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
           onClick={() =>
             void (async () => {
               try {
-                await add.mutateAsync({
+                const made = await add.mutateAsync({
                   libId: book.id,
                   edition: edition.trim(),
                   ...(seFile ? { seFile: await fileUploadBody(seFile, 'lib-se') } : {}),
                   ...(teFile ? { teFile: await fileUploadBody(teFile, 'lib-te') } : {}),
                   ...(fromDate ? { fromDate } : {}),
                 });
-                onClose();
+                // 이미 지금 판이면(오늘부터) 고를 것이 없다 — 닫는다. 아직이면 그 자리에서 바꿀지 고른다 (E-53)
+                if (made?.inUse) onClose();
+                else setAdded(made);
               } catch {
                 /* mutation 상태의 공용 오류 문구를 표시한다 */
               }

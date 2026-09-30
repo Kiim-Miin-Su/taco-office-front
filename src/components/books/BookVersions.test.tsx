@@ -188,6 +188,53 @@ it('판 올리기는 파일을 따로 저장하지 않고 판 요청 한 번에 
   });
 });
 
+/**
+ * E-53 「기존 배부자 목록이 표시된다 · 교체 여부를 고를 수 있다」 — 판 올리기 창이 그 교재를 가진 학생(서버 목록 · 받은 판)을 보이고,
+ * 올린 판이 아직 지금 판이 아니면(내일부터) 「지금부터 바꿀지」를 그 자리에서 고른다. 고르는 단추는 서가의 판 단추와 같은 쓰기다.
+ */
+it('판 올리기 창이 기존 배부자와 받은 판을 보이고, 올린 뒤 지금부터 바꿀지 고르게 한다 (E-53)', async () => {
+  const calls: Array<{ method: string; url: string }> = [];
+  useSession.getState().signIn('fixture', me);
+  api.defaults.adapter = (async (config: { url?: string; method?: string }) => {
+    calls.push({ method: config.method ?? 'get', url: config.url ?? '' });
+    if (config.method === 'get' && config.url === '/books/3/holders') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: {
+        libId: 3, title: 'Between the Lines', edition: 'v2026.03', latestEdition: 'v2026.03',
+        items: [
+          { issueId: 1, studentId: 7, studentName: '김하준', edition: 'v2026.03', state: 'ok', stateLabel: '배부 완료', issuedOn: '2026-09-01' },
+          { issueId: 2, studentId: 8, studentName: '이서윤', edition: 'v2026.03', state: 'wait', stateLabel: '승인 대기', issuedOn: null },
+        ],
+      } };
+    }
+    if (config.method === 'post') return { config, status: 201, statusText: 'Created', headers: {}, data: { id: 31, libId: 3, edition: 'v2026.09', fromDate: '2026-10-01', inUse: false } };
+    if (config.method === 'patch') return { config, status: 200, statusText: 'OK', headers: {}, data: { id: 31, libId: 3, edition: 'v2026.09', fromDate: '2026-09-30', inUse: true } };
+    return { config, status: 200, statusText: 'OK', headers: {}, data: {} };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  clients.push(client);
+  let closed = 0;
+  const view = render(
+    <QueryClientProvider client={client}>
+      <BookVersionAdder book={{ ...base, hasNewer: false, latestEdition: 'v2026.03', latestVersId: 11 }} maxBytes={3_000_000} onClose={() => { closed += 1; }} />
+    </QueryClientProvider>,
+  );
+  const list = await view.findByRole('list', { name: '이 교재를 가진 학생' });
+  expect(list.textContent).toContain('김하준');
+  expect(list.textContent).toContain('v2026.03 · 배부 완료');
+  expect(list.textContent).toContain('이서윤');
+  expect(view.getByText(/기존 배부자 2명/)).toBeTruthy();
+  fireEvent.change(view.getByLabelText('판 이름'), { target: { value: 'v2026.09' } });
+  fireEvent.change(view.getByLabelText('언제부터'), { target: { value: '2026-10-01' } });
+  fireEvent.click(view.getByRole('button', { name: '올리기' }));
+  // 올린 뒤 창을 닫지 않고 고르게 한다 — 아직 지금 판이 아니다
+  const pick = await view.findByRole('group', { name: '새 판으로 바꿀지' });
+  expect(pick.textContent).toContain('v2026.09 을 올렸습니다');
+  expect(closed).toBe(0);
+  fireEvent.click(view.getByRole('button', { name: '지금부터 v2026.09 로 바꿉니다' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'patch' && c.url === '/books/versions/31/use')).toBe(true));
+  await waitFor(() => expect(closed).toBe(1));
+});
+
 it('SE+TE 합계가 서버 상한을 넘으면 요청 전에 막는다', () => {
   let postCount = 0;
   useSession.getState().signIn('fixture', me);
