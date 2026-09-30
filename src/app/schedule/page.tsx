@@ -307,6 +307,8 @@ export default function SchedulePage() {
 function AdminSchedulePage() {
   const searchParams = useSearchParams();
   const changeRequestId = positiveQueryId(searchParams.get('changeRequest'));
+  // §75 지출 갈래(H-84)의 「되돌아온 것」 — 서랍 「내 지출 신청」은 변경 요청 칸(chreqs)에 있다
+  const myExpenseId = positiveQueryId(searchParams.get('myExpense'));
   const requestedSerId = positiveQueryId(searchParams.get('serId'));
   const requestedStudentId = positiveQueryId(searchParams.get('studentId'));
   const requestedOnDate = queryIsoDate(searchParams.get('onDate'));
@@ -362,6 +364,8 @@ function AdminSchedulePage() {
   const pushUndo = useWorkspace((w) => w.pushUndo);
   const undoLast = useUndoLast();
   const [notice, setNotice] = useState<string | null>(null);
+  /** N-142 — 내가 읽은 뒤 남이 먼저 고친 수업을 덮어썼다(막지 않는다 · 나중 저장이 반영). 서버의 overwrote 한 줄 */
+  const [overwrote, setOverwrote] = useState<string | null>(null);
   /*
     다른 화면이 쓰기 뒤 여기로 옮기며 넘긴 결과 한 줄(PDF A-05 등록 확정 → 학생 주간 시간표 · all160 2026-09-30).
     한 번 읽어 이 화면에 두고 셸에서는 비운다 — 일정 쓰기가 아니라 되돌리기 단추를 붙이지 않는다.
@@ -426,6 +430,9 @@ function AdminSchedulePage() {
       studentOverlaps?: StudentOverlap[];
       parentNotices?: DayCancelParentNotice[];
     }) | undefined;
+    const by = typed?.overwrote;
+    // 시각은 서버의 KST 문자열(…T14:07:31+09:00)에서 읽는다 — 브라우저 시간대로 다시 계산하지 않는다
+    setOverwrote(by ? `${by.byName ?? '다른 사람'}님이 ${by.at.slice(11, 16)}에 고친 내용을 덮어썼습니다 — 지금 저장한 값이 반영됐습니다` : null);
     const rows = typed?.unavailable ?? [];
     setUnavail(unavailableLines(rows));
     setOverlaps(studentOverlapLines(typed?.studentOverlaps ?? []));
@@ -455,6 +462,7 @@ function AdminSchedulePage() {
   const failWrite = (e: unknown, probe: ConflictProbe | null) => {
     const base = apiMessage(e);
     setErr(base);
+    setOverwrote(null);
     setUnavail([]);
     setOverlaps([]);
     if (!probe || !isConflict(e)) return;
@@ -1382,7 +1390,8 @@ function AdminSchedulePage() {
     <RequireAuth>
       <AppShell
         flush
-        drawerEntry={changeRequestId ? { pane: 'chreqs', identity: `change-request-${changeRequestId}` } : null}
+        drawerEntry={changeRequestId ? { pane: 'chreqs', identity: `change-request-${changeRequestId}` }
+          : myExpenseId ? { pane: 'chreqs', identity: `my-expense-${myExpenseId}` } : null}
         leftTool={(
           <button type="button" onClick={toggleSidebar} aria-label={sidebarOpen ? '사이드바 접기' : '사이드바 펼치기'}
             className="flex h-[30px] items-center rounded-md border border-header-tool-line bg-header-tool px-2 text-line-2">
@@ -1498,6 +1507,13 @@ function AdminSchedulePage() {
         {dayCancelNotices.length ? (
           <div className="mb-3">
             <DayCancelNoticePanel notices={dayCancelNotices} onDismiss={() => setDismissedDayCancelDate(activeModel.pane.date)} />
+          </div>
+        ) : null}
+
+        {overwrote ? (
+          <div className="mb-3" role="status" data-overwrote>
+            {/* 막힌 것이 아니다 — 같은 수업을 먼저 고친 사람이 있었고, 방금 저장이 그 위에 반영됐다는 사실만 알린다 (N-142) */}
+            <Banner tone="warning">{overwrote}</Banner>
           </div>
         ) : null}
 

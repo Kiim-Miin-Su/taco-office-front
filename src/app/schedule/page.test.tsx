@@ -138,6 +138,13 @@ it('변경 요청 deep link는 기존 chreqs 서랍 진입을 식별한다', () 
     .toBe('chreqs:change-request-52');
 });
 
+it('되돌아온 지출 deep link(§75 지출 갈래 · H-84)는 서랍의 「내 지출 신청」이 있는 chreqs 칸을 연다', () => {
+  nav.search = 'myExpense=31';
+  const view = render(<SchedulePage />);
+  expect(view.container.querySelector('[data-drawer-entry]')?.getAttribute('data-drawer-entry'))
+    .toBe('chreqs:my-expense-31');
+});
+
 it('다른 화면이 넘긴 결과 한 줄(A-05 등록 확정)을 학생별 시간표 위에 한 번 띄우고 셸에서 비운다', () => {
   nav.search = 'studentId=1&date=2026-09-01';
   useWorkspace.setState({ handoff: { to: '/schedule', text: '선택 학생 등록 확정 — 수업 1개 · 첫 수업 2026-09-01 · 안내 초안 1건' } });
@@ -794,6 +801,20 @@ describe('겹침 설명 (§19 · D-R43)', () => {
     const warn = view.getAllByRole('status').find((n) => n.textContent?.includes('못 한다고 적어 둔 시간'));
     expect(warn).toBeTruthy();
     expect(warn!.textContent).toContain('선택 강사 — 병원 예약');
+  });
+
+  it('다른 사람이 먼저 고친 수업을 덮어쓰면 누가 언제 고친 것을 덮어썼는지 알린다 — 막지 않는다 (N-142)', () => {
+    mocks.write.mockImplementation((_cmd: unknown, opts: { onSuccess?: (r: unknown) => void }) => opts.onSuccess?.({
+      effScope: 'this', log: [], projected: 1, serIds: [1], unavailable: [], studentOverlaps: [],
+      overwrote: { byName: 'Grace', at: '2026-09-02T14:07:31+09:00' },
+    }));
+    const view = render(<SchedulePage />);
+    finish(drop(items[0]));
+
+    expect(view.queryByRole('alert')).toBeNull();
+    const warn = view.container.querySelector('[data-overwrote]') as HTMLElement;
+    expect(warn.getAttribute('role')).toBe('status');
+    expect(warn.textContent).toContain('Grace님이 14:07에 고친 내용을 덮어썼습니다 — 지금 저장한 값이 반영됐습니다');
   });
 
   it('겹침이 아니면 묻지 않는다 — 실패마다 한 번씩 더 도는 왕복을 만들지 않는다', () => {
