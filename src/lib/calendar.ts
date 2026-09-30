@@ -123,6 +123,42 @@ export const todayKst = (now = Date.now()): string =>
 export const addDays = (iso: string, n: number): string =>
   new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
 
+/** 날짜 피커의 연속/커스텀 선택은 명세의 bounding 조회 범위 제한을 쓴다 (§3). */
+export const DATE_SELECTION_MAX_DAYS = 366;
+const DAY_MS = 86400000;
+
+/** JS Date가 2/29 같은 잘못된 날짜를 다음 달로 보정하지 못하게 실제 ISO day만 받는다. */
+function calendarDayMs(day: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === day ? ms : null;
+}
+
+/** 기간 드래그: 양 끝 포함, 역방향도 날짜순. 무효/366일 초과면 적용하지 않는다. */
+export function selectDateRange(start: string, end: string): string[] | null {
+  const startMs = calendarDayMs(start);
+  const endMs = calendarDayMs(end);
+  if (startMs === null || endMs === null) return null;
+  const first = Math.min(startMs, endMs);
+  const count = Math.abs(endMs - startMs) / DAY_MS + 1;
+  if (count > DATE_SELECTION_MAX_DAYS) return null;
+  return Array.from({ length: count }, (_, i) => new Date(first + i * DAY_MS).toISOString().slice(0, 10));
+}
+
+/** Ctrl/Cmd+클릭: 비연속 집합을 토글한다. 마지막 하루는 해제하지 않고 입력 배열은 변경하지 않는다. */
+export function toggleCustomDate(current: readonly string[], day: string): string[] | null {
+  if (calendarDayMs(day) === null || current.some((value) => calendarDayMs(value) === null)) return null;
+  const selected = new Set(current);
+  if (selected.has(day)) {
+    if (selected.size > 1) selected.delete(day);
+  } else {
+    selected.add(day);
+  }
+  const dates = [...selected].sort();
+  const span = (calendarDayMs(dates[dates.length - 1])! - calendarDayMs(dates[0])!) / DAY_MS + 1;
+  return span <= DATE_SELECTION_MAX_DAYS ? dates : null;
+}
+
 export const dowOf = (iso: string): number => new Date(`${iso}T00:00:00Z`).getUTCDay();
 
 /** 그 주의 월요일 */

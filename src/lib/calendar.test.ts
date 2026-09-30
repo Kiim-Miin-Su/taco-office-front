@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addDays, boundingRange, dayHeadLabel, kstDateTime, longDateLabel, monthDayLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
   LANE_CAP, laneLayout, studentOverlapLines,
-  periodSummary, splitPanes, step, summaryBoundsOf,
+  periodSummary, selectDateRange, splitPanes, step, summaryBoundsOf, toggleCustomDate,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 import type { Occurrence } from '@/api/types';
@@ -188,6 +188,41 @@ describe('달력 계산 — 다섯 보기가 같은 함수를 쓴다', () => {
   it('날짜 더하기가 월을 넘는다', () => {
     expect(addDays('2026-08-31', 1)).toBe('2026-09-01');
     expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+  });
+});
+
+describe('캘린더 날짜 다중 선택 (§3 · UX-10)', () => {
+  it('드래그 방향에 관계없이 시작일~종료일을 양 끝 포함, 날짜순으로 선택한다', () => {
+    const expected = ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02'];
+    expect(selectDateRange('2026-09-29', '2026-10-02')).toEqual(expected);
+    expect(selectDateRange('2026-10-02', '2026-09-29')).toEqual(expected);
+    expect(selectDateRange('2028-02-28', '2028-03-01')).toEqual(['2028-02-28', '2028-02-29', '2028-03-01']);
+    expect(selectDateRange('2026-09-30', '2026-09-30')).toEqual(['2026-09-30']);
+  });
+
+  it('Ctrl/Cmd 커스텀 선택은 비연속 날짜를 정렬하고 같은 날 재클릭으로 해제하되 마지막 하루는 보존한다', () => {
+    const original = ['2026-10-02', '2026-09-29'];
+    expect(toggleCustomDate(original, '2026-10-01')).toEqual(['2026-09-29', '2026-10-01', '2026-10-02']);
+    expect(original).toEqual(['2026-10-02', '2026-09-29']);
+    expect(toggleCustomDate(original, '2026-10-02')).toEqual(['2026-09-29']);
+    expect(toggleCustomDate(['2026-09-29'], '2026-09-29')).toEqual(['2026-09-29']);
+    expect(toggleCustomDate([], '2026-09-29')).toEqual(['2026-09-29']);
+    expect(toggleCustomDate(['2026-09-29', '2026-09-29'], '2026-09-29')).toEqual(['2026-09-29']);
+  });
+
+  it('명세의 bounding range 366일까지 허용하고 367일/멀리 떨어진 두 날짜를 거절한다', () => {
+    expect(selectDateRange('2028-01-01', '2028-12-31')).toHaveLength(366);
+    expect(selectDateRange('2026-01-01', '2027-01-02')).toBeNull();
+    expect(toggleCustomDate(['2026-01-01'], '2027-01-01')).toEqual(['2026-01-01', '2027-01-01']);
+    expect(toggleCustomDate(['2026-01-01'], '2027-01-02')).toBeNull();
+  });
+
+  it('실재하지 않거나 ISO day가 아닌 입력은 정규화된 다른 날로 고치지 않고 거절한다', () => {
+    for (const bad of ['2026-02-29', '2026-13-01', '2026-00-01', '2026-9-01', '2026-09-31', '2026-09-01T00:00:00Z']) {
+      expect(selectDateRange(bad, '2026-09-30')).toBeNull();
+      expect(toggleCustomDate(['2026-09-30'], bad)).toBeNull();
+    }
+    expect(toggleCustomDate(['2026-02-29'], '2026-09-30')).toBeNull();
   });
 });
 
