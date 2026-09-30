@@ -193,6 +193,13 @@ function ManagementReports() {
       ) : section === 'delivery' ? (
         <ReportDeliveryQueue
           subjectColorOf={subjectColorOf}
+          // G-68 「강사별 독촉 버튼」 — 「안 쓴 리포트」와 같은 독촉 쓰기 · 같은 서버 집합(조치할 리포트가 있는 강사)
+          remind={{
+            teacherIds: new Set((unwritten.data?.byTeacher ?? []).map((t) => t.teacherId)),
+            pending: reminder.isPending,
+            message: reminderMessage,
+            onRemind: (teacherId) => void remind(teacherId),
+          }}
           // 학생 카드 「전문 보기」는 원본 §50 의 전문 창(그 학생의 하루 묶음), 미승인 줄은 검토 서랍 — 둘은 동시에 열리지 않는다
           onOpenStudent={(group) => {
             setSelected(null);

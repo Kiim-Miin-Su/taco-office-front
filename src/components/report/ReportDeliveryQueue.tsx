@@ -16,15 +16,28 @@ import { ReportPreview } from './ReportForm';
 
 type QueueMessage = { tone: 'success' | 'danger'; text: string };
 
+/**
+ * G-68 「강사별 독촉 버튼 제공」 — 부르는 쪽(리포트 화면)이 넘긴다. 독촉 쓰기와 결과 문장은 「안 쓴 리포트」 탭과 같은 것이다.
+ * `teacherIds` 는 서버가 「조치할 리포트가 있다」고 한 강사(안 쓴 리포트 byTeacher) — 화면이 상태 낱말로 다시 가르지 않는다.
+ */
+export interface DeliveryRemind {
+  teacherIds: ReadonlySet<number>;
+  pending: boolean;
+  message: QueueMessage | null;
+  onRemind: (teacherId: number) => void;
+}
+
 const previewKey = (studentId: number, reportId: number) => `${studentId}:${reportId}`;
 
-export function ReportDeliveryQueue({ onOpenReport, onOpenStudent, subjectColorOf }: {
+export function ReportDeliveryQueue({ onOpenReport, onOpenStudent, subjectColorOf, remind }: {
   /** 아직 내보낼 수 없는(미승인) 수업 줄 — 검토 서랍으로 연다 */
   onOpenReport: (report: ReportDetail, studentId: number) => void;
   /** 학생 카드의 「전문 보기 ›」 — 그 학생의 그날 묶음(원문 §49 동작 「학생 카드 → 전문 보기」 · §50) */
   onOpenStudent?: (group: ReportDeliveryStudent) => void;
   /** 과목색 — 공용 subjectColor 를 부르는 쪽이 넘긴다(수업 줄 왼쪽 막대 · g5 49-05) */
   subjectColorOf?: (key?: string | null) => string | null;
+  /** G-68 강사별 독촉 — 없으면 줄이 서지 않는다(독촉 권한이 없는 화면) */
+  remind?: DeliveryRemind;
 }) {
   const query = useReportDelivery();
   const send = useReportDeliverySend();
@@ -44,6 +57,26 @@ export function ReportDeliveryQueue({ onOpenReport, onOpenStudent, subjectColorO
    */
   const targets = selected.size > 0 ? selectedReady : [...readyIds];
   const sendLabel = selected.size > 0 ? `${selectedReady.length}명 완료` : `${ready.length}명 전부 완료`;
+
+  /**
+   * 발송을 막는 수업을 쓴 강사별로 — 이름순. 같은 수업이 두 학생 카드에 걸쳐도 한 번만 센다.
+   * 「막는다」는 서버의 `blockedCount` 와 같은 정의(승인 끝난 `ok` 가 아닌 줄)다 — 내보내기 가능 여부로 가르면 미승인(`wait`) 줄은
+   * 전문을 볼 수 있어 빠지고, 붉은 판의 「N건 미승인」과 이 줄이 서로 다른 수를 말한다(all160 G-68+ 실브라우저가 잡았다).
+   */
+  const blockedByTeacher = useMemo(() => {
+    const seen = new Set<number>();
+    const by = new Map<number, { teacherId: number; name: string; count: number }>();
+    for (const group of query.data?.students ?? []) {
+      for (const report of group.reports) {
+        if (report.state === 'ok' || !report.teacherId || seen.has(report.id)) continue;
+        seen.add(report.id);
+        const cur = by.get(report.teacherId) ?? { teacherId: report.teacherId, name: report.teacherName ?? '이름 없음', count: 0 };
+        cur.count += 1;
+        by.set(report.teacherId, cur);
+      }
+    }
+    return [...by.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [query.data?.students]);
 
   const toggle = (studentId: number, checked: boolean) => {
     setSelected((current) => {
@@ -117,6 +150,23 @@ export function ReportDeliveryQueue({ onOpenReport, onOpenStudent, subjectColorO
       </div>
 
       {message ? <Banner tone={message.tone}><span aria-live="polite">{message.text}</span></Banner> : null}
+      {remind && blockedByTeacher.length ? (
+        <section aria-label="강사별 독촉" className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-red/30 bg-red/5 px-3 py-2 text-[12px]">
+          <b className="text-red">아직 못 보내는 수업을 쓴 강사</b>
+          {blockedByTeacher.map((t) => (
+            <span key={t.teacherId} className="inline-flex items-center gap-1.5">
+              <span>{`${t.name} ${t.count}건`}</span>
+              {remind.teacherIds.has(t.teacherId) ? (
+                <Button size="sm" variant="secondary" disabled={remind.pending} aria-label={`${t.name} 강사에게 독촉`}
+                  onClick={() => remind.onRemind(t.teacherId)}>
+                  독촉
+                </Button>
+              ) : <span className="text-fg-subtle">· 승인 대기</span>}
+            </span>
+          ))}
+          {remind.message ? <span role="status" className={remind.message.tone === 'danger' ? 'text-red' : 'text-green'}>{remind.message.text}</span> : null}
+        </section>
+      ) : null}
       {/* 넓은 화면은 원문처럼 학생 카드 5열 (g5 49-03) */}
       <div data-testid="delivery-cards" className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {query.data.students.map((group) => {

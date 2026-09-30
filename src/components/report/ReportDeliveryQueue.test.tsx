@@ -68,6 +68,39 @@ describe('ReportDeliveryQueue — 학생 단위 계약 재사용', () => {
       .mockReturnValueOnce('00000000-0000-4000-8000-000000000002');
   });
 
+  /**
+   * G-68 「강사별 독촉 버튼 제공」 — 막힌(내보낼 수 없는) 수업을 강사별로 모아 이 화면에서 바로 독촉한다. 독촉할 수 있는 강사인지는
+   * 「안 쓴 리포트」와 같은 서버 집합(byTeacher)이 정한다 — 승인만 남은 강사는 단추 대신 「승인 대기」라 적는다(독촉해도 할 일이 없다).
+   */
+  it('막힌 수업을 강사별로 모아 독촉 단추를 세우고, 승인만 남은 강사는 「승인 대기」라 적는다 (G-68)', () => {
+    const draft: ReportDetail = { ...report(14, 24, '학생D'), teacherId: 7, teacherName: '박은지', state: 'draft', canExport: false, exportFiles: [] };
+    vi.mocked(queries.useReportDelivery).mockReturnValue({ data: {
+      ...queue, blocked: 2,
+      students: [...queue.students, { student: draft.students[0], reports: [draft], canSend: false, blockedCount: 1, lastSendId: null, lastSentAt: null }],
+    }, isLoading: false, isError: false } as never);
+    const onRemind = vi.fn();
+    const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} remind={{ teacherIds: new Set([7]), pending: false, message: null, onRemind }} />);
+    const strip = view.getByRole('region', { name: '강사별 독촉' });
+    expect(strip.textContent).toContain('박은지 1건');
+    expect(strip.textContent).toMatch(/강사 1건\s*· 승인 대기/);
+    fireEvent.click(view.getByRole('button', { name: '박은지 강사에게 독촉' }));
+    expect(onRemind).toHaveBeenCalledWith(7);
+    expect(view.queryByRole('button', { name: '강사 강사에게 독촉' })).toBeNull();
+  });
+
+  /** all160 G-68+ — 실제 미승인(`wait`) 줄은 전문을 볼 수 있다(canExport). 그래도 발송은 막히므로 강사별 줄에 「승인 대기」로 선다 */
+  it('전문을 볼 수 있는 미승인 줄도 막힌 수업으로 센다 — 서버 blockedCount 와 같은 정의 (G-68)', () => {
+    const waiting: ReportDetail = { ...report(15, 25, '학생E'), teacherId: 9, teacherName: '김재훈', state: 'wait' };
+    vi.mocked(queries.useReportDelivery).mockReturnValue({ data: {
+      ...queue, blocked: 2,
+      students: [...queue.students, { student: waiting.students[0], reports: [waiting], canSend: false, blockedCount: 1, lastSendId: null, lastSentAt: null }],
+    }, isLoading: false, isError: false } as never);
+    const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} remind={{ teacherIds: new Set(), pending: false, message: null, onRemind: vi.fn() }} />);
+    const strip = view.getByRole('region', { name: '강사별 독촉' });
+    expect(strip.textContent).toMatch(/김재훈 1건\s*· 승인 대기/);
+    expect(view.queryByRole('button', { name: '김재훈 강사에게 독촉' })).toBeNull();
+  });
+
   it('미승인 학생은 선택하지 않고 PNG를 학생별 요청으로 순차 전송한다', async () => {
     mutateAsync.mockResolvedValueOnce({ id: 1 }).mockRejectedValueOnce(new Error('second failed'));
     const view = render(<ReportDeliveryQueue onOpenReport={vi.fn()} />);
