@@ -10,6 +10,7 @@ import { api, ApiError, getSessionGeneration, invalidateSessionRequests } from '
 import type { Me } from './types';
 import { resetScheduleOptimistic } from './schedule-optimistic';
 import { clearAllDrafts } from '@/lib/autosave';
+import { useWorkspace } from '@/store/useWorkspace';
 
 /**
  * 인증 사용자가 바뀔 때 이전 사용자의 서버 응답을 함께 폐기한다.
@@ -20,6 +21,7 @@ import { clearAllDrafts } from '@/lib/autosave';
  * 이 브라우저에 남긴 쓰던 글(N-69 자동 저장)도 같은 경계에서 비운다 — 같은 기계의 다음 사람이 보지 않게.
  */
 export function clearSessionQueries(queryClient: Pick<QueryClient, 'clear'>): void {
+  useWorkspace.getState().clearDrawer();
   resetScheduleOptimistic(queryClient);
   queryClient.clear();
   clearAllDrafts();

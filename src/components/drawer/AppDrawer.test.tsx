@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
 import type { Occurrence } from '@/api/types';
@@ -42,6 +42,7 @@ vi.mock('./panes', async (importOriginal) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useWorkspace.getState().clearDrawer();
   mocks.drawer.mockReturnValue({
     data: {
       approvals: { count: 2, inboxCount: 2 }, notis: [], notiCategories: [], kinds: [], zoomAccounts: [], members: [],
@@ -62,6 +63,163 @@ afterEach(() => {
 });
 
 describe('공용 서랍의 제어형 선택', () => {
+  function readyChangeReq(view: ReturnType<typeof render>, reason = '첫 요청') {
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const ownerKey = useWorkspace.getState().drawer.ownerKey!;
+    const draft = useWorkspace.getState().drawer.draft!;
+    act(() => useWorkspace.getState().setChangeReqDraft(ownerKey, {
+      ...draft, serId: '41', onDate: '2026-09-25', startMin: '600', endMin: '660', reason,
+    }));
+    expect(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }).hasAttribute('disabled'))
+      .toBe(false);
+    return ownerKey;
+  }
+
+  it('라우트 재마운트 중 진행 중인 변경 요청은 다시 제출되지 않는다', async () => {
+    let resolve!: (value: { id: number; conflicts: [] }) => void;
+    mocks.write.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const first = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(first);
+    fireEvent.click(within(first.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    expect(mocks.write).toHaveBeenCalledOnce();
+    first.unmount();
+
+    const next = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    const submit = within(next.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: /요청 넣기|보내는 중/ });
+    expect(submit.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(submit);
+    expect(mocks.write).toHaveBeenCalledOnce();
+    await act(async () => resolve({ id: 9, conflicts: [] }));
+  });
+
+  it('성공 응답이 라우트 재마운트 후 도착해도 새 서랍에 접수 결과를 남긴다', async () => {
+    let resolve!: (value: { id: number; conflicts: [] }) => void;
+    mocks.write.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const first = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(first);
+    fireEvent.click(within(first.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    first.unmount();
+    const next = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+
+    await act(async () => resolve({ id: 9, conflicts: [] }));
+    expect(next.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
+    expect(next.getByText('요청을 넣었습니다 — 승인은 그 화면에서 이뤄집니다')).toBeTruthy();
+  });
+
+  it('겹침·서버 오류가 라우트 재마운트 후 도착해도 같은 초안에서 이유를 보여 준다', async () => {
+    let resolve!: (value: unknown) => void;
+    let reject!: (error: unknown) => void;
+    mocks.write.mockImplementationOnce(() => new Promise((done) => { resolve = done; }))
+      .mockImplementationOnce(() => new Promise((_done, fail) => { reject = fail; }));
+    const first = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(first);
+    fireEvent.click(within(first.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    first.unmount();
+    const next = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+
+    await act(async () => resolve({ id: null, conflicts: [
+      { serId: 12, onDate: '2026-09-24', startMin: 1230, endMin: 1290, title: 'SAT Math', with: 'teacher', whoName: '김재훈' },
+    ] }));
+    expect(within(next.getByRole('dialog', { name: '변경 요청' })).getByText(/1건과 겹칩니다/)).toBeTruthy();
+
+    fireEvent.click(within(next.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    next.unmount();
+    const again = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    await act(async () => reject(new ApiError('CHANGE_REQUEST_FAILED', '변경 요청을 넣지 못했습니다', 409)));
+    expect(within(again.getByRole('dialog', { name: '변경 요청' })).getByText('변경 요청을 넣지 못했습니다')).toBeTruthy();
+  });
+
+  it('이전 요청의 늦은 성공은 취소 후 다시 쓴 초안을 닫지 않는다', async () => {
+    let resolve!: (value: { id: number; conflicts: [] }) => void;
+    mocks.write.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(view);
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    fireEvent.change(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }),
+      { target: { value: '새로 작성 중인 사유' } });
+
+    await act(async () => resolve({ id: 9, conflicts: [] }));
+    expect((within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value)
+      .toBe('새로 작성 중인 사유');
+  });
+
+  it('전송 중 취소·재열기는 서버 전송을 취소하지 않으며 이전 성공을 확인하기 전 재제출을 막는다', async () => {
+    let resolve!: (value: { id: number; conflicts: [] }) => void;
+    mocks.write.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    const ownerKey = readyChangeReq(view);
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const draft = useWorkspace.getState().drawer.draft!;
+    act(() => useWorkspace.getState().setChangeReqDraft(ownerKey, {
+      ...draft, serId: '41', onDate: '2026-09-25', startMin: '600', endMin: '660', reason: '새 요청',
+    }));
+    let dialog = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect(dialog.getByText(/서버 전송을 멈추지 않습니다/)).toBeTruthy();
+    expect(dialog.getByRole('button', { name: '보내는 중…' }).hasAttribute('disabled')).toBe(true);
+
+    await act(async () => resolve({ id: 9, conflicts: [] }));
+    dialog = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect(dialog.getByText(/이전 변경 요청이 접수되었습니다/)).toBeTruthy();
+    expect(dialog.getByRole('button', { name: '요청 넣기' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(dialog.getByRole('button', { name: '결과 확인' }));
+    expect(dialog.getByRole('button', { name: '요청 넣기' }).hasAttribute('disabled')).toBe(false);
+    expect(mocks.write).toHaveBeenCalledOnce();
+  });
+
+  it.each(['Escape', '창 닫기'])('전송 중 %s로 모달을 닫아도 재열기 때 중복 전송을 막는다', async (dismiss) => {
+    let resolve!: (value: { id: number; conflicts: [] }) => void;
+    mocks.write.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const view = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(view);
+    fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    if (dismiss === 'Escape') fireEvent.keyDown(document, { key: 'Escape' });
+    else fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '창 닫기' }));
+    expect(view.queryByRole('dialog', { name: '변경 요청' })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '+ 변경 요청' }));
+    const dialog = within(view.getByRole('dialog', { name: '변경 요청' }));
+    expect(dialog.getByText(/서버 전송을 멈추지 않습니다/)).toBeTruthy();
+    expect(dialog.getByRole('button', { name: '보내는 중…' }).hasAttribute('disabled')).toBe(true);
+    expect(mocks.write).toHaveBeenCalledOnce();
+    await act(async () => resolve({ id: 9, conflicts: [] }));
+    expect(dialog.getByText(/이전 변경 요청이 접수되었습니다/)).toBeTruthy();
+  });
+
+  it('인증 상태를 비운 뒤 같은 계정에서 새로 쓴 초안도 이전 요청의 늦은 실패와 분리한다', async () => {
+    let reject!: (error: unknown) => void;
+    mocks.write.mockReturnValue(new Promise((_done, fail) => { reject = fail; }));
+    const first = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    readyChangeReq(first);
+    fireEvent.click(within(first.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
+    first.unmount();
+    useWorkspace.getState().clearDrawer();
+
+    const next = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(next.getByRole('button', { name: '+ 변경 요청' }));
+    fireEvent.change(within(next.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }),
+      { target: { value: '새 로그인 세션 초안' } });
+    await act(async () => reject(new ApiError('OLD_ERROR', '이전 세션 오류', 409)));
+
+    const dialog = within(next.getByRole('dialog', { name: '변경 요청' }));
+    expect((dialog.getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value).toBe('새 로그인 세션 초안');
+    expect(dialog.queryByText('이전 세션 오류')).toBeNull();
+  });
+
+  it('라우트 전환으로 서랍 컴포넌트가 재마운트돼도 진행 중인 변경 요청 초안을 복원한다', () => {
+    const first = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(first.getByRole('button', { name: '+ 변경 요청' }));
+    fireEvent.change(within(first.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }),
+      { target: { value: '저장 전 초안' } });
+    first.unmount();
+
+    const next = render(<AppDrawer open pane="chreqs" onPaneChange={() => undefined} onClose={() => undefined} />);
+    expect((within(next.getByRole('dialog', { name: '변경 요청' })).getByRole('textbox', { name: '왜 바꾸나요' }) as HTMLInputElement).value)
+      .toBe('저장 전 초안');
+  });
   it('외부 선택을 본문과 접근성 활성 표시가 함께 따른다', () => {
     const view = render(<AppDrawer open pane="kinds" onPaneChange={() => undefined} onClose={() => undefined} />);
     const nav = within(view.getByRole('navigation', { name: '서랍 메뉴' }));

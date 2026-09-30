@@ -12,6 +12,9 @@
  * 화면 상태가 아니라 셸 상태이므로 페이지 useReducer 가 아닌 전역 store 에 둔다 (결정 §4-5 관례).
  */
 import { create } from 'zustand';
+import type { DrawerPane } from '@/components/drawer/AppDrawer';
+import { newChangeReqDraft, type ChangeReqDraft } from '@/components/drawer/change-request';
+import type { ChangeReqResult } from '@/api/types';
 
 /**
  * 되돌릴 **직전 일정 쓰기** — 상단바 단추가 그것을 읽는다 (N-138 · C99).
@@ -58,6 +61,34 @@ export interface WorkspaceHandoff {
   text: string;
 }
 
+/** 라우트가 AppShell을 재마운트해도 남아야 하는, 현재 관리자 한 명의 메모리 전용 서랍 상태. */
+export type ChangeReqFeedback = (
+  | { kind: 'success' }
+  | { kind: 'conflict'; conflicts: ChangeReqResult['conflicts'] }
+  | { kind: 'error'; message: string }
+) & { token: number; priorDraft: boolean };
+
+export interface WorkspaceDrawer {
+  ownerKey: string | null;
+  open: boolean;
+  pane: DrawerPane;
+  creating: boolean;
+  draft: ChangeReqDraft | null;
+  /** 초안 생성·편집·취소가 바뀔 때 증가한다. 늦은 응답이 새 초안을 닫지 못하게 한다. */
+  draftVersion: number;
+  /** mutation hook은 라우트마다 재생성되므로 전송 중 여부는 공통 셸이 소유한다. */
+  submission: { token: number; ownerKey: string; generation: number; draftVersion: number } | null;
+  /** 전송 결과도 라우트 재마운트 뒤 남긴다. 이전 초안 결과면 확인 전 새 제출을 잠근다. */
+  feedback: ChangeReqFeedback | null;
+}
+
+const emptyDrawer = (): WorkspaceDrawer => ({
+  ownerKey: null, open: false, pane: 'approvals', creating: false, draft: null, draftVersion: 0, submission: null, feedback: null,
+});
+
+// clearDrawer 뒤 같은 계정이 다시 로그인해도 이전 요청 토큰과 새 요청 토큰이 재사용되지 않는다.
+let submissionSerial = 0;
+
 interface WorkspaceState {
   sidebarOpen: boolean;
   railOpen: boolean;
@@ -65,6 +96,7 @@ interface WorkspaceState {
   undoStack: WorkspaceUndo[];
   /** 옮겨 간 화면이 한 번 보여 줄 결과 한 줄 — 없으면 null */
   handoff: WorkspaceHandoff | null;
+  drawer: WorkspaceDrawer;
   toggleSidebar: () => void;
   toggleRail: () => void;
   /** 성공한 쓰기의 토큰을 맨 뒤에 쌓는다 — 지난 단계는 이때 버린다 */
@@ -73,16 +105,75 @@ interface WorkspaceState {
   dropUndo: (token: string) => void;
   /** 결과 한 줄을 넘긴다(null 이면 비운다) — 목적지가 읽은 뒤 null 로 비운다 */
   setHandoff: (handoff: WorkspaceHandoff | null) => void;
+  openDrawer: (ownerKey: string, pane: DrawerPane) => void;
+  closeDrawer: (ownerKey: string) => void;
+  setDrawerPane: (ownerKey: string, pane: DrawerPane) => void;
+  beginChangeReq: (ownerKey: string) => void;
+  setChangeReqDraft: (ownerKey: string, draft: ChangeReqDraft) => void;
+  endChangeReq: (ownerKey: string) => void;
+  /** null이면 같은 계정의 요청이 이미 전송 중이거나 지금 작성 중인 초안이 아니다. */
+  startChangeReqSubmission: (ownerKey: string, generation: number) => number | null;
+  /** 일치하는 요청의 pending을 해제하고, 응답이 아직 현재 초안에 적용 가능한지 돌려준다. */
+  finishChangeReqSubmission: (ownerKey: string, token: number, currentGeneration: number,
+    outcome: { kind: 'success' } | { kind: 'conflict'; conflicts: ChangeReqResult['conflicts'] } | { kind: 'error'; message: string }) => boolean;
+  acknowledgeChangeReqFeedback: (ownerKey: string) => void;
+  /** 로그아웃·계정/권한 변경 시 다른 사람에게 초안이 보이지 않도록 즉시 폐기한다. */
+  clearDrawer: () => void;
 }
 
-export const useWorkspace = create<WorkspaceState>((set) => ({
+export const useWorkspace = create<WorkspaceState>((set, get) => ({
   sidebarOpen: false,
   railOpen: true,
   undoStack: [],
   handoff: null,
+  drawer: emptyDrawer(),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   toggleRail: () => set((s) => ({ railOpen: !s.railOpen })),
   pushUndo: (step) => set((s) => ({ undoStack: [...liveUndoSteps(s.undoStack), step].slice(-UNDO_STACK_MAX) })),
   dropUndo: (token) => set((s) => ({ undoStack: s.undoStack.filter((step) => step.token !== token) })),
   setHandoff: (handoff) => set({ handoff }),
+  openDrawer: (ownerKey, pane) => set((state) => ({ drawer: state.drawer.ownerKey === ownerKey
+    ? { ...state.drawer, open: true, pane }
+    : { ...emptyDrawer(), ownerKey, open: true, pane } })),
+  closeDrawer: (ownerKey) => set((state) => state.drawer.ownerKey === ownerKey
+    ? { drawer: { ...state.drawer, open: false } } : state),
+  setDrawerPane: (ownerKey, pane) => set((state) => state.drawer.ownerKey === ownerKey
+    ? { drawer: { ...state.drawer, pane } } : state),
+  beginChangeReq: (ownerKey) => set((state) => {
+    const drawer = state.drawer.ownerKey === ownerKey ? state.drawer : emptyDrawer();
+    return { drawer: { ...drawer, ownerKey, creating: true, draft: newChangeReqDraft(), draftVersion: drawer.draftVersion + 1,
+      feedback: drawer.feedback?.priorDraft ? drawer.feedback : null } };
+  }),
+  setChangeReqDraft: (ownerKey, draft) => set((state) => state.drawer.ownerKey === ownerKey && state.drawer.creating
+    ? { drawer: { ...state.drawer, draft, draftVersion: state.drawer.draftVersion + 1,
+      feedback: state.drawer.feedback?.priorDraft ? state.drawer.feedback : null } } : state),
+  endChangeReq: (ownerKey) => set((state) => state.drawer.ownerKey === ownerKey
+    ? { drawer: { ...state.drawer, creating: false, draft: null, draftVersion: state.drawer.draftVersion + 1,
+      feedback: state.drawer.feedback?.priorDraft ? state.drawer.feedback : null } } : state),
+  startChangeReqSubmission: (ownerKey, generation) => {
+    const state = get().drawer;
+    if (state.ownerKey !== ownerKey || !state.creating || !state.draft || state.submission || state.feedback?.priorDraft) return null;
+    const token = ++submissionSerial;
+    set({ drawer: { ...state, submission: { token, ownerKey, generation, draftVersion: state.draftVersion } } });
+    return token;
+  },
+  finishChangeReqSubmission: (ownerKey, token, currentGeneration, outcome) => {
+    const state = get().drawer;
+    const submitted = state.submission;
+    if (state.ownerKey !== ownerKey || !submitted || submitted.token !== token || submitted.ownerKey !== ownerKey) return false;
+    if (currentGeneration !== submitted.generation) {
+      set({ drawer: { ...state, submission: null } });
+      return false;
+    }
+    const appliesToDraft = Boolean(state.creating && state.draft && state.draftVersion === submitted.draftVersion);
+    const closeCurrent = appliesToDraft && outcome.kind === 'success';
+    set({ drawer: {
+      ...state, submission: null, feedback: { ...outcome, token, priorDraft: !appliesToDraft },
+      ...(closeCurrent ? { creating: false, draft: null, draftVersion: state.draftVersion + 1 } : {}),
+    } });
+    return appliesToDraft;
+  },
+  acknowledgeChangeReqFeedback: (ownerKey) => set((state) => state.drawer.ownerKey === ownerKey && state.drawer.feedback?.priorDraft
+    ? { drawer: { ...state.drawer, feedback: null } } : state),
+  clearDrawer: () => set({ drawer: emptyDrawer() }),
 }));

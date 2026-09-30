@@ -81,6 +81,7 @@ beforeEach(() => {
   mocks.unwritten.mockReturnValue({ data: { total: 2 } });
   mocks.scheduleWrite.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useWorkspace.setState({ undoStack: [], railOpen: true });
+  useWorkspace.getState().clearDrawer();
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
 });
 afterEach(() => {
@@ -241,6 +242,49 @@ describe('UX-15 모든 관리자 업무 탭의 공통 우측 레일', () => {
     fireEvent.click(open);
     expect(useWorkspace.getState().railOpen).toBe(true);
     expect(next.getByRole('navigation', { name: '워크스페이스 바로가기' })).toBeTruthy();
+  });
+
+  it('페이지를 옮겨 셸이 재마운트돼도 같은 관리자의 열린 서랍과 pane을 복원한다', () => {
+    const first = shell();
+    fireEvent.click(within(first.getByRole('navigation', { name: '워크스페이스 바로가기' })).getByRole('button', { name: '변경 요청' }));
+    expect(within(first.getByRole('dialog', { name: '서랍' })).getByText('chreqs')).toBeTruthy();
+    first.unmount();
+
+    mocks.pathname = '/students';
+    const next = shell();
+    expect(within(next.getByRole('dialog', { name: '서랍' })).getByText('chreqs')).toBeTruthy();
+    expect(within(next.getByRole('navigation', { name: '워크스페이스 바로가기' }))
+      .getByRole('button', { name: '변경 요청' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('계정 변경 또는 관리자 권한 회수에는 이전 서랍을 조회하거나 보여주지 않는다', () => {
+    const first = shell();
+    fireEvent.click(within(first.getByRole('navigation', { name: '워크스페이스 바로가기' })).getByRole('button', { name: '변경 요청' }));
+    first.unmount();
+
+    useSession.setState({ me: { ...me, id: 2 }, ready: true });
+    const other = shell();
+    expect(other.queryByRole('dialog', { name: '서랍' })).toBeNull();
+    expect(useWorkspace.getState().drawer.ownerKey).toBeNull();
+    other.unmount();
+
+    useSession.setState({ me: { ...me, canAdminPage: false, role: 'teacher' }, ready: true });
+    const teacher = shell();
+    expect(teacher.queryByRole('dialog', { name: '서랍' })).toBeNull();
+    expect(mocks.drawer).toHaveBeenLastCalledWith(false);
+  });
+
+  it('같은 계정의 권한 강등도 첫 렌더부터 관리자 서랍을 가리고 초안을 폐기한다', () => {
+    const admin = shell();
+    fireEvent.click(within(admin.getByRole('navigation', { name: '워크스페이스 바로가기' })).getByRole('button', { name: '변경 요청' }));
+    useWorkspace.getState().beginChangeReq(useWorkspace.getState().drawer.ownerKey!);
+    admin.unmount();
+
+    useSession.setState({ me: { ...me, canAdminPage: false, role: 'teacher' }, ready: true });
+    const teacher = shell();
+    expect(teacher.queryByRole('dialog', { name: '서랍' })).toBeNull();
+    expect(mocks.drawer).toHaveBeenLastCalledWith(false);
+    expect(useWorkspace.getState().drawer).toMatchObject({ ownerKey: null, open: false, draft: null });
   });
 
   it('레일을 접어도 열어 둔 서랍을 닫거나 재마운트하지 않는다', () => {

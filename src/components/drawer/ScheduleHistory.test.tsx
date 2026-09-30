@@ -5,10 +5,14 @@
  */
 import { fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
 import { ScheduleHistory } from './ScheduleHistory';
 
 const mocks = vi.hoisted(() => ({ history: vi.fn() }));
 vi.mock('@/api/queries', () => ({ useScheduleHistory: mocks.history }));
+vi.mock('next/link', () => ({ default: ({ href, className, children }: { href: string; className?: string; children: ReactNode }) => (
+  <a href={href} className={className} data-next-link>{children}</a>
+) }));
 
 const row = (id: number, go: string | null) => ({
   id, at: '2026-09-28T14:20:00+09:00', actorName: '관리자', summary: `이력 ${id}`, from: '앞', to: '뒤', go,
@@ -30,6 +34,7 @@ describe('최근 변경 이력', () => {
     const view = render(<ScheduleHistory enabled />);
     expect(view.getByRole('link', { name: '회차 열기 ›' }).getAttribute('href'))
       .toBe('/schedule?date=2026-09-28&serId=3&onDate=2026-09-28');
+    expect(view.getByRole('link', { name: '회차 열기 ›' }).hasAttribute('data-next-link')).toBe(true);
 
     fireEvent.click(view.getByRole('button', { name: '이전 이력' }));
     expect(mocks.history).toHaveBeenLastCalledWith(true, 10);

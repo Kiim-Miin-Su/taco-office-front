@@ -16,6 +16,7 @@
  */
 'use client';
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { CalendarClock, ChevronsLeft, History, Link2, Lock, Plus, UserPlus } from 'lucide-react';
 import type { Meta, ScheduleSeriesCounts } from '@/api/types';
 import { useWorkspace } from '@/store/useWorkspace';
@@ -87,10 +88,10 @@ export function ScheduleSidebar({
           <History size={14} aria-hidden />변경 이력
         </button>
         {/* 원문 톤: 신규 학생 등록 보라 */}
-        <a href="/intake"
+        <Link href="/intake"
           className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet text-[12px] font-bold text-white hover:opacity-90">
           <UserPlus size={14} aria-hidden />신규 학생 등록
-        </a>
+        </Link>
       </div>
 
       {/* 원문 KST 카드 — 🔒 + 파란 안내 글 */}
@@ -104,7 +105,7 @@ export function ScheduleSidebar({
         <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-bold text-fg">
           프로그램
           <span className="ml-auto" />
-          {canOpenPrograms ? <a href="/programs" className={HEAD_TOOL}>관리</a> : null}
+          {canOpenPrograms ? <Link href="/programs" className={HEAD_TOOL}>관리</Link> : null}
           {onClearKind ? <button type="button" onClick={onClearKind} className={HEAD_TOOL} aria-label="프로그램 거르기 풀기">전체</button> : null}
         </div>
         {!counts ? <p className="px-1 py-1 text-[11px] text-fg-subtle">일정 원본 수를 읽는 중…</p> : null}
@@ -125,7 +126,7 @@ export function ScheduleSidebar({
           <section className="mb-2">
             <h3 className="flex items-center gap-1 px-1 py-1 text-[11px] font-bold text-fg-subtle">
               과목<span className="ml-auto" />
-              {canOpenPrograms ? <a href="/programs" className={HEAD_TOOL}>관리</a> : null}
+              {canOpenPrograms ? <Link href="/programs" className={HEAD_TOOL}>관리</Link> : null}
               {onClearSub ? <button type="button" onClick={onClearSub} className={HEAD_TOOL} aria-label="과목 거르기 풀기">전체</button> : null}
             </h3>
             <ul>

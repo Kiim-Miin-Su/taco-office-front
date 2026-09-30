@@ -15,10 +15,11 @@ import { ArrowLeft, CircleHelp, Home, Maximize, Minimize, Palette, PanelRightClo
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from '@/store/useSession';
 import { useWorkspace } from '@/store/useWorkspace';
 import { api } from '@/api/client';
-import { clearSessionQueries } from '@/api/session-cache';
+import { clearSessionQueries, sessionAccessKey } from '@/api/session-cache';
 import { useDrawer, usePermissionTable, useUnwritten } from '@/api/queries';
 import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
 import { ApprovalFlowDialog } from '@/components/approval/ApprovalFlowDialog';
@@ -62,12 +63,18 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const isAdmin = Boolean(me?.canAdminPage);
   const railOpen = useWorkspace((s) => s.railOpen);
   const toggleRail = useWorkspace((s) => s.toggleRail);
+  const drawerState = useWorkspace((s) => s.drawer);
+  const openWorkspaceDrawer = useWorkspace((s) => s.openDrawer);
+  const closeWorkspaceDrawer = useWorkspace((s) => s.closeDrawer);
+  const setWorkspaceDrawerPane = useWorkspace((s) => s.setDrawerPane);
+  const clearWorkspaceDrawer = useWorkspace((s) => s.clearDrawer);
   // 강사는 관리자 서랍의 존재와 배지 숫자도 받지 않는다 — 숨김이 아니라 조회부터 끈다 (D-R39).
   const drawerData = useDrawer(isAdmin).data;
   const unwritten = useUnwritten(undefined, isAdmin).data;
-  // 현재 페이지의 셸이 서랍 상태를 소유한다. 라우트 전환 시 셸 재마운트/미저장 폼 보존은 별도 과제다.
-  const [drawer, setDrawer] = useState(false);
-  const [drawerPane, setDrawerPane] = useState<DrawerPane>('approvals');
+  // 페이지마다 AppShell이 재마운트된다. 같은 세션의 열린 칸만 공유하고, 다른 계정/권한의 칸은 렌더하지 않는다.
+  const drawerOwnerKey = isAdmin && me ? sessionAccessKey(me) : null;
+  const drawer = Boolean(drawerOwnerKey && drawerState.ownerKey === drawerOwnerKey && drawerState.open);
+  const drawerPane = drawerOwnerKey && drawerState.ownerKey === drawerOwnerKey ? drawerState.pane : 'approvals';
   const [approvalFlow, setApprovalFlow] = useState(false);
   const [permissions, setPermissions] = useState(false);
   // §76 표 · 부제 · 역할 설명은 서버가 만든다(N-98) — 창을 열 때만 읽는다
@@ -79,7 +86,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [guide, setGuide] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
-  const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
+  const openDrawer = (pane: DrawerPane) => { if (drawerOwnerKey) openWorkspaceDrawer(drawerOwnerKey, pane); };
   const panelApi: WorkspacePanelApi = { openDrawer, activePane: drawer ? drawerPane : null };
   const side = typeof sidePanel === 'function' ? sidePanel(panelApi) : sidePanel;
   const right = rightPanel === undefined
@@ -97,6 +104,11 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
       {railOpen ? <PanelRightClose size={15} aria-hidden /> : <PanelRightOpen size={15} aria-hidden />}
     </button>
   ) : null);
+
+  useEffect(() => {
+    // 다른 계정 또는 권한으로 셸이 다시 서면 묵은 초안도 버린다. 첫 렌더는 위 ownerKey gate가 이미 가린다.
+    if (drawerState.ownerKey && drawerState.ownerKey !== drawerOwnerKey) clearWorkspaceDrawer();
+  }, [clearWorkspaceDrawer, drawerOwnerKey, drawerState.ownerKey]);
 
   useEffect(() => {
     // ⌘K / Ctrl+K — 원문 단추의 글자 그대로. 관리 화면에서만(강사 머리줄에는 검색이 없다)
@@ -119,10 +131,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   }, []);
 
   useEffect(() => {
-    if (!isAdmin || !drawerEntry) return;
-    setDrawerPane(drawerEntry.pane);
-    setDrawer(true);
-  }, [drawerEntry?.identity, drawerEntry?.pane, isAdmin]);
+    if (!drawerOwnerKey || !drawerEntry) return;
+    openWorkspaceDrawer(drawerOwnerKey, drawerEntry.pane);
+  }, [drawerEntry?.identity, drawerEntry?.pane, drawerOwnerKey, openWorkspaceDrawer]);
 
   async function toggleFullScreen() {
     setScreenError(null);
@@ -159,9 +170,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           <div className="flex shrink-0 items-center gap-2 border-header-line sm:border-x sm:px-3">
             {onToday ? <button type="button" onClick={onToday} className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
               <Home size={14} aria-hidden />오늘 전체
-            </button> : <a href="/schedule" className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
+            </button> : <Link href="/schedule" className="flex h-[30px] items-center gap-1 rounded-md bg-header-home px-3 text-[12px] font-bold text-white">
               <Home size={14} aria-hidden />오늘 전체
-            </a>}
+            </Link>}
             <button type="button" onClick={() => router.back()} className="flex h-[30px] items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
               <ArrowLeft size={14} aria-hidden />뒤로
             </button>
@@ -241,7 +252,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
               {screenError ? <Banner tone="warning" className="mb-3">{screenError}</Banner> : null}
               {children}
             </main>
-            <AppDrawer open={drawer} onClose={() => setDrawer(false)} pane={drawerPane} onPaneChange={setDrawerPane} />
+            <AppDrawer open={drawer} onClose={() => { if (drawerOwnerKey) closeWorkspaceDrawer(drawerOwnerKey); }}
+              pane={drawerPane} onPaneChange={(pane) => { if (drawerOwnerKey) setWorkspaceDrawerPane(drawerOwnerKey, pane); }} />
           </div>
           {right ? <div data-print="chrome" className={cn(styles.panel, 'border-l border-line')}>{right}</div> : null}
         </div>

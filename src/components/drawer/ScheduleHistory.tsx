@@ -11,6 +11,7 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useScheduleHistory } from '@/api/queries';
 import { Banner } from '@/components/ui';
 
@@ -42,7 +43,7 @@ export function ScheduleHistory({ enabled }: { enabled: boolean }) {
               <span className="text-[11px] leading-[15px] text-fg-subtle">{r.from ?? '—'} → {r.to ?? '—'}</span>
               <span className="flex items-center justify-between gap-2 text-[11px] font-medium leading-[17px] text-fg-subtle">
                 <span>{r.summary}</span>
-                {r.go ? <a href={r.go} className="shrink-0 font-bold text-primary hover:underline">회차 열기 ›</a> : null}
+                {r.go ? <Link href={r.go} className="shrink-0 font-bold text-primary hover:underline">회차 열기 ›</Link> : null}
               </span>
             </li>
           ))}

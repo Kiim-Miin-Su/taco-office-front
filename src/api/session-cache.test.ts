@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
+import { useWorkspace } from '@/store/useWorkspace';
 import { api, ApiError, getSessionGeneration } from './client';
 import type { Me } from './types';
 import { opsQueryKey, qk, sessionQueryKey, type OccParams } from './queries';
@@ -103,9 +104,16 @@ describe('session query cache boundary', () => {
   it('인증 전환 시 전체 캐시를 폐기한다', () => {
     const clear = vi.fn();
 
+    useWorkspace.getState().openDrawer('admin-5', 'chreqs');
+    useWorkspace.getState().beginChangeReq('admin-5');
+    useWorkspace.getState().startChangeReqSubmission('admin-5', getSessionGeneration());
+
     clearSessionQueries({ clear });
 
     expect(clear).toHaveBeenCalledOnce();
+    expect(useWorkspace.getState().drawer.open).toBe(false);
+    expect(useWorkspace.getState().drawer.draft).toBeNull();
+    expect(useWorkspace.getState().drawer.submission).toBeNull();
   });
 
   it('운영 캐시는 사용자와 비용 권한과 **기간·갈래**를 모두 구분하고 기존 무효화 prefix를 유지한다', () => {

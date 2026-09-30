@@ -20,7 +20,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Drawer, Chip, Banner, Button, ConflictGuard, Dialog } from '@/components/ui';
 import { useDrawer, useDrawerWrite, useMeta, useOccurrences, useZoom } from '@/api/queries';
-import { ApiError, apiMessage } from '@/api/client';
+import { ApiError, apiMessage, getSessionGeneration } from '@/api/client';
+import { sessionAccessKey } from '@/api/session-cache';
 import { browserLog } from '@/lib/browser-log';
 import { useSession } from '@/store/useSession';
 import { useWorkspace } from '@/store/useWorkspace';
@@ -29,10 +30,11 @@ import { approvalKindLabel } from '@/components/approval/ApprovalRowContent';
 import type { ChangeReqResult, ReqReviewResult } from '@/api/types';
 import {
   ApprovalsPane, changeReqBody, ChangeReqForm, changeReqReady, ChangeReqsPane, KindsPane, MembersPane,
-  newChangeReqDraft, NotisPane, TodosPane, ZoomPane, type ChangeReqDraft, type TodoBox,
+  EMPTY_DRAFT, NotisPane, TodosPane, ZoomPane, type TodoBox,
 } from './panes';
 import { MyExpenses } from './MyExpenses';
 import { ScheduleHistory } from './ScheduleHistory';
+import { conflictLines } from '@/lib/calendar';
 
 /**
  * 여덟 칸 — Figma `Spec/02 우측 서랍` 의 순서 그대로.
@@ -68,12 +70,13 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   onPaneChange: (pane: DrawerPane) => void;
 }) {
   const [box, setBox] = useState<TodoBox>('in');
-  const [draft, setDraft] = useState<ChangeReqDraft>(() => newChangeReqDraft());
-  /** §19 창이 열려 있는가 — §20 칸의 「+ 변경 요청」이 연다 */
-  const [creating, setCreating] = useState(false);
-  const [conflicts, setConflicts] = useState<ChangeReqResult['conflicts']>([]);
-  const [sent, setSent] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const drawer = useWorkspace((w) => w.drawer);
+  const beginChangeReq = useWorkspace((w) => w.beginChangeReq);
+  const setChangeReqDraft = useWorkspace((w) => w.setChangeReqDraft);
+  const endChangeReq = useWorkspace((w) => w.endChangeReq);
+  const startChangeReqSubmission = useWorkspace((w) => w.startChangeReqSubmission);
+  const finishChangeReqSubmission = useWorkspace((w) => w.finishChangeReqSubmission);
+  const acknowledgeChangeReqFeedback = useWorkspace((w) => w.acknowledgeChangeReqFeedback);
   /** §16 — 보여 주는 범위. 지우는 규칙이 아니다 (N-7 · D-16) */
   const [notiWindow, setNotiWindow] = useState<'month' | 'all'>('month');
   /** 서버가 거절한 말을 **그대로** 띄운다 — 화면이 이유를 다시 지어내지 않는다 */
@@ -81,7 +84,17 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const paneRetryInFlight = useRef(false);
   const previousPane = useRef<DrawerPane>(pane);
 
-  const meId = useSession((s) => s.me?.id ?? null);
+  const me = useSession((s) => s.me);
+  const meId = me?.id ?? null;
+  const ownerKey = me ? sessionAccessKey(me) : null;
+  /** §19 모달과 초안은 라우트 셸 재마운트만 넘긴다. 로그아웃/권한 경계에서는 즉시 폐기한다. */
+  const creating = Boolean(ownerKey && drawer.ownerKey === ownerKey && drawer.creating);
+  const draft = creating && drawer.draft ? drawer.draft : EMPTY_DRAFT;
+  const submittingChangeReq = Boolean(ownerKey && drawer.ownerKey === ownerKey && drawer.submission);
+  const feedback = ownerKey && drawer.ownerKey === ownerKey ? drawer.feedback : null;
+  const currentFeedback = feedback && !feedback.priorDraft ? feedback : null;
+  const priorFeedback = feedback?.priorDraft ? feedback : null;
+  const pendingPriorDraft = Boolean(submittingChangeReq && drawer.submission?.draftVersion !== drawer.draftVersion);
   const pushUndo = useWorkspace((w) => w.pushUndo);
   /* 원문 서랍 안에는 칸 전환 줄이 없다 — 레일이 그 일을 한다(g2 대조 C-3). 레일이 없는 화면에서만 줄을 남긴다 */
   const railed = useRailPresent();
@@ -133,40 +146,45 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   }, [isError, notiWindow, open, pane, refetch]);
 
   async function submitChangeReq() {
-    setSent(false);
-    setSubmitError(null);
+    if (!ownerKey || !changeReqReady(draft)) return;
+    const token = startChangeReqSubmission(ownerKey, getSessionGeneration());
+    if (token === null) return; // 라우트 재마운트 직후 이전 mutation이 아직 전송 중일 수 있다
     try {
       const res = await write.mutateAsync({
         kind: 'changeReq',
         body: changeReqBody(draft),
       }) as ChangeReqResult;
-      setConflicts(res.conflicts);
-      // 넣었으면 창을 닫고 칸에 알린다 — 새 초안은 다시 오늘로 열린다
-      if (res.conflicts.length === 0) { setSent(true); closeCreate(); }
+      finishChangeReqSubmission(ownerKey, token, getSessionGeneration(), res.conflicts.length
+        ? { kind: 'conflict', conflicts: res.conflicts } : { kind: 'success' });
     } catch (error) {
-      setSubmitError(apiMessage(error));
+      finishChangeReqSubmission(ownerKey, token, getSessionGeneration(), { kind: 'error', message: apiMessage(error) });
     }
   }
 
-  function resetCreate() {
-    setDraft(newChangeReqDraft());
-    setConflicts([]);
-    setSubmitError(null);
-  }
-
   function closeCreate() {
-    resetCreate();
-    setCreating(false);
+    if (ownerKey) endChangeReq(ownerKey);
   }
 
   function openCreate() {
-    setSent(false);
-    resetCreate();
-    setCreating(true);
+    if (ownerKey) beginChangeReq(ownerKey);
   }
 
   const count = data?.approvals.inboxCount ?? 0;
   const unread = data?.notis.filter((n) => !n.read).length ?? 0;
+  const pendingNotice = pendingPriorDraft ? <Banner tone="warning" className="mb-3">
+    앞서 보낸 변경 요청을 처리 중입니다. 취소·닫기는 서버 전송을 멈추지 않습니다. 결과가 올 때까지 새 요청을 보낼 수 없습니다.
+  </Banner> : null;
+  const priorNotice = priorFeedback ? <div className="mb-3 space-y-2" role="status">
+    <Banner tone={priorFeedback.kind === 'success' ? 'success' : 'warning'}>
+      {priorFeedback.kind === 'success' ? '이전 변경 요청이 접수되었습니다. 이력을 확인한 뒤 새 요청을 진행하세요.'
+        : priorFeedback.kind === 'conflict' ? `이전 변경 요청은 ${priorFeedback.conflicts.length}건과 겹쳐 제출되지 않았습니다.`
+          : `이전 변경 요청을 넣지 못했습니다: ${priorFeedback.message}`}
+    </Banner>
+    {priorFeedback.kind === 'conflict' ? <ConflictGuard result="blocking"
+      message={`${priorFeedback.conflicts.length}건과 겹칩니다 — 제출되지 않았습니다`}
+      dates={conflictLines(priorFeedback.conflicts)} /> : null}
+    <Button size="sm" onClick={() => { if (ownerKey) acknowledgeChangeReqFeedback(ownerKey); }}>결과 확인</Button>
+  </div> : null;
 
   return (
     /* 탭 02 서랍은 머리줄 아래 · 레일 왼쪽 칸에 붙는다 — 자리는 셸이 준다(`docked` · 원문 폭 ≈468px · g2 대조 C-1) */
@@ -197,6 +215,9 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
 
       {isLoading ? <p className="py-10 text-center text-[12px] text-fg-subtle">읽는 중…</p> : null}
       {isError ? <Banner tone="danger">서랍을 읽지 못했습니다. 잠시 뒤 다시 열어 주세요.</Banner> : null}
+      {pane === 'chreqs' && !creating ? (priorNotice ?? pendingNotice ?? (currentFeedback?.kind === 'success' ? (
+        <div className="mb-3"><ConflictGuard result="ok" message="요청을 넣었습니다 — 승인은 그 화면에서 이뤄집니다" /></div>
+      ) : null)) : null}
 
       {data ? (
         <>
@@ -256,11 +277,6 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
           {pane === 'kinds' ? <KindsPane kinds={data.kinds} /> : null}
           {pane === 'chreqs' ? (
             <>
-              {sent ? (
-                <div className="mb-3">
-                  <ConflictGuard result="ok" message="요청을 넣었습니다 — 승인은 그 화면에서 이뤄집니다" />
-                </div>
-              ) : null}
               <ChangeReqsPane rows={data.changeReqs} onCreate={openCreate} />
               {/* 원문 §20 「최근 변경 이력」 — 스케줄 쓰기 감사 줄의 서버 문장. 이 칸을 열 때만 읽는다 (W11 A' 후속) */}
               <ScheduleHistory enabled={open && pane === 'chreqs'} />
@@ -279,17 +295,19 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
         footer={(
           <>
             <Button onClick={closeCreate}>취소</Button>
-            <Button variant="primary" disabled={!changeReqReady(draft) || write.isPending} onClick={() => void submitChangeReq()}>
-              {write.isPending ? '보내는 중…' : '요청 넣기'}
+            <Button variant="primary" disabled={!changeReqReady(draft) || write.isPending || submittingChangeReq || Boolean(priorFeedback)} onClick={() => void submitChangeReq()}>
+              {write.isPending || submittingChangeReq ? '보내는 중…' : '요청 넣기'}
             </Button>
           </>
         )}
       >
+        {priorNotice ?? pendingNotice}
         <ChangeReqForm
           draft={draft} onDraft={(d) => {
-            setDraft(d); setConflicts([]); setSent(false); setSubmitError(null);
+            if (ownerKey) setChangeReqDraft(ownerKey, d);
           }}
-          conflicts={conflicts} error={submitError}
+          conflicts={currentFeedback?.kind === 'conflict' ? currentFeedback.conflicts : []}
+          error={currentFeedback?.kind === 'error' ? currentFeedback.message : null}
           occurrences={dayOk ? dayOccurrences.data?.items : undefined}
           occurrencesLoading={dayOk && dayOccurrences.isLoading}
           staff={meta?.staff ?? []} rooms={meta?.rooms ?? []} zaccs={meta?.zaccs ?? []}
