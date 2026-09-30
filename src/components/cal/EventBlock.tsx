@@ -115,6 +115,7 @@ export type DragData =
   | {
       /** 빈 슬롯 범위 선택 — 저장 초안만 만들고 서버 판정은 SessionEditor가 맡는다. */
       type: 'create';
+      paneId: number;
       date: string;
       startMin: number;
       colAxis?: 'room' | 'teacher';

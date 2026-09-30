@@ -207,6 +207,29 @@ describe('관리자 달력 날짜 정확성', () => {
     fireEvent.keyDown(cell, { key: 'Enter' });
     expect(onAdd).toHaveBeenCalledTimes(2);
   });
+
+  it('주간 생성 범위는 동일 pane·날짜의 실제 30분 슬롯만 칠한다', () => {
+    const view = render(<>
+      <WeekGrid paneId={0} date="2026-09-01" days={['2026-09-01']} items={[]}
+        createPreview={{ paneId: 0, date: '2026-09-01', startMin: 600, endMin: 720 }} />
+      <WeekGrid paneId={1} date="2026-09-01" days={['2026-09-01']} items={[]}
+        createPreview={{ paneId: 0, date: '2026-09-01', startMin: 600, endMin: 720 }} />
+    </>);
+    const grids = view.getAllByRole('region', { name: '일간 시간표' });
+    expect(grids[0].querySelectorAll('[data-create-preview-slot]')).toHaveLength(4);
+    expect(grids[1].querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+  });
+
+  it('강의실별 생성 범위는 같은 열의 실제 슬롯에만 표시한다', () => {
+    const view = render(<DayGrid paneId={0} date="2026-09-01" items={[]}
+      columns={[{ id: 3, name: '3호' }, { id: 4, name: '4호' }]}
+      columnOf={() => 3} colAxis="room"
+      createPreview={{ paneId: 0, date: '2026-09-01', startMin: 600, endMin: 660, colAxis: 'room', colId: 3 }} />);
+    expect(view.getByRole('button', { name: '2026-09-01 10:00 강의실 3 빈 시간 선택' }).hasAttribute('data-create-preview-slot')).toBe(true);
+    expect(view.getByRole('button', { name: '2026-09-01 10:30 강의실 3 빈 시간 선택' }).hasAttribute('data-create-preview-slot')).toBe(true);
+    expect(view.getByRole('button', { name: '2026-09-01 10:00 강의실 4 빈 시간 선택' }).hasAttribute('data-create-preview-slot')).toBe(false);
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(2);
+  });
 });
 
 describe('주간 머리 모양 · 개인표 합계 줄 (원문 §08 · §10)', () => {

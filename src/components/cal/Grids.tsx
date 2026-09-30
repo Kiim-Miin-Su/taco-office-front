@@ -42,13 +42,27 @@ export type ColAxis = CalendarColAxis;
 
 /** 드롭 타깃 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
 export type DropData =
-  | { type: 'slot'; date: string; colAxis: ColAxis; colId: number | null; slotMin: number }
-  | { type: 'weekSlot'; date: string; slotMin: number }
+  | { type: 'slot'; paneId: number; date: string; colAxis: ColAxis; colId: number | null; slotMin: number }
+  | { type: 'weekSlot'; paneId: number; date: string; slotMin: number }
   | { type: 'day'; date: string };
+
+/** 생성 드래그 중 화면에 칠하는 범위. 저장 초안과 같은 계산 결과만 받는다. */
+export interface CreatePreview {
+  paneId: number;
+  date: string;
+  startMin: number;
+  endMin: number;
+  colAxis?: ColAxis;
+  colId?: number | null;
+}
 
 export interface GridProps {
   date: string;
   items: Occurrence[];
+  /** 분할 표의 동일 날짜·열을 구별하는 실제 pane identity. 단독 격자는 0. */
+  paneId?: number;
+  createPreview?: CreatePreview | null;
+  creating?: boolean;
   subName?: (o: Occurrence) => string | undefined;
   /** 블록의 종류 배지·줌 계정 장소 줄 — 코드표 lookup 을 페이지가 한 벌로 내린다 (원문 §07·§08) */
   kindName?: (o: Occurrence) => string | undefined;
@@ -144,24 +158,29 @@ export interface DayGridProps extends GridProps {
 }
 
 /** 30분 슬롯 하나 — **실제 노드**다. 드롭 타깃이자 셀 상태의 자리 (§2.5) */
-function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt, onSelectAt }: {
-  date: string; colAxis: ColAxis; colId: number | null; slotMin: number; hourLine: boolean;
+function Slot({ paneId, date, colAxis, colId, slotMin, hourLine, active, free, createPreview, creating, onAddAt, onSelectAt }: {
+  paneId: number; date: string; colAxis: ColAxis; colId: number | null; slotMin: number; hourLine: boolean;
   active?: boolean;
   /** 빈 시간 찾기가 켜졌고 이 칸이 비었다 */
   free?: boolean;
+  createPreview?: CreatePreview | null;
+  creating?: boolean;
   onAddAt?: (date: string, startMin: number, colId: number | null) => void;
   onSelectAt?: (date: string, startMin: number, colId: number | null) => void;
 }) {
   const instanceId = useId();
   const d = useDroppable({
     id: `slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
-    data: { type: 'slot', date, colAxis, colId, slotMin } satisfies DropData,
+    data: { type: 'slot', paneId, date, colAxis, colId, slotMin } satisfies DropData,
   });
   const drag = useDraggable({
     id: `create-slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
-    data: { type: 'create', date, startMin: slotMin, colAxis, colId } satisfies DragData,
+    data: { type: 'create', paneId, date, startMin: slotMin, colAxis, colId } satisfies DragData,
     disabled: !onAddAt,
   });
+  const previewed = createPreview?.paneId === paneId && createPreview.date === date
+    && createPreview.colAxis === colAxis && createPreview.colId === colId
+    && slotMin >= createPreview.startMin && slotMin < createPreview.endMin;
   return (
     <button
       ref={(node) => { d.setNodeRef(node); drag.setNodeRef(node); }}
@@ -170,6 +189,7 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt, 
       type="button"
       aria-label={`${date} ${hhmm(slotMin)} ${colAxis === 'room' ? '강의실' : '강사'} ${colId ?? '미지정'} 빈 시간 선택`}
       data-free={free ? '' : undefined}
+      data-create-preview-slot={previewed ? '' : undefined}
       onClick={() => onSelectAt?.(date, slotMin, colId)}
       onDoubleClick={() => onAddAt?.(date, slotMin, colId)}
       onKeyDown={(event) => {
@@ -184,7 +204,8 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt, 
         free && 'bg-green/[0.10]',
         onAddAt && 'touch-none select-none cursor-cell hover:bg-blue/[0.04]',
         active && 'bg-blue/10 ring-2 ring-inset ring-blue',
-        d.isOver && 'bg-blue/10',
+        previewed && 'bg-blue/20 ring-1 ring-inset ring-blue/50',
+        d.isOver && !creating && 'bg-blue/10',
       )}
       style={{ height: HOUR_PX / 2 }}
     />
@@ -192,22 +213,26 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt, 
 }
 
 /** 주간 30분 슬롯 — 월간의 날짜 drop과 분리해 세로 좌표를 잃지 않는다. */
-function WeekSlot({ date, slotMin, hourLine, active, onAddAt, onSelectAt, interactive }: {
-  date: string; slotMin: number; hourLine: boolean; active?: boolean;
+function WeekSlot({ paneId, date, slotMin, hourLine, active, createPreview, creating, onAddAt, onSelectAt, interactive }: {
+  paneId: number; date: string; slotMin: number; hourLine: boolean; active?: boolean;
+  createPreview?: CreatePreview | null; creating?: boolean;
   onAddAt?: (date: string, startMin: number) => void; interactive?: boolean;
   onSelectAt?: (date: string, startMin: number) => void;
 }) {
   const instanceId = useId();
   const drop = useDroppable({
     id: `week-slot|${instanceId}|${date}|${slotMin}`,
-    data: { type: 'weekSlot', date, slotMin } satisfies DropData,
+    data: { type: 'weekSlot', paneId, date, slotMin } satisfies DropData,
     disabled: !interactive,
   });
   const drag = useDraggable({
     id: `create-week-slot|${instanceId}|${date}|${slotMin}`,
-    data: { type: 'create', date, startMin: slotMin } satisfies DragData,
+    data: { type: 'create', paneId, date, startMin: slotMin } satisfies DragData,
     disabled: !interactive,
   });
+  const previewed = createPreview?.paneId === paneId && createPreview.date === date
+    && createPreview.colAxis === undefined
+    && slotMin >= createPreview.startMin && slotMin < createPreview.endMin;
   return (
     <button
       ref={(node) => { drop.setNodeRef(node); drag.setNodeRef(node); }}
@@ -215,6 +240,7 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, onSelectAt, intera
       {...(interactive ? drag.attributes : {})}
       type="button"
       aria-label={`${date} ${hhmm(slotMin)} 빈 시간 선택`}
+      data-create-preview-slot={previewed ? '' : undefined}
       onClick={() => onSelectAt?.(date, slotMin)}
       onDoubleClick={() => onAddAt?.(date, slotMin)}
       onKeyDown={(event) => {
@@ -227,7 +253,8 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, onSelectAt, intera
         hourLine ? 'border-b border-b-line' : 'border-b border-b-line/40',
         onAddAt && 'touch-none select-none cursor-cell hover:bg-blue/[0.04]',
         active && 'bg-blue/10 ring-2 ring-inset ring-blue',
-        drop.isOver && 'bg-blue/10',
+        previewed && 'bg-blue/20 ring-1 ring-inset ring-blue/50',
+        drop.isOver && !creating && 'bg-blue/10',
       )}
       style={{ height: HOUR_PX / 2 }}
     />
@@ -235,7 +262,7 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, onSelectAt, intera
 }
 
 export function DayGrid({
-  date, items, columns, columnOf, colAxis, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onAddAt, onSelectAt, cursor, interactive,
+  date, items, paneId = 0, createPreview, creating, columns, columnOf, colAxis, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onAddAt, onSelectAt, cursor, interactive,
   showFree = false, unavOf,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
@@ -298,9 +325,10 @@ export function DayGrid({
               <div key={String(c.id)} className="relative">
                 {/* ① 슬롯 층 — 실제 셀. 드롭과 빈 칸 클릭을 받는다 */}
                 {slots.map((m) => (
-                  <Slot key={m} date={date} colAxis={colAxis} colId={c.id} slotMin={m}
+                  <Slot key={m} paneId={paneId} date={date} colAxis={colAxis} colId={c.id} slotMin={m}
                         hourLine={(m + SLOT_MIN) % 60 === 0}
                         active={cursor?.date === date && cursor.startMin === m && cursor.colAxis === colAxis && cursor.colId === c.id}
+                        createPreview={createPreview} creating={creating}
                         free={showFree && c.id !== null && !unavAt(m) && !mine.some((o) => !o.canceled && o.startMin < m + SLOT_MIN && o.endMin > m)}
                         onAddAt={interactive ? onAddAt : undefined}
                         onSelectAt={interactive ? onSelectAt : undefined} />
@@ -373,7 +401,7 @@ export function DayGrid({
 /* ── §8·10·11 주간 — 공통 시간축 × 요일 7열 ─────────────────────────── */
 
 export function WeekGrid({
-  date, items, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, onSelectAt, cursor,
+  date, items, paneId = 0, createPreview, creating, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, onSelectAt, cursor,
   dark = false, totals = false, holidaysOf, unavOf, days: onlyDays,
 }: WeekGridProps) {
   const days = onlyDays ?? weekDays(date);
@@ -486,8 +514,9 @@ export function WeekGrid({
               <div key={d} data-week-date={d} className="relative" style={{ height }}>
                 <div className="absolute inset-0">
                   {slots.map((m) => (
-                    <WeekSlot key={m} date={d} slotMin={m} hourLine={(m + SLOT_MIN) % 60 === 0}
+                    <WeekSlot key={m} paneId={paneId} date={d} slotMin={m} hourLine={(m + SLOT_MIN) % 60 === 0}
                       active={cursor?.date === d && cursor.startMin === m}
+                      createPreview={createPreview} creating={creating}
                       onAddAt={interactive ? onAddAt : undefined}
                       onSelectAt={interactive ? onSelectAt : undefined} interactive={interactive} />
                   ))}

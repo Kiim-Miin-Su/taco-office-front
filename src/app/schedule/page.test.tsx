@@ -332,10 +332,10 @@ describe('개인표에서 여는 새 일정 (§10·§11)', () => {
     fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
     const rect = (top: number) => ({ top, height: 28, left: 0, right: 120, width: 120, bottom: top + 28 });
     const create = {
-      active: { id: 'create-test', data: { current: { type: 'create', date: '2026-09-02', startMin: 600 } },
+      active: { id: 'create-test', data: { current: { type: 'create', paneId: 0, date: '2026-09-02', startMin: 600 } },
         rect: { current: { initial: rect(200), translated: rect(284) } } },
       over: { id: 'week-slot-test', disabled: false, rect: rect(284),
-        data: { current: { type: 'weekSlot', date: '2026-09-02', slotMin: 630 } } },
+        data: { current: { type: 'weekSlot', paneId: 0, date: '2026-09-02', slotMin: 630 } } },
       activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: 84 },
     } as unknown as DragEndEvent;
     act(() => mocks.drag!.onDragStart?.({ active: create.active, activatorEvent: create.activatorEvent }));
@@ -918,16 +918,124 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: new MouseEvent('pointerdown', { ctrlKey: copy }) }));
     act(() => mocks.drag!.onDragEnd?.(event));
   };
+  const create = (startMin: number, overMin: number, paneId = 0): DragEndEvent => ({
+    active: { id: 'create-test', data: { current: { type: 'create', paneId, date: '2026-09-01', startMin } },
+      rect: { current: { initial: rect(200), translated: rect(284) } } },
+    over: { id: 'week-slot-test', disabled: false, rect: rect(284),
+      data: { current: { type: 'weekSlot', paneId, date: '2026-09-01', slotMin: overMin } } },
+    activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: 84 },
+  } as unknown as DragEndEvent);
+
+  it.each([
+    ['아래', 600, 690],
+    ['위', 690, 600],
+  ])('빈 슬롯을 %s로 끄는 동안 실제 범위와 끝시각을 보여 주고 drop 초안과 일치시킨다', (_, startMin, overMin) => {
+    const view = render(<SchedulePage />);
+    const event = create(startMin, overMin);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')?.textContent).toContain('10:00–12:00');
+    const selectedSlots = Array.from(view.container.querySelectorAll('[data-create-preview-slot]'));
+    expect(selectedSlots).toHaveLength(4);
+    expect(selectedSlots.map((slot) => slot.getAttribute('aria-label'))).toEqual([
+      '2026-09-01 10:00 빈 시간 선택', '2026-09-01 10:30 빈 시간 선택',
+      '2026-09-01 11:00 빈 시간 선택', '2026-09-01 11:30 빈 시간 선택',
+    ]);
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 600, endMin: 720, roomId: null });
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('분할된 다른 pane의 같은 날짜·열에는 생성 미리보기/초안을 내지 않는다', () => {
+    useWorkspace.setState({ sidebarOpen: true });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    act(() => useWorkspace.setState({ sidebarOpen: false }));
+    const event = create(600, 690);
+    event.over!.data.current = { type: 'weekSlot', paneId: 1, date: '2026-09-01', slotMin: 690 };
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    expect(view.getByText('새 일정은 같은 표·날짜·열 안에서 시간을 드래그해 주세요.')).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('생성 드래그가 격자 밖으로 나가거나 취소되면 범위가 사라지고 초안/POST가 없다', () => {
+    const view = render(<SchedulePage />);
+    const event = create(600, 690);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')).not.toBeNull();
+    const outside = { ...event, over: null };
+    act(() => mocks.drag!.onDragMove?.(outside as never));
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    act(() => mocks.drag!.onDragEnd?.(outside));
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    act(() => mocks.drag!.onDragCancel?.(event));
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('같은 30분 슬롯 안에서 끝나는 드래그도 30분 범위를 미리 보이고 같은 초안을 연다', () => {
+    const view = render(<SchedulePage />);
+    const event = create(600, 600);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')?.textContent).toBe('10:00–10:30');
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(1);
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 600, endMin: 630, roomId: null });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['다른 날짜', { type: 'weekSlot', paneId: 0, date: '2026-09-02', slotMin: 690 }],
+    ['다른 열', { type: 'slot', paneId: 0, date: '2026-09-01', slotMin: 690, colAxis: 'room', colId: 3 }],
+  ])('생성 드래그가 %s를 만나면 범위/초안을 만들지 않는다', (_, target) => {
+    const view = render(<SchedulePage />);
+    const event = create(600, 690);
+    event.over!.data.current = target;
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(view.getByText('새 일정은 같은 표·날짜·열 안에서 시간을 드래그해 주세요.')).toBeTruthy();
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('8시간을 넘는 생성 범위는 미리보기와 초안에서 함께 거절한다', () => {
+    const view = render(<SchedulePage />);
+    const event = create(540, 1020);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(view.getByText('길이는 10분에서 8시간 사이여야 합니다 (§5)')).toBeTruthy();
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
 
   it('빈 주간 슬롯을 아래로 드래그하면 시작·끝을 보존한 새 일정 초안을 연다', () => {
     render(<SchedulePage />);
     const create = {
       active: {
-        id: 'create-test', data: { current: { type: 'create', date: '2026-09-01', startMin: 600 } },
+        id: 'create-test', data: { current: { type: 'create', paneId: 0, date: '2026-09-01', startMin: 600 } },
         rect: { current: { initial: rect(200), translated: rect(284) } },
       },
       over: { id: 'week-slot-test', disabled: false, rect: rect(284),
-        data: { current: { type: 'weekSlot', date: '2026-09-01', slotMin: 690 } } },
+        data: { current: { type: 'weekSlot', paneId: 0, date: '2026-09-01', slotMin: 690 } } },
       activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: 84 },
     } as unknown as DragEndEvent;
     act(() => mocks.drag!.onDragStart?.({ active: create.active, activatorEvent: create.activatorEvent }));
@@ -941,16 +1049,16 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     const create = {
       active: {
         id: 'create-test', data: { current: {
-          type: 'create', date: '2026-09-01', startMin: 600, colAxis: 'room', colId: 1,
+          type: 'create', paneId: 0, date: '2026-09-01', startMin: 600, colAxis: 'room', colId: 1,
         } }, rect: { current: { initial: rect(200), translated: rect(284) } },
       },
       over: { id: 'slot-test', disabled: false, rect: rect(284), data: { current: {
-        type: 'slot', date: '2026-09-01', slotMin: 690, colAxis: 'room', colId: 2,
+        type: 'slot', paneId: 0, date: '2026-09-01', slotMin: 690, colAxis: 'room', colId: 2,
       } } }, activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 100, y: 84 },
     } as unknown as DragEndEvent;
     act(() => mocks.drag!.onDragStart?.({ active: create.active, activatorEvent: create.activatorEvent }));
     act(() => mocks.drag!.onDragEnd?.(create));
-    expect(view.getByText('새 일정은 같은 날짜·같은 열 안에서 시간을 드래그해 주세요.')).toBeTruthy();
+    expect(view.getByText('새 일정은 같은 표·날짜·열 안에서 시간을 드래그해 주세요.')).toBeTruthy();
     expect(mocks.write).not.toHaveBeenCalled();
   });
 

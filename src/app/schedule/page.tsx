@@ -32,7 +32,7 @@ import { CheckSquare, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose,
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, LinkButton, PageHeader, Panel, RecurrenceScope, Segmented } from '@/components/ui';
 import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
-import { DayGrid, MonthGrid, WeekGrid, type DropData, type UnavBand } from '@/components/cal/Grids';
+import { DayGrid, MonthGrid, WeekGrid, type CreatePreview, type DropData, type UnavBand } from '@/components/cal/Grids';
 import { ClipboardBar } from '@/components/cal/ClipboardBar';
 import {
   activeFilterCount, filterScheduleOccurrences, INITIAL_SCHEDULE_FILTERS, ScheduleToolbar, SCHEDULE_VIEWS,
@@ -56,7 +56,7 @@ import { apiMessage, isConflict } from '@/api/client';
 import { useCan, useSession } from '@/store/useSession';
 import { canAccessAppRoute } from '@/components/shell/navigation';
 import {
-  boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, slotStartMin, studentOverlapLines,
+  boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, SLOT_MIN, slotStartMin, studentOverlapLines,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
@@ -115,6 +115,30 @@ interface DropPreview {
   date: string;
   startMin: number;
   endMin: number;
+}
+
+const CREATE_SCOPE_ERROR = '새 일정은 같은 표·날짜·열 안에서 시간을 드래그해 주세요.';
+
+/** 생성 미리보기와 드롭 초안이 같은 슬롯 산수·pane 경계·시간 제약을 쓴다. */
+function createRange(
+  source: Extract<DragData, { type: 'create' }>,
+  over: DragMoveEvent['over'] | DragEndEvent['over'],
+): { preview: CreatePreview | null; issue: string | null } {
+  const target = over?.data.current as DropData | undefined;
+  if (!target || (target.type !== 'slot' && target.type !== 'weekSlot')) return { preview: null, issue: null };
+  const sameColumn = target.type === 'weekSlot'
+    ? source.colAxis === undefined
+    : source.colAxis === target.colAxis && source.colId === target.colId;
+  if (target.paneId !== source.paneId || target.date !== source.date || !sameColumn) {
+    return { preview: null, issue: CREATE_SCOPE_ERROR };
+  }
+  const startMin = Math.min(source.startMin, target.slotMin);
+  const endMin = Math.max(source.startMin, target.slotMin) + SLOT_MIN;
+  const issue = lessonTimeIssue(startMin, endMin);
+  return issue
+    ? { preview: null, issue }
+    : { preview: { paneId: source.paneId, date: source.date, startMin, endMin,
+      colAxis: source.colAxis, colId: source.colId }, issue: null };
 }
 
 /**
@@ -349,6 +373,7 @@ function AdminSchedulePage() {
   const [dragging, setDragging] = useState<Occurrence | null>(null);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [creating, setCreating] = useState<Extract<DragData, { type: 'create' }> | null>(null);
+  const [createPreview, setCreatePreview] = useState<CreatePreview | null>(null);
   const [dragCopy, setDragCopy] = useState(false);
   const dragCopyRef = useRef(false);
   const panesRef = useRef<HTMLDivElement>(null);
@@ -604,6 +629,7 @@ function AdminSchedulePage() {
     if (!d) return;
     if (d.type === 'create') {
       setCreating(d);
+      setCreatePreview(null);
       return;
     }
     if (!s.selected.includes(occurrenceKey(d.occ))) go({ t: 'selected', keys: [occurrenceKey(d.occ)] });
@@ -637,6 +663,11 @@ function AdminSchedulePage() {
 
   const onDragMove = (e: DragMoveEvent) => {
     const d = e.active.data.current as DragData | undefined;
+    if (d?.type === 'create') {
+      setCreatePreview(createRange(d, e.over).preview);
+      setDropPreview(null);
+      return;
+    }
     if (d?.type !== 'move') {
       setDropPreview(null);
       return;
@@ -649,38 +680,29 @@ function AdminSchedulePage() {
     setDragging(null);
     setDropPreview(null);
     setCreating(null);
+    setCreatePreview(null);
     setDragCopy(false);
     const copy = dragCopyRef.current;
     dragCopyRef.current = false;
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
     if (d.type === 'create') {
-      const over = e.over?.data.current as DropData | undefined;
-      if (!over || over.type === 'day') return;
-      const sameColumn = over.date === d.date && (
-        over.type === 'weekSlot'
-          ? d.colAxis === undefined
-          : d.colAxis === over.colAxis && d.colId === over.colId
-      );
-      if (!sameColumn) {
-        setErr('새 일정은 같은 날짜·같은 열 안에서 시간을 드래그해 주세요.');
-        return;
-      }
-      const startMin = Math.min(d.startMin, over.slotMin);
-      const endMin = Math.max(d.startMin, over.slotMin) + 30;
-      const issue = lessonTimeIssue(startMin, endMin);
+      const { preview, issue } = createRange(d, e.over);
       if (issue) {
         setErr(issue);
         return;
       }
+      if (!preview) return;
+      const sourcePane = s.panes[d.paneId];
+      if (!sourcePane) return;
       setErr(null);
       setDraft({
-        date: d.date,
-        startMin,
-        endMin,
+        date: preview.date,
+        startMin: preview.startMin,
+        endMin: preview.endMin,
         roomId: d.colAxis === 'room' ? (d.colId ?? null) : null,
-        // 끌기를 시작한 표가 곧 고른 표다 — 누르는 순간 그 표로 초점이 옮겨 간다 (onPointerDownCapture)
-        ...personDraft(s.panes[s.focused] ?? s.panes[0]),
+        // 출발 pane identity를 쓴다 — drag 중 포커스가 바뀌어도 다른 사람을 초안에 넣지 않는다.
+        ...personDraft(sourcePane),
       });
       return;
     }
@@ -747,6 +769,7 @@ function AdminSchedulePage() {
     setDragging(null);
     setDropPreview(null);
     setCreating(null);
+    setCreatePreview(null);
     setDragCopy(false);
     dragCopyRef.current = false;
   };
@@ -1127,7 +1150,8 @@ function AdminSchedulePage() {
 
     // 원문 §07 캡처 — 일간 기본은 날짜 한 열 + 나란한 lane(상한 셋 · 「+M」), 「세로선 나누기」면 강의실 열 (N-80 · N-74)
     const grids = shown === 'day' && !pane.roomColumns ? (
-      <WeekGrid date={pane.date} days={[pane.date]} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
+      <WeekGrid paneId={paneIndex} createPreview={createPreview} creating={Boolean(creating)}
+        date={pane.date} days={[pane.date]} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
         holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
@@ -1136,7 +1160,8 @@ function AdminSchedulePage() {
         onAddAt={canEdit ? (date, startMin) => openSlot(pane, date, startMin) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })} />
     ) : shown === 'day' ? (
-      <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
+      <DayGrid paneId={paneIndex} createPreview={createPreview} creating={Boolean(creating)}
+        date={pane.date} items={items} columns={columns} colAxis="room"
         columnOf={(occurrence) => occurrence.roomId ?? null}
         subName={subName} kindName={kindName} zaccLabel={zaccLabel} capOf={capOf} person={person} colorOf={blockColor}
         showFree={freeOn && !isPerson} unavOf={unavOf}
@@ -1154,7 +1179,8 @@ function AdminSchedulePage() {
         onSelectDate={canEdit ? (date) => selectSlot(date, 10 * 60) : undefined}
         onAdd={canEdit ? (date) => openSlot(pane, date, 10 * 60) : undefined} />
     ) : (
-      <WeekGrid date={pane.date} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
+      <WeekGrid paneId={paneIndex} createPreview={createPreview} creating={Boolean(creating)}
+        date={pane.date} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
         holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
@@ -1621,7 +1647,9 @@ function AdminSchedulePage() {
         <DragOverlay dropAnimation={null}>
           {creating ? (
             <div className="rounded-md border border-blue bg-blue/10 px-2 py-1 text-[11px] font-bold text-blue shadow-lg">
-              새 일정 · {Math.floor(creating.startMin / 60)}:{String(creating.startMin % 60).padStart(2, '0')}부터
+              새 일정 · {createPreview ? (
+                <span data-create-preview>{hhmm(createPreview.startMin)}–{hhmm(createPreview.endMin)}</span>
+              ) : `${hhmm(creating.startMin)}부터`}
             </div>
           ) : dragging ? (
             <div style={eventColorStyle(colorOf(dragging))}
