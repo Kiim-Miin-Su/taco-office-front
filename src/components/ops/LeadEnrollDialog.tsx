@@ -213,7 +213,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   };
 
   const field = (label: string, children: ReactNode, hint?: string) => (
-    <div><Label hint={hint}>{label}</Label>{children}</div>
+    <div className="min-w-0"><Label hint={hint}>{label}</Label>{children}</div>
   );
 
   return (
@@ -245,12 +245,12 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
               </Select>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
-              <div><Label htmlFor={`${id}-name`}>이름</Label><Input id={`${id}-name`} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} disabled={pending} /></div>
-              <div><Label htmlFor={`${id}-grade`} hint="동명이인을 가릅니다">학년</Label><Input id={`${id}-grade`} value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} disabled={pending} placeholder="예: 고2" /></div>
-              <div><Label htmlFor={`${id}-school`}>학교</Label><Input id={`${id}-school`} value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} disabled={pending} /></div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="min-w-0"><Label htmlFor={`${id}-name`}>이름</Label><Input id={`${id}-name`} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} disabled={pending} /></div>
+              <div className="min-w-0"><Label htmlFor={`${id}-grade`} hint="동명이인을 가릅니다">학년</Label><Input id={`${id}-grade`} value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} disabled={pending} placeholder="예: 고2" /></div>
+              <div className="min-w-0"><Label htmlFor={`${id}-school`}>학교</Label><Input id={`${id}-school`} value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} disabled={pending} /></div>
               {/* N-83 — 선택 칸. 낱말은 서버 코드표(meta.genders), 비워 두면 저장하지 않는다 */}
-              <div>
+              <div className="min-w-0">
                 <Label htmlFor={`${id}-gender`} hint="선택 · 관리자 시간표에만">성별</Label>
                 <Select id={`${id}-gender`} value={gender} onChange={(e) => setGender(e.target.value as '' | Gender['key'])} disabled={pending}>
                   <option value="">고르지 않음</option>
@@ -261,9 +261,9 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
           )}
         </section>
 
-        <div className="grid grid-cols-3 gap-2">
-          <div><Label htmlFor={`${id}-start`} hint="이 날 이후 첫 요일이 첫 수업">시작일</Label><Input id={`${id}-start`} type="date" value={startedOn} onChange={(e) => setStartedOn(e.target.value)} disabled={pending} /></div>
-          <div className="col-span-2"><Label htmlFor={`${id}-memo`}>메모</Label><Input id={`${id}-memo`} value={memo} maxLength={300} onChange={(e) => setMemo(e.target.value)} disabled={pending} placeholder="상담 카드에 남습니다" /></div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="min-w-0"><Label htmlFor={`${id}-start`} hint="이 날 이후 첫 요일이 첫 수업">시작일</Label><Input id={`${id}-start`} type="date" value={startedOn} onChange={(e) => setStartedOn(e.target.value)} disabled={pending} /></div>
+          <div className="min-w-0 sm:col-span-2"><Label htmlFor={`${id}-memo`}>메모</Label><Input id={`${id}-memo`} value={memo} maxLength={300} onChange={(e) => setMemo(e.target.value)} disabled={pending} placeholder="상담 카드에 남습니다" /></div>
         </div>
 
         {/* 배치안 줄 — 줄마다 시간표 규칙 하나 + 등록 한 줄 (+ 교재) */}
@@ -275,7 +275,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 <span className="text-[12px] font-bold text-fg">수업 {i + 1}</span>
                 {lines.length > 1 ? <button type="button" className="text-[11px] text-fg-subtle hover:text-red" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} disabled={pending}>줄 빼기</button> : null}
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {field('종류', (
                   <Select aria-label={`수업 ${i + 1} 종류`} value={l.kindKey} onChange={(e) => patch(l.key, { kindKey: e.target.value })} disabled={pending}>
                     <option value="">고르세요</option>
@@ -296,20 +296,20 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 ))}
                 {field('방식 · 강의실', (
                   <div className="flex gap-1">
-                    <Select aria-label={`수업 ${i + 1} 방식`} value={l.mode} onChange={(e) => patch(l.key, { mode: e.target.value as 'offline' | 'online', ...(e.target.value === 'online' ? { roomId: '' } : {}) })} disabled={pending}>
+                    <Select aria-label={`수업 ${i + 1} 방식`} className="min-w-0 flex-1" value={l.mode} onChange={(e) => patch(l.key, { mode: e.target.value as 'offline' | 'online', ...(e.target.value === 'online' ? { roomId: '' } : {}) })} disabled={pending}>
                       <option value="offline">현장</option><option value="online">온라인</option>
                     </Select>
-                    <Select aria-label={`수업 ${i + 1} 강의실`} value={l.roomId} onChange={(e) => patch(l.key, { roomId: e.target.value })} disabled={pending || l.mode === 'online'}>
+                    <Select aria-label={`수업 ${i + 1} 강의실`} className="min-w-0 flex-1" value={l.roomId} onChange={(e) => patch(l.key, { roomId: e.target.value })} disabled={pending || l.mode === 'online'}>
                       <option value="">—</option>
                       {(meta.data?.rooms ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </Select>
                   </div>
                 ))}
               </div>
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                <div className="col-span-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-2">
+                <div className="min-w-0">
                   <Label hint={l.perWeek ? `배치안 주 ${l.perWeek}회` : '안 고르면 시작일 하루'}>요일</Label>
-                  <div className="mt-1 flex gap-1">
+                  <div className="mt-1 flex flex-wrap gap-1">
                     {KO_DOW.map((d, di) => (
                       <button key={d} type="button" aria-pressed={l.days.includes(di)} aria-label={`수업 ${i + 1} ${d}요일`} onClick={() => toggleDay(l.key, di)} disabled={pending}
                         className={`h-8 w-8 rounded-lg border text-[12px] font-bold transition-colors ${l.days.includes(di) ? 'border-blue bg-blue text-white' : 'border-line text-fg-subtle hover:border-blue'}`}>
@@ -320,15 +320,15 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 </div>
                 {field('*시작 · 끝', (
                   <div>
-                    <div className="flex gap-1">
-                      <Input aria-label={`수업 ${i + 1} 시작`} type="time" step={60} value={l.start}
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                      <Input aria-label={`수업 ${i + 1} 시작`} type="time" step={60} className="min-w-0" value={l.start}
                         onChange={(e) => patch(l.key, { start: e.target.value })} disabled={pending} />
                       <div className="min-w-0 flex-1">
-                        <Input aria-label={`수업 ${i + 1} 끝`} type="time" step={60}
+                        <Input aria-label={`수업 ${i + 1} 끝`} type="time" step={60} className="min-w-0"
                           value={l.end === '24:00' ? '' : l.end} hidden={l.end === '24:00'} tabIndex={l.end === '24:00' ? -1 : undefined}
                           onChange={(e) => patch(l.key, { end: e.target.value })} disabled={pending} />
                         {l.end === '24:00' ? <output role="status" aria-label={`수업 ${i + 1} 끝 시각`}
-                          className="flex h-10 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+                          className="flex h-10 min-w-0 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
                       </div>
                     </div>
                     <div className="mt-1">

@@ -130,6 +130,26 @@ it('UX-13B — 등록 줄의 역순·10분 미만·8시간 초과는 서버 미�
   expect(posted).toHaveLength(0);
 });
 
+it('UX-13B — 등록 모달은 좁은 화면에서 학생·수업 칸을 한 열로 풀고 시각 두 칸도 세로로 쌓는다', async () => {
+  const { view } = setup();
+  const dialog = await view.findByRole('dialog');
+  const studentGrid = within(dialog).getByRole('region', { name: '학생' }).querySelector('div.grid');
+  const startDateGrid = within(dialog).getByLabelText('시작일').parentElement?.parentElement;
+  const lessonGrid = within(dialog).getByLabelText('수업 1 종류').closest('div.grid');
+  const lessonLowerGrid = within(dialog).getByRole('button', { name: '수업 1 월요일' }).closest('div.grid');
+  const timeGrid = within(dialog).getByLabelText('수업 1 시작').parentElement;
+  expect(studentGrid?.classList.contains('grid-cols-1')).toBe(true);
+  expect(studentGrid?.classList.contains('lg:grid-cols-3')).toBe(true);
+  expect(startDateGrid?.classList.contains('grid-cols-1')).toBe(true);
+  expect(startDateGrid?.classList.contains('sm:grid-cols-3')).toBe(true);
+  expect(lessonGrid?.classList.contains('grid-cols-1')).toBe(true);
+  expect(lessonGrid?.classList.contains('lg:grid-cols-4')).toBe(true);
+  expect(lessonLowerGrid?.classList.contains('grid-cols-1')).toBe(true);
+  expect(lessonLowerGrid?.classList.contains('lg:grid-cols-2')).toBe(true);
+  expect(timeGrid?.classList.contains('grid-cols-1')).toBe(true);
+  expect(timeGrid?.classList.contains('sm:grid-cols-2')).toBe(true);
+});
+
 it('온라인으로 바꾸면 이전 강의실을 비우고 미리보기 본문에도 실지 않는다 (UX-09)', async () => {
   const { view } = setup();
   const dialog = await fillOneLine(view);
