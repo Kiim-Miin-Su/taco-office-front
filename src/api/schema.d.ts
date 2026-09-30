@@ -409,7 +409,7 @@ export interface paths {
         };
         /**
          * 겹침 미리보기 — 무엇과·누구와 겹치는가
-         * @description 막는 것은 ser_occ 의 EXCLUDE 이고 이 응답은 설명이다. 비어 있어도 저장을 건너뛰지 않는다. 강사·강의실·줌 중 준 자원만 본다 — 하나도 주지 않으면 빈 배열이다. freeLine 은 그 시각 비어 있는 강의실·줌 계정 이름 한 줄(각 최대 셋 · N-70)이다 — 누를 수 없고 미리 잡지 않는다.
+         * @description 막는 것은 ser_occ 의 EXCLUDE 이고 이 응답은 설명이다. 비어 있어도 저장을 건너뛰지 않는다. 강사·강의실·줌 중 준 자원만 본다 — 하나도 주지 않으면 빈 배열이다. freeLine 은 그 시각 비어 있는 강의실·줌 계정 이름 한 줄(각 최대 셋 · N-70)이다 — 누를 수 없고 미리 잡지 않는다. altTimes 는 물은 자원이 date · alsoDates 모두에서 비는 같은 길이의 다른 시각(가까운 순 최대 셋 · A-06)이다 — 미리 잡지 않는다.
          */
         get: operations["ScheduleController_conflicts"];
         put?: never;
@@ -611,7 +611,7 @@ export interface paths {
         head?: never;
         /**
          * 수업 고치기 — scope 로 이번만·향후·모두를 가른다 (D-R16)
-         * @description 같은 SER의 쓰기는 부모 행 잠금 획득 순서로 처리하며 최신 저장값으로 부분 변경을 검증한다. 생략한 필드는 보존하고 this의 null 시간·날짜는 원본 상속으로 되돌린다. SER/EXC 저장과 회차 투영은 한 transaction이다. 버전 충돌 검출/멱등 키 계약은 제공하지 않는다.
+         * @description 같은 SER의 쓰기는 부모 행 잠금 획득 순서로 처리하며 최신 저장값으로 부분 변경을 검증한다. 생략한 필드는 보존하고 this의 null 시간·날짜는 원본 상속으로 되돌린다. SER/EXC 저장과 회차 투영은 한 transaction이다. 막는 버전 충돌 검출/멱등 키 계약은 제공하지 않는다 — 나중 저장이 반영된다. readVersion(목록의 version)을 주면 그 뒤 다른 사람이 같은 수업을 고친 마지막 기록을 overwrote 로 알려 준다(N-142).
          */
         patch: operations["ScheduleController_patch"];
         trace?: never;
@@ -2516,6 +2516,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/books/{id}/holders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 기존 배부자 — 새 판을 올린 자리가 읽는다 (E-53)
+         * @description 끝나지 않은 배부(승인 대기 · 전달 대기 · 배부 완료)만, 학생 이름순. 판은 학생이 받은 판이다(배부는 받은 판에 묶인다). 서가의 지금 판 · 가장 나중 판을 함께 준다 — 교체는 판 단추(PATCH versions/:id/use)다.
+         */
+        get: operations["BooksController_holders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/books/versions/{id}/use": {
         parameters: {
             query?: never;
@@ -2659,6 +2679,30 @@ export interface paths {
          */
         put: operations["GuidesController_writeBody"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guides/{id}/class-diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 반 진단 — 안내 작성 창의 학생별 진단 탭 (F-60 「진단 입력 탭이 인원수만큼」)
+         * @description 안내의 학생과 같은 반(같은 규칙 · 같은 날 · 같은 사유의 안내) 학생마다 최신 진단(DIAG) 한 줄 · 안내의 학생이 먼저 · 나머지는 이름 차례.
+         */
+        get: operations["GuidesController_classDiagnostics"];
+        put?: never;
+        /**
+         * 반 진단 쓰기 — 탭마다 적은 진단을 한 번에 (F-60 · F-61 · 사용자 결정 2026-09-30 「탭에서 관리자도 입력」)
+         * @description C61(「진단 리포트 작성 — 강사 가능 · 나머지 조회」)을 안내 작성 창에서 넓힌다 — 안내를 쓰는 사람(canAdminPage + canCrudAll)이 그 반 학생의 진단을 적는다. 강사 진단과 같은 표(DIAG · 쌓고 · 읽기는 늘 최신)다. 반 밖 학생이 하나라도 있으면 400 GUIDE_DIAG_NOT_CLASS · 현재 수준이 비면 409 EMPTY_BODY — 아무것도 쓰지 않는다.
+         */
+        post: operations["GuidesController_writeClassDiagnostics"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4661,6 +4705,8 @@ export interface components {
             from: string;
             /** @example 2026-08-30 */
             to: string;
+            /** @description 이 목록을 읽기 **직전**의 변경 기록 번호(LOG 의 마지막 id) — 수정(PATCH)에 readVersion 으로 돌려주면 그 뒤 남이 같은 수업을 고쳤는지 서버가 알려 준다(N-142 · overwrote). 막지 않는다 — 나중 저장이 반영된다 */
+            version: number;
             items: components["schemas"]["OccurrenceDto"][];
         };
         HolidayDto: {
@@ -4883,11 +4929,17 @@ export interface components {
             /** @description 누구와 겹치는가 — 이름을 보여 준다 */
             whoName?: string | null;
         };
+        AltTimeDto: {
+            startMin: number;
+            endMin: number;
+        };
         ConflictPreviewDto: {
             /** @description 비어 있어도 **저장을 건너뛰지 않는다** — 그 사이에 남이 그 자리를 잡을 수 있다 */
             conflicts: components["schemas"]["ConflictRowDto"][];
             /** @description 그 시각 비어 있는 강의실 · 줌 계정 이름 한 줄(각 최대 셋 · N-70). 물은 자원 종류(roomId · zaccId)만 적고, 없으면 null. 누를 수 없고 미리 잡지 않는다 — 다시 저장해야 하며 그 사이 남이 잡을 수 있다 */
             freeLine: string | null;
+            /** @description 물은 자원(강사 · 강의실 · 줌)이 date 와 alsoDates 모두에서 비어 있는 같은 길이의 다른 시각 — 가까운 순서 최대 셋 · 09:00~22:00 · 30분 간격 · 강사의 날짜 있는 불가 시간은 피한다(A-06). 미리 잡지 않는다 — 다시 저장해야 하며 그 사이 남이 잡을 수 있다 */
+            altTimes: components["schemas"]["AltTimeDto"][];
         };
         HorizonDto: {
             /** @description 펼쳐 둔 기간의 시작 */
@@ -4961,6 +5013,15 @@ export interface components {
             /** @description 상대 수업 끝 (KST 분 · 24:00 = 1440) */
             otherEndMin: number;
         };
+        OverwroteDto: {
+            /** @description 고친 사람 이름 — 없는 계정이면 null */
+            byName: string | null;
+            /**
+             * Format: date-time
+             * @description 고친 때 (KST 오프셋)
+             */
+            at: string;
+        };
         WriteResultDto: {
             /** @description 실제로 적용된 범위 — 「향후」가 「모두」로 강등되면 여기서 드러난다 (D-R17) */
             effScope: string;
@@ -4981,6 +5042,8 @@ export interface components {
             unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 같은 학생이 같은 시각 다른 수업에도 있는 회차 — **막지 않고 알린다** (N-58). 만들기 · 수정 · 이동 · 붙여넣기 · 명단 넣기만 싣고 나머지 쓰기는 빈 배열이다. 오늘 이후 · 취소 아닌 것만, 최대 10줄 */
             studentOverlaps: components["schemas"]["StudentOverlapDto"][];
+            /** @description 수정(PATCH)에 readVersion 을 줬고, 그 뒤 **다른 사람이** 같은 수업을 고친 기록이 있으면 그 마지막 한 건 — 이 저장이 그 내용을 덮어썼다(N-142 「나중 저장이 반영된다 · 충돌 시 안내」). 다른 쓰기와 readVersion 없는 수정은 null */
+            overwrote?: components["schemas"]["OverwroteDto"] | null;
         };
         OccurrenceRefDto: {
             serId: number;
@@ -5065,6 +5128,8 @@ export interface components {
             unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 같은 학생이 같은 시각 다른 수업에도 있는 회차 — **막지 않고 알린다** (N-58). 만들기 · 수정 · 이동 · 붙여넣기 · 명단 넣기만 싣고 나머지 쓰기는 빈 배열이다. 오늘 이후 · 취소 아닌 것만, 최대 10줄 */
             studentOverlaps: components["schemas"]["StudentOverlapDto"][];
+            /** @description 수정(PATCH)에 readVersion 을 줬고, 그 뒤 **다른 사람이** 같은 수업을 고친 기록이 있으면 그 마지막 한 건 — 이 저장이 그 내용을 덮어썼다(N-142 「나중 저장이 반영된다 · 충돌 시 안내」). 다른 쓰기와 readVersion 없는 수정은 null */
+            overwrote?: components["schemas"]["OverwroteDto"] | null;
             /** @description 이번에 휴강 처리한 회차 수 */
             count: number;
             /** @description 이미 휴강이라 건너뛴 회차 수 */
@@ -5113,6 +5178,8 @@ export interface components {
             token: string;
         };
         OccurrencePatchDto: {
+            /** @description 화면이 읽은 목록의 version(N-142). 주면 그 뒤 **다른 사람이** 같은 수업을 고친 기록이 있는지 보고 결과의 overwrote 에 싣는다. 막지 않는다 — 나중 저장이 반영되고, 덮어쓴 사실만 알린다. 안 주면 보지 않는다 */
+            readVersion?: number;
             /**
              * @description 이번만 · 향후 · 모두 (D-R16). 첫 회차의 future 는 all 로 강등된다 (D-R17)
              * @enum {string}
@@ -5220,6 +5287,8 @@ export interface components {
             unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 같은 학생이 같은 시각 다른 수업에도 있는 회차 — **막지 않고 알린다** (N-58). 만들기 · 수정 · 이동 · 붙여넣기 · 명단 넣기만 싣고 나머지 쓰기는 빈 배열이다. 오늘 이후 · 취소 아닌 것만, 최대 10줄 */
             studentOverlaps: components["schemas"]["StudentOverlapDto"][];
+            /** @description 수정(PATCH)에 readVersion 을 줬고, 그 뒤 **다른 사람이** 같은 수업을 고친 기록이 있으면 그 마지막 한 건 — 이 저장이 그 내용을 덮어썼다(N-142 「나중 저장이 반영된다 · 충돌 시 안내」). 다른 쓰기와 readVersion 없는 수정은 null */
+            overwrote?: components["schemas"]["OverwroteDto"] | null;
             /** @description 그 회차의 변경 후 실제 인원 */
             count: number;
             /** @description KIND.cap — 정원 */
@@ -5834,6 +5903,24 @@ export interface components {
             /** @description 그 분류로 들어온 돈 */
             amount?: number | null;
         };
+        InvoiceFamilyStudentDto: {
+            studentId: number;
+            name: string;
+        };
+        InvoiceFamilyDto: {
+            /** @description 묶음 열쇠 — 「가장 작은 학생 번호:청구 달」 */
+            key: string;
+            /** @example 2026-10 */
+            yearMonth: string;
+            /** @description 이름 차례 */
+            students: components["schemas"]["InvoiceFamilyStudentDto"][];
+            /** @description 합친 청구서(취소 뺀) — 청구서는 각각 그대로다 */
+            invoiceIds: number[];
+            /** @description 청구 합계 — 금액을 볼 수 없는 줄이 하나라도 있으면 null(0 을 짓지 않는다) */
+            amount: number | null;
+            /** @description 받은 돈 합계 — 같은 규칙 */
+            paidAmount: number | null;
+        };
         AccountingDto: {
             summary: components["schemas"]["MoneySummaryDto"];
             invoices: components["schemas"]["InvoiceDto"][];
@@ -5847,6 +5934,8 @@ export interface components {
             expenseCategories: components["schemas"]["ExpenseCategoryDto"][];
             /** @description §55 분류 칩 여섯 — **건수가 0이어도 선다**(분류는 어휘이지 데이터가 아니다). 화면이 세지 않는다 (D-R37) */
             payCategories: components["schemas"]["PayCategoryDto"][];
+            /** @description A-13 형제 합산 보기 — 같은 달 · 같은 보호자 연락처(lib/family)로 묶인 둘 이상 학생의 청구서 묶음 · 합계는 서버가 낸다. 없으면 빈 배열 */
+            families: components["schemas"]["InvoiceFamilyDto"][];
         };
         TuitionRowDto: {
             studentId: number;
@@ -8791,6 +8880,27 @@ export interface components {
             /** @description 지금 쓰는 판인가 — 판단은 서버가 한다 */
             inUse: boolean;
         };
+        BookHolderDto: {
+            issueId: number;
+            studentId: number;
+            studentName: string;
+            /** @description 그 학생이 받은 판 — 배부는 받은 판에 묶인다(서가의 지금 판이 바뀌어도 그대로) */
+            edition?: string | null;
+            /** @enum {string} */
+            state: "wait" | "auto" | "ok";
+            stateLabel: string;
+            /** Format: date */
+            issuedOn?: string | null;
+        };
+        BookHoldersDto: {
+            libId: number;
+            title: string;
+            /** @description 서가의 지금 판 */
+            edition?: string | null;
+            /** @description 가장 나중 판 — 지금 판과 다르면 서가 카드의 판 단추로 바꿀 수 있다 */
+            latestEdition?: string | null;
+            items: components["schemas"]["BookHolderDto"][];
+        };
         GuideLadderStepDto: {
             /** @enum {string} */
             key: "day" | "h6" | "h3";
@@ -9158,6 +9268,28 @@ export interface components {
             /** @description 「관리자 코멘트 · 강사만」 — 강사에게만 보인다(학부모 발송 본문·안내문 PNG 에 싣지 않는다). 안 보내면 그대로, 빈 글자·null 은 비운다 */
             adminNote?: string | null;
         };
+        GuideClassDiagDto: {
+            guideId: number;
+            studentId: number;
+            studentName?: string | null;
+            diagnostic?: components["schemas"]["GuideDiagnosticDto"] | null;
+        };
+        GuideClassDiagListDto: {
+            /** @description 안내의 학생이 먼저 · 나머지는 이름 차례 */
+            items: components["schemas"]["GuideClassDiagDto"][];
+        };
+        GuideClassDiagWriteItemDto: {
+            studentId: number;
+            /** @description 현재 수준 — 비면 409 EMPTY_BODY */
+            levelSummary: string;
+            strengths?: string;
+            weaknesses?: string;
+            curriculum?: string;
+        };
+        GuideClassDiagWriteDto: {
+            /** @description 같은 반 학생만 — 반 밖 학생이 하나라도 있으면 400 · 아무것도 쓰지 않는다 */
+            items: components["schemas"]["GuideClassDiagWriteItemDto"][];
+        };
         GuideCopyDto: {
             /** @description 받을 형제 안내 id — 같은 규칙·같은 날·같은 사유의 다른 학생 안내만. 하나라도 형제가 아니면 400 GUIDE_COPY_NOT_SIBLING */
             targetIds?: number[];
@@ -9508,6 +9640,15 @@ export interface components {
             doneAt?: string | null;
             /** @description template(§29 기본 항목) | manual(원문 §31 「항목 수정」으로 담당이 더한 것 · N-18-a) */
             source: string;
+            /**
+             * Format: date
+             * @description 기한 — 없으면 null
+             */
+            dueOn?: string | null;
+            /** @description 「D-3」 · 「D-day」 · 「D+2」 — 기한 없음 · 끝낸 항목은 null */
+            dueLabel?: string | null;
+            /** @description 기한이 지났고 아직 안 끝냈다 */
+            dueOverdue: boolean;
             /** @description 항목 파일 — 항목마다 최대 6개 · 계약 파일 10개와 따로 센다(N-63). role 은 item */
             files: components["schemas"]["ConsultingFileDto"][];
             /** @description 「파일」로 더 올릴 수 있는가 — 종료 전 · 6개 미만 */
@@ -9609,16 +9750,31 @@ export interface components {
             label: string;
             /** @description 필수 — 켜면 끝내야 종료할 수 있다(N-18) */
             required: boolean;
+            /**
+             * Format: date
+             * @description 기한 — 비우면 기한 없음 (I-94)
+             */
+            dueOn?: string | null;
         };
         ConsItemRenameDto: {
             id: number;
             label: string;
+        };
+        ConsItemDueDto: {
+            id: number;
+            /**
+             * Format: date
+             * @description null 이면 기한을 지운다
+             */
+            dueOn: string | null;
         };
         ConsItemsEditDto: {
             add?: components["schemas"]["ConsItemAddDto"][];
             rename?: components["schemas"]["ConsItemRenameDto"][];
             /** @description 뺄 항목 id */
             remove?: number[];
+            /** @description 기한을 적거나 지울 항목 — 끝낸 항목은 이름처럼 바꾸지 않는다 (I-94) */
+            due?: components["schemas"]["ConsItemDueDto"][];
         };
         ConsultingFileCreateDto: {
             name: string;
@@ -9787,6 +9943,12 @@ export interface components {
             done: boolean;
             todoId: number | null;
         };
+        ConsSessionBusyDto: {
+            /** Format: date */
+            date: string;
+            /** @description 겹치는 일정 — 「15:00–16:00 수업 이름」 (시각 순) */
+            lines: string[];
+        };
         ConsSessionsResultDto: {
             /** @description true 면 아무것도 쓰지 않았다 */
             preview: boolean;
@@ -9810,6 +9972,8 @@ export interface components {
             unavailable: components["schemas"]["UnavWarnDto"][];
             /** @description 담당에게 알림을 보냈는가 (돌린 사람 본인이면 false) */
             notified: boolean;
+            /** @description I-91 「겹침 검사가 먼저 돈다 · 담당자가 그 시간에 다른 일정 있으면 주황 점」 — **미리보기만** 거절 대신 날짜마다 알리고 그 날짜는 rows 에서 뺀다. 확정(쓰기)은 여전히 EXCLUDE 가 409 로 막으므로 늘 빈 배열이다 */
+            busy: components["schemas"]["ConsSessionBusyDto"][];
         };
         ConsSessionWriteDto: {
             /** @description 누가 — 비우면 서버가 잡을 때 적은 「담당 · 학생」이 남는다 */
@@ -11060,7 +11224,7 @@ export interface components {
         };
         ApprovalFlowTileDto: {
             /** @enum {string} */
-            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack" | "expense";
             kindLabel: string;
             /** @enum {string} */
             to: "ceo" | "head";
@@ -11071,7 +11235,7 @@ export interface components {
         };
         ApprovalFlowItemDto: {
             /** @enum {string} */
-            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack";
+            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack" | "expense";
             /** @description 원문 타일·행의 공통 종류 이름 */
             kindLabel: string;
             id: number;
@@ -11677,11 +11841,20 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        GuardianSiblingDto: {
+            studentId: number;
+            studentName: string;
+            grade?: string | null;
+            /** @description 이 학생 쪽에서 그 연락처를 가진 보호자 이름 — 누구로 묶였나 */
+            via: string;
+        };
         GuardianListDto: {
             studentId: number;
             studentName: string;
             /** @description 사용 중인 보호자가 먼저(대표 → 이름), 사용 중지는 뒤 */
             guardians: components["schemas"]["GuardianDto"][];
+            /** @description A-13 「학부모 연락처로 묶여 보인다」 — 사용 중인 보호자의 휴대폰 · 이메일이 같은 다른 학생(한 단계) · 이름 차례. 없으면 빈 배열 */
+            siblings: components["schemas"]["GuardianSiblingDto"][];
         };
         GuardianCreateDto: {
             name: string;
@@ -13446,6 +13619,8 @@ export interface operations {
                 zaccId?: number;
                 /** @description 자기 자신과는 겹치지 않는다 — 옮기는 회차의 SER */
                 exceptSerId?: number;
+                /** @description 다른 시간 제안(altTimes)이 **함께 비어야 하는** 날짜 — 매주 월·수 규칙이면 첫 수를 준다(A-06). 겹침 목록(conflicts)은 여전히 date 하나만 본다. 같은 키를 되풀이해 보낸다(alsoDates=…&alsoDates=…) */
+                alsoDates?: string[];
             };
             header?: never;
             path?: never;
@@ -22520,6 +22695,79 @@ export interface operations {
             };
         };
     };
+    BooksController_holders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookHoldersDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 교재 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     BooksController_useVersion: {
         parameters: {
             query?: never;
@@ -23170,6 +23418,152 @@ export interface operations {
                 content?: never;
             };
             /** @description code GUIDE_ALREADY_SENT — 이미 보낸 안내는 고치지 않는다 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuidesController_classDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideClassDiagListDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 안내 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    GuidesController_writeClassDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuideClassDiagWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuideClassDiagListDto"];
+                };
+            };
+            /** @description code GUIDE_DIAG_NOT_CLASS */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 안내 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description code EMPTY_BODY */
             409: {
                 headers: {
                     [name: string]: unknown;

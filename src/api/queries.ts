@@ -11,7 +11,7 @@
  * 그 행이 API 로 내려오고, 화면은 그것만 본다. 운영 데이터로 바뀌어도
  * 이 파일도 화면도 한 줄 안 바뀐다.
  */
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
 import { api, ApiError } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
@@ -34,7 +34,7 @@ import type {
   Books,
   BookShelfQuery,
   BookTracking,
-  BookVersion,
+  BookHolders, BookVersion,
   BookVersionCreate,
   BookWrite,
   CarryRow,
@@ -85,7 +85,7 @@ import type {
   GpaUseCreate,
   Guide,
   GuideBody,
-  GuideCopyResult,
+  GuideClassDiagList, GuideClassDiagWrite, GuideCopyResult,
   GuideDraftCreate,
   GuideHistory,
   GuideHistoryQuery,
@@ -1338,6 +1338,19 @@ export function useAddBookVersion(): UseMutationResult<BookVersion, unknown, { l
   });
 }
 
+/**
+ * E-53 기존 배부자 — 판 올리기 창을 열 때만 읽는다. 받은 판 · 상태 낱말은 서버 것 그대로(`GET /books/:id/holders`).
+ * 키가 `books` 갈래 아래라 판 올리기 · 판 바꾸기 · 배부 쓰기의 무효화(useBooksInvalidate)가 함께 버린다.
+ */
+export function useBookHolders(libId: number, enabled = true): UseQueryResult<BookHolders> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey([...qk.books, 'holders', libId] as const, viewerId),
+    queryFn: async () => (await api.get<BookHolders>(`/books/${libId}/holders`)).data,
+    enabled,
+  });
+}
+
 /** 「판 버튼을 눌러 바꿉니다」 — 오늘부터 이 판을 쓴다 */
 export function useUseBookVersion(): UseMutationResult<BookVersion, unknown, number> {
   const invalidate = useBooksInvalidate();
@@ -1435,6 +1448,28 @@ export function useWriteGuideBody(): UseMutationResult<Guide, unknown, { id: num
  * §43 「나머지 학생에게 복사」 — F-61.
  * 머리말을 받는 학생 것으로 갈아 끼우는 일도, 어떤 형제를 건너뛸지도 서버가 정한다.
  */
+/**
+ * F-60 「진단 입력 탭이 인원수만큼」 — 안내의 반 학생마다 최신 진단(DIAG). 작성 창을 열 때만 읽는다.
+ * 키가 `guides` 갈래 아래라 쓰기 뒤 useGuidesInvalidate 가 함께 버린다.
+ */
+export function useGuideClassDiagnostics(guideId: number, enabled = true): UseQueryResult<GuideClassDiagList> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey([...qk.guides, 'class-diagnostics', guideId] as const, viewerId),
+    queryFn: async () => (await api.get<GuideClassDiagList>(`/guides/${guideId}/class-diagnostics`)).data,
+    enabled,
+  });
+}
+
+/** F-60 · F-61 반 진단 쓰기 — 탭마다 적은 진단을 한 번에(사용자 결정 2026-09-30 「탭에서 관리자도 입력」) */
+export function useWriteGuideClassDiagnostics(): UseMutationResult<GuideClassDiagList, unknown, { id: number } & GuideClassDiagWrite> {
+  const invalidate = useGuidesInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.post<GuideClassDiagList>(`/guides/${id}/class-diagnostics`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
 export function useCopyGuide(): UseMutationResult<GuideCopyResult, unknown, { id: number; targetIds?: number[] }> {
   const invalidate = useGuidesInvalidate();
   return useMutation({
@@ -1792,20 +1827,25 @@ export function useExec(p: ExecQuery): UseQueryResult<Exec> {
 export type ConflictProbe = {
   date: string; startMin: number; endMin: number;
   teacherId?: number | null; roomId?: number | null; zaccId?: number | null; exceptSerId?: number | null;
+  /** 다른 시간 제안(`altTimes`)이 함께 비어야 하는 날짜 — 매주 월·수면 첫 수 (A-06). 겹침 목록은 `date` 하나만 본다 */
+  alsoDates?: string[];
 };
 
 /**
- * 같은 질의의 온전한 응답 — 누구와 부딪혔는지 + 그 시각 비어 있는 강의실·줌 계정 한 줄(`freeLine` · N-70).
- * 빈 자원 줄은 서버 문장이고 누를 수 없다(미리 잡지 않는다). 없으면 null.
+ * 같은 질의의 온전한 응답 — 누구와 부딪혔는지 + 그 시각 비어 있는 강의실·줌 계정 한 줄(`freeLine` · N-70)
+ * + 물은 자원이 모든 날짜에서 비는 같은 길이의 다른 시각(`altTimes` · A-06). 둘 다 서버 계산이고 미리 잡지 않는다.
+ * 날짜 여럿은 같은 키를 되풀이해 보낸다(`alsoDates=…&alsoDates=…`) — axios 기본 배열 모양(`alsoDates[]`)을 쓰지 않는다.
  */
 export async function fetchConflictPreview(q: ConflictProbe): Promise<ConflictPreview> {
-  const params: Record<string, string | number> = { date: q.date, startMin: q.startMin, endMin: q.endMin };
+  const params: Record<string, string | number | string[]> = { date: q.date, startMin: q.startMin, endMin: q.endMin };
   if (q.teacherId) params.teacherId = q.teacherId;
   if (q.roomId) params.roomId = q.roomId;
   if (q.zaccId) params.zaccId = q.zaccId;
   if (q.exceptSerId) params.exceptSerId = q.exceptSerId;
-  const res = await api.get<ConflictPreview>('/schedule/conflicts', { params });
-  return { conflicts: res.data.conflicts, freeLine: res.data.freeLine ?? null };
+  if (q.alsoDates?.length) params.alsoDates = q.alsoDates;
+  // A-06 — 다른 날짜는 `alsoDates=…&alsoDates=…` 로 되풀이한다(대괄호 없이 · 서버 DTO 가 배열로 읽는다)
+  const res = await api.get<ConflictPreview>('/schedule/conflicts', { params, paramsSerializer: { indexes: null } });
+  return { conflicts: res.data.conflicts, freeLine: res.data.freeLine ?? null, altTimes: res.data.altTimes ?? [] };
 }
 
 export async function fetchConflicts(q: ConflictProbe): Promise<ConflictRow[]> {
@@ -1939,6 +1979,21 @@ export type ScheduleWrite =
   | { kind: 'dayCancel'; body: DayCancel }
   | { kind: 'roster'; serId: number; body: RosterPatch };
 
+/**
+ * N-142 — 수정이 싣는 readVersion. **화면이 보고 있는**(관찰 중인) 회차 목록 가운데 그 수업이 든 것의 version(서버가 목록을 읽기
+ * 직전의 기록 번호)이다. 여럿이면 가장 최근에 읽은 것(큰 번호). 목록에 그 수업이 없으면 싣지 않는다 — 모르는 번호를 짓지 않는다.
+ * 막는 값이 아니다 — 서버는 그 뒤 남이 같은 수업을 고쳤으면 결과의 overwrote 로 알려 줄 뿐이다.
+ */
+function scheduleReadVersion(qc: QueryClient, serId: number): number | undefined {
+  let best: number | undefined;
+  for (const query of qc.getQueryCache().findAll({ queryKey: family.occurrences, type: 'active' })) {
+    const list = query.state.data as OccurrenceList | undefined;
+    if (typeof list?.version !== 'number' || !list.items?.some((o) => o.serId === serId)) continue;
+    if (best === undefined || list.version > best) best = list.version;
+  }
+  return best;
+}
+
 export function useScheduleWrite(): UseMutationResult<
   WriteResult | RosterResult | DayCancelResult,
   unknown,
@@ -1980,7 +2035,11 @@ export function useScheduleWrite(): UseMutationResult<
       if (w.kind === 'moveMany') return (await api.post<WriteResult>('/schedule/move', w.body)).data;
       if (w.kind === 'undo') return (await api.post<WriteResult>('/schedule/undo', w.body)).data;
       if (w.kind === 'dayCancel') return (await api.post<DayCancelResult>('/schedule/day-cancel', w.body)).data;
-      if (w.kind === 'patch') return (await api.patch<WriteResult>(`/schedule/${w.serId}`, w.body)).data;
+      if (w.kind === 'patch') {
+        const readVersion = w.body.readVersion ?? scheduleReadVersion(qc, w.serId);
+        const body = readVersion === undefined ? w.body : { ...w.body, readVersion };
+        return (await api.patch<WriteResult>(`/schedule/${w.serId}`, body)).data;
+      }
       if (w.kind === 'roster') return (await api.patch<RosterResult>(`/schedule/${w.serId}/roster`, w.body)).data;
       return (await api.delete<WriteResult>(`/schedule/${w.serId}`, { data: w.body })).data;
     },

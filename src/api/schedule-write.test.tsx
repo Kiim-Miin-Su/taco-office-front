@@ -14,7 +14,7 @@ import { clearSessionQueries } from './session-cache';
 
 const range = { from: '2026-09-11', to: '2026-09-11' };
 const key = qk.occurrences(range);
-const original: OccurrenceList = { ...range, items: [{
+const original: OccurrenceList = { ...range, version: 41, items: [{
   serId: 1, date: range.from, onDate: range.from, startMin: 600, endMin: 660,
   kindKey: 'meeting', title: '회귀', mode: 'offline', canceled: false, hasException: false,
   recurring: true, repState: 'plan', ended: false, written: false, extra: false, attendanceMode: 'unavailable', attendance: null, students: [],
@@ -53,6 +53,32 @@ it.each(['NOT_FOUND', 'OCCURRENCE_NOT_FOUND', 'SOURCE_NOT_FOUND'])('%s404는 낙
     ['schedule', 'occurrences'], ['board'], qk.horizon, ['schedule', 'history'], ['schedule', 'series-counts'], ['schedule', 'tracking'],
     ['accounting'], ['schedule', 'day-cancel-notices'],
   ]);
+});
+
+/**
+ * N-142 「나중 저장이 반영된다 · 충돌 시 안내」 — 수정(patch)은 **화면이 보고 있는** 회차 목록의 version 을 readVersion 으로 싣는다.
+ * 막지 않는다 — 서버는 그 뒤 남이 같은 수업을 고쳤으면 결과의 overwrote 로 알려 줄 뿐이다. 부른 쪽이 준 값은 그대로 둔다.
+ */
+it('수정은 보고 있는 회차 목록의 version 을 readVersion 으로 싣는다 · 부른 쪽이 준 값은 그대로 (N-142)', async () => {
+  const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { effScope: 'this', log: [], projected: 1, serIds: [1], overwrote: null } });
+  vi.spyOn(api, 'get').mockResolvedValue({ data: original });
+  const view = renderHook(() => {
+    useQuery({ queryKey: key, queryFn: async () => (await api.get<OccurrenceList>('/schedule/occurrences', { params: range })).data });
+    return useScheduleWrite();
+  }, { wrapper });
+  await act(async () => {
+    await view.result.current.mutateAsync({ kind: 'patch', serId: 1, body: { scope: 'this', onDate: range.from, startMin: 610 } });
+  });
+  expect(patch.mock.calls[0]![1]).toMatchObject({ readVersion: 41, startMin: 610 });
+  await act(async () => {
+    await view.result.current.mutateAsync({ kind: 'patch', serId: 1, body: { scope: 'this', onDate: range.from, startMin: 620, readVersion: 7 } });
+  });
+  expect(patch.mock.calls[1]![1]).toMatchObject({ readVersion: 7 });
+  // 목록에 없는 수업이면 싣지 않는다 — 모르는 번호를 짓지 않는다
+  await act(async () => {
+    await view.result.current.mutateAsync({ kind: 'patch', serId: 99, body: { scope: 'this', onDate: range.from, startMin: 620 } });
+  });
+  expect(patch.mock.calls[2]![1]).not.toHaveProperty('readVersion');
 });
 
 it.each([

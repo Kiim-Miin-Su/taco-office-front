@@ -388,6 +388,8 @@ export type ConsultingSession = S['ConsultingSessionDto'];
 /** 교재 */
 export type Books = S['BooksDto'];
 export type BookVersion = S['BookVersionDto'];
+/** E-53 새 판을 올린 자리의 기존 배부자 */
+export type BookHolders = S['BookHoldersDto'];
 export type BookVersionCreate = S['BookVersionCreateDto'];
 export type BookHistoryRow = S['BookHistoryRowDto'];
 export type BookHistory = S['BookHistoryDto'];
@@ -437,6 +439,9 @@ export type GuideBody = S['GuideBodyDto'];
 export type GuideAutoFill = S['GuideAutoFillDto'];
 export type GuideFact = S['GuideFactDto'];
 export type GuideCopyResult = S['GuideCopyResultDto'];
+/** F-60 · F-61 — 안내 작성 창의 학생별 진단 탭(반 진단) */
+export type GuideClassDiagList = S['GuideClassDiagListDto'];
+export type GuideClassDiagWrite = S['GuideClassDiagWriteDto'];
 export type ZoomNoticeWrite = S['ZoomNoticeWriteDto'];
 export type ZoomNoticeResult = S['ZoomNoticeResultDto'];
 /** wave 6 §43-6 — 「강사 N명 한 번에」 일괄 줌 안내 (N·막힌 이유·결과 줄은 서버가 준다) */
