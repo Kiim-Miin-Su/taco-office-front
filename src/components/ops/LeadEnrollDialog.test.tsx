@@ -86,6 +86,50 @@ async function fillOneLine(view: ReturnType<typeof render>) {
   return dialog;
 }
 
+it('UX-13B — 등록 줄 시각은 분 단위 선택기이고 24:00 종료를 미리보기 DTO의 1440분으로 보존한다', async () => {
+  const { view } = setup();
+  const dialog = await fillOneLine(view);
+  const start = within(dialog).getByLabelText('수업 1 시작') as HTMLInputElement;
+  const end = within(dialog).getByLabelText('수업 1 끝') as HTMLInputElement;
+  expect(start.type).toBe('time');
+  expect(end.type).toBe('time');
+  expect(start.step).toBe('60');
+  expect(end.step).toBe('60');
+
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: '수업 1 끝 24:00 (자정에 종료)' }));
+  expect(end.hidden).toBe(true);
+  expect(end.tabIndex).toBe(-1);
+  expect(within(dialog).getByRole('status', { name: '수업 1 끝 시각' }).textContent).toBe('24:00');
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posted).toHaveLength(1));
+  expect((posted[0]!.body as { lines: Array<{ startMin: number; endMin: number }> }).lines[0]).toMatchObject({ startMin: 960, endMin: 1440 });
+  await waitFor(() => expect((within(dialog).getByRole('button', { name: '등록 확정' }) as HTMLButtonElement).disabled).toBe(false));
+
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: '수업 1 끝 24:00 (자정에 종료)' }));
+  expect(end.hidden).toBe(false);
+  expect(end.value).toBe('');
+  expect((within(dialog).getByRole('button', { name: '미리 보기' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(dialog).getByRole('button', { name: '등록 확정' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('UX-13B — 등록 줄의 역순·10분 미만·8시간 초과는 서버 미리보기 전에 막는다', async () => {
+  const { view } = setup();
+  const dialog = await fillOneLine(view);
+  const start = within(dialog).getByLabelText('수업 1 시작');
+  const end = within(dialog).getByLabelText('수업 1 끝');
+  const preview = within(dialog).getByRole('button', { name: '미리 보기' }) as HTMLButtonElement;
+
+  fireEvent.change(end, { target: { value: '15:00' } });
+  expect(preview.disabled).toBe(true);
+  fireEvent.change(end, { target: { value: '16:09' } });
+  expect(preview.disabled).toBe(true);
+  fireEvent.change(end, { target: { value: '16:10' } });
+  expect(preview.disabled).toBe(false);
+  fireEvent.change(start, { target: { value: '07:00' } });
+  expect(preview.disabled).toBe(true);
+  expect(posted).toHaveLength(0);
+});
+
 it('온라인으로 바꾸면 이전 강의실을 비우고 미리보기 본문에도 실지 않는다 (UX-09)', async () => {
   const { view } = setup();
   const dialog = await fillOneLine(view);

@@ -20,7 +20,7 @@ import { Banner, Button, Checkbox, Chip, Dialog, Input, Label, Select } from '..
 import { ApiError, apiMessage } from '@/api/client';
 import { fetchConflictPreview, fetchConflicts, useBooks, useEnrollLead, useMeta } from '@/api/queries';
 import type { EnrollResult, Gender, Lead, LeadEnroll } from '@/api/types';
-import { KO_DOW, buildRrule, conflictLines, hhmm, parseHm, todayKst, unavailableLines } from '@/lib/calendar';
+import { KO_DOW, buildRrule, conflictLines, hhmm, lessonTimeIssue, parseHm, todayKst, unavailableLines } from '@/lib/calendar';
 import { won } from '@/lib/money';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -126,6 +126,8 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
       if (!l.kindKey) return { issue: '줄마다 종류를 고르세요' };
       const s = parseHm(l.start); const e = parseHm(l.end);
       if (s === null || e === null || s >= 1440) return { issue: '시각은 HH:MM 입니다' };
+      const timeIssue = lessonTimeIssue(s, e);
+      if (timeIssue) return { issue: timeIssue };
       // 첫 줄이 「상담에서 고른 교재」 그대로면 키를 뺀다 — 서버가 최신 진단 줄의 교재를 채운다(DQ1). 'none' 은 「교재 미정」 명시
       const fromDiag = i === 0 && diagBook !== null && l.libId === '';
       const libId = l.libId && l.libId !== 'none' ? Number(l.libId) : null;
@@ -316,10 +318,24 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                     ))}
                   </div>
                 </div>
-                {field('시작 · 끝', (
-                  <div className="flex gap-1">
-                    <Input aria-label={`수업 ${i + 1} 시작`} value={l.start} onChange={(e) => patch(l.key, { start: e.target.value })} disabled={pending} placeholder="16:00" />
-                    <Input aria-label={`수업 ${i + 1} 끝`} value={l.end} onChange={(e) => patch(l.key, { end: e.target.value })} disabled={pending} placeholder="17:00" />
+                {field('*시작 · 끝', (
+                  <div>
+                    <div className="flex gap-1">
+                      <Input aria-label={`수업 ${i + 1} 시작`} type="time" step={60} value={l.start}
+                        onChange={(e) => patch(l.key, { start: e.target.value })} disabled={pending} />
+                      <div className="min-w-0 flex-1">
+                        <Input aria-label={`수업 ${i + 1} 끝`} type="time" step={60}
+                          value={l.end === '24:00' ? '' : l.end} hidden={l.end === '24:00'} tabIndex={l.end === '24:00' ? -1 : undefined}
+                          onChange={(e) => patch(l.key, { end: e.target.value })} disabled={pending} />
+                        {l.end === '24:00' ? <output role="status" aria-label={`수업 ${i + 1} 끝 시각`}
+                          className="flex h-10 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+                      </div>
+                    </div>
+                    <div className="mt-1">
+                      <Checkbox label="24:00 (자정에 종료)" aria-label={`수업 ${i + 1} 끝 24:00 (자정에 종료)`}
+                        checked={l.end === '24:00'} disabled={pending}
+                        onChange={(e) => patch(l.key, { end: e.target.checked ? '24:00' : '' })} />
+                    </div>
                   </div>
                 ))}
                 {field('회차 · 교재', (
