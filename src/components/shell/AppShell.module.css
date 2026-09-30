@@ -13,6 +13,9 @@
 }
 
 .header {
+  /* docked 서랍(z-40) 위에서 계정 메뉴가 눌려야 한다. 헤더 자체는 서랍의 본문과 겹치지 않는다. */
+  position: relative;
+  z-index: 41;
   display: flex;
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -20,6 +23,11 @@
   min-height: var(--top-h);
   gap: 4px;
   padding: 8px 12px;
+}
+
+/* 진짜 모달(변경 요청 등)은 서랍 안에서도 열리므로 모달이 있을 때 헤더를 다시 backdrop 아래로 내린다. */
+.shell:has([aria-modal="true"]) .header {
+  z-index: 0;
 }
 
 .workspace {

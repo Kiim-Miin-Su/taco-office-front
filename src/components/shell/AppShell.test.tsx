@@ -140,6 +140,18 @@ describe('원본 관리자 공용 셸', () => {
     expect(mocks.post).toHaveBeenCalledWith('/auth/logout');
   });
 
+  it('공통 서랍이 열린 중에도 관리자 계정 메뉴에서 로그아웃할 수 있다', async () => {
+    mocks.post.mockResolvedValue({});
+    const view = shell();
+    fireEvent.click(within(view.getByRole('navigation', { name: '워크스페이스 바로가기' })).getByRole('button', { name: '변경 요청' }));
+    const account = within(view.getByRole('banner')).getByText((_, node) => node?.tagName === 'SUMMARY' && node.getAttribute('aria-label') === '내 계정');
+    fireEvent.click(account);
+    expect(view.getByRole('dialog', { name: '서랍' })).toBeTruthy();
+    fireEvent.click(within(view.getByRole('banner')).getByRole('button', { name: '로그아웃' }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/login'));
+    expect(mocks.post).toHaveBeenCalledWith('/auth/logout');
+  });
+
   it('관리자에게 지정된 좌우 도구를 하나씩 렌더한다', () => {
     const view = shell({ sidePanel: <aside>일정 도구</aside>, rightPanel: <aside>일정 서랍</aside> });
     expect(view.getByText('일정 도구')).toBeTruthy();

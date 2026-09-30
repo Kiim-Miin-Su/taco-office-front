@@ -287,6 +287,12 @@ describe('원본 공통 헤더 — §07·§34', () => {
     expect(layout).toContain('height: 100dvh');
     expect(layout).toContain('overflow: auto');
   });
+
+  it('공통 서랍 위로 계정 메뉴를 올리되 진짜 모달이 열리면 헤더를 다시 아래로 내린다', () => {
+    const layout = read('src/components/shell/AppShell.module.css');
+    expect(layout).toMatch(/\.header\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*41;/);
+    expect(layout).toMatch(/\.shell:has\(\[aria-modal="true"\]\)\s+\.header\s*\{[^}]*z-index:\s*0;/);
+  });
 });
 
 describe('런타임 주입 — 캘린더 블록이 쓰는 것', () => {
