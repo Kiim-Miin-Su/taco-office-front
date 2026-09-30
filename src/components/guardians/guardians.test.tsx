@@ -23,7 +23,7 @@ const dad: Guardian = {
 };
 const gone: Guardian = { ...dad, id: 13, name: '옛보호자', relation: null, active: false };
 
-const list = (guardians: Guardian[] = [mom, dad]): GuardianListData => ({ studentId: 4, studentName: '고은설', guardians });
+const list = (guardians: Guardian[] = [mom, dad]): GuardianListData => ({ studentId: 4, studentName: '고은설', guardians, siblings: [] });
 const channels = (smsReady = false): GuardianChannels => ({
   channels: [
     { channel: 'email', label: '메일', ready: true, reason: null },
@@ -176,6 +176,16 @@ it('보호자 목록 — 대표·받는 채널(서버 낱말)·연락처를 그�
   expect(within(items[2]).getByText('사용 중지')).toBeTruthy();
   expect(within(items[2]).getByRole('button', { name: '다시 쓰기' })).toBeTruthy();
   expect(within(items[2]).queryByRole('button', { name: '고치기' })).toBeNull();
+});
+
+/** A-13 「학부모 연락처로 묶여 보인다」 — 같은 연락처의 보호자를 가진 형제를 서버가 준 대로 보이고 그 학생 화면으로 잇는다 */
+it('같은 연락처로 묶인 형제를 보호자 목록 아래에 보인다 — 누구로 묶였는지 · 그 학생으로 가는 길 (A-13)', async () => {
+  adapter((c) => (c.method === 'get' && c.url === '/students/4/guardians'
+    ? { ...list([mom]), siblings: [{ studentId: 9, studentName: '고은호', grade: 'G7', via: '김엄마' }] } : reads(c)));
+  const view = wrap(<GuardianList studentId={4} />);
+  const box = await view.findByRole('region', { name: '같은 연락처의 형제' });
+  expect(box.textContent ?? '').toMatch(/고은호\s*G7\s*·\s*김엄마 연락처/);
+  expect(within(box).getByRole('link', { name: '고은호 시간표' }).getAttribute('href')).toBe('/schedule?studentId=9');
 });
 
 it('보호자 추가 — 빈 칸은 null 로 보내고, 서버 거절 문장을 그대로 띄운다', async () => {

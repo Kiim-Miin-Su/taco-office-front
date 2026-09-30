@@ -16,8 +16,10 @@
  */
 'use client';
 
+import Link from 'next/link';
 import { useId, useState } from 'react';
 import { useGuardianChannels, useGuardians, useGuardianWrite } from '@/api/queries';
+import { hrefForStudentTimetable } from '@/lib/report-links';
 import { apiMessage } from '@/api/client';
 import type { Guardian, GuardianChannel, GuardianCreate } from '@/api/types';
 import { Banner, Button, Checkbox, Chip, Dialog, Input, Label, QueryState } from '../ui';
@@ -185,6 +187,21 @@ export function GuardianList({ studentId }: { studentId: number }) {
                 )))}
               </ul>
             )}
+            {/* A-13 「학부모 연락처로 묶여 보인다」 — 같은 연락처의 보호자를 가진 형제(서버 lib/family · 저장하지 않는다) */}
+            {(data.siblings ?? []).length ? (
+              <section aria-label="같은 연락처의 형제" className="mb-2 rounded-lg border border-line bg-inset px-3 py-2 text-[12px]">
+                <b className="mr-2 text-fg">같은 연락처의 형제</b>
+                {data.siblings.map((s) => (
+                  <span key={s.studentId} className="mr-3 inline-flex items-center gap-1">
+                    <Link href={hrefForStudentTimetable(s.studentId, null)} aria-label={`${s.studentName} 시간표`} className="font-bold text-primary hover:underline">
+                      {s.studentName}
+                    </Link>
+                    {s.grade ? <span className="text-fg-subtle">{s.grade}</span> : null}
+                    <span className="text-fg-subtle">· {s.via} 연락처</span>
+                  </span>
+                ))}
+              </section>
+            ) : null}
             {editing === 'new' ? (
               <GuardianForm initial={null} channels={channels} pending={write.isPending} error={error} onCancel={close}
                 onSubmit={(body) => write.mutate({ kind: 'create', studentId, body }, { onSuccess: close, onError: fail })} />

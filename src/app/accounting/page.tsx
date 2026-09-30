@@ -21,7 +21,7 @@ import { useSearchParams } from 'next/navigation';
 import { positiveQueryId, queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, Column, PageHeader, StatCard, Table } from '@/components/ui';
+import { Banner, Button, Chip, Column, PageHeader, Segmented, StatCard, Table } from '@/components/ui';
 import { useAccounting, useAcctPrivacy, useCarryTuition, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
@@ -31,6 +31,7 @@ import { TuitionTable } from '@/components/accounting/TuitionTable';
 import { OtherIncome } from '@/components/accounting/OtherIncome';
 import { InvoiceBoard } from '@/components/accounting/InvoiceBoard';
 import { InvoiceStageBoard } from '@/components/accounting/InvoiceStageBoard';
+import { InvoiceFamilies } from '@/components/accounting/InvoiceFamilies';
 import { PayoutSheet } from '@/components/accounting/PayoutSheet';
 import { PaymentFlow, UnpaidList } from '@/components/accounting/PaymentFlow';
 import { RateBook } from '@/components/accounting/RateBook';
@@ -98,6 +99,8 @@ export default function AccountingPage() {
   const queryInvId = queryTab === 'inv' ? positiveQueryId(searchParams.get('invId')) : null;
   const [tab, setTab] = useState<AccountingTab>(queryTab ?? 'board');
   const [focusInvId, setFocusInvId] = useState<number | null>(queryInvId);
+  /** A-13 청구서 보기 — 각각(기본) · 형제 합산 */
+  const [invView, setInvView] = useState<'each' | 'family'>('each');
   // 탭 줄 오른쪽 「+ 청구서」가 어느 탭에서든 발행 칸을 연다 (x5 · C-03) — 칸은 청구서 탭 안에 있다
   const [issuerOpen, setIssuerOpen] = useState(false);
   // §53 ① 「청구서 작성 →」이 발행 칸을 그 대상으로 채운다 · ③ 「입금 완료 →」이 입금 기록을 그 청구서로 연다 (N-28 ②)
@@ -304,9 +307,19 @@ export default function AccountingPage() {
                 else setFocusInvId(invId);
               }}
             />
-            <h3 className="mb-2 text-[13px] font-bold text-fg">
-              청구서 <span className="text-[11.5px] font-normal text-fg-subtle">전체 {q.data?.invoices.length ?? 0}건</span>
-            </h3>
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <h3 className="text-[13px] font-bold text-fg">
+                청구서 <span className="text-[11.5px] font-normal text-fg-subtle">전체 {q.data?.invoices.length ?? 0}건</span>
+              </h3>
+              {/* A-13 — 각각(기본) · 형제 합산(서버 묶음 · 보기만). 묶인 형제가 없으면 고를 것이 없다 */}
+              {(q.data?.families ?? []).length > 0 ? (
+                <Segmented ariaLabel="청구서 보기" value={invView} onChange={setInvView}
+                  options={[{ value: 'each', label: '각각' }, { value: 'family', label: '형제 합산' }]} />
+              ) : null}
+            </div>
+            {invView === 'family' && (q.data?.families ?? []).length > 0 ? (
+              <InvoiceFamilies families={q.data?.families ?? []} onOpen={(invId) => setFocusInvId(invId)} />
+            ) : null}
             {/* 「자세히 ›」·「열기」로 온 줄은 옅게 칠한다 (x5 · 52-03) — 원문에 없는 상세 창 대신 그 줄로 간다 */}
             <Table columns={invCols} rows={q.data?.invoices ?? []} rowKey={(r) => r.id}
               rowClassName={(r) => (r.id === focusInvId ? 'inv-focus bg-amber/10' : undefined)} />

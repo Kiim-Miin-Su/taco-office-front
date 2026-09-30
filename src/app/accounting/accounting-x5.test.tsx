@@ -40,7 +40,7 @@ const inv = (over: Partial<Invoice>): Invoice => ({
   installments: [], nextDueOn: null, nextInstallmentSeq: null, notice: null, ...over,
 });
 
-const accounting = (todo = 0, invoices: Invoice[] = []): Accounting => ({
+const accounting = (todo = 0, invoices: Invoice[] = []): Accounting => ({ families: [],
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo, canSeeAmounts: true },
   invoices, payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 });
@@ -129,4 +129,28 @@ it('강사료 정산은 이번 달 시트부터 연다 (56-04)', async () => {
   fireEvent.click(view.getByRole('button', { name: '나간 돈' }));
   await waitFor(() => expect(months).toHaveLength(1));
   expect(months[0]).toBe(month);
+});
+
+/**
+ * A-13 「청구서는 각각 나오거나 합산을 고를 수 있다」 — 사용자 결정 2026-09-30 「묶음 표시 + 합산 보기」.
+ * 청구서는 각각 그대로 서고, 「형제 합산」을 고르면 서버가 묶은 그 달 형제 청구서(합계는 서버 값)를 한 줄로 본다.
+ */
+it('형제 합산을 고르면 서버가 묶은 형제 청구서를 한 줄로 · 합계는 서버 값 · 기본은 각각 (A-13)', async () => {
+  nav.search = 'tab=inv';
+  const data = {
+    ...accounting(0, [inv({ id: 42, studentId: 7, studentName: '형제형', yearMonth: '2026-10' }), inv({ id: 43, studentId: 8, studentName: '형제동생', yearMonth: '2026-10', amount: 180000 })]),
+    families: [{ key: '7:2026-10', yearMonth: '2026-10', students: [{ studentId: 8, name: '형제동생' }, { studentId: 7, name: '형제형' }], invoiceIds: [42, 43], amount: 430000, paidAmount: 0 }],
+  };
+  const view = mount(() => data);
+  await waitFor(() => expect(view.getByText('형제동생')).toBeTruthy());
+  expect(view.queryByRole('region', { name: '형제 합산' })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '형제 합산' }));
+  const box = view.getByRole('region', { name: '형제 합산' });
+  const text = (box.textContent ?? '').replace(/\s+/g, ' ');
+  expect(text).toContain('2026-10 · 형제동생 · 형제형');
+  expect(text).toContain('청구서 2장');
+  expect(text).toContain('합계 ₩430,000');
+  expect(text).toContain('받은 돈 ₩0');
+  // 청구서는 각각 그대로다 — 표에 두 줄
+  expect(view.getByText('형제형').closest('tr')).toBeTruthy();
 });

@@ -29,7 +29,7 @@ afterEach(() => { cleanup(); clients.splice(0).forEach(c => c.clear()); api.defa
 
 it.each([true, false])('금액 공개=%s: 미확인·0·금액과 날짜/수단을 구별하고 추가 조회하지 않는다', async (canSeeAmounts) => {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = {
+  const data: Accounting = { families: [],
     summary: { sent: null, collected: null, unpaid: null, overdue: null, net: null, todo: 0, canSeeAmounts },
     invoices: [], payouts: [], expenses: [], expenseTotals: [], payCategories: [], expenseCategories: [],
     payments: [
@@ -85,7 +85,7 @@ const HEAD_LABELS = ['보낸 청구서', '받은 돈', '못 받은 돈', '기한
 
 function mount(summary: Accounting['summary']) {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = { summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [], payCategories: [], expenseCategories: [] };
+  const data: Accounting = { families: [], summary, invoices: [], payouts: [], expenses: [], expenseTotals: [], payments: [], payCategories: [], expenseCategories: [] };
   api.defaults.adapter = (async (config: unknown) => ({ config, status: 200, statusText: 'OK', headers: {}, data })) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -152,7 +152,7 @@ const sheetOf = (confirmed: boolean): PayoutSheet => ({
 const detailOf = (confirmed: boolean) => ({
   staffId: 6, staffName: '이다현', month: '2026-08', row: sheetRow(confirmed), rates: [{ fromDate: '2026-01-01', rate: 42000 }], lessons: [],
 });
-const EMPTY: Accounting = {
+const EMPTY: Accounting = { families: [],
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
   invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 };
@@ -198,7 +198,7 @@ it.each([
 it('수강·월 청구 탭의 「이 달 청구서 일괄 발행 →」은 청구서 탭의 일괄 발행 창을 **그 달**로 연다 (H-75)', async () => {
   useSession.getState().signIn('fixture', me);
   nav.search = 'tab=tuition&month=2026-08';
-  const accounting: Accounting = {
+  const accounting: Accounting = { families: [],
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
     invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], payCategories: [], expenseCategories: [],
   };
@@ -276,7 +276,7 @@ it('정산 설명은 정산 탭에서만 선다 — 청구서 탭에 따라붙�
  */
 it('분류 칩 여섯은 이번 달 기간으로 묻고 건수가 0이어도 서며, 누르면 그 분류로 다시 묻는다 (55-01 · 55-05)', async () => {
   useSession.getState().signIn('fixture', me);
-  const data: Accounting = {
+  const data: Accounting = { families: [],
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
     invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], expenseCategories: [],
     // 전 기간 칩의 원천 — 이 탭은 더 이상 이것으로 칩을 그리지 않는다
@@ -324,7 +324,7 @@ it('분류 칩 여섯은 이번 달 기간으로 묻고 건수가 0이어도 서
 it('?tab=tuition&month= 링크는 수업료 탭을 그 달로 연다 — 틀린 달은 이번 달로 돌아간다 (C92)', async () => {
   useSession.getState().signIn('fixture', me);
   nav.search = 'tab=tuition&month=2026-08';
-  const accounting: Accounting = {
+  const accounting: Accounting = { families: [],
     summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
     invoices: [], payments: [], expenses: [], expenseTotals: [], payouts: [], payCategories: [], expenseCategories: [],
   };

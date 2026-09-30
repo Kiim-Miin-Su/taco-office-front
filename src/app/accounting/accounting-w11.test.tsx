@@ -39,7 +39,7 @@ const inv = (over: Partial<Invoice>): Invoice => ({
   sentAt: '2026-09-12T01:00:00.000Z', canDeliver: false, canVoid: false, voidBlockedReason: null, voidReason: null, lines: [],
   installments: [], nextDueOn: '2026-09-30', nextInstallmentSeq: null, notice: null, ...over,
 });
-const accounting = (invoices: Invoice[] = []): Accounting => ({
+const accounting = (invoices: Invoice[] = []): Accounting => ({ families: [],
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
   invoices, payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 });
