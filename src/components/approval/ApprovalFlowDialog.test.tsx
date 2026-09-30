@@ -142,6 +142,32 @@ describe('§75 결재 흐름', () => {
     expect(link.querySelector('svg')).not.toBeNull();
   });
 
+  /* H-83 · H-84 (2026-09-30 대표 답변 「지출 갈래 추가」 · N-64 번복) — 여섯째 갈래는 서버 tiles 를 그대로 따른다 */
+  it('지출 갈래 — 여섯째 타일과 되돌아온 지출 줄(사유 · 주황 띠)을 서버 projection 그대로 그린다', () => {
+    const expenseFlow: ApprovalFlow = {
+      ...flow,
+      tiles: [...flow.tiles, { kind: 'expense', kindLabel: '지출 결재', to: 'ceo', toLabel: '대표에게', count: 1 }],
+      back: [item({
+        kind: 'expense', kindLabel: '지출 결재', id: 31, title: '교재 인쇄비', sub: '38,000원',
+        byName: '강민지', why: '영수증을 붙여 주세요', go: '/accounting?tab=out&expense=31',
+      })],
+    };
+    const view = render(<ApprovalFlowDialog open flow={expenseFlow} onClose={vi.fn()} />);
+    const tiles = within(view.getByLabelText('결재 종류별 대기 건수'));
+    expect(tiles.getAllByText(/대표 보고|기획 결재|강사 요청|변경 요청|자료 요청|지출 결재/).map((node) => node.textContent))
+      .toEqual(['대표 보고', '기획 결재', '강사 요청', '변경 요청', '자료 요청', '지출 결재']);
+    const tile = tiles.getByText('지출 결재').parentElement!;
+    expect([...tile.children].map((c) => c.textContent)).toEqual(['1', '지출 결재', '대표에게']);
+    expect(tile.className).toContain('border-orange/50');
+    const row = view.getByRole('link', { name: '교재 인쇄비 원본 열기' });
+    expect(row.className).toContain('border-l-orange');
+    expect(row.getAttribute('href')).toBe('/accounting?tab=out&expense=31');
+    expect(view.getByText(/영수증을 붙여 주세요/)).toBeTruthy();
+    // 이동만 — 여섯째 갈래에도 승인 · 반려 단추는 없다(D-R27)
+    expect(view.queryByRole('button', { name: '승인' })).toBeNull();
+    expect(approvalKindLabel('expense')).toBe('지출');
+  });
+
   it('닫혀 있으면 결재 데이터가 DOM에 없다', () => {
     const view = render(<ApprovalFlowDialog open={false} flow={flow} onClose={vi.fn()} />);
     expect(view.queryByText('결재 흐름')).toBeNull();
