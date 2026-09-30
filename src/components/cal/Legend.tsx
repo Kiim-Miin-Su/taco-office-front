@@ -95,7 +95,7 @@ export function Legend({ items, colorOf, subName, kindName, display = 'schedule'
             <span className="text-[11px] font-bold text-fg-subtle">리포트</span>
           </div>
           <span className="text-[11px] text-fg-subtle">
-            블록에 마우스를 올리면 전체 정보 · 끌면 이동 · 누르면 수업 상세
+            블록에 마우스를 올리면 전체 정보 · 끌면 이동 · 한 번 누르면 선택 · 두 번 누르면 수업 상세
           </span>
         </>
       )}

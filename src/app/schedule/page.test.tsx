@@ -312,6 +312,7 @@ describe('UX-14A 상단 분할과 세로선 기준', () => {
   it('사이드바를 접어도 상단에서 표를 나누고 다시 합칠 수 있다', () => {
     useWorkspace.setState({ sidebarOpen: false });
     const view = render(<SchedulePage />);
+    expect(view.getByText('블록에 마우스를 올리면 전체 정보 · 끌면 이동 · 한 번 누르면 선택 · 두 번 누르면 수업 상세')).toBeTruthy();
     expect(view.queryByRole('button', { name: '사이드 접기' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
     expect(view.container.querySelectorAll('[data-calendar-pane]')).toHaveLength(2);
