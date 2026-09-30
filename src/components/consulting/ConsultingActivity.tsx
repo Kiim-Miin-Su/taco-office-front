@@ -9,7 +9,7 @@
  *
  * - 머리: 큰 글자 「2 / 6회 진행한 회차」 + 보라 막대 + 「+ 회차 기록」 주버튼(31-01). 「한 회차」는 서버가 센다(날짜 오늘 이하 · N-18).
  * - 해야 할 항목: 「4 / 7 · 57%」 머리와 **4열 카드 격자**(끝낸 것은 초록 바탕 · 31-02 · 31-03). 카드 아래 한 줄은 처리 시각 · 처리자
- *   (`doneAt` · 31-04 — 「2026-07-22 14:00 · 김범준」), 안 끝낸 것은 「기한 없음」(기한 칸이 없다는 사실 그대로다).
+ *   (`doneAt` · 31-04 — 「2026-07-22 14:00 · 김범준」), 안 끝낸 것은 기한이 있으면 서버가 적은 D-day(I-94 · 지났으면 붉게) · 없으면 「기한 없음」.
  * - 회차: 머리 「1회차 · 26년 7월 14일 화요일 · 16:00–17:00 · 김범준 · 4호 · 기록됨」(31-07 — 시각·담당·강의실은 서버가 시간표 회차에서 읽는다,
  *   「기록됨」도 서버 판정 `recorded`) · 본문 무엇을 · 왜 · 어떻게 3열(31-09) · 「결과」 인용 상자와 「다음까지」 호박 줄(31-08) ·
  *   단추 「고치기」 · 「일정」(31-10 — 일정은 그날 시간표로 간다).
@@ -182,9 +182,14 @@ export function ConsultingActivity({ item, detail, onAddSession }: { item: Consu
                     className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border text-[11px] font-bold ${row.done ? 'border-green bg-green text-white' : 'border-line text-transparent'}`}>✓</button>
                   <span className="min-w-0 grow">
                     <span className={`block text-[12.5px] font-bold ${row.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>{row.label}</span>
-                    {/* 처리 시각 · 처리자 (31-04) — 서버의 doneAt · doneBy. 안 끝낸 항목은 「기한 없음」(기한 칸이 없다) */}
+                    {/* 처리 시각 · 처리자 (31-04) — 서버의 doneAt · doneBy. 안 끝낸 항목은 기한이 있으면 서버가 적은 D-day(I-94) · 없으면 「기한 없음」 */}
                     <span className="block text-[10.5px] text-fg-subtle">
-                      {row.done ? [at, row.doneBy].filter(Boolean).join(' · ') : '기한 없음'}
+                      {row.done ? [at, row.doneBy].filter(Boolean).join(' · ') : row.dueLabel ? (
+                        <span data-due data-overdue={row.dueOverdue ? 'true' : 'false'} title={`기한 ${row.dueOn ?? ''}`}
+                          className={cn('inline-block rounded px-1 font-bold', row.dueOverdue ? 'bg-red/10 text-red' : 'bg-amber/10 text-amber')}>
+                          {row.dueLabel}
+                        </span>
+                      ) : '기한 없음'}
                     </span>
                   </span>
                   {row.required ? <Chip tone="warning" size="compact">필수</Chip> : null}

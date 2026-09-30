@@ -41,20 +41,21 @@ const result: ConsSessionsResult = {
     { date: '2026-09-23', seq: 9, sessId: 91, serId: 12, linked: true, startMin: 1020, endMin: 1110, done: false, todoId: 71 },
     { date: '2026-09-25', seq: 10, sessId: 92, serId: 88, linked: false, startMin: 600, endMin: 660, done: false, todoId: 72 },
   ],
-  created: 1, linked: 1, sessionsDone: 8, sessionsPlanned: 2, sessions: 13, overContract: false, unavailable: [], notified: false,
+  created: 1, linked: 1, sessionsDone: 8, sessionsPlanned: 2, sessions: 13, overContract: false, unavailable: [], notified: false, busy: [],
 };
+let busyNext: ConsSessionsResult['busy'] = [];
 
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const posts: Array<{ url?: string; body: unknown }> = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posts.length = 0; });
+afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posts.length = 0; busyNext = []; });
 
 function setup() {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') {
       posts.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
       const preview = config.url?.endsWith('/preview') ?? false;
-      return { config, status: 201, statusText: 'Created', headers: {}, data: { ...result, preview } };
+      return { config, status: 201, statusText: 'Created', headers: {}, data: { ...result, preview, busy: preview ? busyNext : [] } };
     }
     return { config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/meta' ? meta : {} };
   }) as never;
@@ -104,4 +105,28 @@ it('날짜 둘·시각·담당(기본 = 건의 담당)을 보내고, 순번·연
   expect(posts[1]!.url).toBe('/consulting/1/sessions');
   await waitFor(() => expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ preview: false, created: 1, linked: 1 })));
   expect(onClose).toHaveBeenCalled();
+});
+
+/**
+ * I-91 「겹침 검사가 먼저 돈다 · 담당자가 그 시간에 다른 일정 있으면 주황 점 표시」 — 미리보기가 날짜마다 준 겹침(busy)을
+ * 그 날짜 칸 옆 주황 점과 겹친 일정 한 줄로 보인다. 겹친 날짜가 있으면 「회차 확정」은 서지 않는다(확정은 서버가 다시 막는다).
+ */
+it('미리보기가 겹친 날짜를 주면 그 날짜 옆에 주황 점과 겹친 일정을 보이고 확정을 잠근다 (I-91)', async () => {
+  busyNext = [{ date: '2026-09-25', lines: ['10:00–11:00 SAT Math'] }];
+  const { view } = setup();
+  const dialog = await view.findByRole('dialog', { name: '회차 기록 — 오예린' });
+  await waitFor(() => expect(within(dialog).getByRole('option', { name: '김범준' })).toBeTruthy());
+  fireEvent.change(within(dialog).getByLabelText('날짜 1'), { target: { value: '2026-09-25' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '+ 날짜 더하기' }));
+  fireEvent.change(within(dialog).getByLabelText('날짜 2'), { target: { value: '2026-09-23' } });
+  fireEvent.change(within(dialog).getByLabelText('시작'), { target: { value: '10:00' } });
+  fireEvent.change(within(dialog).getByLabelText('끝'), { target: { value: '11:00' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  const dot = await within(dialog).findByRole('status', { name: '9/25 담당 일정 겹침' });
+  expect(dot.textContent).toContain('10:00–11:00 SAT Math');
+  expect(dot.querySelector('[data-busy-dot]')).toBeTruthy();
+  // 겹치지 않은 날짜에는 점이 없다
+  expect(within(dialog).queryByRole('status', { name: '9/23 담당 일정 겹침' })).toBeNull();
+  expect(within(dialog).getByText(/담당에게 그 시간 다른 일정이 있는 날짜 1개/)).toBeTruthy();
+  expect((within(dialog).getByRole('button', { name: '회차 확정' }) as HTMLButtonElement).disabled).toBe(true);
 });

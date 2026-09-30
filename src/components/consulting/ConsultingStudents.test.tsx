@@ -19,8 +19,8 @@ const students: ConsStudent[] = [
       sessionsLogged: 2, sessionsDone: 2, sessions: 6, itemsDone: 4, itemsTotal: 7,
       amount: 800000, paid: 400000,
       items: [
-        { id: 11, seq: 1, label: '지원서 작성', required: true, done: true, source: 'template', doneBy: '김범준', doneOn: '2026-08-01', files: [], canAddFile: false, canRename: false, canRemove: false },
-        { id: 12, seq: 2, label: '추천서 2부', required: true, done: false, source: 'template', doneBy: null, doneOn: null, files: [], canAddFile: true, canRename: true, canRemove: false },
+        { id: 11, seq: 1, label: '지원서 작성', required: true, done: true, source: 'template', doneBy: '김범준', doneOn: '2026-08-01', files: [], canAddFile: false, canRename: false, canRemove: false, dueOverdue: false },
+        { id: 12, seq: 2, label: '추천서 2부', required: true, done: false, source: 'template', doneBy: null, doneOn: null, files: [], canAddFile: true, canRename: true, canRemove: false, dueOverdue: false },
       ],
     }],
   },

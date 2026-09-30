@@ -33,6 +33,7 @@ import { ConsultingCloseDialog } from './ConsultingCloseDialog';
 import { ConsultingFileDropzone } from './ConsultingFileDropzone';
 import { ConsultingSessionDialog } from './ConsultingSessionDialog';
 import { ConsultingCoreEditor } from './ConsultingCoreEditor';
+import { KakaoCopyText } from './KakaoCopyText';
 
 const MAX_FILES = 10;
 /**
@@ -333,6 +334,8 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
   const [sessionOpen, setSessionOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /** I-95 — 방금 종료한 건의 학부모 안내문(서버 noticeBody). 카카오톡으로 직접 보낼 글로 복사한다 */
+  const [closedNotice, setClosedNotice] = useState<string | null>(null);
   /** 기본 탭은 서버가 준 지금 단계다. 다른 건을 열거나 서버가 단계를 옮기면 그 단계로 다시 맞춘다 */
   const [tab, setTab] = useState<DetailTab>(detail.stage);
   useEffect(() => { setTab(detail.stage); }, [detail.id, detail.stage]);
@@ -347,8 +350,13 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
     </div>
     {!detail.typeCapability.defaultItemsSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.reason ?? '이 유형의 기본 진행 항목은 아직 확정되지 않았습니다.'}</Banner> : null}
     {!detail.typeCapability.scheduleCreationSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.scheduleCreationReason ?? '스케줄 자동 생성 정책이 아직 확정되지 않았습니다.'}</Banner> : null}
-    {notice ? <Banner tone="success" className="mb-4">{notice}</Banner> : null}
-    <ConsultingCoreEditor detail={detail} onDone={() => setNotice('계약 핵심정보를 고쳤습니다')} />
+    {notice ? (
+      <Banner tone="success" className="mb-4">
+        {notice}
+        {closedNotice ? <KakaoCopyText text={closedNotice} /> : null}
+      </Banner>
+    ) : null}
+    <ConsultingCoreEditor detail={detail} onDone={() => { setNotice('계약 핵심정보를 고쳤습니다'); setClosedNotice(null); }} />
     {/* 공개 범위는 세 탭 공통이다 — 원본 §30 · §31 모두 탭 위에 있다 */}
     <div className="mb-4"><ShareEditor detail={detail} meta={meta.data} /></div>
     <Segmented<DetailTab> className="mb-4" ariaLabel="상세 단계" options={STAGES} value={tab} onChange={setTab} />
@@ -400,9 +408,9 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
       <Button onClick={onClose}>닫기</Button>
     </div>
     <ConsultingSessionDialog open={sessionOpen} detail={detail} onClose={() => setSessionOpen(false)}
-      onDone={(r) => setNotice(`회차 ${r.rows.length}건 잡음 — 새 회차 ${r.created} · 연결 ${r.linked} · 회차 ${r.sessionsDone} / 약정 ${r.sessions ?? '—'}`)} />
+      onDone={(r) => { setNotice(`회차 ${r.rows.length}건 잡음 — 새 회차 ${r.created} · 연결 ${r.linked} · 회차 ${r.sessionsDone} / 약정 ${r.sessions ?? '—'}`); setClosedNotice(null); }} />
     <ConsultingCloseDialog open={closeOpen} detail={detail} onClose={() => setCloseOpen(false)}
-      onDone={(r) => setNotice(`${r.exception ? '예외 종료' : '종료'} — 학부모 안내 ${r.parentNotices}명 · 종료일 ${r.endOn ?? '—'}`)} />
+      onDone={(r) => { setNotice(`${r.exception ? '예외 종료' : '종료'} — 학부모 안내 ${r.parentNotices}명 · 종료일 ${r.endOn ?? '—'}`); setClosedNotice(r.noticeBody); }} />
     <Dialog open={confirmArchive} onClose={() => setConfirmArchive(false)} title="이 컨설팅을 지울까요?" footer={<>
       <Button onClick={() => setConfirmArchive(false)}>취소</Button>
       <Button variant="danger" disabled={archive.isPending} onClick={() => archive.mutate(detail.id, { onSuccess: onClose })}>지우기</Button>

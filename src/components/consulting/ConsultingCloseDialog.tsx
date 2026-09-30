@@ -20,6 +20,7 @@ import { Banner, Button, Chip, Dialog, Input, Label, Select, Textarea } from '..
 import { apiMessage } from '@/api/client';
 import { useCloseConsulting, useGuideTemplates } from '@/api/queries';
 import type { ConsClose, ConsCloseResult, ConsultingDetail } from '@/api/types';
+import { KakaoCopyText } from './KakaoCopyText';
 
 export interface ConsultingCloseDialogProps {
   open: boolean;
@@ -124,6 +125,8 @@ export function ConsultingCloseDialog({ open, detail, onClose, onDone }: Consult
         <div className="mt-3 rounded-lg border border-line bg-inset p-3" aria-label="종료 미리보기">
           <p className="text-[12px] font-bold">학부모 안내 · {preview.parentNotices}명 · 종료일 {preview.endOn ?? '—'} · 회차 {preview.sessionsDone}{preview.sessions ? ` / ${preview.sessions}` : ''}{preview.exception ? ' · 예외 종료' : ''}</p>
           <blockquote className="mt-2 whitespace-pre-wrap rounded border border-line bg-card p-2 text-[12px]">{preview.noticeBody}</blockquote>
+          {/* I-95 「카카오로 보낼 수 있는 문구」 — 서버 안내문 그대로 복사한다(카카오 발송 채널은 없다 · N-42/DQ3) */}
+          <KakaoCopyText text={preview.noticeBody} />
           {preview.notified ? <p className="mt-2 text-[11px] text-fg-subtle">담당에게 알림이 갑니다.</p> : null}
         </div>
       ) : null}

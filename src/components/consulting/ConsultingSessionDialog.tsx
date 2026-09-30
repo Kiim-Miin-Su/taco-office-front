@@ -11,6 +11,8 @@
  * 새 회차가 되는지 · 「한 회차」인지(오늘 이하) · 불가 시간 알림은 서버가 **같은 트랜잭션을 돌리고 되돌린 미리보기**로 준다(D-R37).
  * 「회차 확정」은 **지금 입력 그대로** 미리 본 뒤에만 선다 — 날짜를 더하거나 빼면 다시 본다(C91·C93 과 같은 모양).
  * 겹치면 서버가 409 로 거절하고 아무것도 남지 않는다 — 문장에 어느 날짜인지가 있다.
+ * I-91 「겹침 검사가 먼저 돈다 · 주황 점」 — 미리보기는 거절 대신 날짜마다 겹침(busy)을 준다. 그 날짜 옆에 주황 점과 겹친 일정을 보이고
+ * 겹친 날짜가 남아 있으면 「회차 확정」을 세우지 않는다. 확정은 서버가 EXCLUDE 로 다시 판정한다.
  */
 'use client';
 import { useEffect, useId, useState } from 'react';
@@ -74,7 +76,9 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
   const bodyKey = 'body' in built ? JSON.stringify(built.body) : '';
   const pending = write.isPending;
   const canPreview = 'body' in built && !pending;
-  const canApply = canPreview && preview !== null && previewOf === bodyKey;
+  /** I-91 — 지금 입력 그대로 미리 본 결과의 날짜별 겹침(주황 점). 입력을 바꾸면 다시 본다 */
+  const busy = preview !== null && previewOf === bodyKey ? preview.busy ?? [] : [];
+  const canApply = canPreview && preview !== null && previewOf === bodyKey && busy.length === 0;
 
   const run = (kind: 'preview' | 'apply') => {
     if (!('body' in built)) return;
@@ -115,9 +119,19 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
           <Label>날짜 {dates.filter((d) => d !== '').length ? `· ${dates.filter((d) => d !== '').length}개` : ''}</Label>
           <ul className="space-y-1.5">
             {dates.map((d, i) => (
-              <li key={i} className="flex items-center gap-2">
+              <li key={i} className="flex flex-wrap items-center gap-2">
                 <Input type="date" aria-label={`날짜 ${i + 1}`} value={d} onChange={(e) => setDate(i, e.target.value)} className="max-w-[200px]" />
                 <Button type="button" size="sm" variant="ghost" onClick={() => removeDate(i)} aria-label={`날짜 ${i + 1} 빼기`}>빼기</Button>
+                {(() => {
+                  // 주황 점 — 그 날짜 · 그 시각에 담당(강의실)의 다른 일정이 있다. 서버 미리보기의 판정 그대로다(화면이 겹침을 세지 않는다)
+                  const hit = busy.find((b) => b.date === d);
+                  return hit ? (
+                    <span role="status" aria-label={`${md(d)} 담당 일정 겹침`} className="flex items-center gap-1 text-[11px] font-medium text-amber">
+                      <span data-busy-dot aria-hidden className="inline-block h-2 w-2 rounded-full bg-amber" />
+                      {hit.lines.join(' · ')}
+                    </span>
+                  ) : null;
+                })()}
               </li>
             ))}
           </ul>
@@ -150,6 +164,12 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
 
       {'issue' in built ? <p className="mt-2 text-[11px] text-fg-subtle">{built.issue}</p> : null}
       {err ? <Banner tone="danger" className="mt-3">{err}</Banner> : null}
+
+      {busy.length ? (
+        <Banner tone="warning" className="mt-3">
+          담당에게 그 시간 다른 일정이 있는 날짜 {busy.length}개 — 주황 점 날짜를 빼거나 시각을 바꾼 뒤 다시 미리 보세요. 그대로는 확정할 수 없습니다.
+        </Banner>
+      ) : null}
 
       {preview ? (
         <div className="mt-3 rounded-lg border border-line bg-inset p-3" aria-label="회차 미리보기">

@@ -37,7 +37,7 @@ const capabilities = {
 } satisfies ConsultingDetail['capabilities'];
 
 /** 항목의 파일 · 단추(W11) — 이 시험들은 보지 않는다 */
-const noFiles = { files: [], canAddFile: false, canRename: false, canRemove: false };
+const noFiles = { dueOverdue: false, files: [], canAddFile: false, canRename: false, canRemove: false };
 
 function setup(detail?: Partial<ConsultingDetail>) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
@@ -151,10 +151,38 @@ it('회차 머리에 날짜 낱말 · 시각 · 담당 · 강의실 · 「기록
   expect(within(card).getByRole('link', { name: '1회차 일정' }).getAttribute('href')).toBe('/schedule?date=2026-09-16');
 });
 
+/**
+ * I-94 「기한이 있으면 D-day 표시」 — 안 끝낸 항목에 기한이 있으면 서버가 적은 「D-3」 · 「D+2」를 칩으로 보이고(지났으면 붉게)
+ * 기한이 없으면 예전처럼 「기한 없음」이다. 화면은 날짜를 세지 않는다 — 낱말 · 지남은 서버 값이다.
+ */
+it('안 끝낸 항목에 기한이 있으면 서버의 D-day 를 칩으로 · 지났으면 붉게 · 없으면 「기한 없음」 (I-94)', () => {
+  const withDue = consultingItem({
+    id: 4, stage: 'running', contractStep: 5,
+    items: [
+      row({ id: 1, seq: 1, label: '지원서 작성', dueOn: '2026-10-03', dueLabel: 'D-3', dueOverdue: false }),
+      row({ id: 2, seq: 2, label: '추천서 2부', dueOn: '2026-09-28', dueLabel: 'D+2', dueOverdue: true }),
+      row({ id: 3, seq: 3, label: '여권 사본' }),
+    ],
+  });
+  const client = new QueryClient();
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><ConsultingActivity item={withDue} /></QueryClientProvider>);
+  const grid = view.getByRole('region', { name: '해야 할 항목' });
+  const rows = within(grid).getAllByRole('listitem');
+  const due = (li: HTMLElement) => li.querySelector('[data-due]') as HTMLElement | null;
+  expect(due(rows[0]!)?.textContent).toBe('D-3');
+  expect(due(rows[0]!)?.getAttribute('title')).toBe('기한 2026-10-03');
+  expect(due(rows[0]!)?.getAttribute('data-overdue')).toBe('false');
+  expect(due(rows[1]!)?.textContent).toBe('D+2');
+  expect(due(rows[1]!)?.getAttribute('data-overdue')).toBe('true');
+  expect(due(rows[2]!)).toBeNull();
+  expect(rows[2]!.textContent).toContain('기한 없음');
+});
+
 /** 항목 한 줄 — W11 시험이 덮어쓴다 */
 const row = (over: Partial<Consulting['items'][number]>): Consulting['items'][number] => ({
   id: 1, seq: 1, label: '항목', required: false, done: false, doneBy: null, doneOn: null, doneAt: null, source: 'manual',
-  files: [], canAddFile: true, canRename: true, canRemove: true, ...over,
+  files: [], canAddFile: true, canRename: true, canRemove: true, dueOverdue: false, ...over,
 });
 function renderItems(items: Consulting['items'], canEditItems: boolean, reply: (config: { url?: string; method?: string; data?: string }) => unknown = () => ({})) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
@@ -201,6 +229,34 @@ it('「항목 수정」은 canEditItems 에만 서고, 창은 더할 줄 · 바�
   expect(patched[0]).toEqual({
     url: 'patch /consulting/2/items',
     body: { add: [{ label: '면접 준비', required: true }], rename: [{ id: 1, label: '지원서 최종본' }], remove: [2] },
+  });
+});
+
+/**
+ * I-94 — 「항목 수정」 창이 기한을 적고 지운다. 이름처럼 안 끝낸 항목(canRename)만 열리고, 바꾼 기한만 due 로 보낸다(지우면 null).
+ * 더하는 줄도 기한을 함께 적을 수 있다.
+ */
+it('「항목 수정」은 기한을 적고 지운다 — 바꾼 기한만 due 로 · 지우면 null · 더하는 줄은 add.dueOn (I-94)', async () => {
+  const items = [
+    row({ id: 1, seq: 1, label: '지원서 작성', dueOn: '2026-10-03', dueLabel: 'D-3' }),
+    row({ id: 2, seq: 2, label: '추천서' }),
+    row({ id: 3, seq: 3, label: '여권 사본', done: true, doneOn: '2026-07-24', source: 'template', canRename: false, canRemove: false }),
+  ];
+  const view = renderItems(items, true, () => []);
+  fireEvent.click(view.getByRole('button', { name: '항목 수정' }));
+  const dialog = view.getByRole('dialog', { name: '항목 수정' });
+  expect((within(dialog).getByLabelText('여권 사본 기한') as HTMLInputElement).disabled).toBe(true);
+  expect((within(dialog).getByLabelText('지원서 작성 기한') as HTMLInputElement).value).toBe('2026-10-03');
+  fireEvent.change(within(dialog).getByLabelText('지원서 작성 기한'), { target: { value: '' } });
+  fireEvent.change(within(dialog).getByLabelText('추천서 기한'), { target: { value: '2026-10-10' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '+ 항목 더하기' }));
+  fireEvent.change(within(dialog).getByLabelText('새 항목 1 이름'), { target: { value: '면접 준비' } });
+  fireEvent.change(within(dialog).getByLabelText('새 항목 1 기한'), { target: { value: '2026-10-05' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patched).toHaveLength(1));
+  expect(patched[0]).toEqual({
+    url: 'patch /consulting/2/items',
+    body: { add: [{ label: '면접 준비', required: true, dueOn: '2026-10-05' }], due: [{ id: 1, dueOn: null }, { id: 2, dueOn: '2026-10-10' }] },
   });
 });
 

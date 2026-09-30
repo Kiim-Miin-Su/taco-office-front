@@ -126,3 +126,19 @@ it('예외 종료가 닫혀 있으면(서버 판정) 사유 칸도 승인 단추
   expect(within(dialog).queryByLabelText('예외 종료 사유')).toBeNull();
   expect(within(dialog).queryByRole('button', { name: '예외 종료 승인' })).toBeNull();
 });
+
+/**
+ * I-95 「카카오로 보낼 수 있는 문구」 — 카카오 발송 채널은 없다(발송은 이메일 · SENS · N-42/DQ3). 대신 서버가 만든 안내문을
+ * 그대로 카카오톡 대화창에 붙일 수 있게 한 번에 복사한다. 글을 화면이 다시 짓지 않는다 — 복사되는 글은 noticeBody 그대로다.
+ */
+it('미리보기의 안내문을 카카오톡 문구로 그대로 복사한다 — 발송 채널이 아니라 붙여 넣을 글이다 (I-95)', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  const { view } = setup({ ...base, sessionsDone: 8, capabilities: { ...base.capabilities, canClose: true, closeBlockedReason: null } });
+  const dialog = await view.findByRole('dialog', { name: '컨설팅 종료 — 정하람' });
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  const kakao = await within(dialog).findByRole('group', { name: '카카오톡 문구' });
+  fireEvent.click(within(kakao).getByRole('button', { name: '카카오톡 문구 복사' }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(result.noticeBody));
+  expect(await within(kakao).findByText('복사했습니다 — 카카오톡 대화창에 붙여 넣으세요')).toBeTruthy();
+});
