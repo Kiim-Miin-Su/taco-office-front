@@ -1065,6 +1065,11 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
       data: { current: { type: 'weekSlot', paneId, date: '2026-09-01', slotMin: overMin } } },
     activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: 84 },
   } as unknown as DragEndEvent);
+  const resize = (occ: Occurrence, deltaY: number): DragEndEvent => ({
+    active: { id: 'resize-test', data: { current: { type: 'resize', occ } },
+      rect: { current: { initial: rect(200, 6), translated: rect(200 + deltaY, 6) } } },
+    over: null, activatorEvent: new MouseEvent('pointerdown'), collisions: null, delta: { x: 0, y: deltaY },
+  } as unknown as DragEndEvent);
 
   it.each([
     ['아래', 600, 690],
@@ -1218,6 +1223,38 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
     act(() => mocks.drag!.onDragEnd?.(event));
     expect(mocks.write.mock.calls[0][0].body).toMatchObject({ date: '2026-09-02', startMin: 915, endMin: 975 });
     expect(view.queryByText('9/2 (수) · 15:15–16:15')).toBeNull();
+  });
+
+  it('길이 조절 중 저장 전 끝시각을 보여 주고 드롭 PATCH와 같은 15분 스냅을 쓴다', () => {
+    const view = render(<SchedulePage />);
+    const event = resize(items[0], 28);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    expect(view.container.querySelector('[data-resize-preview]')?.textContent).toBe('11:00–12:00');
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-resize-preview]')?.textContent).toBe('11:00–12:30');
+    expect(view.getByRole('status', { name: '길이 조절 미리보기' }).className).toContain('whitespace-nowrap');
+    expect(mocks.write).not.toHaveBeenCalled();
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(view.container.querySelector('[data-resize-preview]')).toBeNull();
+    expect(mocks.write).toHaveBeenCalledOnce();
+    expect(mocks.write.mock.calls[0][0]).toEqual({ kind: 'patch', serId: 1,
+      body: { endMin: 750, onDate: '2026-09-01', scope: 'this' } });
+  });
+
+  it('길이 조절 취소는 미리보기를 지우고 저장하지 않으며 변경 없는 드롭도 저장하지 않는다', () => {
+    const view = render(<SchedulePage />);
+    const event = resize(items[0], 28);
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-resize-preview]')).not.toBeNull();
+    act(() => mocks.drag!.onDragCancel?.(event));
+    expect(view.container.querySelector('[data-resize-preview]')).toBeNull();
+    expect(mocks.write).not.toHaveBeenCalled();
+    const unchanged = resize(items[0], 0);
+    act(() => mocks.drag!.onDragStart?.({ active: unchanged.active, activatorEvent: unchanged.activatorEvent }));
+    act(() => mocks.drag!.onDragEnd?.(unchanged));
+    expect(view.container.querySelector('[data-resize-preview]')).toBeNull();
+    expect(mocks.write).not.toHaveBeenCalled();
   });
 
   it('주간 슬롯 drop은 세로 시각을 저장하고 보이지 않는 강의실·강사 축은 바꾸지 않는다', () => {

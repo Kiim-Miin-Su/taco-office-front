@@ -374,6 +374,7 @@ function AdminSchedulePage() {
   /* ── 드래그 (TBO-41 · CALENDAR §5) — 계산은 lib, 판정은 서버, 여기는 배선만 ── */
   const [dragging, setDragging] = useState<Occurrence | null>(null);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
+  const [resizePreview, setResizePreview] = useState<Pick<Occurrence, 'startMin' | 'endMin'> | null>(null);
   const [creating, setCreating] = useState<Extract<DragData, { type: 'create' }> | null>(null);
   const [createPreview, setCreatePreview] = useState<CreatePreview | null>(null);
   const [dragCopy, setDragCopy] = useState(false);
@@ -629,6 +630,7 @@ function AdminSchedulePage() {
   const onDragStart = (e: DragStartEvent) => {
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
+    setResizePreview(d.type === 'resize' ? { startMin: d.occ.startMin, endMin: d.occ.endMin } : null);
     if (d.type === 'create') {
       setCreating(d);
       setCreatePreview(null);
@@ -670,6 +672,12 @@ function AdminSchedulePage() {
       setDropPreview(null);
       return;
     }
+    if (d?.type === 'resize') {
+      setResizePreview({ startMin: d.occ.startMin,
+        endMin: resizePatch(d.occ, e.delta.y)?.endMin ?? d.occ.endMin });
+      setDropPreview(null);
+      return;
+    }
     if (d?.type !== 'move') {
       setDropPreview(null);
       return;
@@ -681,6 +689,7 @@ function AdminSchedulePage() {
     suppressPointerClickUntil.current = Date.now() + 300;
     setDragging(null);
     setDropPreview(null);
+    setResizePreview(null);
     setCreating(null);
     setCreatePreview(null);
     setDragCopy(false);
@@ -771,6 +780,7 @@ function AdminSchedulePage() {
     suppressPointerClickUntil.current = Date.now() + 300;
     setDragging(null);
     setDropPreview(null);
+    setResizePreview(null);
     setCreating(null);
     setCreatePreview(null);
     setDragCopy(false);
@@ -1704,6 +1714,11 @@ function AdminSchedulePage() {
                 <span data-create-preview>{hhmm(createPreview.startMin)}–{hhmm(createPreview.endMin)}</span>
               ) : `${hhmm(creating.startMin)}부터`}
             </div>
+          ) : resizePreview ? (
+            <output role="status" aria-label="길이 조절 미리보기"
+              className="whitespace-nowrap rounded-md border border-blue bg-card px-2 py-1 text-[11px] font-bold text-fg shadow-lg">
+              <span data-resize-preview>{hhmm(resizePreview.startMin)}–{hhmm(resizePreview.endMin)}</span>
+            </output>
           ) : dragging ? (
             <div style={eventColorStyle(colorOf(dragging))}
               className={`w-40 overflow-hidden rounded-md border px-2 py-1 text-[11px] font-bold shadow-lg ${eventStyles.subject} ${
