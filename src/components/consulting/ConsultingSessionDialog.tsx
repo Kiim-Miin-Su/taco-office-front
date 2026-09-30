@@ -16,7 +16,7 @@
  */
 'use client';
 import { useEffect, useId, useState } from 'react';
-import { Banner, Button, Chip, Dialog, Input, Label, Segmented, Select } from '../ui';
+import { Banner, Button, Checkbox, Chip, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { apiMessage } from '@/api/client';
 import { useAddConsultingSessions, useMeta } from '@/api/queries';
 import type { ConsSessionCreate, ConsSessionsResult, ConsultingDetail } from '@/api/types';
@@ -63,6 +63,7 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
     const endMin = end === '' ? null : parseHm(end);
     if ((start !== '' && startMin === null) || (end !== '' && endMin === null)) return { issue: '시각은 HH:MM 입니다' };
     if ((startMin === null) !== (endMin === null)) return { issue: '시작과 끝을 함께 적으세요' };
+    if (startMin !== null && startMin >= 1440) return { issue: '24:00은 시작 시각으로 고를 수 없습니다' };
     if (startMin !== null && endMin !== null && endMin <= startMin) return { issue: '끝이 시작보다 뒤여야 합니다' };
     return {
       body: {
@@ -137,13 +138,23 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
           </ul>
           <Button type="button" size="sm" variant="secondary" className="mt-1.5" onClick={() => setDates((ds) => [...ds, ''])} disabled={dates.length >= 31}>+ 날짜 더하기</Button>
         </div>
-        <div>
+        <div className="min-w-0">
           <Label htmlFor={`${id}-start`} hint="시간표에 없는 날짜만 쓴다">시작</Label>
-          <Input id={`${id}-start`} value={start} onChange={(e) => setStart(e.target.value)} placeholder="17:00" />
+          <Input id={`${id}-start`} type="time" step={60} className="min-w-0"
+            value={start} disabled={pending} onChange={(e) => setStart(e.target.value)} />
         </div>
-        <div>
-          <Label htmlFor={`${id}-end`}>끝</Label>
-          <Input id={`${id}-end`} value={end} onChange={(e) => setEnd(e.target.value)} placeholder="18:00" />
+        <div className="min-w-0">
+          <Label htmlFor={end === '24:00' ? undefined : `${id}-end`}>끝</Label>
+          {/* HTML time은 24:00을 표시할 수 없어 자정 종료의 입력과 출력을 분리한다. */}
+          <Input id={`${id}-end`} type="time" step={60} className="min-w-0"
+            value={end === '24:00' ? '' : end} hidden={end === '24:00'} tabIndex={end === '24:00' ? -1 : undefined}
+            disabled={pending} onChange={(e) => setEnd(e.target.value)} />
+          {end === '24:00' ? <output role="status" aria-label="끝 시각"
+            className="flex h-10 min-w-0 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+          <div className="mt-1">
+            <Checkbox label="24:00 (자정에 종료)" checked={end === '24:00'} disabled={pending}
+              onChange={(e) => setEnd(e.target.checked ? '24:00' : '')} />
+          </div>
         </div>
         <div>
           <Label htmlFor={`${id}-staff`}>담당</Label>

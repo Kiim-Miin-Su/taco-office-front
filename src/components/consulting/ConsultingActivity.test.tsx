@@ -151,6 +151,23 @@ it('회차 머리에 날짜 낱말 · 시각 · 담당 · 강의실 · 「기록
   expect(within(card).getByRole('link', { name: '1회차 일정' }).getAttribute('href')).toBe('/schedule?date=2026-09-16');
 });
 
+it('UX-13C3b — 회차 카드가 00:00 시작과 24:00 종료를 구분해 표시한다', () => {
+  const withMidnight = consultingItem({
+    id: 2, stage: 'running', contractStep: 5,
+    sessionsLog: [
+      { ...item.sessionsLog[0]!, id: 51, seq: 1, startMin: 0, endMin: 60 },
+      { ...item.sessionsLog[0]!, id: 52, seq: 2, startMin: 1380, endMin: 1440 },
+    ],
+  });
+  const client = new QueryClient();
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><ConsultingActivity item={withMidnight} /></QueryClientProvider>);
+  const cards = within(view.getByRole('region', { name: '회차 기록' })).getAllByRole('listitem');
+  expect(cards[0]!.textContent).toContain('00:00–01:00');
+  expect(cards[1]!.textContent).toContain('23:00–24:00');
+  expect(cards[1]!.textContent).not.toContain('23:00–00:00');
+});
+
 /**
  * I-94 「기한이 있으면 D-day 표시」 — 안 끝낸 항목에 기한이 있으면 서버가 적은 「D-3」 · 「D+2」를 칩으로 보이고(지났으면 붉게)
  * 기한이 없으면 예전처럼 「기한 없음」이다. 화면은 날짜를 세지 않는다 — 낱말 · 지남은 서버 값이다.

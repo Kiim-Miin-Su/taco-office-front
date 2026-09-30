@@ -130,3 +130,48 @@ it('미리보기가 겹친 날짜를 주면 그 날짜 옆에 주황 점과 겹�
   expect(within(dialog).getByText(/담당에게 그 시간 다른 일정이 있는 날짜 1개/)).toBeTruthy();
   expect((within(dialog).getByRole('button', { name: '회차 확정' }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+it('UX-13C3b — 선택 시각 둘은 분 단위 선택기이며 비우면 linked 회차를 위해 시각 없이 미리 본다', async () => {
+  const { view } = setup();
+  const dialog = await view.findByRole('dialog', { name: '회차 기록 — 오예린' });
+  await waitFor(() => expect(within(dialog).getByRole('option', { name: '김범준' })).toBeTruthy());
+  const start = within(dialog).getByLabelText('시작') as HTMLInputElement;
+  const end = within(dialog).getByLabelText('끝') as HTMLInputElement;
+  expect(start.type).toBe('time');
+  expect(end.type).toBe('time');
+  expect(start.step).toBe('60');
+  expect(end.step).toBe('60');
+  fireEvent.change(within(dialog).getByLabelText('날짜 1'), { target: { value: '2026-09-23' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posts).toHaveLength(1));
+  expect(posts[0]).toEqual({ url: '/consulting/1/sessions/preview', body: { dates: ['2026-09-23'], staffId: 3, mode: 'offline' } });
+});
+
+it('UX-13C3b — 24:00 종료는 보이는 출력과 endMin 1440으로 보내고, 해제하면 끝 시각을 다시 고르게 한다', async () => {
+  const { view } = setup();
+  const dialog = await view.findByRole('dialog', { name: '회차 기록 — 오예린' });
+  await waitFor(() => expect(within(dialog).getByRole('option', { name: '김범준' })).toBeTruthy());
+  fireEvent.change(within(dialog).getByLabelText('날짜 1'), { target: { value: '2026-09-25' } });
+  fireEvent.change(within(dialog).getByLabelText('시작'), { target: { value: '23:00' } });
+  const end = within(dialog).getByLabelText('끝') as HTMLInputElement;
+  const midnight = within(dialog).getByRole('checkbox', { name: '24:00 (자정에 종료)' });
+  fireEvent.click(midnight);
+  expect(end.hidden).toBe(true);
+  expect(end.tabIndex).toBe(-1);
+  expect(end.value).toBe('');
+  expect(within(dialog).getByRole('status', { name: '끝 시각' }).textContent).toBe('24:00');
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posts).toHaveLength(1));
+  expect(posts[0]).toEqual({ url: '/consulting/1/sessions/preview', body: { dates: ['2026-09-25'], staffId: 3, mode: 'offline', startMin: 1380, endMin: 1440 } });
+  fireEvent.click(midnight);
+  expect(end.hidden).toBe(false);
+  expect(end.value).toBe('');
+  expect(within(dialog).queryByRole('status', { name: '끝 시각' })).toBeNull();
+  expect((within(dialog).getByRole('button', { name: '미리 보기' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(dialog).getByRole('button', { name: '회차 확정' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(posts).toHaveLength(1);
+  fireEvent.click(midnight);
+  fireEvent.click(within(dialog).getByRole('button', { name: '회차 확정' }));
+  await waitFor(() => expect(posts).toHaveLength(2));
+  expect(posts[1]).toEqual({ url: '/consulting/1/sessions', body: { dates: ['2026-09-25'], staffId: 3, mode: 'offline', startMin: 1380, endMin: 1440 } });
+});

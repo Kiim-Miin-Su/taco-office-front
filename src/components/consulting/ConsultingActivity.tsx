@@ -22,7 +22,7 @@ import { apiMessage } from '@/api/client';
 import { useToggleConsultingItem, useWriteConsultingSession } from '@/api/queries';
 import type { ConsSession, Consulting, ConsultingDetail } from '@/api/types';
 import { Banner, Button, Chip, Label, LinkButton, Textarea, cn } from '@/components/ui';
-import { kstDateTime, longDateLabel } from '@/lib/calendar';
+import { hhmm, kstDateTime, longDateLabel } from '@/lib/calendar';
 import { ConsultingItemFiles } from './ConsultingItemFiles';
 import { ConsultingItemsEditor } from './ConsultingItemsEditor';
 import { ConsultingProgress } from './ConsultingProgress';
@@ -34,8 +34,6 @@ const FIELDS = [
 type Field = (typeof FIELDS)[number][0];
 /** 본문 3열 — 누가는 머리의 담당 이름이다(원본 §31 · 31-09) */
 const BODY = [['what', '무엇을'], ['why', '왜'], ['how', '어떻게']] as const;
-
-const hm = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 /** 회차 한 장 — 「고치기」를 누르면 펼쳐지고 **바뀐 칸만** 보낸다 (C93 PATCH 규약 · C95) */
 function SessionCard({ consId, session, locked }: { consId: number; session: ConsSession; locked: boolean }) {
@@ -60,7 +58,7 @@ function SessionCard({ consId, session, locked }: { consId: number; session: Con
     if (!Object.keys(body).length) return;
     write.mutate({ consId, sessId: session.id, body }, { onSuccess: () => setOpen(false) });
   };
-  const time = session.startMin != null && session.endMin != null ? `${hm(session.startMin)}–${hm(session.endMin)}` : null;
+  const time = session.startMin != null && session.endMin != null ? `${hhmm(session.startMin)}–${hhmm(session.endMin)}` : null;
 
   return (
     <li className="overflow-hidden rounded-xl border border-line bg-card">
