@@ -86,6 +86,20 @@ async function fillOneLine(view: ReturnType<typeof render>) {
   return dialog;
 }
 
+it('온라인으로 바꾸면 이전 강의실을 비우고 미리보기 본문에도 실지 않는다 (UX-09)', async () => {
+  const { view } = setup();
+  const dialog = await fillOneLine(view);
+  const room = within(dialog).getByLabelText('수업 1 강의실') as HTMLSelectElement;
+  fireEvent.change(room, { target: { value: '2' } });
+  expect(room.value).toBe('2');
+  fireEvent.change(within(dialog).getByLabelText('수업 1 방식'), { target: { value: 'online' } });
+  expect(room.value).toBe('');
+  expect(room.disabled).toBe(true);
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posted).toHaveLength(1));
+  expect((posted[0]!.body as { lines: Array<{ mode: string; roomId: number | null }> }).lines[0]).toMatchObject({ mode: 'online', roomId: null });
+});
+
 it('기존 학생 선택은 같은 학생의 재등록으로만 안내한다 — 새 형제를 한 사람으로 합치지 않는다 (A-13)', async () => {
   const { view } = setup();
   const dialog = await view.findByRole('dialog');

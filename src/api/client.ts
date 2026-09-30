@@ -14,8 +14,9 @@
  * 동시에 여러 요청이 401 이 되어도 재발급은 한 번만 하고 나머지는 그 결과를 기다린다.
  * 그렇게 하지 않으면 새로고침 한 번에 재발급이 열 번 날아간다.
  */
-import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
+import axios, { AxiosError, type AxiosAdapter, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import type { ApiErrorResponse, RefreshResult } from './types';
+import { beginRequestDiagnostic, logRequestDispatch, logRequestOutcome, type RequestDiagnostic } from './request-diagnostics';
 
 export class ApiError extends Error {
   constructor(
@@ -72,7 +73,7 @@ export const setAccessToken = (t: string | null) => {
   invalidateSessionRequests();
 };
 
-type Retryable = AxiosRequestConfig & { _retried?: boolean; _sessionGeneration?: number };
+type Retryable = AxiosRequestConfig & { _retried?: boolean; _sessionGeneration?: number; _diagnostic?: RequestDiagnostic };
 const authPaths = new Set(['/auth/login', '/auth/refresh', '/auth/logout']);
 const isAuthAction = (url?: string) => authPaths.has((url ?? '').split('?')[0]);
 const sessionChanged = () => new ApiError('SESSION_CHANGED', '로그인 상태가 바뀌어 이전 요청을 취소했습니다.', 0);
@@ -98,7 +99,10 @@ function expireSession(generation: number): void {
 api.interceptors.request.use((cfg) => {
   const owned = cfg as Retryable;
   owned._sessionGeneration ??= sessionGeneration;
-  if (!isAuthAction(cfg.url) && owned._sessionGeneration !== sessionGeneration) throw sessionChanged();
+  if (!isAuthAction(cfg.url) && owned._sessionGeneration !== sessionGeneration) {
+    logRequestOutcome({ diagnostic: owned._diagnostic, outcome: 'error', status: 0, code: 'SESSION_CHANGED' });
+    throw sessionChanged();
+  }
   // 이 인스턴스의 Bearer는 메모리 토큰 하나만 권위다. 재시도 config의 오래된 헤더도 제거한다.
   if (accessToken && !isAuthAction(cfg.url)) cfg.headers.Authorization = `Bearer ${accessToken}`;
   else cfg.headers.delete('Authorization');
@@ -110,24 +114,47 @@ api.interceptors.request.use((cfg) => {
  *
  * 단추의 `disabled={isPending}` 은 다음 그리기 뒤에야 잠겨서, **한 틱에 두 번** 누르면 요청이 둘 나갔다(실측). 입금(N-132)처럼 서버가
  * 요청 키로 수렴시키는 쓰기도 있지만 만들기(컴플레인 · 할 일 · 상담 · 회의 · 지출)에는 키가 없어 두 줄이 됐다. 판정은 여기 한 곳이다 —
- * 방법 · 주소 · **보낼 본문 글자**가 같고 앞선 것이 아직 안 끝났으면 같은 약속을 돌려준다(성공도 실패도 함께 받는다).
+ * 세션 세대 · 방법 · 주소 · **보낼 본문 글자**가 같고 앞선 것이 아직 안 끝났으면 같은 약속을 돌려준다(성공도 실패도 함께 받는다).
  * 읽기는 묶지 않는다(TanStack Query 가 이미 한 벌로 모은다) · 본문을 글자로 견줄 수 없는 파일(FormData)도 묶지 않는다 ·
  * 끝나면 곧바로 풀어 다음 쓰기는 따로 간다(같은 금액을 한 번 더 받는 정상 분납은 막지 않는다). 두 창 · 끊긴 응답의 재시도는 서버 몫이다.
  */
 const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
-const pendingWrites = new Map<string, Promise<AxiosResponse>>();
+const pendingWrites = new Map<string, { promise: Promise<AxiosResponse>; diagnostic: RequestDiagnostic }>();
+// 401 재시도의 config.adapter를 다시 감쌀 때 이전 진단/병합 wrapper를 중첩하지 않는다.
+const transportAdapters = new WeakMap<AxiosAdapter, AxiosAdapter>();
 api.interceptors.request.use((cfg) => {
-  if (!WRITE_METHODS.has((cfg.method ?? 'get').toLowerCase()) || isAuthAction(cfg.url)) return cfg;
-  const send = axios.getAdapter(cfg.adapter ?? api.defaults.adapter);
+  const owned = cfg as Retryable;
+  const diagnostic = beginRequestDiagnostic({ method: cfg.method, url: cfg.url, body: cfg.data, previous: owned._diagnostic });
+  owned._diagnostic = diagnostic;
+  const configured = axios.getAdapter(cfg.adapter ?? api.defaults.adapter);
+  const send = transportAdapters.get(configured) ?? configured;
   cfg.adapter = (c) => {
-    if (c.data !== undefined && typeof c.data !== 'string') return send(c);
-    const key = `${String(c.method).toLowerCase()} ${c.baseURL ?? ''}${c.url ?? ''} ${c.data ?? ''}`;
+    const mayCoalesce = WRITE_METHODS.has((c.method ?? 'get').toLowerCase()) && !isAuthAction(c.url)
+      && (c.data === undefined || typeof c.data === 'string');
+    if (!mayCoalesce) {
+      logRequestDispatch({ diagnostic });
+      return send(c);
+    }
+    const key = `${(c as Retryable)._sessionGeneration} ${String(c.method).toLowerCase()} ${c.baseURL ?? ''}${c.url ?? ''} ${c.data ?? ''}`;
     const running = pendingWrites.get(key);
-    if (running) return running;
-    const flight = send(c).finally(() => { if (pendingWrites.get(key) === flight) pendingWrites.delete(key); });
+    if (running) {
+      logRequestDispatch({ diagnostic, coalescedWith: running.diagnostic });
+      // 공유 전송 결과라도 호출별 config는 분리한다. 원본의 _retried를 공유하면 follower의 첫401이 재발급 실패가 된다.
+      return running.promise.then((r) => ({ ...r, config: c }), (error: unknown) => {
+        if (axios.isCancel(error)) throw new axios.CanceledError(undefined, c);
+        if (axios.isAxiosError(error)) {
+          throw new AxiosError(error.message, error.code, c, error.request,
+            error.response ? { ...error.response, config: c } : undefined);
+        }
+        throw error;
+      });
+    }
+    logRequestDispatch({ diagnostic });
+    const flight = { diagnostic, promise: send(c).finally(() => { if (pendingWrites.get(key) === flight) pendingWrites.delete(key); }) };
     pendingWrites.set(key, flight);
-    return flight;
+    return flight.promise;
   };
+  transportAdapters.set(cfg.adapter, send);
   return cfg;
 });
 
@@ -150,7 +177,11 @@ function renew(generation: number): Promise<void> {
 api.interceptors.response.use(
   (r) => {
     if (!isAuthAction(r.config.url)
-      && (r.config as Retryable)._sessionGeneration !== sessionGeneration) throw sessionChanged();
+      && (r.config as Retryable)._sessionGeneration !== sessionGeneration) {
+      logRequestOutcome({ diagnostic: (r.config as Retryable)._diagnostic, outcome: 'error', status: r.status, code: 'SESSION_CHANGED' });
+      throw sessionChanged();
+    }
+    logRequestOutcome({ diagnostic: (r.config as Retryable)._diagnostic, outcome: 'response', status: r.status, body: r.data });
     // 갱신 뒤 보호 재시도까지 성공한 때만 재확인한다. Me 자체는 재귀적으로 재조회하지 않는다.
     if ((r.config as Retryable)._retried && r.config.url !== '/auth/me') {
       for (const listener of recheckListeners) listener();
@@ -161,6 +192,10 @@ api.interceptors.response.use(
     if (err instanceof ApiError) throw err;
     const cfg = err.config as Retryable | undefined;
     const status = err.response?.status ?? 0;
+    const changed = cfg && !isAuthAction(cfg.url) && cfg._sessionGeneration !== sessionGeneration;
+    logRequestOutcome({ diagnostic: cfg?._diagnostic, outcome: 'error', status,
+      code: changed ? 'SESSION_CHANGED' : status ? err.response?.data?.code : TRANSPORT_FAILURES[err.code ?? '']?.code,
+      body: changed ? undefined : err.response?.data });
 
     if (cfg && !isAuthAction(cfg.url)) {
       const generation = cfg._sessionGeneration;

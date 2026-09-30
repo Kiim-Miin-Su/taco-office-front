@@ -28,16 +28,24 @@ const me: Me = {
 };
 
 describe('AdminNavigation', () => {
-  it('상단은 권한이 있는 업무 탭 10개와 리포트 배지를 렌더한다', () => {
+  it.each([['/students/7', '학생'], ['/staff/7', '강사']])('새 상세 %s는 실제 목록 링크를 유지하고 해당 탭 하나만 활성화한다', (pathname, label) => {
+    const view = render(<AdminTopNavigation pathname={pathname} me={me} badges={{}} />);
+    expect(view.getByRole('link', { name: '학생' }).getAttribute('href')).toBe('/students');
+    expect(view.getByRole('link', { name: '강사' }).getAttribute('href')).toBe('/staff');
+    const active = view.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page');
+    expect(active.map((link) => link.textContent)).toEqual([label]);
+  });
+
+  it('상단은 권한이 있는 업무 탭 12개와 리포트 배지를 렌더한다', () => {
     const view = render(
       <AdminTopNavigation pathname="/reports/7" me={me} badges={{ reports: 5, approvals: 2 }} />,
     );
     const nav = view.getByRole('navigation', { name: '주 메뉴' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links).toHaveLength(10);
+    expect(links).toHaveLength(12);
     expect(links.map((link) => link.textContent)).toEqual([
-      '스케줄', '상담', '컨설팅', '수업', '교재', '수업 안내', '리포트5', '회계', '운영', '대표 보고',
+      '스케줄', '학생', '강사', '상담', '컨설팅', '수업', '교재', '수업 안내', '리포트5', '회계', '운영', '대표 보고',
     ]);
     expect(within(nav).getByRole('link', { name: '리포트 5' }).getAttribute('aria-current')).toBe('page');
     expect(within(nav).getByRole('link', { name: '대표 보고' }).textContent).not.toContain('2');

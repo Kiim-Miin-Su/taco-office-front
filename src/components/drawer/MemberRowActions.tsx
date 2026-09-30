@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: MemberRowActions.tsx — MemberHandoverBox, MemberRowActions (component)
+ * 목적: MemberRowActions.tsx — MemberHandoverBox, MemberEditButton, MemberRowActions (component)
  * 책임/재사용: 기존 components/ui와 도메인 selector/hook을 재사용한다. 공유 상태는 상위 소유자에 두고 서버 업무 판정을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -75,6 +75,7 @@ const tidy = (d: Draft, countries: readonly PhoneCountry[]): Flat => ({
   name: d.name.trim(), loginId: d.loginId.trim(), email: d.email.trim().toLowerCase(), phone: composePhone(d.phone, countries),
   title: d.title.trim(), tz: d.tz, role: d.role, hiredOn: d.hiredOn,
 });
+const sameField = (key: keyof Flat, left: string, right: string) => key === 'phone' ? samePhone(left, right) : left === right;
 
 /**
  * 사람별 권한 예외 한 칸의 세 값 — 원문 PDF 의 자리 차이를 역할을 늘리지 않고 사람에게 적는다(N-68 · 「켬/끔/역할 따름」).
@@ -94,8 +95,8 @@ const PERM_CHOICES: Array<{ value: PermChoice; label: string }> = [
  * 권한 예외 다섯 칸은 서버의 `canEditPerms`(대표 · 자기 줄 아님)가 있을 때만 선다(N-68) — 바뀐 칸만 `perms` 로 보내고,
  * 올릴 수 없는 권한(보는 이에게 없는 것)은 서버가 403 으로 막고 그 말을 그대로 띄운다.
  */
-function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }: {
-  member: Member; tzGroups: TzGroup[]; tz: string; phoneCountries: readonly PhoneCountry[]; loginIdRule?: string;
+export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COUNTRIES, loginIdRule }: {
+  member: Member; tzGroups: TzGroup[]; tz: string; phoneCountries?: readonly PhoneCountry[]; loginIdRule?: string;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -112,30 +113,46 @@ function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }:
     () => Object.fromEntries(permRows.map((p) => [p.key, permChoice(p.override)])), [permRows],
   );
   const [perms, setPerms] = useState<Record<string, PermChoice>>(initialPerms);
-  useEffect(() => { if (open) { setDraft(initial); setPerms(initialPerms); setErr(null); } }, [open, initial, initialPerms]);
+  const [snapshot, setSnapshot] = useState(() => ({ id: member.id, draft: initial, perms: initialPerms }));
+  // 재조회 값은 현재 서버 상태다. 열린 폼의 초안/비교 기준은 열기 이벤트에서만 바꾼다.
+  const beginEdit = () => {
+    setSnapshot({ id: member.id, draft: initial, perms: initialPerms });
+    setDraft(initial); setPerms(initialPerms); setErr(null); setOpen(true);
+  };
 
   const set = (key: Exclude<keyof Draft, 'phone'>) => (value: string) => setDraft((d) => ({ ...d, [key]: value }));
   // 바뀐 칸만 — 같은 값을 다시 보내지 않는다(서버는 빈 수정을 409 로 막는다). 휴대폰은 모양(공백 · 하이픈)만 다른 것을 같게 본다
-  const before = tidy(initial, phoneCountries);
+  const before = tidy(snapshot.draft, phoneCountries);
+  const current = tidy(initial, phoneCountries);
   const after = tidy(draft, phoneCountries);
   const body: Record<string, string> = {};
+  let conflict = member.id !== snapshot.id;
+  const remoteChanged = conflict || (Object.keys(current) as Array<keyof Flat>).some(key => !sameField(key, current[key], before[key]))
+    || permRows.some(p => initialPerms[p.key] !== (snapshot.perms[p.key] ?? 'role'));
   for (const key of Object.keys(after) as Array<keyof Flat>) {
     if (key === 'role' && !member.canChangeRole) continue;
     if (key === 'hiredOn' && after.hiredOn === '') continue;
-    const changed = key === 'phone' ? !samePhone(after.phone, before.phone) : after[key] !== before[key];
-    if (changed) body[key] = after[key];
+    // 사용자 변경 칸만 보낸다. 원격도 같은 값으로 바뀌었다면 중복 저장하지 않는다.
+    if (!sameField(key, after[key], before[key]) && !sameField(key, after[key], current[key])) {
+      body[key] = after[key];
+      if (!sameField(key, current[key], before[key])) conflict = true;
+    }
   }
   // 권한 예외도 바뀐 칸만 — 「역할 따름」은 null 로 보낸다(예외를 지운다)
   const permsBody: StaffPermsPatch = {};
   for (const p of permRows) {
     const next = perms[p.key] ?? 'role';
-    if (next !== initialPerms[p.key]) permsBody[p.key as keyof StaffPermsPatch] = permValue(next);
+    const previous = snapshot.perms[p.key] ?? 'role';
+    if (next !== previous && next !== initialPerms[p.key]) {
+      permsBody[p.key as keyof StaffPermsPatch] = permValue(next);
+      if (initialPerms[p.key] !== previous) conflict = true;
+    }
   }
   const permsChanged = Object.keys(permsBody).length > 0;
   // N-104 — 연락처(이메일 · 휴대폰)가 바뀌면 서버가 첫 설정을 다시 건다. 아이디는 연락처가 아니다(W10)
   const contactChanged = 'email' in body || 'phone' in body;
   const pending = write.isPending;
-  const canSubmit = (Object.keys(body).length > 0 || permsChanged) && after.name.length > 0 && after.loginId.length > 0 && !pending;
+  const canSubmit = member.canEdit && !conflict && (Object.keys(body).length > 0 || permsChanged) && after.name.length > 0 && after.loginId.length > 0 && !pending;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -148,7 +165,7 @@ function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }:
 
   return (
     <>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>수정</Button>
+      <Button type="button" size="sm" variant="ghost" onClick={beginEdit}>수정</Button>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -165,6 +182,11 @@ function MemberEditButton({ member, tzGroups, tz, phoneCountries, loginIdRule }:
         )}
       >
         <div className="flex flex-col gap-3">
+          {remoteChanged ? <Banner tone="warning">
+            {conflict
+              ? '수정 중인 같은 항목이 다른 곳에서 변경되어 저장할 수 없습니다. 초안을 따로 보관한 뒤 창을 닫았다 다시 열어 최신 값을 확인해 주세요.'
+              : '수정 창을 연 뒤 다른 변경 사항이 있습니다. 입력 중인 초안은 유지하며 직접 바꾼 항목만 저장합니다. 최신 값은 창을 닫았다 다시 열어 확인해 주세요.'}
+          </Banner> : null}
           {member.canChangeRole ? (
             <div>
               <Label>역할</Label>

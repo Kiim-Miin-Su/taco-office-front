@@ -11,9 +11,9 @@
  * 그 행이 API 로 내려오고, 화면은 그것만 본다. 운영 데이터로 바뀌어도
  * 이 파일도 화면도 한 줄 안 바뀐다.
  */
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type Query, type QueryClient, type QueryFilters, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
-import { api, ApiError } from './client';
+import { api, ApiError, getSessionGeneration } from './client';
 import { beginScheduleOptimistic, settleScheduleOptimistic, type ScheduleOptimisticContext } from './schedule-optimistic';
 import type {
   Accounting,
@@ -417,6 +417,61 @@ function opsQueryPart(query: OpsQuery): OpsQuery {
 
 function useViewerId(): ViewerId {
   return useSession((s) => s.me?.id ?? 'anonymous');
+}
+
+type CacheLayer = { apply: (value: unknown, result?: unknown) => unknown; pending: boolean; failed: boolean; result?: unknown };
+type CacheLayers = { base: unknown; rendered: unknown; layers: CacheLayer[] };
+type CacheOptimisticContext = { generation: number; entries: { query: Query; batch: CacheLayers; layer: CacheLayer }[] };
+// schedule-optimistic와 같은 수명 규칙: 훅 인스턴스가 아니라 실제 Query별 layer를 공유한다.
+// 제거된 Query는 WeakMap과 함께 폐기되고 같은 key의 새 세션 Query와 섞이지 않는다.
+const cacheLayers = new WeakMap<Query, CacheLayers>();
+
+function renderCacheLayers(client: QueryClient, query: Query, batch: CacheLayers): boolean {
+  if (client.getQueryCache().find({ queryKey: query.queryKey, exact: true }) !== query || query.state.data === undefined) return false;
+  const current = query.state.data;
+  // 다른 GET/소비자가 준 서버 값을 오래된 snapshot으로 덮지 않는다.
+  if (current !== batch.rendered) batch.base = current;
+  const next = batch.layers.reduce((value, layer) => layer.failed ? value : layer.apply(value, layer.result), batch.base);
+  if (next !== current) client.setQueryData(query.queryKey, next);
+  batch.rendered = query.state.data; // structural sharing 이후 실제 참조
+  return true;
+}
+
+async function beginCacheOptimistic<T>(
+  client: QueryClient, filters: QueryFilters, project: (value: T, result?: unknown) => T,
+): Promise<CacheOptimisticContext> {
+  const generation = getSessionGeneration();
+  // await cancelQueries 중 clear()가 와도 새 Query를 옛 요청의 대상으로 붙잡지 않는다.
+  const entries = client.getQueryCache().findAll(filters).filter((query) => query.state.data !== undefined).map((query) => {
+    let batch = cacheLayers.get(query);
+    if (!batch) {
+      batch = { base: query.state.data, rendered: query.state.data, layers: [] };
+      cacheLayers.set(query, batch);
+    }
+    const layer: CacheLayer = { apply: (value, result) => project(value as T, result), pending: true, failed: false };
+    batch.layers.push(layer);
+    return { query, batch, layer };
+  });
+  await client.cancelQueries(filters);
+  if (generation === getSessionGeneration()) for (const { query, batch } of entries) renderCacheLayers(client, query, batch);
+  return { generation, entries };
+}
+
+/** 실패한 요청만 뺀다. 성공 layer도 나머지 요청이 끝날 때까지 남겨 마지막에만 재조회한다. */
+function settleCacheOptimistic(client: QueryClient, context: CacheOptimisticContext, failed: boolean, result?: unknown): boolean {
+  if (context.generation !== getSessionGeneration()) return false;
+  let live = context.entries.length === 0;
+  let pending = false;
+  for (const { query, batch, layer } of context.entries) {
+    layer.pending = false;
+    layer.failed = failed;
+    layer.result = result;
+    if (!renderCacheLayers(client, query, batch)) continue;
+    live = true;
+    if (batch.layers.some((entry) => entry.pending)) pending = true;
+    else cacheLayers.delete(query);
+  }
+  return live && !pending;
 }
 
 /** from · to 만 받는 화면들이 같은 모양을 쓴다 */
@@ -1170,28 +1225,18 @@ export function useUpdateConsultingShare(): UseMutationResult<
     onMutate: async ({ consId, ...body }) => {
       const detailKey = sessionQueryKey(qk.consultingDetail(consId), viewerId);
       const listKey = sessionQueryKey(qk.consulting, viewerId);
-      await Promise.all([
-        qc.cancelQueries({ queryKey: detailKey }),
-        qc.cancelQueries({ queryKey: listKey }),
+      const contexts = await Promise.all([
+        beginCacheOptimistic<ConsultingDetail>(qc, { queryKey: detailKey, exact: true }, (detail, result) =>
+          result ? result as ConsultingDetail : { ...detail, share: body.share, pickedStaffIds: body.pickedStaffIds ?? [] }),
+        beginCacheOptimistic<ConsultingList>(qc, { queryKey: listKey, exact: true }, (list) => ({
+          ...list, items: list.items.map((item) => item.id === consId ? { ...item, share: body.share } : item),
+        })),
       ]);
-      const detail = qc.getQueryData<ConsultingDetail>(detailKey);
-      const list = qc.getQueryData<ConsultingList>(listKey);
-      if (detail) qc.setQueryData<ConsultingDetail>(detailKey, { ...detail, share: body.share, pickedStaffIds: body.pickedStaffIds ?? [] });
-      if (list) qc.setQueryData<ConsultingList>(listKey, {
-        ...list,
-        items: list.items.map((item) => item.id === consId ? { ...item, share: body.share } : item),
-      });
-      return { detailKey, listKey, detail, list };
+      return { generation: contexts[0].generation, entries: contexts.flatMap((context) => context.entries) };
     },
-    onError: (_error, _body, context) => {
-      if (context?.detail) qc.setQueryData(context.detailKey, context.detail);
-      if (context?.list) qc.setQueryData(context.listKey, context.list);
+    onSettled: (detail, error, _body, context) => {
+      if (context && settleCacheOptimistic(qc, context, error != null, detail)) void qc.invalidateQueries({ queryKey: family.consulting });
     },
-    onSuccess: (detail, _body, context) => {
-      const key = context?.detailKey ?? sessionQueryKey(qk.consultingDetail(detail.id), viewerId);
-      qc.setQueryData(key, detail);
-    },
-    onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
   });
 }
 
@@ -1582,30 +1627,21 @@ export function useCreateGuideDraft(): UseMutationResult<Guide, unknown, GuideDr
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body) => (await api.post<Guide>('/guides/drafts', body)).data,
-    onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: qk.guideHistoryRoot });
-      const snapshots = qc.getQueriesData<GuideHistory>({ queryKey: qk.guideHistoryRoot });
-      for (const [key, current] of snapshots) {
-        if (!current) continue;
-        const hasCandidate = current.missing.some(
-          (item) => item.sourceOccurrenceId === body.sourceOccurrenceId && item.studentId === body.studentId,
-        );
-        if (!hasCandidate) continue;
-        qc.setQueryData<GuideHistory>(key, {
-          ...current,
-          missing: current.missing.filter(
-            (item) => !(item.sourceOccurrenceId === body.sourceOccurrenceId && item.studentId === body.studentId),
-          ),
-          counts: { ...current.counts, missing: Math.max(0, current.counts.missing - 1) },
-        });
-      }
-      return { snapshots };
-    },
-    onError: (_error, _body, context) => {
-      context?.snapshots.forEach(([key, value]) => qc.setQueryData(key, value));
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: family.guides });
+    onMutate: (body) => beginCacheOptimistic<GuideHistory>(qc, { queryKey: qk.guideHistoryRoot }, (current) => {
+      const hasCandidate = current.missing.some(
+        (item) => item.sourceOccurrenceId === body.sourceOccurrenceId && item.studentId === body.studentId,
+      );
+      if (!hasCandidate) return current;
+      return {
+        ...current,
+        missing: current.missing.filter(
+          (item) => !(item.sourceOccurrenceId === body.sourceOccurrenceId && item.studentId === body.studentId),
+        ),
+        counts: { ...current.counts, missing: Math.max(0, current.counts.missing - 1) },
+      };
+    }),
+    onSettled: (_guide, error, _body, context) => {
+      if (context && settleCacheOptimistic(qc, context, error != null)) void qc.invalidateQueries({ queryKey: family.guides });
     },
   });
 }
@@ -2137,7 +2173,8 @@ export type DrawerWrite =
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
 type DrawerWriteResult = OkResult | DrawerTodoCreateResult | DrawerTodoClearResult | ChangeReqResult | ReqReviewResult;
-type DrawerWriteContext = { snapshots: Array<[readonly unknown[], Drawer | undefined]> };
+type DrawerWriteContext = CacheOptimisticContext;
+let temporaryTodoId = -Date.now();
 
 export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, DrawerWrite, DrawerWriteContext> {
   const qc = useQueryClient();
@@ -2174,15 +2211,10 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
       }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
-    onMutate: async (w) => {
-      if (!['todo', 'todoCreate', 'todoClear', 'notiRead', 'notiReadAll'].includes(w.kind)) {
-        return { snapshots: [] };
-      }
-      // 가역 UI만 먼저 바꾼다. 실패 시 아래 snapshot으로 정확히 되돌린다.
-      await qc.cancelQueries({ queryKey: family.drawer });
-      const snapshots = qc.getQueriesData<Drawer>({ queryKey: family.drawer });
-      for (const [key, current] of snapshots) {
-        if (!current) continue;
+    onMutate: (w) => {
+      // 재투영마다 id가 바뀌거나 같은 ms의 두 등록이 겹치지 않게 요청당 한 번만 할당한다.
+      const todoId = w.kind === 'todoCreate' ? --temporaryTodoId : null;
+      return beginCacheOptimistic<Drawer>(qc, { queryKey: family.drawer }, (current) => {
         let next = current;
         if (w.kind === 'todo') {
           next = { ...current, todos: current.todos.map((t) => (t.id === w.id ? { ...t, done: w.done } : t)) };
@@ -2196,7 +2228,7 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
             ...current,
             todos: [
               {
-                id: -Date.now(),
+                id: todoId!,
                 title: w.body.title,
                 fromId: me?.id ?? null,
                 fromName: me?.name ?? null,
@@ -2212,7 +2244,7 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
                 clearable: false,
                 clearBlockedReason: null,
               },
-              ...current.todos,
+              ...current.todos.filter((todo) => todo.id !== todoId),
             ],
           };
         } else if (w.kind === 'notiRead') {
@@ -2220,14 +2252,13 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         } else if (w.kind === 'notiReadAll') {
           next = { ...current, notis: current.notis.map((n) => (n.toId === me?.id ? { ...n, read: true } : n)) };
         }
-        qc.setQueryData(key, next);
-      }
-      return { snapshots };
+        return next;
+      });
     },
-    onError: (_error, _w, context) => {
-      context?.snapshots.forEach(([key, value]) => qc.setQueryData(key, value));
-    },
-    onSuccess: (_r, w) => {
+    onSuccess: (_r, w, context) => {
+      // 제거된 서랍 요청의 늦은 성공으로 다음 세션의 종속 조회까지 흔들지 않는다.
+      if (!context || context.generation !== getSessionGeneration() || (context.entries.length > 0 &&
+        context.entries.every(({ query }) => qc.getQueryCache().find({ queryKey: query.queryKey, exact: true }) !== query))) return;
       // 할 일은 운영 탭(§62)에도 같은 행이 보인다
       if (w.kind === 'todo' || w.kind === 'todoCreate' || w.kind === 'todoClear' || w.kind === 'todoPatch') {
         void qc.invalidateQueries({ queryKey: family.ops });
@@ -2251,7 +2282,9 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
       }
     },
     // 창(month/all)마다 키가 다르므로 성공·실패 모두 서버 값으로 화해한다.
-    onSettled: () => qc.invalidateQueries({ queryKey: family.drawer }),
+    onSettled: (_result, error, _w, context) => {
+      if (context && settleCacheOptimistic(qc, context, error != null)) return qc.invalidateQueries({ queryKey: family.drawer });
+    },
   });
 }
 

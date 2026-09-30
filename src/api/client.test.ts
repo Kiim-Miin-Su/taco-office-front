@@ -5,7 +5,7 @@
  */
 
 import { AxiosError, CanceledError, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError, apiMessage, setAccessToken, onSessionRecheck } from './client';
 
 const originalAdapter = api.defaults.adapter;
@@ -24,9 +24,14 @@ const unauthorized = (config: InternalAxiosRequestConfig) => new AxiosError(
   response(config, { code: 'UNAUTHORIZED', message: '로그인이 필요합니다' }, 401),
 );
 
+beforeEach(() => {
+  vi.spyOn(console, 'info').mockImplementation(() => undefined);
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+});
 afterEach(() => {
   api.defaults.adapter = originalAdapter;
   setAccessToken(null);
+  vi.restoreAllMocks();
 });
 
 describe('공용 API 오류 경계', () => {
@@ -295,6 +300,30 @@ describe('같은 쓰기가 끝나기 전에 또 오면 — 서버에 한 번만 
     expect(rb.data).toEqual({ id: 1 });
   });
 
+  it('이전 세션의 동일 쓰기가 진행 중이어도 새 세션은 별도로 전송한다', async () => {
+    const started = deferred(), release = deferred();
+    setAccessToken('previous-session');
+    const adapter = vi.fn<AxiosAdapter>(async (config) => {
+      if (config.headers.Authorization === 'Bearer previous-session') {
+        started.resolve();
+        await release.promise;
+      }
+      return response(config, { id: 1 }, 201);
+    });
+    api.defaults.adapter = adapter;
+    const previous = api.post('/ops/complaints', { body: 'same' }).catch((error: unknown) => error);
+    await started.promise;
+    setAccessToken('next-session');
+    const next = api.post('/ops/complaints', { body: 'same' }).catch((error: unknown) => error);
+    // 새 요청의 interceptor와 adapter 진입을 기다리되 이전 요청은 아직 미완료다.
+    await new Promise<void>((done) => { setTimeout(done, 0); });
+    release.resolve();
+    const [previousResult, nextResult] = await Promise.all([previous, next]);
+    expect(adapter).toHaveBeenCalledTimes(2);
+    expect(previousResult).toMatchObject({ code: 'SESSION_CHANGED', status: 0 });
+    expect(nextResult).toMatchObject({ status: 201, data: { id: 1 } });
+  });
+
   it('본문이 다르거나 끝난 뒤 다시 보내면 따로 보낸다 · 읽기(GET)는 묶지 않는다', async () => {
     const { gate, adapter } = slow();
     api.defaults.adapter = adapter as unknown as AxiosAdapter;
@@ -336,5 +365,143 @@ describe('같은 쓰기가 끝나기 전에 또 오면 — 서버에 한 번만 
     expect(adapter).toHaveBeenCalledTimes(1);
     expect(ea).toBeInstanceOf(ApiError);
     expect((eb as ApiError).code).toBe('OVERPAY');
+  });
+
+  it('합쳐진 두 쓰기의401도 각자 재시도 상태를 가지며 세션을 만료시키지 않는다', async () => {
+    setAccessToken('old');
+    const refreshStarted = deferred(), releaseRefresh = deferred();
+    const adapter = vi.fn<AxiosAdapter>(async (config) => {
+      if (config.url === '/auth/refresh') {
+        refreshStarted.resolve(); await releaseRefresh.promise;
+        return response(config, { accessToken: 'renewed' });
+      }
+      if (config.headers.Authorization === 'Bearer old') throw unauthorized(config);
+      return response(config, { id: 1 }, 201);
+    });
+    api.defaults.adapter = adapter;
+    const a = api.post('/schedule', { title: 'fixture' }).catch((error: unknown) => error);
+    const b = api.post('/schedule', { title: 'fixture' }).catch((error: unknown) => error);
+    await refreshStarted.promise;
+    releaseRefresh.resolve();
+    const results = await Promise.all([a, b]);
+    expect(results).toEqual([
+      expect.objectContaining({ status: 201 }), expect.objectContaining({ status: 201 }),
+    ]);
+    expect(adapter).toHaveBeenCalledTimes(3); // 최초1 + 갱신1 + 재시도1
+    const requests = vi.mocked(console.info).mock.calls.filter(([event, details]) =>
+      event === '[TACO] api.request' && details.route === '/schedule').map(([, details]) => details);
+    expect(requests).toHaveLength(4);
+    expect(requests.filter((entry) => entry.delivery === 'dispatch')).toHaveLength(2);
+    expect(requests.filter((entry) => entry.delivery === 'coalesced')).toHaveLength(2);
+    const operationIds = new Set(requests.map((entry) => entry.requestId));
+    expect(operationIds.size).toBe(2);
+    for (const requestId of operationIds) {
+      expect(requests.filter((entry) => entry.requestId === requestId).map((entry) => entry.attempt)).toEqual([1, 2]);
+    }
+  });
+
+  it('병합 전송의 취소도 두 호출에서 CANCELED를 유지한다', async () => {
+    const release = deferred();
+    const adapter = vi.fn<AxiosAdapter>(async (config) => {
+      await release.promise;
+      throw new CanceledError('SECRET_CANCELED', config);
+    });
+    api.defaults.adapter = adapter;
+    const first = api.post('/schedule', { title: 'fixture' }).catch((error: unknown) => error);
+    const next = api.post('/schedule', { title: 'fixture' }).catch((error: unknown) => error);
+    release.resolve();
+    const results = await Promise.all([first, next]);
+    expect(adapter).toHaveBeenCalledOnce();
+    expect(results).toEqual([
+      expect.objectContaining({ code: 'CANCELED', status: 0 }), expect.objectContaining({ code: 'CANCELED', status: 0 }),
+    ]);
+    expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain('SECRET');
+  });
+});
+
+describe('공용 요청 진단은 전송과 병합·재시도를 구별한다', () => {
+  const events = (): Array<Record<string, unknown>> => [...vi.mocked(console.info).mock.calls, ...vi.mocked(console.warn).mock.calls]
+    .filter(([name]) => typeof name === 'string' && name.startsWith('[TACO] api.'))
+    .map(([event, details]) => ({ event, ...(details as Record<string, unknown>) }));
+
+  it.each(['get', 'post', 'put', 'patch', 'delete'] as const)('%s 요청/응답은 값 없는 로컬 metadata만 남긴다', async (method) => {
+    setAccessToken('SECRET_BEARER');
+    api.defaults.adapter = async (config) => {
+      expect(config.headers['X-Request-ID']).toBeUndefined();
+      return response(config, { id: 42, undo: 'SECRET_UNDO', message: 'SECRET_MESSAGE', salary: 987654 }, 200);
+    };
+    const body = { title: 'SECRET_NAME', email: 'SECRET_EMAIL', SECRET_CUSTOM_KEY: 'SECRET_VALUE', students: [{ phone: 'SECRET_PHONE' }] };
+    const result = await api.request({ method, url: '/schedule/42?token=SECRET_QUERY', data: body,
+      params: { q: 'SECRET_PARAM' }, headers: { 'X-Secret': 'SECRET_HEADER' } });
+    expect(result.data.undo).toBe('SECRET_UNDO'); // 응답 계약은 그대로
+    const logged = events();
+    expect(logged).toHaveLength(2);
+    expect(logged[0]).toMatchObject({ event: '[TACO] api.request', method: method.toUpperCase(),
+      route: '/schedule/:value', attempt: 1, delivery: 'dispatch' });
+    expect(logged[1]).toMatchObject({ event: '[TACO] api.response', requestId: logged[0]?.requestId,
+      status: 200, attempt: 1, delivery: 'dispatch' });
+    expect(logged[1]?.durationMs).toEqual(expect.any(Number));
+    expect(JSON.stringify(logged)).not.toContain('SECRET');
+    expect(JSON.stringify(logged)).not.toContain('987654');
+  });
+
+  it('병합된 호출은 별도 ID와 원 전송 ID를 연결하고 실제 전송인 척하지 않는다', async () => {
+    const gate = deferred();
+    const adapter = vi.fn<AxiosAdapter>(async (config) => { await gate.promise; return response(config, { id: 1 }); });
+    api.defaults.adapter = adapter;
+    const a = api.post('/schedule', { title: 'fixture' });
+    const b = api.post('/schedule', { title: 'fixture' });
+    gate.resolve(); await Promise.all([a, b]);
+    const requests = events().filter((entry) => entry.event === '[TACO] api.request');
+    const replies = events().filter((entry) => entry.event === '[TACO] api.response');
+    expect(adapter).toHaveBeenCalledOnce();
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({ delivery: 'dispatch' });
+    expect(requests[1]).toMatchObject({ delivery: 'coalesced', coalescedWith: requests[0]?.requestId, coalescedAttempt: 1 });
+    expect(requests[0]?.requestId).not.toBe(requests[1]?.requestId);
+    expect(replies.map((entry) => entry.requestId)).toEqual(requests.map((entry) => entry.requestId));
+  });
+
+  it('401 재시도는 같은 operation ID에 attempt만 늘리고 갱신은 별도 요청이다', async () => {
+    setAccessToken('old');
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/auth/refresh') return response(config, { accessToken: 'SECRET_REFRESH' });
+      if (config.headers.Authorization === 'Bearer old') throw unauthorized(config);
+      return response(config, { id: 1 });
+    };
+    await api.post('/schedule', { title: 'SECRET_TITLE' });
+    const logged = events();
+    const requests = logged.filter((entry) => entry.event === '[TACO] api.request' && entry.route === '/schedule');
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({ requestId: requests[0]?.requestId, attempt: 2 });
+    expect(logged.find((entry) => entry.route === '/auth/refresh')?.requestId).not.toBe(requests[0]?.requestId);
+    expect(logged).toContainEqual(expect.objectContaining({ event: '[TACO] api.error', requestId: requests[0]?.requestId,
+      attempt: 1, status: 401, code: 'UNAUTHORIZED' }));
+    expect(JSON.stringify(logged)).not.toContain('SECRET');
+  });
+
+  it.each([400, 409, 503])('HTTP%s 오류는 코드 allowlist만 남기고 원시 오류를 기록하지 않는다', async (status) => {
+    api.defaults.adapter = async (config) => {
+      throw new AxiosError('SECRET_RAW_ERROR', AxiosError.ERR_BAD_RESPONSE, config, { secret: 'SECRET_REQUEST' },
+        response(config, { code: 'SECRET_CODE', message: 'SECRET_MESSAGE', detail: 'SECRET_DETAIL' }, status));
+    };
+    await expect(api.post('/accounting/payments', { amount: 987654 })).rejects.toMatchObject({ code: 'SECRET_CODE', status });
+    expect(events()).toContainEqual(expect.objectContaining({ event: '[TACO] api.error', code: 'HTTP_ERROR', status }));
+    expect(JSON.stringify(events())).not.toContain('SECRET');
+    expect(JSON.stringify(events())).not.toContain('987654');
+  });
+
+  it('adapter 진입 전 취소는 전송되지 않았음을 표시하고 console 실패도 요청을 깨지 않는다', async () => {
+    const controller = new AbortController(); controller.abort();
+    const adapter = vi.fn<AxiosAdapter>(async (config) => response(config, { ok: true }));
+    api.defaults.adapter = adapter;
+    await expect(api.get('/health', { signal: controller.signal })).rejects.toMatchObject({ code: 'CANCELED' });
+    expect(adapter).not.toHaveBeenCalled();
+    expect(events()).toContainEqual(expect.objectContaining({ event: '[TACO] api.error', code: 'CANCELED', delivery: 'not_dispatched' }));
+    vi.mocked(console.info).mockImplementation(() => { throw new Error('console unavailable'); });
+    vi.mocked(console.warn).mockImplementation(() => { throw new Error('console unavailable'); });
+    expect((await api.get('/health')).data).toEqual({ ok: true });
+    api.defaults.adapter = async (config) => { throw new AxiosError('offline', AxiosError.ERR_NETWORK, config); };
+    await expect(api.get('/health')).rejects.toMatchObject({ code: 'NETWORK' });
   });
 });

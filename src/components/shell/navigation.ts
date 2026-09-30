@@ -47,6 +47,9 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
      셋만 섰고, 하위 화면에서 「홈」 탭이 켜졌다. 개인용 항목은 관리 화면 사용자에게 걸러지므로 관리자 차례는 그대로다. */
   { href: '/teacher', label: '홈', personalIcon: 'home', surfaces: BOTH, icon: 'calendar', personalOnly: true },
   { href: '/schedule', label: '스케줄', personalLabel: '캘린더', personalIcon: 'calendar', surfaces: BOTH, icon: 'calendar' },
+  // 2026-09-30 추가 요구: 실제 목록·상세 route가 있는 학생/강사 탭. 개인 강사 홈(/teacher)과 다르다.
+  { href: '/students', label: '학생', surfaces: BOTH, requires: ADMIN },
+  { href: '/staff', label: '강사', surfaces: BOTH, requires: ADMIN },
   { href: '/teacher/unavailable', label: '불가 시간', personalIcon: 'calendar-x', surfaces: BOTH, personalOnly: true },
   { href: '/intake', label: '상담', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
   { href: '/consulting', label: '컨설팅', surfaces: BOTH, icon: 'calendar', requires: ADMIN },
@@ -67,11 +70,11 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     badgeSurfaces: ['sidebar'],
     requires: ADMIN,
   },
-  // §82 GPA 관리 — 상단 10탭 밖의 관리자 화면. kind='gpa' 수업 상세에서 연다 (URL 전용).
+  // §82 GPA 관리 — 상단 업무 탭 밖의 관리자 화면. kind='gpa' 수업 상세에서 연다 (URL 전용).
   { href: '/gpa', label: 'GPA 관리', surfaces: [], requires: ADMIN },
   /* §21 서랍의 「줌 계정 관리」가 가는 자리 · §18 의 「프로그램·과목 전체 열기」가 가는 자리.
      둘 다 원본 61컷에 **목적지 화면이 없었다** — 대표 결정(2026-09-12)으로 신설했다.
-     상단 10탭에는 넣지 않는다(원문의 탭 구성을 바꾸지 않는다). 서랍 단추와 URL 로만 연다. */
+     원문 상단 10탭에는 없던 화면으로, 서랍 단추와 URL 로만 연다(신규 학생/강사 탭과 별개). */
   { href: '/zoom', label: '줌 계정 관리', surfaces: [], requires: ADMIN },
   { href: '/programs', label: '프로그램 · 과목 관리', surfaces: [], requires: ADMIN },
   { href: '/phrases', label: '문구 관리', surfaces: [], requires: ADMIN },

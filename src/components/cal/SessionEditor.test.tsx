@@ -66,6 +66,47 @@ it('설명을 못 가져와도 원래 문구는 남는다 — 실패가 실패�
   expect(view.queryByText(/\[강의실\]/)).toBeNull();
 });
 
+function setupCreateMode() {
+  const sent: Array<Record<string, unknown>> = [];
+  api.defaults.adapter = (async (config: { data?: string }) => {
+    sent.push(config.data ? JSON.parse(config.data) : {});
+    return { config, status: 201, statusText: 'Created', headers: {}, data: { effScope: 'this', log: [], projected: 1, serIds: [9], unavailable: [] } };
+  }) as never;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(qc);
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <SessionEditor draft={{ date: '2026-09-28', startMin: 570, endMin: 660, roomId: 1 }} meta={meta} onClose={vi.fn()} />
+    </QueryClientProvider>,
+  );
+  return { view, sent, room: view.getByLabelText('강의실 · 형태') as HTMLSelectElement };
+}
+
+it('새 일정도 온라인으로 바꾸면 강의실을 비우고 선택을 막는다 — 대면으로 돌아가면 다시 명시적으로 고른다', async () => {
+  const { view, sent, room } = setupCreateMode();
+  expect(room.value).toBe('1');
+  fireEvent.click(view.getByRole('button', { name: '대면' }));
+  expect(room.value).toBe('');
+  expect(room.disabled).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '줌' }));
+  expect(room.value).toBe('');
+  expect(room.disabled).toBe(false);
+  fireEvent.change(room, { target: { value: '1' } });
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]).toMatchObject({ mode: 'offline', roomId: 1 });
+});
+
+it('온라인 생성 payload는 오래된 강의실 폼 값이 남아도 null로 보낸다', async () => {
+  const { view, sent, room } = setupCreateMode();
+  fireEvent.click(view.getByRole('button', { name: '대면' }));
+  // UI 비활성화와 별도로 저장 경계도 지킨다 — 폼에 남은 이전 값을 모사하는 단위 회귀다.
+  fireEvent.change(room, { target: { value: '1' } });
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]).toMatchObject({ mode: 'online', roomId: null });
+});
+
 /* ── 개인표에서 연 새 일정 (원문 §10·§11 본문 「일정 추가 시 학생/강사가 자동으로 채워집니다」) ── */
 
 it('초안에 학생·강사가 들어 있으면 그대로 골라진 채 열리고 만들기 계약에 실린다 (§10·§11)', async () => {

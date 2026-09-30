@@ -6,16 +6,17 @@
 
 /**
  * 인증된 업무 화면의 공용 셸. 메뉴/본문은 권한과 역할별 명세에 따라 조립한다.
- * 관리자: 업무 탭은 상단 한 벌. 원본의 도메인별 좌우 패널은 해당 페이지가 소유한다.
+ * 관리자: 업무 탭은 상단 한 벌. 우측 업무 레일은 공통 셸, 도메인별 도구는 해당 페이지가 소유한다.
  * 강사(canAdminPage 아님): components/teacher/TeacherShell — ☰ 머리줄 + 메뉴 패널 (강사 덱 · Figma).
  */
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, CircleHelp, Home, Maximize, Minimize, Palette, Search, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CircleHelp, Home, Maximize, Minimize, Palette, PanelRightClose, PanelRightOpen, Search, ShieldCheck } from 'lucide-react';
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/store/useSession';
+import { useWorkspace } from '@/store/useWorkspace';
 import { api } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
 import { useDrawer, usePermissionTable, useUnwritten } from '@/api/queries';
@@ -37,11 +38,13 @@ import { AdminTopNavigation, type AdminNavBadges } from './AdminNavigation';
 import { ShellGuide } from './ShellGuide';
 import { ShellSearch } from './ShellSearch';
 import { UndoControl } from './UndoControl';
+import { WorkspaceRail } from './WorkspaceRail';
 import styles from './AppShell.module.css';
 
 export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool, onToday, drawerEntry, flush = false }: {
   children: ReactNode;
   sidePanel?: PanelSlot;
+  /** 생략하면 공통 업무 레일. 스케줄 등 기존 명시 패널은 그대로 우선한다. */
   rightPanel?: PanelSlot;
   /** 헤더 좌/우 끝의 화면 소유 도구 — 원본 Top bar 의 ☰/» 토글 자리다. */
   leftTool?: ReactNode;
@@ -57,10 +60,12 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const me = useSession((s) => s.me);
   const signOut = useSession((s) => s.signOut);
   const isAdmin = Boolean(me?.canAdminPage);
+  const railOpen = useWorkspace((s) => s.railOpen);
+  const toggleRail = useWorkspace((s) => s.toggleRail);
   // 강사는 관리자 서랍의 존재와 배지 숫자도 받지 않는다 — 숨김이 아니라 조회부터 끈다 (D-R39).
   const drawerData = useDrawer(isAdmin).data;
   const unwritten = useUnwritten(undefined, isAdmin).data;
-  // 서랍은 **전역**이다 — 탭마다 따로 두면 탭을 옮길 때 닫힌다
+  // 현재 페이지의 셸이 서랍 상태를 소유한다. 라우트 전환 시 셸 재마운트/미저장 폼 보존은 별도 과제다.
   const [drawer, setDrawer] = useState(false);
   const [drawerPane, setDrawerPane] = useState<DrawerPane>('approvals');
   const [approvalFlow, setApprovalFlow] = useState(false);
@@ -77,7 +82,21 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const openDrawer = (pane: DrawerPane) => { setDrawerPane(pane); setDrawer(true); };
   const panelApi: WorkspacePanelApi = { openDrawer, activePane: drawer ? drawerPane : null };
   const side = typeof sidePanel === 'function' ? sidePanel(panelApi) : sidePanel;
-  const right = typeof rightPanel === 'function' ? rightPanel(panelApi) : rightPanel;
+  const right = rightPanel === undefined
+    ? railOpen && isAdmin ? <WorkspaceRail
+      approvals={drawerData?.approvals?.inboxCount ?? 0}
+      unread={drawerData?.notis?.filter((n) => !n.read).length ?? 0}
+      onOpen={openDrawer}
+      activePane={panelApi.activePane}
+    /> : null
+    : typeof rightPanel === 'function' ? rightPanel(panelApi) : rightPanel;
+  // 이미 도구/패널을 넘기는 스케줄은 중복 조립하지 않는다. 접힘은 기존 전역 store 한 곳을 쓴다.
+  const railTool = rightTool !== undefined ? rightTool : (rightPanel === undefined ? (
+    <button type="button" onClick={toggleRail} aria-label={railOpen ? '바로가기 접기' : '바로가기 펼치기'} aria-expanded={railOpen}
+      className="flex h-[30px] items-center rounded-md border border-header-tool-line bg-header-tool px-2 text-line-2">
+      {railOpen ? <PanelRightClose size={15} aria-hidden /> : <PanelRightOpen size={15} aria-hidden />}
+    </button>
+  ) : null);
 
   useEffect(() => {
     // ⌘K / Ctrl+K — 원문 단추의 글자 그대로. 관리 화면에서만(강사 머리줄에는 검색이 없다)
@@ -208,7 +227,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
             <ShieldCheck size={14} aria-hidden />권한
           </button>
-          {rightTool ? <div className="ml-1 flex shrink-0 items-center">{rightTool}</div> : null}
+          {railTool ? <div className="ml-1 flex shrink-0 items-center">{railTool}</div> : null}
         </header>
         <div data-print="surface" className={styles.workspace}>
           {side ? <div data-print="chrome" className={cn(styles.panel, 'border-r border-line bg-card')}>{side}</div> : null}

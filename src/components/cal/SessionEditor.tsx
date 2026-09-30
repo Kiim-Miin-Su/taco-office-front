@@ -318,6 +318,8 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
       setErr('종료일이 시작일보다 앞설 수 없습니다');
       return;
     }
+    // 온라인 수업은 강의실을 점유하지 않는다 — 폼에 옛 값이 남아도 생성/충돌 조회에 싣지 않는다 (N-56).
+    const roomId = v.mode === 'online' ? null : idOrNull(v.roomId);
     write.mutate(
       {
         kind: 'create',
@@ -326,14 +328,14 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
           fromDate: draft.date, toDate: v.repeat === 'once' ? draft.date : v.toDate || null,
           rrule: buildRrule(v.days, v.repeat), startMin, endMin,
           teacherId: idOrNull(v.teacherId),
-          roomId: idOrNull(v.roomId),
+          roomId,
           title: v.title || null,
           studentIds: v.studentIds,
         },
       },
       {
         onError: (e) => explainConflict(e, {
-          date: draft.date, startMin, endMin, teacherId: idOrNull(v.teacherId), roomId: idOrNull(v.roomId),
+          date: draft.date, startMin, endMin, teacherId: idOrNull(v.teacherId), roomId,
         }),
         onSuccess: (result) => { onCreated?.(result); onClose(); },
       },
@@ -563,10 +565,14 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
           <div>
             <Label htmlFor="se-room">강의실 · 형태</Label>
             <div className="flex gap-1">
-              <Select id="se-room" {...f.register('roomId')} className="flex-1">{roomOptions}</Select>
-              {/* 테두리 채널(대면 실선/줌 점선)의 원천 — 강의실과 독립 축이다 (§2.3 · A26) */}
+              <Select id="se-room" {...f.register('roomId')} disabled={f.watch('mode') === 'online'} className="flex-1">{roomOptions}</Select>
+              {/* 테두리 채널의 원천이며 온라인 전환은 편집과 같이 강의실을 비운다 (N-56). */}
               <button type="button"
-                onClick={() => f.setValue('mode', f.getValues('mode') === 'offline' ? 'online' : 'offline')}
+                onClick={() => {
+                  const mode = f.getValues('mode') === 'offline' ? 'online' : 'offline';
+                  if (mode === 'online') f.setValue('roomId', '');
+                  f.setValue('mode', mode);
+                }}
                 className="rounded-lg border border-line px-2 text-[12px] font-bold text-fg-subtle hover:border-blue">
                 {f.watch('mode') === 'offline' ? '대면' : '줌'}
               </button>

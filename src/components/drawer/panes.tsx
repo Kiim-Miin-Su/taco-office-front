@@ -16,7 +16,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { AlarmClock, ArrowLeftRight, Bell, Check, CornerDownLeft, Info, type LucideIcon } from 'lucide-react';
 import {
-  Banner, Button, Checkbox, Chip, ChipButton, ChipRow, ConflictGuard, Input, Label, Segmented, Select, Table,
+  Banner, Button, Checkbox, Chip, ChipButton, ChipRow, ConflictGuard, Dialog, Input, Label, Segmented, Select, Table,
   cn, type ChipColor, type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
@@ -34,7 +34,7 @@ import { REQ_TYPE_LABEL, ROLE_BAR, ROLE_TEXT } from '@/lib/roles';
 import { won } from '@/lib/money';
 import { occurrenceTargetValue, parseOccurrenceTarget, type ChangeReqDraft, type ChreqType } from './change-request';
 import { MemberCreateButton } from './MemberCreateDialog';
-import { MemberRowActions } from './MemberRowActions';
+import { MemberEditButton, MemberRowActions } from './MemberRowActions';
 import { WageChangeButton } from './WageChangeDialog';
 import { TodoCreateDialog } from './TodoCreateDialog';
 
@@ -727,6 +727,10 @@ export function MembersPane({
   tempPasswordRule?: string;
 }) {
   const now = useMinuteTick();
+  // 객체 snapshot을 보관하지 않는다 — 저장 뒤 갱신된 DTO/권한이 열린 상세에도 그대로 반영된다 (UX-16).
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const selectedGroup = groups.find((group) => group.members.some((member) => member.id === selectedMemberId));
+  const selectedMember = selectedGroup?.members.find((member) => member.id === selectedMemberId);
   /*
    * 시간대는 **사람의 이름으로** 적는다 — 「Asia/Seoul」은 저장값이지 낱말이 아니다 (D-R18).
    * 그 이름은 이미 「시간대 그룹」이 들고 있으므로 새로 짓지 않고 거기서 찾는다.
@@ -770,7 +774,24 @@ export function MembersPane({
           </div>
           <ul className="mt-1.5 flex flex-col gap-1">
             {g.members.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2">
+              <li key={m.id} tabIndex={0} aria-label={`${m.name} 구성원`} aria-haspopup="dialog"
+                aria-keyshortcuts="Enter Space" title="두 번 클릭 또는 Enter·Space 키로 상세 보기"
+                onDoubleClick={(event) => {
+                  // 수정/선택 등 행 안의 독립 컨트롤은 상세 진입으로 가로채지 않는다.
+                  const control = event.target instanceof Element
+                    ? event.target.closest('button, a, input, select, textarea, label, [role="button"], [role="checkbox"], [role="dialog"], [contenteditable="true"]') : null;
+                  if (control && event.currentTarget.contains(control)) return;
+                  event.currentTarget.focus({ preventScroll: true });
+                  setSelectedMemberId(m.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.currentTarget.focus({ preventScroll: true });
+                  setSelectedMemberId(m.id);
+                }}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">
                 <span className={`text-[12px] font-bold ${m.active ? 'text-fg' : 'text-fg-subtle line-through'}`}>
                   {m.name}
                 </span>
@@ -806,6 +827,28 @@ export function MembersPane({
         </section>
       ))}
       {groups.length === 0 ? <Empty>구성원이 없습니다</Empty> : null}
+
+      {selectedMember ? <Dialog open onClose={() => setSelectedMemberId(null)} title={`${selectedMember.name} · 상세`} closeX width={560}
+        footer={<>
+          {selectedMember.canEdit ? <MemberEditButton member={selectedMember} tzGroups={tzGroups} tz={tz}
+            phoneCountries={phoneCountries} loginIdRule={loginIdRule} /> : null}
+          <Button variant="ghost" onClick={() => setSelectedMemberId(null)}>닫기</Button>
+        </>}>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[12.5px] [&>dt]:text-fg-subtle [&>dd]:break-words">
+          <dt>이름</dt><dd>{selectedMember.name}</dd>
+          <dt>역할</dt><dd>{selectedGroup?.label ?? '—'}</dd>
+          <dt>직함</dt><dd>{selectedMember.title || '—'}</dd>
+          <dt>아이디</dt><dd>{selectedMember.loginId}</dd>
+          <dt>이메일</dt><dd>{selectedMember.email || '—'}</dd>
+          <dt>휴대폰</dt><dd>{selectedMember.phone || '—'}</dd>
+          <dt>입사일</dt><dd>{selectedMember.hiredOn || '—'}</dd>
+          <dt>시간대</dt><dd>{tzName(selectedMember.tz ?? tz)}</dd>
+          <dt>상태</dt><dd>{selectedMember.active ? '사용 중' : '사용 중지'}{selectedMember.mustChangeCredentials ? ' · 첫 설정 전' : ''}</dd>
+          {canWage && selectedMember.wageable && selectedMember.wageRate != null ? <>
+            <dt>시급</dt><dd>{won(selectedMember.wageRate)}{selectedMember.wageFrom ? ` · ${selectedMember.wageFrom} 부터` : ''}</dd>
+          </> : null}
+        </dl>
+      </Dialog> : null}
 
       {/* 컷에는 없다. 다만 위의 「서울」이 무엇을 가리키는지는 여기서만 알 수 있어 남긴다 */}
       <Section title="시간대 그룹" count={tzGroups.length}>

@@ -131,7 +131,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
       const libId = l.libId && l.libId !== 'none' ? Number(l.libId) : null;
       out.push({
         kindKey: l.kindKey, subKey: l.subKey || null, mode: l.mode, rrule: buildRrule(l.days), startMin: s, endMin: e,
-        teacherId: l.teacherId ? Number(l.teacherId) : null, roomId: l.roomId ? Number(l.roomId) : null, title: null,
+        teacherId: l.teacherId ? Number(l.teacherId) : null, roomId: l.mode === 'offline' && l.roomId ? Number(l.roomId) : null, title: null,
         sessions: l.sessions ? Number(l.sessions) : null, ...(fromDiag ? {} : { libId }),
       });
     }
@@ -294,10 +294,10 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 ))}
                 {field('방식 · 강의실', (
                   <div className="flex gap-1">
-                    <Select aria-label={`수업 ${i + 1} 방식`} value={l.mode} onChange={(e) => patch(l.key, { mode: e.target.value as 'offline' | 'online' })} disabled={pending}>
+                    <Select aria-label={`수업 ${i + 1} 방식`} value={l.mode} onChange={(e) => patch(l.key, { mode: e.target.value as 'offline' | 'online', ...(e.target.value === 'online' ? { roomId: '' } : {}) })} disabled={pending}>
                       <option value="offline">현장</option><option value="online">온라인</option>
                     </Select>
-                    <Select aria-label={`수업 ${i + 1} 강의실`} value={l.roomId} onChange={(e) => patch(l.key, { roomId: e.target.value })} disabled={pending}>
+                    <Select aria-label={`수업 ${i + 1} 강의실`} value={l.roomId} onChange={(e) => patch(l.key, { roomId: e.target.value })} disabled={pending || l.mode === 'online'}>
                       <option value="">—</option>
                       {(meta.data?.rooms ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </Select>

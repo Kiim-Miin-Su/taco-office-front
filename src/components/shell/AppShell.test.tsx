@@ -12,8 +12,10 @@ import type { Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { useWorkspace } from '@/store/useWorkspace';
 import { AppShell, type DrawerEntry } from './AppShell';
+import { WorkspaceRail } from './WorkspaceRail';
 
 const mocks = vi.hoisted(() => ({
+  pathname: '/board',
   back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn(),
   /** 상단바 되돌리기가 쓰는 쓰기 훅 (N-138 · C99) — 실제 요청은 useUndoLast 회귀가 본다 */
   scheduleWrite: vi.fn(),
@@ -23,7 +25,7 @@ const mocks = vi.hoisted(() => ({
     rows: [], roleNotes: ['대표 · 14가지 가능 / 0가지 잠김'],
   },
 }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/board', useRouter: () => mocks }));
+vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useRouter: () => mocks }));
 vi.mock('@/api/client', () => ({ api: { post: mocks.post }, setAccessToken: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
@@ -60,6 +62,7 @@ function shell(extra: { sidePanel?: ReactNode; rightPanel?: ReactNode; onToday?:
 }
 
 beforeEach(() => {
+  mocks.pathname = '/board';
   useSession.setState({ me, ready: true });
   mocks.drawer.mockReturnValue({ data: {
     approvalFlow: {
@@ -77,7 +80,7 @@ beforeEach(() => {
   } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 } });
   mocks.scheduleWrite.mockReturnValue({ mutate: vi.fn(), isPending: false });
-  useWorkspace.setState({ undoStack: [] });
+  useWorkspace.setState({ undoStack: [], railOpen: true });
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
 });
 afterEach(() => {
@@ -92,7 +95,7 @@ describe('원본 관리자 공용 셸', () => {
     const view = shell();
     const header = view.getByRole('banner');
     expect(within(header).getAllByRole('navigation')).toHaveLength(1);
-    expect(within(header).getAllByRole('link')).toHaveLength(11); // 오늘 전체 + 업무10개
+    expect(within(header).getAllByRole('link')).toHaveLength(13); // 오늘 전체 + 원문10·신규 학생/강사2
     expect(within(header).queryByRole('img', { name: '티엔아카데미' })).toBeNull();
     expect(view.queryByRole('complementary', { name: '관리자 메뉴' })).toBeNull();
     expect(view.getByRole('main').querySelector('[class*="max-w"]')).toBeNull();
@@ -111,6 +114,8 @@ describe('원본 관리자 공용 셸', () => {
     expect(view.queryByRole('button', { name: '권한' })).toBeNull();
     expect(view.queryByRole('button', { name: /승인 대기/ })).toBeNull();
     expect(view.queryByRole('dialog', { name: '서랍' })).toBeNull();
+    expect(view.queryByRole('navigation', { name: '워크스페이스 바로가기' })).toBeNull();
+    expect(view.queryByRole('button', { name: '바로가기 접기' })).toBeNull();
     expect(mocks.drawer).toHaveBeenLastCalledWith(false);
     expect(mocks.unwritten).toHaveBeenLastCalledWith(undefined, false);
     // 강사 머리줄은 Figma Teacher/Header — ☰ 로 여는 메뉴 패널이고, 관리자식 상단 탭·TN 마크는 없다
@@ -138,6 +143,7 @@ describe('원본 관리자 공용 셸', () => {
     const view = shell({ sidePanel: <aside>일정 도구</aside>, rightPanel: <aside>일정 서랍</aside> });
     expect(view.getByText('일정 도구')).toBeTruthy();
     expect(view.getByText('일정 서랍')).toBeTruthy();
+    expect(view.queryByRole('navigation', { name: '워크스페이스 바로가기' })).toBeNull();
   });
 
   it('오늘 전체와 뒤로는 실제 이동 의도를 전달한다', () => {
@@ -203,6 +209,67 @@ describe('원본 관리자 공용 셸', () => {
     fireEvent.click(view.getByRole('button', { name: '전체 화면' }));
     await waitFor(() => expect(view.getByText(/이 브라우저에서 전체 화면을 열 수 없습니다/)).toBeTruthy());
     expect(view.queryByRole('button', { name: '전체 화면 종료' })).toBeNull();
+  });
+});
+
+describe('UX-15 모든 관리자 업무 탭의 공통 우측 레일', () => {
+  it.each(['/schedule', '/students', '/staff', '/board', '/intake', '/consulting', '/books', '/guides', '/reports', '/accounting', '/ops', '/exec', '/gpa', '/programs', '/zoom', '/phrases', '/permissions'])('%s에서도 같은 레일·서버 배지·서랍 진입을 제공한다', (pathname) => {
+    mocks.pathname = pathname;
+    const view = shell();
+    const rail = view.getByRole('navigation', { name: '워크스페이스 바로가기' });
+    expect(view.getAllByRole('navigation', { name: '워크스페이스 바로가기' })).toHaveLength(1);
+    expect(within(within(rail).getByRole('button', { name: '승인 대기함' })).getByText('3')).toBeTruthy();
+    expect(within(within(rail).getByRole('button', { name: '알림' })).getByText('1')).toBeTruthy();
+    fireEvent.click(within(rail).getByRole('button', { name: '할 일' }));
+    expect(within(view.getByRole('dialog', { name: '서랍' })).getByText('todos')).toBeTruthy();
+    expect(within(rail).getByRole('button', { name: '할 일' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('접힘은 페이지 재마운트 뒤에도 유지되고 펼치기 진입점은 남는다', () => {
+    const first = shell();
+    const close = first.getByRole('button', { name: '바로가기 접기' });
+    expect(close.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(close);
+    expect(useWorkspace.getState().railOpen).toBe(false);
+    expect(first.queryByRole('navigation', { name: '워크스페이스 바로가기' })).toBeNull();
+    first.unmount();
+    mocks.pathname = '/accounting';
+    const next = shell();
+    const open = next.getByRole('button', { name: '바로가기 펼치기' });
+    expect(open.getAttribute('aria-expanded')).toBe('false');
+    expect(next.queryByRole('navigation', { name: '워크스페이스 바로가기' })).toBeNull();
+    fireEvent.click(open);
+    expect(useWorkspace.getState().railOpen).toBe(true);
+    expect(next.getByRole('navigation', { name: '워크스페이스 바로가기' })).toBeTruthy();
+  });
+
+  it('레일을 접어도 열어 둔 서랍을 닫거나 재마운트하지 않는다', () => {
+    const view = shell();
+    fireEvent.click(within(view.getByRole('navigation', { name: '워크스페이스 바로가기' })).getByRole('button', { name: '변경 요청' }));
+    const drawer = view.getByRole('dialog', { name: '서랍' });
+    fireEvent.click(view.getByRole('button', { name: '바로가기 접기' }));
+    expect(view.getByRole('dialog', { name: '서랍' })).toBe(drawer);
+    expect(within(drawer).getByText('chreqs')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '바로가기 펼치기' }));
+    expect(view.getByRole('dialog', { name: '서랍' })).toBe(drawer);
+  });
+
+  it('스케줄의 기존 명시 패널·토글은 한 벌만 사용하고 접을 때 기본 레일을 추가하지 않는다', () => {
+    function ScheduleSlots() {
+      const railOpen = useWorkspace((s) => s.railOpen);
+      const toggleRail = useWorkspace((s) => s.toggleRail);
+      return <AppShell
+        rightTool={<button onClick={toggleRail}>기존 스케줄 토글</button>}
+        rightPanel={railOpen ? ({ openDrawer, activePane }) => <WorkspaceRail approvals={3} unread={1} onOpen={openDrawer} activePane={activePane} /> : undefined}
+      ><p>기존 스케줄</p></AppShell>;
+    }
+    const view = render(<QueryClientProvider client={new QueryClient()}><ScheduleSlots /></QueryClientProvider>);
+    expect(view.getAllByRole('navigation', { name: '워크스페이스 바로가기' })).toHaveLength(1);
+    expect(view.queryByRole('button', { name: '바로가기 접기' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '기존 스케줄 토글' }));
+    expect(view.queryByRole('navigation', { name: '워크스페이스 바로가기' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '기존 스케줄 토글' }));
+    expect(view.getAllByRole('navigation', { name: '워크스페이스 바로가기' })).toHaveLength(1);
   });
 });
 

@@ -35,10 +35,12 @@ describe('머리줄 검색 — 이미 볼 수 있는 것만 (g1 S1 · D-R44)', (
   it('학생은 서버가 실어 준 목록 안에서만 — 없으면(강사 투영 = 빈 목록) 0건', () => {
     const hits = shellSearchResults('강', ceo, students);
     expect(hits.map((h) => [h.group, h.label, h.href, h.sub])).toEqual([
+      ['화면', '강사', '/staff', undefined],
       ['학생', '강태윤', '/schedule?studentId=5', 'G10 · SIS'],
       ['학생', '강하늘', '/schedule?studentId=6', undefined],
     ]);
-    expect(shellSearchResults('강', ceo, [])).toEqual([]);
+    // 새 강사 화면 검색은 남지만, 서버가 보내지 않은 학생 결과를 만들지 않는다.
+    expect(shellSearchResults('강', ceo, []).filter((hit) => hit.group === '학생')).toEqual([]);
     expect(shellSearchResults('   ', ceo, students)).toEqual([]);
   });
 

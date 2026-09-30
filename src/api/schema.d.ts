@@ -3743,6 +3743,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/drawer/staff-directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 관리자 강사 탭 — 등록일 최신순, 검색·상태·10명 페이지
+         * @description STAFF.role=teacher만 조회한다. 영문명 등 신규 인적 필드는 스키마 이관 전 null이다.
+         */
+        get: operations["DrawerController_staffDirectory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drawer/staff-directory/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 관리자 강사 상세 — 기존 인적 정보·시급/정산·배정·리포트·STAFF 감사 이력
+         * @description 시급·정산은 canWage 및 비공개 설정을 서버에서 적용한다. 감사 원문 JSON은 반환하지 않는다. 과거 전체 CRUD를 기록하지 않은 원천은 이 응답에서 만들어 내지 않는다.
+         */
+        get: operations["DrawerController_staffDirectoryDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/drawer/staff": {
         parameters: {
             query?: never;
@@ -4200,6 +4240,40 @@ export interface paths {
          * @description 연락처를 비우면 그 채널 받기도 꺼진다. 사용 중지한 보호자는 active:true 와 함께만 고친다.
          */
         patch: operations["GuardiansController_patch"];
+        trace?: never;
+    };
+    "/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 학생 DB 최신 생성 순 목록 — 현행 STU만, 기본10명. LEAD 통합/재원상태/국가는 후속. */
+        get: operations["StudentsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 학생 현재 정보·보호자 요약·수강 사실·기존 연결 감사 metadata. 전체 변경 이력 아님. */
+        get: operations["StudentsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -11503,6 +11577,98 @@ export interface components {
             /** @description 요청함의 「내 지출 신청」 머리 수 — 본인 것만 (N-52) */
             myExpenses: components["schemas"]["MyExpenseSummaryDto"];
         };
+        StaffDirectoryRowDto: {
+            id: number;
+            name: string;
+            /** @description STAFF 영문명 컬럼 이관 전까지 null */
+            englishName: string | null;
+            title: string | null;
+            active: boolean;
+            hiredOn: string | null;
+            /** @description KST ISO timestamp. 최신 등록 순 정렬 기준은 DB created_at DESC, id DESC */
+            createdAt: string;
+        };
+        StaffDirectoryDto: {
+            items: components["schemas"]["StaffDirectoryRowDto"][];
+            page: number;
+            pageSize: number;
+            total: number;
+        };
+        StaffDirectoryProfileDto: {
+            id: number;
+            name: string;
+            /** @description STAFF 영문명 컬럼 이관 전까지 null */
+            englishName: string | null;
+            title: string | null;
+            active: boolean;
+            hiredOn: string | null;
+            /** @description KST ISO timestamp. 최신 등록 순 정렬 기준은 DB created_at DESC, id DESC */
+            createdAt: string;
+            email: string | null;
+            phone: string | null;
+            timezone: string | null;
+        };
+        StaffDirectoryWageDto: {
+            id: number;
+            fromDate: string;
+            /** @description canWage와 비공개 정책을 통과한 경우만 금액 */
+            rate: number | null;
+            reason: string | null;
+            approvedByName: string | null;
+            createdAt: string;
+        };
+        StaffDirectoryPayoutDto: {
+            id: number;
+            yearMonth: string;
+            state: string;
+            /** @description canWage와 비공개 정책을 통과한 경우만 실지급액 */
+            net: number | null;
+            confirmedByName: string | null;
+            confirmedAt: string | null;
+        };
+        StaffDirectoryAssignmentDto: {
+            id: number;
+            kindName: string;
+            subjectName: string | null;
+            /** @description 현재 수업 규칙 명단. 과거 교체 전 명단을 뜻하지 않는다 */
+            studentNames: string[];
+            fromDate: string;
+            toDate: string | null;
+        };
+        StaffDirectoryReportDto: {
+            id: number;
+            onDate: string;
+            kindName: string;
+            subjectName: string | null;
+            studentNames: string[];
+        };
+        StaffDirectoryAuditChangeDto: {
+            field: string;
+            before: string | null;
+            after: string | null;
+        };
+        StaffDirectoryAuditDto: {
+            id: number;
+            action: string;
+            /** @description 서버가 지은 감사 행동 이름 */
+            actionLabel: string;
+            actorName: string | null;
+            at: string;
+            /** @description 안전한 일반 필드만 이전→이후 값 노출. 연락처·인증·권한·급여는 값 없이 변경 사실만 표시 */
+            changes: components["schemas"]["StaffDirectoryAuditChangeDto"][];
+            /** @description 값을 공개하지 않는 변경 필드의 이름 */
+            privateFields: string[];
+        };
+        StaffDirectoryDetailDto: {
+            profile: components["schemas"]["StaffDirectoryProfileDto"];
+            wageAccess: boolean;
+            wages: components["schemas"]["StaffDirectoryWageDto"][];
+            payouts: components["schemas"]["StaffDirectoryPayoutDto"][];
+            assignments: components["schemas"]["StaffDirectoryAssignmentDto"][];
+            reports: components["schemas"]["StaffDirectoryReportDto"][];
+            audit: components["schemas"]["StaffDirectoryAuditDto"][];
+            nextCursor: string | null;
+        };
         StaffCreateDto: {
             name: string;
             /**
@@ -11965,6 +12131,99 @@ export interface components {
              * @enum {boolean}
              */
             active?: true;
+        };
+        StudentDirectoryRowDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            school?: string | null;
+            /**
+             * @description 성별(선택 · N-83) — 관리자 §10 아바타에만 쓴다. 학생 명단(students)은 관리 화면에만 실리므로 강사에게 가지 않는다. 비어 있으면 null
+             * @enum {string|null}
+             */
+            gender?: "female" | "male" | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 없으면 null. 판정은 서버 한 곳(lib/student-label) */
+            tag: string | null;
+            /** @description 고르기에 적는 이름 — 「이름 · 꼬리」(꼬리가 없으면 이름). 화면은 이 글을 그대로 쓴다 (D-R18) */
+            label: string;
+            /** @description STU.created_at 그대로(KST). 등록 확정/첫 수업 시각으로 추정하지 않는다. */
+            createdAt: string | null;
+            genderLabel: string | null;
+            /** @description 현재 활성 보호자 이름. 연락처/납부 정보는 포함하지 않는다. */
+            guardianNames: string[];
+        };
+        StudentDirectoryDto: {
+            items: components["schemas"]["StudentDirectoryRowDto"][];
+            total: number;
+            page: number;
+            /** @description 한 페이지10명 */
+            pageSize: number;
+            /** @description 현재 학생 DB의 학년 값. 검색 결과와 별개이며 미상값을 만들지 않는다. */
+            grades: string[];
+        };
+        StudentGuardianSummaryDto: {
+            id: number;
+            name: string;
+            relation: string | null;
+            active: boolean;
+            isPrimary: boolean;
+        };
+        StudentEnrollmentSummaryDto: {
+            id: number;
+            kindName: string;
+            subjectName: string | null;
+            sessions: number | null;
+            startedOn: string | null;
+            endedOn: string | null;
+        };
+        StudentAuditSummaryDto: {
+            id: number;
+            /**
+             * @description 직접 학생 또는 명시적 student_id FK로 연결된 기존 LOG만
+             * @enum {string}
+             */
+            entity: "STU" | "LEAD" | "GUARDIAN";
+            entityId: number;
+            action: string;
+            actionLabel: string;
+            actorId: number;
+            /** @description LOG.actor_id에 연결된 현재 STAFF 표시 이름. 당시 이름을 복원하지 않는다. */
+            actorName: string | null;
+            at: string;
+        };
+        StudentReadDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            school?: string | null;
+            /**
+             * @description 성별(선택 · N-83) — 관리자 §10 아바타에만 쓴다. 학생 명단(students)은 관리 화면에만 실리므로 강사에게 가지 않는다. 비어 있으면 null
+             * @enum {string|null}
+             */
+            gender?: "female" | "male" | null;
+            /** @description 동명이인 꼬리(N-137) — 학년 · 같은 이름이 있으면 학교 · 그래도 같으면 #번호. 없으면 null. 판정은 서버 한 곳(lib/student-label) */
+            tag: string | null;
+            /** @description 고르기에 적는 이름 — 「이름 · 꼬리」(꼬리가 없으면 이름). 화면은 이 글을 그대로 쓴다 (D-R18) */
+            label: string;
+            /** @description STU.created_at 그대로(KST). 등록 확정/첫 수업 시각으로 추정하지 않는다. */
+            createdAt: string | null;
+            genderLabel: string | null;
+            /** @description 현재 활성 보호자 이름. 연락처/납부 정보는 포함하지 않는다. */
+            guardianNames: string[];
+            /** @description 기존 STU.started_on. 학생 생성 시각과 다르다. */
+            startedOn: string | null;
+            targetExam: string | null;
+            guidance: string | null;
+            lang: string | null;
+            guardians: components["schemas"]["StudentGuardianSummaryDto"][];
+            guardianTotal: number;
+            enrollments: components["schemas"]["StudentEnrollmentSummaryDto"][];
+            enrollmentTotal: number;
+            /** @description 직접 학생/현재 연결 상담/보호자의 기존 감사 metadata 최근50건. 전체 CRUD/변경값/학교·학년 기간 이력이 아니다. */
+            history: components["schemas"]["StudentAuditSummaryDto"][];
+            historyTotal: number;
+            /** @description 보호자/수강/감사 각 최대50건 */
+            historyLimit: number;
         };
     };
     responses: never;
@@ -28135,6 +28394,162 @@ export interface operations {
             };
         };
     };
+    DrawerController_staffDirectory: {
+        parameters: {
+            query?: {
+                page?: number;
+                state?: "all" | "active" | "inactive";
+                /** @description 이름 부분 검색. 학생·연락처·로그인 아이디는 검색하지 않는다 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffDirectoryDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_staffDirectoryDetail: {
+        parameters: {
+            query?: {
+                /** @description 감사 이력 다음 페이지: 직전 응답 nextCursor(at+id 불투명 커서) */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffDirectoryDetailDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     DrawerController_createStaff: {
         parameters: {
             query?: never;
@@ -30176,6 +30591,158 @@ export interface operations {
                 };
             };
             /** @description code GUARDIAN_INACTIVE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_list: {
+        parameters: {
+            query?: {
+                /** @description 현재 STU 이름·학교·학년의 literal 부분 검색. 미전환 LEAD 검색은 아직 포함하지 않는다. */
+                q?: string;
+                /** @description 현행 STU.grade의 정확한 값. 교육체계별 학년 카탈로그는 후속 계약이다. */
+                grade?: string;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDirectoryDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentReadDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             409: {
                 headers: {
                     [name: string]: unknown;
