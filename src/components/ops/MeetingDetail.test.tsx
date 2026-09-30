@@ -123,6 +123,32 @@ it('할 일은 제목과 담당이 있어야 배정된다', async () => {
   ));
 });
 
+it('N-124 담당 후보는 활성 구성원과 참석자 목록의 교집합이다 — 응답 대기·불참도 포함한다', () => {
+  state.data = base;
+  // /meta.staff는 active인 구성원만 준다. 참석자 3은 비활성으로 목록에서 빠진 상황이다.
+  const active = [{ id: 2, name: '김민수' }, { id: 4, name: '정은채' }, { id: 5, name: '비참석자' }] as StaffBrief[];
+  const v = render(<MeetingDetail meetingId={4} staff={active} onClose={() => {}} />);
+  fireEvent.click(v.getByRole('button', { name: /③ 할 일/ }));
+  const options = within(v.getByLabelText('담당')).getAllByRole('option');
+  expect(options.map((option) => option.textContent)).toEqual(['고르기', '김민수', '정은채']);
+});
+
+it('N-124 선택한 담당이 활성 참석자 목록에서 빠지면 배정을 막고 선택을 비운다', () => {
+  const v = setup(base);
+  fireEvent.click(v.getByRole('button', { name: /③ 할 일/ }));
+  fireEvent.change(v.getByLabelText('할 일'), { target: { value: '자료 확인' } });
+  fireEvent.change(v.getByLabelText('담당'), { target: { value: '3' } });
+  expect((v.getByRole('button', { name: '배정' }) as HTMLButtonElement).disabled).toBe(false);
+
+  state.data = { ...base, attendees: base.attendees.filter((a) => a.staffId !== 3) };
+  v.rerender(<MeetingDetail meetingId={4} staff={staff} onClose={() => {}} />);
+  expect((v.getByLabelText('담당') as HTMLSelectElement).value).toBe('');
+  const send = v.getByRole('button', { name: '배정' }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  fireEvent.click(send);
+  expect(assign).not.toHaveBeenCalled();
+});
+
 it('끝낸 할 일 수도 서버가 센다', () => {
   const v = setup(base);
   fireEvent.click(v.getByRole('button', { name: /③ 할 일/ }));

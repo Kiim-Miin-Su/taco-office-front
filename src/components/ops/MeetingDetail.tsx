@@ -102,6 +102,10 @@ export function MeetingDetail({
   const [title, setTitle] = useState('');
   const [toId, setToId] = useState('');
   const [dueOn, setDueOn] = useState('');
+  // N-124: /meta.staff는 활성 구성원이다. 참석 응답(in/out/waiting)이 아니라 MTATTD의 목록과 교차한다.
+  const taskAssignees = (staff ?? []).filter((s) => d?.attendees.some((a) => a.staffId === s.id));
+  // 조회 갱신으로 담당이 빠진 뒤에도 옛 선택값을 보내지 않는다. 최종 권한은 배정 API가 다시 확인한다.
+  const taskAssigneeId = taskAssignees.some((s) => s.id === Number(toId)) ? toId : '';
 
   // 회의를 바꿔 열면 초안을 그 회의 것으로 갈아 끼운다 — 남의 속기록 위에 쓰지 않는다
   useEffect(() => { setDraft(d?.minutes ?? ''); }, [d?.id, d?.minutes]);
@@ -264,9 +268,9 @@ export function MeetingDetail({
                     </div>
                     <div className="w-40">
                       <Label htmlFor="mt-to">담당</Label>
-                      <Select id="mt-to" value={toId} onChange={(e) => setToId(e.target.value)}>
+                      <Select id="mt-to" value={taskAssigneeId} onChange={(e) => setToId(e.target.value)}>
                         <option value="">고르기</option>
-                        {(staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {taskAssignees.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </Select>
                     </div>
                     <div className="w-40">
@@ -274,9 +278,9 @@ export function MeetingDetail({
                       <Input id="mt-due" type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} />
                     </div>
                     <Button
-                      disabled={assign.isPending || title.trim() === '' || !toId}
+                      disabled={assign.isPending || title.trim() === '' || !taskAssigneeId}
                       onClick={() => assign.mutate(
-                        { id: d.id, title: title.trim(), toId: Number(toId), ...(dueOn ? { dueOn } : {}) },
+                        { id: d.id, title: title.trim(), toId: Number(taskAssigneeId), ...(dueOn ? { dueOn } : {}) },
                         { onSuccess: () => { setTitle(''); setToId(''); setDueOn(''); } },
                       )}
                     >

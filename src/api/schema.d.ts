@@ -2111,7 +2111,7 @@ export interface paths {
         put?: never;
         /**
          * 할 일 배정 — TODO 와 담당자 알림을 한 트랜잭션에서 (원문 §66 연동)
-         * @description 밖에서 알림을 보내면 할 일은 안 만들어졌는데 알림만 가서 받은 사람이 자기 목록에서 그것을 못 찾는다 (D-R43).
+         * @description 활성 참석자에게만 배정한다(N-124). 참석 응답(confirmed)과 무관하며 활성·참석 확인과 TODO·NOTI 저장은 같은 트랜잭션이다(D-R43).
          */
         post: operations["OpsController_assignMeetingTask"];
         delete?: never;
@@ -20839,7 +20839,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description MEETING_TASK_NOT_ATTENDEE — 담당자가 회의 참석자 목록에 없음 */
             403: {
                 headers: {
                     [name: string]: unknown;
