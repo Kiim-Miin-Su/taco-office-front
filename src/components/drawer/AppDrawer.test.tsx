@@ -136,6 +136,7 @@ describe('공용 서랍의 제어형 선택', () => {
     fireEvent.click(within(view.getByRole('dialog', { name: '변경 요청' })).getByRole('button', { name: '요청 넣기' }));
     expect(await within(view.getByRole('dialog', { name: '변경 요청' })).findByText(/접수 여부를 확인하지 못했습니다/)).toBeTruthy();
     expect(within(view.getByRole('dialog', { name: '변경 요청' })).getByText(/같은 요청을 다시 보내/)).toBeTruthy();
+    expect(within(view.getByRole('dialog', { name: '변경 요청' })).queryByText(/시간이나 자원을 바꿔 주세요/)).toBeNull();
   });
 
   it('타임아웃 후 라우트가 재마운트되어도 같은 본문 재확인은 동일 요청 키를 보낸다', async () => {

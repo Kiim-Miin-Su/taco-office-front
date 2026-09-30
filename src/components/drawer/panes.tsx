@@ -1084,7 +1084,8 @@ export function ChangeReqForm({
           placeholder="어머니 요청 · 강사 병원 일정" />
       </div>
 
-      {error ? <ConflictGuard result="blocking" message={error} /> : null}
+      {/* 네트워크/검증 실패는 일정 충돌이 아니다. 자원 변경을 권하는 충돌 안내를 붙이지 않는다. */}
+      {error ? <div role="alert"><Banner tone="danger">{error}</Banner></div> : null}
 
       {/* 겹치면 「안 됩니다」가 아니라 **누구와** 겹치는지 보여 준다 */}
       {conflicts.length > 0 ? (
