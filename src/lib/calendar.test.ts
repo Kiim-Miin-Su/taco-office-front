@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  addDays, boundingRange, dayHeadLabel, kstDateTime, longDateLabel, monthDayLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
+  addDays, scheduleReadRanges, dayHeadLabel, kstDateTime, longDateLabel, monthDayLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
   LANE_CAP, laneLayout, studentOverlapLines,
   periodSummary, selectDateRange, splitPanes, step, summaryBoundsOf, toggleCustomDate,
   teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
@@ -238,10 +238,34 @@ describe('분할 표 상태 (§4)', () => {
     expect(changed[1]).toMatchObject({ view: 'teacher', personId: 12 });
   });
 
-  it('분할 해제는 focus 표를 남기고 두 표의 범위는 한 bounding range로 합친다', () => {
+  it('분할 해제는 focus 표를 남기고 가까운 두 표의 조회는 한 범위로 합친다', () => {
     const panes = updatePane(splitPanes(base), 1, { view: 'month', date: '2026-09-15' });
-    expect(boundingRange(panes)).toEqual({ from: '2026-08-17', to: '2026-10-04' });
+    expect(scheduleReadRanges(panes)).toEqual([{ from: '2026-08-17', to: '2026-10-04' }]);
     expect(unsplitPanes(panes, 1)).toEqual([{ ...INITIAL_PANE, view: 'month', date: '2026-09-15', personId: null }]);
+  });
+
+  it('멀리 떨어진 월간 표는 각각의 격자만 조회해 수년치 bounding GET을 만들지 않는다', () => {
+    const panes = [
+      { ...INITIAL_PANE, view: 'month' as const, date: '2029-09-15' },
+      { ...INITIAL_PANE, view: 'month' as const, date: '2026-09-15' },
+    ];
+    const ranges = scheduleReadRanges(panes);
+    expect(ranges).toEqual([
+      { from: '2026-08-31', to: '2026-10-04' },
+      { from: '2029-08-27', to: '2029-09-30' },
+    ]);
+    expect(ranges).toHaveLength(2);
+    expect(ranges.every(({ from, to }) => (Date.parse(to) - Date.parse(from)) / 86400000 + 1 <= 366)).toBe(true);
+  });
+
+  it('조회 범위 양 끝 포함 366일은 한 요청, 367일은 두 요청으로 나눈다', () => {
+    const first = { ...INITIAL_PANE, date: '2026-01-01' };
+    expect(scheduleReadRanges([first, { ...first, date: '2027-01-01' }])).toEqual([
+      { from: '2026-01-01', to: '2027-01-01' },
+    ]);
+    expect(scheduleReadRanges([first, { ...first, date: '2027-01-02' }])).toEqual([
+      { from: '2026-01-01', to: '2026-01-01' }, { from: '2027-01-02', to: '2027-01-02' },
+    ]);
   });
 
   it('개인 표는 사람이 축이고 기간은 따로 고른다 — 범위도 그 기간을 따라간다 (§10·§11)', () => {
@@ -253,9 +277,9 @@ describe('분할 표 상태 (§4)', () => {
     // 전체 보기는 기간 칸을 들고 있어도 자기 보기를 그대로 쓴다
     expect(paneView({ ...INITIAL_PANE, view: 'day', personPeriod: 'month' })).toBe('day');
 
-    // 한 번 읽는 bounding range 도 개인 표의 기간을 따라간다 — 주간이면 그 주, 일간이면 그 하루
-    expect(boundingRange([teacher])).toEqual({ from: '2026-08-17', to: '2026-08-23' });
-    expect(boundingRange([{ ...teacher, personPeriod: 'day' }])).toEqual({ from: '2026-08-20', to: '2026-08-20' });
+    // 조회 계획도 개인 표의 기간을 따라간다 — 주간이면 그 주, 일간이면 그 하루
+    expect(scheduleReadRanges([teacher])).toEqual([{ from: '2026-08-17', to: '2026-08-23' }]);
+    expect(scheduleReadRanges([{ ...teacher, personPeriod: 'day' }])).toEqual([{ from: '2026-08-20', to: '2026-08-20' }]);
   });
 
   it('겹침 낱말은 한 벌이다 — §19 요청과 §07~§11 이동이 같은 문장을 쓴다', () => {

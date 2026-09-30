@@ -7,9 +7,8 @@
 /**
  * 달력 계산 — **순수 함수만.** 화면은 여기서 나온 배열을 그리기만 한다.
  *
- * 일간·주간·월간·학생별·선생님별 다섯 보기가 **같은 범위를 한 번 읽고**
- * 여기서 나눈다 (`AGENT.md §6.1-2`). 보기마다 fetch 하면 전환할 때마다 왕복이 생기고,
- * 같은 날짜가 보기마다 다른 응답에서 오면 색이 갈린다.
+ * 일간·주간·월간·학생별·선생님별 다섯 보기가 가까운 기간이면 **같은 범위를 한 번 읽고**
+ * 여기서 나눈다 (`AGENT.md §6.1-2`). 멀리 떨어진 분할 표는 각 표의 범위만 읽는다.
  */
 import type { ConflictRow, Occurrence, StudentOverlap, UnavWarn } from '@/api/types';
 
@@ -107,13 +106,13 @@ export function updatePane(
   return panes.map((pane, i) => i === index ? { ...pane, ...patch } : pane);
 }
 
-/** pane별로 읽지 않고 필요한 최소~최대 범위를 한 요청으로 묶는다 (§4 · §6.1-2). */
-export function boundingRange(panes: readonly CalendarPaneState[]): { from: string; to: string } {
-  const ranges = panes.map((pane) => boundsOf(paneView(pane), pane.date));
-  return {
-    from: ranges.reduce((min, range) => range.from < min ? range.from : min, ranges[0].from),
-    to: ranges.reduce((max, range) => range.to > max ? range.to : max, ranges[0].to),
-  };
+/** 가까운 표는 한 번 읽고, 366일을 넘는 분할 표는 각각의 보이는 범위만 읽는다. */
+export function scheduleReadRanges(panes: readonly CalendarPaneState[]): Array<{ from: string; to: string }> {
+  if (panes.length < 1 || panes.length > 2) throw new RangeError('달력 표는 한 개 또는 두 개여야 합니다.');
+  const ranges = panes.map((pane) => boundsOf(paneView(pane), pane.date))
+    .sort((a, b) => a.from.localeCompare(b.from));
+  const merged = { from: ranges[0].from, to: ranges.reduce((max, range) => range.to > max ? range.to : max, ranges[0].to) };
+  return merged.to <= addDays(merged.from, DATE_SELECTION_MAX_DAYS - 1) ? [merged] : ranges;
 }
 
 /** KST 고정 (D-R12) — 관리자 화면의 모든 시각은 서울 시간이다 */

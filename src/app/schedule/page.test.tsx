@@ -468,6 +468,46 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
+  it('3년 떨어진 두 분할 표는 세 조회를 각각 하루 범위로만 보내고 양쪽 수업을 함께 보여 준다', () => {
+    const future = { ...items[1], serId: 77, date: '2029-09-01', onDate: '2029-09-01', title: '미래 수업' };
+    mocks.occurrences.mockImplementation((range, enabled = true) => ({
+      data: { items: !enabled ? [] : range.from.startsWith('2029') ? [future] : [items[0]] },
+      isLoading: false, isError: false,
+    }));
+    mocks.holidays.mockImplementation((range, enabled = true) => ({
+      data: { items: enabled && range.from.startsWith('2029') ? [{ date: '2029-09-01', name: '미래 공휴일' }] : [] },
+    }));
+    mocks.unav.mockImplementation((range, enabled) => ({
+      data: { items: enabled && range.from.startsWith('2029')
+        ? [{ id: 7, teacherId: 11, teacherName: '선택 강사', date: '2029-09-01', startMin: 840, endMin: 900, reason: '미래 불가' }]
+        : [] },
+      isLoading: false,
+    }));
+    useWorkspace.setState({ sidebarOpen: true });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '가능 시간' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    useWorkspace.setState({ sidebarOpen: false });
+    const left = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    fireEvent.pointerDown(right);
+    fireEvent.change(view.getByLabelText('날짜'), { target: { value: '2029-09-01' } });
+
+    const expected = [
+      { from: '2026-09-01', to: '2026-09-01' },
+      { from: '2029-09-01', to: '2029-09-01' },
+    ];
+    for (const calls of [mocks.occurrences.mock.calls, mocks.holidays.mock.calls, mocks.unav.mock.calls]) {
+      expect(calls.slice(-2).filter(([, enabled]) => enabled !== false).map(([range]) => range)
+        .sort((a, b) => a.from.localeCompare(b.from))).toEqual(expected);
+    }
+    expect(within(left).getByText('선택된 수업')).toBeTruthy();
+    expect(within(right).getByText('미래 수업')).toBeTruthy();
+    expect(within(right).getByText('미래 공휴일')).toBeTruthy();
+    expect(within(right).getByText(/미래 불가/)).toBeTruthy();
+    expect(within(left).queryByText('미래 공휴일')).toBeNull();
+  });
+
   it.each([
     ['학생별', /^선택 학생/],
     ['선생님별', /^선택 강사/],

@@ -12,7 +12,7 @@
  *
  * 규칙 셋 (`AGENT.md §6.1`)
  *   ① 선택 상태(보기·날짜·고른 사람)는 **이 파일의 reducer 한 곳**이 갖는다
- *   ② 서버는 **bounding range 한 번**만 읽고 보기별로는 selector 로 나눈다
+ *   ② 가까운 표는 한 번, 먼 분할 표는 각 범위를 읽고 보기별로는 selector 로 나눈다
  *   ③ 도메인 판정은 서버와 `lib/` 가 갖는다 — 여기서 다시 계산하지 않는다
  */
 'use client';
@@ -56,7 +56,7 @@ import { apiMessage, isConflict } from '@/api/client';
 import { useCan, useSession } from '@/store/useSession';
 import { canAccessAppRoute } from '@/components/shell/navigation';
 import {
-  boundingRange, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, SLOT_MIN, slotStartMin, studentOverlapLines,
+  scheduleReadRanges, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, SLOT_MIN, slotStartMin, studentOverlapLines,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
   type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
@@ -774,19 +774,29 @@ function AdminSchedulePage() {
     dragCopyRef.current = false;
   };
 
-  // ② 표가 둘이어도 **bounding range 하나**만 읽는다. split/filter 전환은 GET 0회다 (§4 · §6.1-2).
-  const range = useMemo(() => boundingRange(s.panes), [s.panes]);
-  const q = useOccurrences({ from: range.from, to: range.to });
-  // 원문 §09 「광복절」·「광복절 대체」 칩 · §10 요일 머리 — 서버 표(HOLIDAY)를 같은 범위로 한 번 읽어 날짜로 찾는다
+  // ② 가까운 표는 한 범위로 묶고, 먼 표는 각각 보이는 범위만 읽는다. Hook 호출 수는 고정한다.
+  const ranges = useMemo(() => scheduleReadRanges(s.panes), [s.panes]);
+  const range = ranges[0];
+  const secondRange = ranges[1] ?? range;
+  const hasSecondRange = ranges.length === 2;
+  const secondQuery = useOccurrences(secondRange, hasSecondRange);
+  const q = useOccurrences(range);
+  // 원문 §09 「광복절」·「광복절 대체」 칩 · §10 요일 머리 — 서버 표(HOLIDAY)를 회차와 같은 범위로 읽는다
+  const secondHolidayQuery = useScheduleHolidays(secondRange, hasSecondRange);
   const holidayQuery = useScheduleHolidays(range);
   const holidaysOf = useMemo(() => {
     const byDay = new Map<string, string[]>();
-    for (const h of holidayQuery.data?.items ?? []) byDay.set(h.date, [...(byDay.get(h.date) ?? []), h.name]);
+    for (const h of [...(holidayQuery.data?.items ?? []), ...(hasSecondRange ? secondHolidayQuery.data?.items ?? [] : [])]) {
+      byDay.set(h.date, [...(byDay.get(h.date) ?? []), h.name]);
+    }
     return (date: string) => byDay.get(date);
-  }, [holidayQuery.data]);
+  }, [holidayQuery.data, secondHolidayQuery.data, hasSecondRange]);
   // 「가능 시간」을 켰을 때만 읽는다 — 막는 자료가 아니라 겹쳐 보는 자료다(저장 판정은 서버 쓰기의 경고가 한다)
+  const secondUnavQuery = useScheduleUnavailable(secondRange, unavOn && hasSecondRange);
   const unavQuery = useScheduleUnavailable(range, unavOn);
-  const unavRows = useMemo(() => (unavOn ? unavQuery.data?.items ?? [] : []), [unavOn, unavQuery.data]);
+  const unavRows = useMemo(() => (unavOn
+    ? [...(unavQuery.data?.items ?? []), ...(hasSecondRange ? secondUnavQuery.data?.items ?? [] : [])]
+    : []), [unavOn, unavQuery.data, secondUnavQuery.data, hasSecondRange]);
   /** 그 사람의 그날 불가 띠 — 띠의 title 은 누가 · 몇 시 · 사유 */
   const unavFor = (teacherId: number | null) => (teacherId === null || !unavOn ? undefined : (date: string): UnavBand[] =>
     unavRows.filter((r) => r.teacherId === teacherId && r.date === date).map((r) => ({
@@ -794,7 +804,11 @@ function AdminSchedulePage() {
       label: `강사 불가 · ${r.teacherName} ${hhmm(r.startMin)}–${hhmm(r.endMin)} · ${r.reason}`,
     })));
 
-  const all = useMemo(() => q.data?.items ?? [], [q.data]);
+  const all = useMemo(() => [
+    ...(q.data?.items ?? []), ...(hasSecondRange ? secondQuery.data?.items ?? [] : []),
+  ], [q.data, secondQuery.data, hasSecondRange]);
+  const occurrencesLoading = q.isLoading || (hasSecondRange && secondQuery.isLoading);
+  const unavailableLoading = unavQuery.isLoading || (hasSecondRange && secondUnavQuery.isLoading);
   const filteredAll = useMemo(() => filterScheduleOccurrences(all, s.filters), [all, s.filters]);
 
   // §47 「일정」 deep link. 문자열은 공용 방어함수로 거르고, 실제 존재/권한은 조회 응답에서 다시 확인한다.
@@ -806,7 +820,7 @@ function AdminSchedulePage() {
     }
     const identity = `${requestedSerId}:${requestedOnDate}`;
     if (openedDeepLink.current === identity) return;
-    if (q.isLoading) return;
+    if (occurrencesLoading) return;
     const target = all.find((item) => item.serId === requestedSerId && item.onDate === requestedOnDate);
     if (!target) {
       // 다른 identity가 조회 범위에 없으면 이전 수업 상세를 남기지 않는다.
@@ -816,7 +830,7 @@ function AdminSchedulePage() {
     }
     openedDeepLink.current = identity;
     go({ t: 'open', o: target });
-  }, [all, q.isLoading, requestedOnDate, requestedSerId]);
+  }, [all, occurrencesLoading, requestedOnDate, requestedSerId]);
 
   const selectedSet = useMemo(() => new Set(s.selected), [s.selected]);
   const select = (occ: Occurrence, mode: SelectMode) => {
@@ -973,7 +987,7 @@ function AdminSchedulePage() {
     };
   }, [meta.data]);
 
-  /** ③ 각 표는 같은 응답을 자기 범위·사람으로만 투영한다. 서버 요청·도메인 판정은 늘 한 벌이다. */
+  /** ③ 각 표는 합친 조회 결과를 자기 범위·사람으로만 투영한다. 도메인 판정은 늘 한 벌이다. */
   const paneModels = useMemo(() => s.panes.map((pane) => {
     // 개인 표는 사람이 축이고 기간은 따로 고른다 (§10·§11). 범위·이동·집계·격자가 같은 하나를 본다.
     const shown = paneView(pane);
@@ -1270,7 +1284,7 @@ function AdminSchedulePage() {
               {(() => {
                 // 「이 기간」은 위 요약과 같은 기간이다 — 월간 격자의 앞뒤 달 칸(읽기 범위)까지 세면 그 달보다 많아진다 (QA 0926 B2)
                 const rows = unavRows.filter((r) => r.date >= model.summaryRange.from && r.date <= model.summaryRange.to);
-                if (unavQuery.isLoading) return '강사 불가 시간을 읽는 중…';
+                if (unavailableLoading) return '강사 불가 시간을 읽는 중…';
                 if (!rows.length) return '이 기간에 강사가 불가로 적어 둔 시간이 없습니다.';
                 return (
                   <>
@@ -1419,8 +1433,8 @@ function AdminSchedulePage() {
           </div>
         ) : grids}
 
-        {q.isLoading ? <p className="mt-3 text-[12px] text-fg-subtle">불러오는 중…</p> : null}
-        {!q.isLoading && items.length === 0 && !outOfHorizon ? (
+        {occurrencesLoading ? <p className="mt-3 text-[12px] text-fg-subtle">불러오는 중…</p> : null}
+        {!occurrencesLoading && items.length === 0 && !outOfHorizon ? (
           <p className="mt-3 text-[12px] text-fg-subtle">이 기간에 수업이 없습니다.</p>
         ) : null}
         {/* 바닥 칩도 **상단 줄과 같은 기간**을 센다 — 한 표 안에서 범위가 갈리면
