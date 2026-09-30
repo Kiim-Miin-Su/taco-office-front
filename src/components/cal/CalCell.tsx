@@ -39,8 +39,10 @@ export interface CalCellProps {
   onOpen?: (o: Occurrence) => void;
   onSelect?: (o: Occurrence, mode: SelectMode) => void;
   selected?: ReadonlySet<string>;
-  /** 빈 곳을 누르면 그 날짜로 일정 추가 (§7) */
+  /** 빈 곳을 더블클릭하거나 Enter를 누르면 그 날짜로 일정 추가 (§7) */
   onAdd?: (date: string) => void;
+  /** 빈 곳을 단일클릭하면 날짜만 선택한다. */
+  onSelectDate?: (date: string) => void;
   /** 날짜 머리 선택 — 월간 날짜와 더보기가 같은 일간 진입을 사용한다 (§9) */
   onPickDate?: (date: string) => void;
   /** 접힌 것을 눌렀을 때 — 보통 그날 일간으로 간다 */
@@ -61,7 +63,7 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, kindName, colorOf, max, onOpen, onSelect, selected, onAdd, onPickDate, onMore, compact, className, muted, active,
+  date, head, items, subName, kindName, colorOf, max, onOpen, onSelect, selected, onAdd, onSelectDate, onPickDate, onMore, compact, className, muted, active,
   droppable, draggable, holidays, children,
 }: CalCellProps) {
   const instanceId = useId();
@@ -77,6 +79,9 @@ export function CalCell({
   return (
     <div
       ref={drop.setNodeRef}
+      role="group"
+      aria-label={`${date} 날짜 칸${onSelectDate ? ' — 클릭으로 선택' : ''}${onAdd ? ' · 더블클릭 또는 Enter로 새 일정' : ''}`}
+      tabIndex={onAdd ? 0 : undefined}
       className={cn(
         'relative flex min-h-[78px] flex-col gap-1 border-b border-r border-line p-1.5',
         muted && 'bg-inset/40',
@@ -90,7 +95,20 @@ export function CalCell({
       onClick={(e) => {
         // 블록을 눌렀을 때는 칸이 반응하지 않는다 — 두 동작이 겹치면 오작동으로 읽힌다
         if (e.target !== e.currentTarget) return;
-        onAdd?.(date);
+        onSelectDate?.(date);
+      }}
+      onDoubleClick={(e) => {
+        if (e.target === e.currentTarget) onAdd?.(date);
+      }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onAdd?.(date);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          onSelectDate?.(date);
+        }
       }}
     >
       {head !== undefined ? (

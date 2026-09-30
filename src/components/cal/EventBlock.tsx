@@ -147,6 +147,7 @@ export interface EventBlockProps {
   /** 관리자 adapter의 검증된 과목/종류색. 생략하면 기존 리포트 상태 표현을 유지한다. */
   color?: string;
   compact?: boolean;
+  /** 더블클릭 또는 Enter로 상세를 연다. 단일클릭은 onSelect만 호출한다. */
   onClick?: () => void;
   /** 선택 계산은 page → calendar.ts 한 경로가 한다. 블록은 modifier 의도만 전달한다. */
   onSelect?: (occ: Occurrence, mode: SelectMode) => void;
@@ -281,8 +282,9 @@ export function EventBlock({
         onClick={(e) => {
           const mode: SelectMode = e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single';
           onSelect?.(occ, mode);
-          // modifier 클릭은 선택만 한다. 일반 클릭은 기존 상세 열기 행동을 보존한다.
-          if (mode === 'single') onClick?.();
+        }}
+        onDoubleClick={(e) => {
+          if (!e.shiftKey && !e.ctrlKey && !e.metaKey) onClick?.();
         }}
         onKeyDown={(e) => {
           if (e.key !== 'Enter') return;

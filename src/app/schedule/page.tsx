@@ -16,7 +16,7 @@
  *   ③ 도메인 판정은 서버와 `lib/` 가 갖는다 — 여기서 다시 계산하지 않는다
  */
 'use client';
-import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -329,6 +329,8 @@ function AdminSchedulePage() {
   const canEdit = useCan('canCrudAll');
   /** React state 반영 전 같은 tick의 이중 클릭·키 반복도 같은 paste POST를 두 번 보내지 않는다. */
   const pasteInFlight = useRef(false);
+  /** dnd-kit의 pointerup 뒤 브라우저가 합성하는 click/dblclick이 선택·창 열기를 다시 실행하지 않는다. */
+  const suppressPointerClickUntil = useRef(0);
   /* 사이드바 [관리] 는 §18 에 들어갈 수 있을 때만 — 직접 URL 과 같은 내비 규칙(D-R39) */
   const sessionMe = useSession((st) => st.me);
   const canOpenPrograms = canAccessAppRoute('/programs', sessionMe);
@@ -643,6 +645,7 @@ function AdminSchedulePage() {
   };
 
   const onDragEnd = (e: DragEndEvent) => {
+    suppressPointerClickUntil.current = Date.now() + 300;
     setDragging(null);
     setDropPreview(null);
     setCreating(null);
@@ -740,6 +743,7 @@ function AdminSchedulePage() {
   };
 
   const onDragCancel = () => {
+    suppressPointerClickUntil.current = Date.now() + 300;
     setDragging(null);
     setDropPreview(null);
     setCreating(null);
@@ -898,15 +902,16 @@ function AdminSchedulePage() {
     return () => document.removeEventListener('keydown', onKey);
   });
 
-  /** 빈 칸 → 붙여넣기 위치 또는 새 일정. `pane` 은 그 칸이 있는 표다 — 개인표면 그 사람이 초안에 들어간다 */
-  const chooseSlot = (
+  /** 단일클릭은 붙여넣기 여부와 무관하게 대상 시각만 고른다. */
+  const selectSlot = (date: string, startMin: number, colAxis?: 'room' | 'teacher', colId?: number | null) => {
+    go({ t: 'cursor', value: { date, startMin, colAxis, colId } });
+    setErr(null);
+  };
+
+  /** 더블클릭/Enter만 1시간 초안을 연다. 서버 쓰기는 SessionEditor의 명시적 저장 뒤에만 한다. */
+  const openSlot = (
     pane: CalendarPaneState, date: string, startMin: number, colAxis?: 'room' | 'teacher', colId?: number | null,
   ) => {
-    if (s.clipboard) {
-      go({ t: 'cursor', value: { date, startMin, colAxis, colId } });
-      setErr(null);
-      return;
-    }
     setDraft({
       date,
       startMin,
@@ -914,6 +919,13 @@ function AdminSchedulePage() {
       roomId: colAxis === 'room' ? (colId ?? null) : null,
       ...personDraft(pane),
     });
+  };
+
+  const suppressDragClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.detail === 0 || Date.now() >= suppressPointerClickUntil.current) return;
+    if (!(event.target instanceof Element) || !event.target.closest('[data-calendar-grid]')) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   /** Meta lookup 한 벌을 모든 표·상세·범례가 공유한다 (§88·§89). */
@@ -1120,7 +1132,8 @@ function AdminSchedulePage() {
         holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
         onSelect={select} selected={selectedSet} cursor={s.cursor}
-        onAddAt={canEdit ? (date, startMin) => chooseSlot(pane, date, startMin) : undefined}
+        onSelectAt={canEdit ? (date, startMin) => selectSlot(date, startMin) : undefined}
+        onAddAt={canEdit ? (date, startMin) => openSlot(pane, date, startMin) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })} />
     ) : shown === 'day' ? (
       <DayGrid date={pane.date} items={items} columns={columns} colAxis="room"
@@ -1130,21 +1143,24 @@ function AdminSchedulePage() {
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onSelect={select} selected={selectedSet} interactive={canEdit}
         cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
-        onAddAt={(date, startMin, roomId) => chooseSlot(pane, date, startMin, 'room', roomId)} />
+        onSelectAt={canEdit ? (date, startMin, roomId) => selectSlot(date, startMin, 'room', roomId) : undefined}
+        onAddAt={canEdit ? (date, startMin, roomId) => openSlot(pane, date, startMin, 'room', roomId) : undefined} />
     ) : shown === 'month' ? (
       <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} kindName={kindName} colorOf={blockColor} interactive={canEdit}
         holidaysOf={holidaysOf}
         onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onPickDate={(date) => go({ t: 'date', d: date })}
-        onAdd={canEdit ? (date) => chooseSlot(pane, date, 10 * 60) : undefined} />
+        onSelectDate={canEdit ? (date) => selectSlot(date, 10 * 60) : undefined}
+        onAdd={canEdit ? (date) => openSlot(pane, date, 10 * 60) : undefined} />
     ) : (
       <WeekGrid date={pane.date} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
         holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
         onSelect={select} selected={selectedSet} cursor={s.cursor}
-        onAddAt={canEdit ? (date, startMin) => chooseSlot(pane, date, startMin) : undefined}
+        onSelectAt={canEdit ? (date, startMin) => selectSlot(date, startMin) : undefined}
+        onAddAt={canEdit ? (date, startMin) => openSlot(pane, date, startMin) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onPickDate={(date) => go({ t: 'date', d: date })} />
     );
@@ -1170,7 +1186,13 @@ function AdminSchedulePage() {
         data-calendar-pane={paneIndex}
         tabIndex={0}
         onFocus={() => go({ t: 'focus', index: paneIndex })}
-        onPointerDownCapture={() => go({ t: 'focus', index: paneIndex })}
+        onPointerDownCapture={() => {
+          // 실제 다음 제스처는 새로운 pointerdown으로 시작한다. 드래그의 합성 click만 무시한다.
+          suppressPointerClickUntil.current = 0;
+          go({ t: 'focus', index: paneIndex });
+        }}
+        onClickCapture={suppressDragClick}
+        onDoubleClickCapture={suppressDragClick}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget || event.key !== 'Tab' || s.panes.length !== 2) return;
           event.preventDefault();

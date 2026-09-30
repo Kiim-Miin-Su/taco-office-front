@@ -62,6 +62,8 @@ describe('관리자 달력 날짜 정확성', () => {
     expect(onAdd).not.toHaveBeenCalled();
 
     fireEvent.click(cell.getByRole('button', { name: /수업 1/ }));
+    expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.doubleClick(cell.getByRole('button', { name: /수업 1/ }));
     expect(onOpen).toHaveBeenCalledWith(items[3]);
     expect(onPickDate).toHaveBeenCalledTimes(2);
     expect(onAdd).not.toHaveBeenCalled();
@@ -87,6 +89,13 @@ describe('관리자 달력 날짜 정확성', () => {
     fireEvent.click(view.getByRole('button', { name: '2026-09-02 (수) 날짜 선택' }));
     expect(onPickDate).toHaveBeenCalledOnce();
     expect(onPickDate).toHaveBeenCalledWith('2026-09-02');
+  });
+
+  it('읽기 전용 월간 날짜는 생성할 수 있다고 안내하거나 탭 순서에 넣지 않는다', () => {
+    const view = render(<MonthGrid date="2026-09-01" grid={monthGrid('2026-09-01')} items={[]} />);
+    const cell = view.getByRole('group', { name: '2026-09-03 날짜 칸' });
+    expect(cell.hasAttribute('tabindex')).toBe(false);
+    expect(cell.getAttribute('aria-label')).not.toContain('새 일정');
   });
 
   it('주간·학생별·선생님별 공용 격자는 한 시간축에 회차를 시간 비례로 놓는다', () => {
@@ -126,6 +135,8 @@ describe('관리자 달력 날짜 정확성', () => {
     const block = view.getByRole('button', { name: /^수업 20/ });
     expect(block.getAttribute('title')).toContain('14:00–15:00');
     fireEvent.click(block);
+    expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.doubleClick(block);
     expect(onOpen).toHaveBeenCalledWith(items[0]);
   });
 
@@ -145,16 +156,56 @@ describe('관리자 달력 날짜 정확성', () => {
     expect(tall.getByText('현장 6호')).toBeTruthy();
   });
 
-  it('주간 빈 칸은 날짜와 실제 30분 시각을 전달하고 cursor도 그 슬롯만 표시한다', () => {
+  it('주간 빈 칸은 클릭 선택과 더블클릭 생성의 날짜·시각을 분리한다', () => {
     const onAddAt = vi.fn();
+    const onSelectAt = vi.fn();
     const view = render(<WeekGrid date="2026-09-01" items={[]} cursor={{ date: '2026-09-03', startMin: 16 * 60 }}
-      interactive onAddAt={onAddAt} />);
+      interactive onAddAt={onAddAt} onSelectAt={onSelectAt} />);
     const slot = view.getByRole('button', { name: '2026-09-03 16:00 빈 시간 선택' });
 
     expect(slot.classList.contains('ring-2')).toBe(true);
     fireEvent.click(slot);
+    expect(onSelectAt).toHaveBeenCalledWith('2026-09-03', 16 * 60);
+    expect(onAddAt).not.toHaveBeenCalled();
+    fireEvent.click(slot, { detail: 2 });
+    expect(onAddAt).not.toHaveBeenCalled();
+    fireEvent.doubleClick(slot);
     expect(onAddAt).toHaveBeenCalledOnce();
     expect(onAddAt).toHaveBeenCalledWith('2026-09-03', 16 * 60);
+    fireEvent.keyDown(slot, { key: 'Enter' });
+    expect(onAddAt).toHaveBeenCalledTimes(2);
+  });
+
+  it('일간 강의실 슬롯과 월간 빈 날짜도 클릭 선택·더블클릭 생성을 구분한다', () => {
+    const onSelectAt = vi.fn();
+    const onAddAt = vi.fn();
+    const day = render(<DayGrid date="2026-09-01" items={[]} columns={[{ id: 3, name: '3호' }]}
+      columnOf={() => 3} colAxis="room" interactive onSelectAt={onSelectAt} onAddAt={onAddAt} />);
+    const slot = day.getByRole('button', { name: '2026-09-01 10:00 강의실 3 빈 시간 선택' });
+    fireEvent.click(slot);
+    expect(onSelectAt).toHaveBeenCalledWith('2026-09-01', 600, 3);
+    expect(onAddAt).not.toHaveBeenCalled();
+    fireEvent.doubleClick(slot);
+    expect(onAddAt).toHaveBeenCalledOnce();
+    fireEvent.keyDown(slot, { key: 'Enter' });
+    expect(onAddAt).toHaveBeenCalledTimes(2);
+    cleanup();
+
+    const onSelectDate = vi.fn();
+    const onAdd = vi.fn();
+    const month = render(<MonthGrid date="2026-09-01" grid={monthGrid('2026-09-01')} items={[]}
+      onSelectDate={onSelectDate} onAdd={onAdd} />);
+    const cell = month.getByRole('group', { name: /2026-09-03 날짜 칸/ });
+    fireEvent.click(cell);
+    expect(onSelectDate).toHaveBeenCalledWith('2026-09-03');
+    expect(onAdd).not.toHaveBeenCalled();
+    fireEvent.click(cell, { detail: 2 });
+    expect(onAdd).not.toHaveBeenCalled();
+    fireEvent.doubleClick(cell);
+    expect(onAdd).toHaveBeenCalledOnce();
+    expect(onAdd).toHaveBeenCalledWith('2026-09-03');
+    fireEvent.keyDown(cell, { key: 'Enter' });
+    expect(onAdd).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -271,7 +322,10 @@ describe('lane 상한 셋 + 「+M」 (N-74 · N-80)', () => {
     expect(within(day).queryByRole('button', { name: /날짜 선택/ })).toBeNull();
     expect(day.querySelectorAll('[data-week-event]')).toHaveLength(3);
     fireEvent.click(within(day).getByRole('button', { name: '겹친 수업 4건 펼치기' }));
-    fireEvent.click(within(day).getByRole('button', { name: /겹친 수업 4$/ }));
+    const hidden = within(day).getByRole('button', { name: /겹친 수업 4$/ });
+    fireEvent.click(hidden);
+    expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.doubleClick(hidden);
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ serId: 4 }));
   });
 

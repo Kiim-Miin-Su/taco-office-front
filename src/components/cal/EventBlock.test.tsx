@@ -39,14 +39,22 @@ const occurrence: Occurrence = {
 };
 
 describe('EventBlock', () => {
-  it('드래그 권한이 없어도 읽기 전용 상세 버튼은 활성 상태로 열린다', () => {
+  it('읽기 전용 블록도 단일 클릭은 선택, 더블 클릭·Enter는 상세를 연다', () => {
     const onClick = vi.fn();
-    const view = render(<EventBlock occ={occurrence} draggable={false} onClick={onClick} />);
+    const onSelect = vi.fn();
+    const view = render(<EventBlock occ={occurrence} draggable={false} onClick={onClick} onSelect={onSelect} />);
     const button = view.getByRole('button', { name: /AP Chemistry/ });
 
     expect(button.getAttribute('aria-disabled')).toBeNull();
     fireEvent.click(button);
+    expect(onSelect).toHaveBeenCalledWith(occurrence, 'single');
+    expect(onClick).not.toHaveBeenCalled();
+    fireEvent.click(button, { detail: 2 });
+    expect(onClick).not.toHaveBeenCalled();
+    fireEvent.doubleClick(button);
     expect(onClick).toHaveBeenCalledOnce();
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(onClick).toHaveBeenCalledTimes(2);
   });
 
   it('추가 수업(extra)은 「추가」 배지로 갈린다 — 판정은 서버의 extra 다 (C94-d · C-38)', () => {

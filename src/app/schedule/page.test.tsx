@@ -261,7 +261,7 @@ describe('§07~§11 공용 도구줄', () => {
 describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
   it('열린 상세는 최신 출결 판정을 따르고 목록에서 사라진 회차 snapshot을 복원하지 않는다', () => {
     const view = render(<SchedulePage />);
-    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }));
+    fireEvent.doubleClick(view.getByRole('button', { name: /선택된 수업/ }));
     expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
     const latest = { ...items[0], canceled: true, attendanceMode: 'unavailable' };
     mocks.occurrences.mockReturnValue({ data: { items: [latest, items[1]] }, isLoading: false });
@@ -320,7 +320,7 @@ describe('개인표에서 여는 새 일정 (§10·§11)', () => {
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: viewName }));
     fireEvent.click(view.getByRole('button', { name: personName }));
-    fireEvent.click(view.getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    fireEvent.doubleClick(view.getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
 
     expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-03', startMin: 810, endMin: 870, roomId: null, ...person });
     expect(mocks.write).not.toHaveBeenCalled();
@@ -346,8 +346,75 @@ describe('개인표에서 여는 새 일정 (§10·§11)', () => {
   it('전체 보기의 빈 칸은 사람을 넣지 않는다 — 고른 사람이 없는 표에서 지어내지 않는다', () => {
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: '주간' }));
-    fireEvent.click(view.getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    fireEvent.doubleClick(view.getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
     expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-03', startMin: 810, endMin: 870, roomId: null });
+  });
+});
+
+describe('UX-07A 일정/빈칸 단일 선택과 더블 상세·생성', () => {
+  it('일정 단일 클릭은 선택만 하고 더블 클릭은 상세를 한 번 연다', () => {
+    const view = render(<SchedulePage />);
+    const block = view.getByRole('button', { name: /선택된 수업/ });
+    fireEvent.click(block);
+    expect(block.getAttribute('aria-pressed')).toBe('true');
+    expect(mocks.detail).toHaveBeenLastCalledWith(null);
+    fireEvent.doubleClick(block);
+    expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
+  });
+
+  it('빈 칸 단일 클릭은 시각만 선택, 더블 클릭은 1시간 초안만 열고 POST하지 않는다', () => {
+    const view = render(<SchedulePage />);
+    const slot = view.getByRole('button', { name: '2026-09-01 13:30 빈 시간 선택' });
+    fireEvent.click(slot);
+    expect(slot.classList.contains('ring-2')).toBe(true);
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    fireEvent.click(slot, { detail: 2 });
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    fireEvent.doubleClick(slot);
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 810, endMin: 870, roomId: null });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('강의실로 세로선을 나눈 일간도 선택한 방과 시각을 더블클릭 초안에 싣는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    const slot = view.getByRole('button', { name: '2026-09-01 13:30 강의실 미지정 빈 시간 선택' });
+    fireEvent.click(slot);
+    expect(slot.classList.contains('ring-2')).toBe(true);
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    fireEvent.doubleClick(slot);
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 810, endMin: 870, roomId: null });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('월간 빈 날짜도 단일 클릭은 날짜 선택, 더블 클릭은 기존 기본시각의 1시간 초안이다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    const cell = view.getByRole('group', { name: /2026-09-03 날짜 칸/ });
+    fireEvent.click(cell);
+    expect(cell.classList.contains('ring-2')).toBe(true);
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    fireEvent.doubleClick(cell);
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-03', startMin: 600, endMin: 660, roomId: null });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('드래그 직후 합성 클릭·더블클릭은 새 창을 열지 않고, 다음 의도된 더블클릭은 동작한다', () => {
+    const view = render(<SchedulePage />);
+    const block = view.getByRole('button', { name: /선택된 수업/ });
+    const drag = {
+      active: { id: 'move-test', data: { current: { type: 'move', occ: items[0] } },
+        rect: { current: { initial: null, translated: null } } },
+      over: null, delta: { x: 50, y: 0 }, activatorEvent: new MouseEvent('pointerdown'), collisions: null,
+    } as unknown as DragEndEvent;
+    act(() => mocks.drag!.onDragStart?.({ active: drag.active, activatorEvent: drag.activatorEvent }));
+    act(() => mocks.drag!.onDragEnd?.(drag));
+    fireEvent.click(block, { detail: 1 });
+    fireEvent.doubleClick(block, { detail: 2 });
+    expect(mocks.detail).toHaveBeenLastCalledWith(null);
+    fireEvent.pointerDown(block);
+    fireEvent.doubleClick(block, { detail: 2 });
+    expect(mocks.detail).toHaveBeenLastCalledWith(items[0]);
   });
 });
 

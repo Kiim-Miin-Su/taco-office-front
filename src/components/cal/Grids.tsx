@@ -64,6 +64,7 @@ export interface GridProps {
   /** 붙여넣기 커서가 놓인 날짜 — 목록형 보기의 대상 링 */
   cursorDate?: string | null;
   onAdd?: (date: string) => void;
+  onSelectDate?: (date: string) => void;
   onPickDate?: (date: string) => void;
   /** 잡아서 옮길 수 있는가 — 권한(canCrudAll)을 페이지가 여기로 내린다 */
   interactive?: boolean;
@@ -96,6 +97,7 @@ function UnavBands({ bands, px }: { bands: readonly UnavBand[] | undefined; px: 
 export interface WeekGridProps extends GridProps {
   /** 주간 빈 칸은 날짜만이 아니라 실제 30분 슬롯 시각까지 전달한다. */
   onAddAt?: (date: string, startMin: number) => void;
+  onSelectAt?: (date: string, startMin: number) => void;
   /** 붙여넣기 커서도 날짜와 시각이 모두 같은 슬롯만 표시한다. */
   cursor?: { date: string; startMin: number } | null;
   /**
@@ -130,8 +132,9 @@ export interface DayGridProps extends GridProps {
   columnOf: (o: Occurrence) => number | null;
   /** 이 축이 드롭에서 무엇을 바꾸는지 정한다 (§4.4) */
   colAxis: ColAxis;
-  /** 빈 슬롯을 누르면 그 시각으로 새 일정 (C-5 진입점) */
+  /** 빈 슬롯을 더블클릭하면 그 시각으로 새 일정 (C-5 진입점) */
   onAddAt?: (date: string, startMin: number, colId: number | null) => void;
+  onSelectAt?: (date: string, startMin: number, colId: number | null) => void;
   cursor?: { date: string; startMin: number; colAxis: ColAxis; colId: number | null } | null;
   /**
    * 원문 §07 「+ 빈 시간 찾기」 — 그 열(강의실)에 취소 아닌 수업이 걸치지 않은 30분 칸을 칠한다.
@@ -141,12 +144,13 @@ export interface DayGridProps extends GridProps {
 }
 
 /** 30분 슬롯 하나 — **실제 노드**다. 드롭 타깃이자 셀 상태의 자리 (§2.5) */
-function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt }: {
+function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt, onSelectAt }: {
   date: string; colAxis: ColAxis; colId: number | null; slotMin: number; hourLine: boolean;
   active?: boolean;
   /** 빈 시간 찾기가 켜졌고 이 칸이 비었다 */
   free?: boolean;
   onAddAt?: (date: string, startMin: number, colId: number | null) => void;
+  onSelectAt?: (date: string, startMin: number, colId: number | null) => void;
 }) {
   const instanceId = useId();
   const d = useDroppable({
@@ -166,7 +170,13 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt }
       type="button"
       aria-label={`${date} ${hhmm(slotMin)} ${colAxis === 'room' ? '강의실' : '강사'} ${colId ?? '미지정'} 빈 시간 선택`}
       data-free={free ? '' : undefined}
-      onClick={() => onAddAt?.(date, slotMin, colId)}
+      onClick={() => onSelectAt?.(date, slotMin, colId)}
+      onDoubleClick={() => onAddAt?.(date, slotMin, colId)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        onAddAt?.(date, slotMin, colId);
+      }}
       className={cn(
         'block w-full appearance-none border-r border-line p-0 text-left',
         // 정시는 실선, 30분은 옅은 선 — 15분에는 선을 긋지 않는다 (§2.5)
@@ -182,9 +192,10 @@ function Slot({ date, colAxis, colId, slotMin, hourLine, active, free, onAddAt }
 }
 
 /** 주간 30분 슬롯 — 월간의 날짜 drop과 분리해 세로 좌표를 잃지 않는다. */
-function WeekSlot({ date, slotMin, hourLine, active, onAddAt, interactive }: {
+function WeekSlot({ date, slotMin, hourLine, active, onAddAt, onSelectAt, interactive }: {
   date: string; slotMin: number; hourLine: boolean; active?: boolean;
   onAddAt?: (date: string, startMin: number) => void; interactive?: boolean;
+  onSelectAt?: (date: string, startMin: number) => void;
 }) {
   const instanceId = useId();
   const drop = useDroppable({
@@ -204,7 +215,13 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, interactive }: {
       {...(interactive ? drag.attributes : {})}
       type="button"
       aria-label={`${date} ${hhmm(slotMin)} 빈 시간 선택`}
-      onClick={() => onAddAt?.(date, slotMin)}
+      onClick={() => onSelectAt?.(date, slotMin)}
+      onDoubleClick={() => onAddAt?.(date, slotMin)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        onAddAt?.(date, slotMin);
+      }}
       className={cn(
         'block w-full border-r border-line text-left',
         hourLine ? 'border-b border-b-line' : 'border-b border-b-line/40',
@@ -218,7 +235,7 @@ function WeekSlot({ date, slotMin, hourLine, active, onAddAt, interactive }: {
 }
 
 export function DayGrid({
-  date, items, columns, columnOf, colAxis, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onAddAt, cursor, interactive,
+  date, items, columns, columnOf, colAxis, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onAddAt, onSelectAt, cursor, interactive,
   showFree = false, unavOf,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
@@ -251,7 +268,7 @@ export function DayGrid({
   const unavAt = (m: number) => Boolean(bands?.some((b) => b.startMin < m + SLOT_MIN && b.endMin > m));
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-card" onClick={() => setOpenCluster(null)}>
+    <div data-calendar-grid className="overflow-x-auto rounded-xl border border-line bg-card" onClick={() => setOpenCluster(null)}>
       <div className="min-w-[720px]">
         {/* 헤더와 본문이 같은 컬럼 폭 변수를 쓴다 — 각자 계산하면 1px 씩 어긋난다 (§2.5) */}
         <div className="grid border-b border-line bg-inset text-[11px] font-bold text-fg-subtle"
@@ -285,7 +302,8 @@ export function DayGrid({
                         hourLine={(m + SLOT_MIN) % 60 === 0}
                         active={cursor?.date === date && cursor.startMin === m && cursor.colAxis === colAxis && cursor.colId === c.id}
                         free={showFree && c.id !== null && !unavAt(m) && !mine.some((o) => !o.canceled && o.startMin < m + SLOT_MIN && o.endMin > m)}
-                        onAddAt={interactive ? onAddAt : undefined} />
+                        onAddAt={interactive ? onAddAt : undefined}
+                        onSelectAt={interactive ? onSelectAt : undefined} />
                 ))}
                 <UnavBands bands={bands} px={px} />
 
@@ -355,7 +373,7 @@ export function DayGrid({
 /* ── §8·10·11 주간 — 공통 시간축 × 요일 7열 ─────────────────────────── */
 
 export function WeekGrid({
-  date, items, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, cursor,
+  date, items, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onPickDate, interactive, onAddAt, onSelectAt, cursor,
   dark = false, totals = false, holidaysOf, unavOf, days: onlyDays,
 }: WeekGridProps) {
   const days = onlyDays ?? weekDays(date);
@@ -379,7 +397,7 @@ export function WeekGrid({
   const cols = `56px repeat(${days.length}, minmax(112px, 1fr))`;
 
   return (
-    <div data-png-expand className="overflow-x-auto rounded-xl border border-line bg-card" role="region"
+    <div data-png-expand data-calendar-grid className="overflow-x-auto rounded-xl border border-line bg-card" role="region"
       aria-label={single ? '일간 시간표' : '주간 시간표'} onClick={() => setOpenCluster(null)}>
       <div className={single ? 'min-w-[360px]' : 'min-w-[900px]'}>
         {/* 머리 — 개인표(§10·§11)는 어둡고, 전체 주간(§08)은 밝은 머리에 「17일 · 8건」 한 줄이다 */}
@@ -470,7 +488,8 @@ export function WeekGrid({
                   {slots.map((m) => (
                     <WeekSlot key={m} date={d} slotMin={m} hourLine={(m + SLOT_MIN) % 60 === 0}
                       active={cursor?.date === d && cursor.startMin === m}
-                      onAddAt={interactive ? onAddAt : undefined} interactive={interactive} />
+                      onAddAt={interactive ? onAddAt : undefined}
+                      onSelectAt={interactive ? onSelectAt : undefined} interactive={interactive} />
                   ))}
                 </div>
                 <UnavBands bands={unavOf?.(d)} px={px} />
@@ -578,12 +597,12 @@ export function WeekGrid({
 /* ── §9 월간 — 달력 · 최대 3건 ───────────────────────────────────────── */
 
 export function MonthGrid({
-  date, items, grid, subName, kindName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onPickDate, interactive, holidaysOf,
+  date, items, grid, subName, kindName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onSelectDate, onPickDate, interactive, holidaysOf,
 }: GridProps & { grid: string[] }) {
   const map = byDate(items);
   const mon = date.slice(0, 7);
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-card">
+    <div data-calendar-grid className="overflow-hidden rounded-xl border border-line bg-card">
       <div className="grid grid-cols-7 border-b border-line bg-inset">
         {grid.slice(0, 7).map((d) => {
           const dow = dowOf(d);
@@ -598,7 +617,7 @@ export function MonthGrid({
           <CalCell key={d} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
                    subName={subName} kindName={kindName} colorOf={colorOf} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
                    active={cursorDate === d}
-                   onAdd={onAdd} onPickDate={onPickDate} onMore={onPickDate}
+                   onAdd={onAdd} onSelectDate={onSelectDate} onPickDate={onPickDate} onMore={onPickDate}
                    muted={d.slice(0, 7) !== mon} compact holidays={holidaysOf?.(d)}
                    droppable={interactive} draggable={interactive} />
         ))}
