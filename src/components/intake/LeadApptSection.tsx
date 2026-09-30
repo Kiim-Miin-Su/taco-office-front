@@ -19,7 +19,7 @@
  */
 'use client';
 import { useId, useState } from 'react';
-import { Banner, Button, Chip, Input, Label, Select } from '../ui';
+import { Banner, Button, Checkbox, Chip, Input, Label, Select } from '../ui';
 import { apiMessage } from '@/api/client';
 import { useBookLeadAppt, useDeleteLeadAppt, useMeta, useSaveLeadAppt, useScheduleLeadAppts } from '@/api/queries';
 import type { Lead, LeadAppt } from '@/api/types';
@@ -156,18 +156,27 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
       </ul>
       {draft ? (
         <div className="flex flex-col gap-2 border-t border-line bg-inset px-3 py-2">
-          <div className="grid grid-cols-[1.3fr_1fr_1fr] gap-2">
-            <div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="col-span-2 sm:col-span-1">
               <Label htmlFor={`${id}-d`}>{labelOf(draft.kind)} 날짜</Label>
               <Input id={`${id}-d`} type="date" value={draft.onDate} disabled={busy} onChange={(x) => setDraft({ ...draft, onDate: x.target.value })} />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label htmlFor={`${id}-s`}>시작</Label>
-              <Input id={`${id}-s`} value={draft.start} placeholder="14:30" disabled={busy} onChange={(x) => setDraft({ ...draft, start: x.target.value })} />
+              <Input id={`${id}-s`} type="time" step={60} value={draft.start} disabled={busy} onChange={(x) => setDraft({ ...draft, start: x.target.value })} />
             </div>
-            <div>
-              <Label htmlFor={`${id}-e`}>끝</Label>
-              <Input id={`${id}-e`} value={draft.end} placeholder="15:30" disabled={busy} onChange={(x) => setDraft({ ...draft, end: x.target.value })} />
+            <div className="min-w-0">
+              <Label htmlFor={draft.end === '24:00' ? undefined : `${id}-e`}>끝</Label>
+              {/* HTML time은 24:00을 표시할 수 없어 자정 종료의 입력과 출력을 분리한다. */}
+              <Input id={`${id}-e`} type="time" step={60} value={draft.end === '24:00' ? '' : draft.end}
+                hidden={draft.end === '24:00'} tabIndex={draft.end === '24:00' ? -1 : undefined}
+                disabled={busy} onChange={(x) => setDraft({ ...draft, end: x.target.value })} />
+              {draft.end === '24:00' ? <output role="status" aria-label="끝 시각"
+                className="flex h-10 min-w-0 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+            </div>
+            <div className="col-span-2 sm:col-span-3">
+              <Checkbox label="24:00 (자정에 종료)" checked={draft.end === '24:00'} disabled={busy}
+                onChange={(x) => setDraft({ ...draft, end: x.target.checked ? '24:00' : '' })} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">

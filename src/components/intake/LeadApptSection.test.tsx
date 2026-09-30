@@ -24,12 +24,12 @@ const lead = { id: 5, name: '표은결', stage: 'wait2nd', appts: [diag, second]
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); });
 
-function setup() {
+function setup(row: Lead = lead) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   clients.push(client);
   const onDone = vi.fn();
   const view = render(
-    <QueryClientProvider client={client}><LeadApptSection lead={lead} kinds={KINDS} editable onDone={onDone} /></QueryClientProvider>,
+    <QueryClientProvider client={client}><LeadApptSection lead={row} kinds={KINDS} editable onDone={onDone} /></QueryClientProvider>,
   );
   return { onDone, section: view.getByRole('region', { name: '2차 · 진단 일정' }) };
 }
@@ -67,7 +67,7 @@ it('서버가 막으면(409) 그 문장을 그대로 보인다', async () => {
 /* ── A-02 「상담 일정 잡기」 — ② 날짜 · 시각 ③ 담당 지정 · 방식 현장 ④ 저장 → 시간표 · 단계 · 접촉이 서버 한 번 ── */
 const firstLead = { id: 6, name: '카카오학생', stage: 'first', ownerId: null, ownerName: null, appts: [] } as unknown as Lead;
 
-function setupFirst() {
+function setupFirst(row: Lead = firstLead) {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => ({
     data: url === '/meta' ? { staff: [{ id: 3, name: '김범준' }, { id: 4, name: 'Grace' }], rooms: [{ id: 7, name: '본원 상담실' }], students: [], kinds: [], subs: [], lib: [] } : {},
   }) as never);
@@ -75,7 +75,7 @@ function setupFirst() {
   clients.push(client);
   const onDone = vi.fn();
   const view = render(
-    <QueryClientProvider client={client}><LeadApptSection lead={firstLead} kinds={KINDS} editable onDone={onDone} /></QueryClientProvider>,
+    <QueryClientProvider client={client}><LeadApptSection lead={row} kinds={KINDS} editable onDone={onDone} /></QueryClientProvider>,
   );
   return { onDone, section: view.getByRole('region', { name: '2차 · 진단 일정' }) };
 }
@@ -122,4 +122,71 @@ it('A-02 — 겹치면 서버 문장(409)을 그대로 보이고 폼을 닫지 �
   await waitFor(() => expect(section.textContent).toContain(message));
   expect(onDone).not.toHaveBeenCalled();
   expect(within(section).getByRole('button', { name: '저장 · 시간표에 넣기' })).toBeTruthy();
+});
+
+it('UX-13C3a — 기존 24:00 종료를 다시 열면 native time 대신 읽을 수 있는 종료 출력이 선다', () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { staff: [], rooms: [] } } as never);
+  const midnight = { ...diag, startMin: 1380, endMin: 1440 };
+  const { section } = setup({ ...lead, appts: [midnight, second] } as Lead);
+  fireEvent.click(within(section).getByRole('button', { name: '진단 일정 고치기' }));
+  const start = within(section).getByLabelText('시작') as HTMLInputElement;
+  const end = section.querySelector('input[type="time"]:not([id$="-s"])') as HTMLInputElement | null;
+  expect(start.type).toBe('time');
+  expect(start.step).toBe('60');
+  expect(start.value).toBe('23:00');
+  expect((within(section).getByRole('checkbox', { name: '24:00 (자정에 종료)' }) as HTMLInputElement).checked).toBe(true);
+  expect(within(section).getByRole('status', { name: '끝 시각' }).textContent).toBe('24:00');
+  expect(end?.hidden).toBe(true);
+  expect(end?.tabIndex).toBe(-1);
+});
+
+it('UX-13C3a — 날짜는 좁은 화면 한 행, 시작·끝은 native 1분 선택기이며 자정 해제 후에는 저장 요청이 없다', async () => {
+  const put = vi.spyOn(api, 'put').mockResolvedValue({ data: firstLead } as never);
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {} } as never);
+  const { section } = setupFirst();
+  await fillSecond(section);
+  const date = within(section).getByLabelText('2차 날짜') as HTMLInputElement;
+  const start = within(section).getByLabelText('시작') as HTMLInputElement;
+  const end = within(section).getByLabelText('끝') as HTMLInputElement;
+  expect(date.parentElement?.className).toContain('col-span-2');
+  expect(date.parentElement?.parentElement?.className).toContain('grid-cols-2');
+  expect(start.type).toBe('time');
+  expect(end.type).toBe('time');
+  expect(start.step).toBe('60');
+  expect(end.step).toBe('60');
+  const midnight = within(section).getByRole('checkbox', { name: '24:00 (자정에 종료)' });
+  fireEvent.click(midnight);
+  expect(within(section).getByRole('status', { name: '끝 시각' }).textContent).toBe('24:00');
+  fireEvent.click(midnight);
+  expect((within(section).getByLabelText('끝') as HTMLInputElement).value).toBe('');
+  expect((within(section).getByRole('button', { name: '적어만 두기' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(section).getByRole('button', { name: '저장 · 시간표에 넣기' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(put).not.toHaveBeenCalled();
+  expect(post).not.toHaveBeenCalled();
+});
+
+it('UX-13C3a — 적어만 두기는 1분 23:59–24:00도 기존 계약대로 PUT 1440을 보낸다', async () => {
+  const put = vi.spyOn(api, 'put').mockResolvedValue({ data: firstLead } as never);
+  const { section } = setupFirst();
+  await fillSecond(section);
+  fireEvent.change(within(section).getByLabelText('시작'), { target: { value: '23:59' } });
+  fireEvent.click(within(section).getByRole('checkbox', { name: '24:00 (자정에 종료)' }));
+  fireEvent.click(within(section).getByRole('button', { name: '적어만 두기' }));
+  await waitFor(() => expect(put).toHaveBeenCalledWith('/ops/leads/6/appts', {
+    kind: 'second', onDate: '2026-08-25', startMin: 1439, endMin: 1440, mode: 'offline', roomId: 7,
+  }));
+});
+
+it('UX-13C3a — 시간표에 넣기는 23:00–24:00과 담당을 POST 1440으로 보낸다', async () => {
+  const booked = { ...firstLead, stage: 'wait2nd', ownerId: 3, ownerName: '담당', appts: [] };
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { lead: booked, created: 1, unavailable: [] } } as never);
+  const { section } = setupFirst();
+  await fillSecond(section);
+  fireEvent.change(within(section).getByLabelText('시작'), { target: { value: '23:00' } });
+  fireEvent.click(within(section).getByRole('checkbox', { name: '24:00 (자정에 종료)' }));
+  fireEvent.change(within(section).getByLabelText('담당'), { target: { value: '3' } });
+  fireEvent.click(within(section).getByRole('button', { name: '저장 · 시간표에 넣기' }));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/ops/leads/6/appts/book', {
+    kind: 'second', onDate: '2026-08-25', startMin: 1380, endMin: 1440, mode: 'offline', roomId: 7, ownerId: 3,
+  }));
 });
