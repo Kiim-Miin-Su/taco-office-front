@@ -117,3 +117,62 @@ it('지도 방향을 지우면 빈 글자로 보내 서버가 비운다 (§44-3)
   await waitFor(() => expect(put.body).toBeTruthy());
   expect(put.body).toEqual({ body: '본문', direction: '' });
 });
+
+/**
+ * F-60 「그룹이면 인원별 단가가 계산되어 표시 · 진단 입력 탭이 인원수만큼 생성」 · F-61 「첫 학생 진단 → 나머지에게 복사 · 각자 고친다」.
+ * 단가는 §79 수강 학생 카드와 같은 서버 계산(GET /schedule/tracking · 금액은 돈 권한만)이고, 진단은 반 진단(GET/POST /guides/:id/class-diagnostics)이다.
+ * 사용자 결정 2026-09-30 「탭에서 관리자도 입력」 — 안내를 쓰는 사람이 탭마다 진단을 적는다.
+ */
+it('그룹이면 인원별 단가를 보이고, 반 학생 수만큼 진단 탭을 세워 첫 탭을 나머지에 복사한 뒤 각자 고쳐 한 번에 저장한다 (F-60 · F-61)', async () => {
+  useSession.getState().signIn('fixture', { ...me, canMoney: true });
+  const posted: Array<{ url?: string; body: unknown }> = [];
+  const classList = {
+    items: [
+      { guideId: 5, studentId: 4, studentName: '고은설', diagnostic: null },
+      { guideId: 6, studentId: 7, studentName: '강라율', diagnostic: { id: 3, levelSummary: '이전 진단', strengths: null, weaknesses: null, curriculum: null, createdAt: '2026-09-01T10:00:00+09:00' } },
+      { guideId: 7, studentId: 9, studentName: '이하린', diagnostic: null },
+    ],
+  };
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method === 'post') {
+      posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
+      return { config, status: 201, statusText: 'Created', headers: {}, data: classList };
+    }
+    if (config.url === '/schedule/tracking') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { serId: 8, onDate: '2026-09-20', cap: 4, count: 3, priced: true, unitPrice: 60000, total: 180000, canSeeAmounts: true, students: [] } };
+    }
+    if (config.url === '/guides/5/class-diagnostics') return { config, status: 200, statusText: 'OK', headers: {}, data: classList };
+    return { config, status: 200, statusText: 'OK', headers: {}, data: templates };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  clients.push(client);
+  const siblings = [
+    { id: 6, studentName: '강라율', state: 'draft', copyable: true, skipReason: null },
+    { id: 7, studentName: '이하린', state: 'draft', copyable: true, skipReason: null },
+  ];
+  const view = render(
+    <QueryClientProvider client={client}><GuideWriter guide={{ ...guide, siblingCount: 2, siblings }} onClose={() => undefined} /></QueryClientProvider>,
+  );
+  // 인원별 단가 — 서버가 센 인원 · 1인 단가 · 수업당 총액 그대로
+  const price = await view.findByLabelText('인원별 단가');
+  expect(price.textContent).toContain('3명 · 1인 ₩60,000 · 수업당 ₩180,000');
+  // 진단 탭 — 반 학생 수만큼 · 본인 먼저
+  const tabs = await view.findAllByRole('tab');
+  expect(tabs.map((t) => t.textContent)).toEqual(['고은설', '강라율', '이하린']);
+  fireEvent.change(view.getByLabelText('고은설 현재 수준'), { target: { value: '추론 문항 약함' } });
+  fireEvent.change(view.getByLabelText('고은설 약점'), { target: { value: '추론' } });
+  fireEvent.click(view.getByRole('button', { name: '이 진단을 나머지 학생에게 복사' }));
+  fireEvent.click(view.getByRole('tab', { name: '강라율' }));
+  expect((view.getByLabelText('강라율 현재 수준') as HTMLTextAreaElement).value).toBe('추론 문항 약함');
+  fireEvent.change(view.getByLabelText('강라율 약점'), { target: { value: '시간 배분' } });
+  fireEvent.click(view.getByRole('button', { name: '진단 저장 · 3명' }));
+  await waitFor(() => expect(posted).toHaveLength(1));
+  expect(posted[0]).toEqual({
+    url: '/guides/5/class-diagnostics',
+    body: { items: [
+      { studentId: 4, levelSummary: '추론 문항 약함', strengths: '', weaknesses: '추론', curriculum: '' },
+      { studentId: 7, levelSummary: '추론 문항 약함', strengths: '', weaknesses: '시간 배분', curriculum: '' },
+      { studentId: 9, levelSummary: '추론 문항 약함', strengths: '', weaknesses: '추론', curriculum: '' },
+    ] },
+  });
+});

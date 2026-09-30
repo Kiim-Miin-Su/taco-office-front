@@ -19,13 +19,20 @@
  *
  * **같은 반 학생이 함께 골라져 있다** (PDF F-60 · all160 2026-09-30). 형제 목록 · 옮길 수 있는가 · 못 옮기는 까닭은
  * 서버(`guide.siblings`)가 복사와 같은 규칙으로 준다. 화면은 고르기만 하고 「나머지 학생에게 복사」가 고른 학생에게만 옮긴다.
+ *
+ * **그룹이면 인원별 단가 · 학생별 진단 탭** (PDF F-60 · F-61 · 부분 구현 2026-09-30). 단가는 §79 카드와 같은 서버 계산을 읽고
+ * (금액은 돈 권한만), 진단은 반 학생 수만큼 탭을 세워 적는다 — 사용자 결정 「탭에서 관리자도 입력」(C61 넓힘).
  */
 'use client';
 import { useState } from 'react';
 import { Banner, Button, Checkbox, Chip, Label, Panel, Select, Textarea } from '@/components/ui';
 import { apiMessage } from '@/api/client';
-import { useCopyGuide, useGuideTemplates, useWriteGuideBody } from '@/api/queries';
+import { useCopyGuide, useGuideClassDiagnostics, useGuideTemplates, useLessonTracking, useWriteGuideBody, useWriteGuideClassDiagnostics } from '@/api/queries';
 import type { Guide, GuideCopyResult } from '@/api/types';
+import { won } from '@/lib/money';
+
+type DiagDraft = { levelSummary: string; strengths: string; weaknesses: string; curriculum: string };
+const DIAG_FIELDS: Array<[keyof DiagDraft, string]> = [['levelSummary', '현재 수준'], ['strengths', '강점'], ['weaknesses', '약점'], ['curriculum', '권장 커리큘럼']];
 
 export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => void }) {
   const tpls = useGuideTemplates();
@@ -44,6 +51,41 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
   // 옮길 수 있는 형제는 처음부터 골라 둔다 — 「같은 반 학생이 함께 선택됨」
   const [picked, setPicked] = useState<number[]>(() => siblings.filter((x) => x.copyable).map((x) => x.id));
   const togglePick = (id: number) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  /*
+   * F-60 「그룹이면 인원별 단가가 계산되어 표시」 — §79 수강 학생 카드와 같은 서버 계산(lib/rules.rosterPricing)을 읽는다.
+   * 금액은 돈 권한만 받는다(서버가 null 로 가린다 · D-R39). 그룹이 아니면 묻지 않는다.
+   */
+  const isGroup = siblings.length > 0;
+  const tracking = useLessonTracking(guide.serId ?? null, guide.eventOn ?? null, isGroup);
+  const pricing = tracking.data && typeof tracking.data.priced === 'boolean' ? tracking.data : null;
+  /*
+   * F-60 「진단 입력 탭이 인원수만큼」 · F-61 진단 복사 — 반 학생마다 탭 하나. 최신 진단으로 채워 열고, 첫 탭(또는 보고 있는 탭)을
+   * 나머지에 복사한 뒤 각자 고쳐 한 번에 저장한다. 사용자 결정 2026-09-30 「탭에서 관리자도 입력」(C61 넓힘) — 쓰기는 서버가 반을 다시 본다.
+   */
+  const classDiag = useGuideClassDiagnostics(guide.id);
+  const writeDiag = useWriteGuideClassDiagnostics();
+  const members = Array.isArray(classDiag.data?.items) ? classDiag.data!.items : [];
+  const [tab, setTab] = useState<number | null>(null);
+  const [diags, setDiags] = useState<Record<number, DiagDraft>>({});
+  const [diagSaved, setDiagSaved] = useState<string | null>(null);
+  const baseOf = (studentId: number): DiagDraft => {
+    const d = members.find((m) => m.studentId === studentId)?.diagnostic;
+    return { levelSummary: d?.levelSummary ?? '', strengths: d?.strengths ?? '', weaknesses: d?.weaknesses ?? '', curriculum: d?.curriculum ?? '' };
+  };
+  const draftOf = (studentId: number): DiagDraft => diags[studentId] ?? baseOf(studentId);
+  const current = tab ?? members[0]?.studentId ?? null;
+  const setField = (studentId: number, key: keyof DiagDraft, value: string) =>
+    setDiags((all) => ({ ...all, [studentId]: { ...draftOf(studentId), [key]: value } }));
+  const copyDiagToOthers = () => {
+    if (current === null) return;
+    const src = draftOf(current);
+    setDiags((all) => Object.fromEntries([...Object.entries(all), ...members.map((m) => [m.studentId, { ...src }] as const)]));
+  };
+  // 바뀐 탭만 보낸다 — 현재 수준이 빈 탭은 보내지 않는다(서버도 409 로 막는다)
+  const dirty = members.filter((m) => {
+    const d = draftOf(m.studentId);
+    return d.levelSummary.trim() !== '' && JSON.stringify(d) !== JSON.stringify(baseOf(m.studentId));
+  });
   const payload = {
     id: guide.id, body,
     ...(direction !== (guide.direction ?? '') ? { direction } : {}),
@@ -66,6 +108,17 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {isGroup && pricing ? (
+        <p aria-label="인원별 단가" className="mb-3 text-[12px] text-fg">
+          <b>인원별 단가</b>{' '}
+          {pricing.priced
+            ? pricing.unitPrice !== null && pricing.unitPrice !== undefined
+              ? `${pricing.count}명 · 1인 ${won(pricing.unitPrice)} · 수업당 ${won(pricing.total ?? null)}`
+              : `${pricing.count}명 기준으로 계산됨 · 금액은 회계 권한이 있어야 보입니다`
+            : `${pricing.count}명 · 이 수업의 단가표가 없어 계산하지 않았습니다`}
+        </p>
       ) : null}
 
       <div className="mb-3">
@@ -121,6 +174,54 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
           <p className="mt-1 text-[11px] text-fg-subtle">강사에게만 보입니다. 안내 본문과 안내문 PNG에는 들어가지 않습니다.</p>
         </div>
       </div>
+
+      {members.length > 0 ? (
+        <section aria-label="학생별 진단" className="mt-3 rounded-lg border border-line px-3 py-2">
+          <div role="tablist" aria-label="진단 입력 탭" className="mb-2 flex flex-wrap gap-1">
+            {members.map((m) => (
+              <button key={m.studentId} type="button" role="tab" aria-selected={current === m.studentId}
+                className={`rounded-full border px-3 py-1 text-[12px] font-bold ${current === m.studentId ? 'border-fg bg-fg text-white' : 'border-line bg-card text-fg'}`}
+                onClick={() => setTab(m.studentId)}>
+                {m.studentName ?? '이름 없음'}
+              </button>
+            ))}
+          </div>
+          {members.filter((m) => m.studentId === current).map((m) => {
+            const d = draftOf(m.studentId);
+            const name = m.studentName ?? '이름 없음';
+            return (
+              <div key={m.studentId} role="tabpanel" aria-label={`${name} 진단`}>
+                <p className="mb-1.5 text-[11px] text-fg-subtle">
+                  {m.diagnostic ? `마지막 진단 ${m.diagnostic.createdAt.slice(0, 10)} — 고쳐 저장하면 새 진단 한 줄이 쌓입니다` : '아직 진단이 없습니다'}
+                </p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {DIAG_FIELDS.map(([key, label]) => (
+                    <div key={key}>
+                      <Label htmlFor={`g-diag-${m.studentId}-${key}`}>{label}</Label>
+                      <Textarea id={`g-diag-${m.studentId}-${key}`} aria-label={`${name} ${label}`} rows={2} maxLength={2000}
+                        value={d[key]} onChange={(e) => setField(m.studentId, key, e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+            {diagSaved ? <span role="status" className="mr-auto text-[11px] text-green">{diagSaved}</span> : null}
+            {members.length > 1 ? (
+              <Button size="sm" variant="secondary" onClick={copyDiagToOthers} disabled={writeDiag.isPending}>이 진단을 나머지 학생에게 복사</Button>
+            ) : null}
+            <Button size="sm" disabled={dirty.length === 0 || writeDiag.isPending}
+              onClick={() => writeDiag.mutate(
+                { id: guide.id, items: dirty.map((m) => ({ studentId: m.studentId, ...draftOf(m.studentId) })) },
+                { onSuccess: () => { setDiags({}); setDiagSaved(`${dirty.length}명의 진단을 저장했습니다`); } },
+              )}>
+              {`진단 저장 · ${dirty.length}명`}
+            </Button>
+          </div>
+          {writeDiag.isError ? <Banner tone="danger" className="mt-2">{apiMessage(writeDiag.error)}</Banner> : null}
+        </section>
+      ) : null}
 
       {write.isError ? <Banner tone="danger" className="mt-3">{apiMessage(write.error)}</Banner> : null}
       {copy.isError ? <Banner tone="danger" className="mt-3">{apiMessage(copy.error)}</Banner> : null}
