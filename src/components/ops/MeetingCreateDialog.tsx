@@ -14,11 +14,11 @@
  */
 'use client';
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Banner, Button, ChipButton, Dialog, Input, Label, Segmented, Select } from '../ui';
+import { Banner, Button, Checkbox, ChipButton, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { apiMessage } from '@/api/client';
 import { useCreateMeeting, useMeta } from '@/api/queries';
 import type { CplWord, MeetingCreate, MeetingCreateResult } from '@/api/types';
-import { parseHm } from '@/lib/calendar';
+import { lessonTimeIssue, parseHm } from '@/lib/calendar';
 
 export interface MeetingCreateButtonProps {
   /** 회의 종류 다섯 — 낱말은 서버가 만든다 (D-R18) */
@@ -59,8 +59,10 @@ export function MeetingCreateButton({ mtTypes, can, onDone }: MeetingCreateButto
     if (!onDate) return { issue: '날짜를 고르세요' };
     const startMin = parseHm(start);
     const endMin = parseHm(end);
-    if (startMin === null || endMin === null) return { issue: '시각은 HH:MM 입니다' };
-    if (endMin <= startMin) return { issue: '끝이 시작보다 뒤여야 합니다' };
+    if (startMin === null || endMin === null) return { issue: '시작과 끝 시각을 골라 주세요' };
+    if (startMin >= 1440) return { issue: '24:00은 시작 시각으로 고를 수 없습니다' };
+    const timeIssue = lessonTimeIssue(startMin, endMin);
+    if (timeIssue) return { issue: timeIssue };
     if (!placeId) return { issue: mode === 'offline' ? '강의실을 고르세요' : '줌 계정을 고르세요' };
     return {
       body: {
@@ -132,13 +134,23 @@ export function MeetingCreateButton({ mtTypes, can, onDone }: MeetingCreateButto
               {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
           </div>
-          <div>
+          <div className="min-w-0">
             <Label htmlFor={`${id}-start`}>시작</Label>
-            <Input id={`${id}-start`} value={start} disabled={pending} onChange={(e) => setStart(e.target.value)} placeholder="11:00" />
+            <Input id={`${id}-start`} type="time" step={60} className="min-w-0"
+              value={start} disabled={pending} onChange={(e) => setStart(e.target.value)} />
           </div>
-          <div>
-            <Label htmlFor={`${id}-end`}>끝</Label>
-            <Input id={`${id}-end`} value={end} disabled={pending} onChange={(e) => setEnd(e.target.value)} placeholder="12:00" />
+          <div className="min-w-0">
+            <Label htmlFor={end === '24:00' ? undefined : `${id}-end`}>끝</Label>
+            {/* HTML time 은 24:00 을 표시할 수 없으므로 종료 선택과 화면 출력을 분리한다. */}
+            <Input id={`${id}-end`} type="time" step={60} className="min-w-0"
+              value={end === '24:00' ? '' : end} hidden={end === '24:00'} tabIndex={end === '24:00' ? -1 : undefined}
+              disabled={pending} onChange={(e) => setEnd(e.target.value)} />
+            {end === '24:00' ? <output role="status" aria-label="끝 시각"
+              className="flex h-10 min-w-0 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+            <div className="mt-1">
+              <Checkbox label="24:00 (자정에 종료)" checked={end === '24:00'} disabled={pending}
+                onChange={(e) => setEnd(e.target.checked ? '24:00' : '')} />
+            </div>
           </div>
           <div>
             <Label>방식</Label>
