@@ -39,7 +39,8 @@ const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const posted: Array<{ url?: string; body: unknown }> = [];
 const got: string[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; got.length = 0; });
+const conflictParams: string[] = [];
+afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; got.length = 0; conflictParams.length = 0; });
 
 function setup(onPost: (url: string) => { status: number; data: unknown } = (url) => ({ status: 201, data: url.endsWith('/preview') ? result : { ...result, preview: false } }), forLead: Lead = lead) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
@@ -51,7 +52,12 @@ function setup(onPost: (url: string) => { status: number; data: unknown } = (url
     }
     got.push(config.url ?? '');
     const data = config.url === '/meta' ? meta : config.url === '/books' ? books
-      : config.url === '/schedule/conflicts' ? { conflicts: [{ serId: 9, onDate: '2026-10-05', startMin: 960, endMin: 1020, title: 'SAT', with: 'teacher', whoName: '김재훈' }] } : {};
+      : config.url === '/schedule/conflicts' ? {
+        conflicts: [{ serId: 9, onDate: '2026-10-05', startMin: 960, endMin: 1020, title: 'SAT', with: 'teacher', whoName: '김재훈' }],
+        freeLine: null, altTimes: [{ startMin: 1020, endMin: 1080 }, { startMin: 900, endMin: 960 }],
+      } : {};
+    // 실제로 나가는 주소 그대로 — 되풀이 키(`alsoDates=…&alsoDates=…`)가 대괄호 없이 붙는지 본다
+    if (config.url === '/schedule/conflicts') conflictParams.push(api.getUri(config as Parameters<typeof api.getUri>[0]));
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -173,6 +179,27 @@ it('겹치면 서버가 거절한 문장을 그대로 보이고 누구와 부딪
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(posted).toHaveLength(3));
   expect(posted[2]!.body).toMatchObject({ allowSameName: true });
+});
+
+/**
+ * A-06 「다른 시간을 제안한다」 — 409 뒤 설명과 함께 서버가 준 **같은 강사 · 모든 요일에서 비는** 같은 길이의 시각을 단추로 보인다.
+ * 누르면 그 줄의 시각만 바뀐다 — 미리 잡지 않으므로 다시 「미리 보기」를 거쳐야 확정이 선다. 요일이 둘이면 둘째 날짜도 함께 묻는다.
+ */
+it('겹치면 다른 시간을 제안하고, 누르면 그 줄의 시각이 바뀌며 다시 미리 봐야 한다 (A-06)', async () => {
+  const { view } = setup(() => ({ status: 409, data: { code: 'RESOURCE_CONFLICT', message: '같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다' } }));
+  const dialog = await fillOneLine(view);
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  const alt = await waitFor(() => within(dialog).getByRole('group', { name: '다른 시간 제안' }));
+  expect(within(alt).getByText(/수업 1 — 같은 강사가 월·수 모두 비는 시간/)).toBeTruthy();
+  // 월 · 수 두 날짜를 함께 물었다(같은 키 되풀이)
+  expect(conflictParams.some((p) => /[?&]alsoDates=2026-10-07(&|$)/.test(p))).toBe(true);
+  expect(conflictParams.some((p) => /alsoDates%5B|alsoDates\[/.test(p))).toBe(false);
+  fireEvent.click(within(alt).getByRole('button', { name: '17:00–18:00' }));
+  expect((within(dialog).getByLabelText('수업 1 시작') as HTMLInputElement).value).toBe('17:00');
+  expect((within(dialog).getByLabelText('수업 1 끝') as HTMLInputElement).value).toBe('18:00');
+  await waitFor(() => expect(within(dialog).queryByRole('group', { name: '다른 시간 제안' })).toBeNull());
+  expect(view.getByText(/수업 1 시각을 17:00–18:00 로 바꿨습니다 — 미리 보기로 다시 확인하세요/)).toBeTruthy();
+  expect((within(dialog).getByRole('button', { name: '등록 확정' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 /**

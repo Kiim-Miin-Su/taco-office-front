@@ -18,7 +18,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Banner, Button, Checkbox, Chip, Dialog, Input, Label, Select } from '../ui';
 import { ApiError, apiMessage } from '@/api/client';
-import { fetchConflicts, useBooks, useEnrollLead, useMeta } from '@/api/queries';
+import { fetchConflictPreview, fetchConflicts, useBooks, useEnrollLead, useMeta } from '@/api/queries';
 import type { EnrollResult, Gender, Lead, LeadEnroll } from '@/api/types';
 import { KO_DOW, buildRrule, conflictLines, hhmm, parseHm, todayKst, unavailableLines } from '@/lib/calendar';
 import { won } from '@/lib/money';
@@ -88,6 +88,9 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
   /** 거절의 **코드** — 갈래(겹침 설명 · 동명이인 체크)는 이것으로 가른다. 사람에게는 `err`(서버 문장)만 보인다 (23-20) */
   const [errCode, setErrCode] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<string[]>([]);
+  /** A-06 「다른 시간을 제안한다」 — 겹친 줄마다 서버가 준 같은 길이의 빈 시각. 누르면 그 줄의 시각만 바꾼다(미리 잡지 않는다) */
+  const [alts, setAlts] = useState<Array<{ key: number; label: string; days: string; times: Array<{ startMin: number; endMin: number }> }>>([]);
+  const [altApplied, setAltApplied] = useState<string | null>(null);
 
   // 상담 배치안(23-16) — 재조회마다 새 배열이라 **내용**으로 비교한다(열린 창의 입력을 재조회가 지우지 않게)
   const planKey = JSON.stringify((lead.plan ?? []).map((p) => [p.kindKey, p.subKey, p.teacherId, p.perWeek]));
@@ -102,7 +105,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
     setGender('');
     // 배치안이 있으면 그 줄로 채운다(23-16 · §24 「당시 배치안이 그대로 채워지고」) — 없으면 빈 줄 하나
     setStartedOn(todayKst()); setLines(planLines.length ? planLines.map(fromPlan) : [newLine()]); setIssueInvoice(true); setAllowSameName(false); setMemo('');
-    setPreview(null); setPreviewOf(''); setErr(null); setErrCode(null); setConflicts([]);
+    setPreview(null); setPreviewOf(''); setErr(null); setErrCode(null); setConflicts([]); setAlts([]); setAltApplied(null);
     // planLines 는 planKey 로 대신 본다 — 배열 참조가 바뀌어도 내용이 같으면 다시 비우지 않는다
   }, [open, lead.id, lead.name, lead.school, lead.grade, planKey]);
 
@@ -149,9 +152,10 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
 
   /** 409 겹침이면 누구와 부딪혔는지 한 번 묻는다 — 막는 것은 서버이고 이것은 설명이다 (C84-b) */
   const explainConflict = async (body: LeadEnroll, code: string | null) => {
-    if (code !== 'RESOURCE_CONFLICT') { setConflicts([]); return; }
+    if (code !== 'RESOURCE_CONFLICT') { setConflicts([]); setAlts([]); return; }
     const lines: string[] = [];
-    for (const l of body.lines) {
+    const found: typeof alts = [];
+    for (const [idx, l] of body.lines.entries()) {
       try {
         // 시작일 이후 첫 회차 날짜는 서버가 정한다 — 여기서는 시작일부터 일주일 안의 그 요일들을 물어 본다
         const dates: string[] = [];
@@ -160,19 +164,39 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
           const iso = d.toISOString().slice(0, 10);
           if (l.rrule === 'ONCE' ? i === 0 : l.rrule.includes(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d.getUTCDay()]!)) dates.push(iso);
         }
-        for (const date of dates) {
-          const rows = await fetchConflicts({ date, startMin: l.startMin, endMin: l.endMin, teacherId: l.teacherId, roomId: l.roomId });
+        let hit = 0;
+        // 첫 날짜는 온전한 응답으로 — 겹침 + 모든 날짜에서 비는 다른 시각(A-06) 을 한 번에 받는다
+        let times: Array<{ startMin: number; endMin: number }> = [];
+        for (const [di, date] of dates.entries()) {
+          const probe = { date, startMin: l.startMin, endMin: l.endMin, teacherId: l.teacherId, roomId: l.roomId };
+          const rows = di === 0
+            ? await fetchConflictPreview({ ...probe, alsoDates: dates.slice(1) }).then((r) => { times = r.altTimes ?? []; return r.conflicts; })
+            : await fetchConflicts(probe);
+          hit += rows.length;
           lines.push(...conflictLines(rows));
+        }
+        const key = lineKeys[idx];
+        if (hit > 0 && times.length && key !== undefined) {
+          const days = dates.map((iso) => KO_DOW[new Date(`${iso}T00:00:00Z`).getUTCDay()]).join('·');
+          found.push({ key, label: `수업 ${idx + 1}`, days, times });
         }
       } catch { /* 설명을 못 가져와도 원래 문구는 그대로 선다 */ }
     }
     setConflicts([...new Set(lines)]);
+    setAlts(found);
+  };
+  /** 보낸 몸통의 줄 순서 = 화면 줄 순서다(build 가 lines 를 그대로 옮긴다) — 제안 단추가 바꿀 줄을 찾는다 */
+  const lineKeys = lines.map((l) => l.key);
+  const applyAlt = (key: number, label: string, t: { startMin: number; endMin: number }) => {
+    patch(key, { start: hhmm(t.startMin), end: hhmm(t.endMin) });
+    setErr(null); setErrCode(null); setConflicts([]); setAlts([]);
+    setAltApplied(`${label} 시각을 ${hhmm(t.startMin)}–${hhmm(t.endMin)} 로 바꿨습니다 — 미리 보기로 다시 확인하세요`);
   };
 
   const run = (kind: 'preview' | 'enroll') => {
     if (!('body' in built)) return;
     const body = built.body;
-    setErr(null); setErrCode(null); setConflicts([]);
+    setErr(null); setErrCode(null); setConflicts([]); setAlts([]); setAltApplied(null);
     write.mutate({ id: lead.id, kind, body }, {
       onSuccess: (r) => {
         if (kind === 'preview') { setPreview(r); setPreviewOf(JSON.stringify(body)); }
@@ -391,11 +415,27 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
           <Banner tone="danger">
             {err}
             {conflicts.length ? <ul className="mt-1 list-disc pl-4">{conflicts.map((c) => <li key={c}>{c}</li>)}</ul> : null}
+            {alts.length ? (
+              <div role="group" aria-label="다른 시간 제안" className="mt-1.5 space-y-1">
+                {alts.map((a) => (
+                  <div key={a.key} className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[12px]">{a.label} — 같은 강사가 {a.days} 모두 비는 시간</span>
+                    {a.times.map((t) => (
+                      <Button key={t.startMin} type="button" size="sm" variant="secondary" onClick={() => applyAlt(a.key, a.label, t)}>
+                        {hhmm(t.startMin)}–{hhmm(t.endMin)}
+                      </Button>
+                    ))}
+                  </div>
+                ))}
+                <p className="text-[11px]">미리 잡지 않습니다 — 누르면 그 줄의 시각만 바뀌고, 다시 미리 봐야 등록할 수 있습니다.</p>
+              </div>
+            ) : null}
             {errCode === 'STUDENT_SAME_NAME' ? (
               <div className="mt-1.5"><Checkbox label="동명이인입니다 — 다른 사람으로 새로 만듭니다" checked={allowSameName} onChange={(e) => setAllowSameName(e.target.checked)} /></div>
             ) : null}
           </Banner>
-        ) : 'issue' in built ? <p className="text-[11px] text-fg-subtle">{built.issue}</p> : null}
+        ) : altApplied ? <Banner tone="info">{altApplied}</Banner>
+          : 'issue' in built ? <p className="text-[11px] text-fg-subtle">{built.issue}</p> : null}
       </div>
     </Dialog>
   );
