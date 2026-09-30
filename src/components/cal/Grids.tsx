@@ -142,7 +142,7 @@ const byDate = (items: Occurrence[]) => {
 
 export interface DayGridProps extends GridProps {
   /** 세로 열 — 강의실이 기본이고, 선생님별 보기는 강사로 바꿔 준다 */
-  columns: Array<{ id: number | null; name: string }>;
+  columns: Array<{ id: number | null; name: string; writable?: boolean }>;
   columnOf: (o: Occurrence) => number | null;
   /** 이 축이 드롭에서 무엇을 바꾸는지 정한다 (§4.4) */
   colAxis: ColAxis;
@@ -155,12 +155,15 @@ export interface DayGridProps extends GridProps {
    * 이미 읽은 회차로 센다 · 「가능 시간」을 켜 `unavOf` 가 오면 강사 불가 시각도 빈 칸에서 뺀다(G37).
    */
   showFree?: boolean;
+  /** 강사 기준 열에서는 각 강사의 불가 시간만 그 열에 겹친다. */
+  unavByColumn?: (date: string, colId: number | null) => readonly UnavBand[] | undefined;
 }
 
 /** 30분 슬롯 하나 — **실제 노드**다. 드롭 타깃이자 셀 상태의 자리 (§2.5) */
-function Slot({ paneId, date, colAxis, colId, slotMin, hourLine, active, free, createPreview, creating, onAddAt, onSelectAt }: {
+function Slot({ paneId, date, colAxis, colId, slotMin, hourLine, active, free, createPreview, creating, writable, onAddAt, onSelectAt }: {
   paneId: number; date: string; colAxis: ColAxis; colId: number | null; slotMin: number; hourLine: boolean;
   active?: boolean;
+  writable?: boolean;
   /** 빈 시간 찾기가 켜졌고 이 칸이 비었다 */
   free?: boolean;
   createPreview?: CreatePreview | null;
@@ -172,6 +175,7 @@ function Slot({ paneId, date, colAxis, colId, slotMin, hourLine, active, free, c
   const d = useDroppable({
     id: `slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
     data: { type: 'slot', paneId, date, colAxis, colId, slotMin } satisfies DropData,
+    disabled: writable === false,
   });
   const drag = useDraggable({
     id: `create-slot|${instanceId}|${date}|${colAxis}|${colId ?? 'null'}|${slotMin}`,
@@ -187,6 +191,7 @@ function Slot({ paneId, date, colAxis, colId, slotMin, hourLine, active, free, c
       {...(onAddAt ? drag.listeners : {})}
       {...(onAddAt ? drag.attributes : {})}
       type="button"
+      disabled={writable === false}
       aria-label={`${date} ${hhmm(slotMin)} ${colAxis === 'room' ? '강의실' : '강사'} ${colId ?? '미지정'} 빈 시간 선택`}
       data-free={free ? '' : undefined}
       data-create-preview-slot={previewed ? '' : undefined}
@@ -263,10 +268,13 @@ function WeekSlot({ paneId, date, slotMin, hourLine, active, createPreview, crea
 
 export function DayGrid({
   date, items, paneId = 0, createPreview, creating, columns, columnOf, colAxis, subName, kindName, zaccLabel, capOf, person, colorOf, onOpen, onSelect, selected, onAddAt, onSelectAt, cursor, interactive,
-  showFree = false, unavOf,
+  showFree = false, unavOf, unavByColumn,
 }: DayGridProps) {
   const today = useMemo(() => items.filter((o) => o.date === date), [items, date]);
-  const { from, to } = timeRange(today);
+  const bandsByCol = new Map(columns.map((column) => [column.id,
+    unavByColumn ? unavByColumn(date, column.id) : unavOf?.(date)]));
+  // 강사 열의 이른/늦은 불가 시간도 실제 축 안에 두어 보이지 않는 띠를 만들지 않는다.
+  const { from, to } = timeRange([...today, ...Array.from(bandsByCol.values()).flatMap((bands) => bands ?? [])]);
   const slots = useMemo(() => {
     const out: number[] = [];
     for (let m = from; m < to; m += SLOT_MIN) out.push(m);
@@ -291,8 +299,6 @@ export function DayGrid({
   const showNow = date === todayKst() && now >= from && now <= to;
   const px = (m: number) => ((m - from) / 60) * HOUR_PX;
   // 「가능 시간」을 켜 두면 강사가 불가로 적은 시각은 빈 시간이 아니다 (원문 §07 · G37)
-  const bands = unavOf?.(date);
-  const unavAt = (m: number) => Boolean(bands?.some((b) => b.startMin < m + SLOT_MIN && b.endMin > m));
 
   return (
     <div data-calendar-grid className="overflow-x-auto rounded-xl border border-line bg-card" onClick={() => setOpenCluster(null)}>
@@ -303,7 +309,8 @@ export function DayGrid({
           {/* 원문 §07 「한국 시간」 — 관리자 화면은 언제나 서울 시간이다 (D-R12) */}
           <div className="border-r border-line p-1.5">한국 시간</div>
           {columns.map((c) => (
-            <div key={String(c.id)} className="border-r border-line p-1.5">{c.name}</div>
+            <div key={String(c.id)} className="border-r border-line p-1.5"
+              title={c.writable === false ? '목록 외 강사의 과거 수업 — 새 배정·드롭 불가' : undefined}>{c.name}</div>
           ))}
         </div>
 
@@ -321,17 +328,20 @@ export function DayGrid({
           {columns.map((c) => {
             const mine = byCol.get(c.id) ?? EMPTY;
             const clusters = overlapClusters(mine);
+            const bands = bandsByCol.get(c.id);
+            const unavAt = (m: number) => Boolean(bands?.some((b) => b.startMin < m + SLOT_MIN && b.endMin > m));
             return (
               <div key={String(c.id)} className="relative">
                 {/* ① 슬롯 층 — 실제 셀. 드롭과 빈 칸 클릭을 받는다 */}
                 {slots.map((m) => (
                   <Slot key={m} paneId={paneId} date={date} colAxis={colAxis} colId={c.id} slotMin={m}
                         hourLine={(m + SLOT_MIN) % 60 === 0}
+                        writable={interactive && c.writable !== false}
                         active={cursor?.date === date && cursor.startMin === m && cursor.colAxis === colAxis && cursor.colId === c.id}
                         createPreview={createPreview} creating={creating}
                         free={showFree && c.id !== null && !unavAt(m) && !mine.some((o) => !o.canceled && o.startMin < m + SLOT_MIN && o.endMin > m)}
-                        onAddAt={interactive ? onAddAt : undefined}
-                        onSelectAt={interactive ? onSelectAt : undefined} />
+                        onAddAt={interactive && c.writable !== false ? onAddAt : undefined}
+                        onSelectAt={interactive && c.writable !== false ? onSelectAt : undefined} />
                 ))}
                 <UnavBands bands={bands} px={px} />
 

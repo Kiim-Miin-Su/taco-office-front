@@ -32,11 +32,8 @@ export interface CalendarPaneState {
   dayAxis: CalendarColAxis;
   /** 개인 표의 기간. 원본 §10·§11 은 사람 옆에서 주간/일간/월간을 고른다. 기본은 주간이다. */
   personPeriod: PersonPeriod;
-  /**
-   * 일간 표를 **강의실 열로 나누는가** — 도구줄 「세로선 나누기」(N-80 채택).
-   * 기본은 원문 §07 캡처 모양(날짜 한 열 + 겹친 수업은 나란한 lane · 상한 셋)이고, 켜면 본문 모양(강의실 × 시간)이다.
-   */
-  roomColumns: boolean;
+  /** 일간 표의 세로선 표시. 기준은 dayAxis이며 기본은 날짜 한 열 + 겹침 lane이다. */
+  dayColumns: boolean;
 }
 
 /** 새 표의 기본값 한 곳. 분할·초기화가 같은 값을 두 번 적지 않는다. */
@@ -45,7 +42,7 @@ export const INITIAL_PANE: Omit<CalendarPaneState, 'date'> = {
   personId: null,
   dayAxis: 'room',
   personPeriod: 'week',
-  roomColumns: false,
+  dayColumns: false,
 };
 
 /**

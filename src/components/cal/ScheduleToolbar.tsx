@@ -7,7 +7,7 @@
 'use client';
 import { Clock, Columns3, Download, Menu, Plus } from 'lucide-react';
 import type { Meta, Occurrence } from '@/api/types';
-import type { PersonPeriod, View } from '@/lib/calendar';
+import type { CalendarColAxis, PersonPeriod, View } from '@/lib/calendar';
 import { Button, Input, LinkButton, Segmented, Select } from '@/components/ui';
 
 export type ScheduleModeFilter = 'all' | Occurrence['mode'];
@@ -128,13 +128,14 @@ export interface ScheduleToolbarProps {
   target: ScheduleTarget;
   filters: ScheduleFilters;
   meta?: Meta;
-  /**
-   * 원문 §07 「세로선 나누기」 — 일간 표를 **강의실 열로 나누는가**(N-80 채택). 표 나누기(분할)와 다른 동작이다 —
-   * 분할은 사이드바 「표 나누기」 하나가 맡는다. 기본은 꺼짐(날짜 한 열 + lane · 원문 §07 캡처 모양).
-   */
-  roomColumnsOn?: boolean;
-  /** 강의실 열이 뜻을 갖는 표(일간)에서만 누를 수 있다 — 다른 보기에서는 까닭을 `title` 로 적는다 */
-  roomColumnsAvailable?: boolean;
+  /** 일간 세로선은 날짜 한 열이 기본이며, 켜면 선택한 강의실/강사 열로 나눈다. */
+  dayColumnsOn?: boolean;
+  dayColumnsAvailable?: boolean;
+  dayAxis?: CalendarColAxis;
+  onDayAxisChange?: (axis: CalendarColAxis) => void;
+  /** 두 독립 표의 분할/해제 — 세로선 나누기와 같은 도구줄 레이어에 둔다. */
+  splitOn?: boolean;
+  onSplit?: () => void;
   /**
    * 원문 §07 둘째 줄 「≡ 회계」(N-100) — 이미 있는 회계 탭으로 간다. 서는지는 부르는 쪽이
    * **경로 권한 판정**(`canAccessAppRoute('/accounting', me)`)으로 정한다 — 역할을 여기서 견주지 않는다 (D-R39).
@@ -155,15 +156,16 @@ export interface ScheduleToolbarProps {
   onStep: (dir: -1 | 1) => void;
   onToday: () => void;
   onFreeToggle?: () => void;
-  onRoomColumnsToggle?: () => void;
+  onDayColumnsToggle?: () => void;
   onExport: () => void;
 }
 
 /** §07~§11이 공유하는 두 줄 도구줄. native select/button으로 키보드 조작 경로를 보존한다. */
 export function ScheduleToolbar({
-  period, target, filters, meta, roomColumnsOn = false, roomColumnsAvailable = false, showAccounting = false,
+  period, target, filters, meta, dayColumnsOn = false, dayColumnsAvailable = false, dayAxis = 'room',
+  onDayAxisChange, splitOn = false, onSplit, showAccounting = false,
   exporting = false, date, axisLabel, freeOn = false, freeAvailable = false,
-  onPeriodChange, onTargetChange, onFiltersChange, onDateChange, onStep, onToday, onFreeToggle, onRoomColumnsToggle, onExport,
+  onPeriodChange, onTargetChange, onFiltersChange, onDateChange, onStep, onToday, onFreeToggle, onDayColumnsToggle, onExport,
 }: ScheduleToolbarProps) {
   const change = <K extends keyof ScheduleFilters>(key: K, value: ScheduleFilters[K]) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -226,15 +228,27 @@ export function ScheduleToolbar({
         <Segmented ariaLabel="스케줄 기간" options={SCHEDULE_PERIODS} value={period} onChange={onPeriodChange} />
         <Segmented ariaLabel="스케줄 대상" options={SCHEDULE_TARGETS} value={target} onChange={onTargetChange} />
 
-        {/* 원문 §07 「세로선 나누기」 = 강의실 열 켜기/끄기 (N-80 · g1 §07 #2·#14) — 표 나누기(분할)는 사이드바의 일이다 */}
-        {onRoomColumnsToggle ? (
-          <Button size="sm" variant={roomColumnsOn && roomColumnsAvailable ? 'dark' : 'secondary'}
-            aria-pressed={roomColumnsOn && roomColumnsAvailable} disabled={!roomColumnsAvailable}
-            title={roomColumnsAvailable
-              ? (roomColumnsOn ? '강의실 열을 걷고 날짜 한 열로 봅니다' : '일간 표를 강의실 열로 나눕니다')
-              : '일간 표에서 강의실 열로 나눕니다 — 일간을 고르세요'}
-            onClick={onRoomColumnsToggle}>
+        {onDayColumnsToggle ? (
+          <Button size="sm" variant={dayColumnsOn && dayColumnsAvailable ? 'dark' : 'secondary'}
+            aria-pressed={dayColumnsOn && dayColumnsAvailable} disabled={!dayColumnsAvailable}
+            title={dayColumnsAvailable
+              ? (dayColumnsOn ? '세로선 열을 걷고 날짜 한 열로 봅니다' : `일간 표를 ${dayAxis === 'room' ? '강의실' : '강사'} 열로 나눕니다`)
+              : '일간 표에서 세로선으로 나눕니다 — 일간을 고르세요'}
+            onClick={onDayColumnsToggle}>
             <Columns3 size={14} aria-hidden />세로선 나누기
+          </Button>
+        ) : null}
+        {onDayAxisChange ? (
+          <Select aria-label="세로선 기준" value={dayAxis} disabled={!dayColumnsAvailable}
+            onChange={(event) => onDayAxisChange(event.target.value as CalendarColAxis)}
+            className="!h-8 !w-auto min-w-[90px] text-[12px]">
+            <option value="room">강의실 기준</option>
+            <option value="teacher">강사 기준</option>
+          </Select>
+        ) : null}
+        {onSplit ? (
+          <Button size="sm" variant={splitOn ? 'dark' : 'secondary'} aria-pressed={splitOn} onClick={onSplit}>
+            {splitOn ? '분할 해제' : '표 나누기'}
           </Button>
         ) : null}
         <Segmented ariaLabel="블록 색" options={DISPLAYS} value={filters.display} onChange={(value) => change('display', value)} />

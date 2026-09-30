@@ -58,7 +58,7 @@ import { canAccessAppRoute } from '@/components/shell/navigation';
 import {
   scheduleReadRanges, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, SLOT_MIN, slotStartMin, studentOverlapLines,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
-  type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
+  type CalendarColAxis, type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
 import type { DayCancelParentNotice, Occurrence, OccurrenceMove, OccurrencePaste, OccurrencePatch, Scope, StudentOverlap, UnavWarn, WriteResult } from '@/api/types';
 import { ROLE_BAR, ROLES } from '@/lib/roles';
@@ -205,8 +205,9 @@ type A =
   | { t: 'cursor'; value: PasteCursor | null }
   | { t: 'focus'; index: CalendarPaneIndex }
   | { t: 'split' }
-  /** 원문 §07 「세로선 나누기」 — 고른 표의 일간을 강의실 열로 나누거나 날짜 한 열로 되돌린다 (N-80) */
-  | { t: 'roomColumns' }
+  /** 세로선 표시와 기준은 포커스된 표만 바꾼다. */
+  | { t: 'dayColumns' }
+  | { t: 'dayAxis'; v: CalendarColAxis }
   | { t: 'ratio'; value: number }
   | { t: 'filters'; value: ScheduleFilters };
 
@@ -282,7 +283,8 @@ function reducer(s: S, a: A): S {
       return s.panes.length === 1
         ? { ...s, panes: splitPanes(pane), focused: 0, ratio: 0.5 }
         : { ...s, panes: unsplitPanes(s.panes, s.focused), focused: 0, ratio: 0.5 };
-    case 'roomColumns': return patchPane({ roomColumns: !pane.roomColumns });
+    case 'dayColumns': return { ...patchPane({ dayColumns: !pane.dayColumns }), cursor: null };
+    case 'dayAxis': return { ...patchPane({ dayAxis: a.v }), cursor: null };
     case 'ratio': return { ...s, ratio: Math.max(0, Math.min(1, a.value)) };
     case 'filters': return { ...s, filters: a.value };
   }
@@ -700,9 +702,10 @@ function AdminSchedulePage() {
         date: preview.date,
         startMin: preview.startMin,
         endMin: preview.endMin,
-        roomId: d.colAxis === 'room' ? (d.colId ?? null) : null,
         // 출발 pane identity를 쓴다 — drag 중 포커스가 바뀌어도 다른 사람을 초안에 넣지 않는다.
         ...personDraft(sourcePane),
+        roomId: d.colAxis === 'room' ? (d.colId ?? null) : null,
+        ...(d.colAxis === 'teacher' ? { teacherId: d.colId } : {}),
       });
       return;
     }
@@ -953,8 +956,9 @@ function AdminSchedulePage() {
       date,
       startMin,
       endMin: Math.min(1440, startMin + 60),
-      roomId: colAxis === 'room' ? (colId ?? null) : null,
       ...personDraft(pane),
+      roomId: colAxis === 'room' ? (colId ?? null) : null,
+      ...(colAxis === 'teacher' ? { teacherId: colId ?? null } : {}),
     });
   };
 
@@ -1000,7 +1004,29 @@ function AdminSchedulePage() {
       : pane.view === 'teacher'
         ? (pane.personId === null ? [] : paneAll.filter((o) => o.teacherId === pane.personId))
         : paneAll;
-    const columns = [
+    const teacherColumns = new Map<number, { id: number; name: string; writable?: boolean }>();
+    for (const staff of meta.data?.staff ?? []) {
+      if (pane.view === 'teacher' && staff.id !== pane.personId) continue;
+      if (!staff.canAdminPage || paneAll.some((o) => o.teacherId === staff.id)) {
+        teacherColumns.set(staff.id, { id: staff.id, name: staff.name });
+      }
+    }
+    // Meta는 활성 직원만 준다. 과거 회차의 퇴사/비활성 강사를 열에서 누락하면 수업 자체가 사라진다.
+    // 그 회차 이름으로 이력 열을 보존하되, 그 열은 새 배정·드롭 대상이 될 수 없다.
+    for (const occurrence of pane.view === 'teacher' ? items : paneAll) {
+      if (occurrence.teacherId != null && !teacherColumns.has(occurrence.teacherId)) {
+        teacherColumns.set(occurrence.teacherId, {
+          id: occurrence.teacherId,
+          name: `${occurrence.teacherName?.trim() || `강사 #${occurrence.teacherId}`} · 이력`,
+          writable: false,
+        });
+      }
+    }
+    const columns = pane.dayAxis === 'teacher' ? [
+      ...teacherColumns.values(),
+      ...(pane.view === 'teacher' ? (teacherColumns.size ? [] : [{ id: null, name: '선생님을 고르세요', writable: false }])
+        : [{ id: null, name: '강사 미지정' }]),
+    ] : [
       ...(meta.data?.rooms ?? []).map((room) => ({ id: room.id as number | null, name: room.name })),
       { id: null, name: '온라인 · 미지정' },
     ];
@@ -1059,14 +1085,20 @@ function AdminSchedulePage() {
       ? periodSummary(paneAll.filter((o) => o.date >= summaryRange.from && o.date <= summaryRange.to))
       : summary;
     // 원문 §07 「⏱ 09-22」 — 이 표가 그리는 시간 축(기본 09~22 + 실제 수업만큼 넓힘 · N-43 접지 않는다)
-    const axis = timeRange(shown === 'day' ? items.filter((o) => o.date === pane.date) : items);
+    const visibleUnav = shown === 'day' && pane.dayColumns && unavOn
+      ? unavRows.filter((row) => row.date === pane.date && (pane.dayAxis === 'teacher'
+        ? columns.some((column) => column.id === row.teacherId)
+        : pane.view === 'teacher' ? row.teacherId === pane.personId
+          : pane.view !== 'student' && row.teacherId === s.filters.teacherId))
+      : [];
+    const axis = timeRange([...(shown === 'day' ? items.filter((o) => o.date === pane.date) : items), ...visibleUnav]);
     const axisLabel = `${hhmm(axis.from).slice(0, 2)}–${hhmm(axis.to).slice(0, 2)}`;
     const head = shown === 'month'
       ? `${pane.date.slice(0, 4)}년 ${+pane.date.slice(5, 7)}월`
       : shown === 'day' ? label(pane.date) : `${label(paneRange.from)} – ${label(paneRange.to)}`;
     const outOfHorizon = !!hz.data && (paneRange.from < hz.data.from || paneRange.to > hz.data.to);
     return { pane, shown, range: paneRange, summaryRange, items, columns, people, grid, head, summary, baseSummary, axisLabel, outOfHorizon };
-  }), [filteredAll, hz.data, meta.data, s.panes]);
+  }), [filteredAll, hz.data, meta.data, s.panes, s.filters.teacherId, unavOn, unavRows]);
 
   const activeModel = paneModels[s.focused] ?? paneModels[0];
   // N-133 — mutation 응답의 일회성 state가 아니라 서버 PNOTI를 읽어 reload 뒤에도 발송을 이어 간다.
@@ -1162,8 +1194,8 @@ function AdminSchedulePage() {
     const unavTeacher = pane.view === 'teacher' ? pane.personId : pane.view === 'student' ? null : s.filters.teacherId;
     const unavOf = unavFor(unavTeacher);
 
-    // 원문 §07 캡처 — 일간 기본은 날짜 한 열 + 나란한 lane(상한 셋 · 「+M」), 「세로선 나누기」면 강의실 열 (N-80 · N-74)
-    const grids = shown === 'day' && !pane.roomColumns ? (
+    // 일간 기본은 날짜 한 열 + 나란한 lane, 세로선은 고른 강의실/강사 축을 쓴다.
+    const grids = shown === 'day' && !pane.dayColumns ? (
       <WeekGrid paneId={paneIndex} createPreview={createPreview} creating={Boolean(creating)}
         date={pane.date} days={[pane.date]} items={items} subName={subName} kindName={kindName} zaccLabel={zaccLabel}
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
@@ -1175,15 +1207,17 @@ function AdminSchedulePage() {
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })} />
     ) : shown === 'day' ? (
       <DayGrid paneId={paneIndex} createPreview={createPreview} creating={Boolean(creating)}
-        date={pane.date} items={items} columns={columns} colAxis="room"
-        columnOf={(occurrence) => occurrence.roomId ?? null}
+        date={pane.date} items={items} columns={columns} colAxis={pane.dayAxis}
+        columnOf={pane.dayAxis === 'teacher' ? (occurrence) => occurrence.teacherId ?? null : (occurrence) => occurrence.roomId ?? null}
         subName={subName} kindName={kindName} zaccLabel={zaccLabel} capOf={capOf} person={person} colorOf={blockColor}
-        showFree={freeOn && !isPerson} unavOf={unavOf}
+        showFree={freeOn && !isPerson && pane.dayAxis === 'room'}
+        unavOf={pane.dayAxis === 'room' ? unavOf : undefined}
+        unavByColumn={pane.dayAxis === 'teacher' ? (date, teacherId) => unavFor(teacherId)?.(date) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onSelect={select} selected={selectedSet} interactive={canEdit}
         cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
-        onSelectAt={canEdit ? (date, startMin, roomId) => selectSlot(date, startMin, 'room', roomId) : undefined}
-        onAddAt={canEdit ? (date, startMin, roomId) => openSlot(pane, date, startMin, 'room', roomId) : undefined} />
+        onSelectAt={canEdit ? (date, startMin, columnId) => selectSlot(date, startMin, pane.dayAxis, columnId) : undefined}
+        onAddAt={canEdit ? (date, startMin, columnId) => openSlot(pane, date, startMin, pane.dayAxis, columnId) : undefined} />
     ) : shown === 'month' ? (
       <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} kindName={kindName} colorOf={blockColor} interactive={canEdit}
         holidaysOf={holidaysOf}
@@ -1288,7 +1322,9 @@ function AdminSchedulePage() {
                 if (!rows.length) return '이 기간에 강사가 불가로 적어 둔 시간이 없습니다.';
                 return (
                   <>
-                    이 기간 강사 불가 <b>{rows.length}건</b> — 구성원 필터나 선생님별 표로 한 사람을 고르면 표에 겹쳐 보입니다.
+                    이 기간 강사 불가 <b>{rows.length}건</b> — {shown === 'day' && pane.dayColumns && pane.dayAxis === 'teacher'
+                      ? '강사 기준 열에 각각 겹쳐 보입니다.'
+                      : '구성원 필터나 선생님별 표로 한 사람을 고르면 표에 겹쳐 보입니다.'}
                     <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
                       {rows.slice(0, 12).map((r) => (
                         <li key={r.id}>{r.teacherName} · {label(r.date)} {hhmm(r.startMin)}–{hhmm(r.endMin)} · {r.reason}</li>
@@ -1471,12 +1507,10 @@ function AdminSchedulePage() {
             meta={meta.data}
             counts={seriesCounts.data}
             canEdit={canEdit}
-            splitOn={s.panes.length === 2}
             onCreate={() => setDraft({
               date: activeModel.pane.date, startMin: 540, endMin: 600, roomId: null, ...personDraft(activeModel.pane),
             })}
             onHistory={() => openDrawer('chreqs')}
-            onSplit={() => go({ t: 'split' })}
             availabilityOn={unavOn}
             onAvailability={() => setUnavOn((v) => !v)}
             onClearKind={() => go({ t: 'filters', value: { ...s.filters, kindKey: null } })}
@@ -1508,15 +1542,19 @@ function AdminSchedulePage() {
           target={activeTarget}
           filters={s.filters}
           meta={meta.data}
-          roomColumnsOn={activeModel.pane.roomColumns}
-          roomColumnsAvailable={activeModel.shown === 'day'}
+          dayColumnsOn={activeModel.pane.dayColumns}
+          dayColumnsAvailable={activeModel.shown === 'day'}
+          dayAxis={activeModel.pane.dayAxis}
+          onDayAxisChange={(v) => go({ t: 'dayAxis', v })}
+          splitOn={s.panes.length === 2}
+          onSplit={() => go({ t: 'split' })}
           showAccounting={canOpenAccounting}
           exporting={exporting}
           date={activeModel.pane.date}
           axisLabel={activeModel.axisLabel}
           freeOn={freeOn}
-          // 빈 칸은 강의실마다 센다 — 강의실 열(「세로선 나누기」)이 선 일간 전체 표에서만 뜻이 있다
-          freeAvailable={activeModel.shown === 'day' && activeTarget === 'all' && activeModel.pane.roomColumns}
+          // 빈 칸은 강의실 열일 때만 센다. 강사 기준 세로선에는 강사별 불가 시간을 대신 겹친다.
+          freeAvailable={activeModel.shown === 'day' && activeTarget === 'all' && activeModel.pane.dayColumns && activeModel.pane.dayAxis === 'room'}
           onPeriodChange={(period) => (
             activeTarget === 'all' ? go({ t: 'view', v: period }) : go({ t: 'personPeriod', v: period })
           )}
@@ -1526,7 +1564,7 @@ function AdminSchedulePage() {
           onStep={(dir) => go({ t: 'step', dir })}
           onToday={() => go({ t: 'today' })}
           onFreeToggle={() => setFreeOn((v) => !v)}
-          onRoomColumnsToggle={() => go({ t: 'roomColumns' })}
+          onDayColumnsToggle={() => go({ t: 'dayColumns' })}
           onExport={exportSchedule}
         />
 
@@ -1631,7 +1669,8 @@ function AdminSchedulePage() {
 
         <Legend items={activeModel.items} colorOf={colorOf} subName={subName} kindName={kindName} display={s.filters.display}
           unavOn={unavOn && (activeModel.pane.view === 'teacher' ? activeModel.pane.personId !== null
-            : activeModel.pane.view !== 'student' && s.filters.teacherId !== null)} />
+            : activeModel.pane.view !== 'student' && (s.filters.teacherId !== null
+              || (activeModel.shown === 'day' && activeModel.pane.dayColumns && activeModel.pane.dayAxis === 'teacher')))} />
         </div>
 
         <ClipboardBar

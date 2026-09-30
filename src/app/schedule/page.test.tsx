@@ -308,6 +308,105 @@ describe('관리자 모든 보기의 과목색·하단 범례 공유', () => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
+describe('UX-14A 상단 분할과 세로선 기준', () => {
+  it('사이드바를 접어도 상단에서 표를 나누고 다시 합칠 수 있다', () => {
+    useWorkspace.setState({ sidebarOpen: false });
+    const view = render(<SchedulePage />);
+    expect(view.queryByRole('button', { name: '사이드 접기' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    expect(view.container.querySelectorAll('[data-calendar-pane]')).toHaveLength(2);
+    const unsplit = view.getByRole('button', { name: '분할 해제' });
+    expect(unsplit.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(unsplit);
+    expect(view.container.querySelectorAll('[data-calendar-pane]')).toHaveLength(1);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('강사 기준 세로선은 실제 담당 강사 열을 그리고 더블클릭 초안에 해당 강사를 넣는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    expect(view.getAllByText('선택 강사').length).toBeGreaterThan(0);
+    expect(view.getAllByText('다른 강사').length).toBeGreaterThan(0);
+    const slot = view.getByRole('button', { name: '2026-09-01 13:30 강사 11 빈 시간 선택' });
+    fireEvent.doubleClick(slot);
+    expect(mocks.draft).toHaveBeenLastCalledWith({
+      date: '2026-09-01', startMin: 810, endMin: 870, roomId: null, teacherId: 11,
+    });
+    expect((view.getByRole('button', { name: '빈 시간 찾기' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('강사 열에서 만든 드래그 미리보기와 drop 초안은 같은 강사만 사용하고 POST하지 않는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    const rect = (top: number) => ({ top, height: 28, left: 0, right: 120, width: 120, bottom: top + 28 });
+    const active = {
+      id: 'create-teacher', data: { current: { type: 'create', paneId: 0, date: '2026-09-01',
+        startMin: 810, colAxis: 'teacher', colId: 22 } },
+      rect: { current: { initial: rect(200), translated: rect(284) } },
+    } as unknown as DragEndEvent['active'];
+    const over = {
+      id: 'teacher-slot', disabled: false, rect: rect(284),
+      data: { current: { type: 'slot', paneId: 0, date: '2026-09-01', colAxis: 'teacher', colId: 22, slotMin: 870 } },
+    } as unknown as DragEndEvent['over'];
+    act(() => mocks.drag!.onDragStart?.({ active, activatorEvent: new MouseEvent('pointerdown') }));
+    act(() => mocks.drag!.onDragMove?.({ active, over, activatorEvent: new MouseEvent('pointermove'),
+      delta: { x: 0, y: 84 }, collisions: null }));
+    expect(view.getByRole('button', { name: '2026-09-01 13:30 강사 22 빈 시간 선택' })
+      .hasAttribute('data-create-preview-slot')).toBe(true);
+    expect(view.getByRole('button', { name: '2026-09-01 13:30 강사 11 빈 시간 선택' })
+      .hasAttribute('data-create-preview-slot')).toBe(false);
+    act(() => mocks.drag!.onDragEnd?.({ active, over, activatorEvent: new MouseEvent('pointerup'),
+      delta: { x: 0, y: 84 }, collisions: null }));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 810, endMin: 900,
+      roomId: null, teacherId: 22 });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('활성 Meta 목록 밖의 퇴사 강사 수업도 이력 열에 보이되 그 열로 새 배정은 막는다', () => {
+    mocks.occurrences.mockReturnValue({ data: { items: [
+      ...items, { ...items[0], serId: 99, teacherId: 99, teacherName: '퇴사 강사', title: '과거 수업' },
+    ] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    expect(view.getByText('퇴사 강사 · 이력')).toBeTruthy();
+    expect(view.getByRole('button', { name: /과거 수업/ })).toBeTruthy();
+    const oldSlot = view.getByRole('button', { name: '2026-09-01 13:30 강사 99 빈 시간 선택' }) as HTMLButtonElement;
+    expect(oldSlot.disabled).toBe(true);
+    fireEvent.doubleClick(oldSlot);
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+  });
+
+  it('선생님별 개인표의 강사 세로선은 선택 강사 한 명으로만 제한한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: /^선택 강사/ }));
+    fireEvent.click(within(view.getByRole('group', { name: '스케줄 기간' })).getByRole('button', { name: '일간' }));
+    fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    expect(view.getByRole('button', { name: '2026-09-01 13:30 강사 11 빈 시간 선택' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '2026-09-01 13:30 강사 22 빈 시간 선택' })).toBeNull();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('강사 기준 불가 띠는 열별로 보이고 이른 시각도 축·안내·범례와 일치한다', () => {
+    useWorkspace.setState({ sidebarOpen: true });
+    mocks.unav.mockReturnValue({ data: { items: [{ id: 9, teacherId: 11, teacherName: '선택 강사',
+      date: '2026-09-01', startMin: 480, endMin: 540, reason: '이른 불가' }] }, isLoading: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '가능 시간' }));
+    fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    expect(view.getByRole('button', { name: '2026-09-01 08:00 강사 11 빈 시간 선택' })).toBeTruthy();
+    expect(view.getByText(/강사 기준 열에 각각 겹쳐 보입니다/)).toBeTruthy();
+    expect(view.container.querySelector('[data-legend-unav]')).toBeTruthy();
+    expect(view.getByText('08–22')).toBeTruthy();
+  });
+});
+
 /**
  * 원문 §10·§11 본문 — 「일정 추가 시 학생(강사)이 자동으로 채워집니다」.
  * 새 일정 창은 초안을 받기만 한다. 누구를 넣을지는 **고른 개인표**가 정한다.
@@ -446,7 +545,7 @@ describe('관리자 날짜 선택의 일간 진입과 pane 보존', () => {
   });
 
   it('분할된 오른쪽 월간의 날짜 선택이 왼쪽 날짜·보기를 변경하지 않는다', () => {
-    // 표 나누기(분할)는 사이드바 하나가 맡는다 — 도구줄 「세로선 나누기」는 강의실 열이다 (N-80)
+    // 표 나누기는 상단 도구줄에서 한다. 각 표의 날짜/보기 상태는 독립이다.
     useWorkspace.setState({ sidebarOpen: true });
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: '월간' }));

@@ -230,6 +230,21 @@ describe('관리자 달력 날짜 정확성', () => {
     expect(view.getByRole('button', { name: '2026-09-01 10:00 강의실 4 빈 시간 선택' }).hasAttribute('data-create-preview-slot')).toBe(false);
     expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(2);
   });
+
+  it('강사 기준 열은 해당 강사의 불가 시간만 해당 열에 겹친다', () => {
+    const view = render(<DayGrid date="2026-09-01" items={[]}
+      columns={[{ id: 11, name: '강사 11' }, { id: 22, name: '강사 22' }]}
+      columnOf={() => 11} colAxis="teacher"
+      unavByColumn={(_date, teacherId) => teacherId === 11
+        ? [{ startMin: 480, endMin: 540, label: '강사 11 불가' },
+          { startMin: 1350, endMin: 1380, label: '강사 11 늦은 불가' }] : []} />);
+    const first = view.getByRole('button', { name: '2026-09-01 09:00 강사 11 빈 시간 선택' });
+    const second = view.getByRole('button', { name: '2026-09-01 09:00 강사 22 빈 시간 선택' });
+    expect(first.parentElement?.querySelectorAll('[data-unav]')).toHaveLength(2);
+    expect(second.parentElement?.querySelectorAll('[data-unav]')).toHaveLength(0);
+    expect(view.getByRole('button', { name: '2026-09-01 08:00 강사 11 빈 시간 선택' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '2026-09-01 22:30 강사 11 빈 시간 선택' })).toBeTruthy();
+  });
 });
 
 describe('주간 머리 모양 · 개인표 합계 줄 (원문 §08 · §10)', () => {

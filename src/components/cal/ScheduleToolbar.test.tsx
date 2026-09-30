@@ -72,13 +72,16 @@ it('공용 도구줄은 native 입력과 기존 버튼으로 모든 제어값을
   const onDateChange = vi.fn();
   const onStep = vi.fn();
   const onToday = vi.fn();
-  const onRoomColumnsToggle = vi.fn();
+  const onDayColumnsToggle = vi.fn();
+  const onDayAxisChange = vi.fn();
+  const onSplit = vi.fn();
   const onExport = vi.fn();
   const view = render(
     <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={INITIAL_SCHEDULE_FILTERS} meta={meta}
-      roomColumnsOn={false} roomColumnsAvailable
+      dayColumnsOn={false} dayColumnsAvailable
       onPeriodChange={onPeriodChange} onTargetChange={onTargetChange} onFiltersChange={onFiltersChange}
-      onDateChange={onDateChange} onStep={onStep} onToday={onToday} onRoomColumnsToggle={onRoomColumnsToggle} onExport={onExport} />,
+      onDateChange={onDateChange} onStep={onStep} onToday={onToday} onDayColumnsToggle={onDayColumnsToggle}
+      dayAxis="room" onDayAxisChange={onDayAxisChange} splitOn={false} onSplit={onSplit} onExport={onExport} />,
   );
 
   // 원문 §07 — 보기 축이 둘이다: [일간 · 주간 · 월간] + [전체 · 학생별 · 선생님별]
@@ -123,13 +126,17 @@ it('공용 도구줄은 native 입력과 기존 버튼으로 모든 제어값을
   expect(onStep.mock.calls).toEqual([[-1], [1]]);
   expect(onToday).toHaveBeenCalledOnce();
 
-  // 원문 §07 「세로선 나누기」 = 강의실 열 켜기/끄기(N-80) — 표 나누기(분할)는 도구줄에 없다
+  // 새 계약 UX-14A — 세로선 기준과 표 분할은 같은 상단 도구줄에서 조작한다.
   expect(view.queryByRole('button', { name: '세로로 나누기' })).toBeNull();
   const columns = view.getByRole('button', { name: '세로선 나누기' });
   expect(columns.getAttribute('aria-pressed')).toBe('false');
   fireEvent.click(columns);
+  fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+  fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
   fireEvent.click(view.getByRole('button', { name: '현재 스케줄을 PNG로 저장' }));
-  expect(onRoomColumnsToggle).toHaveBeenCalledOnce();
+  expect(onDayColumnsToggle).toHaveBeenCalledOnce();
+  expect(onDayAxisChange).toHaveBeenCalledWith('teacher');
+  expect(onSplit).toHaveBeenCalledOnce();
   expect(onExport).toHaveBeenCalledOnce();
 });
 
@@ -137,16 +144,17 @@ describe('원문 §07 둘째 줄 — 세로선 나누기 · 빈 시간 찾기 ·
   const base = {
     date: '2026-09-14', filters: INITIAL_SCHEDULE_FILTERS, meta,
     onPeriodChange: vi.fn(), onTargetChange: vi.fn(), onFiltersChange: vi.fn(), onDateChange: vi.fn(),
-    onStep: vi.fn(), onToday: vi.fn(), onExport: vi.fn(), onRoomColumnsToggle: vi.fn(), onFreeToggle: vi.fn(),
+    onStep: vi.fn(), onToday: vi.fn(), onExport: vi.fn(), onDayColumnsToggle: vi.fn(), onFreeToggle: vi.fn(),
   };
 
   it('강의실 열이 뜻을 갖지 않는 보기에서는 세로선 나누기를 누를 수 없고 까닭을 적는다', () => {
-    const view = render(<ScheduleToolbar {...base} period="week" target="all" roomColumnsOn roomColumnsAvailable={false} />);
+    const view = render(<ScheduleToolbar {...base} period="week" target="all" dayColumnsOn dayColumnsAvailable={false} dayAxis="teacher" onDayAxisChange={vi.fn()} />);
     const columns = view.getByRole('button', { name: '세로선 나누기' }) as HTMLButtonElement;
     expect(columns.disabled).toBe(true);
     // 켜 둔 값이 남아 있어도 누를 수 없는 보기에서는 눌린 모양으로 서지 않는다
     expect(columns.getAttribute('aria-pressed')).toBe('false');
     expect(columns.title).toContain('일간');
+    expect((view.getByRole('combobox', { name: '세로선 기준' }) as HTMLSelectElement).disabled).toBe(true);
   });
 
   it('빈 시간 찾기는 강의실 열이 섰을 때만 — 아니면 까닭(세로선 나누기)을 적는다', () => {
@@ -197,9 +205,9 @@ it('N-137 — 학생 필터의 선택지는 서버가 붙인 꼬리 이름(label
   };
   const view = render(
     <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={INITIAL_SCHEDULE_FILTERS} meta={twins}
-      roomColumnsOn={false} roomColumnsAvailable
+      dayColumnsOn={false} dayColumnsAvailable
       onPeriodChange={vi.fn()} onTargetChange={vi.fn()} onFiltersChange={vi.fn()}
-      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onRoomColumnsToggle={vi.fn()} onExport={vi.fn()} />,
+      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onDayColumnsToggle={vi.fn()} onExport={vi.fn()} />,
   );
   const picker = within(view.getByRole('combobox', { name: '학생 필터' }));
   expect(picker.getAllByRole('option').map((o) => o.textContent)).toEqual(['학생 전체', '김하윤 · G8 · 채드윅', '김하윤 · G8 · 역삼중']);

@@ -5,7 +5,7 @@
  */
 
 /**
- * 원본 §07 좌측 사이드바 — 도구 다섯·KST 안내·프로그램/과목 수·표 나누기·«사이드 접기».
+ * 원본 §07 좌측 사이드바 — 도구 다섯·KST 안내·프로그램/과목 수·«사이드 접기».
  * 프로그램/과목 수는 **보는 기간과 무관한 일정 원본(SER) 수**다(§07~§11 컷이 같은 수 · D-R44) —
  * 서버(`GET /schedule/series-counts`)가 묶음 합계까지 세고 이 파일은 그리기만 한다. 이름·색은 코드표(meta).
  * 원문 「과목 [관리] [전체]」 머리에는 수가 없어 과목 합계를 두지 않는다.
@@ -35,17 +35,15 @@ function CountRow({ color, name, count }: { color: string; name: string; count: 
 const HEAD_TOOL = 'rounded border border-line bg-card px-1.5 py-px text-[10px] font-bold text-fg-subtle hover:bg-inset';
 
 export function ScheduleSidebar({
-  meta, counts, canEdit, splitOn, onCreate, onHistory, onSplit, availabilityOn = false, onAvailability, onClearKind, onClearSub,
+  meta, counts, canEdit, onCreate, onHistory, availabilityOn = false, onAvailability, onClearKind, onClearSub,
   canOpenPrograms = false,
 }: {
   meta?: Meta;
   /** 서버가 센 일정 원본 수 — 없으면(읽는 중) 수를 지어내지 않는다 */
   counts?: ScheduleSeriesCounts;
   canEdit: boolean;
-  splitOn: boolean;
   onCreate: () => void;
   onHistory: () => void;
-  onSplit: () => void;
   /** 「가능 시간」 — 강사 불가 시간 겹쳐 보기가 켜져 있는가 · 켜고 끄는 콜백(없으면 단추를 잠근다) */
   availabilityOn?: boolean;
   onAvailability?: () => void;
@@ -65,7 +63,7 @@ export function ScheduleSidebar({
   return (
     <div className="flex h-full w-[190px] flex-col gap-3 overflow-y-auto p-3">
       {/* 위 단추 · KST 카드 · 아래 단추는 줄지 않는다 — 목록만 남는 높이 안에서 스크롤한다.
-          목록이 줄어들며 내용이 밖으로 넘치면 아래 「표 나누기」·「사이드 접기」 위에 겹쳐 그려진다(QA 0926 B1 · 1440×900) */}
+          목록이 줄어들며 내용이 밖으로 넘치면 아래 「사이드 접기」 위에 겹쳐 그려진다(QA 0926 B1 · 1440×900) */}
       <div className="flex shrink-0 flex-col gap-1.5">
         <button type="button" onClick={onCreate} disabled={!canEdit}
           className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary text-[12px] font-bold text-white disabled:opacity-40">
@@ -140,10 +138,6 @@ export function ScheduleSidebar({
       </div>
 
       <div className="mt-auto flex shrink-0 flex-col gap-1.5">
-        <button type="button" onClick={onSplit}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-card text-[12px] font-bold text-fg hover:bg-inset">
-          {splitOn ? '분할 해제' : '표 나누기'}
-        </button>
         <button type="button" onClick={toggleSidebar} aria-label="사이드 접기"
           className="flex h-9 items-center justify-center gap-1 rounded-lg border border-line bg-card text-[12px] font-bold text-fg-subtle hover:bg-inset">
           <ChevronsLeft size={14} aria-hidden />사이드 접기

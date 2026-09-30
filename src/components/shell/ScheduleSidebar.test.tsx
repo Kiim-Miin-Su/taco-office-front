@@ -37,8 +37,8 @@ const counts: ScheduleSeriesCounts = {
 
 function sidebar(extra: Partial<Parameters<typeof ScheduleSidebar>[0]> = {}) {
   const props = {
-    meta, counts, canEdit: true, splitOn: false,
-    onCreate: vi.fn(), onHistory: vi.fn(), onSplit: vi.fn(),
+    meta, counts, canEdit: true,
+    onCreate: vi.fn(), onHistory: vi.fn(),
     ...extra,
   };
   render(<ScheduleSidebar {...props} />);
@@ -84,12 +84,11 @@ describe('원본 §07 좌측 사이드바 — 도구·집계·접기', () => {
     expect(screen.getByRole('button', { name: /가능 시간/ }).hasAttribute('disabled')).toBe(true);
   });
 
-  it('변경 이력·표 나누기·신규 학생 등록은 기존 기능으로만 배선된다', () => {
-    const { onHistory, onSplit } = sidebar();
+  it('변경 이력·신규 학생 등록은 기존 기능으로 배선되고 표 분할은 상단 도구줄에만 있다', () => {
+    const { onHistory } = sidebar();
     fireEvent.click(screen.getByRole('button', { name: /변경 이력/ }));
     expect(onHistory).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: '표 나누기' }));
-    expect(onSplit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: '표 나누기' })).toBeNull();
     const intake = screen.getByRole('link', { name: /신규 학생 등록/ });
     expect(intake.getAttribute('href')).toBe('/intake');
   });
@@ -123,9 +122,8 @@ describe('원본 §07 좌측 사이드바 — 도구·집계·접기', () => {
     expect(screen.getByRole('button', { name: '프로그램 거르기 풀기' })).toBeTruthy();
   });
 
-  it('분할 중에는 분할 해제로 읽히고, «사이드 접기는 전역 상태만 바꾼다', () => {
-    sidebar({ splitOn: true });
-    expect(screen.getByRole('button', { name: '분할 해제' })).toBeTruthy();
+  it('«사이드 접기는 전역 상태만 바꾼다', () => {
+    sidebar();
     fireEvent.click(screen.getByRole('button', { name: '사이드 접기' }));
     expect(useWorkspace.getState().sidebarOpen).toBe(false);
     expect(useWorkspace.getState().railOpen).toBe(true);

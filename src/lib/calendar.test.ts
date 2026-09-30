@@ -566,11 +566,11 @@ describe('laneLayout — 주간과 일간이 같은 함수', () => {
 });
 
 it('새 표의 일간은 날짜 한 열이 기본이다 — 강의실 열은 「세로선 나누기」로 켠다 (N-80)', () => {
-  expect(INITIAL_PANE.roomColumns).toBe(false);
+  expect(INITIAL_PANE.dayColumns).toBe(false);
   // 분할은 지금 표를 통째로 복제한다 — 강의실 열도 표마다의 상태라 두 표가 따로 켜고 끈다
-  const [left, right] = splitPanes({ ...INITIAL_PANE, date: '2026-09-01', roomColumns: true });
-  expect(right.roomColumns).toBe(true);
-  expect(updatePane([left, right], 1, { roomColumns: false })[0].roomColumns).toBe(true);
+  const [left, right] = splitPanes({ ...INITIAL_PANE, date: '2026-09-01', dayColumns: true });
+  expect(right.dayColumns).toBe(true);
+  expect(updatePane([left, right], 1, { dayColumns: false })[0].dayColumns).toBe(true);
 });
 
 it('학생 겹침 한 줄 — 이름 · 날짜 · 상대 시각 · 상대 수업 (N-58)', () => {
