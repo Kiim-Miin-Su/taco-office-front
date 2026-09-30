@@ -962,6 +962,7 @@ export function ChangeReqForm({
 }) {
   const set = <K extends keyof ChangeReqDraft>(k: K, v: ChangeReqDraft[K]) => onDraft({ ...draft, [k]: v });
   const needsTime = draft.reqType === 'time_move';
+  const endsAtMidnight = draft.endMin === '1440';
   const timeIssue = needsTime && draft.startMin && draft.endMin
     ? lessonTimeIssue(Number(draft.startMin), Number(draft.endMin))
     : null;
@@ -975,14 +976,14 @@ export function ChangeReqForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,5fr)] gap-3">
-        <div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]">
+        <div className="min-w-0">
           <Label htmlFor="chreq-day">어느 날<Req /></Label>
           {/* 날을 바꾸면 고른 일정은 그날의 것이 아니게 된다 — 함께 비운다 */}
           <Input id="chreq-day" type="date" value={draft.day}
             onChange={(e) => onDraft({ ...draft, day: e.currentTarget.value, serId: '', onDate: '' })} />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label htmlFor="chreq-occ">어느 일정<Req /></Label>
           <Select id="chreq-occ" value={target} disabled={!draft.day}
             onChange={(e) => onDraft({ ...draft, ...parseOccurrenceTarget(e.currentTarget.value) })}>
@@ -1016,17 +1017,24 @@ export function ChangeReqForm({
 
       {needsTime ? (
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <Label htmlFor="chreq-start">새 시작</Label>
             <Input id="chreq-start" type="time" step={300}
               value={draft.startMin ? hhmm(Number(draft.startMin)) : ''}
               onChange={(e) => setTime('startMin', e.currentTarget.value)} />
           </div>
-          <div>
-            <Label htmlFor="chreq-end">새 끝</Label>
+          <div className="min-w-0">
+            <Label htmlFor={endsAtMidnight ? undefined : 'chreq-end'}>새 끝</Label>
             <Input id="chreq-end" type="time" step={300}
-              value={draft.endMin ? hhmm(Number(draft.endMin)) : ''}
+              value={endsAtMidnight ? '' : draft.endMin ? hhmm(Number(draft.endMin)) : ''}
+              hidden={endsAtMidnight} tabIndex={endsAtMidnight ? -1 : undefined}
               onChange={(e) => setTime('endMin', e.currentTarget.value)} />
+            {endsAtMidnight ? <output role="status" aria-label="새 끝 시각"
+              className="flex h-10 min-w-0 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+          </div>
+          <div className="col-span-2">
+            <Checkbox label="24:00 (자정에 종료)" checked={endsAtMidnight}
+              onChange={(e) => set('endMin', e.target.checked ? '1440' : '')} />
           </div>
           {timeIssue ? <p className="col-span-2 text-[11px] text-red">{timeIssue}</p> : null}
         </div>

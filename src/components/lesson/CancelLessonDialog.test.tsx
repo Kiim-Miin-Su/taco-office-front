@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { CancelLessonDialog } from './CancelLessonDialog';
 
 const reasons = [
@@ -48,4 +48,36 @@ it('학원 사정을 고르면 학부모 안내가 준비된다고 먼저 말한
   expect(v.queryByText(/학부모 안내를 준비합니다/)).toBeNull();
   fireEvent.change(v.getByLabelText('사유', { exact: true }), { target: { value: 'academy' } });
   expect(v.getByText(/학부모 안내를 준비합니다/)).toBeTruthy();
+});
+
+it('24:00에 끝난 원 회차의 보강 종료 시각을 화면에 표시하고 1440분으로 보낸다 (UX-13C2a)', () => {
+  const onSubmit = vi.fn();
+  const v = render(<CancelLessonDialog open title="휴강 — 자정" reasons={reasons} treats={treats}
+    original={{ date: '2026-08-21', startMin: 1380, endMin: 1440 }} onSubmit={onSubmit} onClose={() => {}} />);
+  fireEvent.change(v.getByLabelText('사유', { exact: true }), { target: { value: 'holiday' } });
+  fireEvent.click(v.getByRole('radio', { name: /보강 이관/ }));
+  fireEvent.change(v.getByLabelText('날짜', { exact: true }), { target: { value: '2026-08-22' } });
+  expect(v.getByRole('checkbox', { name: '24:00 (자정에 종료)' })).toHaveProperty('checked', true);
+  expect(v.getByRole('status', { name: '끝 시각' }).textContent).toBe('24:00');
+  fireEvent.click(v.getByRole('button', { name: '휴강 · 보강 잡기' }));
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+    makeup: { date: '2026-08-22', startMin: 1380, endMin: 1440 },
+  }));
+});
+
+it('보강 자정 종료를 해제하면 종료 시각을 다시 고를 때까지 제출하지 않는다 (UX-13C2a)', () => {
+  const onSubmit = vi.fn();
+  const v = render(<CancelLessonDialog open title="휴강 — 자정" reasons={reasons} treats={treats}
+    original={{ date: '2026-08-21', startMin: 1380, endMin: 1440 }} onSubmit={onSubmit} onClose={() => {}} />);
+  fireEvent.change(v.getByLabelText('사유', { exact: true }), { target: { value: 'holiday' } });
+  fireEvent.click(v.getByRole('radio', { name: /보강 이관/ }));
+  fireEvent.change(v.getByLabelText('날짜', { exact: true }), { target: { value: '2026-08-22' } });
+  fireEvent.click(v.getByRole('checkbox', { name: '24:00 (자정에 종료)' }));
+  expect((v.getByLabelText('끝', { exact: true }) as HTMLInputElement).value).toBe('');
+  expect(v.getByRole('button', { name: '휴강 · 보강 잡기' })).toHaveProperty('disabled', true);
+  fireEvent.change(v.getByLabelText('끝', { exact: true }), { target: { value: '23:30' } });
+  fireEvent.click(v.getByRole('button', { name: '휴강 · 보강 잡기' }));
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+    makeup: { date: '2026-08-22', startMin: 1380, endMin: 1410 },
+  }));
 });

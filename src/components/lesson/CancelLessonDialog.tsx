@@ -186,18 +186,26 @@ export function CancelLessonDialog({
         {isMakeup ? (
           <fieldset className="rounded-lg border border-line p-3">
             <legend className="px-1 text-[11px] font-bold text-fg-subtle">보강 회차 — 종류·명단·강사는 원래 회차 그대로</legend>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-3 sm:col-span-1">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="col-span-2 sm:col-span-1">
                 <Label htmlFor={`${id}-mk-date`}>날짜</Label>
                 <Input id={`${id}-mk-date`} type="date" value={makeupDate} onChange={(e) => setMakeupDate(e.target.value)} disabled={pending} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label htmlFor={`${id}-mk-start`}>시작</Label>
                 <Input id={`${id}-mk-start`} type="time" step={300} value={makeupStart} onChange={(e) => setMakeupStart(e.target.value)} disabled={pending} />
               </div>
-              <div>
-                <Label htmlFor={`${id}-mk-end`}>끝</Label>
-                <Input id={`${id}-mk-end`} type="time" step={300} value={makeupEnd} onChange={(e) => setMakeupEnd(e.target.value)} disabled={pending} />
+              <div className="min-w-0">
+                <Label htmlFor={makeupEnd === '24:00' ? undefined : `${id}-mk-end`}>끝</Label>
+                <Input id={`${id}-mk-end`} type="time" step={300} value={makeupEnd === '24:00' ? '' : makeupEnd}
+                  hidden={makeupEnd === '24:00'} tabIndex={makeupEnd === '24:00' ? -1 : undefined}
+                  onChange={(e) => setMakeupEnd(e.target.value)} disabled={pending} />
+                {makeupEnd === '24:00' ? <output role="status" aria-label="끝 시각"
+                  className="flex h-10 min-w-0 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+              </div>
+              <div className="col-span-2 sm:col-span-3">
+                <Checkbox label="24:00 (자정에 종료)" checked={makeupEnd === '24:00'} disabled={pending}
+                  onChange={(e) => setMakeupEnd(e.target.checked ? '24:00' : '')} />
               </div>
             </div>
             {makeupIssue ? <p className="mt-1 text-[11px] text-red">{makeupIssue}</p> : null}

@@ -233,7 +233,8 @@ describe('LessonDetail 명단 결과', () => {
     fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: 'academy' } });
     fireEvent.click(within(dialog).getByRole('radio', { name: /보강 이관/ }));
     // 보강 칸이 열리고 그날 전체는 사라진다 — 회차마다 보강 날짜가 다르다
-    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    expect(within(dialog).queryByRole('checkbox', { name: /그날.*모든 수업/ })).toBeNull();
+    expect(within(dialog).getByRole('checkbox', { name: '24:00 (자정에 종료)' })).toBeTruthy();
     const submit = within(dialog).getByRole('button', { name: '휴강 · 보강 잡기' }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true); // 날짜가 비었다
     expect((within(dialog).getByLabelText('시작') as HTMLInputElement).value).toBe('10:00');
