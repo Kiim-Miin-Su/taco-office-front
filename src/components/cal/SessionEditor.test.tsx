@@ -66,7 +66,7 @@ it('설명을 못 가져와도 원래 문구는 남는다 — 실패가 실패�
   expect(view.queryByText(/\[강의실\]/)).toBeNull();
 });
 
-function setupCreateMode() {
+function setupCreateMode(draft = { date: '2026-09-28', startMin: 570, endMin: 660, roomId: 1 }) {
   const sent: Array<Record<string, unknown>> = [];
   api.defaults.adapter = (async (config: { data?: string }) => {
     sent.push(config.data ? JSON.parse(config.data) : {});
@@ -76,11 +76,70 @@ function setupCreateMode() {
   clients.push(qc);
   const view = render(
     <QueryClientProvider client={qc}>
-      <SessionEditor draft={{ date: '2026-09-28', startMin: 570, endMin: 660, roomId: 1 }} meta={meta} onClose={vi.fn()} />
+      <SessionEditor draft={draft} meta={meta} onClose={vi.fn()} />
     </QueryClientProvider>,
   );
   return { view, sent, room: view.getByLabelText('강의실 · 형태') as HTMLSelectElement };
 }
+
+it('새 일정은 분 단위 시간 선택기를 쓰고 24:00 종료를 명시적으로 골라 전송한다 (UX-13A)', async () => {
+  const { view, sent } = setupCreateMode({ date: '2026-09-28', startMin: 1380, endMin: 1440, roomId: 1 });
+  const start = view.getByLabelText('시작') as HTMLInputElement;
+  const end = view.container.querySelector('#se-end') as HTMLInputElement;
+  const midnight = view.getByRole('checkbox', { name: '24:00 (자정에 종료)' }) as HTMLInputElement;
+  expect(start.type).toBe('time');
+  expect(end.type).toBe('time');
+  expect(start.step).toBe('60');
+  expect(end.step).toBe('60');
+  expect(start.value).toBe('23:00');
+  expect(midnight.checked).toBe(true);
+  expect(end.hidden).toBe(true);
+  expect(end.tabIndex).toBe(-1);
+  expect(view.getByRole('status', { name: '끝 시각' }).textContent).toBe('24:00');
+  fireEvent.click(midnight);
+  expect(midnight.checked).toBe(false);
+  expect(end.value).toBe('');
+  expect(end.hidden).toBe(false);
+  expect(view.getByLabelText('끝')).toBe(end);
+  fireEvent.click(midnight);
+  expect(midnight.checked).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]).toMatchObject({ startMin: 1380, endMin: 1440 });
+});
+
+it('선택기에서도 00:00 시작은 유지하고 잘못된 시각·빈 시각·10분 미만은 보내지 않는다 (UX-13A)', async () => {
+  const { view, sent } = setupCreateMode();
+  const start = view.getByLabelText('시작') as HTMLInputElement;
+  const end = view.getByLabelText('끝') as HTMLInputElement;
+  fireEvent.change(start, { target: { value: '25:99' } });
+  expect(start.value).toBe('');
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  expect(await view.findByText('시작과 끝 시각을 골라 주세요')).toBeTruthy();
+  expect(sent).toHaveLength(0);
+  fireEvent.change(start, { target: { value: '00:00' } });
+  fireEvent.change(end, { target: { value: '00:09' } });
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  expect(await view.findByText(/길이는 10분에서 8시간 사이/)).toBeTruthy();
+  expect(sent).toHaveLength(0);
+  fireEvent.change(end, { target: { value: '00:10' } });
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]).toMatchObject({ startMin: 0, endMin: 10 });
+});
+
+it('시간 선택기에서 10:07 같은 비정각 분을 선택해도 정수 분으로 보낸다 (UX-13A)', async () => {
+  const { view, sent } = setupCreateMode();
+  const start = view.getByLabelText('시작') as HTMLInputElement;
+  const end = view.getByLabelText('끝') as HTMLInputElement;
+  fireEvent.change(start, { target: { value: '10:07' } });
+  fireEvent.change(end, { target: { value: '10:17' } });
+  expect(start.validity.stepMismatch).toBe(false);
+  expect(end.validity.stepMismatch).toBe(false);
+  fireEvent.click(view.getByRole('button', { name: '만들기' }));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0]).toMatchObject({ startMin: 607, endMin: 617 });
+});
 
 it('새 일정도 온라인으로 바꾸면 강의실을 비우고 선택을 막는다 — 대면으로 돌아가면 다시 명시적으로 고른다', async () => {
   const { view, sent, room } = setupCreateMode();
@@ -235,6 +294,28 @@ function setupEdit(occ: Occurrence, reply: 'ok' | 'conflict' = 'ok', freeLine: s
   );
   return { view, sent, onSaved, onClose, patches: () => sent.filter((r) => r.method === 'patch') };
 }
+
+it('기존 24:00 회차를 수정할 때 종료값을 보존하고 해제 후에는 종료 시각을 다시 고르게 한다 (UX-13A)', async () => {
+  const { view, patches } = setupEdit({ ...lesson, startMin: 1380, endMin: 1440 });
+  const start = view.getByLabelText('시작') as HTMLInputElement;
+  const end = view.container.querySelector('#se-end') as HTMLInputElement;
+  const midnight = view.getByRole('checkbox', { name: '24:00 (자정에 종료)' }) as HTMLInputElement;
+  expect(start.type).toBe('time');
+  expect(end.type).toBe('time');
+  expect(midnight.checked).toBe(true);
+  expect(end.hidden).toBe(true);
+  fireEvent.change(start, { target: { value: '22:37' } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0].data).toEqual({ startMin: 1357, endMin: 1440, scope: 'this', onDate: '2026-09-28' });
+
+  fireEvent.click(midnight);
+  expect(midnight.checked).toBe(false);
+  expect(end.value).toBe('');
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  expect(await view.findByText('시작과 끝 시각을 골라 주세요')).toBeTruthy();
+  expect(patches()).toHaveLength(1);
+});
 
 it('편집은 지금 값으로 채워 열리고, 바꾼 칸만 PATCH 로 보낸다 — 단발은 범위를 묻지 않는다', async () => {
   const { view, patches, onSaved, onClose } = setupEdit(lesson);

@@ -18,7 +18,7 @@
  */
 'use client';
 import { useForm } from 'react-hook-form';
-import { Banner, Button, Chip, ConflictGuard, Dialog, Input, Label, RecurrenceScope, Segmented, Select } from '../ui';
+import { Banner, Button, Checkbox, Chip, ConflictGuard, Dialog, Input, Label, RecurrenceScope, Segmented, Select } from '../ui';
 import { KO_DOW, buildRrule, conflictLines, lessonTimeIssue, parseHm, type ScheduleRepeat } from '@/lib/calendar';
 import { fetchConflictPreview, useScheduleWrite, type ConflictProbe } from '@/api/queries';
 import { apiMessage, isConflict } from '@/api/client';
@@ -278,7 +278,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     setConflict(false);
     const startMin = parseHm(v.start);
     const endMin = parseHm(v.end);
-    if (startMin === null || endMin === null) { setErr('시각은 HH:MM 으로 적어 주세요'); return; }
+    if (startMin === null || endMin === null) { setErr('시작과 끝 시각을 골라 주세요'); return; }
     const timeIssue = lessonTimeIssue(startMin, endMin);
     if (timeIssue) { setErr(timeIssue); return; }
 
@@ -367,6 +367,22 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
     ...(meta?.subs ?? []),
   ];
   const repeat = f.watch('repeat');
+  const end = f.watch('end');
+  const endsAtMidnight = end === '24:00';
+  // HTML time 입력은 24:00을 표현하지 못한다. RHF 값은 setValue로 따로 유지해 서버의 1440분 종료를 보존한다.
+  const endField = (
+    <div>
+      <Label htmlFor={endsAtMidnight ? undefined : 'se-end'}>끝</Label>
+      <Input id="se-end" type="time" step={60} value={endsAtMidnight ? '' : end}
+        onChange={(event) => f.setValue('end', event.target.value, { shouldDirty: true, shouldTouch: true })}
+        hidden={endsAtMidnight} tabIndex={endsAtMidnight ? -1 : undefined} />
+      {endsAtMidnight ? <output role="status" aria-label="끝 시각" className="flex h-10 items-center rounded-lg border border-line bg-inset px-3 text-[13px] text-fg">24:00</output> : null}
+      <div className="mt-1">
+        <Checkbox label="24:00 (자정에 종료)" checked={endsAtMidnight}
+          onChange={(event) => f.setValue('end', event.target.checked ? '24:00' : '', { shouldDirty: true, shouldTouch: true })} />
+      </div>
+    </div>
+  );
   const teacherSelect = (
     <Select id="se-teacher" {...f.register('teacherId')}>
       <option value="">미정</option>
@@ -439,12 +455,9 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
               </div>
               <div>
                 <Label htmlFor="se-start">시작</Label>
-                <Input id="se-start" {...f.register('start')} placeholder="16:00" />
+                <Input id="se-start" type="time" step={60} {...f.register('start')} />
               </div>
-              <div>
-                <Label htmlFor="se-end">끝</Label>
-                <Input id="se-end" {...f.register('end')} placeholder="17:30" />
-              </div>
+              {endField}
               <div>
                 <Label htmlFor="se-teacher">강사</Label>
                 {teacherSelect}
@@ -552,12 +565,9 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
           </div>
           <div>
             <Label htmlFor="se-start">시작</Label>
-            <Input id="se-start" {...f.register('start')} placeholder="16:00" />
+            <Input id="se-start" type="time" step={60} {...f.register('start')} />
           </div>
-          <div>
-            <Label htmlFor="se-end">끝</Label>
-            <Input id="se-end" {...f.register('end')} placeholder="17:30" />
-          </div>
+          {endField}
           <div>
             <Label htmlFor="se-teacher">강사</Label>
             {teacherSelect}
