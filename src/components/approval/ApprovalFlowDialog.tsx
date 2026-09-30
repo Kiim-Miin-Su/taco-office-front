@@ -77,7 +77,8 @@ export function ApprovalFlowDialog({ open, flow, onClose }: {
         타일 — 원문은 **큰 숫자(종류 색) → 종류 이름 → 받는 이** 차례이고, 건수가 있는 타일만 종류 색 테두리·옅은 바탕이다(g2 75-3).
         수는 서버가 센 tile.count 그대로다.
       */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="결재 종류별 대기 건수">
+      {/* 갈래 여섯 — 지출(H-83 · N-64 번복)이 여섯째다. 칸 수는 서버 tiles 길이를 따른다 */}
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="결재 종류별 대기 건수">
         {flow.tiles.map((tile) => {
           const mark = TONE_MARK[approvalFlowKindTone(tile.kind)];
           const live = tile.count > 0;

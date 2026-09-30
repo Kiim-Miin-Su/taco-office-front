@@ -6,11 +6,11 @@
 
 import { ChevronRight } from 'lucide-react';
 import type { ApRow, ApprovalFlowItem } from '@/api/types';
-import { Chip, cn, type ChipColor, type Tone } from '@/components/ui';
+import { Chip, cn, type ChipColor } from '@/components/ui';
 
 /** §14 구형/부분 fixture에도 쓰는 표시 fallback. 서버 categoryLabel이 있으면 언제나 서버 값을 우선한다. */
 const APPROVAL_KIND_FALLBACK: Readonly<Record<string, string>> = {
-  rep: '리포트', rpt: '대표 보고', plan: '기획', req: '요청', chreq: '변경 요청', gpapack: '자료 요청',
+  rep: '리포트', rpt: '대표 보고', plan: '기획', req: '요청', chreq: '변경 요청', gpapack: '자료 요청', expense: '지출',
 };
 
 export function approvalKindLabel(kind: string): string {
@@ -32,14 +32,15 @@ const INBOX_CATEGORY_TONE: Readonly<Record<string, ApprovalTone>> = {
   schedule_change: 'info', book_change: 'warning', tz_change: 'teal', wage_change: 'pink',
   suggestion: 'purple', gpa_request: 'purple', missing: 'danger', other: 'neutral',
 };
-const FLOW_KIND_TONE: Readonly<Record<string, Tone>> = {
-  rpt: 'neutral', plan: 'purple', req: 'warning', chreq: 'info', gpapack: 'success',
+const FLOW_KIND_TONE: Readonly<Record<string, ApprovalTone>> = {
+  // 지출(H-83 · 여섯째 갈래)은 원문 컷에 없어 남은 결 가운데 주황 — 다섯 갈래의 색과 겹치지 않게
+  rpt: 'neutral', plan: 'purple', req: 'warning', chreq: 'info', gpapack: 'success', expense: 'orange',
 };
 
 /** §14 분류 → 결. 모르는 분류는 회색 — 새 분류가 생긴 것을 감추지 않는다 */
 export const approvalCategoryTone = (category?: string | null): ApprovalTone => INBOX_CATEGORY_TONE[category ?? ''] ?? 'neutral';
 /** §75 종류 → 결 */
-export const approvalFlowKindTone = (kind: string): Tone => FLOW_KIND_TONE[kind] ?? 'neutral';
+export const approvalFlowKindTone = (kind: string): ApprovalTone => FLOW_KIND_TONE[kind] ?? 'neutral';
 
 
 /**
