@@ -1133,12 +1133,43 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
   it('같은 30분 슬롯 안에서 끝나는 드래그도 30분 범위를 미리 보이고 같은 초안을 연다', () => {
     const view = render(<SchedulePage />);
     const event = create(600, 600);
+    event.delta = { x: 0, y: 14 };
     act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
     act(() => mocks.drag!.onDragMove?.(event as never));
     expect(view.container.querySelector('[data-create-preview]')?.textContent).toBe('10:00–10:30');
     expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(1);
     act(() => mocks.drag!.onDragEnd?.(event));
     expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 600, endMin: 630, roomId: null });
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['같은 슬롯에서 5px 흔들림', 600, { x: 5, y: 1 }],
+    ['다음 슬롯 경계를 5px 넘음', 630, { x: 0, y: 5 }],
+    ['같은 슬롯에서 수평으로만 움직임', 600, { x: 40, y: 0 }],
+  ])('%s은 클릭으로 취급하고 생성 미리보기·초안을 열지 않는다', (_, targetMin, delta) => {
+    const view = render(<SchedulePage />);
+    const event = create(600, targetMin);
+    event.delta = delta;
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')).toBeNull();
+    expect(view.container.querySelectorAll('[data-create-preview-slot]')).toHaveLength(0);
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(mocks.draft).toHaveBeenLastCalledWith(null);
+    expect(view.getByText(/붙여넣기 위치.*10:00/)).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('다음 30분 슬롯까지 28px 끌면 1시간 초안을 연다', () => {
+    const view = render(<SchedulePage />);
+    const event = create(600, 630);
+    event.delta = { x: 0, y: 28 };
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: event.activatorEvent }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-create-preview]')?.textContent).toBe('10:00–11:00');
+    act(() => mocks.drag!.onDragEnd?.(event));
+    expect(mocks.draft).toHaveBeenLastCalledWith({ date: '2026-09-01', startMin: 600, endMin: 660, roomId: null });
     expect(mocks.write).not.toHaveBeenCalled();
   });
 

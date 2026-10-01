@@ -56,7 +56,7 @@ import { apiMessage, isConflict } from '@/api/client';
 import { useCan, useSession } from '@/store/useSession';
 import { canAccessAppRoute } from '@/components/shell/navigation';
 import {
-  scheduleReadRanges, boundsOf, clampSplitRatio, conflictLines, hhmm, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, SLOT_MIN, slotStartMin, studentOverlapLines,
+  scheduleReadRanges, boundsOf, clampSplitRatio, conflictLines, hhmm, HOUR_PX, INITIAL_PANE, label, objectParticle, unavailableLines, lessonTimeIssue, monthGrid, movePatch, movePlacements, occurrenceKey, paneView, periodSummary, resizePatch, SLOT_MIN, slotStartMin, studentOverlapLines,
   selectOccurrenceKeys, selectedOccurrences, splitPanes, step, summaryBoundsOf, timeRange, todayKst, unsplitPanes, updatePane,
   type CalendarColAxis, type CalendarPaneIndex, type CalendarPaneState, type PersonPeriod, type SelectMode, type View,
 } from '@/lib/calendar';
@@ -119,11 +119,16 @@ interface DropPreview {
 
 const CREATE_SCOPE_ERROR = '새 일정은 같은 표·날짜·열 안에서 시간을 드래그해 주세요.';
 
+/** 4px DnD 활성화는 이동·길이조절에 필요하다. 생성은 반 슬롯 미만의 수직 손떨림을 클릭으로 본다. */
+const isClickSizedCreateDrag = (deltaY: number): boolean => Number.isFinite(deltaY) && Math.abs(deltaY) < HOUR_PX / 4;
+
 /** 생성 미리보기와 드롭 초안이 같은 슬롯 산수·pane 경계·시간 제약을 쓴다. */
 function createRange(
   source: Extract<DragData, { type: 'create' }>,
   over: DragMoveEvent['over'] | DragEndEvent['over'],
+  deltaY: number,
 ): { preview: CreatePreview | null; issue: string | null } {
+  if (!Number.isFinite(deltaY) || isClickSizedCreateDrag(deltaY)) return { preview: null, issue: null };
   const target = over?.data.current as DropData | undefined;
   if (!target || (target.type !== 'slot' && target.type !== 'weekSlot')) return { preview: null, issue: null };
   const sameColumn = target.type === 'weekSlot'
@@ -668,7 +673,7 @@ function AdminSchedulePage() {
   const onDragMove = (e: DragMoveEvent) => {
     const d = e.active.data.current as DragData | undefined;
     if (d?.type === 'create') {
-      setCreatePreview(createRange(d, e.over).preview);
+      setCreatePreview(createRange(d, e.over, e.delta.y).preview);
       setDropPreview(null);
       return;
     }
@@ -698,7 +703,11 @@ function AdminSchedulePage() {
     const d = e.active.data.current as DragData | undefined;
     if (!d) return;
     if (d.type === 'create') {
-      const { preview, issue } = createRange(d, e.over);
+      if (isClickSizedCreateDrag(e.delta.y)) {
+        selectSlot(d.date, d.startMin, d.colAxis, d.colId);
+        return;
+      }
+      const { preview, issue } = createRange(d, e.over, e.delta.y);
       if (issue) {
         setErr(issue);
         return;
