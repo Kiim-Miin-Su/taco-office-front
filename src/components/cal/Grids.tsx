@@ -44,7 +44,7 @@ export type ColAxis = CalendarColAxis;
 export type DropData =
   | { type: 'slot'; paneId: number; date: string; colAxis: ColAxis; colId: number | null; slotMin: number }
   | { type: 'weekSlot'; paneId: number; date: string; slotMin: number }
-  | { type: 'day'; date: string };
+  | { type: 'day'; paneId: number; date: string };
 
 /** 생성 드래그 중 화면에 칠하는 범위. 저장 초안과 같은 계산 결과만 받는다. */
 export interface CreatePreview {
@@ -357,7 +357,7 @@ export function DayGrid({
                       <div className="absolute inset-x-1 transition-[top,height]"
                            style={{ top: px(head.startMin) + 1, height: blockHeight }}>
                         {/* 세부 줄 수는 이 칸이 그린 높이가 정한다 — 블록이 제 높이를 넘치지 않는다 */}
-                        <EventBlock occ={head} subName={subName?.(head)} kindName={kindName?.(head)} zaccLabel={zaccLabel?.(head)}
+                        <EventBlock occ={head} paneId={paneId} subName={subName?.(head)} kindName={kindName?.(head)} zaccLabel={zaccLabel?.(head)}
                                     cap={capOf?.(head)} person={person} hideTime
                                     color={colorOf?.(head)} compact={head.endMin - head.startMin < 45}
                                     lines={blockDetailLines(blockHeight)}
@@ -378,7 +378,7 @@ export function DayGrid({
                              className="absolute left-1 right-1 z-20 flex flex-col gap-1 rounded-lg border border-line bg-card p-1.5 shadow-lg"
                              style={{ top: px(head.startMin) + 3 }}>
                           {cl.map((o) => (
-                            <EventBlock key={`${o.serId}|${o.onDate}`} occ={o} subName={subName?.(o)} kindName={kindName?.(o)}
+                            <EventBlock key={`${o.serId}|${o.onDate}`} occ={o} paneId={paneId} subName={subName?.(o)} kindName={kindName?.(o)}
                                         zaccLabel={zaccLabel?.(o)} color={colorOf?.(o)} compact
                                         onClick={() => { setOpenCluster(null); onOpen?.(o); }}
                                         onSelect={onSelect} selected={selected?.has(occurrenceKey(o))}
@@ -556,7 +556,7 @@ export function WeekGrid({
                         className="pointer-events-auto absolute left-1 right-1 z-20 flex flex-col gap-1 rounded-lg border border-line bg-card p-1.5 shadow-lg"
                         style={{ top: px(head.startMin) + 3 }}>
                         {cluster.map((o) => (
-                          <EventBlock key={occurrenceKey(o)} occ={o} subName={subName?.(o)} kindName={kindName?.(o)}
+                          <EventBlock key={occurrenceKey(o)} occ={o} paneId={paneId} subName={subName?.(o)} kindName={kindName?.(o)}
                             zaccLabel={zaccLabel?.(o)} color={colorOf?.(o)} compact
                             onClick={() => { setOpenCluster(null); onOpen?.(o); }}
                             onSelect={onSelect} selected={selected?.has(occurrenceKey(o))}
@@ -581,7 +581,7 @@ export function WeekGrid({
                                left,
                                width,
                              }}>
-                          <EventBlock occ={o} subName={subName?.(o)} kindName={kindName?.(o)} zaccLabel={zaccLabel?.(o)}
+                          <EventBlock occ={o} paneId={paneId} subName={subName?.(o)} kindName={kindName?.(o)} zaccLabel={zaccLabel?.(o)}
                                       cap={capOf?.(o)} person={person} hideTime
                                       color={colorOf?.(o)}
                                       compact={o.endMin - o.startMin < 45} lines={blockDetailLines(blockHeight)}
@@ -636,7 +636,7 @@ export function WeekGrid({
 /* ── §9 월간 — 달력 · 최대 3건 ───────────────────────────────────────── */
 
 export function MonthGrid({
-  date, items, grid, subName, kindName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onSelectDate, onPickDate, interactive, holidaysOf,
+  date, items, paneId = 0, grid, subName, kindName, colorOf, onOpen, onSelect, selected, cursorDate, onAdd, onSelectDate, onPickDate, interactive, holidaysOf,
 }: GridProps & { grid: string[] }) {
   const map = byDate(items);
   const mon = date.slice(0, 7);
@@ -653,7 +653,7 @@ export function MonthGrid({
       </div>
       <div className="grid grid-cols-7">
         {grid.map((d) => (
-          <CalCell key={d} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
+          <CalCell key={d} paneId={paneId} date={d} head={+d.slice(8, 10)} items={map.get(d) ?? EMPTY}
                    subName={subName} kindName={kindName} colorOf={colorOf} max={3} onOpen={onOpen} onSelect={onSelect} selected={selected}
                    active={cursorDate === d}
                    onAdd={onAdd} onSelectDate={onSelectDate} onPickDate={onPickDate} onMore={onPickDate}

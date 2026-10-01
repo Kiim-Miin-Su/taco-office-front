@@ -111,7 +111,7 @@ function Badge({ look, children }: { look: string; children: ReactNode }) {
 
 /** 드래그 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
 export type DragData =
-  | { type: 'move' | 'resize'; occ: Occurrence }
+  | { type: 'move' | 'resize'; occ: Occurrence; paneId: number }
   | {
       /** 빈 슬롯 범위 선택 — 저장 초안만 만들고 서버 판정은 SessionEditor가 맡는다. */
       type: 'create';
@@ -124,6 +124,8 @@ export type DragData =
 
 export interface EventBlockProps {
   occ: Occurrence;
+  /** 드래그 시작 표의 identity. 분할 표에서 focus 변경과 무관하게 출발 학생을 찾는다. */
+  paneId?: number;
   subName?: string;
   /** 종류 이름 — 코드표(meta)에서 온다. 기본 종류(수업)에는 배지를 달지 않는다 */
   kindName?: string;
@@ -163,19 +165,19 @@ export interface EventBlockProps {
 export const eventColorStyle = (color: string): CSSProperties => ({ '--event-color': color } as CSSProperties);
 
 export function EventBlock({
-  occ, subName, kindName, zaccLabel, cap, hideTime, flat, person, lines, color, compact, onClick, onSelect, selected, draggable, resizable,
+  occ, paneId = 0, subName, kindName, zaccLabel, cap, hideTime, flat, person, lines, color, compact, onClick, onSelect, selected, draggable, resizable,
 }: EventBlockProps) {
   const key = `${occ.serId}|${occ.onDate}`;
   // 선택은 회차 키를 공유하지만 같은 회차의 split 복제본은 서로 다른 DOM 노드다.
   const instanceId = useId();
   const move = useDraggable({
     id: `move|${instanceId}|${key}`,
-    data: { type: 'move', occ } satisfies DragData,
+    data: { type: 'move', occ, paneId } satisfies DragData,
     disabled: !draggable,
   });
   const resize = useDraggable({
     id: `resize|${instanceId}|${key}`,
-    data: { type: 'resize', occ } satisfies DragData,
+    data: { type: 'resize', occ, paneId } satisfies DragData,
     disabled: !resizable,
   });
 

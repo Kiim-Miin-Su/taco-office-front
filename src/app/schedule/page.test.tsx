@@ -687,6 +687,131 @@ describe('키보드 길 — 복사·잘라내기·붙여넣기·취소 (§5.2)',
     });
   });
 
+  it('분할 표에서 다른 강사를 고르면 오른쪽 빈 칸의 강사에게 붙여넣는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    const left = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(left).getByRole('button', { name: /^선택 강사/ }));
+    fireEvent.click(within(left).getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const otherTeacher = within(right).getByRole('button', { name: /^다른 강사/ });
+    fireEvent.pointerDown(otherTeacher);
+    fireEvent.click(otherTeacher);
+    const rightSlot = within(right).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' });
+    fireEvent.click(rightSlot);
+    expect(rightSlot.className).toContain('ring-2');
+    expect(within(left).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }).className)
+      .not.toContain('ring-2');
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({
+      kind: 'paste', body: { targetDate: '2026-09-03', targetStartMin: 810, teacherId: 22, cut: false },
+    });
+  });
+
+  it('붙일 표의 사람을 바꾸면 이전 빈 칸 커서를 버린다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 강사/ }));
+    fireEvent.click(within(pane).getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.click(within(pane).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    fireEvent.click(within(pane).getByRole('button', { name: /^다른 강사/ }));
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(view.getByText('붙여넣을 빈 칸을 먼저 선택하세요.')).toBeTruthy();
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it('학생 A 표에서 복사한 회차를 B 표에 붙이면 A만 B로 교체한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 학생/ }));
+    fireEvent.click(within(pane).getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.click(within(pane).getByRole('button', { name: /^다른 학생/ }));
+    fireEvent.click(within(pane).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    expect(view.getByText(/선택 학생 → 다른 학생 교체/)).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste',
+      body: { studentReplacement: { fromStudentId: 1, toStudentId: 2 },
+        targetDate: '2026-09-03', targetStartMin: 810 } });
+  });
+
+  it('학생 A→B 잘라내기는 동시 수강 학생의 원본 수업까지 취소할 수 있어 차단한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 학생/ }));
+    fireEvent.click(within(pane).getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'x', ctrlKey: true });
+    fireEvent.click(within(pane).getByRole('button', { name: /^다른 학생/ }));
+    fireEvent.click(within(pane).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(view.getByText(/동시 수강 학생의 원본 일정도 취소/)).toBeTruthy();
+  });
+
+  it('같은 그룹 수업을 B 학생 표에서 다시 단일 선택하면 복사 출처는 B로 갱신한다', () => {
+    const group = { ...items[0], students: [items[0].students[0], items[1].students[0]] };
+    mocks.occurrences.mockReturnValue({ data: { items: [group] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const left = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const otherStudent = within(right).getByRole('button', { name: /^다른 학생/ });
+    fireEvent.pointerDown(otherStudent);
+    fireEvent.click(otherStudent);
+    fireEvent.click(within(left).getByRole('button', { name: /선택된 수업/ }));
+    fireEvent.click(within(right).getByRole('button', { name: /선택된 수업/ }));
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.click(within(left).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste',
+      body: { studentReplacement: { fromStudentId: 2, toStudentId: 1 } } });
+  });
+
+  it('같은 학생 표 붙여넣기는 저장 시점 명단 재검증 조건을 서버에 보낸다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 학생/ }));
+    fireEvent.click(within(pane).getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.click(within(pane).getByRole('button', { name: '2026-09-03 13:30 빈 시간 선택' }));
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste',
+      body: { requiredStudentId: 1, targetDate: '2026-09-03', targetStartMin: 810 } });
+  });
+
+  it('강사 세로선 하위열의 붙여넣기 대상은 원본 강사가 아니라 선택한 열이다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'c', ctrlKey: true });
+    fireEvent.change(view.getByRole('combobox', { name: '세로선 기준' }), { target: { value: 'teacher' } });
+    fireEvent.click(view.getByRole('button', { name: '세로선 나누기' }));
+    fireEvent.click(view.getByRole('button', { name: '2026-09-01 13:30 강사 22 빈 시간 선택' }));
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({
+      kind: 'paste', body: { targetDate: '2026-09-01', targetStartMin: 810, teacherId: 22, cut: false },
+    });
+  });
+
   it('빠른 이중 클릭과 키 repeat는 paste POST를 한 번만 보낸다', () => {
     const view = render(<SchedulePage />);
     fireEvent.click(view.getByRole('button', { name: /선택된 수업/ }), { metaKey: true });
@@ -1272,6 +1397,17 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
       body: { endMin: 750, onDate: '2026-09-01', scope: 'this' } });
   });
 
+  it('학생 개인 표의 길이 조절도 저장 시점 원본 명단을 확인한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 학생/ }));
+    finish(resize(items[0], 28));
+
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'patch',
+      body: { requiredStudentId: 1 } });
+  });
+
   it('길이 조절 취소는 미리보기를 지우고 저장하지 않으며 변경 없는 드롭도 저장하지 않는다', () => {
     const view = render(<SchedulePage />);
     const event = resize(items[0], 28);
@@ -1297,6 +1433,149 @@ describe('드롭 대상 시각과 자정 쓰기 경계', () => {
       body: { date: '2026-09-02', startMin: 975, endMin: 1035, onDate: '2026-09-01', scope: 'this' } });
     expect(mocks.write.mock.calls[0][0].body).not.toHaveProperty('roomId');
     expect(mocks.write.mock.calls[0][0].body).not.toHaveProperty('teacherId');
+  });
+
+  it.each([true, false])('분할 강사 표 B로 %s 드래그하면 대상 강사를 쓴다', (copy) => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const teacher = within(right).getByRole('button', { name: /^다른 강사/ });
+    fireEvent.pointerDown(teacher);
+    fireEvent.click(teacher);
+    const event = drop(items[0]);
+    event.over!.data.current = { type: 'weekSlot', paneId: 1, date: '2026-09-02', slotMin: 900 };
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: new MouseEvent('pointerdown', { ctrlKey: copy }) }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-target-preview]')?.textContent).toContain('다른 강사');
+    act(() => mocks.drag!.onDragEnd?.(event));
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject(copy
+      ? { kind: 'paste', body: { teacherId: 22, cut: false } }
+      : { kind: 'patch', serId: 1, body: { teacherId: 22 } });
+  });
+
+  it('분할 학생 표 B로 Ctrl+드래그하면 원본 A만 B로 교체한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const student = within(right).getByRole('button', { name: /^다른 학생/ });
+    fireEvent.pointerDown(student);
+    fireEvent.click(student);
+    const event = drop(items[0]);
+    event.over!.data.current = { type: 'weekSlot', paneId: 1, date: '2026-09-02', slotMin: 900 };
+    act(() => mocks.drag!.onDragStart?.({ active: event.active, activatorEvent: new MouseEvent('pointerdown', { ctrlKey: true }) }));
+    act(() => mocks.drag!.onDragMove?.(event as never));
+    expect(view.container.querySelector('[data-target-preview]')?.textContent).toContain('다른 학생');
+    act(() => mocks.drag!.onDragEnd?.(event));
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste',
+      body: { studentReplacement: { fromStudentId: 1, toStudentId: 2 }, cut: false } });
+  });
+
+  it('오른쪽 학생 표의 실제 draggable은 출발 pane 1을 담는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const otherStudent = within(right).getByRole('button', { name: /^다른 학생/ });
+    fireEvent.pointerDown(otherStudent);
+    fireEvent.click(otherStudent);
+    const block = within(right).getByRole('button', { name: /다른 수업/ });
+    const node = [...mocks.context!.draggableNodes.values()].find((entry) =>
+      entry?.node.current === block && entry?.data.current?.type === 'move');
+    expect(node?.data.current).toMatchObject({ type: 'move', paneId: 1, occ: { serId: 2 } });
+  });
+
+  it('학생 B 표로 여러 일정을 이동할 때 선택한 모든 원본의 명단을 확인한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const left = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(left).getByRole('button', { name: /^선택 학생/ }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const otherStudent = within(right).getByRole('button', { name: /^다른 학생/ });
+    fireEvent.pointerDown(otherStudent);
+    fireEvent.click(otherStudent);
+    fireEvent.click(within(left).getByRole('button', { name: /선택된 수업/ }), { ctrlKey: true });
+    fireEvent.click(within(right).getByRole('button', { name: /다른 수업/ }), { ctrlKey: true });
+    const event = drop(items[1]);
+    event.over!.data.current = { type: 'weekSlot', paneId: 1, date: '2026-09-02', slotMin: 900 };
+    finish(event);
+
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(view.getByText(/다른 학생 표로/)).toBeTruthy();
+  });
+
+  it('A와 B가 같은 그룹 수업에 있어도 A 표에서 B 표로 일반 이동하지 않는다', () => {
+    const group = { ...items[0], students: [items[0].students[0], items[1].students[0]] };
+    mocks.occurrences.mockReturnValue({ data: { items: [group] }, isLoading: false, isError: false });
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const otherStudent = within(right).getByRole('button', { name: /^다른 학생/ });
+    fireEvent.pointerDown(otherStudent);
+    fireEvent.click(otherStudent);
+    const event = drop(group);
+    event.active.data.current = { type: 'move', occ: group, paneId: 0 };
+    event.over!.data.current = { type: 'weekSlot', paneId: 1, date: '2026-09-02', slotMin: 900 };
+    finish(event);
+
+    expect(mocks.write).not.toHaveBeenCalled();
+    expect(view.getByText(/다른 학생 표로 일정 이동/)).toBeTruthy();
+  });
+
+  it('같은 학생 개인 표로 Ctrl+드래그할 때도 서버 명단 재검증 조건을 싣는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 학생/ }));
+    const event = drop(items[0]);
+    event.over!.data.current = { type: 'weekSlot', paneId: 0, date: '2026-09-02', slotMin: 900 };
+    finish(event, true);
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste',
+      body: { requiredStudentId: 1, cut: false } });
+  });
+
+  it('같은 학생 개인 표에서 일반 드래그 이동에도 저장 시점 명단 조건을 싣는다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '학생별' }));
+    const pane = view.container.querySelector<HTMLElement>('[data-calendar-pane="0"]')!;
+    fireEvent.click(within(pane).getByRole('button', { name: /^선택 학생/ }));
+    const event = drop(items[0]);
+    event.over!.data.current = { type: 'weekSlot', paneId: 0, date: '2026-09-02', slotMin: 900 };
+    finish(event);
+
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'patch',
+      body: { requiredStudentId: 1 } });
+  });
+
+  it('분할 강사 월간 날짜 칸으로 Ctrl+드래그해도 오른쪽 강사에게 복제한다', () => {
+    const view = render(<SchedulePage />);
+    fireEvent.click(view.getByRole('button', { name: '선생님별' }));
+    fireEvent.click(view.getByRole('button', { name: '표 나누기' }));
+    const right = view.container.querySelector<HTMLElement>('[data-calendar-pane="1"]')!;
+    const teacher = within(right).getByRole('button', { name: /^다른 강사/ });
+    fireEvent.pointerDown(teacher);
+    fireEvent.click(teacher);
+    fireEvent.click(within(right).getByRole('button', { name: '월간' }));
+    const targetCell = within(right).getByRole('group', { name: /2026-09-02 날짜 칸/ });
+    const targetDrop = [...mocks.context!.droppableContainers.values()].find((container) =>
+      container.node.current === targetCell);
+    expect(targetDrop?.data.current).toMatchObject({ type: 'day', paneId: 1, date: '2026-09-02' });
+    const event = drop(items[0]);
+    event.over!.data.current = targetDrop?.data.current;
+    finish(event, true);
+
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    expect(mocks.write.mock.calls[0][0]).toMatchObject({ kind: 'paste',
+      body: { targetDate: '2026-09-02', targetStartMin: 660, teacherId: 22, cut: false } });
   });
 
   it('성공한 마지막 이동은 서버 undo token 하나로 Ctrl/⌘+Z하고 토큰을 즉시 폐기한다', () => {

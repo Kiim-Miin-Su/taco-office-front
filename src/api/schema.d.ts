@@ -239,7 +239,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 회차 목록 — 일간·주간·월간·학생별·선생님별이 모두 이것을 쓴다 */
+        /**
+         * 회차 목록 — 일간·주간·월간·학생별·선생님별이 모두 이것을 쓴다
+         * @description 한 번에 조회하는 기간은 양 끝 날짜를 포함해 최대 366일이다.
+         */
         get: operations["ScheduleController_list"];
         put?: never;
         post?: never;
@@ -256,7 +259,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 공휴일 이름표 — 기간 안의 날만 (표시 전용 · 일정을 막지 않는다) */
+        /**
+         * 공휴일 이름표 — 기간 안의 날만 (표시 전용 · 일정을 막지 않는다)
+         * @description 한 번에 조회하는 기간은 양 끝 날짜를 포함해 최대 366일이다.
+         */
         get: operations["ScheduleController_holidays"];
         put?: never;
         post?: never;
@@ -273,7 +279,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 강사 불가 시간(관리자 읽기) — 「가능 시간」 겹쳐 보기 · 빈 시간 찾기 */
+        /**
+         * 강사 불가 시간(관리자 읽기) — 「가능 시간」 겹쳐 보기 · 빈 시간 찾기
+         * @description 한 번에 조회하는 기간은 양 끝 날짜를 포함해 최대 366일이다.
+         */
         get: operations["ScheduleController_unavailable"];
         put?: never;
         post?: never;
@@ -4050,7 +4059,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** §19 변경 요청 넣기 — 겹치면 **누구와** 겹치는지 돌려주고 넣지 않는다 */
+        /**
+         * §19 변경 요청 넣기 — 겹치면 **누구와** 겹치는지 돌려주고 넣지 않는다
+         * @description requestKey를 보낸 새 화면은 같은 작성자·정규화된 본문의 재시도에 기존 id를 받는다. 다른 작성자·본문에 같은 키를 쓰면 409다. 기존 무키 화면은 배포 호환을 위해 받는다.
+         */
         post: operations["DrawerController_createChangeReq"];
         delete?: never;
         options?: never;
@@ -5132,6 +5144,10 @@ export interface components {
              */
             onDate: string;
         };
+        StudentReplacementDto: {
+            fromStudentId: number;
+            toStudentId: number;
+        };
         OccurrencePasteDto: {
             sources: components["schemas"]["OccurrenceRefDto"][];
             /** @enum {string} */
@@ -5144,6 +5160,10 @@ export interface components {
             teacherId?: number | null;
             /** @description 대상 강의실 축이면 덮어쓴다 */
             roomId?: number | null;
+            /** @description 학생별 표의 안전 조건: 원본 각 회차에 이 학생이 저장 시점에도 있어야 한다. 명단을 바꾸지는 않는다 */
+            requiredStudentId?: number;
+            /** @description 새 SER의 유효 명단에서 출발 학생 한 명만 대상 학생으로 바꾼다. 원본은 보존한다. cut=true와 함께 사용할 수 없다 */
+            studentReplacement?: components["schemas"]["StudentReplacementDto"];
             /**
              * @description true면 붙여넣기 성공과 같은 트랜잭션에서 원본 회차를 취소한다
              * @default false
@@ -5163,6 +5183,8 @@ export interface components {
             items: components["schemas"]["OccurrenceMoveItemDto"][];
             /** @enum {string} */
             scope: "this" | "future" | "all";
+            /** @description 학생 개인 표 이동 안전 조건: 모든 원본 회차에 이 학생이 저장 시점에도 있어야 한다 */
+            requiredStudentId?: number;
         };
         DayCancelDto: {
             /**
@@ -5274,6 +5296,8 @@ export interface components {
              * @description 다른 날로 옮길 때만
              */
             date?: string | null;
+            /** @description 학생 개인 표 이동 안전 조건: 저장 시점 원본 회차에도 이 학생이 있어야 한다 */
+            requiredStudentId?: number;
             /** @description SER 종류. 반복 수업은 future/all 범위에서만 변경 */
             kindKey?: string;
             /** @description SER 과목. null이면 과목 없음 */
@@ -13231,7 +13255,7 @@ export interface operations {
                     "application/json": components["schemas"]["OccurrenceListDto"];
                 };
             };
-            /** @description 입력 오류. 일정 쓰기의 코드표·직원·강의실·학생 참조가 없으면 REFERENCE_NOT_FOUND. 최종 상속 시간 또는 일정 DB 시간 제약 위반은 BAD_RANGE. 저장 전체를 취소하며 {code,message}로 반환한다 */
+            /** @description BAD_RANGE: from 이 to 보다 뒤이거나 조회 기간이 366일 초과 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13307,7 +13331,7 @@ export interface operations {
                     "application/json": components["schemas"]["HolidayListDto"];
                 };
             };
-            /** @description BAD_RANGE: from 이 to 보다 뒤 */
+            /** @description BAD_RANGE: from 이 to 보다 뒤이거나 조회 기간이 366일 초과 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13385,7 +13409,7 @@ export interface operations {
                     "application/json": components["schemas"]["ScheduleUnavListDto"];
                 };
             };
-            /** @description BAD_RANGE: from 이 to 보다 뒤 */
+            /** @description BAD_RANGE: from 이 to 보다 뒤이거나 조회 기간이 366일 초과 */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -29709,7 +29733,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description CHREQ_REQUEST_KEY_REUSED — 같은 요청키의 작성자 또는 내용이 다르다 */
             409: {
                 headers: {
                     [name: string]: unknown;

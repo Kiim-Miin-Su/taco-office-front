@@ -115,6 +115,7 @@ interface DropPreview {
   date: string;
   startMin: number;
   endMin: number;
+  targetLabel: string;
 }
 
 const CREATE_SCOPE_ERROR = '새 일정은 같은 표·날짜·열 안에서 시간을 드래그해 주세요.';
@@ -158,6 +159,31 @@ function personDraft(pane: CalendarPaneState): Pick<SessionDraft, 'studentIds' |
   return {};
 }
 
+/** 일반 이동은 학생 명단을 바꾸지 않으므로 대상 학생이 없는 회차를 그 표에 넣지 않는다. */
+function studentTargetIssue(pane: CalendarPaneState, items: readonly Occurrence[]): string | null {
+  if (pane.view !== 'student' || pane.personId === null) return null;
+  return items.some((item) => !item.students.some((student) => student.id === pane.personId && !student.droppedOnce))
+    ? '다른 학생 표로 일정 이동은 아직 지원하지 않습니다. 원본 학생 명단과 일정은 그대로 유지했습니다.'
+    : null;
+}
+
+interface StudentReplacement { fromStudentId: number; toStudentId: number }
+
+/** 복사는 원본 개인표의 A만 대상 B로 치환한다. 출처가 불분명하면 명단을 추측하지 않는다. */
+function studentPasteTarget(
+  pane: CalendarPaneState, items: readonly Occurrence[], sourceStudentId: number | null,
+): { issue: string | null; fields: { requiredStudentId?: number; studentReplacement?: StudentReplacement } } {
+  if (pane.view !== 'student' || pane.personId === null) return { issue: null, fields: {} };
+  if (sourceStudentId !== null && sourceStudentId !== pane.personId) {
+    return items.every((item) => item.students.some((student) => student.id === sourceStudentId && !student.droppedOnce))
+      ? { issue: null, fields: { studentReplacement: { fromStudentId: sourceStudentId, toStudentId: pane.personId } } }
+      : { issue: '원본 학생 명단이 달라졌습니다. 학생별 표에서 다시 선택해 주세요.', fields: {} };
+  }
+  const issue = studentTargetIssue(pane, items);
+  return issue ? { issue: '다른 학생에게 복사하려면 원본 학생별 표에서 일정을 선택해 주세요.', fields: {} }
+    : { issue: null, fields: { requiredStudentId: pane.personId } };
+}
+
 /** 개인 도구줄의 기간 칸 — 원본 §10·§11 은 「주간 · 일간 · 월간」 순서로 놓는다. */
 const PERSON_PERIODS: Array<{ value: PersonPeriod; label: string }> = [
   { value: 'week', label: '주간' },
@@ -178,13 +204,18 @@ interface S {
   open: Occurrence | null;
   /** 같은 회차가 분할 표에 여러 번 보여도 `serId|onDate` 하나로 선택한다. */
   selected: string[];
+  /** 분할 학생 표에서 선택한 회차마다 출발 학생을 보존한다. focus만으로 A를 추측하지 않는다. */
+  selectedOrigins: Record<string, number | null>;
   /** 브라우저 clipboard 와 섞지 않는 앱 내부 상태 (§5.2). */
-  clipboard: { items: Occurrence[]; cut: boolean } | null;
+  clipboard: { items: Occurrence[]; cut: boolean; sourceStudentId: number | null } | null;
   /** Ctrl/⌘+V가 붙을 리프 칸. 선택과 별개라 reducer에 명시한다. */
   cursor: PasteCursor | null;
 }
 
 interface PasteCursor {
+  paneId: CalendarPaneIndex;
+  view: View;
+  personId: number | null;
   date: string;
   startMin: number;
   colAxis?: 'room' | 'teacher';
@@ -205,7 +236,7 @@ type A =
   | { t: 'personAt'; index: CalendarPaneIndex; id: number }
   | { t: 'personPeriod'; v: PersonPeriod }
   | { t: 'open'; o: Occurrence | null }
-  | { t: 'selected'; keys: string[] }
+  | { t: 'selected'; keys: string[]; sourceStudentId?: number | null; originKey?: string }
   | { t: 'clipboard'; value: S['clipboard'] }
   | { t: 'cursor'; value: PasteCursor | null }
   | { t: 'focus'; index: CalendarPaneIndex }
@@ -220,6 +251,7 @@ function reducer(s: S, a: A): S {
   const pane = s.panes[s.focused] ?? s.panes[0];
   const patchPane = (patch: Partial<CalendarPaneState>): S => ({
     ...s,
+    cursor: s.cursor?.paneId === s.focused ? null : s.cursor,
     panes: updatePane(s.panes, s.focused, patch),
   });
   switch (a.t) {
@@ -251,6 +283,7 @@ function reducer(s: S, a: A): S {
         ...patchPane({ date: a.d, view: 'day' }),
         open: null,
         selected: [],
+        selectedOrigins: {},
       };
     case 'deepLinkStudent':
       return {
@@ -258,6 +291,7 @@ function reducer(s: S, a: A): S {
         filters: { ...s.filters, studentId: null },
         open: null,
         selected: [],
+        selectedOrigins: {},
       };
     case 'step': return patchPane({ date: step(paneView(pane), pane.date, a.dir) });
     case 'personPeriod': return patchPane({ personPeriod: a.v });
@@ -277,32 +311,36 @@ function reducer(s: S, a: A): S {
       const target = s.panes[a.index];
       // 그 사이 사람을 골랐거나 보기가 바뀌었으면 건드리지 않는다 — 사람이 고른 것을 덮지 않는다
       if (!target || target.personId !== null || (target.view !== 'student' && target.view !== 'teacher')) return s;
-      return { ...s, panes: updatePane(s.panes, a.index, { personId: a.id }) };
+      return { ...s, cursor: s.cursor?.paneId === a.index ? null : s.cursor,
+        panes: updatePane(s.panes, a.index, { personId: a.id }) };
     }
     case 'open': return { ...s, open: a.o };
-    case 'selected': return { ...s, selected: a.keys };
+    case 'selected': return { ...s, selected: a.keys,
+      selectedOrigins: Object.fromEntries(a.keys.map((key) => [key,
+        key !== a.originKey && Object.prototype.hasOwnProperty.call(s.selectedOrigins, key)
+          ? s.selectedOrigins[key] : (a.sourceStudentId ?? null)])) };
     case 'clipboard': return { ...s, clipboard: a.value, cursor: a.value ? s.cursor : null };
     case 'cursor': return { ...s, cursor: a.value };
     case 'focus': return { ...s, focused: a.index };
     case 'split':
       return s.panes.length === 1
-        ? { ...s, panes: splitPanes(pane), focused: 0, ratio: 0.5 }
-        : { ...s, panes: unsplitPanes(s.panes, s.focused), focused: 0, ratio: 0.5 };
-    case 'dayColumns': return { ...patchPane({ dayColumns: !pane.dayColumns }), cursor: null };
-    case 'dayAxis': return { ...patchPane({ dayAxis: a.v }), cursor: null };
+        ? { ...s, panes: splitPanes(pane), focused: 0, ratio: 0.5, cursor: null }
+        : { ...s, panes: unsplitPanes(s.panes, s.focused), focused: 0, ratio: 0.5, cursor: null };
+    case 'dayColumns': return patchPane({ dayColumns: !pane.dayColumns });
+    case 'dayAxis': return patchPane({ dayAxis: a.v });
     case 'ratio': return { ...s, ratio: Math.max(0, Math.min(1, a.value)) };
     case 'filters': return { ...s, filters: a.value };
   }
 }
 
 /** PATCH 본문에서 scope·onDate 를 뺀 것 — 드롭이 계산하고, 범위는 사람이 고른다 */
-type PendingPatch = Omit<OccurrencePatch, 'scope' | 'onDate'>;
+type PendingPatch = Omit<OccurrencePatch, 'scope' | 'onDate'> & { requiredStudentId?: number };
 type PendingPaste = {
   items: Occurrence[];
-  target: Omit<OccurrencePaste, 'sources' | 'scope'>;
+  target: Omit<OccurrencePaste, 'sources' | 'scope'> & { studentReplacement?: StudentReplacement };
   fromClipboard: boolean;
 };
-type PendingMoveMany = { occurrences: Occurrence[]; items: OccurrenceMove['items'] };
+type PendingMoveMany = { occurrences: Occurrence[]; items: OccurrenceMove['items']; requiredStudentId?: number };
 
 /** 텍스트 입력에서 Ctrl+C 같은 기본 동작을 가로채지 않는다 (§5A.6). */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -352,7 +390,7 @@ function AdminSchedulePage() {
       date: requestedDate ?? todayKst(),
       personId: requestedStudentId,
     }], focused: 0, ratio: 0.5, open: null,
-    selected: [], clipboard: null, cursor: null, filters: INITIAL_SCHEDULE_FILTERS,
+    selected: [], selectedOrigins: {}, clipboard: null, cursor: null, filters: INITIAL_SCHEDULE_FILTERS,
   });
   const meta = useMeta();
   const hz = useHorizon();
@@ -588,7 +626,7 @@ function AdminSchedulePage() {
 
   const submitMoveMany = (pending: PendingMoveMany, scope: Scope) => {
     write.mutate(
-      { kind: 'moveMany', body: { items: pending.items, scope } },
+      { kind: 'moveMany', body: { items: pending.items, scope, requiredStudentId: pending.requiredStudentId } },
       {
         onError: (e) => failWrite(e, {
           date: pending.items[0].date,
@@ -609,6 +647,7 @@ function AdminSchedulePage() {
     targetDate: string,
     targetStartMin: number,
     resource: { teacherId?: number | null; roomId?: number | null } = {},
+    requiredStudentId?: number,
   ): boolean => {
     const occurrences = selectedOccurrences(filteredAll, s.selected);
     if (occurrences.length < 2) return false;
@@ -619,6 +658,7 @@ function AdminSchedulePage() {
     }
     const pending: PendingMoveMany = {
       occurrences,
+      requiredStudentId,
       items: placed.map((x) => ({
         source: { serId: x.source.serId, date: x.source.date, onDate: x.source.onDate },
         date: x.date,
@@ -641,7 +681,11 @@ function AdminSchedulePage() {
       setCreatePreview(null);
       return;
     }
-    if (!s.selected.includes(occurrenceKey(d.occ))) go({ t: 'selected', keys: [occurrenceKey(d.occ)] });
+    if (!s.selected.includes(occurrenceKey(d.occ))) {
+      const sourcePane = s.panes[d.paneId ?? 0];
+      go({ t: 'selected', keys: [occurrenceKey(d.occ)],
+        sourceStudentId: sourcePane?.view === 'student' ? sourcePane.personId : null });
+    }
     const activator = e.activatorEvent as MouseEvent;
     dragCopyRef.current = d.type === 'move' && (activator.ctrlKey || activator.metaKey);
     setDragCopy(dragCopyRef.current);
@@ -656,18 +700,41 @@ function AdminSchedulePage() {
     occ: Occurrence,
     over: DragMoveEvent['over'] | DragEndEvent['over'],
     translatedTop: number | null | undefined,
+    sourcePaneId = 0,
+    copy = false,
   ): DropPreview | null => {
     const target = over?.data.current as DropData | undefined;
     if (!over || !target) return null;
+    const targetPane = s.panes[target.paneId ?? 0];
+    if (!targetPane) return null;
+    const sourcePane = s.panes[sourcePaneId];
+    const personName = (view: 'student' | 'teacher', id: number) => view === 'student'
+      ? (meta.data?.students.find((person) => person.id === id)?.name ?? `#${id}`)
+      : (meta.data?.staff.find((person) => person.id === id)?.name ?? `#${id}`);
+    const sourceStudentId = sourcePane?.view === 'student' ? sourcePane.personId : null;
+    const sourceTeacherId = sourcePane?.view === 'teacher' ? sourcePane.personId : null;
+    const personTarget = targetPane.view === 'student' && targetPane.personId !== null
+      ? `학생 ${copy && sourceStudentId !== null && sourceStudentId !== targetPane.personId
+        ? `${personName('student', sourceStudentId)} → ` : ''}${personName('student', targetPane.personId)}`
+      : targetPane.view === 'teacher' && targetPane.personId !== null
+        ? `강사 ${sourceTeacherId !== null && sourceTeacherId !== targetPane.personId
+          ? `${personName('teacher', sourceTeacherId)} → ` : ''}${personName('teacher', targetPane.personId)}`
+        : '';
+    const axisTarget = target.type === 'slot' && target.colId !== null
+      ? target.colAxis === 'teacher'
+        ? `강사 ${personName('teacher', target.colId)}`
+        : `강의실 ${meta.data?.rooms.find((room) => room.id === target.colId)?.name ?? `#${target.colId}`}`
+      : '';
+    const targetLabel = [personTarget, axisTarget].filter((part, index, parts) => part && parts.indexOf(part) === index).join(' · ');
     const duration = occ.endMin - occ.startMin;
     if (target.type === 'day') {
       return lessonTimeIssue(occ.startMin, occ.endMin)
-        ? null : { date: target.date, startMin: occ.startMin, endMin: occ.endMin };
+        ? null : { date: target.date, startMin: occ.startMin, endMin: occ.endMin, targetLabel };
     }
     const startMin = translatedTop === null || translatedTop === undefined
       ? null : slotStartMin(target.slotMin, over.rect.top, over.rect.height, translatedTop);
     if (startMin === null || lessonTimeIssue(startMin, startMin + duration)) return null;
-    return { date: target.date, startMin, endMin: startMin + duration };
+    return { date: target.date, startMin, endMin: startMin + duration, targetLabel };
   };
 
   const onDragMove = (e: DragMoveEvent) => {
@@ -687,7 +754,8 @@ function AdminSchedulePage() {
       setDropPreview(null);
       return;
     }
-    setDropPreview(dropTarget(d.occ, e.over, e.active.rect.current.translated?.top));
+    setDropPreview(dropTarget(d.occ, e.over, e.active.rect.current.translated?.top,
+      d.paneId ?? 0, dragCopyRef.current));
   };
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -704,7 +772,9 @@ function AdminSchedulePage() {
     if (!d) return;
     if (d.type === 'create') {
       if (isClickSizedCreateDrag(e.delta.y)) {
-        selectSlot(d.date, d.startMin, d.colAxis, d.colId);
+        if (d.paneId !== 0 && d.paneId !== 1) return;
+        const pane = s.panes[d.paneId];
+        if (pane) selectSlot(d.paneId, pane, d.date, d.startMin, d.colAxis, d.colId);
         return;
       }
       const { preview, issue } = createRange(d, e.over, e.delta.y);
@@ -729,25 +799,61 @@ function AdminSchedulePage() {
     }
     if (d.type === 'resize') {
       // 길이 조절은 드롭 타깃이 없다 — 델타만 본다 (C-3)
-      request(d.occ, resizePatch(d.occ, e.delta.y));
+      const resized = resizePatch(d.occ, e.delta.y);
+      const sourcePane = s.panes[d.paneId ?? 0];
+      request(d.occ, resized && sourcePane?.view === 'student' && sourcePane.personId !== null
+        ? { ...resized, requiredStudentId: sourcePane.personId } : resized);
       return;
     }
     const over = e.over?.data.current as DropData | undefined;
     if (!over) return;
+    // 분할 표와 세로선 하위열은 드롭한 리프가 소유한 사람을 쓴다. legacy 단일 표 payload만 pane 0이다.
+    const targetPaneId = over.paneId ?? 0;
+    if (targetPaneId !== 0 && targetPaneId !== 1) return;
+    const targetPane = s.panes[targetPaneId];
+    if (!targetPane) return;
+    const sourcePane = s.panes[d.paneId ?? 0];
+    const pasteStudent = copy ? studentPasteTarget(targetPane, [d.occ],
+      sourcePane?.view === 'student' ? sourcePane.personId : null) : null;
+    // 여러 건 이동은 anchor만이 아니라 함께 옮길 모든 회차가 대상 학생 표에 속해야 한다.
+    const moving = copy ? [] : selectedOccurrences(filteredAll, s.selected);
+    // 원본에 A·B가 모두 있어도 일반 A→B 이동은 명단 치환 계약이 아니다. 복사만 교체한다.
+    const movingAcrossStudents = !copy && sourcePane?.view === 'student' && targetPane.view === 'student'
+      && sourcePane.personId !== null && targetPane.personId !== null
+      && sourcePane.personId !== targetPane.personId;
+    const studentIssue = movingAcrossStudents
+      ? '다른 학생 표로 일정 이동은 아직 지원하지 않습니다. 원본 학생 명단과 일정은 그대로 유지했습니다.'
+      : pasteStudent?.issue ?? (copy ? null
+        : studentTargetIssue(targetPane, moving.length >= 2 ? moving : [d.occ]));
+    if (studentIssue) {
+      setErr(studentIssue);
+      return;
+    }
+    const resource: { teacherId?: number | null; roomId?: number | null } = over.type === 'slot'
+      ? (over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId })
+      : {};
+    if (targetPane.view === 'teacher' && targetPane.personId !== null && resource.teacherId === undefined) {
+      resource.teacherId = targetPane.personId;
+    }
+    const requiredStudent = pasteStudent?.fields ?? {};
+    const requiredStudentMoveId = targetPane.view === 'student' && targetPane.personId !== null
+      ? targetPane.personId : sourcePane?.view === 'student' ? sourcePane.personId ?? undefined : undefined;
+    const moveGuard = requiredStudentMoveId === undefined ? {} : { requiredStudentId: requiredStudentMoveId };
     if (over.type === 'day') {
       // 주간·월간 — 칸이 곧 날짜다. 시각은 그대로 간다
       if (copy) {
         requestPaste({
           items: [d.occ], fromClipboard: false,
-          target: { targetDate: over.date, targetStartMin: d.occ.startMin, cut: false },
+          target: { targetDate: over.date, targetStartMin: d.occ.startMin, cut: false, ...resource, ...requiredStudent },
         });
-      } else if (!requestMoveMany(d.occ, over.date, d.occ.startMin)) {
-        request(d.occ, movePatch(d.occ, { date: over.date }));
+      } else if (!requestMoveMany(d.occ, over.date, d.occ.startMin, resource, requiredStudentMoveId)) {
+        const patch = movePatch(d.occ, { date: over.date, ...resource });
+        request(d.occ, patch ? { ...patch, ...moveGuard } : null);
       }
       return;
     }
     // 대상 slot과 블록의 상단은 같은 viewport 좌표다. 다른 pane의 시작 시각·스크롤도 반영한다.
-    const projected = dropTarget(d.occ, e.over, e.active.rect.current.translated?.top);
+    const projected = dropTarget(d.occ, e.over, e.active.rect.current.translated?.top, d.paneId ?? 0, copy);
     const startMin = projected?.startMin ?? null;
     const issue = startMin === null ? '놓은 위치의 시각을 확인할 수 없습니다. 다시 놓아 주세요.'
       : lessonTimeIssue(startMin, startMin + d.occ.endMin - d.occ.startMin);
@@ -755,16 +861,14 @@ function AdminSchedulePage() {
       setErr(issue);
       return;
     }
-    // 주간 슬롯은 시각만 바꾼다. 강의실/강사 축이 있는 일간 슬롯만 자원 변경을 계약에 싣는다.
-    const resource = over.type === 'slot'
-      ? (over.colAxis === 'teacher' ? { teacherId: over.colId } : { roomId: over.colId })
-      : {};
+    // 주간 슬롯도 다른 강사의 개인 표라면 대상 강사를 계약에 싣는다.
     const t = {
       date: over.date,
       startMin,
       ...resource,
     };
-    const patch = movePatch(d.occ, t);
+    const moved = movePatch(d.occ, t);
+    const patch = moved ? { ...moved, ...moveGuard } : null;
     if (copy) {
       requestPaste({
         items: [d.occ], fromClipboard: false,
@@ -773,6 +877,7 @@ function AdminSchedulePage() {
           targetStartMin: startMin,
           cut: false,
           ...resource,
+          ...requiredStudent,
         },
       });
     } else if (!requestMoveMany(
@@ -780,6 +885,7 @@ function AdminSchedulePage() {
       over.date,
       startMin,
       resource,
+      requiredStudentMoveId,
     )) {
       request(d.occ, patch);
     }
@@ -855,8 +961,9 @@ function AdminSchedulePage() {
   }, [all, occurrencesLoading, requestedOnDate, requestedSerId]);
 
   const selectedSet = useMemo(() => new Set(s.selected), [s.selected]);
-  const select = (occ: Occurrence, mode: SelectMode) => {
-    go({ t: 'selected', keys: selectOccurrenceKeys(filteredAll, s.selected, occ, mode) });
+  const select = (pane: CalendarPaneState, occ: Occurrence, mode: SelectMode) => {
+    go({ t: 'selected', keys: selectOccurrenceKeys(filteredAll, s.selected, occ, mode),
+      sourceStudentId: pane.view === 'student' ? pane.personId : null, originKey: occurrenceKey(occ) });
   };
 
   /** 복사 시점에는 DB를 바꾸지 않는다. X도 붙여넣기 성공 전까지 원본을 보존한다. */
@@ -867,7 +974,10 @@ function AdminSchedulePage() {
     }
     const picked = selectedOccurrences(filteredAll, s.selected);
     if (!picked.length) return;
-    go({ t: 'clipboard', value: { items: picked, cut } });
+    const origins = picked.map((item) => s.selectedOrigins[occurrenceKey(item)] ?? null);
+    const sourceStudentId = origins[0] !== null && origins.every((id) => id === origins[0])
+      ? origins[0] : null;
+    go({ t: 'clipboard', value: { items: picked, cut, sourceStudentId } });
     go({ t: 'cursor', value: null });
   };
 
@@ -886,6 +996,21 @@ function AdminSchedulePage() {
       return;
     }
     const c = s.cursor;
+    const pane = s.panes[c.paneId];
+    if (!pane || pane.view !== c.view || pane.personId !== c.personId) {
+      go({ t: 'cursor', value: null });
+      setErr('붙일 표의 대상이 바뀌었습니다. 빈 칸을 다시 선택하세요.');
+      return;
+    }
+    const pasteStudent = studentPasteTarget(pane, s.clipboard.items, s.clipboard.sourceStudentId);
+    if (pasteStudent.issue) {
+      setErr(pasteStudent.issue);
+      return;
+    }
+    if (s.clipboard.cut && pasteStudent.fields.studentReplacement) {
+      setErr('학생 간 잘라내기는 동시 수강 학생의 원본 일정도 취소할 수 있어 지원하지 않습니다. 복사(C)를 사용해 주세요.');
+      return;
+    }
     requestPaste({
       items: s.clipboard.items,
       fromClipboard: true,
@@ -893,8 +1018,10 @@ function AdminSchedulePage() {
         targetDate: c.date,
         targetStartMin: c.startMin,
         cut: s.clipboard.cut,
-        ...(c.colAxis === 'teacher' ? { teacherId: c.colId } : {}),
+        ...(c.colAxis === 'teacher' ? { teacherId: c.colId }
+          : pane.view === 'teacher' ? { teacherId: pane.personId } : {}),
         ...(c.colAxis === 'room' ? { roomId: c.colId } : {}),
+        ...pasteStudent.fields,
       },
     });
   };
@@ -962,8 +1089,12 @@ function AdminSchedulePage() {
   });
 
   /** 단일클릭은 붙여넣기 여부와 무관하게 대상 시각만 고른다. */
-  const selectSlot = (date: string, startMin: number, colAxis?: 'room' | 'teacher', colId?: number | null) => {
-    go({ t: 'cursor', value: { date, startMin, colAxis, colId } });
+  const selectSlot = (
+    paneId: CalendarPaneIndex, pane: CalendarPaneState, date: string, startMin: number,
+    colAxis?: 'room' | 'teacher', colId?: number | null,
+  ) => {
+    go({ t: 'cursor', value: { paneId, view: pane.view, personId: pane.personId,
+      date, startMin, colAxis, colId } });
     setErr(null);
   };
 
@@ -1139,6 +1270,31 @@ function AdminSchedulePage() {
   const activePerson = activeModel.people.find((p) => p.id === activeModel.pane.personId);
   const targetLabel = activeTarget === 'all' ? '전체'
     : `${activeTarget === 'student' ? '학생별' : '선생님별'} · ${activePerson?.name ?? '고르지 않음'}`;
+  const cursorResource = s.cursor?.colAxis === 'teacher'
+    ? meta.data?.staff.find((person) => person.id === s.cursor?.colId)?.name
+    : s.cursor?.colAxis === 'room'
+      ? meta.data?.rooms.find((room) => room.id === s.cursor?.colId)?.name
+      : s.cursor?.view === 'teacher'
+        ? meta.data?.staff.find((person) => person.id === s.cursor?.personId)?.name
+        : s.cursor?.view === 'student'
+          ? meta.data?.students.find((person) => person.id === s.cursor?.personId)?.name
+          : undefined;
+  const cursorTarget = s.cursor
+    ? `${label(s.cursor.date)} · ${hhmm(s.cursor.startMin)}${s.panes.length === 2
+      ? ` · ${s.cursor.paneId === 0 ? '왼쪽' : '오른쪽'} 표` : ''}${cursorResource ? ` · ${cursorResource}` : ''}`
+    : null;
+  const crossStudentClipboard = s.clipboard?.sourceStudentId != null && s.cursor?.view === 'student'
+    && s.cursor.personId != null && s.clipboard.sourceStudentId !== s.cursor.personId;
+  const clipboardFromName = s.clipboard?.sourceStudentId == null ? null
+    : meta.data?.students.find((student) => student.id === s.clipboard?.sourceStudentId)?.name
+      ?? `#${s.clipboard.sourceStudentId}`;
+  const clipboardToName = s.cursor?.personId == null ? null
+    : meta.data?.students.find((student) => student.id === s.cursor?.personId)?.name
+      ?? `#${s.cursor.personId}`;
+  const clipboardTarget = cursorTarget && crossStudentClipboard && s.clipboard && s.cursor
+    ? `${cursorTarget} · ${s.clipboard.cut ? '학생 간 잘라내기 불가'
+      : `학생 ${clipboardFromName} → ${clipboardToName} 교체`}`
+    : cursorTarget;
 
   /** 표 한 벌을 PNG 로 — 도구줄(전체)과 개인 머리(그 사람 표)가 같은 공용 내보내기를 쓴다 */
   const exportElement = async (element: HTMLElement | null, fileName: string) => {
@@ -1220,8 +1376,8 @@ function AdminSchedulePage() {
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
         holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
-        onSelect={select} selected={selectedSet} cursor={s.cursor}
-        onSelectAt={canEdit ? (date, startMin) => selectSlot(date, startMin) : undefined}
+        onSelect={(occurrence, mode) => select(pane, occurrence, mode)} selected={selectedSet} cursor={s.cursor?.paneId === paneIndex ? s.cursor : null}
+        onSelectAt={canEdit ? (date, startMin) => selectSlot(paneIndex, pane, date, startMin) : undefined}
         onAddAt={canEdit ? (date, startMin) => openSlot(pane, date, startMin) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })} />
     ) : shown === 'day' ? (
@@ -1233,17 +1389,18 @@ function AdminSchedulePage() {
         unavOf={pane.dayAxis === 'room' ? unavOf : undefined}
         unavByColumn={pane.dayAxis === 'teacher' ? (date, teacherId) => unavFor(teacherId)?.(date) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
-        onSelect={select} selected={selectedSet} interactive={canEdit}
-        cursor={s.cursor?.colAxis ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
-        onSelectAt={canEdit ? (date, startMin, columnId) => selectSlot(date, startMin, pane.dayAxis, columnId) : undefined}
+        onSelect={(occurrence, mode) => select(pane, occurrence, mode)} selected={selectedSet} interactive={canEdit}
+        cursor={s.cursor?.paneId === paneIndex && s.cursor.colAxis
+          ? { ...s.cursor, colAxis: s.cursor.colAxis, colId: s.cursor.colId ?? null } : null}
+        onSelectAt={canEdit ? (date, startMin, columnId) => selectSlot(paneIndex, pane, date, startMin, pane.dayAxis, columnId) : undefined}
         onAddAt={canEdit ? (date, startMin, columnId) => openSlot(pane, date, startMin, pane.dayAxis, columnId) : undefined} />
     ) : shown === 'month' ? (
-      <MonthGrid date={pane.date} items={items} grid={grid} subName={subName} kindName={kindName} colorOf={blockColor} interactive={canEdit}
+      <MonthGrid paneId={paneIndex} date={pane.date} items={items} grid={grid} subName={subName} kindName={kindName} colorOf={blockColor} interactive={canEdit}
         holidaysOf={holidaysOf}
-        onSelect={select} selected={selectedSet} cursorDate={s.cursor?.date}
+        onSelect={(occurrence, mode) => select(pane, occurrence, mode)} selected={selectedSet} cursorDate={s.cursor?.paneId === paneIndex ? s.cursor.date : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onPickDate={(date) => go({ t: 'date', d: date })}
-        onSelectDate={canEdit ? (date) => selectSlot(date, 10 * 60) : undefined}
+        onSelectDate={canEdit ? (date) => selectSlot(paneIndex, pane, date, 10 * 60) : undefined}
         onAdd={canEdit ? (date) => openSlot(pane, date, 10 * 60) : undefined} />
     ) : (
       <WeekGrid paneId={paneIndex} createPreview={createPreview} creating={Boolean(creating)}
@@ -1251,8 +1408,8 @@ function AdminSchedulePage() {
         capOf={capOf} person={person} dark={isPerson} totals={isPerson}
         holidaysOf={holidaysOf} unavOf={unavOf}
         colorOf={blockColor} interactive={canEdit}
-        onSelect={select} selected={selectedSet} cursor={s.cursor}
-        onSelectAt={canEdit ? (date, startMin) => selectSlot(date, startMin) : undefined}
+        onSelect={(occurrence, mode) => select(pane, occurrence, mode)} selected={selectedSet} cursor={s.cursor?.paneId === paneIndex ? s.cursor : null}
+        onSelectAt={canEdit ? (date, startMin) => selectSlot(paneIndex, pane, date, startMin) : undefined}
         onAddAt={canEdit ? (date, startMin) => openSlot(pane, date, startMin) : undefined}
         onOpen={(occurrence) => go({ t: 'open', o: occurrence })}
         onPickDate={(date) => go({ t: 'date', d: date })} />
@@ -1598,7 +1755,7 @@ function AdminSchedulePage() {
           <span className="text-[14px] font-bold text-fg">{targetLabel}</span>
           <Chip>{activeFilterCount(s.filters) ? `필터 ${activeFilterCount(s.filters)}개` : '전체 기준'}</Chip>
           {s.panes.length === 2 ? <Chip tone="info">● {s.focused === 0 ? '왼쪽 표 선택됨' : '오른쪽 표 선택됨'}</Chip> : null}
-          {s.cursor ? <Chip tone="info">붙여넣기 위치 {label(s.cursor.date)} · {Math.floor(s.cursor.startMin / 60)}:{String(s.cursor.startMin % 60).padStart(2, '0')}</Chip> : null}
+          {cursorTarget ? <Chip tone="info">붙여넣기 위치 {cursorTarget}</Chip> : null}
           <PeriodSummaryBar summary={activeModel.baseSummary} month={activeModel.shown === 'month'} label={activeModel.head}
             className="ml-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[12px] font-bold text-fg-2" />
         </div>
@@ -1695,8 +1852,8 @@ function AdminSchedulePage() {
         <ClipboardBar
           count={s.clipboard?.items.length ?? 0}
           cut={s.clipboard?.cut ?? false}
-          target={s.cursor ? `${label(s.cursor.date)} · ${hhmm(s.cursor.startMin)}` : null}
-          pasteDisabled={!canEdit || write.isPending || pasteInFlight.current}
+          target={clipboardTarget}
+          pasteDisabled={!canEdit || write.isPending || pasteInFlight.current || (crossStudentClipboard && s.clipboard?.cut === true)}
           pasteBusy={write.isPending || pasteInFlight.current}
           onPaste={pasteAtCursor}
           onClear={() => { go({ t: 'clipboard', value: null }); go({ t: 'cursor', value: null }); }}
@@ -1736,8 +1893,9 @@ function AdminSchedulePage() {
               {dragCopy ? '복제 · ' : ''}{subName(dragging) ?? dragging.title ?? dragging.kindKey}
               <span className="ml-1 opacity-70">{dragging.students.length ? `· ${dragging.students.length}명` : ''}</span>
               {dropPreview ? (
-                <span data-drop-preview className="mt-1 block rounded bg-card/80 px-1 py-0.5 text-[10px] text-fg">
-                  {label(dropPreview.date)} · {hhmm(dropPreview.startMin)}–{hhmm(dropPreview.endMin)}
+                <span className="mt-1 block rounded bg-card/80 px-1 py-0.5 text-[10px] text-fg">
+                  <span data-drop-preview>{label(dropPreview.date)} · {hhmm(dropPreview.startMin)}–{hhmm(dropPreview.endMin)}</span>
+                  {dropPreview.targetLabel ? <span data-target-preview className="block">{dropPreview.targetLabel}</span> : null}
                 </span>
               ) : null}
             </div>

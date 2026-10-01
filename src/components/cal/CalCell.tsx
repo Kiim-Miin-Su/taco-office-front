@@ -23,6 +23,8 @@ import type { Occurrence } from '@/api/types';
 import type { CalendarColorOf } from '@/lib/tokens';
 
 export interface CalCellProps {
+  /** 분할 표에서 같은 날짜의 드롭 대상도 어느 표인지 구별한다. */
+  paneId?: number;
   /** 이 칸의 날짜 — 오늘이면 스스로 표시한다 */
   date: string;
   /** 왼쪽 위 라벨. 월간은 날짜 숫자, 주간은 요일, 일간 격자는 없음 */
@@ -63,13 +65,13 @@ export interface CalCellProps {
 }
 
 export function CalCell({
-  date, head, items, subName, kindName, colorOf, max, onOpen, onSelect, selected, onAdd, onSelectDate, onPickDate, onMore, compact, className, muted, active,
+  paneId = 0, date, head, items, subName, kindName, colorOf, max, onOpen, onSelect, selected, onAdd, onSelectDate, onPickDate, onMore, compact, className, muted, active,
   droppable, draggable, holidays, children,
 }: CalCellProps) {
   const instanceId = useId();
   const drop = useDroppable({
     id: `day|${instanceId}|${date}`,
-    data: { type: 'day', date },
+    data: { type: 'day', paneId, date },
     disabled: !droppable,
   });
   const isToday = date === todayKst();
@@ -139,6 +141,7 @@ export function CalCell({
         <EventBlock
           key={`${o.serId}-${o.date}-${o.startMin}`}
           occ={o}
+          paneId={paneId}
           subName={subName?.(o)}
           kindName={kindName?.(o)}
           color={colorOf?.(o)}
