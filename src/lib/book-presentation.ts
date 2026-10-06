@@ -20,6 +20,17 @@ const BOOK_LEVEL_PRESENTATION: Readonly<Record<string, Omit<BookLevelPresentatio
   Master: { marker: 'M', bandClass: 'bg-green' },
 };
 
+/** 최신 수정사항의 서가 표기. 저장 키는 유지하고 화면 낱말만 기초·실전·심화로 통일한다. */
+const BOOK_LEVEL_UI_LABEL: Readonly<Record<string, string>> = {
+  foundation: '기초',
+  practice: '실전',
+  master: '심화',
+};
+
+export function bookLevelUiLabel(key: string | null | undefined, fallback: string | null | undefined): string {
+  return ((key ? BOOK_LEVEL_UI_LABEL[key] : undefined) ?? fallback?.trim()) || '미분류';
+}
+
 /** §39의 세 확정 레벨만 색을 고른다. AP/SAT/B2 같은 서버값은 중립색과 원문을 유지한다. */
 export function bookLevelPresentation(level: string | null | undefined): BookLevelPresentation {
   const label = level?.trim() || '—';

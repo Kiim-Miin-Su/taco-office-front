@@ -10,7 +10,8 @@ import { useBookShelf, useCreateBook, useMeta, usePatchBook } from '@/api/querie
 import type { Book, BookPatch, BookShelfQuery, BookWrite, Books } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { Banner, Button, Chip, ChipButton, Input, Label, Panel, QueryState, Select, cn } from '@/components/ui';
-import { bookExamTagTone, bookLevelPresentation, bookSubjectColor } from '@/lib/book-presentation';
+import { bookExamTagTone, bookLevelPresentation, bookLevelUiLabel, bookSubjectColor } from '@/lib/book-presentation';
+import { educationGradeOption } from '@/lib/education-grades';
 import { fileSelectionIssue, fileUploadBody } from '@/lib/file-upload';
 import { readableAccentColor } from '@/lib/tokens';
 import { BookVersionAdder, BookVersionBadge } from './BookVersions';
@@ -34,6 +35,7 @@ const EMPTY: Form = {
 /** 레벨 칩 점 — 카드 띠(bookLevelPresentation.bandClass)와 같은 토큰 */
 const LEVEL_DOT: Readonly<Record<string, string>> = { 'bg-red': 'var(--red)', 'bg-amber': 'var(--amber)', 'bg-green': 'var(--green)' };
 const UNCLASSIFIED_GROUP = '__unclassified__';
+type FolderAxis = 'grade' | 'level' | 'subject';
 
 type Facet = { key: string; label: string; count: number; dot?: string };
 
@@ -85,6 +87,8 @@ export function BookShelf({
   const [subject, setSubject] = useState('');
   const [level, setLevel] = useState('');
   const [grade, setGrade] = useState('');
+  const [folderAxis, setFolderAxis] = useState<FolderAxis>('grade');
+  const [folder, setFolder] = useState<{ axis: FolderAxis; key: string; label: string } | null>(null);
   // 거르기는 서버가 한다 — 고른 칩의 키만 보낸다(N-47)
   const q = useBookShelf({
     ...(subject ? { subject } : {}),
@@ -141,6 +145,46 @@ export function BookShelf({
       ? [{ key: d.unclassified.key, label: d.unclassified.label, count: d.unclassified.count }]
       : []),
   ];
+  const folderFacets = useMemo(() => {
+    if (!q.data) return [];
+    if (folderAxis === 'grade') return q.data.gradeCounts.map((item) => ({
+      key: item.key,
+      label: item.label,
+      count: item.count,
+      hint: educationGradeOption(meta.data, item.key)?.equivalenceHint ?? null,
+    }));
+    if (folderAxis === 'level') return q.data.levelCounts.map((item) => ({
+      key: item.key,
+      label: bookLevelUiLabel(item.key, item.label),
+      count: item.count,
+      hint: item.label,
+    }));
+    return [
+      ...q.data.subjects.map((item) => ({ key: item.key, label: item.label, count: item.count, hint: null })),
+      ...(q.data.unclassified.count > 0
+        ? [{ key: q.data.unclassified.key, label: q.data.unclassified.label, count: q.data.unclassified.count, hint: null }]
+        : []),
+    ];
+  }, [folderAxis, meta.data, q.data]);
+  const chooseFolderAxis = (next: FolderAxis) => {
+    setFolderAxis(next);
+    setFolder(null);
+    setSubject('');
+    setLevel('');
+    setGrade('');
+  };
+  const openFolder = (key: string, label: string) => {
+    setFolder({ axis: folderAxis, key, label });
+    setSubject(folderAxis === 'subject' ? key : '');
+    setLevel(folderAxis === 'level' ? key : '');
+    setGrade(folderAxis === 'grade' ? key : '');
+  };
+  const closeFolder = () => {
+    setFolder(null);
+    setSubject('');
+    setLevel('');
+    setGrade('');
+  };
   const categoriesOf = (key: string) => q.data?.subjects.find((s) => s.key === key)?.categories ?? [];
   const openEdit = (b: Book) => {
     setEditing(b);
@@ -200,6 +244,39 @@ export function BookShelf({
   const filtered = Boolean(subject || level || grade);
   return (
     <div className="space-y-3">
+      <Panel title="서가 폴더" sub="학년별 · 난이도별 · 과목별로 같은 교재 정본을 엽니다">
+        <div role="group" aria-label="서가 폴더 축" className="flex flex-wrap gap-2">
+          {([
+            ['grade', '학년별'],
+            ['level', '난이도별'],
+            ['subject', '과목별'],
+          ] as const).map(([value, label]) => (
+            <Button key={value} size="sm" variant={folderAxis === value ? 'primary' : 'secondary'}
+              aria-pressed={folderAxis === value} onClick={() => chooseFolderAxis(value)}>{label}</Button>
+          ))}
+        </div>
+        {folder ? (
+          <div className="mt-3 flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-line bg-inset px-3 py-2">
+            <span className="text-[12px] text-fg-subtle">서가 › {folder.axis === 'grade' ? '학년별' : folder.axis === 'level' ? '난이도별' : '과목별'} ›</span>
+            <b className="text-[13px] text-fg">{folder.label}</b>
+            <Button className="ml-auto min-h-11" size="sm" variant="secondary" onClick={closeFolder}>‹ 폴더로</Button>
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" data-testid="book-folders">
+            {folderFacets.map((item) => (
+              <button key={item.key} type="button" disabled={item.count === 0}
+                aria-label={`${item.label} 폴더${item.hint ? ` ${item.hint}` : ''}`}
+                onClick={() => openFolder(item.key, item.label)}
+                className="min-h-20 rounded-xl border border-line bg-card p-3 text-left transition hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40">
+                <b className="block text-[14px] text-fg">{item.label}</b>
+                {item.hint ? <span className="mt-1 block text-[11px] text-fg-subtle">{item.hint}</span> : null}
+                <span className="mt-2 block text-[12px] font-bold text-primary">교재 {item.count}종</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {folderAxis === 'level' ? <p className="mt-2 text-[11px] text-fg-subtle">저장 키는 기존 Foundation · Practice · Master를 유지하고 화면에는 기초 · 실전 · 심화로 표시합니다.</p> : null}
+      </Panel>
       {/*
         원본 §39 — 연초록 필터 판이 **경고 띠 위**에 있고 1줄 = 과목 + 레벨, 2줄 = 학년이다(g4 §39-2).
         칩 앞 색 점(과목 = 코드표 색 · 레벨 = 카드 띠와 같은 F/P/M 색), 뒤에 서버가 센 서가 전체 건수 — 화면은 세지 않는다(D-R37).
@@ -208,17 +285,17 @@ export function BookShelf({
         <div data-filter-row className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <b className="w-10 text-fg-subtle">과목</b>
-            <ShelfChips label="과목" facets={subjectFacets(q.data)} value={subject} onChange={setSubject} />
+            <ShelfChips label="과목" facets={subjectFacets(q.data)} value={subject} onChange={(next) => { setFolder(null); setSubject(next); }} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <b className="w-10 text-fg-subtle">레벨</b>
             <ShelfChips
               label="레벨"
               facets={(q.data?.levelCounts ?? []).map((o) => ({
-                key: o.key, label: o.label, count: o.count, dot: LEVEL_DOT[bookLevelPresentation(o.label).bandClass],
+                key: o.key, label: bookLevelUiLabel(o.key, o.label), count: o.count, dot: LEVEL_DOT[bookLevelPresentation(o.label).bandClass],
               }))}
               value={level}
-              onChange={setLevel}
+              onChange={(next) => { setFolder(null); setLevel(next); }}
             />
           </div>
           {showCreateAction ? (
@@ -233,7 +310,7 @@ export function BookShelf({
             label="학년"
             facets={(q.data?.gradeCounts ?? []).map((o) => ({ key: o.key, label: o.label, count: o.count }))}
             value={grade}
-            onChange={setGrade}
+            onChange={(next) => { setFolder(null); setGrade(next); }}
           />
         </div>
       </section>
@@ -311,7 +388,7 @@ export function BookShelf({
                 <option value="">—</option>
                 {q.data?.levelCounts.map((l) => (
                   <option key={l.key} value={l.key}>
-                    {l.label}
+                    {bookLevelUiLabel(l.key, l.label)}
                   </option>
                 ))}
               </Select>

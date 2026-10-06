@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: `/books`가 이전 2탭이 아니라 명세서 §38~§41 네 화면을 올바른 순서로 조립하는지 검증한다.
+ * 목적: `/books`가 최신 수정사항의 진행도 우선 다섯 화면을 올바른 순서로 조립하는지 검증한다.
  * 책임/재사용: route 조립만 시험하고 도메인 동작은 각 컴포넌트 테스트에 맡긴다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -57,9 +57,10 @@ afterEach(() => {
   state.trackingProps.mockReset();
 });
 
-it('원본 순서의 네 탭과 서버 건수를 표시하고 화면을 전환한다', () => {
+it('최신 수정사항 순서의 다섯 탭과 서버 건수를 표시하고 화면을 전환한다', () => {
   const view = render(<BooksPage />);
   expect([...view.getAllByRole('tab')].map((tab) => tab.textContent)).toEqual([
+    expect.stringContaining('진행도'),
     expect.stringContaining('트래킹 보드'),
     expect.stringContaining('서가'),
     expect.stringContaining('자료 요청'),
@@ -68,6 +69,10 @@ it('원본 순서의 네 탭과 서버 건수를 표시하고 화면을 전환�
   expect(view.getByRole('button', { name: '경고 6' })).toBeTruthy();
   expect(view.queryByRole('button', { name: '경고 39' })).toBeNull();
   expect(view.getByText('트래킹 본문')).toBeTruthy();
+  expect(state.trackingProps).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'progress' }));
+  fireEvent.click(view.getByRole('tab', { name: /트래킹 보드/ }));
+  expect(state.trackingProps).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'tracking' }));
+  expect(state.replace).toHaveBeenLastCalledWith('/books?tab=tracking', { scroll: false });
   fireEvent.click(view.getByRole('tab', { name: /자료 요청/ }));
   expect(view.getByText('자료 요청 본문')).toBeTruthy();
   expect(state.replace).toHaveBeenLastCalledWith('/books?tab=requests', { scroll: false });
@@ -97,10 +102,11 @@ it('URL tab을 첫 화면에 반영하고 선택·브라우저 이동을 양방�
   expect(view.getByText('이력 본문')).toBeTruthy();
 });
 
-it('잘못된 URL tab은 안전하게 트래킹으로 되돌린다', () => {
+it('잘못된 URL tab은 안전하게 첫 진행도 화면으로 되돌린다', () => {
   state.search = 'tab=unknown';
   const view = render(<BooksPage />);
   expect(view.getByText('트래킹 본문')).toBeTruthy();
+  expect(state.trackingProps).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'progress' }));
 });
 
 it('자료 요청 deep link의 pack identity를 도메인 컴포넌트에 전달한다', () => {

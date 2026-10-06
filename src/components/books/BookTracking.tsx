@@ -45,11 +45,14 @@ function diagLine(d: LeadDiag): string {
 const LEVEL_BORDER: Readonly<Record<string, string>> = { 'bg-red': 'border-l-red', 'bg-amber': 'border-l-amber', 'bg-green': 'border-l-green' };
 
 export function BookTracking({
+  view = 'all',
   createRequest = 0,
   showCreateAction = true,
   requestedStudentId = null,
   targetRequested = false,
 }: {
+  /** 최신 수정사항은 진행도와 학생 트래킹을 별도 보기로 둔다. 단독 사용처는 기존 전체 보기를 유지한다. */
+  view?: 'all' | 'progress' | 'tracking';
   createRequest?: number;
   showCreateAction?: boolean;
   requestedStudentId?: number | null;
@@ -80,6 +83,8 @@ export function BookTracking({
     ? null
     : meta.data?.students.find((student) => student.id === requestedStudentId) ?? null;
   const targetMissing = targetRequested && meta.data !== undefined && requestedStudent === null;
+  const showTracking = view !== 'progress';
+  const showProgress = view !== 'tracking';
   useEffect(() => {
     if (targetRequested && requestedStudent) setExpandedId(requestedStudent.id);
     if (createRequest <= 0) return;
@@ -279,7 +284,7 @@ export function BookTracking({
       <QueryState query={q} empty="등록된 학생이 없습니다" isEmpty={(d) => d.students.length === 0}>
         {(d) => (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {showTracking ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
               {d.states.map((s, n) => (
                 <StatCard
                   key={s.key}
@@ -292,8 +297,8 @@ export function BookTracking({
                   dim={s.count === 0 && n !== 5}
                 />
               ))}
-            </div>
-            {d.teacherRequests.length ? (
+            </div> : null}
+            {showTracking && d.teacherRequests.length ? (
               <Banner tone="warning">
                 <div className="flex flex-wrap items-center gap-2">
                   <b>강사 교재 변경 요청 {d.teacherRequests.length}건</b>
@@ -306,7 +311,7 @@ export function BookTracking({
                 </div>
               </Banner>
             ) : null}
-            <Panel title={`학생 ${d.students.length}명`} sub="학생마다 어디까지 갔는지 한 줄로 봅니다">
+            {showTracking ? <Panel title={`학생 ${d.students.length}명`} sub="학생마다 어디까지 갔는지 한 줄로 봅니다">
               <div className="overflow-x-auto">
                 <div className="min-w-[1120px] space-y-2">
                   <div className="grid grid-cols-[30px_150px_minmax(300px,1fr)_180px_220px_120px_64px] px-3 text-[11px] font-bold text-fg-subtle">
@@ -567,11 +572,14 @@ export function BookTracking({
                   ))}
                 </div>
               </div>
-            </Panel>
-            <section>
+            </Panel> : null}
+            {showProgress ? <section aria-label="교재 진행도">
               <h3 className="mb-2 text-[13px] font-bold">
-                교재별 진도율 <span className="font-normal text-fg-subtle">{d.books.length}종 · 숙제 페이지 기준</span>
+                교재별 진행도 <span className="font-normal text-fg-subtle">{d.books.length}종 · 현재 ISSUE 진행 쪽 기준</span>
               </h3>
+              <Banner tone="info" className="mb-3">
+                현재 계약은 교재별 현재 쪽과 평균 진도만 제공합니다. 리포트의 수업별 진도·숙제 원장이 연결되기 전에는 2주 멈춤, 최근 4주 숙제, 완료 예상일을 계산하지 않습니다.
+              </Banner>
               {/*
                 원본 §38 「교재별 진도율」 카드(g4 §38-7) — 제목줄 = 레벨 배지 + 제목 + 오른쪽 「N명」, 막대 오른쪽 큰 %,
                 막대 위 평균 표시선, 레벨색 왼쪽 띠, 넓은 화면 3열. 평균·범위·학생별 % 는 서버 값 그대로다(D-R37).
@@ -633,7 +641,7 @@ export function BookTracking({
                   })}
                 </div>
               )}
-            </section>
+            </section> : null}
           </>
         )}
       </QueryState>

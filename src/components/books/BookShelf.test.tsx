@@ -111,6 +111,9 @@ function setup(shelf: (params: Record<string, unknown>) => Books = () => SHELF) 
     }
     const meta = {
       kinds: [], subs: [{ key: 'sat', name: 'SAT', color: '#123456' }], rooms: [], zaccs: [], invTypes: [], staff: [], students: [],
+      educationGrades: [
+        { value: 'G9', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G9 (= Y10)', equivalenceHint: '= Y10 · 중3', listLabel: 'G9 · Y10', sort: 9 },
+      ],
     };
     return { config, status: 200, statusText: 'OK', headers: {}, data: meta };
   }) as never;
@@ -136,7 +139,7 @@ it('필터는 서버가 건다 — 칩을 누르면 키만 보내고 서버가 �
   expect(gets.at(-1)).toEqual({ subject: 'english' });
   expect(view.getByText('SAT Reading Foundation')).toBeTruthy();
   // 레벨 · 학년도 키로 간다 — 학년 칩 키는 서버 gradeCounts 의 key 다
-  fireEvent.click(chip(view, '레벨', 'Practice 7'));
+  fireEvent.click(chip(view, '레벨', '실전 7'));
   await waitFor(() => expect(gets.at(-1)).toEqual({ subject: 'english', level: 'practice' }));
   fireEvent.click(chip(view, '학년', 'G9 3'));
   await waitFor(() => expect(gets.at(-1)).toEqual({ subject: 'english', level: 'practice', grade: 'G9' }));
@@ -176,8 +179,29 @@ it('필터 판은 경고 띠 위에 두 줄로 서고 칩마다 색 점과 건�
   expect(within(rows[0] as HTMLElement).getByRole('group', { name: '레벨 필터' })).toBeTruthy();
   expect(within(rows[1] as HTMLElement).getByRole('group', { name: '학년 필터' })).toBeTruthy();
   expect((chip(view, '과목', 'English 9').querySelector('[data-chip-dot]') as HTMLElement).style.backgroundColor).toBe('rgb(37, 99, 235)');
-  expect((chip(view, '레벨', 'Foundation 5').querySelector('[data-chip-dot]') as HTMLElement).style.backgroundColor).toBe('var(--red)');
-  expect((chip(view, '레벨', 'Practice 7').querySelector('[data-chip-dot]') as HTMLElement).style.backgroundColor).toBe('var(--amber)');
+  expect((chip(view, '레벨', '기초 5').querySelector('[data-chip-dot]') as HTMLElement).style.backgroundColor).toBe('var(--red)');
+  expect((chip(view, '레벨', '실전 7').querySelector('[data-chip-dot]') as HTMLElement).style.backgroundColor).toBe('var(--amber)');
+});
+
+it('서가 폴더는 학년·난이도·과목 축을 보존하고 빈 폴더와 G/Y 대응을 표시한다', async () => {
+  const view = setup();
+  const g9 = await view.findByRole('button', { name: 'G9 폴더 = Y10 · 중3' });
+  expect(g9.textContent).toContain('교재 3종');
+  expect(view.getByRole('button', { name: 'K 폴더' })).toHaveProperty('disabled', true);
+  fireEvent.click(g9);
+  await waitFor(() => expect(gets.at(-1)).toEqual({ grade: 'G9' }));
+  expect(view.getByText('서가 › 학년별 ›')).toBeTruthy();
+  expect(view.getByText('G9', { selector: 'b' })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '‹ 폴더로' }));
+  expect(view.getByRole('button', { name: 'G9 폴더 = Y10 · 중3' })).toBeTruthy();
+  expect(within(view.getByRole('group', { name: '학년 필터' })).getByRole('button', { name: '전체' })
+    .querySelector('[data-chip-pressed="ink"]')).toBeTruthy();
+
+  fireEvent.click(view.getByRole('button', { name: '난이도별' }));
+  expect(view.getByRole('button', { name: '기초 폴더 Foundation' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '심화 폴더 Master' })).toHaveProperty('disabled', true);
+  fireEvent.click(view.getByRole('button', { name: '실전 폴더 Practice' }));
+  await waitFor(() => expect(gets.at(-1)).toEqual({ level: 'practice' }));
 });
 
 it('카드는 원문 모양이다 — 소분류(과목 색) · 학년 범위 · 시험 태그 · F/P/M 띠, 옛 교재는 옛 원문을 중립색으로 (N-47)', async () => {
@@ -358,7 +382,7 @@ it('경고 띠 둘은 서버가 서가 전체에서 고른 이름을 적는다 �
 it('고른 칩에 맞는 교재가 없으면 그렇게 말한다 — 칩 줄은 그대로 선다', async () => {
   const view = setup((params) => (params.level === 'foundation' ? { ...SHELF, items: [] } : SHELF));
   await waitFor(() => expect(view.getByText('SAT Reading Foundation')).toBeTruthy());
-  fireEvent.click(chip(view, '레벨', 'Foundation 5'));
+  fireEvent.click(chip(view, '레벨', '기초 5'));
   expect(await view.findByText('고른 칩에 맞는 교재가 없습니다')).toBeTruthy();
   expect(view.getByRole('group', { name: '레벨 필터' })).toBeTruthy();
 });

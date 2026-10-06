@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import { describe, expect, it } from 'vitest';
-import { bookLevelPresentation } from './book-presentation';
+import { bookLevelPresentation, bookLevelUiLabel } from './book-presentation';
 
 describe('교재 레벨 표시 — 개발명세서 §39', () => {
   it.each([
@@ -21,5 +21,21 @@ describe('교재 레벨 표시 — 개발명세서 §39', () => {
 
   it('빈 값만 대시로 표시한다', () => {
     expect(bookLevelPresentation('  ')).toEqual({ label: '—', marker: '—', bandClass: 'bg-fg-2' });
+  });
+});
+
+describe('최신 수정사항의 교재 난이도 화면 표기', () => {
+  it.each([
+    ['foundation', '기초'],
+    ['practice', '실전'],
+    ['master', '심화'],
+  ])('%s 저장 키를 %s로 표시한다', (key, label) => {
+    expect(bookLevelUiLabel(key, '서버 표시')).toBe(label);
+  });
+
+  it('미확정 키는 서버 표시를 보존하고 빈 값만 미분류로 표시한다', () => {
+    expect(bookLevelUiLabel('sat', 'SAT')).toBe('SAT');
+    expect(bookLevelUiLabel(null, '  ')).toBe('미분류');
+    expect(bookLevelUiLabel(null, null)).toBe('미분류');
   });
 });

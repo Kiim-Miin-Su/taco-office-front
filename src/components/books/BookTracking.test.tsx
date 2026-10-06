@@ -199,6 +199,23 @@ it('학생은 있지만 배부 교재가 0종이면 빈 진도율 격자 대신 
   expect(view.queryByTestId('book-progress-card')).toBeNull();
 });
 
+it('진행도 보기는 현재 ISSUE 평균만 표시하고 리포트 기반 지표를 만들어내지 않는다', async () => {
+  const view = setup({ componentProps: { view: 'progress' } });
+  expect(await view.findByRole('heading', { name: /교재별 진행도/ })).toBeTruthy();
+  expect(view.getByText(/2주 멈춤, 최근 4주 숙제, 완료 예상일을 계산하지 않습니다/)).toBeTruthy();
+  expect(view.getByTestId('book-progress-card')).toBeTruthy();
+  expect(view.queryByRole('button', { name: '고은성 펼치기' })).toBeNull();
+  expect(view.queryByText('강사 교재 변경 요청 1건')).toBeNull();
+});
+
+it('트래킹 보기는 학생·배부 업무만 표시하고 진행도 카드를 중복하지 않는다', async () => {
+  const view = setup({ componentProps: { view: 'tracking' } });
+  expect(await view.findByRole('button', { name: '고은성 펼치기' })).toBeTruthy();
+  expect(view.getByText('강사 교재 변경 요청 1건')).toBeTruthy();
+  expect(view.queryByRole('heading', { name: /교재별 진행도/ })).toBeNull();
+  expect(view.queryByTestId('book-progress-card')).toBeNull();
+});
+
 it('진도 입력은 페이지 숫자만 DTO로 보내고 퍼센트는 보내지 않는다', async () => {
   const view = setup();
   await waitFor(() => view.getByRole('button', { name: '고은성 펼치기' }));

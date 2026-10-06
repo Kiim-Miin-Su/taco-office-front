@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: 개발명세서 §38~§41 교재 화면 네 갈래를 한 route에서 조립한다.
+ * 목적: 개발명세서 §38~§41과 최신 수정사항의 교재 화면 다섯 갈래를 한 route에서 조립한다.
  * 책임/재사용: 탭 선택만 소유하고, 서버 상태·CRUD는 books 도메인 컴포넌트와 Query 캐시를 재사용한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -25,12 +25,13 @@ import { Button, TabCards } from '@/components/ui';
 import { useSession } from '@/store/useSession';
 import { positiveQueryId } from '@/lib/url-state';
 
-type BookTab = 'tracking' | 'shelf' | 'requests' | 'history';
+type BookTab = 'progress' | 'tracking' | 'shelf' | 'requests' | 'history';
 
-function tabFromQuery(value: string | null, canGpaPack: boolean): BookTab {
-  if (value === 'shelf' || value === 'history') return value;
+function tabFromQuery(value: string | null, canGpaPack: boolean, hasTrackingTarget: boolean): BookTab {
+  if (value === 'tracking' || value === 'shelf' || value === 'history') return value;
   if (value === 'requests' && canGpaPack) return value;
-  return 'tracking';
+  if (value === null && hasTrackingTarget) return 'tracking';
+  return 'progress';
 }
 
 export default function BooksPage() {
@@ -39,7 +40,8 @@ export default function BooksPage() {
   const [bookCreateRequest, setBookCreateRequest] = useState(0);
   const [issueCreateRequest, setIssueCreateRequest] = useState(0);
   const canGpaPack = useSession((state) => state.me?.canGpaPack === true);
-  const queryTab = tabFromQuery(searchParams.get('tab'), canGpaPack);
+  const hasTrackingTarget = searchParams.get('create') === 'issue' || searchParams.has('studentId');
+  const queryTab = tabFromQuery(searchParams.get('tab'), canGpaPack, hasTrackingTarget);
   const focusPackId = queryTab === 'requests' ? positiveQueryId(searchParams.get('pack')) : null;
   const deepIssueCreate = queryTab === 'tracking' && searchParams.get('create') === 'issue';
   const rawStudentId = searchParams.get('studentId');
@@ -52,7 +54,7 @@ export default function BooksPage() {
   const selectTab = (next: BookTab) => {
     setTab(next);
     const params = new URLSearchParams(searchParams.toString());
-    if (next === 'tracking') params.delete('tab');
+    if (next === 'progress') params.delete('tab');
     else params.set('tab', next);
     const query = params.toString();
     router.replace(query ? `/books?${query}` : '/books', { scroll: false });
@@ -65,6 +67,11 @@ export default function BooksPage() {
   const pendingPacks = packs.data?.items.filter((pack) => pack.state !== 'received').length ?? 0;
   const nowCount = drawer.data?.workSummary.now;
   const tabs = [
+    {
+      value: 'progress' as const,
+      label: '진행도',
+      sub: `${tracking.data?.books?.length ?? 0}종`,
+    },
     {
       value: 'tracking' as const,
       label: '트래킹 보드',
@@ -119,8 +126,12 @@ export default function BooksPage() {
           <WorkSummaryBar summary={drawer.data?.workSummary} />
         </div>
 
+        {tab === 'progress' ? (
+          <BookTracking view="progress" showCreateAction={false} />
+        ) : null}
         {tab === 'tracking' ? (
           <BookTracking
+            view="tracking"
             createRequest={issueCreateRequest + (deepIssueCreate ? 1 : 0)}
             showCreateAction={false}
             requestedStudentId={requestedStudentId}
