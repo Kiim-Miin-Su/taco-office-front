@@ -1,6 +1,6 @@
 /** @file-guide
  * 목적: TeacherPolicyBar.tsx — TeacherPolicyBar (component)
- * 책임/재사용: GET /meta 의 teacherPolicies(서버 lib/teacher-policy)만 그린다. 규칙 낱말·숫자 사본을 두지 않는다 (Figma Teacher/Policy Bar).
+ * 책임/재사용: GET /meta 의 teacherPolicies를 기본 정본으로 그린다. 단계 배포 중 writer가 잠긴 화면은 명시적 override로 최신 계약을 안내한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
@@ -18,11 +18,17 @@ import { cn } from '@/components/ui';
 import { useTeacherSurface } from './teacher-surface';
 
 export type TeacherPolicyScreen = Meta['teacherPolicies'][number]['screen'];
+type TeacherPolicyCopy = Pick<Meta['teacherPolicies'][number], 'title' | 'lines'>;
 
-export function TeacherPolicyBar({ screen, className }: { screen: TeacherPolicyScreen; className?: string }) {
+export function TeacherPolicyBar({ screen, className, override }: {
+  screen: TeacherPolicyScreen;
+  className?: string;
+  /** DTO/OpenAPI 전환 중 저장을 잠근 화면에만 쓴다. 서버 권한·검증을 대체하지 않는다. */
+  override?: TeacherPolicyCopy;
+}) {
   const teacherSurface = useTeacherSurface();
   const meta = useMeta(teacherSurface);
-  const policy = meta.data?.teacherPolicies?.find((item) => item.screen === screen);
+  const policy = override ?? meta.data?.teacherPolicies?.find((item) => item.screen === screen);
   if (!teacherSurface || !policy) return null;
   return (
     <div

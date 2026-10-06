@@ -43,4 +43,17 @@ describe('TeacherPolicyBar — 강사 화면 최상단 정책 띠 (대표 결정
     meta.policies = TEACHER_POLICIES_FIXTURE.filter((p) => p.screen !== 'guides');
     expect(render(<TeacherPolicyBar screen="guides" />).container.textContent).toBe('');
   });
+
+  it('계약 전환 화면은 명시한 최신 안내로 서버의 이전 문구를 가리되 관리자 화면에는 보이지 않는다', () => {
+    meta.policies = [{ screen: 'unavailable', title: '이전 규칙', lines: ['7일 전까지'] }];
+    const override = { title: '불가 시간 등록 규칙', lines: ['10일 전까지', '사유 15자 이상'] };
+    useSession.setState({ me: me(false), ready: true });
+    const teacherView = render(<TeacherPolicyBar screen="unavailable" override={override} />);
+    expect(teacherView.container.textContent).toContain('10일 전까지');
+    expect(teacherView.container.textContent).not.toContain('7일 전까지');
+
+    cleanup();
+    useSession.setState({ me: me(true), ready: true });
+    expect(render(<TeacherPolicyBar screen="unavailable" override={override} />).container.textContent).toBe('');
+  });
 });
