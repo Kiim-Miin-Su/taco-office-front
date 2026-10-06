@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { TeacherChangeResult } from '@/api/types';
+import { addDays, todayKst } from '@/lib/calendar';
 import { TeacherChangeWizard } from './TeacherChangeWizard';
 
 const meta = {
@@ -96,7 +97,11 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
   expect(text).toContain('김재훈 → 김범준 · 2026-10-05부터 · 회차 12회');
   for (const w of ['1. 스케줄 12회', '2. 안내 초안 2건', '3. 학부모 안내 2건', '4. 교재 확인 1권', '5. 정산 시수 12회', '6. 선생님 전달 2명']) expect(text).toContain(w);
   expect(text).toContain('학부모 수신처는 아직 없습니다');
-  expect(text).toContain('진예람 · Writing Builder 2 → 김범준');
+  expect(text).toContain('교재는 확인만 하며 자동으로 담당을 바꾸지 않습니다');
+  expect(text).toContain('진예람 · Writing Builder 2');
+  expect(text).not.toContain('Writing Builder 2 → 김범준');
+  expect(text).toContain('2026-10 · 12회');
+  expect(text).toContain('정산 미확정');
   expect(text).toContain('2026-10-07 16:00–17:00 · 김범준 — 병원');
   expect(text).toContain('컴플레인 #2 → 「강사 교체됨」 · 대응 칸으로');
   await waitFor(() => expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(false));
@@ -116,15 +121,16 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
 });
 
 it('하루만 대강은 날짜 하나로 보내고, 겹치면 서버 문장을 그대로 띄운 뒤 아는 수업으로 「누구와」를 한 번 묻는다 (N-132 · A-06)', async () => {
+  const day = todayKst();
   const { view } = setup((_url, n) => (n === 1
     ? { status: 201, data: { ...result, mode: 'day', series: [result.series[0]!] } }
     : { status: 409, data: { code: 'RESOURCE_CONFLICT', message: '같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다 — Writing · 10/5 16:00–17:00 · 김범준' } }));
   const dialog = await fill(view);
   fireEvent.click(within(dialog).getByRole('button', { name: '하루만 대강' }));
-  fireEvent.change(within(dialog).getByLabelText('대강 날짜'), { target: { value: '2026-10-05' } });
+  fireEvent.change(within(dialog).getByLabelText('대강 날짜'), { target: { value: day } });
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(posted).toHaveLength(1));
-  expect(posted[0]!.body).toMatchObject({ mode: 'day', date: '2026-10-05' });
+  expect(posted[0]!.body).toMatchObject({ mode: 'day', date: day });
   await view.findByLabelText('교체 미리보기');
   // 두 번째 미리보기(예: 다른 새 강사)는 겹친다 → 문장 + 누구와
   fireEvent.change(within(dialog).getByLabelText('메모'), { target: { value: '아침에 연락' } });
@@ -134,4 +140,33 @@ it('하루만 대강은 날짜 하나로 보내고, 겹치면 서버 문장을 �
   await waitFor(() => expect(view.getByText(/\[강사\] 김범준 · 2026-10-05 16:00–17:00 · SAT/)).toBeTruthy());
   expect(view.queryByLabelText('교체 미리보기')).toBeNull();
   expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('과거 날짜의 하루 대강은 미리보기 전부터 막는다 (관리자 수정사항 §124)', async () => {
+  const { view } = setup();
+  const dialog = await fill(view);
+  fireEvent.click(within(dialog).getByRole('button', { name: '하루만 대강' }));
+  fireEvent.change(within(dialog).getByLabelText('대강 날짜'), { target: { value: addDays(todayKst(), -1) } });
+
+  expect(within(dialog).getByText('지난 날짜에는 하루 대강을 만들 수 없습니다')).toBeTruthy();
+  expect((within(dialog).getByRole('button', { name: '미리 보기' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(posted).toHaveLength(0);
+});
+
+it('학생 한 명으로 좁힌 preview에 그룹 수업이 있으면 반 전체 교체 계약 전에는 확정을 잠근다 (§121~124)', async () => {
+  const grouped: TeacherChangeResult = {
+    ...result,
+    series: [{ ...result.series[0]!, students: ['진예람', '차서윤'] }],
+    occurrences: result.series[0]!.occurrences,
+  };
+  const { view } = setup((url) => ({ status: 201, data: url.endsWith('/preview') ? grouped : { ...grouped, preview: false } }));
+  const dialog = await fill(view);
+
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await view.findByLabelText('교체 미리보기');
+
+  expect(within(dialog).getByText(/그룹 수업은 학생 한 명만 떼어 교체할 수 없습니다/)).toBeTruthy();
+  expect(within(dialog).getByText(/반 전체 교체 계약이 연결될 때까지 확정할 수 없습니다/)).toBeTruthy();
+  expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(posted).toHaveLength(1);
 });

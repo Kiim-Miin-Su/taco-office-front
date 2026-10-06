@@ -68,6 +68,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
     if (!toId) return { issue: '새 강사를 고르세요' };
     if (fromId === toId) return { issue: '원래 강사와 새 강사가 같습니다' };
     if (!ISO.test(date)) return { issue: '날짜를 넣어 주세요' };
+    if (mode === 'day' && date < todayKst()) return { issue: '지난 날짜에는 하루 대강을 만들 수 없습니다' };
     const picked = known.filter((s) => !excluded.includes(s.serId)).map((s) => s.serId);
     if (known.length && !picked.length) return { issue: '수업을 하나는 남겨야 합니다' };
     return {
@@ -84,7 +85,13 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
   const bodyKey = 'body' in built ? JSON.stringify(built.body) : '';
   const pending = write.isPending;
   const canPreview = 'body' in built && !pending;
-  const canApply = canPreview && preview !== null && previewOf === bodyKey;
+  // 학생 한 명으로 시작한 요청에 그룹 수업이 섞이면 현재 계약은 그 학생으로 다시 좁힌다.
+  // 관리자 수정사항은 반 전체 이동을 요구하므로 명시적 group-scope 계약 전에는 부분 교체를 확정하지 않는다.
+  const groupScopeBlocked = Boolean(preset?.studentId && preview?.series.some((s) => s.students.length > 1));
+  const canApply = canPreview && preview !== null && previewOf === bodyKey && !groupScopeBlocked;
+  const applyIssue = groupScopeBlocked
+    ? '그룹 수업은 반 전체 교체 계약이 연결된 뒤 확정할 수 있습니다'
+    : !canApply ? '지금 입력 그대로 먼저 미리 봅니다' : undefined;
 
   /** 409 겹침이면 누구와 부딪혔는지 한 번 묻는다 — 막는 것은 서버이고 이것은 설명이다 (C84-b) */
   const explainConflict = async (body: TeacherChange, e: unknown) => {
@@ -134,12 +141,12 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
         <>
           <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>취소 (Esc)</Button>
           <Button type="button" variant="secondary" onClick={() => run('preview')} disabled={!canPreview}>{pending ? '서버에 묻는 중…' : '미리 보기'}</Button>
-          <Button type="button" onClick={() => run('apply')} disabled={!canApply} title={!canApply ? '지금 입력 그대로 먼저 미리 봅니다' : undefined}>교체 확정</Button>
+          <Button type="button" onClick={() => run('apply')} disabled={!canApply} title={applyIssue}>교체 확정</Button>
         </>
       )}
     >
       <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto pr-1">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div>
             <Label htmlFor={`${id}-from`}>원래 강사</Label>
             <Select id={`${id}-from`} value={fromId} onChange={(e) => setFromId(e.target.value)} disabled={pending}>
@@ -155,7 +162,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
             </Select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div>
             <Label>범위</Label>
             <Segmented ariaLabel="범위" value={mode} disabled={pending} onChange={setMode}
@@ -163,12 +170,12 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
           </div>
           <div>
             <Label htmlFor={`${id}-date`} hint={mode === 'day' ? '그날의 회차만 예외' : '이 날부터 규칙이 갈립니다'}>{mode === 'day' ? '대강 날짜' : '시작일'}</Label>
-            <Input id={`${id}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={pending} />
+            <Input id={`${id}-date`} type="date" min={mode === 'day' ? todayKst() : undefined} value={date} onChange={(e) => setDate(e.target.value)} disabled={pending} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           {preset?.studentId ? (
-            <Checkbox label={`${preset.studentName ?? '이 학생'}의 수업만`} checked={onlyStudent} onChange={(e) => setOnlyStudent(e.target.checked)} disabled={pending} />
+            <Checkbox label={`${preset.studentName ?? '이 학생'}의 수업만`} checked={onlyStudent} onChange={(e) => setOnlyStudent(e.target.checked)} disabled={pending || groupScopeBlocked} />
           ) : null}
           <div className="min-w-[240px] flex-1">
             <Input aria-label="메모" value={memo} maxLength={300} onChange={(e) => setMemo(e.target.value)} disabled={pending} placeholder="안내·알림에 실을 한 줄 (선택)" />
@@ -204,8 +211,31 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
                 </li>
               ))}
             </ol>
+            {groupScopeBlocked ? (
+              <Banner tone="danger" className="mt-2">
+                그룹 수업은 학생 한 명만 떼어 교체할 수 없습니다. 반 전체 교체 계약이 연결될 때까지 확정할 수 없습니다.
+              </Banner>
+            ) : null}
             {preview.books.length ? (
-              <p className="mt-2 border-t border-line pt-2 text-fg-2">교재 — {preview.books.map((b) => `${b.studentName} · ${b.title} → ${b.teacherName}`).join(' / ')}</p>
+              <div className="mt-2 border-t border-line pt-2 text-fg-2">
+                <p className="font-bold text-fg">교재는 확인만 하며 자동으로 담당을 바꾸지 않습니다</p>
+                <p>{preview.books.map((b) => `${b.studentName} · ${b.title}`).join(' / ')}</p>
+              </div>
+            ) : null}
+            {preview.payout.length ? (
+              <div className="mt-2 border-t border-line pt-2 text-fg-2">
+                <p className="font-bold text-fg">정산 영향</p>
+                <ul className="mt-1 flex flex-col gap-1">
+                  {preview.payout.map((row) => (
+                    <li key={row.month} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>{row.month} · {row.occurrences}회</span>
+                      {row.fromConfirmed || row.toConfirmed
+                        ? <Chip size="compact" tone="warning">확정 정산 보존</Chip>
+                        : <Chip size="compact" tone="neutral">정산 미확정</Chip>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
             {preview.unavailable.length ? (
               <Banner tone="warning" className="mt-2">
