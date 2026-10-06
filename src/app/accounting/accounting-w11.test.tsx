@@ -143,7 +143,7 @@ it('탭은 두 층이다 — 처음은 받을 돈 › 트래킹 보드 · 최신
   expect(view.getByRole('button', { name: '컨설팅 비공개' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '정리 · 기준' }));
   expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(
-    ['받을 돈', '들어온 돈', '나간 돈', '정리 · 기준', '조정', '수강 정지', '계좌', '월 마감', '단가표', '시급', '가산 규칙'],
+    ['받을 돈', '들어온 돈', '나간 돈', '정리 · 기준', '조정', '수강 정지', '계좌', '월 마감', '기준 단가', '시급', '가산 규칙'],
   );
 });
 

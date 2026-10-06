@@ -65,7 +65,7 @@ const GROUPS: readonly Group[] = [
       { value: 'suspensions', label: '수강 정지' },
       { value: 'accounts', label: '계좌' },
       { value: 'close', label: '월 마감' },
-      { value: 'rates', label: '단가표' },
+      { value: 'rates', label: '기준 단가' },
       { value: 'wage', label: '시급' },
       { value: 'bonus', label: '가산 규칙' },
     ],

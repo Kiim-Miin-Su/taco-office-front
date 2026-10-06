@@ -220,8 +220,8 @@ it('수강·월 청구 탭의 「이 달 청구서 일괄 발행 →」은 청�
   expect((view.getByLabelText('납부 기한') as HTMLInputElement).value).toBe('');
 });
 
-/** 단가표 (C94-d) — 그 탭을 열 때만 부르고, 「지금」은 서버의 current 다 */
-it('단가표는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다른 탭으로 가는 사람이 값을 치르지 않는다 (C94-d)', async () => {
+/** 기준 단가 (BOC-11e) — 기존 회당 이력도 그 탭을 열 때만 읽는다 */
+it('기준 단가는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다른 탭으로 가는 사람이 값을 치르지 않는다 (BOC-11e)', async () => {
   useSession.getState().signIn('fixture', me);
   const ratesGet = vi.fn();
   api.defaults.adapter = (async (config: { url?: string }) => {
@@ -240,12 +240,12 @@ it('단가표는 그 탭을 열 때만 부른다 — 회계를 열어 바로 다
   fireEvent.click(view.getByRole('button', { name: '정리 · 기준' }));
   await waitFor(() => expect(view.getByText('9월은 마감 전입니다')).toBeTruthy());
   expect(ratesGet).not.toHaveBeenCalled();
-  fireEvent.click(view.getByRole('button', { name: '단가표' }));
-  await waitFor(() => expect(view.getByText('₩60,000')).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '기준 단가' }));
+  await waitFor(() => expect(view.getAllByText('₩60,000')).toHaveLength(2));
   expect(ratesGet).toHaveBeenCalledTimes(1);
-  expect(view.getByText('지금')).toBeTruthy();
-  expect(view.getByRole('button', { name: '+ 단가 등록' })).toBeTruthy();
-  expect(view.getByRole('button', { name: '+ 예외 등록' })).toBeTruthy();
+  expect(view.getAllByText('현재')).toHaveLength(2);
+  expect(view.getByRole('heading', { name: '기준 단가 — 시간당 · Kinder · 학생 예외' })).toBeTruthy();
+  expect(view.getByText(/아래 기존 단가는/)).toBeTruthy();
 });
 
 /**

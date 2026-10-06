@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: 단가표 — 「살아 있는 줄」은 서버 값이고 창은 종류·과목·인원·단가·날짜(·사유)만 보낸다 (C94-d · H-81 · C-38).
- * 책임/재사용: 실제 RateBook/useWriteRate/useWriteStudentRate/useMeta 를 쓰고 네트워크만 어댑터로 갈아 끼운다.
+ * 목적: 최신 기준 단가 화면이 시간당 정책과 기존 RATE/STURATE 회당 이력을 분리하는지 검증한다. (test)
+ * 책임/재사용: 실제 RateBook/useMeta를 사용하고 네트워크만 어댑터로 바꿔 검증·초기화·write 0을 확인한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
@@ -21,163 +21,98 @@ const book: RateBookData = {
   ],
 };
 const meta = {
-  kinds: [{ key: 'class', name: '수업', extra: false }, { key: 'extra', name: '추가 수업', extra: true }],
-  subs: [{ key: 'writing', name: 'Writing' }],
+  kinds: [{ key: 'class', name: '수업', extra: false }],
+  subs: [{ key: 'writing', name: 'Writing', kindKey: 'class' }],
   students: [{ id: 7, name: '정하람', grade: '10', tag: '10', label: '정하람 · 10' }, { id: 8, name: '윤도현', grade: '11', tag: '11', label: '윤도현 · 11' }],
   rooms: [], zaccs: [], staff: [], invTypes: [], cancelReasons: [], cancelTreats: [],
-};
+} as unknown as Meta;
 
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
-const posted: Array<{ url?: string; body: unknown }> = [];
-const got: string[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; got.length = 0; });
+const seen: Array<{ method?: string; url?: string }> = [];
 
-function setup(
-  onPost: (url: string) => { status: number; data: unknown } = () => ({ status: 201, data: book.rates[0] }),
-  metaData: Meta = meta as unknown as Meta,
-) {
-  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
-    if (config.method === 'post') {
-      posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
-      const r = onPost(config.url ?? '');
-      if (r.status >= 400) return Promise.reject(Object.assign(new Error('fail'), { response: { status: r.status, data: r.data } }));
-      return { config, status: r.status, statusText: 'OK', headers: {}, data: r.data };
-    }
-    got.push(config.url ?? '');
-    return { config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/meta' ? metaData : book };
+afterEach(() => {
+  cleanup();
+  clients.splice(0).forEach((client) => client.clear());
+  api.defaults.adapter = originalAdapter;
+  seen.splice(0);
+});
+
+function setup() {
+  api.defaults.adapter = (async (config: { method?: string; url?: string }) => {
+    seen.push(config);
+    return { config, status: 200, statusText: 'OK', headers: {}, data: meta };
   }) as never;
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
-  return render(
-    <QueryClientProvider client={client}>
-      <RateBook data={book} loading={false} />
-    </QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={client}><RateBook data={book} loading={false} /></QueryClientProvider>);
 }
 
-it('두 표를 서버 값 그대로 그린다 — 「지금」은 서버의 current 이고 화면이 날짜를 견주지 않는다 · 코드표는 창을 열기 전엔 부르지 않는다', () => {
+it('기존 RATE/STURATE를 회당 이력으로 그대로 그리고 시간당 값으로 환산하지 않는다', () => {
   const view = setup();
-  const rows = view.getAllByRole('row');
-  const text = (r: HTMLElement) => (r.textContent ?? '').replace(/\s+/g, ' ');
-  // 같은 종류·인원의 두 줄 — 나중 날짜가 「지금」, 지난 줄은 남는다
-  const extraRows = rows.filter((r) => text(r).includes('추가 수업'));
-  expect(extraRows).toHaveLength(2);
-  expect(text(extraRows[0]!)).toContain('₩75,000');
-  expect(within(extraRows[0]!).getByText('지금')).toBeTruthy();
-  expect(text(extraRows[1]!)).toContain('₩70,000');
-  expect(within(extraRows[1]!).queryByText('지금')).toBeNull();
-  expect(text(extraRows[0]!)).toContain('추가');
-  // 학생별 예외 — 사유 · 누가
-  const stu = rows.find((r) => text(r).includes('정하람'))!;
-  expect(text(stu)).toContain('형제 할인');
-  expect(text(stu)).toContain('김민수');
-  expect(got).not.toContain('/meta');
+  const basic = view.getByLabelText('기존 회당 단가 표');
+  expect(within(basic).getByText('₩75,000')).toBeTruthy();
+  expect(within(basic).getByText('₩70,000')).toBeTruthy();
+  expect(within(basic).getByText('₩33,000')).toBeTruthy();
+  expect(within(basic).getAllByText('현재')).toHaveLength(2);
+  const student = view.getByLabelText('기존 학생별 회당 예외 표');
+  expect(within(student).getByText('정하람')).toBeTruthy();
+  expect(within(student).getByText('형제 할인 · 김민수')).toBeTruthy();
+  expect(seen).toHaveLength(0);
 });
 
-it('「+ 예외 등록」 — 사유가 비면 보낼 수 없고, 채우면 학생·종류·단가·날짜·사유만 보낸다 (H-81)', async () => {
-  const view = setup(() => ({ status: 201, data: book.studentRates[0] }));
-  fireEvent.click(view.getByRole('button', { name: '+ 예외 등록' }));
-  const dialog = await view.findByRole('dialog');
-  await waitFor(() => expect(got).toContain('/meta'));
-  await waitFor(() => expect(within(dialog).getByRole('option', { name: '정하람 · 10' })).toBeTruthy());
-  fireEvent.change(within(dialog).getByLabelText('학생'), { target: { value: '7' } });
-  fireEvent.change(within(dialog).getByLabelText('종류'), { target: { value: 'class' } });
-  fireEvent.change(within(dialog).getByLabelText('회당 단가'), { target: { value: '30000' } });
-  fireEvent.change(within(dialog).getByLabelText('언제부터'), { target: { value: '2026-10-01' } });
-  const submit = within(dialog).getByRole('button', { name: '등록' }) as HTMLButtonElement;
-  expect(submit.disabled).toBe(true);
-  fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: '형제 할인' } });
-  expect(submit.disabled).toBe(false);
-  fireEvent.click(submit);
-  await waitFor(() => expect(posted).toHaveLength(1));
-  expect(posted[0]).toEqual({ url: '/accounting/sturates', body: { studentId: 7, kindKey: 'class', unitPrice: 30000, fromDate: '2026-10-01', reason: '형제 할인' } });
-  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
-});
-
-it('「+ 단가 등록」 — 과목을 비우면 subKey 없이 보내고, 서버가 거절하면 그 문장을 그대로 보인다', async () => {
-  const view = setup((url) => (url === '/accounting/rates'
-    ? { status: 409, data: { code: 'RATE_DUPLICATE', message: '같은 종류·과목·인원에 2026-10-01부터의 단가(70,000원)가 이미 있습니다' } }
-    : { status: 201, data: {} }));
-  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
-  const dialog = await view.findByRole('dialog');
-  await waitFor(() => expect(within(dialog).getByRole('option', { name: '추가 수업 · 추가 수업' })).toBeTruthy());
-  fireEvent.change(within(dialog).getByLabelText('종류'), { target: { value: 'extra' } });
-  fireEvent.change(within(dialog).getByLabelText('회당 단가'), { target: { value: '70000' } });
-  fireEvent.change(within(dialog).getByLabelText('언제부터'), { target: { value: '2026-10-01' } });
-  fireEvent.click(within(dialog).getByRole('button', { name: '등록' }));
-  await waitFor(() => expect(posted).toHaveLength(1));
-  expect(posted[0]).toEqual({ url: '/accounting/rates', body: { kindKey: 'extra', heads: 1, unitPrice: 70000, fromDate: '2026-10-01' } });
-  await waitFor(() => expect(within(dialog).getByText(/이미 있습니다/)).toBeTruthy());
-});
-
-it('⭐ 프로그램 관계가 내려오면 단가표 과목도 같은 프로그램만 보이고 프로그램 변경 때 잘못된 과목을 비운다', async () => {
-  const linkedMeta = {
-    ...meta,
-    subs: [
-      { key: 'writing', name: 'Writing', kindKey: 'class' },
-      { key: 'diagnostic', name: 'Diagnostic', kindKey: 'extra' },
-    ],
-  } as unknown as Meta;
-  const view = setup(undefined, linkedMeta);
-  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
-  const dialog = await view.findByRole('dialog');
-  await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Writing' })).toBeTruthy());
-
-  fireEvent.change(within(dialog).getByLabelText('종류'), { target: { value: 'class' } });
-  expect(within(dialog).getByRole('option', { name: 'Writing' })).toBeTruthy();
-  expect(within(dialog).queryByRole('option', { name: 'Diagnostic' })).toBeNull();
-  fireEvent.change(within(dialog).getByLabelText('과목'), { target: { value: 'writing' } });
-
-  fireEvent.change(within(dialog).getByLabelText('종류'), { target: { value: 'extra' } });
-  expect((within(dialog).getByLabelText('과목') as HTMLSelectElement).value).toBe('');
-  expect(within(dialog).queryByRole('option', { name: 'Writing' })).toBeNull();
-  expect(within(dialog).getByRole('option', { name: 'Diagnostic' })).toBeTruthy();
-});
-
-/**
- * C100 · P-157 — **창은 열 때마다 빈 칸에서 시작한다.**
- *
- * 이 두 창은 목록 옆에 **늘 마운트돼 있어서** 닫아도 상태가 살아 있었다. 성공하면 단가만
- * 지우고 종류·과목·인원·적용일·오류 문구는 남았고, 「취소」로 닫으면 아무것도 안 지워졌다 —
- * 다음에 여는 사람은 **남의 초안 위에** 적게 된다. 창 열다섯이 이미 쓰는 초기화를 같이 쓴다.
- */
-it('⭐ 단가 등록 창은 닫았다 다시 열면 앞사람의 초안이 남아 있지 않다', async () => {
+it('그룹 입력은 정원·1인 시간당 단가·총액 서버 결과를 분리하고 저장을 잠근다', () => {
   const view = setup();
-  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
-  const first = await view.findByRole('dialog');
-  await waitFor(() => expect(within(first).getByRole('option', { name: '추가 수업 · 추가 수업' })).toBeTruthy());
-  fireEvent.change(within(first).getByLabelText('종류'), { target: { value: 'extra' } });
-  fireEvent.change(within(first).getByLabelText('인원'), { target: { value: '3' } });
-  fireEvent.change(within(first).getByLabelText('회당 단가'), { target: { value: '70000' } });
-  fireEvent.change(within(first).getByLabelText('언제부터'), { target: { value: '2026-10-01' } });
-  // **보내지 않고 취소한다** — 성공 갈래는 전부터 단가만 지웠고, 진짜 새는 자리는 이쪽이다
-  fireEvent.click(within(first).getByRole('button', { name: '취소 (Esc)' }));
-  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
-
-  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
-  const again = await view.findByRole('dialog');
-  expect((within(again).getByLabelText('종류') as HTMLSelectElement).value).toBe('');
-  expect((within(again).getByLabelText('인원') as HTMLInputElement).value).toBe('1');
-  expect((within(again).getByLabelText('회당 단가') as HTMLInputElement).value).toBe('');
-  expect(posted).toHaveLength(0);
+  fireEvent.click(within(view.getByRole('group', { name: '기준 단가 입력 종류' })).getByRole('button', { name: '그룹' }));
+  fireEvent.change(view.getByLabelText('정원'), { target: { value: '1' } });
+  fireEvent.blur(view.getByLabelText('정원'));
+  expect(view.getByText('2명 이상의 정수를 적어 주세요')).toBeTruthy();
+  expect(view.getByLabelText('1인 시간당 단가')).toBeTruthy();
+  expect(view.getByText('총액/시간 · 서버 재계산 후 표시')).toBeTruthy();
+  expect((view.getByRole('button', { name: '시간당 단가 저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(seen).toHaveLength(0);
 });
 
-it('⭐ 학생별 예외 창도 마찬가지 — 사유가 남으면 다른 학생에게 남의 사유가 붙는다', async () => {
+it('학생 예외는 meta를 그때만 읽고 대상·개별 시간당 단가·기준 대비 %·효력기간·사유를 준비한다', async () => {
   const view = setup();
-  fireEvent.click(view.getByRole('button', { name: '+ 예외 등록' }));
-  const first = await view.findByRole('dialog');
-  await waitFor(() => expect(within(first).getByRole('option', { name: /정하람/ })).toBeTruthy());
-  fireEvent.change(within(first).getByLabelText('학생'), { target: { value: '7' } });
-  fireEvent.change(within(first).getByLabelText('회당 단가'), { target: { value: '54000' } });
-  fireEvent.change(within(first).getByLabelText('사유'), { target: { value: '형제 할인' } });
-  fireEvent.click(within(first).getByRole('button', { name: '취소 (Esc)' }));
-  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+  expect(seen).toHaveLength(0);
+  fireEvent.click(within(view.getByRole('group', { name: '기준 단가 입력 종류' })).getByRole('button', { name: '학생 예외' }));
+  await waitFor(() => expect(view.getByRole('option', { name: '윤도현 · 11' })).toBeTruthy());
+  expect(seen.map(({ url }) => url)).toEqual(['/meta']);
+  fireEvent.blur(view.getByLabelText('대상 학생'));
+  fireEvent.blur(view.getByLabelText('사유'));
+  expect(view.getByText('학생을 골라 주세요')).toBeTruthy();
+  expect(view.getByText('학생 예외 사유를 적어 주세요')).toBeTruthy();
+  expect(view.getByLabelText('개별 시간당 단가')).toBeTruthy();
+  expect(view.getByText('기준 대비 % · 서버 재계산 후 표시')).toBeTruthy();
+  expect(view.getByLabelText('언제부터')).toBeTruthy();
+  expect(view.getByLabelText('언제까지')).toBeTruthy();
+});
 
-  fireEvent.click(view.getByRole('button', { name: '+ 예외 등록' }));
-  const again = await view.findByRole('dialog');
-  expect((within(again).getByLabelText('학생') as HTMLSelectElement).value).toBe('');
-  expect((within(again).getByLabelText('회당 단가') as HTMLInputElement).value).toBe('');
-  expect((within(again).getByLabelText('사유') as HTMLInputElement).value).toBe('');
-  expect(posted).toHaveLength(0);
+it('입력 종류를 바꾸면 앞 대상·금액·기간·사유 초안을 지워 다른 정책으로 넘기지 않는다', async () => {
+  const view = setup();
+  const modes = view.getByRole('group', { name: '기준 단가 입력 종류' });
+  fireEvent.click(within(modes).getByRole('button', { name: '학생 예외' }));
+  await waitFor(() => expect(view.getByRole('option', { name: '정하람 · 10' })).toBeTruthy());
+  fireEvent.change(view.getByLabelText('대상 학생'), { target: { value: '7' } });
+  fireEvent.change(view.getByLabelText('개별 시간당 단가'), { target: { value: '54000' } });
+  fireEvent.change(view.getByLabelText('언제까지'), { target: { value: '2027-01-31' } });
+  fireEvent.change(view.getByLabelText('사유'), { target: { value: '형제 할인' } });
+  fireEvent.click(within(modes).getByRole('button', { name: '그룹' }));
+  fireEvent.click(within(modes).getByRole('button', { name: '학생 예외' }));
+  expect((view.getByLabelText('대상 학생') as HTMLSelectElement).value).toBe('');
+  expect((view.getByLabelText('개별 시간당 단가') as HTMLInputElement).value).toBe('');
+  expect((view.getByLabelText('언제까지') as HTMLInputElement).value).toBe('');
+  expect((view.getByLabelText('사유') as HTMLInputElement).value).toBe('');
+});
+
+it('종료일이 시작일보다 앞서면 검증하고 어떤 POST·PATCH·DELETE도 보내지 않는다', async () => {
+  const view = setup();
+  fireEvent.change(view.getByLabelText('언제부터'), { target: { value: '2026-11-01' } });
+  fireEvent.change(view.getByLabelText('언제까지'), { target: { value: '2026-10-31' } });
+  fireEvent.blur(view.getByLabelText('언제까지'));
+  expect(view.getByText('시작일과 같거나 뒤인 날짜로 적어 주세요')).toBeTruthy();
+  expect(view.getAllByRole('button', { name: '수정 준비 중' }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+  expect(view.getAllByRole('button', { name: '삭제 준비 중' }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+  expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);
 });
