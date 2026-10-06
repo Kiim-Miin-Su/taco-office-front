@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { InternalAxiosRequestConfig } from 'axios';
+import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Me } from '@/api/types';
@@ -24,16 +24,29 @@ const meta = {
     { value: 'Y6', system: 'GB', systemLabel: '영국 Year', optionLabel: 'Y6 (= G5)', equivalenceHint: '= G5 · 초5', listLabel: 'G5 · Y6', sort: 5 },
   ],
 };
+const populatedMeta = {
+  ...meta,
+  staff: [
+    { id: 2, name: '김민선', role: 'manager', canAdminPage: true, canGpaPack: true, title: '매니저' },
+    { id: 7, name: '박서윤', role: 'teacher', canAdminPage: false, canGpaPack: false, title: null },
+  ],
+  students: [
+    { id: 1, name: '김하린', grade: 'G5', school: 'SIS', gender: 'female', tag: 'G5', label: '김하린 · G5' },
+    { id: 2, name: '이도윤', grade: 'G8', school: null, gender: 'male', tag: null, label: '이도윤' },
+  ],
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
+let responseMeta: typeof meta | typeof populatedMeta;
 
 beforeEach(() => {
   requests = [];
+  responseMeta = meta;
   useSession.getState().signIn('student-registration-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
-    return { config, status: 200, statusText: 'OK', headers: {}, data: meta };
+    return { config, status: 200, statusText: 'OK', headers: {}, data: responseMeta };
   };
 });
 afterEach(() => {
@@ -61,7 +74,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByLabelText('학생 이름').getAttribute('data-field-path')).toBe('name');
     expect(view.getByLabelText('보호자 1 연락처 1 값').getAttribute('data-field-path')).toBe('guardians[0].contacts[0].value');
     const paths = [...view.container.querySelectorAll<HTMLElement>('[data-field-path]')].map(node => node.dataset.fieldPath);
-    expect(paths).toHaveLength(25);
+    expect(paths).toHaveLength(28);
     expect(new Set(paths).size).toBe(paths.length);
     expect(view.getByRole('button', { name: '학생 등록 계약 연결 대기' }).hasAttribute('disabled')).toBe(true);
     expect(view.queryByText(/등록되었습니다/)).toBeNull();
@@ -87,12 +100,12 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByLabelText('보호자 2 관계').getAttribute('data-field-path')).toBe('guardians[1].relation');
     fireEvent.click(view.getByRole('button', { name: '보호자 1 연락처 추가' }));
     expect(view.getByLabelText('보호자 1 연락처 2 값').getAttribute('data-field-path')).toBe('guardians[0].contacts[1].value');
-    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(34);
+    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(37);
     fireEvent.click(view.getByRole('button', { name: '보호자 1 연락처 2 제거' }));
     expect(view.queryByLabelText('보호자 1 연락처 2 값')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '보호자 2 제거' }));
     expect(view.queryByLabelText('보호자 2 관계')).toBeNull();
-    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(25);
+    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(28);
     expect(view.getByRole('button', { name: '보호자 1 제거' }).hasAttribute('disabled')).toBe(true);
     expect(view.getByRole('button', { name: '보호자 1 연락처 1 제거' }).hasAttribute('disabled')).toBe(true);
   });
@@ -159,5 +172,87 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(grid.className).toContain('grid-cols-1');
     expect(grid.className).toContain('md:grid-cols-2');
     expect(grid.className).not.toMatch(/min-w-\[/);
+  });
+
+  it('활성 담당자와 서버 표시 형제를 검색·복수 선택하고 중복 없이 제거한다', async () => {
+    responseMeta = populatedMeta;
+    const view = setup();
+    await waitFor(() => expect(requests).toHaveLength(1));
+
+    fireEvent.change(view.getByLabelText('담당자 검색'), { target: { value: '김' } });
+    fireEvent.click(view.getByRole('button', { name: '담당자 김민선 선택' }));
+    expect(view.getByText('김민선 · 매니저')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '담당자 김민선 선택' })).toBeNull();
+
+    fireEvent.change(view.getByLabelText('형제·자매 검색'), { target: { value: '김하' } });
+    fireEvent.click(view.getByRole('button', { name: '형제·자매 김하린 · G5 선택' }));
+    expect(view.getByText('김하린 · G5')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '형제·자매 김하린 · G5 선택' })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '담당자 김민선 제거' }));
+    fireEvent.click(view.getByRole('button', { name: '형제·자매 김하린 · G5 제거' }));
+    expect(view.queryByText('김민선 · 매니저')).toBeNull();
+    expect(view.queryByText('김하린 · G5')).toBeNull();
+    expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);
+  });
+
+  it('학교 기간의 연·월·일 정밀도와 종료 없음을 보존하고 겹침을 숨기지 않는다', async () => {
+    const view = setup();
+    await waitFor(() => expect(requests).toHaveLength(1));
+
+    fireEvent.change(view.getByLabelText('학교 1 이름'), { target: { value: 'A 학교' } });
+    fireEvent.change(view.getByLabelText('학교 1 시작 정밀도'), { target: { value: 'year' } });
+    fireEvent.change(view.getByLabelText('학교 1 시작'), { target: { value: '2020' } });
+    fireEvent.click(view.getByLabelText('학교 1 종료일 있음'));
+    fireEvent.change(view.getByLabelText('학교 1 종료 정밀도'), { target: { value: 'year' } });
+    fireEvent.change(view.getByLabelText('학교 1 종료'), { target: { value: '2021' } });
+    fireEvent.click(view.getByRole('button', { name: '+ 학교 이력 추가' }));
+    fireEvent.change(view.getByLabelText('학교 2 이름'), { target: { value: 'B 학교' } });
+    fireEvent.change(view.getByLabelText('학교 2 시작 정밀도'), { target: { value: 'year' } });
+    fireEvent.change(view.getByLabelText('학교 2 시작'), { target: { value: '2021' } });
+    fireEvent.click(view.getByLabelText('학교 2 종료일 있음'));
+    fireEvent.change(view.getByLabelText('학교 2 종료 정밀도'), { target: { value: 'year' } });
+    fireEvent.change(view.getByLabelText('학교 2 종료'), { target: { value: '2023' } });
+    fireEvent.click(view.getByRole('button', { name: '입력 검토' }));
+
+    expect(view.getByText(/학교 이력 1과 2의 포함 기간이 겹칩니다/)).toBeTruthy();
+    expect((view.getByLabelText('학교 1 이름') as HTMLInputElement).value).toBe('A 학교');
+    expect((view.getByLabelText('학교 2 이름') as HTMLInputElement).value).toBe('B 학교');
+    expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);
+  });
+
+  it('종료가 시작보다 앞선 기간은 거절하고 다른 초안을 보존한다', async () => {
+    const view = setup();
+    await waitFor(() => expect(requests).toHaveLength(1));
+    fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '보존 학생' } });
+    fireEvent.change(view.getByLabelText('학교 1 이름'), { target: { value: '기간 학교' } });
+    fireEvent.change(view.getByLabelText('학교 1 시작'), { target: { value: '2026-10-10' } });
+    fireEvent.click(view.getByLabelText('학교 1 종료일 있음'));
+    fireEvent.change(view.getByLabelText('학교 1 종료'), { target: { value: '2026-10-09' } });
+    fireEvent.click(view.getByRole('button', { name: '입력 검토' }));
+    expect(view.getAllByText('종료일은 시작일보다 앞설 수 없습니다').length).toBeGreaterThan(0);
+    expect((view.getByLabelText('학생 이름') as HTMLInputElement).value).toBe('보존 학생');
+    expect((view.getByLabelText('학교 1 이름') as HTMLInputElement).value).toBe('기간 학교');
+  });
+
+  it('선택지가 비면 빈 상태를 보이고 403이면 권한 상태와 초안 보존을 알린다', async () => {
+    const empty = setup();
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(empty.getByText('선택 가능한 담당자가 없습니다.')).toBeTruthy();
+    expect(empty.getByText('선택 가능한 형제·자매가 없습니다.')).toBeTruthy();
+    empty.unmount();
+    clients.splice(0).forEach(client => client.clear());
+    requests = [];
+    api.defaults.adapter = async config => {
+      requests.push(config);
+      throw new AxiosError('forbidden', 'ERR_BAD_REQUEST', config, undefined, {
+        config, status: 403, statusText: 'Forbidden', headers: {}, data: { code: 'FORBIDDEN', message: 'forbidden' },
+      });
+    };
+    const denied = setup();
+    fireEvent.change(denied.getByLabelText('학생 이름'), { target: { value: '권한 오류에도 보존' } });
+    await waitFor(() => expect(denied.getByText('등록 선택지를 볼 권한이 없습니다. 작성한 초안은 유지됩니다.')).toBeTruthy());
+    expect((denied.getByLabelText('학생 이름') as HTMLInputElement).value).toBe('권한 오류에도 보존');
+    expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);
   });
 });

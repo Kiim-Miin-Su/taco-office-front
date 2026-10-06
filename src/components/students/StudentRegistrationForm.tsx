@@ -6,9 +6,15 @@
 'use client';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMeta } from '@/api/queries';
+import { ApiError } from '@/api/client';
+import type { StaffBrief, StudentBrief } from '@/api/types';
 import { educationGradeOptions } from '@/lib/education-grades';
 import { todayKst } from '@/lib/calendar';
-import { Banner, Button, Checkbox, FieldError, Input, Label, LinkButton, PageHeader, Segmented, Select, Textarea } from '@/components/ui';
+import {
+  STUDENT_PERIOD_STATE_LABEL, normalizeStudentPeriod, studentPeriodState, studentPeriodsOverlap,
+  type StudentPeriod, type StudentPeriodPrecision,
+} from '@/lib/student-profile-period';
+import { Banner, Button, Checkbox, Chip, FieldError, Input, Label, LinkButton, PageHeader, Segmented, Select, Textarea } from '@/components/ui';
 import { useStudentReadAllowed } from '@/api/students';
 import type { StudentRegistrationSource } from '@/lib/student-registration-route';
 import { EducationGradeSelect } from './EducationGradeSelect';
@@ -19,10 +25,22 @@ interface GuardianDraft {
   key: number; relation: string; relationOther: string; name: string; country: string;
   isPrimary: boolean; isPayer: boolean; contacts: ContactDraft[];
 }
+interface SchoolDraft {
+  key: number;
+  query: string;
+  from: string;
+  fromPrecision: StudentPeriodPrecision;
+  to: string;
+  toPrecision: StudentPeriodPrecision;
+  openEnded: boolean;
+}
 type Errors = Record<string, string>;
 let nextKey = 0;
 const contact = (): ContactDraft => ({ key: ++nextKey, type: 'phone', value: '', label: '' });
 const guardian = (): GuardianDraft => ({ key: ++nextKey, relation: '', relationOther: '', name: '', country: '', isPrimary: false, isPayer: false, contacts: [contact()] });
+const school = (): SchoolDraft => ({
+  key: ++nextKey, query: '', from: todayKst(), fromPrecision: 'day', to: '', toPrecision: 'day', openEnded: true,
+});
 const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const RELATIONS = [
@@ -34,6 +52,34 @@ const CONTACT_TYPES: ReadonlyArray<[ContactType, string]> = [
 const SOURCES = [
   ['kakao', '카카오'], ['phone', '전화'], ['blog', '블로그'], ['instagram', '인스타그램'], ['referral', '소개'], ['walkin', '방문'],
 ] as const;
+const PRECISIONS: ReadonlyArray<[StudentPeriodPrecision, string]> = [
+  ['year', '연'], ['month', '월'], ['day', '일'],
+];
+
+function valueForPrecision(value: string, precision: StudentPeriodPrecision): string {
+  if (precision === 'year') return value.slice(0, 4);
+  if (precision === 'month') return value.length >= 7 ? value.slice(0, 7) : '';
+  return value.length === 10 ? value : '';
+}
+
+function periodInput(row: Pick<SchoolDraft, 'from' | 'fromPrecision' | 'to' | 'toPrecision' | 'openEnded'>): Parameters<typeof normalizeStudentPeriod>[0] {
+  return {
+    from: row.from,
+    fromPrecision: row.fromPrecision,
+    to: row.openEnded ? null : row.to,
+    toPrecision: row.openEnded ? null : row.toPrecision,
+  };
+}
+
+function periodOrNull(row: Pick<SchoolDraft, 'from' | 'fromPrecision' | 'to' | 'toPrecision' | 'openEnded'>): StudentPeriod | null {
+  try { return normalizeStudentPeriod(periodInput(row)); } catch { return null; }
+}
+
+function metaErrorMessage(error: unknown): string {
+  return error instanceof ApiError && error.status === 403
+    ? '등록 선택지를 볼 권한이 없습니다. 작성한 초안은 유지됩니다.'
+    : '등록 선택지를 불러오지 못했습니다. 다시 불러오기 전에도 작성한 값은 유지됩니다.';
+}
 
 function Section({ number, title, sub, children, ariaLabel }: {
   number: number; title: string; sub?: string; children: ReactNode; ariaLabel?: string;
@@ -94,6 +140,88 @@ function ContactRows({ owner, rows, errors, onChange, onAdd, onRemove, minimumRo
   );
 }
 
+function PeriodBoundary({ id, label, path, value, precision, invalid, onValue, onPrecision }: {
+  id: string;
+  label: string;
+  path: string;
+  value: string;
+  precision: StudentPeriodPrecision;
+  invalid?: boolean;
+  onValue: (value: string) => void;
+  onPrecision: (precision: StudentPeriodPrecision) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-2">
+      <div>
+        <Label htmlFor={`${id}-precision`}>{label} 정밀도</Label>
+        <Select id={`${id}-precision`} aria-label={`${label} 정밀도`} data-field-path={`${path}Precision`} value={precision}
+          onChange={event => onPrecision(event.target.value as StudentPeriodPrecision)}>
+          {PRECISIONS.map(([key, text]) => <option key={key} value={key}>{text}</option>)}
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor={id}>{label}</Label>
+        <Input id={id} aria-label={label} data-field-path={path} type={precision === 'day' ? 'date' : precision === 'month' ? 'month' : 'text'}
+          inputMode={precision === 'year' ? 'numeric' : undefined} placeholder={precision === 'year' ? 'YYYY' : undefined}
+          maxLength={precision === 'year' ? 4 : undefined} value={value} error={invalid} onChange={event => onValue(event.target.value)} />
+      </div>
+    </div>
+  );
+}
+
+function PeriodPreview({ row }: { row: Pick<SchoolDraft, 'from' | 'fromPrecision' | 'to' | 'toPrecision' | 'openEnded'> }) {
+  const period = periodOrNull(row);
+  if (!period) return <p role="status" className="text-[11px] text-danger">기간을 확인해 주세요.</p>;
+  const state = studentPeriodState(period, todayKst());
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[11px] text-fg-subtle">
+      <Chip size="compact" tone={state === 'current' ? 'success' : state === 'future' ? 'info' : 'neutral'}>{STUDENT_PERIOD_STATE_LABEL[state]}</Chip>
+      <span>{period.from} ~ {period.to ?? '계속'}</span>
+      <span>입력 정밀도 {row.fromPrecision}{row.openEnded ? '' : ` / ${row.toPrecision}`}</span>
+    </div>
+  );
+}
+
+interface PickerCandidate { id: number; label: string; actionLabel: string }
+function RegistrationMultiPicker({ kind, query, onQuery, candidates, selectedIds, pending, error, onAdd, onRemove }: {
+  kind: '담당자' | '형제·자매';
+  query: string;
+  onQuery: (value: string) => void;
+  candidates: readonly PickerCandidate[];
+  selectedIds: readonly number[];
+  pending: boolean;
+  error: boolean;
+  onAdd: (id: number) => void;
+  onRemove: (id: number) => void;
+}) {
+  const normalized = query.trim().toLocaleLowerCase('ko-KR');
+  const visible = normalized
+    ? candidates.filter(item => !selectedIds.includes(item.id) && item.label.toLocaleLowerCase('ko-KR').includes(normalized)).slice(0, 8)
+    : [];
+  const selected = selectedIds.map(id => candidates.find(item => item.id === id)).filter((item): item is PickerCandidate => Boolean(item));
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <Label htmlFor={`${kind}-search`}>{kind} 검색</Label>
+        <Input id={`${kind}-search`} aria-label={`${kind} 검색`} type="search" data-field-path={kind === '담당자' ? 'assigneeIds' : 'siblingIds'}
+          value={query} disabled={pending || error} placeholder={kind === '담당자' ? '이름·직함 검색' : '이름·학년·학교 검색'} onChange={event => onQuery(event.target.value)} />
+      </div>
+      {pending ? <p role="status" className="text-[11px] text-fg-subtle">{kind} 선택지를 불러오는 중…</p> : null}
+      {error ? <Banner tone="danger">{kind} 선택지를 불러오지 못했습니다. 입력한 초안은 유지됩니다.</Banner> : null}
+      {!pending && !error && !candidates.length ? <p role="status" className="text-[11px] text-fg-subtle">선택 가능한 {kind}가 없습니다.</p> : null}
+      {!pending && !error && normalized && candidates.length && !visible.length ? <p role="status" className="text-[11px] text-fg-subtle">검색 결과가 없습니다.</p> : null}
+      {visible.length ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {visible.map(item => <Button key={item.id} size="sm" aria-label={`${kind} ${item.actionLabel} 선택`} onClick={() => { onAdd(item.id); onQuery(''); }}>{item.label}</Button>)}
+      </div> : null}
+      {selected.length ? <div aria-label={`선택한 ${kind}`} className="flex flex-wrap gap-2">
+        {selected.map(item => <div key={item.id} className="flex items-center gap-2 rounded-lg border border-line bg-inset px-3 py-2 text-[12px]">
+          <span>{item.label}</span><Button size="sm" variant="ghost" aria-label={`${kind} ${item.actionLabel} 제거`} onClick={() => onRemove(item.id)}>제거</Button>
+        </div>)}
+      </div> : null}
+    </div>
+  );
+}
+
 export interface StudentRegistrationFormProps {
   source?: StudentRegistrationSource;
   leadId?: number | null;
@@ -110,31 +238,67 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
   const [name, setName] = useState('');
   const [englishName, setEnglishName] = useState('');
   const [gender, setGender] = useState('');
-  const [schoolQuery, setSchoolQuery] = useState('');
-  const [schoolFrom, setSchoolFrom] = useState(todayKst());
-  const [schoolTo, setSchoolTo] = useState('');
+  const [schoolHistory, setSchoolHistory] = useState<SchoolDraft[]>(() => [school()]);
   const [educationSystem, setEducationSystem] = useState('');
   const [grade, setGrade] = useState('');
   const [gradeFrom, setGradeFrom] = useState(todayKst());
+  const [gradeFromPrecision, setGradeFromPrecision] = useState<StudentPeriodPrecision>('day');
+  const [gradeTo, setGradeTo] = useState('');
+  const [gradeToPrecision, setGradeToPrecision] = useState<StudentPeriodPrecision>('day');
+  const [gradeOpenEnded, setGradeOpenEnded] = useState(true);
   const [contacts, setContacts] = useState<ContactDraft[]>([]);
   const [birthDate, setBirthDate] = useState('');
   const [citizenship, setCitizenship] = useState('');
   const [guardians, setGuardians] = useState<GuardianDraft[]>(() => [guardian()]);
   const [cashReceipt, setCashReceipt] = useState('');
   const [referralSource, setReferralSource] = useState('');
+  const [siblingQuery, setSiblingQuery] = useState('');
+  const [siblingIds, setSiblingIds] = useState<number[]>([]);
+  const [assigneeQuery, setAssigneeQuery] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
   const gradeSource = useMemo(() => ({ educationGrades: grades.filter(item => item.system === educationSystem) }), [educationSystem, grades]);
+  const staffCandidates = useMemo<PickerCandidate[]>(() => (meta.data?.staff ?? []).map((item: StaffBrief) => ({
+    id: item.id, label: `${item.name}${item.title ? ` · ${item.title}` : ''}`, actionLabel: item.name,
+  })), [meta.data?.staff]);
+  const siblingCandidates = useMemo<PickerCandidate[]>(() => (meta.data?.students ?? []).map((item: StudentBrief) => ({
+    id: item.id, label: item.label, actionLabel: item.label,
+  })), [meta.data?.students]);
 
   if (!allowed) return <Banner tone="warning">학생 등록을 준비할 권한이 없습니다.</Banner>;
 
   const patchContact = (rows: ContactDraft[], index: number, patch: Partial<ContactDraft>) => rows.map((row, at) => at === index ? { ...row, ...patch } : row);
   const patchGuardian = (index: number, patch: Partial<GuardianDraft>) => setGuardians(rows => rows.map((row, at) => at === index ? { ...row, ...patch } : row));
+  const patchSchool = (index: number, patch: Partial<SchoolDraft>) => setSchoolHistory(rows => rows.map((row, at) => at === index ? { ...row, ...patch } : row));
   const review = () => {
     const next: Errors = {};
     if (!name.trim()) next.name = '학생 이름을 입력해 주세요.';
     if (!gender) next.gender = '성별을 선택해 주세요.';
     if (!systems.length) next.grade = '교육체계·학년 선택 DTO 연결이 필요합니다.';
     else if (!educationSystem || !grade || !gradeFrom) next.grade = '교육체계와 학년을 선택해 주세요.';
+    else {
+      try {
+        normalizeStudentPeriod({
+          from: gradeFrom, fromPrecision: gradeFromPrecision,
+          to: gradeOpenEnded ? null : gradeTo, toPrecision: gradeOpenEnded ? null : gradeToPrecision,
+        });
+      } catch (error) {
+        next.grade = error instanceof Error ? error.message.replace('STUDENT_PERIOD_INVALID: ', '') : '학년 기간을 확인해 주세요.';
+      }
+    }
+    const schoolPeriods: Array<{ index: number; period: StudentPeriod }> = [];
+    schoolHistory.forEach((row, index) => {
+      if (!row.query.trim()) return;
+      try { schoolPeriods.push({ index, period: normalizeStudentPeriod(periodInput(row)) }); }
+      catch (error) {
+        next[`schoolHistory[${index}].period`] = error instanceof Error ? error.message.replace('STUDENT_PERIOD_INVALID: ', '') : '학교 기간을 확인해 주세요.';
+      }
+    });
+    for (let left = 0; left < schoolPeriods.length; left += 1) for (let right = left + 1; right < schoolPeriods.length; right += 1) {
+      if (studentPeriodsOverlap(schoolPeriods[left].period, schoolPeriods[right].period)) {
+        next.schoolHistory = `학교 이력 ${schoolPeriods[left].index + 1}과 ${schoolPeriods[right].index + 1}의 포함 기간이 겹칩니다. 기간을 명시적으로 수정해 주세요.`;
+      }
+    }
     next.residenceCountryCode = '거주 국가 선택 계약 연결이 필요합니다.';
     if (birthDate && birthDate > todayKst()) next.birthDate = '생년월일은 오늘보다 늦을 수 없습니다.';
     if (guardians.filter(row => row.isPrimary).length > 1) next.guardiansPrimary = '주보호자는 한 명만 선택할 수 있습니다.';
@@ -171,6 +335,8 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         { value: 'reactivate', label: '기존 학생 재활성화' },
       ]} />
       <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 Front 단계입니다. 생성 DTO·학교/국가 선택 계약이 연결되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner>
+      {mode === 'create' && meta.isPending ? <Banner tone="neutral">등록 선택지를 불러오는 중입니다. 작성한 값은 그대로 유지됩니다.</Banner> : null}
+      {mode === 'create' && meta.isError ? <Banner tone="danger">{metaErrorMessage(meta.error)}</Banner> : null}
 
       {mode === 'create' ? <form aria-label="학생 신규 등록 초안" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); review(); }} noValidate>
         <Section number={1} title="초기 이력" sub="학년·학교·거주 정보의 적용 기간이 초기 이력이 됩니다. 같은 값을 현재 정보와 이력에 두 번 입력하지 않습니다.">
@@ -185,25 +351,62 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         </Section>
 
         <Section number={3} title="성별">
-          <div className="max-w-sm"><Label htmlFor="student-gender">성별 *</Label><Select id="student-gender" aria-label="성별" data-field-path="gender" value={gender} error={Boolean(errors.gender)} disabled={meta.isPending} onChange={event => setGender(event.target.value)}><option value="">선택</option>{(meta.data?.genders ?? []).map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</Select><FieldError>{errors.gender}</FieldError></div>
+          <div className="max-w-sm"><Label htmlFor="student-gender">성별 *</Label><Select id="student-gender" aria-label="성별" data-field-path="gender" value={gender} error={Boolean(errors.gender)} disabled={meta.isPending || meta.isError} onChange={event => setGender(event.target.value)}><option value="">선택</option>{(meta.data?.genders ?? []).map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</Select><FieldError>{errors.gender}</FieldError></div>
         </Section>
 
         <Section number={4} title="학교" sub="검색 결과에서 학교를 고르고 재학 기간을 기록합니다. 이름만으로 같은 학교를 합치지 않습니다.">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="md:col-span-3"><Label htmlFor="school-query">학교 검색</Label><Input id="school-query" type="search" data-field-path="schoolHistory[0].query" value={schoolQuery} maxLength={100} onChange={event => setSchoolQuery(event.target.value)} placeholder="학교명 검색 · 전용 API 연결 대기" /></div>
-            <div><Label htmlFor="school-from">재학 시작</Label><Input id="school-from" type="date" data-field-path="schoolHistory[0].from" value={schoolFrom} onChange={event => setSchoolFrom(event.target.value)} /></div>
-            <div><Label htmlFor="school-to">재학 종료</Label><Input id="school-to" type="date" data-field-path="schoolHistory[0].to" value={schoolTo} onChange={event => setSchoolTo(event.target.value)} /></div>
-            <div className="flex items-end"><Button className="w-full" disabled>학교 선택 계약 연결 대기</Button></div>
+          <div className="flex flex-col gap-4">
+            <Banner tone="neutral">학교 검색·추가 연결을 준비 중입니다. 이름과 기간 초안은 보존하지만 학교가 선택됐다고 표시하지 않습니다.</Banner>
+            {schoolHistory.map((row, index) => {
+              const base = `schoolHistory[${index}]`;
+              const number = index + 1;
+              return <div key={row.key} className="rounded-lg border border-line bg-inset p-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-[12px] font-bold">학교 이력 {number}</h3>
+                  <Button size="sm" aria-label={`학교 ${number} 이력 제거`} disabled={schoolHistory.length === 1}
+                    onClick={() => setSchoolHistory(rows => rows.filter((_, at) => at !== index))}>제거</Button>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="md:col-span-2"><Label htmlFor={`${base}-query`}>학교 {number} 이름</Label><Input id={`${base}-query`} aria-label={`학교 ${number} 이름`} type="search" data-field-path={`${base}.query`} value={row.query} maxLength={100} onChange={event => patchSchool(index, { query: event.target.value })} placeholder="학교명 검색 · 전용 API 연결 대기" /></div>
+                  <PeriodBoundary id={`${base}-from`} label={`학교 ${number} 시작`} path={`${base}.from`} value={row.from} precision={row.fromPrecision}
+                    invalid={Boolean(errors[`${base}.period`])}
+                    onValue={value => patchSchool(index, { from: value })}
+                    onPrecision={precision => patchSchool(index, { fromPrecision: precision, from: valueForPrecision(row.from, precision) })} />
+                  <div className="flex flex-col gap-2">
+                    <Checkbox aria-label={`학교 ${number} 종료일 있음`} data-field-path={`${base}.hasEnd`} checked={!row.openEnded}
+                      onChange={event => patchSchool(index, { openEnded: !event.target.checked })} label="종료일 있음" />
+                    {!row.openEnded ? <PeriodBoundary id={`${base}-to`} label={`학교 ${number} 종료`} path={`${base}.to`} value={row.to} precision={row.toPrecision}
+                      invalid={Boolean(errors[`${base}.period`])}
+                      onValue={value => patchSchool(index, { to: value })}
+                      onPrecision={precision => patchSchool(index, { toPrecision: precision, to: valueForPrecision(row.to, precision) })} /> : <p className="text-[11px] text-fg-subtle">종료 없음 · 계속 재학</p>}
+                  </div>
+                </div>
+                <FieldError>{errors[`${base}.period`]}</FieldError>
+                <div className="mt-3"><PeriodPreview row={row} /></div>
+              </div>;
+            })}
+            <FieldError>{errors.schoolHistory}</FieldError>
+            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setSchoolHistory(rows => [...rows, school()])}>+ 학교 이력 추가</Button><Button size="sm" disabled>학교 검색·선택 계약 대기</Button></div>
           </div>
         </Section>
 
         <Section number={5} title="교육체계와 학년">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div><Label htmlFor="education-system">교육체계 *</Label><Select id="education-system" aria-label="교육체계" data-field-path="educationSystem" value={educationSystem} error={Boolean(errors.grade)} disabled={!systems.length} onChange={event => { setEducationSystem(event.target.value); setGrade(''); }}><option value="">선택</option>{systems.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div>
             <div><Label htmlFor="education-grade">학년 *</Label><EducationGradeSelect id="education-grade" ariaLabel="학년" fieldPath="gradeCode" source={gradeSource} value={grade} onChange={setGrade} disabled={!educationSystem} /></div>
-            <div><Label htmlFor="grade-from">적용 시작일 *</Label><Input id="grade-from" type="date" data-field-path="gradeHistory[0].from" value={gradeFrom} error={Boolean(errors.grade)} onChange={event => setGradeFrom(event.target.value)} /></div>
+            <PeriodBoundary id="grade-from" label="학년 적용 시작" path="gradeHistory[0].from" value={gradeFrom} precision={gradeFromPrecision}
+              invalid={Boolean(errors.grade)}
+              onValue={setGradeFrom} onPrecision={precision => { setGradeFromPrecision(precision); setGradeFrom(valueForPrecision(gradeFrom, precision)); }} />
+            <div className="flex flex-col gap-2">
+              <Checkbox aria-label="학년 종료일 있음" data-field-path="gradeHistory[0].hasEnd" checked={!gradeOpenEnded}
+                onChange={event => setGradeOpenEnded(!event.target.checked)} label="종료일 있음" />
+              {!gradeOpenEnded ? <PeriodBoundary id="grade-to" label="학년 적용 종료" path="gradeHistory[0].to" value={gradeTo} precision={gradeToPrecision}
+                invalid={Boolean(errors.grade)}
+                onValue={setGradeTo} onPrecision={precision => { setGradeToPrecision(precision); setGradeTo(valueForPrecision(gradeTo, precision)); }} /> : <p className="text-[11px] text-fg-subtle">종료 없음 · 계속 적용</p>}
+            </div>
           </div>
           <FieldError>{errors.grade}</FieldError>
+          <div className="mt-3"><PeriodPreview row={{ from: gradeFrom, fromPrecision: gradeFromPrecision, to: gradeTo, toPrecision: gradeToPrecision, openEnded: gradeOpenEnded }} /></div>
         </Section>
 
         <Section number={6} title="학생 연락수단" sub="학생 연락처는 없어도 됩니다. 추가한 행만 검토합니다.">
@@ -259,7 +462,11 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         </Section>
 
         <Section number={12} title="형제·자매">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]"><div><Label htmlFor="sibling-search">재원 학생 검색</Label><Input id="sibling-search" type="search" data-field-path="siblingIds" placeholder="학생 검색 API 연결 대기" disabled /></div><div className="flex items-end"><Button disabled>형제·자매 추가 계약 대기</Button></div></div>
+          <RegistrationMultiPicker kind="형제·자매" query={siblingQuery} onQuery={setSiblingQuery} candidates={siblingCandidates}
+            selectedIds={siblingIds} pending={meta.isPending} error={meta.isError}
+            onAdd={id => setSiblingIds(ids => ids.includes(id) ? ids : [...ids, id])}
+            onRemove={id => setSiblingIds(ids => ids.filter(value => value !== id))} />
+          <p className="mt-3 text-[11px] text-fg-subtle">현재 재원 학생만 후보로 표시합니다. 실제 양방향 가족 연결은 학생 등록을 완료할 때 저장됩니다.</p>
         </Section>
 
         <Section number={13} title="알게 된 경로">
@@ -267,7 +474,11 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         </Section>
 
         <Section number={14} title="담당자">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]"><div><Label htmlFor="assignee-search">담당자 검색</Label><Input id="assignee-search" type="search" data-field-path="assigneeIds" placeholder="담당 자격 projection 연결 대기" disabled /></div><div className="flex items-end"><Button disabled>담당 추가 계약 대기</Button></div></div>
+          <RegistrationMultiPicker kind="담당자" query={assigneeQuery} onQuery={setAssigneeQuery} candidates={staffCandidates}
+            selectedIds={assigneeIds} pending={meta.isPending} error={meta.isError}
+            onAdd={id => setAssigneeIds(ids => ids.includes(id) ? ids : [...ids, id])}
+            onRemove={id => setAssigneeIds(ids => ids.filter(value => value !== id))} />
+          <p className="mt-3 text-[11px] text-fg-subtle">현재 활성 직원만 후보로 표시합니다. 등록을 완료할 때 담당 가능 여부를 다시 확인합니다.</p>
         </Section>
 
         <Section number={15} title="기타">
