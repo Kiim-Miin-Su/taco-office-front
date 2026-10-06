@@ -4,13 +4,15 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { StudentDetail } from '@/components/students/StudentDetail';
+import { StudentDetail, studentHubTabFromQuery } from '@/components/students/StudentDetail';
 
 export default function StudentPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const studentId = /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : null;
-  return <RequireAuth><AppShell><StudentDetail key={id} studentId={studentId} /></AppShell></RequireAuth>;
+  const tab = studentHubTabFromQuery(searchParams.get('tab'));
+  return <RequireAuth><AppShell><StudentDetail key={id} studentId={studentId} initialTab={tab} /></AppShell></RequireAuth>;
 }

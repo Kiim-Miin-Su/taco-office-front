@@ -14,10 +14,10 @@ import { studentKeys, useStudentDirectory, type StudentDirectory, type StudentRe
 import type { Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { StudentDirectory as Directory } from './StudentDirectory';
-import { StudentDetail } from './StudentDetail';
+import { STUDENT_HUB_TABS, StudentDetail, studentHubTabFromQuery } from './StudentDetail';
 
-const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+const { push, replace } = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace }) }));
 const me: Me = { id: 3, name: '매니저', role: 'manager', roleLabel: '매니저', title: null,
   canAdminPage: true, canCrudAll: true, canSeeProfit: false, canCrudAttendance: false,
   canMoney: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false };
@@ -32,6 +32,20 @@ const detail: StudentRead = { ...student, startedOn: '2026-09-01', targetExam: n
   enrollments: [{ id: 2, kindName: '수업종류A', subjectName: null, sessions: 4, startedOn: '2026-09-01', endedOn: null }], enrollmentTotal: 1,
   history: [{ id: 3, entity: 'STU', entityId: 21, action: 'withdraw', actionLabel: '퇴원 처리', actorId: 8, actorName: '담당자B', at: '2026-09-30T01:00:00Z' }],
   historyTotal: 51, historyLimit: 50 };
+const meta = { students: [
+  { id: 21, name: '학생A', label: '학생A · G8', tag: 'G8', grade: 'G8', school: '학교A', gender: null },
+  { id: 22, name: '학생B', label: '학생B · G9', tag: 'G9', grade: 'G9', school: '학교B', gender: null },
+] };
+const guide = {
+  id: 31, serId: 4, studentId: 21, teacherId: 7, reason: 'new', kindLabel: '포괄 안내', state: 'ready', pending: true,
+  canSend: true, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null, studentName: '학생A', teacherName: '강사A',
+  previousTeacherId: null, previousTeacherName: null, serTitle: null, subName: 'Writing', kindName: '수업', startMin: 960, roomName: '1호',
+  body: '학생A 안내 본문', direction: null, adminNote: null, dueOn: null, eventOn: '2026-10-07', sourceOccurrenceId: 41,
+  createdBy: 3, createdByName: '매니저', createdAt: '2026-10-06T01:00:00Z', sentBy: null, sentByName: null, sentAt: null,
+  acknowledgedBy: null, acknowledgedByName: null, acknowledgedAt: null, overdueDays: 0, deadline: null, siblingCount: 0, siblings: [], autoFill: null,
+};
+const guideStudents = { items: [{ studentId: 21, studentName: '학생A', grade: 'G8', guidance: null, lang: null, guideCount: 1,
+  latestGuide: guide, books: [{ issueId: 8, libId: 9, versId: 10, code: 'BK-1', title: 'Writing Book', edition: '2판', seTe: null, subKey: 'writing', level: null }], diagnostic: null, scores: null }] };
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
@@ -43,13 +57,18 @@ beforeEach(() => {
   useSession.getState().signIn('unit-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
-    return { config, status: 200, statusText: 'OK', headers: {},
-      data: config.url === '/students' ? { ...directory, page: config.params?.page ?? 1 } : detail };
+    const data = config.url === '/students' ? { ...directory, page: config.params?.page ?? 1 }
+      : config.url === '/meta' ? meta
+        : config.url === '/guides/students' ? guideStudents
+          : config.url === '/schedule/students/21/books' ? { studentId: 21, bookCount: 1, label: null }
+            : config.url === '/consulting/students' ? { items: [] }
+              : detail;
+    return { config, status: 200, statusText: 'OK', headers: {}, data };
   };
 });
 afterEach(() => {
   cleanup(); clients.splice(0).forEach(client => client.clear());
-  api.defaults.adapter = originalAdapter; useSession.getState().signOut(); vi.restoreAllMocks(); push.mockReset();
+  api.defaults.adapter = originalAdapter; useSession.getState().signOut(); vi.restoreAllMocks(); push.mockReset(); replace.mockReset();
 });
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -147,12 +166,16 @@ describe('학생 목록과 생성 계약', () => {
 });
 
 describe('학생 상세 — 현재 사실과 제한된 기록', () => {
-  it('기본 화면은 학생 정보이며 기록/시간표는 내부 선택으로 열린다', async () => {
+  it('최종 요구 순서의 10탭과 좌측 학생 전환을 제공하고 현재 탭을 URL에 보존한다', async () => {
     const view = render(<StudentDetail studentId={21} />, setup());
     await view.findByRole('heading', { name: student.label });
-    expect(view.getByRole('button', { name: '기본 정보' }).getAttribute('aria-pressed')).toBe('true');
-    expect(view.getByText('종료일 미기록')).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '기록' }));
+    expect(STUDENT_HUB_TABS.map(tab => tab.label)).toEqual(['안내 한눈에', '안내/교재 배정', '시간표', '수업 기록', '리포트', '교재', '코멘트', '컨설팅', '프로필', '수강/청구']);
+    expect(view.getByRole('button', { name: '안내 한눈에' }).getAttribute('aria-pressed')).toBe('true');
+    await view.findByText('학생A 안내 본문');
+    expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=overview');
+    fireEvent.click(view.getByRole('button', { name: '수업 기록' }));
+    expect(replace).toHaveBeenLastCalledWith('/students/21?tab=history', { scroll: false });
+    expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=history');
     expect(view.getByText('전체 CRUD 변경 이력은 아직 제공하지 않습니다.')).toBeTruthy();
     expect(view.getByText('담당자B (#8)')).toBeTruthy();
     expect(view.getByText('2026-09-30 10:00')).toBeTruthy();
@@ -160,7 +183,28 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByText('기존 감사 51건')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '시간표' }));
     expect(view.getByRole('link', { name: '학생 시간표 열기' }).getAttribute('href')).toBe('/schedule?studentId=21');
-    expect(requests).toHaveLength(1);
+    expect(requests.map(request => request.url).sort()).toEqual(['/guides/students', '/meta', '/students/21'].sort());
+    expect(requests.every(request => request.method === 'get')).toBe(true);
+  });
+
+  it('탭별 생성 reader만 lazy 호출하고 계약 부재 탭은 성공이나 0건으로 가장하지 않는다', async () => {
+    const view = render(<StudentDetail studentId={21} />, setup());
+    await view.findByText('학생A 안내 본문');
+    expect(requests.some(request => request.url === '/schedule/students/21/books')).toBe(false);
+    expect(requests.some(request => request.url === '/consulting/students')).toBe(false);
+    fireEvent.click(view.getByRole('button', { name: '리포트' }));
+    expect(view.getByText(/studentId 필터가 없어/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '코멘트' }));
+    expect(view.getByText(/코멘트 공개범위/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '교재' }));
+    await view.findByText('Writing Book');
+    expect(requests.filter(request => request.url === '/schedule/students/21/books')).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '컨설팅' }));
+    await view.findByText('볼 수 있는 이 학생의 컨설팅이 없습니다.');
+    expect(requests.filter(request => request.url === '/consulting/students')).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '수강/청구' }));
+    expect(view.getByText(/exact student aggregate/)).toBeTruthy();
+    expect(requests.every(request => ['get', undefined].includes(request.method))).toBe(true);
   });
 
   it('404는 빈 학생 성공이나 무한 로딩 대신 목록 복귀를 제공한다', async () => {
@@ -176,5 +220,14 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByText('잘못된 학생 주소입니다.')).toBeTruthy();
     await act(async () => {});
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe('학생 허브 URL 탭', () => {
+  it('허용된 탭만 사용하고 나머지는 안내 한눈에로 닫는다', () => {
+    expect(studentHubTabFromQuery('consulting')).toBe('consulting');
+    expect(studentHubTabFromQuery('billing')).toBe('billing');
+    expect(studentHubTabFromQuery('unknown')).toBe('overview');
+    expect(studentHubTabFromQuery(null)).toBe('overview');
   });
 });
