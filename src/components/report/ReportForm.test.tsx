@@ -188,6 +188,29 @@ describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화
     expect(view.queryByText('작성 언어')).toBeNull();
     expect(view.queryByText(/언어 발달/)).toBeNull();
     expect(view.queryByText(/AI 프롬프트/)).toBeNull();
+    expect(view.getByText(/현재 리포트 응답에는 학생의 Kinder 표시가 없습니다/)).toBeTruthy();
+  });
+
+  it('신규 진단 그룹은 legacy 3문자열 writer를 숨기고 구조화 계약 대기 초안을 연다', () => {
+    as(false);
+    const view = mount(detail({
+      kindKey: 'diagx', subKey: 'diag', subjectName: '진단고사',
+      students: [
+        { id: 4, name: '첫 학생', grade: 'G10', deliver: true, late: false },
+        { id: 5, name: '둘째 학생', grade: 'G11', deliver: true, late: false },
+      ],
+    }));
+    expect(view.container.querySelector('#rep-content')).toBeNull();
+    expect(view.getByRole('region', { name: '첫 학생 진단' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '임시 저장 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.queryByRole('button', { name: '승인 요청하기' })).toBeNull();
+  });
+
+  it('승인 대기 강사 화면은 expectedVersion 계약 전 읽기 전용 경계를 말한다', () => {
+    as(false);
+    const view = mount(detail({ canEdit: false, state: 'wait', body: { content: '제출본', progress: '12쪽', homework: '13쪽' } }));
+    expect(view.getByText('승인 대기 수정 계약 연결 전')).toBeTruthy();
+    expect(view.container.querySelectorAll('textarea')).toHaveLength(0);
   });
 
   it('관리 화면 · 읽기 전용은 지금 그대로 — 「임시저장」 · 「제출」 · 안내 상자 없음', () => {

@@ -24,6 +24,7 @@ import { Banner, Button, Chip, CountedTextarea, Label, Panel, Textarea } from '.
 import { LateReportPolicy } from '../teacher/LateReportPolicy';
 import { useTeacherSurface } from '../teacher/teacher-surface';
 import { ReportWriterGuide } from './ReportWriterGuide';
+import { StructuredReportDraft, structuredReportKind } from './StructuredReportDraft';
 
 /**
  * 저장 단추 낱말 — 관리 화면은 지금 그대로, 강사 표면은 강사 덱 slide 19 의 「임시 저장」·「승인 요청하기」(7-3 ⑤).
@@ -80,6 +81,7 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
   const userId = useSession((s) => s.me?.id ?? null);
   const teacherSurface = useTeacherSurface();
   const words = WRITE_WORDS[teacherSurface ? 'teacher' : 'admin'];
+  const structuredKind = structuredReportKind(detail);
   const complete = detail.fields.every((field) => body[field.key].trim().length >= field.min);
   const dirty = detail.fields.some((field) => body[field.key] !== detail.body[field.key]);
 
@@ -167,7 +169,17 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         </Banner>
       ) : null}
 
-      <ReportForm fields={detail.fields} value={body} onChange={setBody} readOnly={!detail.canEdit} />
+      {detail.canEdit && detail.kindKey === 'class' && detail.students.length === 1 ? (
+        <Banner tone="warning" title="Kinder 표시 계약 연결 전">
+          현재 리포트 응답에는 학생의 Kinder 표시가 없습니다. 과목명이나 학년으로 추정하지 않고 일반 1대1 양식을 유지합니다.
+        </Banner>
+      ) : null}
+
+      {structuredKind ? (
+        <StructuredReportDraft detail={detail} kind={structuredKind} />
+      ) : (
+        <ReportForm fields={detail.fields} value={body} onChange={setBody} readOnly={!detail.canEdit} />
+      )}
 
       {/* 강사 덱 slide 19 — 양식 아래 「학부모님이 직접 읽는 리포트입니다」 상자(쓰는 강사에게만 · 7-3 ⑤) */}
       {teacherSurface && detail.canEdit ? <ReportWriterGuide /> : null}
@@ -180,8 +192,13 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
           ? '수업이 끝난 뒤 리포트를 작성할 수 있습니다.'
           : '제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.'}</Banner>
       ) : null}
+      {detail.state === 'wait' ? (
+        <Banner tone="warning" title="승인 대기 수정 계약 연결 전">
+          현재 제출본을 읽기 전용으로 보여 줍니다. expectedVersion과 양식 버전이 포함된 수정 계약이 연결되기 전에는 승인과 경쟁하는 수정을 보내지 않습니다.
+        </Banner>
+      ) : null}
       {message ? <Banner tone={message.tone}>{message.text}</Banner> : null}
-      {detail.canEdit ? (
+      {detail.canEdit && !structuredKind ? (
         teacherSurface ? (
           // 강사 덱 slide 19 아래 줄 — 왼쪽 작은 「임시 저장」 + 오른쪽 넓은 초록 「승인 요청하기」
           <div className="flex gap-2">
