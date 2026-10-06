@@ -44,6 +44,7 @@ import { categoryChip } from '@/components/accounting/category-tone';
 import { AccountingContractBoundary } from '@/components/accounting/AccountingContractBoundary';
 import { AdjustmentContractBoundary } from '@/components/accounting/AdjustmentContractBoundary';
 import { DelinquencySuspensionBoundary } from '@/components/accounting/DelinquencySuspensionBoundary';
+import { SensitiveAccountBoundary } from '@/components/accounting/SensitiveAccountBoundary';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -133,7 +134,8 @@ export default function AccountingPage() {
   // §57 강사료 시트도 다른 질의다 — 그 탭을 열 때만 부른다. 달은 화면이 고르고 서버가 센다 (C94-b)
   const [payoutMonth, setPayoutMonth] = useState(thisMonth);
   const payoutMonthOk = /^\d{4}-(0[1-9]|1[0-2])$/.test(payoutMonth);
-  const payoutSheet = usePayoutSheet(payoutMonth, tab === 'payout' && payoutMonthOk);
+  // A27 계좌 화면은 기존 지급 시트의 강사 식별자만 재사용한다. 계좌 권한·값은 별도 DTO 전까지 요청하지 않는다.
+  const payoutSheet = usePayoutSheet(payoutMonth, (tab === 'payout' || tab === 'accounts') && payoutMonthOk);
   // 단가표도 다른 질의다 — 그 탭을 열 때만 부른다 (C94-d)
   const rateBook = useRateBook(tab === 'rates');
   const me = useSession((s) => s.me);
@@ -420,6 +422,14 @@ export default function AccountingPage() {
           <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
         ) : tab === 'suspensions' ? (
           <DelinquencySuspensionBoundary invoices={q.data?.invoices ?? []} />
+        ) : tab === 'accounts' ? (
+          <SensitiveAccountBoundary
+            invoices={q.data?.invoices ?? []}
+            payoutRows={payoutSheet.data?.rows ?? []}
+            payoutLoading={payoutSheet.isLoading}
+            onOpenInvoices={() => selectTab('inv')}
+            onOpenLedger={() => selectTab('ledger')}
+          />
         ) : tab === 'close' ? (
           <MonthClosePanel />
         ) : tab === 'wage' ? (
