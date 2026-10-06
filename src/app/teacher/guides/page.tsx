@@ -33,6 +33,8 @@ import { useLessonName } from '@/components/teacher/lesson-name';
 import { BookChangeRequestButton } from '@/components/teacher/BookChangeRequestButton';
 import { HandoverNoteList } from '@/components/lesson/HandoverNotes';
 import { bookLevelPresentation } from '@/lib/book-presentation';
+import { MaterialRequestDraft } from '@/components/materials/MaterialRequests';
+import { useSession } from '@/store/useSession';
 
 const addDays = (iso: string, n: number): string => {
   const d = new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000);
@@ -221,6 +223,7 @@ function ReceivedGuidesSection() {
 
 export default function TeacherGuidesPage() {
   const lessonName = useLessonName();
+  const viewerId = useSession((state) => state.me?.id ?? null);
   const [week, setWeek] = useState<string | undefined>(undefined);
   const [pickedId, setPickedId] = useState<number | null>(null);
   /** 진단을 쓰고 있는 학생 — 한 번에 한 명 (화면이 두 폼을 들고 있으면 어느 쪽을 저장했는지 흐려진다) */
@@ -234,6 +237,15 @@ export default function TeacherGuidesPage() {
         {/* 화면 이름은 셸 머리줄이 말한다 — 강사 표면에서 같은 h1 을 두 번 세우지 않는다 */}
         <ScreenHeader title="수업 안내" />
         <ReceivedGuidesSection />
+        <MaterialRequestDraft
+          viewerId={viewerId}
+          students={(q.data?.students ?? []).map((student) => ({
+            id: student.studentId,
+            label: `${student.name}${student.grade ? ` · ${student.grade}` : ''}`,
+          }))}
+          studentsLoading={q.isPending}
+          studentsUnavailable={q.isError || Boolean(q.data && q.data.students.length === 0)}
+        />
         {/* 빈 주에도 주 내비는 살아 있어야 한다 — QA C28: isEmpty 로 좌측 레일까지 삼키면
             materialization horizon 밖 주에서 과거 주로 돌아갈 길이 없다. 빈 목록은 레일 안에서 말한다. */}
         <QueryState query={q} isEmpty={() => false}>

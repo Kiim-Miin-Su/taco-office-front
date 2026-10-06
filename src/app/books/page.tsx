@@ -18,18 +18,18 @@ import { BookPacks } from '@/components/books/BookPacks';
 import { BookShelf } from '@/components/books/BookShelf';
 import { BookTracking } from '@/components/books/BookTracking';
 import { BookHistory } from '@/components/books/BookVersions';
+import { MaterialRequestBoard } from '@/components/materials/MaterialRequests';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { WorkSummaryBar } from '@/components/shell/WorkSummaryBar';
-import { Button, TabCards } from '@/components/ui';
+import { Banner, Button, TabCards } from '@/components/ui';
 import { useSession } from '@/store/useSession';
 import { positiveQueryId } from '@/lib/url-state';
 
 type BookTab = 'progress' | 'tracking' | 'shelf' | 'requests' | 'history';
 
-function tabFromQuery(value: string | null, canGpaPack: boolean, hasTrackingTarget: boolean): BookTab {
-  if (value === 'tracking' || value === 'shelf' || value === 'history') return value;
-  if (value === 'requests' && canGpaPack) return value;
+function tabFromQuery(value: string | null, hasTrackingTarget: boolean): BookTab {
+  if (value === 'tracking' || value === 'shelf' || value === 'requests' || value === 'history') return value;
   if (value === null && hasTrackingTarget) return 'tracking';
   return 'progress';
 }
@@ -41,7 +41,7 @@ export default function BooksPage() {
   const [issueCreateRequest, setIssueCreateRequest] = useState(0);
   const canGpaPack = useSession((state) => state.me?.canGpaPack === true);
   const hasTrackingTarget = searchParams.get('create') === 'issue' || searchParams.has('studentId');
-  const queryTab = tabFromQuery(searchParams.get('tab'), canGpaPack, hasTrackingTarget);
+  const queryTab = tabFromQuery(searchParams.get('tab'), hasTrackingTarget);
   const focusPackId = queryTab === 'requests' ? positiveQueryId(searchParams.get('pack')) : null;
   const deepIssueCreate = queryTab === 'tracking' && searchParams.get('create') === 'issue';
   const rawStudentId = searchParams.get('studentId');
@@ -79,9 +79,7 @@ export default function BooksPage() {
       badge: tracking.data?.students.length,
     },
     { value: 'shelf' as const, label: '서가', sub: `${books.data?.items.length ?? 0}종` },
-    ...(canGpaPack
-      ? [{ value: 'requests' as const, label: '자료 요청', sub: `${packs.data?.items.length ?? 0}건`, badge: pendingPacks }]
-      : []),
+    { value: 'requests' as const, label: '자료 요청', sub: '강사 요청' },
     { value: 'history' as const, label: '이력', sub: `${history.data?.total ?? 0}건` },
   ];
 
@@ -140,7 +138,24 @@ export default function BooksPage() {
         ) : null}
         {tab === 'shelf' ? <BookShelf createRequest={bookCreateRequest} showCreateAction={false} /> : null}
         {tab === 'history' ? <BookHistory /> : null}
-        {tab === 'requests' && canGpaPack ? <BookPacks focusPackId={focusPackId} /> : null}
+        {tab === 'requests' ? (
+          <div className="space-y-4">
+            <MaterialRequestBoard />
+            {canGpaPack ? (
+              <details open={focusPackId !== null} className="rounded-xl border border-line bg-card p-4">
+                <summary className="h-11 cursor-pointer py-2 text-[13px] font-bold text-fg">
+                  과거 자료 전달 · {packs.data?.items.length ?? 0}건 · 진행 중 {pendingPacks}건
+                </summary>
+                <div className="mt-3 border-t border-line pt-4">
+                  <Banner tone="warning" className="mb-3">
+                    이 영역은 과거 자료 전달 기록입니다. 새 강사 자료요청과 상태·이력을 합치지 않습니다.
+                  </Banner>
+                  <BookPacks focusPackId={focusPackId} />
+                </div>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
       </AppShell>
     </RequireAuth>
   );

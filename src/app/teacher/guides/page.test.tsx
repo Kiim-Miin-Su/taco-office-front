@@ -15,6 +15,12 @@ import { RouteAccess } from '@/components/shell/RequireAuth';
 import { useSession } from '@/store/useSession';
 import TeacherGuidesPage from './page';
 
+vi.mock('@/components/materials/MaterialRequests', () => ({
+  MaterialRequestDraft: ({ students }: { students: Array<{ id: number; label: string }> }) => (
+    <section aria-label="자료 요청 초안">자료 요청 · {students.map((student) => student.label).join(', ') || '학생 계약 대기'}</section>
+  ),
+}));
+
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 const nav = vi.hoisted(() => ({ search: '', replace: vi.fn(), push: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/teacher/guides', useRouter: () => nav, useSearchParams: () => new URLSearchParams(nav.search) }));
@@ -82,6 +88,18 @@ it.each([false, true])('현재 주 학생 자료 오류=%s와 독립해 수신 �
   expect(calls.filter((c) => c.method === 'post')).toEqual([{ method: 'post', url: '/teacher/guides/5/ack', body: {}, viewer: 2 }]);
   expect(calls.filter((c) => c.url === '/teacher/guides')).toHaveLength(1);
   expect(calls.filter((c) => c.url === '/teacher/guides/received')).toHaveLength(2);
+});
+
+it('받은 안내 다음에 일반 자료요청 초안을 두고 현재 주 학생을 임시 후보로만 전달한다', async () => {
+  const student: TeacherGuides['students'][number] = {
+    studentId: 4, name: '수신 학생', grade: 'G9', weekCount: 1, lessons: [], books: [], diag: null, notes: [],
+  };
+  const { view, calls } = setup({ students: [student] });
+  const received = await view.findByRole('heading', { name: '받은 안내' });
+  const draft = view.getByRole('region', { name: '자료 요청 초안' });
+  await waitFor(() => expect(draft.textContent).toContain('수신 학생 · G9'));
+  expect(received.compareDocumentPosition(draft) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(calls.filter((call) => call.method === 'post')).toHaveLength(0);
 });
 
 it('수신 조회 실패는 주별 학생 영역을 지우지 않고 확인 요청0이다', async () => {

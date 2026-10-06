@@ -43,6 +43,9 @@ vi.mock('@/components/books/BookPacks', () => ({
     return <p>자료 요청 본문</p>;
   },
 }));
+vi.mock('@/components/materials/MaterialRequests', () => ({
+  MaterialRequestBoard: () => <p>강사 자료 요청 보드</p>,
+}));
 vi.mock('@/components/books/BookVersions', () => ({ BookHistory: () => <p>이력 본문</p> }));
 
 import BooksPage from './page';
@@ -81,14 +84,21 @@ it('최신 수정사항 순서의 다섯 탭과 서버 건수를 표시하고 �
   expect(state.replace).toHaveBeenLastCalledWith('/books?tab=history', { scroll: false });
 });
 
-it('canGpaPack이 없으면 자료 요청 탭과 조회를 두지 않는다', () => {
+it('canGpaPack이 없어도 일반 자료 요청은 보이고 기존 GPA 자료 전달만 조회하지 않는다', () => {
   state.canGpaPack = false;
   state.search = 'tab=requests';
   const view = render(<BooksPage />);
-  expect(view.queryByRole('tab', { name: /자료 요청/ })).toBeNull();
-  expect(view.getByText('트래킹 본문')).toBeTruthy();
+  expect(view.getByRole('tab', { name: /자료 요청/ })).toBeTruthy();
+  expect(view.getByText('강사 자료 요청 보드')).toBeTruthy();
   expect(state.packsEnabled).toHaveBeenCalledWith(false);
   expect(view.queryByText('자료 요청 본문')).toBeNull();
+});
+
+it('기존 자료 전달 접기 action은 44px 높이 계약을 유지한다', () => {
+  state.search = 'tab=requests';
+  const view = render(<BooksPage />);
+  const summary = [...view.container.querySelectorAll('summary')].find((node) => node.textContent?.includes('과거 자료 전달'));
+  expect(summary?.className).toContain('h-11');
 });
 
 it('URL tab을 첫 화면에 반영하고 선택·브라우저 이동을 양방향 동기화한다', () => {
