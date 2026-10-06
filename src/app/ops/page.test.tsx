@@ -9,7 +9,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Me, Ops, Todo } from '@/api/types';
+import type { Me, Ops } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import OpsPage from './page';
 import { MASKED } from '@/lib/money';
@@ -119,10 +119,10 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     const view = setup({ ...me, role: 'manager', canSeeProfit: false });
     await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
     expect(view.getByText('₩123,400')).toBeTruthy();
-    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일/ }));
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의 속기록/ }));
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
-    // §59 는 주간 띠, §64 는 띠가 없다(x5 · C-5) — 두 키를 한 번씩만 받고, 돌아오면 캐시가 답한다
+    // §59 는 주간 띠, 회의 속기록은 전체를 받는다 — 두 키를 한 번씩만 받고, 돌아오면 캐시가 답한다.
     const params = get.mock.calls.map((c) => (c[1] as { params: Record<string, string> }).params);
     expect(params).toHaveLength(2);
     expect(params[0].from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -130,9 +130,9 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
   });
 
   /**
-   * **C96 ⓐ** — 원문 §64 의 탭 머리는 밑줄 탭이 아니라 **카드 다섯**이고 차례가 정해져 있다:
-   * 마케팅 · 기획 · 회의 · 할 일 · 컴플레인. 제품은 `Tabs` 에 **건수를 label 문자열로 박아**
-   * 「할 일 3」처럼 붙이고 있었다 — 그러면 건수와 이름이 한 낱말이 되어 **둘 중 하나만
+   * **BOC-12a** — 최종 관리자 수정사항의 탭 머리는 밑줄 탭이 아니라 **카드 다섯**이고 차례가 정해져 있다:
+   * 마케팅 · 기획 · 회의 · 회의 속기록 · 컴플레인. 제품은 `Tabs` 에 **건수를 label 문자열로 박아**
+   * 「회의 속기록 3」처럼 붙이고 있었다 — 그러면 건수와 이름이 한 낱말이 되어 **둘 중 하나만
    * 바꿀 수가 없다.**
    *
    * 아래 한 줄은 **원문 카드에 적힌 그대로**이고(그 탭이 무엇을 담는지), 동그라미의 수는
@@ -150,49 +150,22 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     expect(tabs).toHaveLength(5);
     // 차례가 원문이다 — 제목 div 로 센다(`textContent` 는 아래 한 줄까지 붙여 준다)
     expect(tabs.map((t) => t.querySelector('div')?.firstChild?.textContent))
-      .toEqual(['마케팅', '기획', '회의', '할 일', '컴플레인']);
+      .toEqual(['마케팅', '기획', '회의', '회의 속기록', '컴플레인']);
     // 아래 한 줄 — 건수가 아니라 그 탭이 무엇을 담는지다
-    for (const sub of ['트래킹 · 회의 · 피드백', '보고 · 결재', '속기록 · 할 일', '배정 · 완료', '접수 · 대응 · 결과']) {
+    for (const sub of ['트래킹 · 회의 · 피드백', '보고 · 결재', '일정 · 참석 · 상세', '작성 · 월별 이력', '접수 · 대응 · 결과']) {
       expect(view.getByText(sub)).toBeTruthy();
     }
     // 건수는 **이름에도** 들어간다 — 눈에만 보이면 보조기기는 한 번도 못 듣는다
     expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅 1건/ })).toBeTruthy();
-    // 0 건은 동그라미를 달지 않는다 — 없는 것을 굳이 보여 주지 않는다 (시드 todos 0건)
-    expect(topTabs.getByRole('tab', { name: /^할 일/ }).parentElement?.textContent).not.toMatch(/\d/);
     // 고른 탭만 선택으로 읽힌다
-    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
-    expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의 일정/ }));
+    expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의 일정/ }).getAttribute('aria-selected')).toBe('true');
     expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }).getAttribute('aria-selected')).toBe('false');
   });
 
   /**
-   * **N-19** — 같은 이름의 수가 한 화면에 둘이면 둘 중 하나는 반드시 틀린 값이다. 원문 §64 는
-   * 동그라미 3 · 담당 칩 「전체 3」 · 「할 일 3건」이 **전부 같은 수**다. 제품의 동그라미는
-   * `todos.length` 라 **끝난 것까지 세고 있었다.**
+   * **N-19** — 금액 값이 0인 것과 계약상 계산할 수 없는 null은 화면에서 구분해야 한다.
    */
-  it('⭐ 할 일 동그라미는 열린 것만 센다 — 담당 칩의 「전체 N」과 같은 수다 (N-19)', async () => {
-    const todo = (id: number, done: boolean): Todo => ({
-      id, title: `할 일 ${id}`, done, src: 'manual', srcLabel: '직접 등록', toId: 2, toName: '김민수', fromName: '대표',
-      dueOn: '2026-09-21', overdueDays: 0, lesson: null, go: null,
-    });
-    vi.spyOn(api, 'get').mockResolvedValue({ data: { ...response,
-      todos: [todo(1, false), todo(2, false), todo(3, true)],
-      todoOwnerCounts: [{ key: '2', label: '김민수', count: 2 }],
-      todoDoneOwnerCounts: [{ key: '2', label: '김민수', count: 1 }],
-    } });
-    const view = setup(me, false);
-    await waitFor(() => expect(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^할 일 2건/ })).toBeTruthy());
-    // 동그라미 · 담당 칩 줄 · 머리 칸은 열린 둘이다. 끝난 하나는 별도 상태 카드로 옮긴다.
-    expect(view.getByRole('button', { name: '전체 2' })).toBeTruthy();
-    // 원문에 없는 머리 칸 「열린 할 일」은 걷었다(x5 · C-2) — 같은 수를 속 갈래 카드가 말한다
-    expect(view.queryByText('열린 할 일')).toBeNull();
-    expect(within(view.getByRole('tablist', { name: '할 일 상태' })).getByRole('tab', { name: '할 일 2건' })).toBeTruthy();
-    expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(2);
-    fireEvent.click(within(view.getByRole('tablist', { name: '할 일 상태' })).getByRole('tab', { name: '끝난 것 1건' }));
-    expect(view.getAllByText(/^할 일 [123]$/)).toHaveLength(1);
-    expect(view.getByRole('button', { name: '전체 1' })).toBeTruthy();
-  });
-
   it('허용된 ₩0 과 등록이 없어 계산할 수 없는 null을 구분한다', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ data: {
       ...response, marketing: [{ ...response.marketing[0], cost: 0, costPerEnroll: null, enrolled: 0 }],
@@ -343,7 +316,7 @@ it('참석은 **이름 칩**으로 서고 상태(세 값)가 색이다 — 원�
     },
   });
   const view = setup(me, false);
-  fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의/ }));
+  fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의 일정/ }));
   await waitFor(() => expect(view.container.textContent).toContain('주간 기획'));
   // 이름과 상태는 서버가 준 값 그대로다 — 화면이 참석을 다시 세거나 판정하지 않는다
   const waiting = view.getByText('홍지승');
@@ -373,7 +346,7 @@ it('§61 카드의 「보완 N」은 서버가 센 값이고 0 이면 칩이 서
   ] } });
   const view = setup(me, false);
   fireEvent.click(await waitFor(() => within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^기획/ })));
-  expect(view.getByText('보완 2')).toBeTruthy();
+  expect(await view.findByText('보완 2')).toBeTruthy();
   expect(view.queryByText('보완 0')).toBeNull();
 });
 

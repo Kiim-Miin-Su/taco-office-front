@@ -1,17 +1,17 @@
 {
   "version": 1,
   "counts": {
-    "button": 576,
-    "badge": 333,
+    "button": 582,
+    "badge": 335,
     "mark": 2,
     "input": 449,
     "field": 404,
     "stat": 31,
-    "banner": 345,
+    "banner": 346,
     "table": 35,
     "panel": 155,
     "board": 6,
     "overlay": 66,
-    "tabs": 59
+    "tabs": 57
   }
 }

@@ -6,14 +6,14 @@
 
 /**
  * 탭 10 운영 — §59 마케팅 · §60 대표 피드백 · §61 기획 · §62 기획 기한 · §65 기획 보고서 ·
- * §63 회의 · §66 회의 상세 · §64 할 일 · §67 컴플레인.
+ * §63 회의 · §66 회의 상세 · 관리자 수정사항 74~76 회의 속기록 · §67 컴플레인.
  * 집행 비용은 대표만 봅니다 (D-R39) — 서버가 null 로 내려줍니다.
  *
  * 원문 §59·§60 은 「마케팅」 안의 **속 갈래**(트래킹 · 대표 피드백 · 회의 속기록)입니다.
  * 「회의 속기록」은 새 목록이 아니라 **마케팅 회의만 거른 §63 줄**입니다 (w5 · 59-6 — 받은 목록에서 거른다).
  *
  * **w5 (1:1 대조 둘째 물결)** — 탭 동그라미는 원문대로 「손봐야 할 것」(마케팅=고쳐야 할 피드백 · 기획=검토+보완 ·
- * 할 일=열린 것 · 컴플레인=기한 지남)이고 수는 전부 서버가 센다(C-4). 속 갈래는 원문처럼 **카드형 탭**이다(C-6).
+ * 회의 속기록=미작성 · 컴플레인=기한 지남)이고 수는 전부 서버가 센다(C-4). 속 갈래는 원문처럼 **카드형 탭**이다(C-6).
  * §61 카드(과제 N/M · 기한 낱말 · 기한 상태 칩) · §63 회의 줄(카드 · 이름 칩 · 예정 · 내 응답 대기 · 속기록 N) ·
  * §67 「기한 지남 N」·「이력」 — 셈과 낱말은 서버, 화면은 모양만 원문에 맞춘다.
  *
@@ -21,7 +21,8 @@
  * 기간 띠는 **원문이 두는 갈래에만** 제 모양으로(§59 일간·주간·월간 · §63 + 전체 · §67 일별·주별·월별·전체 — C-5 · 67-3) ·
  * 「+」는 속 갈래 줄 오른쪽 끝 주 단추(C-7) · 눌린 칩 진한 채움·색 점(C-8) · 기한 지난 카드 분홍+붉은 테두리(C-9) ·
  * §59 「+ 오늘 한 것」·「어디에 · 누가」·항목 범례(59-3·59-4·59-5) · §62 지난 줄 분홍·점 칩(62-2·62-3) ·
- * §63 짧은 이름(63-7) · §64 날짜 묶음 상자(64-1) · §67 갈래·심각도 색(67-7).
+ * §63 짧은 이름(63-7) · 회의 속기록 작성 대상/월별 이력 · §67 갈래·심각도 색(67-7).
+ * 공용 할 일은 최종 수정사항에 따라 상단 탭에서 빠지고 사이드바 대기함으로 통합한다. 회의 상세의 후속 할 일은 유지한다.
  */
 'use client';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -29,12 +30,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Segmented, TabCards, Table } from '@/components/ui';
-import { useDrawerWrite, useMeta, useOps } from '@/api/queries';
-import { useCan, useSession } from '@/store/useSession';
-import { apiMessage } from '@/api/client';
+import { useMeta, useOps } from '@/api/queries';
+import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
 import { MeetingDetail } from '@/components/ops/MeetingDetail';
+import { MeetingMinutesLedger } from '@/components/ops/MeetingMinutesLedger';
 import { ComplaintCreateButton } from '@/components/ops/ComplaintForm';
 import { ComplaintDetail } from '@/components/ops/ComplaintDetail';
 import { ComplaintRefunds } from '@/components/ops/ComplaintRefunds';
@@ -43,8 +44,6 @@ import { MeetingCreateButton } from '@/components/ops/MeetingCreateDialog';
 import { PlanCreateButton } from '@/components/ops/PlanCreateDialog';
 import { MarketingCreateButton, MarketingEditDialog } from '@/components/ops/MarketingCreateDialog';
 import { SuggestionsAdmin } from '@/components/ops/SuggestionsAdmin';
-import { TodoCreateDialog } from '@/components/drawer/TodoCreateDialog';
-import { TodoRows } from '@/components/drawer/panes';
 import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog';
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue } from '@/api/types';
 import { MASKED, won } from '@/lib/money';
@@ -53,10 +52,10 @@ import { hhmm, longDateLabel, step, summaryBoundsOf, todayKst, unavailableLines 
 import type { ChipColor, ChipTone, Tone } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
 
-type Tab = 'todo' | 'complaint' | 'plan' | 'meeting' | 'mkt';
+type Tab = 'complaint' | 'plan' | 'meeting' | 'minutes' | 'mkt';
 
 /**
- * §64 탭 카드 한 장 — 아래 한 줄이 **건수가 아니라 설명**이라(원문 그대로) 동그라미의 수가
+ * 운영 탭 카드 한 장 — 아래 한 줄이 **건수가 아니라 설명**이라(원문 그대로) 동그라미의 수가
  * 이름에 안 남는다. `badgeSr` 로 글자를 한 번 더 준다.
  */
 const opsTab = (value: Tab, label: string, sub: string, n: number) =>
@@ -73,7 +72,7 @@ type Period = 'all' | 'day' | 'week' | 'month';
  * 기간 띠는 **원문이 두는 갈래에만 · 제 모양으로** 선다 (x5 · g6 C-5 · 67-3 · D-R44).
  * §59 「일간 주간 월간」(전체 없음 · 주간이 눌린 컷) · §63 「일간 주간 월간 전체」(전체가 눌린 컷) ·
  * §67 「**일별 주별 월별** 전체」(월별이 눌린 컷) — 원문이 두 갈래에서 낱말을 다르게 적는 것까지 그대로다.
- * §60·§61·§62·§64 에는 띠가 없다 — 그 갈래에서는 기간으로 자르지 않는다(전체).
+ * §60·§61·§62·회의 속기록에는 띠가 없다 — 그 갈래에서는 기간으로 자르지 않는다(전체).
  */
 type PeriodTab = 'mkt' | 'meeting' | 'complaint';
 const PERIOD_OPTIONS: Record<PeriodTab, Array<{ value: Period; label: string }>> = {
@@ -153,9 +152,11 @@ const ATTEND_TONE: Record<string, Tone> = { waiting: 'warning', in: 'success', o
 export default function OpsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const queryTab = queryEnum(searchParams.get('tab'), ['todo', 'complaint', 'plan', 'meeting', 'mkt'] as const) ?? 'todo';
+  const rawQueryTab = searchParams.get('tab');
+  const legacyTodoLink = rawQueryTab === 'todo';
+  const queryTab = queryEnum(rawQueryTab, ['complaint', 'plan', 'meeting', 'minutes', 'mkt'] as const) ?? (legacyTodoLink ? 'minutes' : 'mkt');
   const queryPlanId = queryTab === 'plan' ? positiveQueryId(searchParams.get('plan')) : null;
-  const queryRequestId = queryTab === 'todo' ? positiveQueryId(searchParams.get('request')) : null;
+  const queryRequestId = legacyTodoLink ? positiveQueryId(searchParams.get('request')) : null;
   const suggestionOpen = searchParams.get('view') === 'suggestions';
   /* 줄 하나를 곧장 여는 질의 (W11) — 회의 안내 알림의 링크(`?tab=meeting&meeting=`) · 대표 보고 펼칠 줄(`?tab=complaint&cpl=`) */
   const queryMeetingId = queryTab === 'meeting' ? positiveQueryId(searchParams.get('meeting')) : null;
@@ -163,8 +164,6 @@ export default function OpsPage() {
   const [tab, setTab] = useState<Tab>(queryTab);
   // 원문 §59·§60 의 속 갈래 — 「트래킹 / 대표 피드백」
   const [mktTab, setMktTab] = useState<'track' | 'fb' | 'minutes'>('track');
-  // 원문 §63 의 속 갈래 — 「회의 목록 / 할 일」 · §67 의 속 갈래 — 「단계 보드 / 이력」 (w5 · 63-4 · 67-1)
-  const [mtTab, setMtTab] = useState<'list' | 'todo'>('list');
   const [cplTab, setCplTab] = useState<'board' | 'history'>('board');
   /** §67 「이력」에서 펼친 줄 — PDF J-102 「펼치면 대응 기록 전부가 보인다」. 한 번에 한 줄 · 다시 누르면 접힌다 */
   const [cplHistOpen, setCplHistOpen] = useState<number | null>(null);
@@ -195,13 +194,6 @@ export default function OpsPage() {
   /* §67 갈래는 **서버로 간다**(J-102 — 건수도 목록도 서버가 자른다). 나머지 칩 둘은 받은 목록에서 거른다(§24 FQ) */
   const [area, setArea] = useState('');
   const [mtType, setMtType] = useState('');
-  const [todoOwner, setTodoOwner] = useState('');
-  const [todoStatus, setTodoStatus] = useState<'open' | 'done'>('open');
-  const [todoOpen, setTodoOpen] = useState(false);
-  const [todoEditId, setTodoEditId] = useState<number | null>(null);
-  const [todoError, setTodoError] = useState<string | null>(null);
-  const canAdminPage = useCan('canAdminPage');
-  const canCrudAll = useCan('canCrudAll');
   const viewerId = useSession((s) => s.me?.id ?? null);
   const periodTab = isPeriodTab(tab) ? tab : null;
   const period: Period = periodTab ? periods[periodTab] : 'all';
@@ -220,11 +212,8 @@ export default function OpsPage() {
   const lastOps = useRef<{ scope: string; data: NonNullable<typeof q.data> } | null>(null);
   if (q.data) lastOps.current = { scope: dataScope, data: q.data };
   const d = q.data ?? (lastOps.current?.scope === dataScope ? lastOps.current.data : undefined);
-  // 할 일 배정의 담당자 목록 — 창을 열 때만 필요하다. 「+ 할 일 주기」도 같은 목록을 쓴다 (C96)
-  // §65 「+ 대표 지시」도 같은 담당 목록을 쓴다 (w5 · 65-4)
-  const meta = useMeta(meetingId !== null || todoOpen || planId !== null);
-  // 「+ 할 일 주기」는 **새 경로가 아니다** — 서랍이 쓰는 `POST /drawer/todos` 를 그대로 부른다 (C76 · C96)
-  const todoWrite = useDrawerWrite();
+  // 회의 상세의 후속 할 일과 §65 「+ 대표 지시」가 같은 담당자 정본을 쓴다 (w5 · 65-4)
+  const meta = useMeta(meetingId !== null || planId !== null);
 
   useEffect(() => {
     setTab(queryTab);
@@ -367,30 +356,9 @@ export default function OpsPage() {
     items: (d?.complaints ?? []).filter((c) => c.stage === s.key),
   }));
 
-  /*
-   * 칩이 목록을 좁히는 자리 — **받은 목록에서 거른다** (§24 FQ 규약).
-   * 건수는 거르기 전 서버가 센 것이다(`mtTypeCounts`·`todoOwnerCounts`) — 화면은 다시 세지 않는다(D-R37).
-   * 담당 없는 할 일의 키는 서버가 `__none__` 이라 부른다.
-   */
+  /* 칩이 목록을 좁히는 자리 — 받은 목록에서 거르고 건수는 서버 값을 쓴다 (§24 FQ · D-R37). */
   const meetings = (d?.meetings ?? []).filter((m) => !mtType || m.mtType === mtType);
-  const openTodoCount = (d?.todoOwnerCounts ?? []).reduce((n, c) => n + c.count, 0);
-  const doneTodoCount = (d?.todoDoneOwnerCounts ?? []).reduce((n, c) => n + c.count, 0);
-  const todoCounts = (todoStatus === 'open' ? d?.todoOwnerCounts : d?.todoDoneOwnerCounts) ?? [];
-  // 표시 이름이 겹칠 때만 실제 ID로 구별한다. 이름으로 담당을 합치거나 ID를 역추정하지 않는다.
-  const todoOwnerOptions = todoCounts.map((c) => ({
-    value: c.key, count: c.count,
-    label: c.key !== '__none__' && todoCounts.some((other) => other.key !== c.key && other.label === c.label)
-      ? `${c.label} · #${c.key}` : c.label,
-  }));
-  const todos = (d?.todos ?? []).filter((t) => t.done === (todoStatus === 'done')
-    && (!todoOwner || (t.toId == null ? '__none__' : String(t.toId)) === todoOwner));
-  const todoDates = [...new Set(todos.map((t) => t.dueOn).filter((date): date is string => !!date))].sort();
-  const todoGroups = [...todoDates.map((date) => ({ date, items: todos.filter((t) => t.dueOn === date) })),
-    { date: null, items: todos.filter((t) => !t.dueOn) }].filter((group) => group.items.length > 0);
-  const editingTodo = (d?.todos ?? []).find((t) => t.id === todoEditId);
-  /* 속 갈래가 쓰는 목록 — **받은 목록에서 거른다**(§24 FQ 규약 · 요청 0). 수는 서버가 센 것을 쓴다 (D-R37) */
   const meetingCount = (d?.mtTypeCounts ?? []).reduce((n, c) => n + c.count, 0);
-  const meetingTodos = (d?.todos ?? []).filter((t) => t.src === 'meeting' && !t.done);
   const marketingMeetings = (d?.meetings ?? []).filter((m) => m.mtType === 'marketing');
   /** §67 「이력」 — 같은 컴플레인을 표로 (w5 · 67-1). 낱말은 서버의 areaLabel · 단계 이름 */
   const cplHistoryCols: Array<Column<Complaint>> = [
@@ -431,14 +399,10 @@ export default function OpsPage() {
       cell: (r) => <Chip size="compact" tone={CPL_TONE[r.stage] ?? 'neutral'}>{d?.cplStages.find((x) => x.key === r.stage)?.label ?? r.stage}</Chip> },
     { key: 'r', head: '결과', cell: (r) => r.result ?? <span className="text-fg-subtle">—</span> },
   ];
-  const toggleTodo = (id: number, done: boolean) => {
-    setTodoError(null);
-    todoWrite.mutate({ kind: 'todo', id, done }, { onError: (error) => setTodoError(apiMessage(error)) });
-  };
   return (
     <RequireAuth><AppShell drawerEntry={queryRequestId ? { pane: 'approvals', identity: `request-${queryRequestId}` } : null}>
       {/*
-        원문 제목 줄 — 「운영」·부제가 왼쪽, **같은 줄 오른쪽에 탭 카드 다섯** (x5 · C-1 · C-3).
+        최종 관리자 수정사항의 제목 줄 — 「운영」·부제가 왼쪽, **같은 줄 오른쪽에 탭 카드 다섯** (x5 · C-1 · C-3).
         원문에 없는 머리 칸 넷(열린 할 일 · 접수 컴플레인 · 검토 대기 기획 · 속기록 미작성)과 바닥 설명은 걷었다(C-2) —
         그 수는 탭 동그라미와 각 갈래의 칩·띠가 서버 수로 말한다. 기간 띠도 전역 한 줄이 아니라 갈래 안으로 옮겼다(C-5).
         동그라미는 원문대로 **「손봐야 할 것」**이다(w5 · C-4) — 회의 동그라미는 **이미 지난 회의 중 속기록이 비어 있는 수**다
@@ -448,75 +412,21 @@ export default function OpsPage() {
         <TabCards label="운영 보기" value={tab} onChange={setTab} options={[
           opsTab('mkt', '마케팅', '트래킹 · 회의 · 피드백', d?.feedbackNeedsFix ?? 0),
           opsTab('plan', '기획', '보고 · 결재', d?.planPending ?? 0),
-          opsTab('meeting', '회의', '속기록 · 할 일', d?.mtNeedsMinutes ?? 0),
-          /*
-           * 할 일만 **열린 것**을 센다 — 바로 아래 담당 칩 줄의 「전체 N」과 속 갈래 카드 「할 일 N건」이
-           * 그 수이고, 동그라미만 끝난 것까지 세면 **한 화면에 같은 이름의 수가 둘**이 된다(N-19).
-           * 원문 §64 도 동그라미 3 · 칩 「전체 3」 · 「할 일 3건」이 전부 같은 수다.
-           */
-          opsTab('todo', '할 일', '배정 · 완료', openTodoCount),
+          opsTab('meeting', '회의', '일정 · 참석 · 상세', d?.mtMyWaiting ?? 0),
+          opsTab('minutes', '회의 속기록', '작성 · 월별 이력', d?.mtNeedsMinutes ?? 0),
           opsTab('complaint', '컴플레인', '접수 · 대응 · 결과', d?.cplOverdue ?? 0),
         ]} />
       )} />
 
-      {/* 만든 결과 한 줄 — 「+ 접수」·「+ 회의 잡기」·「+ 기획 올리기」·「+ 할 일 주기」가 같이 쓴다 (C96) */}
+      {/* 만든 결과 한 줄 — 「+ 접수」·「+ 회의 잡기」·「+ 기획 올리기」가 같이 쓴다 (C96) */}
       {notice ? <Banner tone="success" className="mb-3">{notice}</Banner> : null}
 
       {q.isError ? <Banner tone="danger">운영 탭은 매니저 이상만 볼 수 있습니다.</Banner>
         : !d ? <Banner tone="neutral">불러오는 중…</Banner>
-        : tab === 'todo' ? (
-          <>
-            {/* 원문 §64 — 속 갈래 카드 줄 오른쪽 끝에 갈색 주 단추 「+ 할 일 주기」 (C-7) · 기간 띠는 없다 (C-5) */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <TabCards label="할 일 상태" value={todoStatus}
-                onChange={(next) => { setTodoStatus(next); setTodoOwner(''); }}
-                options={[
-                  { value: 'open', label: '할 일', sub: `${openTodoCount}건` },
-                  { value: 'done', label: '끝난 것', sub: `${doneTodoCount}건` },
-                ]} />
-              <Button type="button" variant="primary" onClick={() => setTodoOpen(true)}>+ 할 일 주기</Button>
-            </div>
-            {/* 담당 ID와 상태별 건수는 서버에서 온다. 이름이 같은 구성원도 서로 다른 칩이다. 눌린 칩은 진한 채움(C-8) */}
-            <ChipRow className="mb-3" ariaLabel="담당" value={todoOwner} onChange={setTodoOwner} pressedTone="ink"
-              allCount={todoStatus === 'open' ? openTodoCount : doneTodoCount}
-              options={todoOwnerOptions} />
-            {todoError ? <Banner tone="danger" className="mb-3">{todoError}</Banner> : null}
-            <div className="flex flex-col gap-4">
-              {todoGroups.length === 0 ? <Banner tone="neutral">할 일이 없습니다</Banner> : todoGroups.map(({ date, items }) => (
-                /* 원문 §64 날짜 묶음 = 테두리 상자 · 머리 「26년 8월 21일 금요일 3건 ··· 오늘」 (64-1) — 긴 날짜는 공용 longDateLabel */
-                <section key={date ?? 'undated'} data-todo-group={date ?? 'undated'}
-                  className={`overflow-hidden rounded-xl border bg-card ${date === todayKst() ? 'border-primary/60' : 'border-line'}`}>
-                  <h3 className="flex items-center justify-between gap-2 border-b border-line bg-inset px-3 py-2 text-[13px] font-bold text-fg">
-                    <span className="flex items-baseline gap-2">
-                      {date ? longDateLabel(date) : '기한 없음'}
-                      <span className="text-[11.5px] font-normal text-fg-subtle">{items.length}건</span>
-                    </span>
-                    {date === todayKst() ? <span className="text-[12px] font-bold text-fg">오늘</span> : null}
-                  </h3>
-                  <div className="p-2">
-                    {/* 원문 §64 줄 모양 — 채운 출처 칩 · 연결 수업 칩 · 「받는 사람 준 사람 지시」 · 「고치기」 (W11 · g6 64-2 · 64-3) */}
-                    <TodoRows layout="ops" items={items} busy={todoWrite.isPending} onToggle={toggleTodo}
-                      onEdit={canAdminPage && canCrudAll ? setTodoEditId : undefined} />
-                  </div>
-                </section>
-              ))}
-            </div>
-          </>
-        )
         : tab === 'meeting' ? (
           <>
-            {/*
-              원문 §63 의 속 갈래(카드형) 「회의 목록 N회 · 할 일 N건」과 「내 응답 대기 N」 (w5 · 63-4 · 63-5).
-              회의 할 일은 새 목록이 아니라 §64 할 일 중 **회의에서 나온 것**(src=meeting)이다 — 같은 줄 부품(TodoRows).
-              「내 응답 대기」는 서버가 센 수다. 응답은 본인이 회의 상세에서 「참석 · 불참」으로 한다(W11 · N-32).
-            */}
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              {/* 「회의 목록」 카드도 윗 탭과 같은 동그라미다 — 원문 §63 두 자리 「32」(W11 · N-96 · 서버 mtNeedsMinutes) */}
-              <TabCards label="회의 보기" value={mtTab} onChange={setMtTab} options={[
-                { value: 'list', label: '회의 목록', sub: `${meetingCount}회`,
-                  badge: d?.mtNeedsMinutes ?? 0, badgeSr: d?.mtNeedsMinutes ? `${d.mtNeedsMinutes}건` : undefined },
-                { value: 'todo', label: '할 일', sub: `${meetingTodos.length}건` },
-              ]} />
+              <h2 className="text-[15px] font-bold text-fg">회의 목록 <span className="text-[12px] font-normal text-fg-subtle">{meetingCount}회</span></h2>
               {(d?.mtMyWaiting ?? 0) > 0 ? <Chip styleKind="solid" tone="warning">내 응답 대기 {d?.mtMyWaiting}</Chip> : null}
               {/* 원문 §63 속 갈래 줄 오른쪽 끝의 갈색 주 단추 「+ 회의 잡기」 (C-7) */}
               <span className="ml-auto">
@@ -542,11 +452,10 @@ export default function OpsPage() {
             {/* 원문 §63 종류 칩 줄 — 짧은 이름 · 색 점 · **건수 없음** · 눌린 칩 진한 채움 (63-7 · C-8). 0건 갈래도 선다 (C66) */}
             <ChipRow className="mb-3 border-b border-line pb-3" ariaLabel="회의 종류" value={mtType} onChange={setMtType} pressedTone="ink"
               options={(d?.mtTypeCounts ?? []).map((c) => ({ value: c.key, label: c.label, dot: MT_DOT[c.key] }))} />
-            {mtTab === 'todo'
-              ? <TodoRows layout="ops" items={meetingTodos} busy={todoWrite.isPending} onToggle={toggleTodo} />
-              : meetingList(meetings, '이 기간에는 회의가 없습니다')}
+            {meetingList(meetings, '이 기간에는 회의가 없습니다')}
           </>
         )
+        : tab === 'minutes' ? <MeetingMinutesLedger meetings={d.meetings} onOpen={setMeetingId} />
         : tab === 'mkt' ? (
           <>
             {/* 원문 §59·§60 의 속 갈래(카드형) — 트래킹 · 대표 피드백 · 회의 속기록 (C-6 · 59-6) · 오른쪽 끝 「+ 오늘 한 것」 (59-3 · C-7) */}
@@ -762,21 +671,6 @@ export default function OpsPage() {
           </>
         )}
 
-      {/* 서랍 §17 과 **같은 창**이다 (C96) — 경로가 하나니 창도 하나다 */}
-      <TodoCreateDialog
-        open={todoOpen} onClose={() => setTodoOpen(false)} busy={todoWrite.isPending}
-        meId={viewerId} people={meta.data?.staff ?? []}
-        onCreate={(body) => todoWrite.mutate({ kind: 'todoCreate', body }, {
-          onSuccess: () => setNotice(`할 일을 주었습니다 — ${body.title}`),
-        })}
-      />
-      {editingTodo && canAdminPage && canCrudAll ? <TodoCreateDialog
-        open editing={editingTodo} busy={todoWrite.isPending} onClose={() => setTodoEditId(null)}
-        onSave={async (body) => {
-          await todoWrite.mutateAsync({ kind: 'todoPatch', id: editingTodo.id, body });
-          setNotice(`기한을 고쳤습니다 — ${editingTodo.title}`);
-        }}
-      /> : null}
       <PlanReport planId={planId} staff={meta.data?.staff} shareWords={d?.planShares} onClose={() => setPlanId(null)} />
       <MarketingEditDialog row={editingMarketing} channels={d?.mktChannels ?? []} items={d?.mktItems ?? []}
         onClose={() => setEditingMarketing(null)}

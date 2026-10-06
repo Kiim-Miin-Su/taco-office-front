@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: ops-w11.test.tsx — 운영 W11(O) — 회의 동그라미 · §61 공개 범위/반려된 기한 칩 · §64 줄 모양 · 곧장 여는 질의 (test)
+ * 목적: ops-w11.test.tsx — 운영 W11(O) — 회의/속기록 동그라미 · §61 공개 범위/반려된 기한 칩 · 곧장 여는 질의 (test)
  * 책임/재사용: 기존 대상 함수를 import하여 정상/거절/경계 회귀를 검증한다. 테스트 안에 제품 규칙을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -13,9 +13,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { api } from '@/api/client';
-import type { MeetingDetail, Me, Ops, Plan, Todo } from '@/api/types';
+import type { MeetingDetail, Me, Ops, Plan } from '@/api/types';
 import { useSession } from '@/store/useSession';
-import { todayKst } from '@/lib/calendar';
 import OpsPage from './page';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
@@ -57,17 +56,16 @@ const top = (view: ReturnType<typeof setup>) => within(view.getByRole('tablist',
 beforeEach(() => { useSession.setState({ me: null, ready: false }); });
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); nav.search = ''; });
 
-describe('회의 탭 동그라미 (N-96)', () => {
-  it('동그라미는 이미 지난 회의 중 속기록이 빈 수다 — 회의 줄 수가 아니다 (서버 mtNeedsMinutes)', async () => {
-    const view = setup(ops({ mtNeedsMinutes: 2 }), 'tab=meeting');
-    await waitFor(() => expect(top(view).getByRole('tab', { name: /^회의 2건/ })).toBeTruthy());
-    // 속 갈래 「회의 목록」 카드도 같은 수 — 원문 §63 은 두 자리 모두 「32」다
-    expect(within(view.getByRole('tablist', { name: '회의 보기' })).getByRole('tab', { name: /^회의 목록 2건/ })).toBeTruthy();
+describe('회의 속기록 탭 동그라미 (BOC-12a · N-96)', () => {
+  it('동그라미는 서버가 센 미작성 수이며 회의 일정 탭과 분리된다', async () => {
+    const view = setup(ops({ mtNeedsMinutes: 2 }), 'tab=minutes');
+    await waitFor(() => expect(top(view).getByRole('tab', { name: /^회의 속기록 2건/ })).toBeTruthy());
+    expect(top(view).getByRole('tab', { name: /^회의 일정/ }).parentElement?.textContent).not.toMatch(/2/);
     cleanup();
     // 손봐야 할 것이 없으면 동그라미가 없다
-    const none = setup(ops({ mtNeedsMinutes: 0 }));
-    await waitFor(() => expect(top(none).getByRole('tab', { name: /^회의/ })).toBeTruthy());
-    expect(top(none).getByRole('tab', { name: /^회의/ }).parentElement?.textContent).not.toMatch(/\d/);
+    const none = setup(ops({ mtNeedsMinutes: 0 }), 'tab=minutes');
+    await waitFor(() => expect(top(none).getByRole('tab', { name: /^회의 속기록/ })).toBeTruthy());
+    expect(top(none).getByRole('tab', { name: /^회의 속기록/ }).parentElement?.textContent).not.toMatch(/\d/);
   });
 });
 
@@ -103,48 +101,6 @@ describe('§61 카드 — 공개 범위 칩 · 반려된 기한 (N-72 · N-95)',
   });
 });
 
-describe('§64 할 일 줄 모양 (g6 64-2 · 64-3 · N-71)', () => {
-  it('제목 앞 채운 출처 칩 · 오른쪽 연결 수업 칩(그 회차로 간다) · 「받는 사람 준 사람 지시」 · 「고치기」', async () => {
-    const today = todayKst();
-    const todo = (over: Partial<Todo>): Todo => ({
-      id: 1, title: '할 일', toId: 7, toName: 'Hoon', fromName: '김민선', dueOn: today, done: false,
-      src: 'manual', srcLabel: '직접 등록', overdueDays: 0, lesson: null, go: null, ...over,
-    });
-    const view = setup(ops({
-      todos: [
-        // 수업 할 일의 「원본」은 연결 수업 칩과 같은 주소다(서버 한 함수) — 칩이 곧 원본 링크다
-        todo({ id: 1, title: '교재 2권 미리 준비', src: 'lesson', srcLabel: '수업',
-          lesson: { label: '학습실 09:30', color: null, go: `/schedule?date=${today}&serId=3&onDate=${today}` },
-          go: `/schedule?date=${today}&serId=3&onDate=${today}` }),
-        todo({ id: 2, title: '지난 회의 결정사항 공유', toId: 8, toName: 'Lauren', src: 'meeting', srcLabel: '회의',
-          go: '/ops?tab=meeting&meeting=5' }),
-        todo({ id: 3, title: '손으로 적은 일', toId: 8, toName: 'Lauren' }),
-      ],
-      todoOwnerCounts: [{ key: '7', label: 'Hoon', count: 1 }, { key: '8', label: 'Lauren', count: 2 }],
-    }));
-    const row = (await waitFor(() => view.getByRole('checkbox', { name: '교재 2권 미리 준비 완료' }))).closest('li')!;
-    const src = within(row).getByText('수업');
-    expect(src.className).toContain('bg-blue');
-    // 출처 칩이 제목 **앞**이다 — 제목 아래 둘째 줄이 아니다
-    expect(src.compareDocumentPosition(within(row).getByText('교재 2권 미리 준비')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const lesson = within(row).getByRole('link', { name: '연결 수업 학습실 09:30 열기' });
-    expect(lesson.getAttribute('href')).toBe(`/schedule?date=${today}&serId=3&onDate=${today}`);
-    // 같은 주소의 「원본」을 한 번 더 세우지 않는다 — 이 줄의 링크는 칩 하나다
-    expect(within(row).getAllByRole('link')).toHaveLength(1);
-    expect(within(row).getByText('Hoon').tagName).toBe('B');
-    expect(within(row).getByText('김민선 지시')).toBeTruthy();
-    expect(row.textContent).not.toContain('→');
-    expect(within(row).getByRole('button', { name: '교재 2권 미리 준비 기한 고치기' }).textContent).toBe('고치기');
-    // 연결 수업이 없는 줄에는 칩이 없고, 서버가 준 「원본」(그 회의 상세)이 선다 (W11 A' 후속 2 · 원문 §64 규칙)
-    const meeting = view.getByRole('checkbox', { name: '지난 회의 결정사항 공유 완료' }).closest('li')!;
-    expect(within(meeting).getByText('회의').className).toContain('bg-violet');
-    expect(within(meeting).getByRole('link', { name: '원본' }).getAttribute('href')).toBe('/ops?tab=meeting&meeting=5');
-    // 원본이 없는 줄(손으로 적은 일)에는 링크가 없다 — 화면이 주소를 짓지 않는다
-    const manual = view.getByRole('checkbox', { name: '손으로 적은 일 완료' }).closest('li')!;
-    expect(within(manual).queryByRole('link')).toBeNull();
-  });
-});
-
 describe('줄 하나를 곧장 여는 질의 (N-32 · 7-3 ①)', () => {
   const detail: MeetingDetail = {
     id: 5, mtType: 'general', mtTypeLabel: '일반 회의', title: null, onDate: '2026-08-20',
@@ -160,7 +116,7 @@ describe('줄 하나를 곧장 여는 질의 (N-32 · 7-3 ①)', () => {
     const view = setup(ops(), 'tab=meeting&meeting=5', { '/ops/meetings/5': detail });
     const dialog = await waitFor(() => view.getByRole('dialog', { name: '일반 회의' }));
     expect(within(dialog).getByRole('group', { name: '내 참석 응답' })).toBeTruthy();
-    expect(top(view).getByRole('tab', { name: /^회의/ }).getAttribute('aria-selected')).toBe('true');
+    expect(top(view).getByRole('tab', { name: /^회의 일정/ }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('대표 보고의 컴플레인 줄(`?tab=complaint&cpl=`)은 그 처리 창을 열고, 이번 달 밖의 건도 찾도록 기간을 「전체」에서 시작한다', async () => {

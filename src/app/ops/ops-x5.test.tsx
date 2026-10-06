@@ -1,12 +1,12 @@
 /** @file-guide
- * 목적: ops-x5.test.tsx — 운영 잔여 물결(x5) — 제목 줄 탭 · 갈래별 기간 띠 · §59 등록·필터·범례 · §63 짧은 이름 · §64 날짜 상자 · §67 색·카드 (test)
+ * 목적: ops-x5.test.tsx — 운영 잔여 물결(x5) — 제목 줄 탭 · 갈래별 기간 띠 · §59 등록·필터·범례 · §63 짧은 이름 · §67 색·카드 (test)
  * 책임/재사용: 기존 대상 함수를 import하여 정상/거절/경계 회귀를 검증한다. 테스트 안에 제품 규칙을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
 /**
- * 원문 컷 §59·§60·§61·§62·§63·§64·§67 과 제품 운영 화면의 남은 차이(g6 C-1 · C-2 · C-3 · C-5 · C-7 · C-8 · C-9 ·
- * 59-3 · 59-4 · 59-5 · 62-2 · 62-3 · 63-7 · 64-1 · 67-3 · 67-4 · 67-7). 수와 낱말은 서버가 준 것을 그린다 (D-R37 · D-R18).
+ * 원문 컷 §59·§60·§61·§62·§63·§67 과 제품 운영 화면의 남은 차이(g6 C-1 · C-2 · C-3 · C-5 · C-7 · C-8 · C-9 ·
+ * 59-3 · 59-4 · 59-5 · 62-2 · 62-3 · 63-7 · 67-3 · 67-4 · 67-7). 수와 낱말은 서버가 준 것을 그린다 (D-R37 · D-R18).
  */
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,7 +15,6 @@ import type { ReactNode } from 'react';
 import { api } from '@/api/client';
 import type { Me, Ops } from '@/api/types';
 import { useSession } from '@/store/useSession';
-import { todayKst } from '@/lib/calendar';
 import OpsPage from './page';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
@@ -85,13 +84,6 @@ describe('운영 셸 — 제목 줄 · 머리 칸 · 부제 (C-1 · C-2 · C-3)'
 });
 
 describe('기간 띠는 원문이 두는 갈래에만 · 제 모양으로 (C-5 · 67-3)', () => {
-  it('§64 할 일에는 띠가 없고 전체를 받는다', async () => {
-    const view = setup(ops());
-    await waitFor(() => expect(opsCalls(view.get)).toHaveLength(1));
-    expect(opsCalls(view.get)[0]).toEqual({});
-    expect(view.queryByRole('group', { name: '기간' })).toBeNull();
-  });
-
   it('§59 는 「일간 주간 월간」(전체 없음) · 주간이 기본 — 그 주로 받는다', async () => {
     const view = setup(ops(), 'tab=mkt');
     const band = await waitFor(() => view.getByRole('group', { name: '기간' }));
@@ -149,7 +141,7 @@ describe('§59 마케팅 트래킹 (59-3 · 59-4 · 59-5)', () => {
   });
 });
 
-describe('§61 · §62 · §63 · §64 · §67', () => {
+describe('§61 · §62 · §63 · §67', () => {
   it('§63 줄 머리 칩은 짧은 이름이고 종류 칩 줄의 눌린 칩은 진한 채움이다 (63-7 · C-8)', async () => {
     const view = setup(ops({
       meetings: [{ id: 11, mtType: 'plan', mtTypeLabel: '기획 회의', mtTypeShort: '기획', title: '겨울 특강', onDate: '2026-09-18',
@@ -161,22 +153,6 @@ describe('§61 · §62 · §63 · §64 · §67', () => {
     expect(within(row).getByText('기획')).toBeTruthy();
     const chips = view.getByRole('group', { name: '회의 종류' });
     expect(within(chips).getByRole('button', { name: '전체' }).querySelector('[data-chip-pressed="ink"]')).toBeTruthy();
-  });
-
-  it('§64 날짜 묶음은 테두리 상자 · 긴 날짜 · 오늘이면 「오늘」 (64-1)', async () => {
-    const today = todayKst();
-    const view = setup(ops({
-      todos: [{ id: 1, title: '교재 2권 미리 준비', toId: 7, toName: 'Hoon', fromName: '김민선', dueOn: today,
-        done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0, lesson: null, go: null }],
-      todoOwnerCounts: [{ key: '7', label: 'Hoon', count: 1 }],
-    }));
-    const group = await waitFor(() => {
-      const el = view.container.querySelector(`[data-todo-group="${today}"]`);
-      if (!el) throw new Error('날짜 묶음이 아직 없다');
-      return el as HTMLElement;
-    });
-    expect(group.className).toContain('rounded-xl');
-    expect(within(group).getByRole('heading', { level: 3 }).textContent).toMatch(/^\d{2}년 \d{1,2}월 \d{1,2}일 .요일1건오늘$/);
   });
 
   it('§62 지난 줄은 분홍 · 구분·단계는 점 칩 (62-2 · 62-3)', async () => {
