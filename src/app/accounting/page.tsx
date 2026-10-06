@@ -6,7 +6,8 @@
 
 /**
  * §52~§57 회계 — 탭은 원문 **두 층**이다(W11 · N-37 ①): 받을 돈{트래킹 보드 · 청구서 · 수업료 계산 · 그 밖의 수입} ·
- * 들어온 돈{입금 기록 · 못 받은 돈} · 나간 돈{강사료 정산 · 지출} · 정리 · 기준{월 마감 · 단가표 · 시급 · 가산 규칙(N-93)}.
+ * 들어온 돈{입금 기록 · 증빙 · 못 받은 돈 · 학생별 누적 · 교재 판매/수수료} · 나간 돈{강사료 정산 · 지급 원장 · 지출} ·
+ * 정리 · 기준{조정 · 수강 정지 · 계좌 · 월 마감 · 기준 단가 · 시급 · 가산 규칙(N-93)}.
  * 서버 계약은 그대로다 — 배치만 바뀌었다. 옛 `?tab=` 값(`pay` = 옛 「들어온 돈」)도 그 자리로 복원한다.
  * 탭 줄 오른쪽은 원문대로 「+ 청구서 · 시급 비공개 · 컨설팅 비공개」다(N-94 · W11 M2) — 스위치는 대표 판정 · 가리는 것은 서버.
  * 가려진 **줄** 금액은 숨긴 금액 낱말 한 벌(`MASKED` 「비공개」)로 적는다 — 금액 권한이 없어 가려진 칸과 같은 낱말이다(W11 D). 합계는 가려지지 않는다.
@@ -22,7 +23,7 @@ import { positiveQueryId, queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Column, PageHeader, Segmented, StatCard, Table } from '@/components/ui';
-import { useAccounting, useAcctPrivacy, useCarryTuition, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useTuition } from '@/api/queries';
+import { useAccounting, useAcctPrivacy, useBooks, useCarryTuition, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer, type InvoiceIssuerPreset } from '@/components/accounting/InvoiceIssuer';
@@ -45,6 +46,7 @@ import { AccountingContractBoundary } from '@/components/accounting/AccountingCo
 import { AdjustmentContractBoundary } from '@/components/accounting/AdjustmentContractBoundary';
 import { DelinquencySuspensionBoundary } from '@/components/accounting/DelinquencySuspensionBoundary';
 import { SensitiveAccountBoundary } from '@/components/accounting/SensitiveAccountBoundary';
+import { BookSalesFeeBoundary } from '@/components/accounting/BookSalesFeeBoundary';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -138,6 +140,8 @@ export default function AccountingPage() {
   const payoutSheet = usePayoutSheet(payoutMonth, (tab === 'payout' || tab === 'accounts') && payoutMonthOk);
   // 단가표도 다른 질의다 — 그 탭을 열 때만 부른다 (C94-d)
   const rateBook = useRateBook(tab === 'rates');
+  // 관리자 수정사항 p94·101·115 — 판매 화면은 기존 서가 정본만 읽고 판매·재고·수수료는 신규 계약 전까지 잠근다.
+  const books = useBooks(tab === 'sales');
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
   /*
@@ -404,6 +408,13 @@ export default function AccountingPage() {
             fields={['학생 · 등록일 · 집계 기간', '최근 3개월 월별 매출', '누적 매출 · 수납', '미수채권', '월평균 · 분류별']}
             nextLabel="못 받은 돈 보기"
             onNext={() => selectTab('unpaid')}
+          />
+        ) : tab === 'sales' ? (
+          <BookSalesFeeBoundary
+            books={books.data}
+            booksLoading={books.isLoading}
+            onOpenPayments={() => selectTab('record')}
+            onOpenBooks={() => router.push('/books')}
           />
         ) : tab === 'out' ? (
           <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} categories={q.data?.expenseCategories ?? []} me={me} />

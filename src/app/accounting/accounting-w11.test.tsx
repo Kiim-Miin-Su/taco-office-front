@@ -123,10 +123,10 @@ it('탭은 두 층이다 — 처음은 받을 돈 › 트래킹 보드 · 최신
 
   fireEvent.click(view.getByRole('button', { name: '들어온 돈' }));
   expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(
-    ['받을 돈', '들어온 돈', '입금 기록', '영수증 · 세금계산서', '못 받은 돈', '학생별 누적', '나간 돈', '정리 · 기준'],
+    ['받을 돈', '들어온 돈', '입금 기록', '영수증 · 세금계산서', '못 받은 돈', '학생별 누적', '교재 판매 · 수수료', '나간 돈', '정리 · 기준'],
   );
   expect(pressed(view, '입금 기록')).toBe('true');
-  for (const name of ['영수증 · 세금계산서', '학생별 누적']) {
+  for (const name of ['영수증 · 세금계산서', '학생별 누적', '교재 판매 · 수수료']) {
     const b = view.getByRole('button', { name }) as HTMLButtonElement;
     expect(b.disabled).toBe(false);
   }
