@@ -9,6 +9,7 @@ import { Clock, Columns3, Download, Menu, Plus } from 'lucide-react';
 import type { Meta, Occurrence } from '@/api/types';
 import type { CalendarColAxis, PersonPeriod, View } from '@/lib/calendar';
 import { Button, Input, LinkButton, Segmented, Select } from '@/components/ui';
+import { subjectAvailableForProgram, subjectOptions } from '@/lib/shared-options';
 
 export type ScheduleModeFilter = 'all' | Occurrence['mode'];
 export type ScheduleDensity = 'normal' | 'compact' | 'wide';
@@ -174,6 +175,7 @@ export function ScheduleToolbar({
   const staff = meta?.staff ?? [];
 
   const filtered = activeFilterCount(filters) > 0;
+  const subjects = subjectOptions(meta, filters.kindKey, filters.subKey);
 
   return (
     <section aria-label="스케줄 도구" className="mb-3 rounded-xl border border-line bg-card p-2">
@@ -186,7 +188,14 @@ export function ScheduleToolbar({
           전체
         </Button>
         <Select aria-label="수업 종류 필터" value={filters.kindKey ?? ''}
-          onChange={(event) => change('kindKey', event.target.value || null)}
+          onChange={(event) => {
+            const kindKey = event.target.value || null;
+            onFiltersChange({
+              ...filters,
+              kindKey,
+              subKey: subjectAvailableForProgram(meta, kindKey, filters.subKey) ? filters.subKey : null,
+            });
+          }}
           className="!h-8 !w-auto min-w-[96px] text-[12px]">
           <option value="">종류 전체</option>
           {(meta?.kinds ?? []).map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
@@ -195,7 +204,7 @@ export function ScheduleToolbar({
           onChange={(event) => change('subKey', event.target.value || null)}
           className="!h-8 !w-auto min-w-[96px] text-[12px]">
           <option value="">과목 전체</option>
-          {(meta?.subs ?? []).map((subject) => <option key={subject.key} value={subject.key}>{subject.name}</option>)}
+          {subjects.map((subject) => <option key={subject.key} value={subject.key}>{subject.name}{subject.legacy ? ' · 기존 연결' : ''}</option>)}
         </Select>
         <Select aria-label="학생 필터" value={filters.studentId ?? ''}
           onChange={(event) => change('studentId', optionalNumber(event.target.value))}

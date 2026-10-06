@@ -22,6 +22,7 @@ import { fetchConflictPreview, fetchConflicts, useBooks, useEnrollLead, useMeta 
 import type { EnrollResult, Gender, Lead, LeadEnroll } from '@/api/types';
 import { KO_DOW, buildRrule, conflictLines, hhmm, lessonTimeIssue, parseHm, todayKst, unavailableLines } from '@/lib/calendar';
 import { won } from '@/lib/money';
+import { subjectAvailableForProgram, subjectOptions } from '@/lib/shared-options';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 /** 서버 거절 코드 — 공용 client 가 ApiError 로 정규화한다. 정규화 전 모양도 받아 둔다 */
@@ -277,7 +278,10 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {field('종류', (
-                  <Select aria-label={`수업 ${i + 1} 종류`} value={l.kindKey} onChange={(e) => patch(l.key, { kindKey: e.target.value })} disabled={pending}>
+                  <Select aria-label={`수업 ${i + 1} 종류`} value={l.kindKey} onChange={(e) => {
+                    const kindKey = e.target.value;
+                    patch(l.key, { kindKey, ...(subjectAvailableForProgram(meta.data, kindKey, l.subKey) ? {} : { subKey: '' }) });
+                  }} disabled={pending}>
                     <option value="">고르세요</option>
                     {(meta.data?.kinds ?? []).map((k) => <option key={k.key} value={k.key}>{k.name}</option>)}
                   </Select>
@@ -285,7 +289,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                 {field('과목', (
                   <Select aria-label={`수업 ${i + 1} 과목`} value={l.subKey} onChange={(e) => patch(l.key, { subKey: e.target.value })} disabled={pending}>
                     <option value="">없음</option>
-                    {(meta.data?.subs ?? []).map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+                    {subjectOptions(meta.data, l.kindKey, l.subKey).map((s) => <option key={s.key} value={s.key}>{s.name}{s.legacy ? ' · 기존 연결' : ''}</option>)}
                   </Select>
                 ))}
                 {field('강사', (

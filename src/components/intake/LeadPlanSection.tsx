@@ -19,6 +19,7 @@ import { apiMessage } from '@/api/client';
 import { useExtendLeadHold, useMeta, useSaveLeadPlan } from '@/api/queries';
 import type { Lead, LeadPlanLine } from '@/api/types';
 import { won } from '@/lib/money';
+import { subjectAvailableForProgram, subjectOptions } from '@/lib/shared-options';
 
 /** 카드의 한 줄 — 서버 낱말을 「 · 」로 잇는다(원본 「MAP Reading 주3 · Allissa · Writing 주2 · Kim」) */
 export const leadPlanSummary = (plan: readonly LeadPlanLine[] | undefined) => (plan ?? []).map((p) => p.label).join(' · ');
@@ -77,7 +78,10 @@ export function LeadPlanSection({ lead, editable, onDone }: LeadPlanSectionProps
             <div key={l.key} className="grid grid-cols-[1fr_1fr_72px_1fr_auto] items-end gap-2">
               <div>
                 <Label htmlFor={`${id}-k${l.key}`}>종류</Label>
-                <Select id={`${id}-k${l.key}`} aria-label={`배치안 ${i + 1} 종류`} value={l.kindKey} disabled={pending} onChange={(e) => patch(l.key, { kindKey: e.target.value })}>
+                <Select id={`${id}-k${l.key}`} aria-label={`배치안 ${i + 1} 종류`} value={l.kindKey} disabled={pending} onChange={(e) => {
+                  const kindKey = e.target.value;
+                  patch(l.key, { kindKey, ...(subjectAvailableForProgram(meta.data, kindKey, l.subKey) ? {} : { subKey: '' }) });
+                }}>
                   <option value="">고르세요</option>
                   {(meta.data?.kinds ?? []).map((k) => <option key={k.key} value={k.key}>{k.name}</option>)}
                 </Select>
@@ -86,7 +90,7 @@ export function LeadPlanSection({ lead, editable, onDone }: LeadPlanSectionProps
                 <Label htmlFor={`${id}-s${l.key}`}>과목</Label>
                 <Select id={`${id}-s${l.key}`} aria-label={`배치안 ${i + 1} 과목`} value={l.subKey} disabled={pending} onChange={(e) => patch(l.key, { subKey: e.target.value })}>
                   <option value="">없음</option>
-                  {(meta.data?.subs ?? []).map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+                  {subjectOptions(meta.data, l.kindKey, l.subKey).map((s) => <option key={s.key} value={s.key}>{s.name}{s.legacy ? ' · 기존 연결' : ''}</option>)}
                 </Select>
               </div>
               <div>

@@ -212,3 +212,29 @@ it('N-137 — 학생 필터의 선택지는 서버가 붙인 꼬리 이름(label
   const picker = within(view.getByRole('combobox', { name: '학생 필터' }));
   expect(picker.getAllByRole('option').map((o) => o.textContent)).toEqual(['학생 전체', '김하윤 · G8 · 채드윅', '김하윤 · G8 · 역삼중']);
 });
+
+it('프로그램 계약이 내려오면 과목을 1:1로 좁히고 프로그램 변경 시 맞지 않는 과목 필터를 함께 푼다', () => {
+  const linked = {
+    ...meta,
+    kinds: [
+      ...meta.kinds,
+      { key: 'diag', name: '진단', color: '#222222', cap: 4, grp: 'intake', rep: true, extra: false },
+    ],
+    subs: [
+      { key: 'writing', name: 'Writing', color: '#654321', kindKey: 'class' },
+      { key: 'diagnostic', name: 'Diagnostic', color: '#333333', kindKey: 'diag' },
+    ],
+  } as unknown as Meta;
+  const onFiltersChange = vi.fn();
+  const filters = { ...INITIAL_SCHEDULE_FILTERS, kindKey: 'class', subKey: 'writing' };
+  const view = render(
+    <ScheduleToolbar period="day" target="all" date="2026-09-14" filters={filters} meta={linked}
+      onPeriodChange={vi.fn()} onTargetChange={vi.fn()} onFiltersChange={onFiltersChange}
+      onDateChange={vi.fn()} onStep={vi.fn()} onToday={vi.fn()} onExport={vi.fn()} />,
+  );
+
+  const subjects = within(view.getByRole('combobox', { name: '과목 필터' }));
+  expect(subjects.getAllByRole('option').map((option) => option.textContent)).toEqual(['과목 전체', 'Writing']);
+  fireEvent.change(view.getByRole('combobox', { name: '수업 종류 필터' }), { target: { value: 'diag' } });
+  expect(onFiltersChange).toHaveBeenCalledWith({ ...filters, kindKey: 'diag', subKey: null });
+});

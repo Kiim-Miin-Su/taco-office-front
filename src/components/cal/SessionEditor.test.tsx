@@ -3,7 +3,7 @@
  * 책임/재사용: 실제 SessionEditor/useScheduleWrite/conflictLines 를 쓰고 네트워크만 어댑터로 갈아 끼운다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
@@ -505,4 +505,31 @@ it('메모만 고치면 반복이어도 범위를 묻지 않는다 — 부르는
   expect(patches()[0].data).toEqual({ memo: '오답 리뷰', scope: 'this', onDate: '2026-09-28' });
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
   expect(onSaved.mock.calls[0][1]).toEqual({ modeChanged: false, memoOnly: true });
+});
+
+it('프로그램별 과목 계약이 있으면 종류 변경 시 맞지 않는 과목을 비우고 해당 프로그램 과목만 보인다', () => {
+  const linked = {
+    ...meta,
+    kinds: [
+      ...meta.kinds,
+      { key: 'diag', name: '진단', cap: 4, rep: true, grp: 'intake', grpLabel: '상담', color: '#333', extra: false },
+    ],
+    subs: [
+      { key: 'vocab', name: 'Vocabulary', color: '#222', kindKey: 'class' },
+      { key: 'diagnostic', name: 'Diagnostic', color: '#444', kindKey: 'diag' },
+    ],
+  } as unknown as Meta;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  clients.push(qc);
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <SessionEditor edit={{ occ: lesson, name: 'Vocabulary' }} meta={linked} onClose={vi.fn()} />
+    </QueryClientProvider>,
+  );
+
+  expect((view.getByLabelText('과목') as HTMLSelectElement).value).toBe('vocab');
+  fireEvent.change(view.getByLabelText('종류'), { target: { value: 'diag' } });
+  const subject = view.getByLabelText('과목') as HTMLSelectElement;
+  expect(subject.value).toBe('');
+  expect(within(subject).getAllByRole('option').map((option) => option.textContent)).toEqual(['—', 'Diagnostic']);
 });

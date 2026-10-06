@@ -1,0 +1,61 @@
+/** @file-guide
+ * 목적: 프로그램별 과목 선택지를 한 곳에서 만들고 구형/신형 Meta 응답의 롤링 배포를 안전하게 잇는다.
+ * 책임/재사용: 생성된 Meta/Sub 타입을 읽기만 한다. 서버 계약을 수기로 복제하거나 쓰기 DTO를 만들지 않는다.
+ * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ */
+import type { Meta, Sub } from '@/api/types';
+
+export interface SubjectOption {
+  key: string;
+  name: string;
+  /** 현재 프로그램에는 속하지 않지만 과거 저장값을 잃지 않도록 보여 주는 선택지 */
+  legacy: boolean;
+}
+
+/**
+ * 최종 수정사항의 `meta.subs.kindKey`가 OpenAPI에 들어오기 전까지의 읽기 호환 경계다.
+ * 필드가 생성 타입에 생기면 이 좁은 어댑터만 직접 속성 접근으로 바꾼다.
+ */
+export function subjectProgramKey(subject: Sub): string | null {
+  const value = (subject as unknown as { kindKey?: unknown }).kindKey;
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+export function hasSubjectProgramContract(meta?: Pick<Meta, 'subs'>): boolean {
+  return (meta?.subs ?? []).some((subject) => subjectProgramKey(subject) !== null);
+}
+
+/**
+ * 구형 서버(관계 필드 없음)는 기존처럼 모든 과목을 보인다. 관계 필드가 하나라도 내려오면 고른 프로그램의
+ * 과목만 새 선택지로 허용한다. 이미 저장된 다른/퇴역 과목은 현재 값 한 개만 남겨 수정 중 유실을 막는다.
+ */
+export function subjectOptions(
+  meta: Pick<Meta, 'subs'> | undefined,
+  kindKey: string | null | undefined,
+  currentKey?: string | null,
+): SubjectOption[] {
+  const subjects = meta?.subs ?? [];
+  const relationReady = hasSubjectProgramContract(meta);
+  const visible = !relationReady || !kindKey
+    ? subjects
+    : subjects.filter((subject) => subjectProgramKey(subject) === kindKey);
+  const options = visible.map((subject) => ({ key: subject.key, name: subject.name, legacy: false }));
+
+  if (!currentKey || options.some((subject) => subject.key === currentKey)) return options;
+  const current = subjects.find((subject) => subject.key === currentKey);
+  return [
+    { key: currentKey, name: current?.name ?? currentKey, legacy: relationReady && !!kindKey },
+    ...options,
+  ];
+}
+
+/** 프로그램 변경 때 현재 과목을 유지해도 되는가. 구형 서버에서는 기존 동작을 그대로 허용한다. */
+export function subjectAvailableForProgram(
+  meta: Pick<Meta, 'subs'> | undefined,
+  kindKey: string | null | undefined,
+  subjectKey: string | null | undefined,
+): boolean {
+  if (!subjectKey || !kindKey || !hasSubjectProgramContract(meta)) return true;
+  const subject = (meta?.subs ?? []).find((item) => item.key === subjectKey);
+  return !!subject && subjectProgramKey(subject) === kindKey;
+}

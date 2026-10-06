@@ -24,6 +24,7 @@ import { fetchConflictPreview, useScheduleWrite, type ConflictProbe } from '@/ap
 import { apiMessage, isConflict } from '@/api/client';
 import { useState } from 'react';
 import type { Meta, Occurrence, OccurrencePatch, Scope, WriteResult } from '@/api/types';
+import { subjectAvailableForProgram, subjectOptions } from '@/lib/shared-options';
 
 export interface SessionDraft {
   date: string;
@@ -361,11 +362,15 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
       ? [{ key: occ.kindKey, name: occ.kindKey }] : []),
     ...(meta?.kinds ?? []),
   ];
-  const subs = [
-    ...(occ?.subKey && !(meta?.subs ?? []).some((s) => s.key === occ.subKey)
-      ? [{ key: occ.subKey, name: occ.subKey }] : []),
-    ...(meta?.subs ?? []),
-  ];
+  const selectedKind = f.watch('kindKey');
+  const selectedSub = f.watch('subKey');
+  const subs = subjectOptions(meta, selectedKind, selectedSub);
+  const changeKind = (kindKey: string) => {
+    f.setValue('kindKey', kindKey, { shouldDirty: true, shouldTouch: true });
+    if (!subjectAvailableForProgram(meta, kindKey, f.getValues('subKey'))) {
+      f.setValue('subKey', '', { shouldDirty: true, shouldTouch: true });
+    }
+  };
   const repeat = f.watch('repeat');
   const end = f.watch('end');
   const endsAtMidnight = end === '24:00';
@@ -434,7 +439,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label htmlFor="se-kind">종류</Label>
-                <Select id="se-kind" {...f.register('kindKey')}>
+                <Select id="se-kind" value={selectedKind} onChange={(event) => changeKind(event.target.value)}>
                   {kinds.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
                 </Select>
               </div>
@@ -442,7 +447,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
                 <Label htmlFor="se-sub">과목</Label>
                 <Select id="se-sub" {...f.register('subKey')}>
                   <option value="">—</option>
-                  {subs.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
+                  {subs.map((item) => <option key={item.key} value={item.key}>{item.name}{item.legacy ? ' · 기존 연결' : ''}</option>)}
                 </Select>
               </div>
               <div className="col-span-2">
@@ -552,7 +557,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label htmlFor="se-kind">종류</Label>
-            <Select id="se-kind" {...f.register('kindKey')}>
+            <Select id="se-kind" value={selectedKind} onChange={(event) => changeKind(event.target.value)}>
               {(meta?.kinds ?? []).map((k) => <option key={k.key} value={k.key}>{k.name}</option>)}
             </Select>
           </div>
@@ -560,7 +565,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
             <Label htmlFor="se-sub">과목</Label>
             <Select id="se-sub" {...f.register('subKey')}>
               <option value="">—</option>
-              {(meta?.subs ?? []).map((k) => <option key={k.key} value={k.key}>{k.name}</option>)}
+              {subs.map((k) => <option key={k.key} value={k.key}>{k.name}{k.legacy ? ' · 기존 연결' : ''}</option>)}
             </Select>
           </div>
           <div>
