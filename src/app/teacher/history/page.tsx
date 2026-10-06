@@ -13,10 +13,9 @@
  * 특이사항 저장은 저장처 확정 전 — 배선하지 않는다 (teacherC22 원장 경계).
  */
 'use client';
-import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Button, Chip, Panel, QueryState, type Tone } from '@/components/ui';
+import { Chip, LinkButton, Panel, QueryState, type Tone } from '@/components/ui';
 import { useMeta, useTeacherHistory } from '@/api/queries';
 import type { TeacherHistoryLesson } from '@/api/types';
 import { won } from '@/lib/money';
@@ -24,11 +23,7 @@ import { LATE_TONE, REP, dowOf, hm, hours } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { useLessonName } from '@/components/teacher/lesson-name';
-
-const addMonth = (ym: string, n: number): string => {
-  const d = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-};
+import { previousMonthKst } from '@/lib/calendar';
 
 function kindChips(l: TeacherHistoryLesson): Array<{ label: string; tone: Tone }> {
   const out: Array<{ label: string; tone: Tone }> = [];
@@ -36,6 +31,12 @@ function kindChips(l: TeacherHistoryLesson): Array<{ label: string; tone: Tone }
   if (l.kindKey === 'diagx') out.push({ label: '진단고사', tone: 'info' });
   if (l.studentCount > 1) out.push({ label: `그룹 ${l.studentCount}명`, tone: 'warning' });
   return out;
+}
+
+function reportStateLabel(repState: TeacherHistoryLesson['repState'], label: string): string {
+  if (repState === 'plan') return '리포트 작성 예정';
+  if (repState === 'none' || repState === 'na') return label;
+  return `리포트 ${label}`;
 }
 
 function StatCard({ tag, value, sub, tint, action }: {
@@ -80,7 +81,12 @@ function SRow({ name, how, amount }: { name: string; how?: string; amount: strin
  */
 function Row({ l }: { l: TeacherHistoryLesson }) {
   const lessonName = useLessonName();
-  const rep = l.canceled ? { label: '수업 취소', tone: 'neutral' as Tone } : REP[l.repState];
+  const state = l.canceled
+    ? { label: '취소', tone: 'neutral' as Tone }
+    : l.settle === 'upcoming'
+      ? { label: '예정', tone: 'info' as Tone }
+      : { label: '진행 완료', tone: 'success' as Tone };
+  const rep = l.canceled ? undefined : REP[l.repState];
   const who = l.students
     ? `${l.students.split(', ')[0]}${l.studentCount > 1 ? ` 외 ${l.studentCount - 1}명` : ''}`
     : '미배정';
@@ -131,7 +137,10 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
         {/* ③ 대면 · 상태 · 금액 — 웹 순서(대면 → 시수 → 상태 → 금액)는 order 로 그대로 지킨다 */}
         <div className="flex items-center gap-2 sm:contents">
           <span className="sm:order-4"><Chip size="compact" tone="neutral">{l.canceled ? '취소' : l.mode === 'online' ? '비대면' : '대면'}</Chip></span>
-          {rep ? <span className="sm:order-6"><Chip size="compact" tone={rep.tone}>{rep.label}</Chip></span> : null}
+          <span className="flex flex-wrap items-center gap-1 sm:order-6">
+            <Chip size="compact" tone={state.tone}>{state.label}</Chip>
+            {rep ? <Chip size="compact" tone={rep.tone}>{reportStateLabel(l.repState, rep.label)}</Chip> : null}
+          </span>
           <div className="ml-auto shrink-0 text-right sm:order-7 sm:ml-0 sm:w-28">{money}</div>
         </div>
       </div>
@@ -140,7 +149,7 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
 }
 
 export default function TeacherHistoryPage() {
-  const [month, setMonth] = useState<string | undefined>(undefined);
+  const month = previousMonthKst();
   const q = useTeacherHistory(month);
   const meta = useMeta();
   return (
@@ -176,7 +185,7 @@ export default function TeacherHistoryPage() {
                         sub={`시수 ${hours(d.stats.unwrittenMinutes)}시간 · 정산 보류`} />
                       <StatCard tag="내 기본 시급" value={d.wageRate === null || d.wageRate === undefined ? '—' : won(d.wageRate)}
                         sub={`${d.wageFrom ?? '—'} 적용 · 나만 볼 수 있습니다`}
-                        action={<Button size="sm" disabled title="정책 확정 전 — 표시만">시급 변경 신청</Button>} />
+                        action={<LinkButton size="sm" className="!h-11" href="/teacher?setting=wage#my-settings">시급 변경 신청</LinkButton>} />
                     </div>
 
                     <div className="mt-4 rounded-xl bg-fg p-5 text-card">
@@ -242,11 +251,7 @@ export default function TeacherHistoryPage() {
                       className="mt-4"
                       title={`${ymLabel} 수업 기록`}
                       right={
-                        <div className="flex gap-1.5">
-                          <Button size="sm" onClick={() => setMonth(addMonth(d.month, -1))}>← 지난달</Button>
-                          <Button size="sm" variant={month === undefined ? 'primary' : 'secondary'} onClick={() => setMonth(undefined)}>이번 달</Button>
-                          <Button size="sm" onClick={() => setMonth(addMonth(d.month, 1))}>다음 달 →</Button>
-                        </div>
+                        <Chip size="compact" tone="info">KST 전월 고정 조회</Chip>
                       }
                     >
                       {groups.length === 0
@@ -272,7 +277,7 @@ export default function TeacherHistoryPage() {
                   </div>
 
                   <aside className="w-full shrink-0 lg:w-[344px]">
-                    <Panel title="리포트 지각 차감 규칙" sub="수업이 끝난 시각부터 계산 · 연강도 수업별 적용 · 추가 유예 없음">
+                    <Panel title="리포트 지각 차감 규칙" sub="연강은 마지막 수업 종료부터 수업 수 × 1시간 유예">
                       <ul className="flex flex-col gap-2">
                         {/* 구간·금액·낱말은 서버 판정 정본(/meta lateReportTiers) — 화면에 금액 사본을 두지 않는다 (2026-09-25) */}
                         {(meta.data?.lateReportTiers ?? []).map((r) => (

@@ -9,7 +9,7 @@ import {
   addDays, scheduleReadRanges, dayHeadLabel, kstDateTime, longDateLabel, monthDayLabel, boundsOf, buildRrule, clampSplitRatio, conflictLines, INITIAL_PANE, mondayOf, monthBounds, monthGrid, objectParticle, paneView, parseHm, unavailableLines,
   LANE_CAP, laneLayout, studentOverlapLines,
   periodSummary, selectDateRange, splitPanes, step, summaryBoundsOf, toggleCustomDate,
-  teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
+  previousMonthKst, teacherSchedule, timeRange, todayKst, unsplitPanes, updatePane, weekDays,
 } from './calendar';
 import type { Occurrence } from '@/api/types';
 
@@ -43,6 +43,15 @@ it.each([
 });
 it.each([null, undefined, '', 'not-a-date'])('읽을 수 없는 시각 %s 은 null — 지어내지 않는다', (value) => {
   expect(kstDateTime(value)).toBeNull();
+});
+
+it.each([
+  ['2026-10-07T03:00:00Z', '2026-09'],
+  ['2026-01-15T03:00:00Z', '2025-12'],
+  ['2026-09-30T14:59:59Z', '2026-08'],
+  ['2026-09-30T15:00:00Z', '2026-09'],
+] as const)('KST 기준 전월 %s → %s', (now, expected) => {
+  expect(previousMonthKst(Date.parse(now))).toBe(expected);
 });
 
 it.each(['12:60','12:99','24:01','25:00','1:9','-1:00'])('시각 %s를 합산 보정하지 않고 거절한다', value=>{

@@ -64,6 +64,57 @@ const data = (): TeacherHistory => ({
   bonusRules: [],
 });
 
+it('서버 조회는 KST 전월 하나로 고정하고 월 이동 입력을 노출하지 않는다', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date('2026-10-07T03:00:00Z'));
+    mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+    const view = render(<TeacherHistoryPage />);
+    expect(mocks.history).toHaveBeenCalledWith('2026-09');
+    expect(view.getByText('KST 전월 고정 조회')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '← 지난달' })).toBeNull();
+    expect(view.queryByRole('button', { name: '이번 달' })).toBeNull();
+    expect(view.queryByRole('button', { name: '다음 달 →' })).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('히스토리의 시급 변경 신청은 기존 강사 홈 writer로 이동한다', async () => {
+  mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  const link = await view.findByRole('link', { name: '시급 변경 신청' });
+  expect(link.getAttribute('href')).toBe('/teacher?setting=wage#my-settings');
+  expect(link.className).toContain('!h-11');
+});
+
+it('수업 업무 상태를 우선하고 리포트 상태를 보조로 구분한다', async () => {
+  const d = data();
+  d.lessons = [
+    lesson({ serId: 1, settle: 'written', repState: 'ok' }),
+    lesson({ serId: 2, startMin: 1080, settle: 'upcoming', repState: 'plan' }),
+    lesson({ serId: 3, startMin: 1200, settle: 'canceled', canceled: true, repState: 'na' }),
+  ];
+  mocks.history.mockReturnValue({ data: d, isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  await waitFor(() => expect(view.getByText('진행 완료')).toBeTruthy());
+  expect(view.getByText('예정')).toBeTruthy();
+  expect(view.getAllByText('취소').length).toBeGreaterThan(0);
+  expect(view.getByText('리포트 승인 완료')).toBeTruthy();
+  expect(view.getByText('리포트 작성 예정')).toBeTruthy();
+  expect(view.container.textContent).not.toContain('리포트 리포트');
+});
+
+it('연강 유예 안내는 맞닿은 수업을 묶어 마지막 종료부터 수업 수 × 1시간을 말한다', async () => {
+  mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  await view.findByText('리포트 지각 차감 규칙');
+  const text = view.container.textContent ?? '';
+  expect(text).toContain('연강은 마지막 수업 종료부터 수업 수 × 1시간 유예');
+  expect(text).not.toContain('연강도 수업별 적용');
+  expect(text).not.toContain('추가 유예 없음');
+});
+
 it('수업 기록 한 줄은 **세 묶음**으로 나뉜다 — 모바일에서 세 줄로 접히는 자리다', async () => {
   mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
   const view = render(<TeacherHistoryPage />);

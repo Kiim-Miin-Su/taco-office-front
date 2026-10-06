@@ -116,6 +116,14 @@ export function scheduleReadRanges(panes: readonly CalendarPaneState[]): Array<{
 export const todayKst = (now = Date.now()): string =>
   new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
+/** 강사 전월 기록의 조회월 — 브라우저 시간대가 아니라 KST 달 경계를 쓴다. */
+export const previousMonthKst = (now = Date.now()): string => {
+  const current = todayKst(now);
+  const year = Number(current.slice(0, 4));
+  const month = Number(current.slice(5, 7));
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+};
+
 export const addDays = (iso: string, n: number): string =>
   new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
 

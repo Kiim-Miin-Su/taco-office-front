@@ -41,9 +41,11 @@ const REQ_STATE: Record<string, { label: string; tone: Tone }> = {
  * §8 우측 레일 「내 설정」 — 시간대 / 기본 시급, **각각 변경 요청 버튼**.
  * 원문 그대로 「관리자 승인 후 적용」이고 시급은 **한 달에 한 번**이다 — 두 판정 다 서버가 한다.
  */
-function MySettings({ s }: { s: TeacherSettings }) {
+function MySettings({ s, initialOpen = null }: { s: TeacherSettings; initialOpen?: 'wage' | 'tz' | null }) {
   const ask = useCreateSettingRequest();
-  const [open, setOpen] = useState<'wage' | 'tz' | null>(null);
+  const [open, setOpen] = useState<'wage' | 'tz' | null>(
+    initialOpen === 'wage' && !s.canAskWage ? null : initialOpen === 'tz' && !s.canAskTz ? null : initialOpen,
+  );
   const [rate, setRate] = useState('');
   const [tz, setTz] = useState('');
   const [reason, setReason] = useState('');
@@ -208,8 +210,10 @@ const QUICK_LINKS: ReadonlyArray<readonly [string, string]> = [
 export default function TeacherHomePage() {
   const q = useTeacherHome();
   const router = useRouter();
+  const searchParams = useSearchParams();
   // 알림 링크가 연 회의 — 질의가 곧 상태다(창을 닫으면 질의를 걷는다). 모양이 아닌 값은 열지 않는다
-  const meetingId = positiveQueryId(useSearchParams().get('meeting'));
+  const meetingId = positiveQueryId(searchParams.get('meeting'));
+  const initialSetting = searchParams.get('setting') === 'wage' ? 'wage' : null;
   return (
     <RequireAuth>
       <AppShell>
@@ -249,7 +253,7 @@ export default function TeacherHomePage() {
 
                   <aside className="w-full shrink-0 lg:w-[344px]">
                     {/* 메뉴 사용자 칸 「마이 페이지 ›」가 오는 자리 — 강사 화면 7개 중 내 설정이 있는 곳은 여기뿐이다 */}
-                    <div id="my-settings" className="scroll-mt-4"><MySettings s={d.settings} /></div>
+                    <div id="my-settings" className="scroll-mt-4"><MySettings s={d.settings} initialOpen={initialSetting} /></div>
 
                     <Panel className="mt-4" title="오늘 할 일">
                       <ul className="flex flex-col gap-2">

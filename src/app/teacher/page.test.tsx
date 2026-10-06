@@ -73,6 +73,13 @@ it('원문 그대로 — 시간대·시급 각각 변경 요청 버튼과 「관
   expect(view.container.textContent).toContain('한 달에 한 번');
 });
 
+it('히스토리의 `?setting=wage` 진입은 기존 시급 변경 writer를 바로 연다', async () => {
+  nav.search = 'setting=wage';
+  const view = setup(home());
+  await waitFor(() => expect(view.getByLabelText('바라는 시급')).toBeTruthy());
+  expect(view.getByText('요청 올리기')).toBeTruthy();
+});
+
 it('시급 신청은 서버 판정(canAskWage)으로 잠기고 언제부터 되는지 말한다', async () => {
   const view = setup(home({ canAskWage: false, wageAskableOn: '2026-10-05' }));
   await waitFor(() => expect(view.getByRole('button', { name: '변경 신청' })).toBeTruthy());
