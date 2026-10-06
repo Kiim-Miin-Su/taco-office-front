@@ -12,6 +12,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMeta, useOccurrences, useScheduleHolidays, useUnwritten } from '@/api/queries';
 import type { Meta, Occurrence } from '@/api/types';
 import { addDays, dayHeadLabel, hhmm, label, occurrenceKey, teacherSchedule, todayKst } from '@/lib/calendar';
@@ -25,6 +26,8 @@ import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { TeacherTodayHero } from '@/components/teacher/TeacherTodayHero';
 import { useTeacherSurface } from '@/components/teacher/teacher-surface';
+import { TeacherLessonHub } from '@/components/teacher/TeacherLessonHub';
+import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
 
 const EMPTY: Occurrence[] = [];
 type Lookup = {
@@ -32,10 +35,7 @@ type Lookup = {
   kinds: Map<string, string>;
   zoom: Map<number, string>;
 };
-type Selection =
-  | { kind: 'report'; ref: Pick<Occurrence, 'serId' | 'onDate'> }
-  | { kind: 'lesson'; key: string }
-  | null;
+type HubView = 'hub' | 'report' | 'lesson';
 
 /** 리포트 상태색은 기존 블록과 한 표를 공유한다. 취소는 상태 축과 별도로 표시한다. */
 function statusLabel(occ: Occurrence): string {
@@ -121,10 +121,24 @@ function lookups(meta?: Meta): Lookup {
 }
 
 export function TeacherSchedule() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   // 분 경계와 탭 복귀에 맞춰 갱신한다. 자정이 지나면 쿼리 범위도 새 오늘을 따라간다.
   const [now, setNow] = useState(() => Date.now());
   const today = todayKst(now);
   const q = useOccurrences({ from: today, to: addDays(today, 7) });
+  const rawSerId = searchParams.get('serId');
+  const rawOnDate = searchParams.get('onDate');
+  const rawDate = searchParams.get('date');
+  const hasRequestedLesson = rawSerId !== null || rawOnDate !== null || rawDate !== null;
+  const requestedSerId = positiveQueryId(rawSerId);
+  const requestedOnDate = queryIsoDate(rawOnDate);
+  const requestedDate = queryIsoDate(rawDate);
+  const validRequestedLesson = hasRequestedLesson && requestedSerId !== null && requestedOnDate !== null && requestedDate !== null;
+  const requested = useOccurrences(
+    { from: requestedDate ?? today, to: requestedDate ?? today },
+    validRequestedLesson,
+  );
   const { refetch } = q;
   const unwritten = useUnwritten();
   const { refetch: refetchUnwritten } = unwritten;
@@ -148,15 +162,34 @@ export function TeacherSchedule() {
   const items = q.data?.items ?? EMPTY;
   const model = useMemo(() => teacherSchedule(items, today), [items, today]);
   const lookup = useMemo(() => lookups(meta.data), [meta.data]);
-  // 리포트는 자정에 목록 범위가 바뀌어도 열려 있어야 한다. 식별자만 보존하고 본문은 Editor가 소유한다.
-  const [selected, setSelected] = useState<Selection>(null);
-  const open = selected?.kind === 'lesson'
-    ? items.find((occ) => occurrenceKey(occ) === selected.key) ?? null : null;
-  const openSchedule = (occ: Occurrence) => setSelected(
-    occ.repState !== 'na' && !occ.canceled
-      ? { kind: 'report', ref: { serId: occ.serId, onDate: occ.onDate } }
-      : { kind: 'lesson', key: occurrenceKey(occ) },
-  );
+  const requestedOccurrence = validRequestedLesson
+    ? (requested.data?.items ?? EMPTY).find((occ) => (
+      occ.serId === requestedSerId && occ.onDate === requestedOnDate && occ.date === requestedDate
+    )) ?? null
+    : null;
+  // URL은 새로고침 가능한 selection 정본이고, local 값은 router 반영 전 한 프레임과 자정의 작성 초안을 지킨다.
+  const [localOccurrence, setLocalOccurrence] = useState<Occurrence | null>(null);
+  const [localSource, setLocalSource] = useState<'home' | 'calendar' | null>(null);
+  const [hubView, setHubView] = useState<HubView>('hub');
+  const open = localOccurrence ?? requestedOccurrence;
+  const requestedIdentity = validRequestedLesson ? `${requestedSerId}|${requestedOnDate}|${requestedDate}` : null;
+  useEffect(() => {
+    setLocalOccurrence(null);
+    setLocalSource(null);
+    setHubView('hub');
+  }, [requestedIdentity]);
+  const openSchedule = (occ: Occurrence) => {
+    setLocalOccurrence(occ);
+    setLocalSource('calendar');
+    setHubView('hub');
+    router.replace(`/schedule?serId=${occ.serId}&onDate=${occ.onDate}&date=${occ.date}&source=calendar`);
+  };
+  const source = localSource ?? queryEnum(searchParams.get('source'), ['home', 'calendar'] as const) ?? 'calendar';
+  const closeHub = () => {
+    setLocalOccurrence(null);
+    setHubView('hub');
+    router.replace(source === 'home' ? '/teacher' : '/schedule');
+  };
   const ready = q.data !== undefined && !q.isError;
   // 공휴일은 목록과 같은 범위(오늘~7일 뒤)만 — 날짜의 사실이라 로그인한 누구나 읽는다(서버 표 한 곳)
   const teacherSurface = useTeacherSurface();
@@ -249,10 +282,25 @@ export function TeacherSchedule() {
           </Panel>
         </aside>
       </div>
-      <ReportDetailDrawer selection={selected?.kind === 'report' ? selected.ref : null} onClose={() => setSelected(null)} />
-      {open ? (
+      {hasRequestedLesson && !validRequestedLesson ? (
+        <div role="alert" className="mt-4"><Banner tone="danger">수업 주소가 올바르지 않습니다. 캘린더에서 수업을 다시 선택해 주세요.</Banner></div>
+      ) : validRequestedLesson && requested.isLoading && !localOccurrence ? (
+        <div role="status" className="mt-4"><Banner tone="neutral">선택한 수업을 불러오는 중…</Banner></div>
+      ) : validRequestedLesson && !requested.isLoading && !requested.isError && !open ? (
+        <div role="alert" className="mt-4"><Banner tone="warning">해당 수업을 찾을 수 없습니다. 캘린더에서 다시 선택해 주세요.</Banner></div>
+      ) : validRequestedLesson && requested.isError && !localOccurrence ? (
+        <div role="alert" className="mt-4"><Banner tone="danger">선택한 수업을 불러오지 못했습니다.</Banner></div>
+      ) : null}
+      {open && hubView === 'hub' ? (
+        <TeacherLessonHub occ={open} kindName={lookup.kinds.get(open.kindKey)}
+          subName={open.subKey ? lookup.subjects.get(open.subKey) : undefined}
+          onReport={() => setHubView('report')} onLesson={() => setHubView('lesson')} onClose={closeHub} />
+      ) : null}
+      <ReportDetailDrawer selection={open && hubView === 'report' ? { serId: open.serId, onDate: open.onDate } : null}
+        onClose={() => setHubView('hub')} />
+      {open && hubView === 'lesson' ? (
         <LessonDetail occ={open} kindName={lookup.kinds.get(open.kindKey)}
-          subName={open.subKey ? lookup.subjects.get(open.subKey) : undefined} onClose={() => setSelected(null)} />
+          subName={open.subKey ? lookup.subjects.get(open.subKey) : undefined} onClose={() => setHubView('hub')} />
       ) : null}
     </AppShell>
   );

@@ -146,9 +146,6 @@ function MySettings({ s }: { s: TeacherSettings }) {
   );
 }
 
-/** 리포트를 열 수 있는 수업인가 — 서버 상태 낱말만 본다(끝나지 않은 예정·대상 아님·휴강은 쓸 리포트가 없다) */
-const REPORT_OPENABLE = new Set(['none', 'draft', 'wait', 'ok', 'rej']);
-
 /** 기준일로부터 며칠 뒤인가 — 둘 다 서버 날짜('YYYY-MM-DD')의 차, 표기만 */
 const daysAfter = (from: string, to: string): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
@@ -181,16 +178,12 @@ function LessonRow({ l, today }: { l: TeacherLesson; today?: string }) {
       {rep ? <Chip tone={rep.tone}>{rep.label}</Chip> : null}
     </>
   );
-  // 덱 slide 9 「클릭 — 해당 수업의 리포트 작성 화면으로 이동」 — 쓸 리포트가 있는 수업만 잇는다(리포트 화면이 serId·onDate 로 연다)
-  const openable = !l.canceled && REPORT_OPENABLE.has(l.repState);
   return (
     <li className="border-b border-line last:border-b-0">
-      {openable ? (
-        <Link href={`/reports?serId=${l.serId}&onDate=${l.onDate}`}
-          className="flex items-center gap-4 rounded-md px-1 py-3 hover:bg-inset focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">
-          {body}
-        </Link>
-      ) : <div className="flex items-center gap-4 px-1 py-3">{body}</div>}
+      <Link href={`/schedule?serId=${l.serId}&onDate=${l.onDate}&date=${l.date}&source=home`}
+        className="flex items-center gap-4 rounded-md px-1 py-3 hover:bg-inset focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">
+        {body}
+      </Link>
     </li>
   );
 }

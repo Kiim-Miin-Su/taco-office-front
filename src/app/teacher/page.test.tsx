@@ -156,7 +156,7 @@ it('머리줄이 「홈」을 말하므로 본문에 같은 h1 이 없고, 바�
     .toEqual(['캘린더', '리포트', '수업 안내', '수업 히스토리', '건의 사항']);
 });
 
-it('다가오는 수업 줄은 날짜와 「N일 뒤」를 적고, 끝난 수업은 그 리포트로 잇는다', async () => {
+it('모든 수업 줄은 날짜와 「N일 뒤」를 적고, 같은 수업 허브 identity로 잇는다', async () => {
   const lesson = {
     serId: 5, onDate: '2026-09-14', date: '2026-09-14', startMin: 600, durMin: 120, kindKey: 'class', subKey: 'writing', mode: 'online' as const,
     title: 'Literature & Writing', roomName: null, roomBranch: null, zaccLabel: 'TN 학원 1번방', students: '고은설',
@@ -167,11 +167,10 @@ it('다가오는 수업 줄은 날짜와 「N일 뒤」를 적고, 끝난 수업
   data.today = [{ ...lesson, serId: 6, onDate: '2026-09-12', date: '2026-09-12', repState: 'none' as const }];
   const view = setup(data);
   await waitFor(() => expect(view.getByText('2일 뒤')).toBeTruthy());
-  // 오늘 끝난(미작성) 수업은 리포트 작성 화면으로 — 덱 slide 9 「클릭 → 해당 수업의 리포트 작성 화면」
-  const link = view.getByRole('link', { name: /Literature & Writing/ });
-  expect(link.getAttribute('href')).toBe('/reports?serId=6&onDate=2026-09-12');
-  // 아직 안 한 수업(예정)은 쓸 리포트가 없으므로 링크가 아니다
-  expect(view.getAllByRole('link', { name: /Literature & Writing/ })).toHaveLength(1);
+  const links = view.getAllByRole('link', { name: /Literature & Writing/ });
+  expect(links).toHaveLength(2);
+  expect(links[0].getAttribute('href')).toBe('/schedule?serId=6&onDate=2026-09-12&date=2026-09-12&source=home');
+  expect(links[1].getAttribute('href')).toBe('/schedule?serId=5&onDate=2026-09-14&date=2026-09-14&source=home');
 });
 
 /* 옮긴 회차 — 날짜와 「N일 뒤」는 실제 수업일(date)이고 리포트 링크는 키(onDate)다 (TBO-54 MEETING-MOVE) */
@@ -188,7 +187,8 @@ it('다가오는 수업의 날짜는 실제 수업일이다 — 다음 주로 �
   await waitFor(() => expect(view.getByText('7일 뒤')).toBeTruthy());
   expect(view.container.textContent).toContain('9/19');
   expect(view.container.textContent).not.toContain('9/12');
-  expect(view.getByRole('link', { name: /Moved Writing/ }).getAttribute('href')).toBe('/reports?serId=7&onDate=2026-09-12');
+  expect(view.getByRole('link', { name: /Moved Writing/ }).getAttribute('href'))
+    .toBe('/schedule?serId=7&onDate=2026-09-12&date=2026-09-19&source=home');
 });
 /* 강사 덱 slide 8 「오늘 할 일」 넷째 줄 — 교재 변경 요청 중(서버가 센 수 · N-99). 수업 안내로 간다 */
 it('오늘 할 일 넷째 줄은 「교재 변경 요청 중」이고 서버가 센 수를 그대로 쓰며 수업 안내로 잇는다 (N-99)', async () => {

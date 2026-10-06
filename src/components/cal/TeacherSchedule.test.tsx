@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), meta: vi.fn(), unwritten: vi.fn(), drawer: vi.fn(),
   horizon: vi.fn(), scheduleWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(),
 }));
+const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: nav.replace }),
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences, useMeta: mocks.meta, useUnwritten: mocks.unwritten, useDrawer: mocks.drawer,
   useHorizon: mocks.horizon, useScheduleWrite: mocks.scheduleWrite,
@@ -59,6 +64,8 @@ beforeEach(() => {
   mocks.drawer.mockReturnValue({ data: { approvals: { mine: [] }, changeReqs: [] }, isLoading: false, isError: false });
   mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [] } });
   mocks.shell.mockReturnValue({ data: { timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 45000, notis: [], unread: 0, notiWindowDays: 30 } });
+  nav.search = '';
+  nav.replace.mockClear();
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 
@@ -178,21 +185,63 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(today.getAllByRole('button')).toHaveLength(2);
   });
 
-  it('리포트 대상 행은 원래 날짜 키로 공용 상세를 열고 취소·비대상은 수업 상세를 연다', () => {
+  it('모든 행은 같은 수업 허브를 열고 리포트·수업 상세 owner를 그 안에서 선택한다', () => {
     mocks.occurrences.mockReturnValue({ data: { items: [
-      occurrence(1, '2026-09-07', 600, { onDate: '2026-09-01' }),
+      occurrence(1, '2026-09-07', 600, { onDate: '2026-09-01', repState: 'none' }),
       occurrence(2, '2026-09-07', 720, { canceled: true }),
       occurrence(3, '2026-09-07', 780, { kindKey: 'meeting', repState: 'na' }),
     ] }, isLoading: false, isError: false });
     const view = render(<TeacherSchedule />);
     const rows = within(view.getByRole('region', { name: '오늘 전체 스케줄' })).getAllByRole('button');
     fireEvent.click(rows[0]);
+    expect(nav.replace).toHaveBeenCalledWith('/schedule?serId=1&onDate=2026-09-01&date=2026-09-07&source=calendar');
+    expect(view.getByRole('dialog', { name: '수업 허브' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '리포트 열기' }));
     expect(view.getByRole('dialog', { name: '리포트 상세' }).textContent).toContain('1|2026-09-01');
     fireEvent.click(view.getByRole('button', { name: '닫기' }));
     fireEvent.click(rows[1]);
+    expect(view.getByRole('button', { name: '리포트 열기' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '수업 정보 열기' }));
     expect(view.getByRole('dialog', { name: '수업 상세' }).textContent).toBe('2');
     fireEvent.click(rows[2]);
-    expect(view.getByRole('dialog', { name: '수업 상세' }).textContent).toBe('3');
+    expect(view.getByRole('button', { name: '리포트 열기' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('직접 URL은 실제 날짜로 이동 회차를 읽고 serId+onDate+date가 정확히 같은 수업만 연다', () => {
+    nav.search = 'serId=7&onDate=2026-09-01&date=2026-09-19';
+    mocks.occurrences.mockImplementation(({ from }: { from: string }) => ({
+      data: { items: from === '2026-09-19' ? [occurrence(7, '2026-09-19', 600, { onDate: '2026-09-01', repState: 'none' })] : [] },
+      isLoading: false, isError: false, refetch: vi.fn(),
+    }));
+    const view = render(<TeacherSchedule />);
+    expect(mocks.occurrences).toHaveBeenCalledWith({ from: '2026-09-19', to: '2026-09-19' }, true);
+    expect(view.getByRole('dialog', { name: '수업 허브' }).textContent).toContain('9/19');
+    fireEvent.click(view.getByRole('button', { name: '리포트 열기' }));
+    expect(view.getByRole('dialog', { name: '리포트 상세' }).textContent).toContain('7|2026-09-01');
+  });
+
+  it('잘못된 identity와 없는 회차는 다른 수업으로 대체하지 않고 복구 경로를 표시한다', () => {
+    nav.search = 'serId=abc&onDate=2026-09-07&date=2026-09-07';
+    const view = render(<TeacherSchedule />);
+    expect(view.getByRole('alert').textContent).toContain('수업 주소가 올바르지 않습니다');
+    expect(view.queryByRole('dialog', { name: '수업 허브' })).toBeNull();
+
+    nav.search = 'serId=999&onDate=2026-09-07&date=2026-09-07';
+    view.rerender(<TeacherSchedule />);
+    expect(view.getByRole('alert').textContent).toContain('해당 수업을 찾을 수 없습니다');
+    expect(view.queryByRole('dialog', { name: '수업 허브' })).toBeNull();
+  });
+
+  it('허브는 계약 없는 회차별 안내·히스토리를 잠그고 건의와 닫기 이동을 제공한다', () => {
+    nav.search = 'serId=1&onDate=2026-09-07&date=2026-09-07&source=home';
+    mocks.occurrences.mockReturnValue({ data: { items: [occurrence(1, '2026-09-07', 600)] }, isLoading: false, isError: false, refetch: vi.fn() });
+    const view = render(<TeacherSchedule />);
+    expect(view.getByRole('button', { name: '수업 안내 열기' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '학생 이력 열기' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByText(/회차를 정확히 여는 계약이 아직 없습니다/)).toBeTruthy();
+    expect(view.getByRole('link', { name: '건의 사항 열기' }).getAttribute('href')).toBe('/teacher/suggestions');
+    fireEvent.click(view.getByRole('button', { name: '창 닫기' }));
+    expect(nav.replace).toHaveBeenCalledWith('/teacher');
   });
 
   it('로딩·오류를 수업 0건으로 표시하지 않고 정상 빈 상태를 구별한다', () => {
@@ -213,9 +262,9 @@ describe('강사 캘린더 기본 오늘 목록', () => {
   it('KST 자정이 지나면 오늘과 요청 범위를 갱신한다', () => {
     vi.setSystemTime(new Date('2026-09-07T14:59:59Z'));
     render(<TeacherSchedule />);
-    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-07', to: '2026-09-14' });
+    expect(mocks.occurrences).toHaveBeenCalledWith({ from: '2026-09-07', to: '2026-09-14' });
     act(() => vi.advanceTimersByTime(1000));
-    expect(mocks.occurrences).toHaveBeenLastCalledWith({ from: '2026-09-08', to: '2026-09-15' });
+    expect(mocks.occurrences).toHaveBeenCalledWith({ from: '2026-09-08', to: '2026-09-15' });
   });
 
   it('처음과 초마다 중복 요청하지 않고 분 경계에서 서버 상태를 다시 읽으며 해제한다', () => {
@@ -249,6 +298,7 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     }));
     const view = render(<TeacherSchedule />);
     fireEvent.click(within(view.getByRole('region', { name: '오늘 전체 스케줄' })).getByRole('button'));
+    fireEvent.click(view.getByRole('button', { name: '리포트 열기' }));
     const draft = view.getByRole('textbox', { name: '리포트 초안' }) as HTMLTextAreaElement;
     fireEvent.change(draft, { target: { value: '자정에도 작성 중인 내용' } });
     act(() => vi.advanceTimersByTime(1000));
