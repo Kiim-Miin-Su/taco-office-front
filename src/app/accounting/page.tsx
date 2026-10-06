@@ -17,7 +17,7 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { positiveQueryId, queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
@@ -41,6 +41,7 @@ import { WageList } from '@/components/accounting/WageList';
 import { BonusRules, BonusSummary } from '@/components/accounting/BonusRules';
 import { AcctPrivacySwitches } from '@/components/accounting/AcctPrivacySwitches';
 import { categoryChip } from '@/components/accounting/category-tone';
+import { AccountingContractBoundary } from '@/components/accounting/AccountingContractBoundary';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -91,6 +92,7 @@ export default function AccountingPage() {
    */
   // 알림의 「이월 발생 → 회계」 링크가 탭과 달을 들고 온다 (C92 · M-125). 형식만 보고 판정은 서버·화면이 한다
   const searchParams = useSearchParams();
+  const router = useRouter();
   const rawTab = searchParams.get('tab');
   // 옛 평면 탭 `pay`(들어온 돈)는 두 층의 「들어온 돈 › 입금 기록」이다 — 옛 링크 · 즐겨찾기가 죽지 않게
   const queryTab: AccountingTab | null = rawTab === 'pay' ? 'record' : queryEnum(rawTab, ACCOUNTING_TABS);
@@ -98,6 +100,10 @@ export default function AccountingPage() {
   // §52 카드의 「자세히 ›」가 여는 청구서 줄 — `?tab=inv&invId=` 로도 온다 (x5 · 52-03). 형식만 보고 줄은 표가 찾는다
   const queryInvId = queryTab === 'inv' ? positiveQueryId(searchParams.get('invId')) : null;
   const [tab, setTab] = useState<AccountingTab>(queryTab ?? 'board');
+  const selectTab = (next: AccountingTab) => {
+    setTab(next);
+    router.replace(`/accounting?tab=${next}`, { scroll: false });
+  };
   const [focusInvId, setFocusInvId] = useState<number | null>(queryInvId);
   /** A-13 청구서 보기 — 각각(기본) · 형제 합산 */
   const [invView, setInvView] = useState<'each' | 'family'>('each');
@@ -263,9 +269,9 @@ export default function AccountingPage() {
 
         {/* 탭 두 층(N-37 ①) + 오른쪽 「+ 청구서 · 시급 비공개 · 컨설팅 비공개」 — 원문 §52~§57 여섯 컷 공통 (x5 · C-03 · N-94) */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-primary/5 px-2 py-1.5">
-          <AccountingTabs value={tab} onChange={setTab} />
+          <AccountingTabs value={tab} onChange={selectTab} />
           <div className="flex flex-wrap items-center gap-1.5">
-            <Button size="sm" variant="secondary" onClick={() => { setTab('inv'); setIssuerOpen(true); }}>+ 청구서</Button>
+            <Button size="sm" variant="secondary" onClick={() => { selectTab('inv'); setIssuerOpen(true); }}>+ 청구서</Button>
             <AcctPrivacySwitches />
           </div>
         </div>
@@ -276,7 +282,7 @@ export default function AccountingPage() {
           <Banner tone="danger">회계는 매니저 이상만 볼 수 있습니다. 또는 서버에 닿지 못했습니다.</Banner>
         ) : tab === 'board' ? (
           <InvoiceBoard data={invBoard.data} loading={invBoard.isLoading}
-            onOpenInvoice={(invId) => { setFocusInvId(invId); setTab('inv'); }} />
+            onOpenInvoice={(invId) => { setFocusInvId(invId); selectTab('inv'); }} />
         ) : tab === 'inv' ? (
           <>
             {/* 원문 §53 머리 — 「+ 새 청구서 발행」(= 「+ 청구서」와 같은 칸) · 「자동 생성 켜기」(= 일괄 발행 칸 · N-28 ②).
@@ -300,7 +306,7 @@ export default function AccountingPage() {
                 setIssuerPreset((p) => ({ seq: (p?.seq ?? 0) + 1, studentId: c.studentId, yearMonth: c.yearMonth, invType: c.invType }));
                 setIssuerOpen(true);
               }}
-              onPay={(invId) => { setPayTarget((p) => ({ seq: (p?.seq ?? 0) + 1, invId })); setTab('record'); }}
+              onPay={(invId) => { setPayTarget((p) => ({ seq: (p?.seq ?? 0) + 1, invId })); selectTab('record'); }}
               onOpen={(invId) => {
                 // 같은 줄을 다시 열면 상태가 그대로라 효과가 안 돈다 — 그 줄을 바로 부른다
                 if (invId === focusInvId) document.querySelector('.inv-focus')?.scrollIntoView?.({ block: 'center' });
@@ -344,7 +350,7 @@ export default function AccountingPage() {
                     const month = tuition.data?.month;
                     if (!month) return;
                     setBatchPreset((p) => ({ seq: (p?.seq ?? 0) + 1, month }));
-                    setTab('inv');
+                    selectTab('inv');
                   }}>
                   이 달 청구서 일괄 발행 →
                 </Button>
@@ -377,13 +383,37 @@ export default function AccountingPage() {
             </h3>
             <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
           </>
+        ) : tab === 'receipts' ? (
+          <AccountingContractBoundary
+            title="증빙 발행 원장"
+            description="아직 안 끊음·끊었음, 개별 열기, 전부 끊음, 월 마감 전 미발행 경고를 한 원장에서 다룹니다."
+            fields={['증빙 종류 · 원거래', '발행 상태 · 발행일', '발행자 · 취소 이력', '첨부·출력 참조', '월 마감 미발행 수']}
+            nextLabel="입금 기록 보기"
+            onNext={() => selectTab('record')}
+          />
         ) : tab === 'unpaid' ? (
           <UnpaidList />
+        ) : tab === 'cumulative' ? (
+          <AccountingContractBoundary
+            title="학생별 누적 원장"
+            description="최근 3개월 월별 값, 월평균, 전체 누적 매출·수납·미수채권과 분류별 내역을 서버 집계로 읽습니다."
+            fields={['학생 · 등록일 · 집계 기간', '최근 3개월 월별 매출', '누적 매출 · 수납', '미수채권', '월평균 · 분류별']}
+            nextLabel="못 받은 돈 보기"
+            onNext={() => selectTab('unpaid')}
+          />
         ) : tab === 'out' ? (
           <ExpenseReview expenses={q.data?.expenses ?? []} totals={q.data?.expenseTotals ?? []} categories={q.data?.expenseCategories ?? []} me={me} />
         ) : tab === 'payout' ? (
           <PayoutSheet data={payoutSheet.data} loading={payoutSheet.isLoading} month={payoutMonth} onMonthChange={setPayoutMonth}
-            below={<BonusSummary onEdit={() => setTab('bonus')} />} />
+            below={<BonusSummary onEdit={() => selectTab('bonus')} />} />
+        ) : tab === 'ledger' ? (
+          <AccountingContractBoundary
+            title="실제 지급 원장"
+            description="강사료 정산 확정과 실제 송금을 구분합니다. 최근 2개월의 지급일·수단·처리자·계좌 참조·취소 이력이 생성 계약으로 제공될 때만 표시합니다."
+            fields={['월 · 지급 인원', '시수 · 총액 · 차감', '소득세 · 지방소득세 · 차인지급액', '지급일 · 수단 · 처리자', '계좌 뒤 4자리 · 취소 이력']}
+            nextLabel="강사료 정산 보기"
+            onNext={() => selectTab('payout')}
+          />
         ) : tab === 'close' ? (
           <MonthClosePanel />
         ) : tab === 'wage' ? (

@@ -12,7 +12,7 @@
  * 「정리 · 기준」을 고른 모습은 컷에 없다 — 새 색을 짓지 않고 흐린 글자색 바탕으로 둔다.
  *
  * - 제품의 「입금 기록」·「들어온 돈」은 원문 「들어온 돈 › 입금 기록」 한 탭이다. 「강사료 정산」은 나간 돈, 「단가표」는 정리 · 기준.
- * - 기능이 없는 원문 아래 탭(영수증 · 세금계산서 · 학생별 누적)은 **누를 수 없게** 세우고 까닭을 단다.
+ * - 영수증 · 세금계산서, 학생별 누적, 지급 원장은 URL 화면을 열되 생성 DTO가 없는 값과 action은 계약 경계에서 잠근다.
  * - 원문 나간 돈의 아래 탭 넷(강사료 계산 · 강사료 지급 · 부대비용 · 법인카드)은 결정대로 둘(강사료 정산 · 지출)이다.
  * - 정리 · 기준의 「가산 규칙」(N-93 · W11 M2)은 강사료에 더하는 돈의 기준 표다 — 원문 §56 「추가로 드리는 돈」을 고치는 자리.
  *   탭 줄 오른쪽 두 비공개 스위치(N-94)는 페이지가 「+ 청구서」 옆에 세운다(`AcctPrivacySwitches`).
@@ -23,7 +23,7 @@
 'use client';
 import { cn } from '@/components/ui';
 
-export const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'unpaid', 'payout', 'out', 'close', 'rates', 'wage', 'bonus'] as const;
+export const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'receipts', 'unpaid', 'cumulative', 'payout', 'ledger', 'out', 'close', 'rates', 'wage', 'bonus'] as const;
 export type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
 interface SubTab { value?: AccountingTab; label: string; disabledReason?: string }
@@ -45,15 +45,16 @@ const GROUPS: readonly Group[] = [
     key: 'in', label: '들어온 돈', tone: 'bg-green', first: 'record',
     tabs: [
       { value: 'record', label: '입금 기록' },
-      { label: '영수증 · 세금계산서', disabledReason: '아직 없는 기능입니다 — 무엇을 어떻게 발행할지 정해지지 않았습니다' },
+      { value: 'receipts', label: '영수증 · 세금계산서' },
       { value: 'unpaid', label: '못 받은 돈' },
-      { label: '학생별 누적', disabledReason: '아직 없는 기능입니다 — 무엇을 모아 보일지 정해지지 않았습니다' },
+      { value: 'cumulative', label: '학생별 누적' },
     ],
   },
   {
     key: 'out', label: '나간 돈', tone: 'bg-violet', first: 'payout',
     tabs: [
       { value: 'payout', label: '강사료 정산' },
+      { value: 'ledger', label: '지급 원장' },
       { value: 'out', label: '지출' },
     ],
   },

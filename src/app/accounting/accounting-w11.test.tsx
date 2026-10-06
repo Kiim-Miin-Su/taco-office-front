@@ -105,7 +105,7 @@ const PRIVACY = {
   ],
 };
 
-it('탭은 두 층이다 — 처음은 받을 돈 › 트래킹 보드 · 묶음을 누르면 그 아래 탭이 선다 · 없는 기능은 잠기고 까닭이 있다 (N-37 ① · C-08)', async () => {
+it('탭은 두 층이다 — 처음은 받을 돈 › 트래킹 보드 · 최신 증빙/누적/지급 원장 화면까지 이동한다 (N-37 ① · C-08 · BOC-11a)', async () => {
   const { view } = mount((c) => (
     c.url === '/accounting/board' ? board()
       : c.url === '/accounting/cashflow' ? flow()
@@ -128,13 +128,12 @@ it('탭은 두 층이다 — 처음은 받을 돈 › 트래킹 보드 · 묶음
   expect(pressed(view, '입금 기록')).toBe('true');
   for (const name of ['영수증 · 세금계산서', '학생별 누적']) {
     const b = view.getByRole('button', { name }) as HTMLButtonElement;
-    expect(b.disabled).toBe(true);
-    expect(b.title).toMatch(/^아직 없는 기능입니다 — /);
+    expect(b.disabled).toBe(false);
   }
 
   fireEvent.click(view.getByRole('button', { name: '나간 돈' }));
   expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(
-    ['받을 돈', '들어온 돈', '나간 돈', '강사료 정산', '지출', '정리 · 기준'],
+    ['받을 돈', '들어온 돈', '나간 돈', '강사료 정산', '지급 원장', '지출', '정리 · 기준'],
   );
   expect(pressed(view, '강사료 정산')).toBe('true');
   fireEvent.click(view.getByRole('button', { name: '지출' }));
