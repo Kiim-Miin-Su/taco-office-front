@@ -1144,7 +1144,7 @@ export function useReviewExpense(): UseMutationResult<Expense, unknown, { id: nu
   });
 }
 
-export function useOps(query: OpsQuery = {}): UseQueryResult<Ops> {
+export function useOps(query: OpsQuery = {}, enabled = true): UseQueryResult<Ops> {
   const viewerId = useViewerId();
   const canMoney = useSession((s) => s.me?.canMoney === true);
   const part = opsQueryPart(query);
@@ -1161,6 +1161,7 @@ export function useOps(query: OpsQuery = {}): UseQueryResult<Ops> {
         marketing: data.marketing.map((row) => ({ ...row, cost: null, costPerEnroll: null })),
       };
     },
+    enabled,
     staleTime: 60 * 1000,
   });
 }

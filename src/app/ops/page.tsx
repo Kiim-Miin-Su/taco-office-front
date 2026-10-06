@@ -43,12 +43,13 @@ import { TeacherChangeWizard, type TeacherChangePreset } from '@/components/ops/
 import { MeetingCreateButton } from '@/components/ops/MeetingCreateDialog';
 import { PlanCreateButton } from '@/components/ops/PlanCreateDialog';
 import { MarketingCreateButton, MarketingEditDialog } from '@/components/ops/MarketingCreateDialog';
+import { MarketingChannelOverview } from '@/components/ops/MarketingChannelOverview';
 import { SuggestionsAdmin } from '@/components/ops/SuggestionsAdmin';
 import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog';
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue } from '@/api/types';
 import { MASKED, won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
-import { hhmm, longDateLabel, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
+import { addDays, hhmm, longDateLabel, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
 import type { ChipColor, ChipTone, Tone } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
 
@@ -201,6 +202,11 @@ export default function OpsPage() {
   const bounds = periodTab && period !== 'all' ? summaryBoundsOf(period, anchor) : null;
   // 갈래 칩(§67)은 컴플레인 갈래에서만 서버로 간다 — 다른 갈래의 목록을 조용히 좁히지 않는다
   const q = useOps({ ...(bounds ?? {}), ...(tab === 'complaint' && area ? { area } : {}) });
+  /* 최종 관리자 수정사항 p117 — 기간별 표와 별도로 최근 30일 네 칸·채널 보드를 읽는다.
+     기존 GET /ops의 기간 투영과 생성 DTO를 재사용하고, 다른 운영 탭에서는 추가 조회하지 않는다. */
+  const mkt30To = todayKst();
+  const mkt30From = addDays(mkt30To, -29);
+  const mkt30 = useOps({ from: mkt30From, to: mkt30To }, tab === 'mkt' && mktTab === 'track');
   /*
    * 기간·갈래를 옮기면 캐시 키가 바뀌어 새로 받는다 — 그 사이 갈래 몸통(속 갈래 카드 · 기간 띠)이 「불러오는 중」으로
    * 통째로 사라지면 방금 누른 띠가 손 밑에서 없어진다(x5 · C-5 로 띠가 갈래 안에 들어왔다).
@@ -493,6 +499,15 @@ export default function OpsPage() {
               />
             ) : (
               <>
+                <MarketingChannelOverview
+                  rows={mkt30.data?.marketing}
+                  channels={mkt30.data?.mktChannels ?? d?.mktChannels ?? []}
+                  from={mkt30From}
+                  to={mkt30To}
+                  loading={mkt30.isLoading || mkt30.isFetching}
+                  failed={mkt30.isError}
+                  onEdit={setEditingMarketing}
+                />
                 {/* 원문 §59 필터 띠 「어디에 · 누가」 — 건수가 있는 것만 · 많은 순 · 수는 서버 (59-4). 거르기는 받은 줄에서 한다 */}
                 <div className="mb-3 flex flex-col gap-1.5 rounded-xl bg-inset px-3 py-2">
                   <div className="flex flex-wrap items-center gap-3">

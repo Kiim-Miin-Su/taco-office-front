@@ -129,15 +129,18 @@ describe('§59 마케팅 트래킹 (59-3 · 59-4 · 59-5)', () => {
 
   it('「어디에 · 누가」 칩은 받은 줄을 거른다 — 요청이 늘지 않는다 (59-4)', async () => {
     const view = setup(ops(), 'tab=mkt');
-    await waitFor(() => expect(view.getByText('검색광고 · 대치 국제학교 키워드')).toBeTruthy());
+    await waitFor(() => expect(view.container.querySelector('table')).toBeTruthy());
+    const table = view.container.querySelector('table')!;
+    expect(within(table as HTMLTableElement).getByText('검색광고 · 대치 국제학교 키워드')).toBeTruthy();
+    const before = opsCalls(view.get).length;
     fireEvent.click(within(view.getByRole('group', { name: '어디에' })).getByRole('button', { name: '카카오 1' }));
-    expect(view.queryByText('검색광고 · 대치 국제학교 키워드')).toBeNull();
-    expect(view.getByText('카카오채널 문의 12건 응대')).toBeTruthy();
+    expect(within(table as HTMLTableElement).queryByText('검색광고 · 대치 국제학교 키워드')).toBeNull();
+    expect(within(table as HTMLTableElement).getByText('카카오채널 문의 12건 응대')).toBeTruthy();
     fireEvent.click(within(view.getByRole('group', { name: '어디에' })).getByRole('button', { name: '전체 2' }));
     fireEvent.click(within(view.getByRole('group', { name: '누가' })).getByRole('button', { name: '김성재 1' }));
-    expect(view.getByText('검색광고 · 대치 국제학교 키워드')).toBeTruthy();
-    expect(view.queryByText('카카오채널 문의 12건 응대')).toBeNull();
-    expect(opsCalls(view.get)).toHaveLength(1);
+    expect(within(table as HTMLTableElement).getByText('검색광고 · 대치 국제학교 키워드')).toBeTruthy();
+    expect(within(table as HTMLTableElement).queryByText('카카오채널 문의 12건 응대')).toBeNull();
+    expect(opsCalls(view.get)).toHaveLength(before);
   });
 });
 

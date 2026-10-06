@@ -15,6 +15,7 @@ import OpsPage from './page';
 import { MASKED } from '@/lib/money';
 import { INTAKE_HEAD_FIXTURE } from '@/app/intake/intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from './ops-head.fixture';
+import { addDays, todayKst } from '@/lib/calendar';
 
 const nav = vi.hoisted(() => ({ search: '' }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search), useRouter: () => ({ replace: vi.fn() }) }));
@@ -120,13 +121,14 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
     expect(view.getByText('₩123,400')).toBeTruthy();
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의 속기록/ }));
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(3));
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
-    // §59 는 주간 띠, 회의 속기록은 전체를 받는다 — 두 키를 한 번씩만 받고, 돌아오면 캐시가 답한다.
+    // §59 기간별 표는 주간, p117 채널 보드는 최근 30일, 회의 속기록은 전체를 한 번씩 받고 돌아오면 캐시가 답한다.
     const params = get.mock.calls.map((c) => (c[1] as { params: Record<string, string> }).params);
-    expect(params).toHaveLength(2);
-    expect(params[0].from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(params[1]).toEqual({});
+    expect(params).toHaveLength(3);
+    expect(params.filter((p) => p.from && p.to)).toHaveLength(2);
+    expect(params).toContainEqual({ from: addDays(todayKst(), -29), to: todayKst() });
+    expect(params).toContainEqual({});
   });
 
   /**
@@ -182,7 +184,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
   it('같은 사용자 권한 회수 직후 기존 비용을 숨기고 새 응답도 비공개로 유지한다', async () => {
     let resolve!: (value: { data: Ops }) => void;
     const pending = new Promise<{ data: Ops }>((done) => { resolve = done; });
-    const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ data: response }).mockReturnValueOnce(pending);
+    const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ data: response }).mockReturnValueOnce(pending).mockResolvedValue({ data: response });
     const view = setup();
     await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
     const loadedCommits = view.commits.mock.calls.length;
@@ -190,23 +192,23 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     expect(view.queryByText('₩246,800')).toBeNull();
     expect(view.queryByText('₩123,400')).toBeNull();
     expect(view.commits).toHaveBeenCalledTimes(loadedCommits + 1);
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(4));
     await act(async () => { resolve({ data: response }); await pending; });
     await waitFor(() => expectHidden(view));
-    expect(view.commits).toHaveBeenCalledTimes(loadedCommits + 2);
+    expect(view.commits.mock.calls.length).toBeGreaterThanOrEqual(loadedCommits + 2);
   });
 
   it('권한 회수 전 요청이 나중에 끝나도 현재 비공개 응답을 덮어쓰지 않는다', async () => {
     let resolve!: (value: { data: Ops }) => void;
     const pending = new Promise<{ data: Ops }>((done) => { resolve = done; });
-    const get = vi.spyOn(api, 'get').mockReturnValueOnce(pending).mockResolvedValueOnce({ data: response });
+    const get = vi.spyOn(api, 'get').mockReturnValueOnce(pending).mockResolvedValue({ data: response });
     const view = setup();
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     act(() => useSession.setState({ me: { ...me, canMoney: false } }));
     await waitFor(() => expectHidden(view));
     await act(async () => { resolve({ data: response }); await pending; });
     expectHidden(view);
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(4);
   });
 
   it('권한 재부여 시 비공개 캐시를 재사용하지 않고 허용 응답을 새로 조회한다', async () => {
@@ -215,7 +217,7 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
     await waitFor(() => expectHidden(view));
     act(() => useSession.setState({ me }));
     await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(4);
   });
 });
 
