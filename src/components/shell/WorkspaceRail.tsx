@@ -71,7 +71,8 @@ export function WorkspaceRail({ approvals, unread, onOpen, activePane = null }: 
         const count = badge === 'approvals' ? approvals : badge === 'unread' ? unread : 0;
         const active = pane !== undefined && pane === activePane;
         const look = cn(
-          'relative flex w-11 flex-col items-center gap-0.5 rounded-md py-1.5 transition-colors',
+          'relative flex min-h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-md py-1.5 transition-colors',
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg',
           // 색은 머리줄과 같은 토큰이다 — 원문의 어두운 타일이 머리줄 색이다 (D-R41)
           active ? 'bg-header text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg',
         );

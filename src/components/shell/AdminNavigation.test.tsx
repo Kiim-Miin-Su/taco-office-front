@@ -76,6 +76,8 @@ describe('AdminNavigation', () => {
     within(nav).getAllByRole('link').forEach((link) => {
       expect(link.classList.contains('shrink-0')).toBe(true);
       expect(link.classList.contains('whitespace-nowrap')).toBe(true);
+      expect(link.classList.contains('min-h-11')).toBe(true);
+      expect(link.classList.contains('focus-visible:outline-2')).toBe(true);
     });
   });
 

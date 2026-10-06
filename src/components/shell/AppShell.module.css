@@ -25,6 +25,12 @@
   padding: 8px 12px;
 }
 
+/* Figma F3/F4: 모바일 관리자 머리의 모든 조작점은 44px 이상이고 키보드 초점이 어두운 바에서 보여야 한다. */
+.header :where(a, button, summary):focus-visible {
+  outline: 2px solid var(--line-2);
+  outline-offset: 2px;
+}
+
 /* 진짜 모달(변경 요청 등)은 서랍 안에서도 열리므로 모달이 있을 때 헤더를 다시 backdrop 아래로 내린다. */
 .shell:has([aria-modal="true"]) .header {
   z-index: 0;
@@ -50,4 +56,8 @@
 
 @media (min-width: 640px) {
   .header { flex-wrap: nowrap; padding: 0 16px; }
+}
+
+@media (max-width: 639px) {
+  .header :where(a, button, summary) { min-height: 44px; }
 }

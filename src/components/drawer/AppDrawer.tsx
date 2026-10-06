@@ -202,7 +202,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
             return (
               <button
                 key={p.key} type="button" onClick={() => onPaneChange(p.key)} aria-pressed={pane === p.key}
-                className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors ${
+                className={`flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors sm:min-h-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg ${
                   pane === p.key ? 'bg-primary text-white' : 'text-fg-subtle hover:bg-inset hover:text-fg-2'}`}
               >
                 {p.label}

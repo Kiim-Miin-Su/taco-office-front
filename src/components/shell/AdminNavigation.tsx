@@ -34,7 +34,8 @@ function AdminNavLink({
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-bold whitespace-nowrap transition-colors',
+        'flex min-h-11 shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-bold whitespace-nowrap transition-colors sm:min-h-0',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
         active ? activeColor : 'text-line-2 hover:bg-white/10',
       )}
     >

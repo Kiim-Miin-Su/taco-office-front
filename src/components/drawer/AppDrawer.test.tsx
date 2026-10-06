@@ -5,6 +5,7 @@
  */
 
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/client';
 import type { Occurrence } from '@/api/types';
@@ -303,6 +304,34 @@ describe('공용 서랍의 제어형 선택', () => {
     expect(nav.getByRole('button', { name: '승인 대기함 2' }).getAttribute('aria-pressed')).toBe('false');
     expect(view.getByText('종류 내용')).toBeTruthy();
     expect(view.queryByText('승인 내용')).toBeNull();
+  });
+
+  it('레일이 없는 390px 전환 단추는 44px touch target과 focus ring을 쓰고 Esc 뒤 연 단추로 돌아간다', () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return <>
+        <button type="button" onClick={() => setOpen(true)}>대기함 열기</button>
+        <AppDrawer open={open} pane="approvals" onPaneChange={() => undefined} onClose={() => setOpen(false)} />
+      </>;
+    }
+    const view = render(<Harness />);
+    const opener = view.getByRole('button', { name: '대기함 열기' });
+    opener.focus();
+    fireEvent.click(opener);
+
+    const menu = view.getByRole('navigation', { name: '서랍 메뉴' });
+    within(menu).getAllByRole('button').forEach((button) => {
+      expect(button.className).toContain('min-h-11');
+      expect(button.className).toContain('focus-visible:outline-2');
+    });
+    const close = view.getByRole('button', { name: '닫기' });
+    expect(close.className).toContain('h-11');
+    expect(close.className).toContain('w-11');
+    expect(view.getByRole('dialog', { name: '승인 대기함' })).toBe(document.activeElement);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(view.queryByRole('dialog', { name: '승인 대기함' })).toBeNull();
+    expect(document.activeElement).toBe(opener);
   });
 
   it('탭 클릭은 변경 의도만 전달하고 부모가 바꾼 선택을 렌더한다', () => {

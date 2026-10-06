@@ -24,7 +24,7 @@ function CloseX({ onClose, label, dark = false }: { onClose: () => void; label: 
     <button
       type="button" onClick={onClose} aria-label={label} title={label}
       className={cn(
-        'grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors',
+        'grid h-11 w-11 shrink-0 place-items-center rounded-md transition-colors sm:h-8 sm:w-8',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
         dark ? 'text-line-2 hover:bg-white/10 focus-visible:outline-white' : 'text-fg-subtle hover:bg-inset hover:text-fg focus-visible:outline-fg',
       )}

@@ -81,6 +81,10 @@ describe('최종 수정사항 우측 rail — 받은 할 일을 승인 대기함
     expect(iconOf(screen.getByRole('button', { name: '구성원' }))).toContain('lucide-user-plus');
     expect(screen.queryByRole('button', { name: '할 일' })).toBeNull();
     expect(within(screen.getByRole('button', { name: '알림' })).getByText('알림').className).toContain('font-bold');
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button.className).toContain('min-h-11');
+      expect(button.className).toContain('focus-visible:outline-2');
+    });
   });
 
   /*
