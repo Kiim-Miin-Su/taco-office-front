@@ -42,6 +42,7 @@ import { BonusRules, BonusSummary } from '@/components/accounting/BonusRules';
 import { AcctPrivacySwitches } from '@/components/accounting/AcctPrivacySwitches';
 import { categoryChip } from '@/components/accounting/category-tone';
 import { AccountingContractBoundary } from '@/components/accounting/AccountingContractBoundary';
+import { AdjustmentContractBoundary } from '@/components/accounting/AdjustmentContractBoundary';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -414,6 +415,8 @@ export default function AccountingPage() {
             nextLabel="강사료 정산 보기"
             onNext={() => selectTab('payout')}
           />
+        ) : tab === 'adjustments' ? (
+          <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
         ) : tab === 'close' ? (
           <MonthClosePanel />
         ) : tab === 'wage' ? (
