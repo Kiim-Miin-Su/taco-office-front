@@ -67,6 +67,7 @@ describe('학생 목록과 생성 계약', () => {
     expect(view.getByText('보호자A')).toBeTruthy();
     expect(view.getByText('G8 · Y9')).toBeTruthy();
     expect(view.getByText(/상담 중인 리드 통합 검색/)).toBeTruthy();
+    expect(view.getByRole('link', { name: '학생 등록' }).getAttribute('href')).toBe('/students/new');
     expect(requests[0]).toMatchObject({ method: 'get', url: '/students', params: { page: 1 } });
     expect(requests[0].signal).toBeDefined();
     fireEvent.click(view.getByText('학교A'));

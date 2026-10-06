@@ -8,7 +8,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStudentDirectory, useStudentReadAllowed, type StudentDirectoryRow } from '@/api/students';
-import { Banner, Button, Input, Label, PageHeader, QueryState, Table, type Column } from '@/components/ui';
+import { Banner, Button, Input, Label, LinkButton, PageHeader, QueryState, Table, type Column } from '@/components/ui';
 import { kstDateTime } from '@/lib/calendar';
 import { educationGradeListLabel } from '@/lib/education-grades';
 import { EducationGradeSelect } from './EducationGradeSelect';
@@ -31,7 +31,7 @@ export function StudentDirectory() {
   ];
   if (!allowed) return <Banner tone="warning">학생 목록을 조회할 권한이 없습니다.</Banner>;
   return <div className="flex flex-col gap-4">
-    <PageHeader title="학생" sub="학생 DB 생성일 내림차순 · 같은 시각은 학생 ID 내림차순 · 한 페이지10명" />
+    <PageHeader title="학생" sub="학생 DB 생성일 내림차순 · 같은 시각은 학생 ID 내림차순 · 한 페이지10명" right={<LinkButton href="/students/new" variant="primary">학생 등록</LinkButton>} />
     <Banner tone="neutral">현재 학생으로 등록된 기록만 조회합니다. 상담 중인 리드 통합 검색, 재원 상태·거주 국가 필터와 일괄 작업은 아직 제공하지 않습니다.</Banner>
     <form aria-label="학생 검색" className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); setQuery(draft.trim()); setPage(1); }}>
       <div className="min-w-0 flex-1"><Label htmlFor="student-query">이름·학교·학년 검색</Label><Input id="student-query" type="search" maxLength={80} value={draft} onChange={event => setDraft(event.target.value)} /></div>

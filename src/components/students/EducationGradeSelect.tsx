@@ -18,10 +18,12 @@ export interface EducationGradeSelectProps {
   /** 현행 학생 목록 필터처럼 서버가 준 literal 목록을 계약 전에도 그대로 고르게 할 때만 사용한다. */
   legacyValues?: readonly string[];
   showContractState?: boolean;
+  /** 실제 select의 CRUD input 경로. 화면 fixture가 입력 칸과 미래 DTO field를 1:1로 센다. */
+  fieldPath?: string;
 }
 
 export function EducationGradeSelect({
-  id, ariaLabel, source, value, onChange, disabled = false, emptyLabel = '학년 없음', legacyValues = [], showContractState = true,
+  id, ariaLabel, source, value, onChange, disabled = false, emptyLabel = '학년 없음', legacyValues = [], showContractState = true, fieldPath,
 }: EducationGradeSelectProps) {
   const contractReady = hasEducationGradeContract(source);
   const options = educationGradeOptions(source);
@@ -42,7 +44,7 @@ export function EducationGradeSelect({
 
   return (
     <div className="min-w-0">
-      <Select id={id} aria-label={ariaLabel} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled || !canChoose}>
+      <Select id={id} aria-label={ariaLabel} data-field-path={fieldPath} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled || !canChoose}>
         <option value="">{contractReady ? emptyLabel : canChoose ? emptyLabel : '학년 선택지 연결 대기'}</option>
         {legacy && !fallback.includes(value) ? <option value={value}>{value} · 기존 값</option> : null}
         {contractReady ? groups.map((group) => (

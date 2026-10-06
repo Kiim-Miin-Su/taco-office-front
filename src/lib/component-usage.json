@@ -1,15 +1,15 @@
 {
   "version": 1,
   "counts": {
-    "button": 512,
+    "button": 524,
     "badge": 310,
     "mark": 2,
-    "input": 386,
-    "field": 340,
+    "input": 412,
+    "field": 365,
     "stat": 31,
-    "banner": 301,
+    "banner": 305,
     "table": 33,
-    "panel": 128,
+    "panel": 129,
     "board": 6,
     "overlay": 65,
     "tabs": 52
