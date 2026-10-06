@@ -9,6 +9,7 @@ import { apiMessage } from '@/api/client';
 import { useMeta, usePatchLead } from '@/api/queries';
 import type { IntakeSource, Lead, LeadPatch } from '@/api/types';
 import { Banner, Button, Input, Label, Panel, Select } from '@/components/ui';
+import { EducationGradeSelect } from '@/components/students/EducationGradeSelect';
 
 export function LeadCoreEditor({ lead, sources, onDone }: { lead: Lead; sources: IntakeSource[]; onDone?: (row: Lead) => void }) {
   const [editing, setEditing] = useState(false);
@@ -56,7 +57,7 @@ export function LeadCoreEditor({ lead, sources, onDone }: { lead: Lead; sources:
         <div className="space-y-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_96px_1fr]">
             <div><Label htmlFor="lead-core-name">이름</Label><Input id="lead-core-name" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} /></div>
-            <div><Label htmlFor="lead-core-grade">학년</Label><Input id="lead-core-grade" value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} /></div>
+            <div><Label htmlFor="lead-core-grade">학년</Label><EducationGradeSelect id="lead-core-grade" source={meta.data} value={grade} onChange={setGrade} /></div>
             <div><Label htmlFor="lead-core-school">학교</Label><Input id="lead-core-school" value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} /></div>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[96px_1fr]">

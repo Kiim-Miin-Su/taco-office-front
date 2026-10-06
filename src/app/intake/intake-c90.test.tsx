@@ -60,7 +60,10 @@ const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); push.mockReset(); });
 
 async function setup() {
-  vi.spyOn(api, 'get').mockImplementation(async (url: string) => ({ data: url === '/ops' ? response : { staff: [{ id: 3, name: '김범준' }], students: [] } }) as never);
+  vi.spyOn(api, 'get').mockImplementation(async (url: string) => ({ data: url === '/ops' ? response : {
+    staff: [{ id: 3, name: '김범준' }], students: [],
+    educationGrades: [{ value: 'G8', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G8 (= Y9)', equivalenceHint: '= Y9 · 중2', listLabel: 'G8 · Y9', sort: 8 }],
+  } }) as never);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
   clients.push(client);
   const view = render(<QueryClientProvider client={client}><IntakePage /></QueryClientProvider>);

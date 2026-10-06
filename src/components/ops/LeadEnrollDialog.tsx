@@ -23,6 +23,7 @@ import type { EnrollResult, Gender, Lead, LeadEnroll } from '@/api/types';
 import { KO_DOW, buildRrule, conflictLines, hhmm, lessonTimeIssue, parseHm, todayKst, unavailableLines } from '@/lib/calendar';
 import { won } from '@/lib/money';
 import { subjectAvailableForProgram, subjectOptions } from '@/lib/shared-options';
+import { EducationGradeSelect } from '@/components/students/EducationGradeSelect';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 /** 서버 거절 코드 — 공용 client 가 ApiError 로 정규화한다. 정규화 전 모양도 받아 둔다 */
@@ -248,7 +249,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <div className="min-w-0"><Label htmlFor={`${id}-name`}>이름</Label><Input id={`${id}-name`} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} disabled={pending} /></div>
-              <div className="min-w-0"><Label htmlFor={`${id}-grade`} hint="동명이인을 가릅니다">학년</Label><Input id={`${id}-grade`} value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} disabled={pending} placeholder="예: 고2" /></div>
+              <div className="min-w-0"><Label htmlFor={`${id}-grade`} hint="동명이인을 가릅니다">학년</Label><EducationGradeSelect id={`${id}-grade`} source={meta.data} value={grade} onChange={setGrade} disabled={pending} /></div>
               <div className="min-w-0"><Label htmlFor={`${id}-school`}>학교</Label><Input id={`${id}-school`} value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} disabled={pending} /></div>
               {/* N-83 — 선택 칸. 낱말은 서버 코드표(meta.genders), 비워 두면 저장하지 않는다 */}
               <div className="min-w-0">

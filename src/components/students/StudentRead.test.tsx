@@ -21,9 +21,12 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 const me: Me = { id: 3, name: '매니저', role: 'manager', roleLabel: '매니저', title: null,
   canAdminPage: true, canCrudAll: true, canSeeProfit: false, canCrudAttendance: false,
   canMoney: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false };
-const student = { id: 21, name: '학생A', label: '학생A · G8', tag: 'G8', grade: 'G8', school: '학교A', gender: null,
+const student = { id: 21, name: '학생A', label: '학생A · G8', tag: 'G8', grade: 'G8', gradeDisplay: 'G8 · Y9', school: '학교A', gender: null,
   genderLabel: null, createdAt: '2026-09-30T12:00:00+09:00', guardianNames: ['보호자A'] };
-const directory: StudentDirectory = { items: [student], total: 11, page: 1, pageSize: 10, grades: ['G8', 'G9'] };
+const directory = { items: [student], total: 11, page: 1, pageSize: 10, grades: ['G8', 'G9'], educationGrades: [
+  { value: 'G8', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G8 (= Y9)', equivalenceHint: '= Y9 · 중2', listLabel: 'G8 · Y9', sort: 8 },
+  { value: 'G9', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G9 (= Y10)', equivalenceHint: '= Y10 · 중3', listLabel: 'G9 · Y10', sort: 9 },
+] } as unknown as StudentDirectory;
 const detail: StudentRead = { ...student, startedOn: '2026-09-01', targetExam: null, guidance: null, lang: null,
   guardians: [{ id: 1, name: '보호자A', relation: '어머니', active: true, isPrimary: true }], guardianTotal: 1,
   enrollments: [{ id: 2, kindName: '수업종류A', subjectName: null, sessions: 4, startedOn: '2026-09-01', endedOn: null }], enrollmentTotal: 1,
@@ -62,6 +65,7 @@ describe('학생 목록과 생성 계약', () => {
     expect(link.getAttribute('href')).toBe('/students/21');
     expect(view.getByText('학생 DB 생성일 (KST)')).toBeTruthy();
     expect(view.getByText('보호자A')).toBeTruthy();
+    expect(view.getByText('G8 · Y9')).toBeTruthy();
     expect(view.getByText(/상담 중인 리드 통합 검색/)).toBeTruthy();
     expect(requests[0]).toMatchObject({ method: 'get', url: '/students', params: { page: 1 } });
     expect(requests[0].signal).toBeDefined();

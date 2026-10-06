@@ -8,7 +8,7 @@
  * §23 「+ 신규 문의」 (C90 · 테스트 시나리오 A-01 「카카오채널 신규 문의」 · N-45 · N-44).
  *
  * 화면이 보내는 것은 **이름 · 학년 · 학교 · 학부모 관계 · 연락처 · 원하는 것 · 유입 경로 · 담당 · 첫 접촉 한 줄**뿐이고 단계는 보내지 않는다 — 유입은 언제나 「1차 상담」 칸이다(서버).
- * 학년은 원본 §23 카드의 학년 칩(G8 …)이다 — 적은 그대로 저장하고 표기를 바꾸지 않는다(23-10 · `lead.grade`).
+ * 학년은 서버의 세 교육체계 projection에서 고른 원문값이다. projection 전에는 임의 문자열을 새로 쓰지 않고 기존값만 보존한다.
  * 유입 경로 낱말은 `GET /ops` 의 `intakeHead.sources`(D-R18), 담당은 `GET /meta` — 창을 열 때만 읽는다(`useMeta(open)`).
  * 학부모 관계 · 연락처 · 원하는 것은 **LEAD 칸**이다(A-01 · v4.57) — 연락처 모양 판정 · 보이는 모양은 서버(`LEAD_PARENT_PHONE` 문장 그대로).
  * 「소개」면 누구 소개인지 같은 나머지는 **접촉 원장의 첫 줄**이 된다(N-44).
@@ -19,6 +19,7 @@ import { Banner, Button, Dialog, Input, Label, Segmented, Select, Textarea } fro
 import { apiMessage } from '@/api/client';
 import { useCreateLead, useMeta } from '@/api/queries';
 import type { IntakeSource, Lead, LeadCreate } from '@/api/types';
+import { EducationGradeSelect } from '@/components/students/EducationGradeSelect';
 
 export interface LeadCreateButtonProps {
   sources: IntakeSource[];
@@ -94,7 +95,7 @@ export function LeadCreateButton({ sources, onDone }: LeadCreateButtonProps) {
             </div>
             <div>
               <Label htmlFor={`${id}-grade`}>학년</Label>
-              <Input id={`${id}-grade`} value={grade} maxLength={10} onChange={(e) => setGrade(e.target.value)} disabled={pending} placeholder="G8" />
+              <EducationGradeSelect id={`${id}-grade`} source={meta.data} value={grade} onChange={setGrade} disabled={pending} />
             </div>
             <div>
               <Label htmlFor={`${id}-school`} hint="동명이인은 등록 때 학년·학교로 가른다">학교</Label>

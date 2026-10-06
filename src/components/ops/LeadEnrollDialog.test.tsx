@@ -18,6 +18,10 @@ const lead: Lead = {
 };
 const meta = {
   kinds: [{ key: 'class', name: '수업', extra: false }], subs: [{ key: 'writing', name: 'Writing' }],
+  educationGrades: [
+    { value: 'G5', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G5 (= Y6)', equivalenceHint: '= Y6 · 초5', listLabel: 'G5 · Y6', sort: 5 },
+    { value: 'Y6', system: 'GB', systemLabel: '영국 Year', optionLabel: 'Y6 (= G5)', equivalenceHint: '= G5 · 초5', listLabel: 'Y6 · G5', sort: 5 },
+  ],
   staff: [{ id: 6, name: '김재훈', role: 'teacher', canAdminPage: false, canGpaPack: false, title: null }],
   rooms: [{ id: 2, name: '201호' }], students: [{ id: 7, name: '정하람', grade: '10' }], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [],
 };
@@ -169,6 +173,16 @@ it('기존 학생 선택은 같은 학생의 재등록으로만 안내한다 —
   const dialog = await view.findByRole('dialog');
   expect(within(dialog).getByRole('checkbox', { name: '기존 학생의 재등록으로 붙입니다' })).toBeTruthy();
   expect(within(dialog).queryByText(/형제/)).toBeNull();
+});
+
+it('학년은 서버 projection의 대응 안내를 보이고 고른 체계 원문값 그대로 미리보기에 보낸다', async () => {
+  const { view } = setup(undefined, { ...lead, grade: 'Y6' });
+  const dialog = await fillOneLine(view);
+  expect(within(dialog).getByRole('status').textContent).toBe('= G5 · 초5');
+  fireEvent.change(within(dialog).getByLabelText('학년'), { target: { value: 'G5' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
+  await waitFor(() => expect(posted).toHaveLength(1));
+  expect((posted[0]!.body as { student: { grade: string } }).student.grade).toBe('G5');
 });
 
 const expectedBody = {

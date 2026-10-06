@@ -9,7 +9,13 @@ import { LeadCoreEditor } from './LeadCoreEditor';
 
 const mutate = vi.fn();
 vi.mock('@/api/queries', () => ({
-  useMeta: () => ({ data: { staff: [{ id: 2, name: '새 담당', canAdminPage: true }, { id: 3, name: '강사', canAdminPage: false }] } }),
+  useMeta: () => ({ data: {
+    staff: [{ id: 2, name: '새 담당', canAdminPage: true }, { id: 3, name: '강사', canAdminPage: false }],
+    educationGrades: [
+      { value: 'G9', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G9 (= Y10)', equivalenceHint: '= Y10 · 중3', listLabel: 'G9 · Y10', sort: 9 },
+      { value: 'G11', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G11 (= Y12)', equivalenceHint: '= Y12 · 고2', listLabel: 'G11 · Y12', sort: 11 },
+    ],
+  } }),
   usePatchLead: () => ({ mutate, isPending: false, isError: false, error: null }),
 }));
 

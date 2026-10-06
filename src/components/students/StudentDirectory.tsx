@@ -8,17 +8,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStudentDirectory, useStudentReadAllowed, type StudentDirectoryRow } from '@/api/students';
-import { Banner, Button, Input, Label, PageHeader, QueryState, Select, Table, type Column } from '@/components/ui';
+import { Banner, Button, Input, Label, PageHeader, QueryState, Table, type Column } from '@/components/ui';
 import { kstDateTime } from '@/lib/calendar';
-
-const columns: Column<StudentDirectoryRow>[] = [
-  { key: 'name', head: '학생명', cell: row => <Link href={`/students/${row.id}`} onClick={event => event.stopPropagation()} className="font-bold text-primary underline underline-offset-2">{row.label}</Link> },
-  { key: 'guardians', head: '보호자명', cell: row => row.guardianNames.join(', ') || '미등록' },
-  { key: 'school', head: '학교', cell: row => row.school || '미상' },
-  { key: 'grade', head: '학년', cell: row => row.grade || '미상' },
-  { key: 'gender', head: '성별', cell: row => row.genderLabel || '미상' },
-  { key: 'createdAt', head: '학생 DB 생성일 (KST)', cell: row => kstDateTime(row.createdAt) ?? '미상' },
-];
+import { educationGradeListLabel } from '@/lib/education-grades';
+import { EducationGradeSelect } from './EducationGradeSelect';
 
 export function StudentDirectory() {
   const router = useRouter();
@@ -28,16 +21,21 @@ export function StudentDirectory() {
   const [page, setPage] = useState(1);
   const allowed = useStudentReadAllowed();
   const query = useStudentDirectory({ q: q || undefined, grade: grade || undefined, page });
+  const columns: Column<StudentDirectoryRow>[] = [
+    { key: 'name', head: '학생명', cell: row => <Link href={`/students/${row.id}`} onClick={event => event.stopPropagation()} className="font-bold text-primary underline underline-offset-2">{row.label}</Link> },
+    { key: 'guardians', head: '보호자명', cell: row => row.guardianNames.join(', ') || '미등록' },
+    { key: 'school', head: '학교', cell: row => row.school || '미상' },
+    { key: 'grade', head: '학년', cell: row => educationGradeListLabel(query.data, row, row.grade) },
+    { key: 'gender', head: '성별', cell: row => row.genderLabel || '미상' },
+    { key: 'createdAt', head: '학생 DB 생성일 (KST)', cell: row => kstDateTime(row.createdAt) ?? '미상' },
+  ];
   if (!allowed) return <Banner tone="warning">학생 목록을 조회할 권한이 없습니다.</Banner>;
   return <div className="flex flex-col gap-4">
     <PageHeader title="학생" sub="학생 DB 생성일 내림차순 · 같은 시각은 학생 ID 내림차순 · 한 페이지10명" />
     <Banner tone="neutral">현재 학생으로 등록된 기록만 조회합니다. 상담 중인 리드 통합 검색, 재원 상태·거주 국가 필터와 일괄 작업은 아직 제공하지 않습니다.</Banner>
     <form aria-label="학생 검색" className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); setQuery(draft.trim()); setPage(1); }}>
       <div className="min-w-0 flex-1"><Label htmlFor="student-query">이름·학교·학년 검색</Label><Input id="student-query" type="search" maxLength={80} value={draft} onChange={event => setDraft(event.target.value)} /></div>
-      <div><Label htmlFor="student-grade">학년</Label><Select id="student-grade" value={grade} onChange={event => { setGrade(event.target.value); setPage(1); }}>
-        <option value="">전체 학년</option>
-        {(query.data?.grades ?? []).map(value => <option key={value} value={value}>{value}</option>)}
-      </Select></div>
+      <div><Label htmlFor="student-grade">학년</Label><EducationGradeSelect id="student-grade" source={query.data} legacyValues={query.data?.grades} value={grade} emptyLabel="전체 학년" showContractState={false} onChange={value => { setGrade(value); setPage(1); }} /></div>
       <Button type="submit" variant="primary">검색</Button>
       <Button onClick={() => { setDraft(''); setQuery(''); setGrade(''); setPage(1); }}>초기화</Button>
     </form>
