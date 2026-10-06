@@ -20,6 +20,7 @@ import { useMeta, useWriteRate, useWriteStudentRate } from '@/api/queries';
 import type { Meta, RateBook as RateBookData, RateRow, StudentRateRow } from '@/api/types';
 import { won } from '@/lib/money';
 import { todayKst } from '@/lib/calendar';
+import { subjectAvailableForProgram, subjectOptions } from '@/lib/shared-options';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -45,6 +46,7 @@ function RateForm({ open, onClose, meta }: { open: boolean; onClose: () => void;
   }, [open]);
   const price = Number(unitPrice);
   const n = Number(heads);
+  const subjects = subjectOptions(meta, kindKey || null, subKey || null);
   const ready = kindKey !== '' && Number.isInteger(n) && n >= 1 && Number.isInteger(price) && price > 0 && ISO.test(fromDate) && !write.isPending;
   const submit = () => {
     if (!ready) return;
@@ -68,7 +70,16 @@ function RateForm({ open, onClose, meta }: { open: boolean; onClose: () => void;
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label htmlFor={`${id}-kind`}>종류</Label>
-            <Select id={`${id}-kind`} value={kindKey} onChange={(e) => setKindKey(e.target.value)} disabled={write.isPending}>
+            <Select
+              id={`${id}-kind`}
+              value={kindKey}
+              onChange={(e) => {
+                const nextKind = e.target.value;
+                setKindKey(nextKind);
+                if (!subjectAvailableForProgram(meta, nextKind || null, subKey || null)) setSubKey('');
+              }}
+              disabled={write.isPending}
+            >
               <option value="">고르세요</option>
               {(meta?.kinds ?? []).map((k) => <option key={k.key} value={k.key}>{k.name}{k.extra ? ' · 추가 수업' : ''}</option>)}
             </Select>
@@ -77,7 +88,7 @@ function RateForm({ open, onClose, meta }: { open: boolean; onClose: () => void;
             <Label htmlFor={`${id}-sub`} hint="비우면 그 종류 전체">과목</Label>
             <Select id={`${id}-sub`} value={subKey} onChange={(e) => setSubKey(e.target.value)} disabled={write.isPending}>
               <option value="">전체</option>
-              {(meta?.subs ?? []).map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+              {subjects.map((s) => <option key={s.key} value={s.key}>{s.name}{s.legacy ? ' · 기존 연결' : ''}</option>)}
             </Select>
           </div>
         </div>

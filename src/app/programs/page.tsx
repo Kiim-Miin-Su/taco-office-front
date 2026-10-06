@@ -21,13 +21,14 @@ import {
   Banner, Button, Checkbox, Chip, Input, Label, PageHeader, Panel, Segmented, Select, Table, type Column,
 } from '@/components/ui';
 import { apiMessage } from '@/api/client';
-import { useCatalog, useCreateKind, useCreateSub, usePatchKind, usePatchSub } from '@/api/queries';
+import { useCatalog, useCreateKind, usePatchKind, usePatchSub } from '@/api/queries';
 import type { CatalogKind, CatalogSub, KindCreate, SubPatch } from '@/api/types';
+import { subjectProgramKey } from '@/lib/shared-options';
 
 /* 낱말은 생성 타입에서 그대로 가져온다 — 화면에 코드표를 다시 적으면 서버와 갈린다 (D-R18) */
 type Grp = KindCreate['grp'];
 type RepForm = NonNullable<KindCreate['repForm']>;
-type SubEdit = Omit<CatalogSub, 'sort'> & { sort: number | null };
+type SubEdit = Omit<CatalogSub, 'sort'> & { sort: number | null; kindKey: string | null };
 
 const GRP: Array<{ value: Grp; label: string }> = [
   { value: 'lesson', label: '수업' },
@@ -52,7 +53,7 @@ const asForm = (v: string): RepForm | null => (v === 'dev' || v === 'assess' ? v
 const START_COLOR = '#7C6A58';
 
 const NEW_KIND = { key: '', name: '', color: START_COLOR, cap: 4, grp: 'lesson' as Grp, rep: false, repForm: '' as '' | RepForm, extra: false };
-const NEW_SUB = { key: '', name: '', color: START_COLOR };
+const NEW_SUB = { key: '', name: '', color: START_COLOR, kindKey: '' };
 
 function Swatch({ color }: { color: string }) {
   return <span className="inline-block h-3 w-3 rounded-sm align-middle" style={{ backgroundColor: color }} />;
@@ -62,13 +63,13 @@ export default function ProgramsPage() {
   const q = useCatalog();
   const createKind = useCreateKind();
   const patchKind = usePatchKind();
-  const createSub = useCreateSub();
   const patchSub = usePatchSub();
   const [tab, setTab] = useState<'kinds' | 'subs'>('kinds');
   const [kindForm, setKindForm] = useState({ ...NEW_KIND });
   const [subForm, setSubForm] = useState({ ...NEW_SUB });
   const [editKind, setEditKind] = useState<CatalogKind | null>(null);
   const [editSub, setEditSub] = useState<SubEdit | null>(null);
+  const kindName = new Map((q.data?.kinds ?? []).map((kind) => [kind.key, kind.name]));
 
   const saveSub = () => {
     if (!editSub) return;
@@ -105,6 +106,13 @@ export default function ProgramsPage() {
     { key: 'c', head: '', width: 34, cell: (r) => <Swatch color={r.color} /> },
     { key: 'n', head: '이름', width: 180, cell: (r) => <span className="font-bold">{r.name}</span> },
     { key: 'k', head: '코드', width: 150, cell: (r) => <span className="text-fg-subtle">{r.key}</span> },
+    {
+      key: 'p', head: '프로그램', width: 150,
+      cell: (r) => {
+        const key = subjectProgramKey(r);
+        return key ? (kindName.get(key) ?? key) : <span className="text-fg-subtle">계약 연결 전</span>;
+      },
+    },
     { key: 's', head: '순서', width: 70, align: 'right', cell: (r) => r.sort ?? '—' },
     { key: 'u', head: '쓰는 수업', width: 100, align: 'right', cell: (r) => `${r.serCount}개` },
     {
@@ -115,7 +123,7 @@ export default function ProgramsPage() {
       key: 'x', head: '', width: 170,
       cell: (r) => (
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" disabled={patchSub.isPending} onClick={() => setEditSub({ ...r, sort: r.sort ?? null })}>고치기</Button>
+          <Button size="sm" variant="secondary" disabled={patchSub.isPending} onClick={() => setEditSub({ ...r, sort: r.sort ?? null, kindKey: subjectProgramKey(r) })}>고치기</Button>
           <Button
             size="sm"
             variant={r.active ? 'secondary' : 'primary'}
@@ -234,27 +242,35 @@ export default function ProgramsPage() {
         ) : (
           <>
             <Panel className="mb-4" title="과목 추가">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <div><Label htmlFor="s-key">코드</Label><Input id="s-key" value={subForm.key} onChange={(e) => setSubForm({ ...subForm, key: e.target.value })} placeholder="ap-chem" /></div>
                 <div><Label htmlFor="s-name">이름</Label><Input id="s-name" value={subForm.name} onChange={(e) => setSubForm({ ...subForm, name: e.target.value })} placeholder="AP Chem" /></div>
+                <div>
+                  <Label htmlFor="s-kind">프로그램</Label>
+                  <Select id="s-kind" value={subForm.kindKey} onChange={(e) => setSubForm({ ...subForm, kindKey: e.target.value })}>
+                    <option value="">고르세요</option>
+                    {(q.data?.kinds ?? []).map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
+                  </Select>
+                </div>
                 <div><Label htmlFor="s-color">색</Label><Input id="s-color" type="color" value={subForm.color} onChange={(e) => setSubForm({ ...subForm, color: e.target.value })} /></div>
               </div>
-              {createSub.isError ? <Banner tone="danger" className="mt-3">{apiMessage(createSub.error)}</Banner> : null}
+              <Banner tone="info" className="mt-3">과목은 프로그램 하나에 속해야 합니다. 프로그램 저장 계약을 DTO·OpenAPI 단계에서 연결할 때까지 새 과목 저장은 잠겨 있습니다.</Banner>
               <div className="mt-3 flex justify-end">
-                <Button
-                  disabled={createSub.isPending || subForm.key.trim() === '' || subForm.name.trim() === ''}
-                  onClick={() => createSub.mutate({ key: subForm.key.trim(), name: subForm.name.trim(), color: subForm.color },
-                    { onSuccess: () => setSubForm({ ...NEW_SUB }) })}
-                >
-                  만들기
-                </Button>
+                <Button disabled>DTO 연결 후 만들기</Button>
               </div>
             </Panel>
 
             {editSub ? (
               <Panel className="mb-4" title={`「${editSub.name}」 고치기`} sub={`코드 ${editSub.key} 는 바꾸지 않습니다 — 수업 ${editSub.serCount}개가 이 낱말로 저장돼 있습니다`}>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div><Label htmlFor="se-name">이름</Label><Input id="se-name" maxLength={40} value={editSub.name} onChange={(e) => setEditSub({ ...editSub, name: e.target.value })} /></div>
+                  <div>
+                    <Label htmlFor="se-kind" hint="DTO 연결 후 변경">프로그램</Label>
+                    <Select id="se-kind" value={editSub.kindKey ?? ''} disabled>
+                      <option value="">계약 연결 전</option>
+                      {(q.data?.kinds ?? []).map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
+                    </Select>
+                  </div>
                   <div><Label htmlFor="se-color">색</Label><Input id="se-color" type="color" value={editSub.color} onChange={(e) => setEditSub({ ...editSub, color: e.target.value })} /></div>
                   <div><Label htmlFor="se-sort">순서</Label><Input id="se-sort" type="number" inputMode="numeric" min={0} step={1} value={editSub.sort ?? ''} onChange={(e) => setEditSub({ ...editSub, sort: e.target.value === '' ? null : Number(e.target.value) })} /></div>
                 </div>

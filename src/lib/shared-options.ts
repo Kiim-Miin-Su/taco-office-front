@@ -3,7 +3,8 @@
  * 책임/재사용: 생성된 Meta/Sub 타입을 읽기만 한다. 서버 계약을 수기로 복제하거나 쓰기 DTO를 만들지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import type { Meta, Sub } from '@/api/types';
+type SubjectLike = { key: string; name: string };
+type SubjectList = { subs: readonly SubjectLike[] };
 
 export interface SubjectOption {
   key: string;
@@ -16,12 +17,12 @@ export interface SubjectOption {
  * 최종 수정사항의 `meta.subs.kindKey`가 OpenAPI에 들어오기 전까지의 읽기 호환 경계다.
  * 필드가 생성 타입에 생기면 이 좁은 어댑터만 직접 속성 접근으로 바꾼다.
  */
-export function subjectProgramKey(subject: Sub): string | null {
+export function subjectProgramKey(subject: SubjectLike): string | null {
   const value = (subject as unknown as { kindKey?: unknown }).kindKey;
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
-export function hasSubjectProgramContract(meta?: Pick<Meta, 'subs'>): boolean {
+export function hasSubjectProgramContract(meta?: SubjectList): boolean {
   return (meta?.subs ?? []).some((subject) => subjectProgramKey(subject) !== null);
 }
 
@@ -30,7 +31,7 @@ export function hasSubjectProgramContract(meta?: Pick<Meta, 'subs'>): boolean {
  * 과목만 새 선택지로 허용한다. 이미 저장된 다른/퇴역 과목은 현재 값 한 개만 남겨 수정 중 유실을 막는다.
  */
 export function subjectOptions(
-  meta: Pick<Meta, 'subs'> | undefined,
+  meta: SubjectList | undefined,
   kindKey: string | null | undefined,
   currentKey?: string | null,
 ): SubjectOption[] {
@@ -51,7 +52,7 @@ export function subjectOptions(
 
 /** 프로그램 변경 때 현재 과목을 유지해도 되는가. 구형 서버에서는 기존 동작을 그대로 허용한다. */
 export function subjectAvailableForProgram(
-  meta: Pick<Meta, 'subs'> | undefined,
+  meta: SubjectList | undefined,
   kindKey: string | null | undefined,
   subjectKey: string | null | undefined,
 ): boolean {

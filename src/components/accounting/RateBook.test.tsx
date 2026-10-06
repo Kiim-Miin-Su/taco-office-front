@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it } from 'vitest';
 import { api } from '@/api/client';
-import type { RateBook as RateBookData } from '@/api/types';
+import type { Meta, RateBook as RateBookData } from '@/api/types';
 import { RateBook } from './RateBook';
 
 const book: RateBookData = {
@@ -33,7 +33,10 @@ const posted: Array<{ url?: string; body: unknown }> = [];
 const got: string[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; got.length = 0; });
 
-function setup(onPost: (url: string) => { status: number; data: unknown } = () => ({ status: 201, data: book.rates[0] })) {
+function setup(
+  onPost: (url: string) => { status: number; data: unknown } = () => ({ status: 201, data: book.rates[0] }),
+  metaData: Meta = meta as unknown as Meta,
+) {
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') {
       posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
@@ -42,7 +45,7 @@ function setup(onPost: (url: string) => { status: number; data: unknown } = () =
       return { config, status: r.status, statusText: 'OK', headers: {}, data: r.data };
     }
     got.push(config.url ?? '');
-    return { config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/meta' ? meta : book };
+    return { config, status: 200, statusText: 'OK', headers: {}, data: config.url === '/meta' ? metaData : book };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   clients.push(client);
@@ -106,6 +109,30 @@ it('「+ 단가 등록」 — 과목을 비우면 subKey 없이 보내고, 서�
   await waitFor(() => expect(posted).toHaveLength(1));
   expect(posted[0]).toEqual({ url: '/accounting/rates', body: { kindKey: 'extra', heads: 1, unitPrice: 70000, fromDate: '2026-10-01' } });
   await waitFor(() => expect(within(dialog).getByText(/이미 있습니다/)).toBeTruthy());
+});
+
+it('⭐ 프로그램 관계가 내려오면 단가표 과목도 같은 프로그램만 보이고 프로그램 변경 때 잘못된 과목을 비운다', async () => {
+  const linkedMeta = {
+    ...meta,
+    subs: [
+      { key: 'writing', name: 'Writing', kindKey: 'class' },
+      { key: 'diagnostic', name: 'Diagnostic', kindKey: 'extra' },
+    ],
+  } as unknown as Meta;
+  const view = setup(undefined, linkedMeta);
+  fireEvent.click(view.getByRole('button', { name: '+ 단가 등록' }));
+  const dialog = await view.findByRole('dialog');
+  await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Writing' })).toBeTruthy());
+
+  fireEvent.change(within(dialog).getByLabelText('종류'), { target: { value: 'class' } });
+  expect(within(dialog).getByRole('option', { name: 'Writing' })).toBeTruthy();
+  expect(within(dialog).queryByRole('option', { name: 'Diagnostic' })).toBeNull();
+  fireEvent.change(within(dialog).getByLabelText('과목'), { target: { value: 'writing' } });
+
+  fireEvent.change(within(dialog).getByLabelText('종류'), { target: { value: 'extra' } });
+  expect((within(dialog).getByLabelText('과목') as HTMLSelectElement).value).toBe('');
+  expect(within(dialog).queryByRole('option', { name: 'Writing' })).toBeNull();
+  expect(within(dialog).getByRole('option', { name: 'Diagnostic' })).toBeTruthy();
 });
 
 /**

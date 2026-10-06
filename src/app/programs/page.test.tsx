@@ -87,6 +87,29 @@ it('과목은 끄고 켠다 — 꺼진 과목도 목록에 남는다', async () 
   expect(view.getByRole('button', { name: '켜기' })).toBeTruthy();
 });
 
+it('최종 수정사항의 과목당 프로그램을 표시하되 DTO 쓰기 계약 전에는 새 과목을 저장하지 않는다', async () => {
+  const linked = {
+    ...catalog,
+    subs: catalog.subs.map((sub, index) => ({ ...sub, kindKey: index === 0 ? 'class' : 'intake' })),
+  } as unknown as Catalog;
+  const view = setup(linked);
+  await waitFor(() => expect(view.getByText('정규 수업')).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: /과목 2/ }));
+  await waitFor(() => expect(view.getByText('AP Chemistry')).toBeTruthy());
+
+  const apRow = view.getByText('AP Chemistry').closest('tr')!;
+  expect(apRow.textContent).toContain('정규 수업');
+  expect(view.getByLabelText('프로그램')).toBeTruthy();
+  expect(view.getByText(/프로그램 저장 계약을 DTO·OpenAPI 단계에서 연결할 때까지/)).toBeTruthy();
+  expect((view.getByRole('button', { name: 'DTO 연결 후 만들기' }) as HTMLButtonElement).disabled).toBe(true);
+
+  fireEvent.click(within(apRow).getByRole('button', { name: '고치기' }));
+  await waitFor(() => expect(view.container.querySelector('#se-kind')).toBeTruthy());
+  const editProgram = view.container.querySelector('#se-kind') as HTMLSelectElement;
+  expect(editProgram.value).toBe('class');
+  expect(editProgram.disabled).toBe(true);
+});
+
 it('과목 이름·색·정렬을 고치면 SubPatchDto 필드만 보낸다 — 코드는 편집하지 않는다', async () => {
   useSession.getState().signIn('fixture', me);
   const patched: Array<{ url?: string; body: unknown }> = [];
