@@ -20,14 +20,10 @@ import type { TeacherSuggestion, TeacherSuggestionCreate } from '@/api/types';
 import { md } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
+import { TEACHER_SUGGESTION_CATEGORIES } from '@/components/teacher/suggestion-categories';
 
 /** D-11 분류 4종 — 라벨·부제는 덱 §33 그대로 */
-const CATS = [
-  { key: 'lesson', label: '수업 관련', sub: '교재 · 진행 · 학생' },
-  { key: 'pay', label: '시급 관련', sub: '정산 · 보강' },
-  { key: 'schedule', label: '스케줄 관련', sub: '시간 · 요일 · 이동' },
-  { key: 'etc', label: '기타', sub: '그 밖의 이야기' },
-] as const;
+const CATS = TEACHER_SUGGESTION_CATEGORIES;
 const CAT_LABEL: Record<string, string> = Object.fromEntries(CATS.map((c) => [c.key, c.label]));
 
 /** D-12 상태 3종 — 표기만, 판정은 서버 값 */

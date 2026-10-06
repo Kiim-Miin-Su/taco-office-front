@@ -193,6 +193,67 @@ describe('BOC-05b 강사 오늘·주간·월간 캘린더', () => {
   });
 });
 
+describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () => {
+  function exactLesson(date: string) {
+    nav.search = `serId=7&onDate=${date}&date=${date}&source=calendar`;
+    mocks.occurrences.mockImplementation(({ from }: { from: string }) => ({
+      data: { items: from === date ? [occurrence(7, date, 600, { repState: 'none' })] : [] },
+      isLoading: false, isError: false, refetch: vi.fn(),
+    }));
+  }
+
+  it('정확히 10일째와 11일째 회차는 승인 요청 초안을 열고 서버 계약 전 제출·일정 이동을 잠근다', () => {
+    for (const date of ['2026-09-17', '2026-09-18']) {
+      exactLesson(date);
+      const view = render(<TeacherSchedule />);
+
+      fireEvent.click(view.getByRole('button', { name: '일정 변경 요청 열기' }));
+      const dialog = within(view.getByRole('dialog', { name: '일정 변경 요청' }));
+      expect(dialog.getByText(/관리자 승인 후 반영/)).toBeTruthy();
+      expect(dialog.getByText(/승인 전에는 원래 일정/)).toBeTruthy();
+      expect((dialog.getByLabelText('변경 날짜') as HTMLInputElement).value).toBe(date);
+      expect((dialog.getByLabelText('새 시작') as HTMLInputElement).value).toBe('10:00');
+      expect(dialog.getByRole('button', { name: '변경 요청 계약 준비 중' })).toHaveProperty('disabled', true);
+      expect(mocks.scheduleWrite).not.toHaveBeenCalled();
+      cleanup();
+    }
+  });
+
+  it('9일 이내와 지난 회차는 exact identity가 붙은 건의 초안을 열고 일반 건의 writer로 우회하지 않는다', () => {
+    for (const date of ['2026-09-16', '2026-09-06']) {
+      exactLesson(date);
+      const view = render(<TeacherSchedule />);
+
+      fireEvent.click(view.getByRole('button', { name: '이 수업으로 건의 열기' }));
+      const dialog = within(view.getByRole('dialog', { name: '수업 건의 초안' }));
+      expect(dialog.getByText(/회차 #/).textContent).toContain(`회차 #7 · 원래 회차일 ${date}`);
+      expect(dialog.getByRole('button', { name: '건의 계약 준비 중' })).toHaveProperty('disabled', true);
+      expect(dialog.getByRole('link', { name: '건의 사항 전체 보기' }).getAttribute('href')).toBe('/teacher/suggestions');
+      expect(mocks.scheduleWrite).not.toHaveBeenCalled();
+      cleanup();
+    }
+  });
+
+  it('요청 초안은 허브로 돌아갔다가 다시 열어도 보존하고 source 회차의 날짜·시각은 바꾸지 않는다', () => {
+    exactLesson('2026-09-17');
+    const view = render(<TeacherSchedule />);
+
+    fireEvent.click(view.getByRole('button', { name: '일정 변경 요청 열기' }));
+    let dialog = within(view.getByRole('dialog', { name: '일정 변경 요청' }));
+    fireEvent.change(dialog.getByLabelText('변경 날짜'), { target: { value: '2026-09-19' } });
+    fireEvent.change(dialog.getByLabelText('변경 사유'), { target: { value: '학생 일정과 협의한 변경 요청입니다.' } });
+    fireEvent.click(dialog.getByRole('button', { name: '이 수업으로 돌아가기' }));
+    expect(view.getByRole('dialog', { name: '수업 허브' })).toBeTruthy();
+    expect(document.activeElement).toBe(view.getByRole('button', { name: '일정 변경 요청 열기' }));
+
+    fireEvent.click(view.getByRole('button', { name: '일정 변경 요청 열기' }));
+    dialog = within(view.getByRole('dialog', { name: '일정 변경 요청' }));
+    expect((dialog.getByLabelText('변경 날짜') as HTMLInputElement).value).toBe('2026-09-19');
+    expect((dialog.getByLabelText('변경 사유') as HTMLTextAreaElement).value).toBe('학생 일정과 협의한 변경 요청입니다.');
+    expect(dialog.getByText(/현재 일정 · 2026-09-17 · 10:00–11:00/)).toBeTruthy();
+  });
+});
+
 describe('강사 캘린더 기본 오늘 목록', () => {
   it('강사 정책(리포트 지각 차감)이 화면 최상단 — 제목보다 위에 선다 (대표 결정 2026-09-25)', () => {
     const view = render(<TeacherSchedule />);

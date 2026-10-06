@@ -29,6 +29,7 @@ import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { TeacherTodayHero } from '@/components/teacher/TeacherTodayHero';
 import { useTeacherSurface } from '@/components/teacher/teacher-surface';
 import { TeacherLessonHub } from '@/components/teacher/TeacherLessonHub';
+import { TeacherScheduleChange } from '@/components/teacher/TeacherScheduleChange';
 import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
 
 const EMPTY: Occurrence[] = [];
@@ -37,7 +38,7 @@ type Lookup = {
   kinds: Map<string, string>;
   zoom: Map<number, string>;
 };
-type HubView = 'hub' | 'report' | 'lesson';
+type HubView = 'hub' | 'report' | 'lesson' | 'schedule-change';
 type TeacherCalendarView = 'day' | 'week' | 'month';
 
 const TEACHER_CALENDAR_VIEWS: Array<{ value: TeacherCalendarView; label: string }> = [
@@ -317,29 +318,34 @@ export function TeacherSchedule() {
   const [localOccurrence, setLocalOccurrence] = useState<Occurrence | null>(null);
   const [localSource, setLocalSource] = useState<'home' | 'calendar' | null>(null);
   const [hubView, setHubView] = useState<HubView>('hub');
+  const [focusScheduleChange, setFocusScheduleChange] = useState(false);
   const open = localOccurrence ?? requestedOccurrence;
   const requestedIdentity = validRequestedLesson ? `${requestedSerId}|${requestedOnDate}|${requestedDate}` : null;
   useEffect(() => {
     setLocalOccurrence(null);
     setLocalSource(null);
     setHubView('hub');
+    setFocusScheduleChange(false);
   }, [requestedIdentity]);
   const openSchedule = (occ: Occurrence) => {
     setLocalOccurrence(occ);
     setLocalSource('calendar');
     setHubView('hub');
+    setFocusScheduleChange(false);
     router.replace(scheduleHref(calendarView, anchor, occ));
   };
   const source = localSource ?? queryEnum(searchParams.get('source'), ['home', 'calendar'] as const) ?? 'calendar';
   const closeHub = () => {
     setLocalOccurrence(null);
     setHubView('hub');
+    setFocusScheduleChange(false);
     router.replace(source === 'home' ? '/teacher' : scheduleHref(calendarView, anchor));
   };
   const navigateCalendar = (view: TeacherCalendarView, nextAnchor: string) => {
     setLocalOccurrence(null);
     setLocalSource(null);
     setHubView('hub');
+    setFocusScheduleChange(false);
     router.replace(scheduleHref(view, nextAnchor));
   };
   const ready = q.data !== undefined && !q.isError;
@@ -473,9 +479,15 @@ export function TeacherSchedule() {
         <div role="alert" className="mt-4"><Banner tone="danger">선택한 수업을 불러오지 못했습니다.</Banner></div>
       ) : null}
       {open && hubView === 'hub' ? (
-        <TeacherLessonHub occ={open} kindName={lookup.kinds.get(open.kindKey)}
+        <TeacherLessonHub occ={open} today={today} kindName={lookup.kinds.get(open.kindKey)}
+          focusScheduleChange={focusScheduleChange}
           subName={open.subKey ? lookup.subjects.get(open.subKey) : undefined}
-          onReport={() => setHubView('report')} onLesson={() => setHubView('lesson')} onClose={closeHub} />
+          onReport={() => setHubView('report')} onLesson={() => setHubView('lesson')}
+          onScheduleChange={() => { setFocusScheduleChange(false); setHubView('schedule-change'); }} onClose={closeHub} />
+      ) : null}
+      {open ? (
+        <TeacherScheduleChange open={hubView === 'schedule-change'} occ={open} today={today}
+          onBack={() => { setFocusScheduleChange(true); setHubView('hub'); }} />
       ) : null}
       <ReportDetailDrawer selection={open && hubView === 'report' ? { serId: open.serId, onDate: open.onDate } : null}
         onClose={() => setHubView('hub')} />
