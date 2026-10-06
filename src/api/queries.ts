@@ -51,7 +51,7 @@ import type {
   ConsItemsEdit,
   ConsPaymentCreate,
   ConsStudents,
-  ConsClose, ConsCloseResult, ConsSession, ConsSessionCreate, ConsSessionsResult, ConsSessionWrite, GpaCycleCloseResult,
+  ConsClose, ConsCloseResult, ConsSession, ConsSessionCreate, ConsSessionsResult, ConsSessionWrite,
   ConsultingCreate,
   ConsultingPatch,
   ConsultingDetail,
@@ -80,9 +80,6 @@ import type {
   FileRef,
   FileUpload,
   GpaBoard,
-  GpaStudent,
-  GpaUse,
-  GpaUseCreate,
   Guide,
   GuideBody,
   GuideClassDiagList, GuideClassDiagWrite, GuideCopyResult,
@@ -179,7 +176,6 @@ import type {
   ApprovalUndoResult,
   MyExpenseList,
   PermissionTable,
-  TeacherGpaRequestOptions,
   RosterPatch,
   RosterResult,
   ScheduleHistory,
@@ -328,8 +324,6 @@ export const qk = {
   scheduleHistory: (beforeId?: number) => ['schedule', 'history', beforeId ?? 'latest'] as const,
   /** §76 권한 표 · 창 부제 · 역할 설명 줄 (N-98) — 권한 창과 옛 `/permissions` 가 같은 키를 읽는다 */
   permissions: ['permissions'] as const,
-  /** 강사 「GPA 회차 요청」의 서비스 고르기 (N-99) — 규정표라 거의 안 바뀐다 */
-  teacherGpaRequestOptions: ['teacher', 'gpa-request-options'] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -1707,20 +1701,6 @@ export function useCreateSettingRequest(): UseMutationResult<TeacherSettingReque
       // 교재 변경은 수업 안내 교재 행의 「변경 요청 중」을 바꾼다 (N-99) — 주가 키에 들어 있어 갈래째 버린다
       void qc.invalidateQueries({ queryKey: family.teacherGuides });
     },
-  });
-}
-
-/**
- * 강사 「GPA 회차 요청」 창 (N-99) — 서비스 규정 · 고를 수 있는 내 GPA 회차(서버가 쓰기와 같은 판정으로 고른다).
- * 창을 열 때만 부르고, 열 때마다 다시 읽는다(휴강 · 사이클 마감이 그 사이 바뀔 수 있다).
- */
-export function useTeacherGpaRequestOptions(enabled = true): UseQueryResult<TeacherGpaRequestOptions> {
-  const viewerId = useViewerId();
-  return useQuery({
-    queryKey: sessionQueryKey(qk.teacherGpaRequestOptions, viewerId),
-    queryFn: async () => (await api.get<TeacherGpaRequestOptions>('/teacher/gpa-request-options')).data,
-    enabled,
-    staleTime: 0,
   });
 }
 
@@ -3193,7 +3173,7 @@ export function useMfbEdit(): UseMutationResult<MfbThread[], unknown, { id: numb
   });
 }
 
-/* ══ GPA 관리 (v2 §4.5·§82 · N-13 채택) — 판정은 전부 서버, 화면은 값만 그린다 ══ */
+/* ══ GPA 과거 원장 (BO-Q4) — 신규 UI/API writer 없이 GET 응답만 그린다 ══ */
 
 export function useGpaBoard(anchor?: string): UseQueryResult<GpaBoard> {
   const viewerId = useViewerId();
@@ -3201,57 +3181,6 @@ export function useGpaBoard(anchor?: string): UseQueryResult<GpaBoard> {
     queryKey: sessionQueryKey(qk.gpa(anchor), viewerId),
     queryFn: async () => (await api.get<GpaBoard>('/gpa', { params: anchor ? { anchor } : {} })).data,
     staleTime: 30 * 1000,
-  });
-}
-
-function useGpaInvalidate() {
-  const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: family.gpa });
-}
-
-/** 회차 소비 기록 — wait 로 등록. 초과 여부는 서버 잔여로만 판단한다. */
-export function useCreateGpaUse(): UseMutationResult<GpaUse, unknown, GpaUseCreate> {
-  const invalidate = useGpaInvalidate();
-  return useMutation({
-    mutationFn: async (w) => (await api.post<GpaUse>('/gpa/uses', w)).data,
-    onSettled: invalidate,
-  });
-}
-
-export function useSetGpaUseState(): UseMutationResult<GpaUse, unknown, { id: number; state: 'wait' | 'ok' }> {
-  const invalidate = useGpaInvalidate();
-  return useMutation({
-    mutationFn: async ({ id, state }) => (await api.patch<GpaUse>(`/gpa/uses/${id}`, { state })).data,
-    onSettled: invalidate,
-  });
-}
-
-export function useDeleteGpaUse(): UseMutationResult<{ ok: true }, unknown, number> {
-  const invalidate = useGpaInvalidate();
-  return useMutation({
-    mutationFn: async (id) => (await api.delete<{ ok: true }>(`/gpa/uses/${id}`)).data,
-    onSettled: invalidate,
-  });
-}
-
-export function usePutGpaAlloc(): UseMutationResult<
-  GpaStudent,
-  unknown,
-  { cycleId: number; studentId: number; points: number }
-> {
-  const invalidate = useGpaInvalidate();
-  return useMutation({
-    mutationFn: async (w) => (await api.put<GpaStudent>('/gpa/allocs', w)).data,
-    onSettled: invalidate,
-  });
-}
-
-/** O-150 사이클 마감 (C95) — 도장·소멸·다음 사이클은 서버. 성공/실패 모두 보드를 다시 읽는다 */
-export function useCloseGpaCycle(): UseMutationResult<GpaCycleCloseResult, unknown, { cycleId: number }> {
-  const invalidate = useGpaInvalidate();
-  return useMutation({
-    mutationFn: async ({ cycleId }) => (await api.post<GpaCycleCloseResult>(`/gpa/cycles/${cycleId}/close`, {})).data,
-    onSettled: invalidate,
   });
 }
 
