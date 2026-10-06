@@ -43,6 +43,7 @@ import { AcctPrivacySwitches } from '@/components/accounting/AcctPrivacySwitches
 import { categoryChip } from '@/components/accounting/category-tone';
 import { AccountingContractBoundary } from '@/components/accounting/AccountingContractBoundary';
 import { AdjustmentContractBoundary } from '@/components/accounting/AdjustmentContractBoundary';
+import { DelinquencySuspensionBoundary } from '@/components/accounting/DelinquencySuspensionBoundary';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -417,6 +418,8 @@ export default function AccountingPage() {
           />
         ) : tab === 'adjustments' ? (
           <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
+        ) : tab === 'suspensions' ? (
+          <DelinquencySuspensionBoundary invoices={q.data?.invoices ?? []} />
         ) : tab === 'close' ? (
           <MonthClosePanel />
         ) : tab === 'wage' ? (

@@ -23,7 +23,7 @@
 'use client';
 import { cn } from '@/components/ui';
 
-export const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'receipts', 'unpaid', 'cumulative', 'payout', 'ledger', 'out', 'adjustments', 'close', 'rates', 'wage', 'bonus'] as const;
+export const ACCOUNTING_TABS = ['board', 'inv', 'tuition', 'other', 'record', 'receipts', 'unpaid', 'cumulative', 'payout', 'ledger', 'out', 'adjustments', 'suspensions', 'close', 'rates', 'wage', 'bonus'] as const;
 export type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
 interface SubTab { value?: AccountingTab; label: string; disabledReason?: string }
@@ -62,6 +62,7 @@ const GROUPS: readonly Group[] = [
     key: 'std', label: '정리 · 기준', tone: 'bg-fg-subtle', first: 'close',
     tabs: [
       { value: 'adjustments', label: '조정' },
+      { value: 'suspensions', label: '수강 정지' },
       { value: 'close', label: '월 마감' },
       { value: 'rates', label: '단가표' },
       { value: 'wage', label: '시급' },
