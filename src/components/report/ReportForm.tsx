@@ -13,18 +13,20 @@
 'use client';
 import { Fragment, forwardRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
-import { useReportReview, useReportWrite } from '@/api/queries';
-import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
+import { useReportReview, useReportWrite, useTeacherGuides } from '@/api/queries';
+import type { ReportBody, ReportDetail, ReportField, TeacherGuides } from '@/api/types';
 import { autosaveStampLabel, draftKey, useDraftAutosave } from '@/lib/autosave';
 import { longDateLabel } from '@/lib/calendar';
 import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
 import { readableAccentColor } from '@/lib/tokens';
 import { useSession } from '@/store/useSession';
-import { Banner, Button, Chip, CountedTextarea, Label, Panel, Textarea } from '../ui';
+import { Banner, Button, Chip, CountedTextarea, Label, LinkButton, Panel, Textarea } from '../ui';
 import { LateReportPolicy } from '../teacher/LateReportPolicy';
 import { useTeacherSurface } from '../teacher/teacher-surface';
 import { ReportWriterGuide } from './ReportWriterGuide';
-import { StructuredReportDraft, structuredReportKind } from './StructuredReportDraft';
+import {
+  StructuredReportDraft, structuredReportKind, type StructuredBookOption,
+} from './StructuredReportDraft';
 
 /**
  * 저장 단추 낱말 — 관리 화면은 지금 그대로, 강사 표면은 강사 덱 slide 19 의 「임시 저장」·「승인 요청하기」(7-3 ⑤).
@@ -37,6 +39,25 @@ const WRITE_WORDS = {
 
 /** 회차 예외까지 반영해 서버가 내린 실제 방식만 읽는다. */
 const reportModeLabel = (detail: ReportDetail): string => detail.mode === 'online' ? '온라인' : '대면';
+
+/** 강사에게 배부된 사용 중 교재만 리포트 후보로 바꾼다. 현재 reader에는 판·버전 identity가 없어 서버 저장은 열지 않는다. */
+function reportBookOptions(guides: TeacherGuides | undefined, studentIds: readonly number[]): StructuredBookOption[] {
+  if (!guides) return [];
+  const targets = new Set(studentIds);
+  const seen = new Set<string>();
+  const options: StructuredBookOption[] = [];
+  for (const student of guides.students) {
+    if (!targets.has(student.studentId)) continue;
+    for (const book of student.books) {
+      if (book.state !== 'ok') continue;
+      const identity = `${book.code}\u0000${book.title}`;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      options.push({ id: `issue:${book.issueId}`, code: book.code, title: book.title, edition: null });
+    }
+  }
+  return options;
+}
 
 export function ReportForm({ fields, value, onChange, readOnly }: {
   fields: ReportField[];
@@ -78,10 +99,16 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
   const [rejectReason, setRejectReason] = useState('');
   const write = useReportWrite();
   const review = useReportReview();
-  const userId = useSession((s) => s.me?.id ?? null);
+  const me = useSession((s) => s.me);
+  const userId = me?.id ?? null;
   const teacherSurface = useTeacherSurface();
   const words = WRITE_WORDS[teacherSurface ? 'teacher' : 'admin'];
   const structuredKind = structuredReportKind(detail);
+  const guides = useTeacherGuides(detail.date, Boolean(structuredKind && teacherSurface && detail.canEdit));
+  const bookOptions = reportBookOptions(
+    teacherSurface ? guides.data : undefined,
+    detail.students.map((student) => student.id),
+  );
   const complete = detail.fields.every((field) => body[field.key].trim().length >= field.min);
   const dirty = detail.fields.some((field) => body[field.key] !== detail.body[field.key]);
 
@@ -154,10 +181,23 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         ) : <div className="text-[13px] font-bold text-fg">학생 없음</div>}
       </Panel>
       <Panel title="② 수업" sub="날짜·과목·시간·방식은 회차 레코드에서 자동으로 입력됩니다.">
-        <div className="text-[13px] font-bold text-fg">
-          {detail.date} · {subject} · {reportTimeLabel(detail)} · {reportModeLabel(detail)}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-[13px] font-bold text-fg">
+            {detail.date} · {subject} · {reportTimeLabel(detail)} · {reportModeLabel(detail)}
+          </div>
+          <LinkButton
+            size="sm"
+            className="min-h-11"
+            href={`/schedule?serId=${detail.serId}&onDate=${detail.onDate}&date=${detail.date}&source=report`}
+          >수업 변경·건의</LinkButton>
         </div>
       </Panel>
+
+      {detail.canEdit && !teacherSurface && me && detail.teacherId !== null && me.id !== detail.teacherId ? (
+        <Banner tone="info" title="관리자 대리 작성">
+          실제 작성자 {me.name} · 대상 강사 {detail.teacherName}
+        </Banner>
+      ) : null}
 
       {/* N-69 — 이 브라우저에 남아 있던 쓰던 글을 불러왔을 때만. 버리면 서버 글로 돌아간다 */}
       {autosave.restoredAt !== null && dirty ? (
@@ -170,19 +210,24 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
       ) : null}
 
       {detail.canEdit && detail.kindKey === 'class' && detail.students.length === 1 ? (
-        <Banner tone="warning" title="Kinder 표시 계약 연결 전">
-          현재 리포트 응답에는 학생의 Kinder 표시가 없습니다. 과목명이나 학년으로 추정하지 않고 일반 1대1 양식을 유지합니다.
+        <Banner tone="info" title="일반 1대1 양식">
+          현재 응답에는 학생의 Kinder 표시가 없습니다. 과목명이나 학년으로 추정하지 않고 일반 1대1 양식을 사용합니다.
         </Banner>
       ) : null}
 
       {structuredKind ? (
-        <StructuredReportDraft detail={detail} kind={structuredKind} />
+        <StructuredReportDraft
+          detail={detail}
+          kind={structuredKind}
+          bookOptions={bookOptions}
+          showWriterGuide={teacherSurface}
+        />
       ) : (
         <ReportForm fields={detail.fields} value={body} onChange={setBody} readOnly={!detail.canEdit} />
       )}
 
       {/* 강사 덱 slide 19 — 양식 아래 「학부모님이 직접 읽는 리포트입니다」 상자(쓰는 강사에게만 · 7-3 ⑤) */}
-      {teacherSurface && detail.canEdit ? <ReportWriterGuide /> : null}
+      {teacherSurface && detail.canEdit && !structuredKind ? <ReportWriterGuide /> : null}
 
       {detail.rejectReason ? (
         <Banner tone="danger"><b>반려 사유:</b> {detail.rejectReason}</Banner>

@@ -62,15 +62,16 @@ export function Checkbox({ label, className, ...rest }: InputHTMLAttributes<HTML
  * 「몇 자 남았는지」를 저장 눌러서 알게 하지 않는다.
  */
 export function CountedTextarea({
-  value, onChange, min = 0, max = 2000, placeholder, id,
+  value, onChange, min = 0, max = 2000, placeholder, id, showError = false,
 }: {
   value: string; onChange: (v: string) => void; min?: number; max?: number; placeholder?: string; id?: string;
+  showError?: boolean;
 }) {
   const n = value.trim().length;
-  const short = n > 0 && n < min;
+  const short = (n > 0 && n < min) || (showError && n < min);
   return (
     <div>
-      <Textarea id={id} value={value} placeholder={placeholder} error={short} maxLength={max}
+      <Textarea id={id} value={value} placeholder={placeholder} error={short} aria-invalid={short} maxLength={max}
         onChange={(e) => onChange(e.target.value)} />
       <div className="mt-1 flex justify-between text-[10px]">
         <span className={cn('font-bold', short ? 'text-red' : 'text-fg-subtle')}>

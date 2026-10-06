@@ -16,6 +16,33 @@ vi.mock('@/api/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/queries')>()),
   // 지각 차감 띠는 코드표(/meta)의 서버 구간을 그린다 — 네트워크 대신 서버 응답 모양 한 벌
   useMeta: (enabled = true) => ({ data: enabled ? { lateReportTiers: LATE_TIERS_FIXTURE } : undefined }),
+  useTeacherGuides: () => ({
+    data: {
+      weekFrom: '2026-08-31',
+      weekTo: '2026-09-06',
+      students: [{
+        studentId: 4,
+        name: '학생',
+        grade: '고2',
+        weekCount: 1,
+        lessons: [],
+        books: [{
+          issueId: 31,
+          code: 'AP-CHEM-01',
+          title: 'AP Chemistry Practice',
+          level: null,
+          seTe: 'SE',
+          state: 'ok',
+          stateLabel: '사용 중',
+          issuedOn: '2026-09-01',
+          reissuedFrom: null,
+          reissuedTo: null,
+        }],
+        diag: null,
+        notes: [],
+      }],
+    },
+  }),
 }));
 
 const fields: ReportField[] = [
@@ -151,7 +178,7 @@ describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상
   });
 });
 
-describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화면은 지금 그대로', () => {
+describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 입력과 이동 경로', () => {
   afterEach(() => { cleanup(); useSession.setState({ me: null, ready: false }); window.localStorage.clear(); });
   const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
     id: 1, serId: 2, date: '2026-09-03', onDate: '2026-09-03', startMin: 960, endMin: 1020,
@@ -168,27 +195,34 @@ describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화
     return render(<QueryClientProvider client={client}><ReportEditor detail={d} subject="AP Chemistry" /></QueryClientProvider>);
   };
   const as = (canAdminPage: boolean) => useSession.setState({
-    me: { id: 3, name: '강사', canAdminPage, canCrudAll: canAdminPage } as unknown as Me, ready: true,
+    me: {
+      id: canAdminPage ? 9 : 3,
+      name: canAdminPage ? '관리자' : '강사',
+      canAdminPage,
+      canCrudAll: canAdminPage,
+    } as unknown as Me,
+    ready: true,
   });
 
-  it('강사 표면 — 「임시 저장」 · 「승인 요청하기」와 「학부모님이 직접 읽는 리포트입니다」 상자(원문 네 줄 · 관찰형 세 줄)', () => {
+  it('신규 일반 1대1은 구조화 입력·배부 교재·프롬프트를 열고 legacy writer를 숨긴다', () => {
     as(false);
     const view = mount(detail());
-    expect(view.getByRole('button', { name: '임시 저장' })).toBeTruthy();
-    const submit = view.getByRole('button', { name: '승인 요청하기' }) as HTMLButtonElement;
-    expect(submit.disabled).toBe(true);
+    expect(view.container.querySelector('#rep-content')).toBeNull();
+    expect(view.getByLabelText('수업 내용')).toBeTruthy();
+    expect(view.getAllByRole('button', { name: 'AP Chemistry Practice' })).toHaveLength(2);
+    expect(view.getByRole('button', { name: '임시 저장 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '승인 요청 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
     const guide = view.getByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' });
     expect(guide.querySelectorAll('ol > li')).toHaveLength(4);
     expect(guide.textContent).toContain('그래도 사실은 빠뜨리지 마세요.');
     expect(guide.textContent).toContain('20분이 지나며 집중이 흔들리는 모습이었습니다');
-    // 양식(입력 칸) 아래에 선다
-    const lastField = view.container.querySelector('#rep-homework')!;
-    expect(lastField.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // 결정으로 닫힌 원문 요소는 세우지 않는다 — 작성 언어 토글(N-2) · Kinder 4영역(N-5) · AI 프롬프트(남김)
-    expect(view.queryByText('작성 언어')).toBeNull();
+    expect(view.getByText('작성 언어')).toBeTruthy();
     expect(view.queryByText(/언어 발달/)).toBeNull();
-    expect(view.queryByText(/AI 프롬프트/)).toBeNull();
-    expect(view.getByText(/현재 리포트 응답에는 학생의 Kinder 표시가 없습니다/)).toBeTruthy();
+    expect(view.getByText('리포트 작성용 AI 프롬프트')).toBeTruthy();
+    expect(view.getByText(/과목명이나 학년으로 추정하지 않고 일반 1대1 양식을 사용합니다/)).toBeTruthy();
+    const hub = view.getByRole('link', { name: '수업 변경·건의' });
+    expect(hub.getAttribute('href')).toBe('/schedule?serId=2&onDate=2026-09-03&date=2026-09-03&source=report');
+    expect(hub.className).toContain('min-h-11');
   });
 
   it('신규 진단 그룹은 legacy 3문자열 writer를 숨기고 구조화 계약 대기 초안을 연다', () => {
@@ -213,11 +247,14 @@ describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화
     expect(view.container.querySelectorAll('textarea')).toHaveLength(0);
   });
 
-  it('관리 화면 · 읽기 전용은 지금 그대로 — 「임시저장」 · 「제출」 · 안내 상자 없음', () => {
+  it('관리자 대리 작성은 실제 actor와 대상 강사를 표시하고 구조화 저장을 잠근다', () => {
     as(true);
     const view = mount(detail());
-    expect(view.getByRole('button', { name: '임시저장' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '제출' })).toBeTruthy();
+    expect(view.getByText('관리자 대리 작성')).toBeTruthy();
+    expect(view.getByText('실제 작성자 관리자 · 대상 강사 강사')).toBeTruthy();
+    expect(view.getByRole('button', { name: '임시 저장 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.queryByRole('button', { name: '임시저장' })).toBeNull();
+    expect(view.queryByRole('button', { name: '제출' })).toBeNull();
     expect(view.queryByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' })).toBeNull();
     cleanup();
     as(false);
@@ -226,7 +263,7 @@ describe('ReportEditor — 강사 덱 slide 19 양식 속(7-3 ⑤) · 관리 화
 
   it('N-69 — 같은 서버 글에서 쓰던 초안을 되살리고 「불러온 글 버리기」로 서버 글에 돌아간다', () => {
     as(false);
-    const d = detail();
+    const d = detail({ state: 'draft' });
     window.localStorage.setItem(`taco:draft:v1:3:report:${d.serId}:${d.onDate}`, JSON.stringify({
       value: { content: '어제 쓰던 수업 내용', progress: '12쪽', homework: 7 },
       base: `${d.state}|${JSON.stringify(d.body)}`,

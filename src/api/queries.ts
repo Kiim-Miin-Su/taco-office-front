@@ -1754,11 +1754,12 @@ export function useReceivedGuides(): UseQueryResult<ReceivedGuides> {
 }
 
 /** 수업 안내 — 이번 주 담당 학생·교재·진단. week 생략이면 서버가 오늘(KST) 주로 판정한다. */
-export function useTeacherGuides(week?: string): UseQueryResult<TeacherGuides> {
+export function useTeacherGuides(week?: string, enabled = true): UseQueryResult<TeacherGuides> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.teacherGuides(week), viewerId),
     queryFn: async () => (await api.get<TeacherGuides>('/teacher/guides', { params: week ? { week } : {} })).data,
+    enabled,
     staleTime: 60 * 1000,
   });
 }

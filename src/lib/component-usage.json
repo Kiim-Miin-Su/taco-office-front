@@ -1,13 +1,13 @@
 {
   "version": 1,
   "counts": {
-    "button": 551,
+    "button": 557,
     "badge": 313,
     "mark": 2,
-    "input": 426,
-    "field": 379,
+    "input": 429,
+    "field": 382,
     "stat": 31,
-    "banner": 329,
+    "banner": 331,
     "table": 34,
     "panel": 137,
     "board": 6,
