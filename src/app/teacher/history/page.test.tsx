@@ -15,7 +15,7 @@
  * 세 묶음으로 나뉘어 있고(모바일 줄), 웹에서 한 줄로 합쳐질 때의 **순서가 원본 그대로**인지.
  */
 import type { ReactNode } from 'react';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TeacherHistory } from '@/api/types';
 import { won } from '@/lib/money';
@@ -103,6 +103,46 @@ it('수업 업무 상태를 우선하고 리포트 상태를 보조로 구분한
   expect(view.getByText('리포트 승인 완료')).toBeTruthy();
   expect(view.getByText('리포트 작성 예정')).toBeTruthy();
   expect(view.container.textContent).not.toContain('리포트 리포트');
+});
+
+it('완료 수업에서 관리자 전용 특이사항 초안을 열면 회차·날짜·학생이 자동으로 이어진다', async () => {
+  mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+
+  fireEvent.click(await view.findByRole('button', { name: '특이사항 남기기' }));
+
+  const dialog = view.getByRole('dialog', { name: '특이사항 작성' });
+  expect(dialog.textContent).toContain('김민준');
+  expect(dialog.textContent).toContain('송지호');
+  expect(dialog.textContent).toContain('2026년 9월 17일');
+  expect(dialog.textContent).toContain('16:00');
+  expect(dialog.textContent).toContain('AP Chem');
+  expect(view.getByLabelText('학생')).toBeTruthy();
+  expect((view.getByLabelText('학생') as HTMLSelectElement).value).toBe('김민준');
+});
+
+it('전용 DTO에 학생 ID·회차가 생기기 전에는 특이사항을 기존 NOTE로 저장하지 않는다', async () => {
+  mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  fireEvent.click(await view.findByRole('button', { name: '특이사항 남기기' }));
+
+  fireEvent.change(view.getByLabelText('특이사항 내용'), { target: { value: '오늘 유난히 지쳐 보였습니다.' } });
+  const save = view.getByRole('button', { name: '저장 계약 준비 중' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  expect(view.getByRole('dialog').textContent).toContain('학생 ID와 실제 회차를 구분하는 전용 계약이 필요합니다');
+  expect(view.getByRole('dialog').textContent).toContain('관리자만 볼 수 있고 학부모에게 공개되지 않습니다');
+});
+
+it('예정·취소 수업에는 사후 관찰 특이사항 진입을 노출하지 않는다', async () => {
+  const d = data();
+  d.lessons = [
+    lesson({ serId: 2, settle: 'upcoming', repState: 'plan' }),
+    lesson({ serId: 3, startMin: 1080, settle: 'canceled', canceled: true, repState: 'na' }),
+  ];
+  mocks.history.mockReturnValue({ data: d, isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  await waitFor(() => expect(view.getByText('예정')).toBeTruthy());
+  expect(view.queryByRole('button', { name: '특이사항 남기기' })).toBeNull();
 });
 
 it('연강 유예 안내는 맞닿은 수업을 묶어 마지막 종료부터 수업 수 × 1시간을 말한다', async () => {

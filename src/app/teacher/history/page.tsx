@@ -13,9 +13,10 @@
  * 특이사항 저장은 저장처 확정 전 — 배선하지 않는다 (teacherC22 원장 경계).
  */
 'use client';
+import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Chip, LinkButton, Panel, QueryState, type Tone } from '@/components/ui';
+import { Button, Chip, LinkButton, Panel, QueryState, type Tone } from '@/components/ui';
 import { useMeta, useTeacherHistory } from '@/api/queries';
 import type { TeacherHistoryLesson } from '@/api/types';
 import { won } from '@/lib/money';
@@ -24,6 +25,7 @@ import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { useLessonName } from '@/components/teacher/lesson-name';
 import { previousMonthKst } from '@/lib/calendar';
+import { TeacherPrivateNoteDraft } from '@/components/teacher/TeacherPrivateNoteDraft';
 
 function kindChips(l: TeacherHistoryLesson): Array<{ label: string; tone: Tone }> {
   const out: Array<{ label: string; tone: Tone }> = [];
@@ -79,7 +81,7 @@ function SRow({ name, how, amount }: { name: string; how?: string; amount: strin
  * 접지 않으면 금액 칸(`w-28`)이 393px 밖으로 나가 **본문 전체가 가로로 밀린다**
  * (실측 scrollWidth 513). 가로로 밀린 화면에서는 오른쪽 금액을 볼 수가 없다.
  */
-function Row({ l }: { l: TeacherHistoryLesson }) {
+function Row({ l, onNote }: { l: TeacherHistoryLesson; onNote: (lesson: TeacherHistoryLesson, subject: string) => void }) {
   const lessonName = useLessonName();
   const state = l.canceled
     ? { label: '취소', tone: 'neutral' as Tone }
@@ -90,6 +92,8 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
   const who = l.students
     ? `${l.students.split(', ')[0]}${l.studentCount > 1 ? ` 외 ${l.studentCount - 1}명` : ''}`
     : '미배정';
+  const subject = lessonName(l);
+  const canWritePrivateNote = !l.canceled && l.settle !== 'upcoming' && Boolean(l.students) && l.studentCount > 0;
   const money = l.canceled ? (
     <div className="text-[11px] text-fg-subtle">— · 시수·정산 제외</div>
   ) : l.pay !== null && l.pay !== undefined ? (
@@ -125,7 +129,7 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
         {/* ② 과목 */}
         <div className="flex min-w-0 items-center gap-2 sm:order-3 sm:grow">
           <span className={`truncate text-[14px] font-bold text-fg ${l.canceled ? 'line-through' : ''}`}>
-            {lessonName(l)}
+            {subject}
           </span>
           {kindChips(l).map((c) => <Chip key={c.label} size="compact" tone={c.tone}>{c.label}</Chip>)}
           {/* N-51 — 보정 줄(앞선 확정 달 회차가 이 달 정산에 얹힘) · 확정 뒤에 써서 다음 달 보정으로 간 회차. 낱말은 서버 */}
@@ -144,6 +148,11 @@ function Row({ l }: { l: TeacherHistoryLesson }) {
           <div className="ml-auto shrink-0 text-right sm:order-7 sm:ml-0 sm:w-28">{money}</div>
         </div>
       </div>
+      {canWritePrivateNote ? (
+        <div className="mt-2 flex justify-end">
+          <Button size="sm" className="!h-11" onClick={() => onNote(l, subject)}>특이사항 남기기</Button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -152,6 +161,7 @@ export default function TeacherHistoryPage() {
   const month = previousMonthKst();
   const q = useTeacherHistory(month);
   const meta = useMeta();
+  const [privateNote, setPrivateNote] = useState<{ lesson: TeacherHistoryLesson; subject: string } | null>(null);
   return (
     <RequireAuth>
       <AppShell>
@@ -269,7 +279,10 @@ export default function TeacherHistoryPage() {
                                   <span className="text-fg-subtle">{live.length}건{canceled ? ` · 취소 ${canceled}건` : ''}</span>
                                   <span className="ml-auto text-fg-subtle">{hours(live.reduce((a, l) => a + l.durMin, 0))}시간</span>
                                 </div>
-                                <ul>{g.rows.map((l) => <Row key={`${l.serId}-${l.onDate}-${l.startMin}`} l={l} />)}</ul>
+                                <ul>{g.rows.map((l) => (
+                                  <Row key={`${l.serId}-${l.onDate}-${l.startMin}`} l={l}
+                                    onNote={(lesson, subject) => setPrivateNote({ lesson, subject })} />
+                                ))}</ul>
                               </div>
                             );
                           })}
@@ -309,6 +322,14 @@ export default function TeacherHistoryPage() {
                     </Panel>
                   </aside>
                 </div>
+                {privateNote ? (
+                  <TeacherPrivateNoteDraft
+                    key={`${privateNote.lesson.serId}-${privateNote.lesson.onDate}`}
+                    lesson={privateNote.lesson}
+                    subject={privateNote.subject}
+                    onClose={() => setPrivateNote(null)}
+                  />
+                ) : null}
               </>
             );
           }}
