@@ -14,7 +14,7 @@
  */
 import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { ApFlow, ApRow } from '@/api/types';
+import type { ApFlow, ApRow, DrawerTodo } from '@/api/types';
 import { ApprovalsPane } from './panes';
 
 vi.mock('next/link', () => ({
@@ -175,6 +175,63 @@ it('시급 권한이 없으면 승인 단추 대신 이유가 줄에 적힌다 (
   expect(within(card).queryByRole('button', { name: '승인' })).toBeNull();
   expect(card.textContent).toContain('시급을 다룰 권한이 필요합니다');
   expect(within(card).getByRole('link').getAttribute('title')).toBe('시급을 다룰 권한이 필요합니다');
+});
+
+const todo = (over: Partial<DrawerTodo> = {}): DrawerTodo => ({
+  id: 21, title: '교재 두 권 확인', fromId: 8, fromName: '김민수', toId: 7, toName: '김범준',
+  dueOn: '2026-10-06', done: false, src: 'lesson', srcLabel: '수업', overdueDays: 0,
+  go: '/schedule?serId=31&onDate=2026-10-06', clearable: true, clearBlockedReason: null,
+  ...over,
+});
+
+it('받은 미완료 할 일만 승인 대기함에 보이고 완료와 원 업무 열기를 기존 값으로 위임한다 (A07)', () => {
+  const onTodoToggle = vi.fn();
+  const view = render(
+    <ApprovalsPane
+      flow={flow([])} onGo={vi.fn()}
+      todos={[
+        todo(),
+        todo({ id: 22, title: '남에게 간 할 일', toId: 9, toName: '다른 사람' }),
+        todo({ id: 23, title: '이미 끝난 할 일', done: true }),
+      ]}
+      meId={7} members={[]} onTodoToggle={onTodoToggle} onTodoCreate={vi.fn()}
+    />,
+  );
+  expect(view.getByText('교재 두 권 확인')).toBeTruthy();
+  expect(view.queryByText('남에게 간 할 일')).toBeNull();
+  expect(view.queryByText('이미 끝난 할 일')).toBeNull();
+  expect(view.getByRole('link', { name: '원본' }).getAttribute('href')).toBe('/schedule?serId=31&onDate=2026-10-06');
+  fireEvent.click(view.getByLabelText('교재 두 권 확인 완료'));
+  expect(onTodoToggle).toHaveBeenCalledWith(21, true);
+});
+
+it('건의는 대기함 카드에서 15자 이상만 답변하고 짧은 입력 이유를 표시한다 (A07)', () => {
+  const onSuggestionReply = vi.fn();
+  const suggestion = row({
+    kind: 'suggestion', id: 31, title: '건의 사항', sub: '수업 자료 위치를 바꿔 주세요',
+    reqType: null, asked: null, canAct: false, category: 'suggestion', categoryLabel: '건의 사항',
+  });
+  const view = render(
+    <ApprovalsPane flow={flow([suggestion])} onGo={vi.fn()} canReplySuggestions onSuggestionReply={onSuggestionReply} />,
+  );
+  fireEvent.click(view.getByRole('button', { name: '답변하기' }));
+  const input = view.getByRole('textbox', { name: '이다현 건의 답변' });
+  fireEvent.change(input, { target: { value: '12345678901234' } });
+  expect(view.getByText('답변은 15자 이상 적어 주세요.')).toBeTruthy();
+  expect((view.getByRole('button', { name: '답변 보내기' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(input, { target: { value: '123456789012345' } });
+  fireEvent.click(view.getByRole('button', { name: '답변 보내기' }));
+  expect(onSuggestionReply).toHaveBeenCalledWith(31, '123456789012345');
+});
+
+it('건의 답변 권한이 없으면 인라인 입력을 만들지 않고 기존 원 업무 링크만 유지한다', () => {
+  const suggestion = row({
+    kind: 'suggestion', id: 31, title: '건의 사항', sub: '수업 자료 위치를 바꿔 주세요',
+    reqType: null, asked: null, canAct: false, category: 'suggestion', categoryLabel: '건의 사항',
+  });
+  const view = render(<ApprovalsPane flow={flow([suggestion])} onGo={vi.fn()} canReplySuggestions={false} />);
+  expect(view.queryByRole('button', { name: '답변하기' })).toBeNull();
+  expect(view.getByRole('link')).toBeTruthy();
 });
 
 /* g2 대조 14-4 — 원문 카드에는 올린 사람이 자기 말로 적은 **사유 인용 줄**(분류 색 세로 띠)이 있다 */

@@ -2170,9 +2170,10 @@ export type DrawerWrite =
   | { kind: 'notiReadAll' }
   | { kind: 'reqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
   | { kind: 'chreqReview'; id: number; decision: 'approve' | 'reject'; reason?: string }
+  | { kind: 'suggestionReply'; id: number; reply: string }
   | { kind: 'changeReq'; body: ChangeReqCreate };
 
-type DrawerWriteResult = OkResult | DrawerTodoCreateResult | DrawerTodoClearResult | ChangeReqResult | ReqReviewResult;
+type DrawerWriteResult = OkResult | DrawerTodoCreateResult | DrawerTodoClearResult | ChangeReqResult | ReqReviewResult | Suggestion;
 type DrawerWriteContext = CacheOptimisticContext;
 let temporaryTodoId = -Date.now();
 
@@ -2208,6 +2209,9 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         return (
           await api.post<ReqReviewResult>(`/drawer/change-requests/${w.id}/review`, { decision: w.decision, reason: w.reason })
         ).data;
+      }
+      if (w.kind === 'suggestionReply') {
+        return (await api.patch<Suggestion>(`/ops/suggestions/${w.id}/reply`, { reply: w.reply })).data;
       }
       return (await api.post<ChangeReqResult>('/drawer/change-requests', w.body)).data;
     },
@@ -2280,6 +2284,7 @@ export function useDrawerWrite(): UseMutationResult<DrawerWriteResult, unknown, 
         void qc.invalidateQueries({ queryKey: family.exec });
         void qc.invalidateQueries({ queryKey: family.teacherHome });
       }
+      if (w.kind === 'suggestionReply') void qc.invalidateQueries({ queryKey: family.ops });
     },
     // 창(month/all)마다 키가 다르므로 성공·실패 모두 서버 값으로 화해한다.
     onSettled: (_result, error, _w, context) => {
@@ -3083,7 +3088,10 @@ export function useReplySuggestion(): UseMutationResult<Suggestion, unknown, { i
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, reply }) => (await api.patch<Suggestion>(`/ops/suggestions/${id}/reply`, { reply })).data,
-    onSettled: () => qc.invalidateQueries({ queryKey: family.ops }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: family.ops });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+    },
   });
 }
 

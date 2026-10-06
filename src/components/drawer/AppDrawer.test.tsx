@@ -27,14 +27,24 @@ vi.mock('@/api/queries', () => ({
   useScheduleHistory: mocks.history,
 }));
 vi.mock('@/store/useSession', () => ({
-  useSession: (select: (state: { me: { id: number } }) => unknown) => select({ me: { id: 1 } }),
+  useSession: (select: (state: { me: { id: number; canCrudAll: boolean } }) => unknown) =>
+    select({ me: { id: 1, canCrudAll: true } }),
 }));
 vi.mock('./panes', async (importOriginal) => ({
   ...await importOriginal<typeof import('./panes')>(),
-  ApprovalsPane: ({ onReview }: { onReview?: (v: { id: number; kind: string; decision: 'approve' | 'reject' }) => void }) => (
+  ApprovalsPane: ({ onReview, onTodoToggle, onSuggestionReply, canReplySuggestions }: {
+    onReview?: (v: { id: number; kind: string; decision: 'approve' | 'reject' }) => void;
+    onTodoToggle?: (id: number, done: boolean) => void;
+    onSuggestionReply?: (id: number, reply: string) => void;
+    canReplySuggestions?: boolean;
+  }) => (
     <div>
       승인 내용
       <button type="button" onClick={() => onReview?.({ id: 1, kind: 'req', decision: 'approve' })}>시험 승인</button>
+      <button type="button" onClick={() => onTodoToggle?.(17, true)}>시험 할 일 완료</button>
+      {canReplySuggestions ? (
+        <button type="button" onClick={() => onSuggestionReply?.(19, '담당자와 확인하여 반영했습니다.')}>시험 건의 답변</button>
+      ) : null}
     </div>
   ),
   KindsPane: () => <div>종류 내용</div>,
@@ -74,6 +84,17 @@ describe('공용 서랍의 제어형 선택', () => {
       .toBe(false);
     return ownerKey;
   }
+
+  it('승인 대기함의 할 일 완료와 건의 답변을 공용 drawer writer에 연결한다', () => {
+    const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(view.getByRole('button', { name: '시험 할 일 완료' }));
+    expect(mocks.write).toHaveBeenLastCalledWith({ kind: 'todo', id: 17, done: true });
+
+    fireEvent.click(view.getByRole('button', { name: '시험 건의 답변' }));
+    expect(mocks.write.mock.calls.at(-1)?.[0]).toEqual({
+      kind: 'suggestionReply', id: 19, reply: '담당자와 확인하여 반영했습니다.',
+    });
+  });
 
   it('라우트 재마운트 중 진행 중인 변경 요청은 다시 제출되지 않는다', async () => {
     let resolve!: (value: { id: number; conflicts: [] }) => void;
@@ -444,7 +465,7 @@ describe('공용 서랍의 제어형 선택', () => {
 
   /*
    * C72 — §21 격자는 서랍 payload 에 없다. 칸을 **열 때만** 부른다.
-   * 여덟 칸에 얹으면 §21 을 안 쓰는 사람도 서랍을 열 때마다 점유 질의를 치른다 (C50 의 교훈).
+   * 공용 조회에 얹으면 §21 을 안 쓰는 사람도 서랍을 열 때마다 점유 질의를 치른다 (C50 의 교훈).
    */
   it('§21 점유는 그 칸을 열 때만 부른다 — 서랍을 여는 것만으로는 부르지 않는다', () => {
     const view = render(<AppDrawer open pane="approvals" onPaneChange={() => undefined} onClose={() => undefined} />);

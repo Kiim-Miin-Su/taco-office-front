@@ -24,6 +24,7 @@ import { useDrawer, usePermissionTable, useUnwritten } from '@/api/queries';
 import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
 import { ApprovalFlowDialog } from '@/components/approval/ApprovalFlowDialog';
 import { autosaveTimeLabel, useLastAutosave } from '@/lib/autosave';
+import { receivedOpenTodos } from '@/lib/todo';
 
 /**
  * 페이지 소유 패널이 전역 서랍을 열 때 쓰는 최소 API — 서랍 상태는 셸이 계속 소유한다.
@@ -91,7 +92,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const side = typeof sidePanel === 'function' ? sidePanel(panelApi) : sidePanel;
   const right = rightPanel === undefined
     ? railOpen && isAdmin ? <WorkspaceRail
-      approvals={drawerData?.approvals?.inboxCount ?? 0}
+      approvals={(drawerData?.approvals?.inboxCount ?? 0) + receivedOpenTodos(drawerData?.todos ?? [], me?.id).length}
       unread={drawerData?.notis?.filter((n) => !n.read).length ?? 0}
       onOpen={openDrawer}
       activePane={panelApi.activePane}

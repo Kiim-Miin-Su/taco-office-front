@@ -233,9 +233,26 @@ describe('UX-15 모든 관리자 업무 탭의 공통 우측 레일', () => {
     expect(view.getAllByRole('navigation', { name: '워크스페이스 바로가기' })).toHaveLength(1);
     expect(within(within(rail).getByRole('button', { name: '승인 대기함' })).getByText('3')).toBeTruthy();
     expect(within(within(rail).getByRole('button', { name: '알림' })).getByText('1')).toBeTruthy();
-    fireEvent.click(within(rail).getByRole('button', { name: '할 일' }));
-    expect(within(view.getByRole('dialog', { name: '서랍' })).getByText('todos')).toBeTruthy();
-    expect(within(rail).getByRole('button', { name: '할 일' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(rail).queryByRole('button', { name: '할 일' })).toBeNull();
+    fireEvent.click(within(rail).getByRole('button', { name: '승인 대기함' }));
+    expect(within(view.getByRole('dialog', { name: '서랍' })).getByText('approvals')).toBeTruthy();
+    expect(within(rail).getByRole('button', { name: '승인 대기함' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('승인 대기함 배지는 승인 건과 내게 온 미완료 할 일만 합산한다', () => {
+    mocks.drawer.mockReturnValue({ data: {
+      approvalFlow: { canView: true, tiles: [], back: [], waiting: [], mine: [], total: 0, backCount: 0 },
+      approvals: { count: 3, inboxCount: 3 },
+      notis: [],
+      todos: [
+        { id: 11, title: '내 할 일', byId: 9, byName: '관리자', toId: 1, toName: '김민선', done: false },
+        { id: 12, title: '남의 할 일', byId: 1, byName: '김민선', toId: 2, toName: '다른 사람', done: false },
+        { id: 13, title: '완료한 할 일', byId: 9, byName: '관리자', toId: 1, toName: '김민선', done: true },
+      ],
+    } });
+    const view = shell();
+    const rail = view.getByRole('navigation', { name: '워크스페이스 바로가기' });
+    expect(within(within(rail).getByRole('button', { name: '승인 대기함' })).getByText('4')).toBeTruthy();
   });
 
   it('접힘은 페이지 재마운트 뒤에도 유지되고 펼치기 진입점은 남는다', () => {

@@ -9,14 +9,14 @@ import { useRailPresent, WorkspaceRail } from './WorkspaceRail';
 
 afterEach(cleanup);
 
-describe('최종 수정사항 우측 rail — GPA 신규 진입을 뺀 기존 서랍 pane 바로가기', () => {
-  it('일곱 항목을 최종 순서로 렌더하고 배지는 승인/알림에만 붙는다', () => {
+describe('최종 수정사항 우측 rail — 받은 할 일을 승인 대기함으로 합친 pane 바로가기', () => {
+  it('여섯 항목을 최종 순서로 렌더하고 배지는 승인/알림에만 붙는다', () => {
     render(<WorkspaceRail approvals={10} unread={3} onOpen={vi.fn()} />);
     const nav = screen.getByRole('navigation', { name: '워크스페이스 바로가기' });
     const labels = [...nav.children]
       .filter((el) => el.getAttribute('role') !== 'separator')
       .map((el) => el.getAttribute('aria-label'));
-    expect(labels).toEqual(['승인 대기함', '알림', '변경 요청', '구성원', '줌 계정', '할 일', '프로그램']);
+    expect(labels).toEqual(['승인 대기함', '알림', '변경 요청', '구성원', '줌 계정', '프로그램']);
     expect(within(screen.getByRole('button', { name: '승인 대기함' })).getByText('10')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: '알림' })).getByText('3')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: '변경 요청' })).queryByText(/\d/)).toBeNull();
@@ -27,9 +27,8 @@ describe('최종 수정사항 우측 rail — GPA 신규 진입을 뺀 기존 �
     render(<WorkspaceRail approvals={0} unread={0} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: '승인 대기함' }));
     fireEvent.click(screen.getByRole('button', { name: '알림' }));
-    fireEvent.click(screen.getByRole('button', { name: '할 일' }));
     fireEvent.click(screen.getByRole('button', { name: '프로그램' }));
-    expect(onOpen.mock.calls.map((c) => c[0])).toEqual(['approvals', 'notis', 'todos', 'kinds']);
+    expect(onOpen.mock.calls.map((c) => c[0])).toEqual(['approvals', 'notis', 'kinds']);
   });
 
   it('GPA 신규 관리 진입은 최종 수정사항대로 레일에서 보이지 않는다', () => {
@@ -68,18 +67,19 @@ describe('최종 수정사항 우측 rail — GPA 신규 진입을 뺀 기존 �
   });
 
   /*
-   * g2 대조 C-5 — 수정 후 레일의 아이콘은 변경 요청=되감기 시계 · 구성원=사람+ · 할 일=달력 체크이고,
+   * g2 대조 C-5 + 최신 관리자 p17 — 할 일은 별도 타일이 아니라 승인 대기함으로 이동하고,
+   * 수정 후 레일의 아이콘은 변경 요청=되감기 시계 · 구성원=사람+이며,
    * **구분선이 둘**(승인 대기함 뒤 · 변경 요청 뒤) 있으며 라벨이 굵다.
    */
   it('아이콘·구분선·굵은 라벨이 원문 레일 그대로다', () => {
     render(<WorkspaceRail approvals={0} unread={0} onOpen={vi.fn()} />);
     const nav = screen.getByRole('navigation', { name: '워크스페이스 바로가기' });
     const order = [...nav.children].map((el) => (el.getAttribute('role') === 'separator' ? '|' : el.getAttribute('aria-label')));
-    expect(order).toEqual(['승인 대기함', '|', '알림', '변경 요청', '|', '구성원', '줌 계정', '할 일', '프로그램']);
+    expect(order).toEqual(['승인 대기함', '|', '알림', '변경 요청', '|', '구성원', '줌 계정', '프로그램']);
     const iconOf = (el: HTMLElement) => el.querySelector('svg')?.getAttribute('class') ?? '';
     expect(iconOf(screen.getByRole('button', { name: '변경 요청' }))).toContain('lucide-history');
     expect(iconOf(screen.getByRole('button', { name: '구성원' }))).toContain('lucide-user-plus');
-    expect(iconOf(screen.getByRole('button', { name: '할 일' }))).toContain('lucide-calendar-check');
+    expect(screen.queryByRole('button', { name: '할 일' })).toBeNull();
     expect(within(screen.getByRole('button', { name: '알림' })).getByText('알림').className).toContain('font-bold');
   });
 

@@ -5,7 +5,7 @@
  */
 
 /**
- * 서랍 여덟 칸의 **본문**. 껍데기(`Drawer`)와 탭은 `AppDrawer` 가 갖는다.
+ * 공용 서랍 각 칸의 **본문**. 껍데기(`Drawer`)와 탭은 `AppDrawer` 가 갖는다.
  *
  * 여기 있는 것은 전부 「받은 것을 그리는」 함수다 — 판정이 없다.
  * 배지 숫자·정렬·권한은 서버의 `apFlow()` 가 이미 끝냈고 화면은 그 결과만 읽는다.
@@ -16,7 +16,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { AlarmClock, ArrowLeftRight, Bell, Check, CornerDownLeft, Info, type LucideIcon } from 'lucide-react';
 import {
-  Banner, Button, Checkbox, Chip, ChipButton, ChipRow, ConflictGuard, Dialog, Input, Label, Segmented, Select, Table,
+  Banner, Button, Checkbox, Chip, ChipButton, ChipRow, ConflictGuard, Dialog, Input, Label, Segmented, Select, Table, Textarea,
   cn, type ChipColor, type Column, type Tone,
 } from '@/components/ui';
 import { ZoomGrid } from '@/components/zoom/ZoomGrid';
@@ -37,6 +37,7 @@ import { MemberCreateButton } from './MemberCreateDialog';
 import { MemberEditButton, MemberRowActions } from './MemberRowActions';
 import { WageChangeButton } from './WageChangeDialog';
 import { TodoCreateDialog } from './TodoCreateDialog';
+import { receivedOpenTodos } from '@/lib/todo';
 
 export { changeReqBody, changeReqReady, EMPTY_DRAFT, newChangeReqDraft, type ChangeReqDraft } from './change-request';
 
@@ -138,16 +139,60 @@ function ApActions({ r, onReview, busy }: {
   );
 }
 
-function ApList({ rows, onGo, onReview, busy }: {
+function SuggestionReplyAction({ row, busy, error, onReply }: {
+  row: ApRow;
+  busy: boolean;
+  error?: string | null;
+  onReply: (id: number, reply: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [reply, setReply] = useState('');
+  const value = reply.trim();
+  const short = value.length > 0 && value.length < 15;
+  if (!editing) {
+    return <div className="mt-2 flex justify-end"><Button size="sm" variant="primary" onClick={() => setEditing(true)}>답변하기</Button></div>;
+  }
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      {error ? <Banner tone="danger" className="mb-2">{error}</Banner> : null}
+      <Label htmlFor={`suggestion-reply-${row.id}`}>{row.byName ?? '강사'} 건의 답변</Label>
+      <Textarea
+        id={`suggestion-reply-${row.id}`} rows={4} maxLength={2000} value={reply} autoFocus disabled={busy}
+        aria-describedby={short ? `suggestion-reply-${row.id}-error` : undefined}
+        error={short}
+        onChange={(event) => setReply(event.currentTarget.value)}
+      />
+      {short ? <p id={`suggestion-reply-${row.id}-error`} className="mt-1 text-[11px] font-bold text-red">답변은 15자 이상 적어 주세요.</p> : null}
+      <div className="mt-2 flex justify-end gap-1">
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => { setEditing(false); setReply(''); }}>취소</Button>
+        <Button size="sm" variant="primary" disabled={busy || value.length < 15}
+          onClick={() => onReply(row.id, value)}>{busy ? '답변 중…' : '답변 보내기'}</Button>
+      </div>
+    </div>
+  );
+}
+
+function ApList({ rows, onGo, onReview, busy, canReplySuggestions, onSuggestionReply, suggestionReplyError }: {
   rows: ApRow[]; onGo: () => void;
   onReview?: (v: ApReview) => void; busy?: boolean;
+  canReplySuggestions?: boolean;
+  onSuggestionReply?: (id: number, reply: string) => void;
+  suggestionReplyError?: { id: number; message: string } | null;
 }) {
   if (rows.length === 0) return <Empty>없습니다</Empty>;
   return (
     <ul className="flex flex-col gap-1.5">
       {rows.map((r) => (
         <li key={`${r.kind}-${r.id}`}>
-          {r.canAct && onReview ? (
+          {r.kind === 'suggestion' && canReplySuggestions && onSuggestionReply ? (
+            <div className="rounded-lg border border-line bg-card p-2.5">
+              <ApprovalRowContent row={r} variant="inbox" />
+              <SuggestionReplyAction
+                row={r} busy={!!busy} onReply={onSuggestionReply}
+                error={suggestionReplyError?.id === r.id ? suggestionReplyError.message : null}
+              />
+            </div>
+          ) : r.canAct && onReview ? (
             <div className="rounded-lg border border-line bg-card p-2.5">
               <ApprovalRowContent row={r} variant="inbox" />
               <ApActions r={r} onReview={onReview} busy={!!busy} />
@@ -171,15 +216,29 @@ function ApList({ rows, onGo, onReview, busy }: {
   );
 }
 
-export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
+export function ApprovalsPane({
+  flow, onGo, onReview, busy, error,
+  todos = [], members = [], meId = null, onTodoToggle, onTodoCreate,
+  canReplySuggestions = false, onSuggestionReply, suggestionReplyError,
+}: {
   flow: ApFlow; onGo: () => void;
   onReview?: (v: ApReview) => void; busy?: boolean; error?: string | null;
+  todos?: DrawerTodo[];
+  members?: DrawerData['members'];
+  meId?: number | null;
+  onTodoToggle?: (id: number, done: boolean) => void;
+  onTodoCreate?: (body: DrawerTodoCreate) => void;
+  canReplySuggestions?: boolean;
+  onSuggestionReply?: (id: number, reply: string) => void;
+  suggestionReplyError?: { id: number; message: string } | null;
 }) {
   /** 고른 분류 — `''` 가 「전체」다(공용 `ChipRow` 의 약속) */
   const [filter, setFilter] = useState<string>('');
   const actionable = flow.inbox.filter((r) => r.canAct).length;
   const linkOnly = flow.inbox.length - actionable;
   const shown = flow.inbox.filter((row) => filter === '' || row.category === filter);
+  const receivedTodos = receivedOpenTodos(todos, meId);
+  const [creatingTodo, setCreatingTodo] = useState(false);
   return (
     <>
       {/*
@@ -218,7 +277,29 @@ export function ApprovalsPane({ flow, onGo, onReview, busy, error }: {
             dot: TONE_MARK[approvalCategoryTone(category.key)].dot,
           }))}
       />
-      <ApList rows={shown} onGo={onGo} onReview={onReview} busy={busy} />
+      <ApList
+        rows={shown} onGo={onGo} onReview={onReview} busy={busy}
+        canReplySuggestions={canReplySuggestions} onSuggestionReply={onSuggestionReply}
+        suggestionReplyError={suggestionReplyError}
+      />
+      {onTodoToggle ? (
+        <section className="mt-5 border-t border-line pt-4" aria-labelledby="approval-inbox-todos">
+          <div className="mb-2 flex items-center gap-2">
+            <h3 id="approval-inbox-todos" className="text-[13px] font-bold text-fg">내게 온 할 일</h3>
+            <Chip tone={receivedTodos.length > 0 ? 'info' : 'neutral'}>{receivedTodos.length}</Chip>
+            {onTodoCreate ? <Button className="ml-auto" size="sm" variant="primary" onClick={() => setCreatingTodo(true)}>+ 할 일</Button> : null}
+          </div>
+          {receivedTodos.length > 0 ? (
+            <TodoRows items={receivedTodos} busy={!!busy} onToggle={onTodoToggle} />
+          ) : <Empty>내게 온 미완료 할 일이 없습니다</Empty>}
+          {onTodoCreate ? (
+            <TodoCreateDialog
+              open={creatingTodo} onClose={() => setCreatingTodo(false)} busy={!!busy} meId={meId}
+              people={members.filter((member) => member.active)} onCreate={onTodoCreate}
+            />
+          ) : null}
+        </section>
+      ) : null}
     </>
   );
 }

@@ -5,18 +5,18 @@
  */
 
 /**
- * 최종 관리자 수정사항의 우측 rail — GPA 신규 관리 진입을 제거한 일곱 항목과 순서를 따른다.
+ * 최종 관리자 수정사항의 우측 rail — GPA 신규 관리 진입을 제거하고 받은 할 일을 승인 대기함에 합친 여섯 항목이다.
  *
  * **지금 열린 칸은 어두운 채운 타일**이다(원문 §14~§21 · g2 대조 C-2). 서랍이 레일 왼쪽에 붙으면서
  * 레일이 곧 칸 전환 줄이 됐으므로, 어느 칸을 보고 있는지를 레일이 말한다. 무엇이 열렸는지는
  * 셸이 쥔 서랍 상태 하나(`activePane`)에서 온다 — 레일이 따로 기억하지 않는다.
  *
  * 아이콘·구분선·굵은 라벨은 원문 레일을 따른다(g2 대조 C-5) — 변경 요청=되감기 시계 ·
- * 구성원=사람+ · 할 일=달력 체크, 구분선은 「승인 대기함」 뒤와 「변경 요청」 뒤.
+ * 구성원=사람+ · 줌=영상, 구분선은 「승인 대기함」 뒤와 「변경 요청」 뒤.
  */
 'use client';
 import { Fragment, useEffect, useSyncExternalStore } from 'react';
-import { Bell, CalendarCheck, History, Inbox, LayoutGrid, UserPlus, Video } from 'lucide-react';
+import { Bell, History, Inbox, LayoutGrid, UserPlus, Video } from 'lucide-react';
 import { cn } from '@/components/ui';
 import type { DrawerPane } from '@/components/drawer/AppDrawer';
 
@@ -30,7 +30,6 @@ const ITEMS: Array<{
   { label: '변경 요청', pane: 'chreqs', icon: History, divider: true },
   { label: '구성원', pane: 'members', icon: UserPlus },
   { label: '줌 계정', pane: 'zoom', icon: Video },
-  { label: '할 일', pane: 'todos', icon: CalendarCheck },
   { label: '프로그램', pane: 'kinds', icon: LayoutGrid },
 ];
 

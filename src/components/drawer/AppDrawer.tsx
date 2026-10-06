@@ -8,7 +8,7 @@
  * 우측 서랍 — 탭 02 (§14~§21).
  *
  * **전역**이다. 어느 탭에서 열든 같은 것이 보인다. 그래서 `AppShell` 이 한 벌만 들고 있고,
- * 데이터도 `useDrawer()` 한 번으로 여덟 칸을 다 받는다 — 칸마다 부르면
+ * 데이터도 `useDrawer()` 한 번으로 공용 칸을 다 받는다 — 칸마다 부르면
  * 배지에는 3건인데 목록에는 2건인 상태가 생긴다.
  *
  * 껍데기는 `ui/Overlay` 의 `Drawer` 를 그대로 쓴다. 서랍을 새로 그리지 않는다 —
@@ -30,14 +30,14 @@ import { approvalKindLabel } from '@/components/approval/ApprovalRowContent';
 import type { ChangeReqResult, ReqReviewResult } from '@/api/types';
 import {
   ApprovalsPane, changeReqBody, ChangeReqForm, changeReqReady, ChangeReqsPane, KindsPane, MembersPane,
-  EMPTY_DRAFT, NotisPane, TodosPane, ZoomPane, type TodoBox,
+  EMPTY_DRAFT, NotisPane, ZoomPane,
 } from './panes';
 import { MyExpenses } from './MyExpenses';
 import { ScheduleHistory } from './ScheduleHistory';
 import { conflictLines } from '@/lib/calendar';
 
 /**
- * 여덟 칸 — Figma `Spec/02 우측 서랍` 의 순서 그대로.
+ * 최신 수정사항의 여섯 칸 — 받은 할 일은 승인 대기함 안으로 이동했다(A07 · 관리자 p17).
  *
  * **이름이 두 벌이면 안 된다.** 오른쪽 레일은 「승인 대기함」·「프로그램」·「줌 계정」이라 부르는데
  * 여기 탭은 「승인」·「종류」·「줌」이라 줄여 부르고 있었다 — **같은 칸을 같은 화면이 두 이름으로**
@@ -53,7 +53,6 @@ import { conflictLines } from '@/lib/calendar';
  */
 const PANES = [
   { key: 'approvals', label: '승인 대기함', title: '승인 대기함' },
-  { key: 'todos', label: '할 일', title: '할 일 · 피드백' },
   { key: 'notis', label: '알림', title: '알림' },
   { key: 'members', label: '구성원', title: '구성원 · 시간대' },
   { key: 'kinds', label: '프로그램', title: '프로그램 · 과목' },
@@ -69,7 +68,6 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   pane: DrawerPane;
   onPaneChange: (pane: DrawerPane) => void;
 }) {
-  const [box, setBox] = useState<TodoBox>('in');
   const drawer = useWorkspace((w) => w.drawer);
   const beginChangeReq = useWorkspace((w) => w.beginChangeReq);
   const setChangeReqDraft = useWorkspace((w) => w.setChangeReqDraft);
@@ -81,6 +79,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const [notiWindow, setNotiWindow] = useState<'month' | 'all'>('month');
   /** 서버가 거절한 말을 **그대로** 띄운다 — 화면이 이유를 다시 지어내지 않는다 */
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [suggestionReplyError, setSuggestionReplyError] = useState<{ id: number; message: string } | null>(null);
   const paneRetryInFlight = useRef(false);
   const previousPane = useRef<DrawerPane>(pane);
 
@@ -109,7 +108,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
   const dayOccurrences = useOccurrences({ from: draft.day, to: draft.day }, open && creating && dayOk);
   /*
    * §21 격자는 서랍 payload 에 없다 — **칸을 열 때만** 부른다.
-   * 여덟 칸에 얹으면 §21 을 안 여는 사람도 매번 점유 질의를 치른다.
+   * 공용 조회에 얹으면 §21 을 안 여는 사람도 매번 점유 질의를 치른다.
    * 「줌 계정 관리」와 같은 훅이므로 두 화면의 「지금 가능」이 갈리지 않는다.
    */
   const zoom = useZoom(undefined, open && pane === 'zoom');
@@ -228,6 +227,17 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
           {pane === 'approvals' ? (
             <ApprovalsPane
               flow={data.approvals} onGo={onClose} busy={write.isPending}
+              todos={data.todos} members={data.members} meId={meId}
+              onTodoToggle={(id, done) => write.mutate({ kind: 'todo', id, done })}
+              onTodoCreate={(body) => write.mutate({ kind: 'todoCreate', body })}
+              canReplySuggestions={Boolean(me?.canCrudAll)}
+              suggestionReplyError={suggestionReplyError}
+              onSuggestionReply={(id, reply) => {
+                setSuggestionReplyError(null);
+                write.mutate({ kind: 'suggestionReply', id, reply }, {
+                  onError: (cause) => setSuggestionReplyError({ id, message: apiMessage(cause) }),
+                });
+              }}
               error={reviewError}
               onReview={(v) => {
                 setReviewError(null);
@@ -250,15 +260,6 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
                   },
                 );
               }}
-            />
-          ) : null}
-          {pane === 'todos' ? (
-            <TodosPane
-              todos={data.todos} members={data.members} meId={meId} box={box} onBox={setBox}
-              busy={write.isPending}
-              onToggle={(id, done) => write.mutate({ kind: 'todo', id, done })}
-              onCreate={(body) => write.mutate({ kind: 'todoCreate', body })}
-              onClear={(ids) => write.mutate({ kind: 'todoClear', ids })}
             />
           ) : null}
           {pane === 'notis' ? (

@@ -310,6 +310,29 @@ describe('S2-b 할 일 쓰기의 종속 조회', () => {
   });
 });
 
+describe('BOC-02b 승인 대기함 건의 답변', () => {
+  it('기존 건의 답변 API를 쓰고 운영과 모든 drawer snapshot을 서버값으로 갱신한다', async () => {
+    const client = new QueryClient();
+    const drawer = sessionQueryKey(qk.drawer(), 7);
+    const drawerAll = sessionQueryKey(qk.drawer('all'), 7);
+    client.setQueryData(drawer, { marker: '이번 달' });
+    client.setQueryData(drawerAll, { marker: '전체' });
+    client.setQueryData(qk.ops, { marker: '운영' });
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { id: 31 } });
+    const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+    const view = renderHook(useDrawerWrite, { wrapper });
+    try {
+      await act(async () => {
+        await view.result.current.mutateAsync({ kind: 'suggestionReply', id: 31, reply: '확인 후 자료 위치를 변경했습니다' });
+      });
+      expect(patch).toHaveBeenCalledWith('/ops/suggestions/31/reply', { reply: '확인 후 자료 위치를 변경했습니다' });
+      expect(client.getQueryState(drawer)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(drawerAll)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(qk.ops)?.isInvalidated).toBe(true);
+    } finally { view.unmount(); client.clear(); patch.mockRestore(); }
+  });
+});
+
 /**
  * 무효화가 **어떤 모양으로 적혀 있는가**를 소스에서 직접 본다.
  *
