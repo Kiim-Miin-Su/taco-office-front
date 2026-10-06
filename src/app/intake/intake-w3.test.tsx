@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: intake-w3.test.tsx (test) · §23·§24 1:1 대조 wave 3 — 머리 7탭 · 카드 배지·학년·기한 띠 · 실패 카드 · 사유 막대 · 바로 수업 등록.
+ * 목적: intake-w3.test.tsx (test) · §23·§24 1:1 대조 wave 3 — 머리 7탭 · 카드 배지·학년·기한 띠 · 실패 카드 · 사유 막대 · 공용 학생 등록.
  * 책임/재사용: 실제 IntakePage·useOps 캐시를 쓰고 네트워크만 대역으로 바꾼다. 낱말·날짜 셈은 서버 픽스처 그대로다(화면이 짓지 않는다).
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -159,18 +159,19 @@ describe('§24 등록 실패 내역 (24-04 · 24-05 · 24-06 · 24-07 · 24-08)'
     expect(within(reasons[1]!).getByText('신유나')).toBeTruthy();
     expect(within(reasons[5]!).getByText('장서우')).toBeTruthy();
     expect(view.getByText('사유마다 다시 여는 방법이 다릅니다')).toBeTruthy();
-    expect(view.getByText('되살리기 없이 등록 확정 화면으로 바로 갑니다')).toBeTruthy();
+    expect(view.getByText('되살리기 없이 공용 학생 등록 화면으로 갑니다')).toBeTruthy();
     expect(view.queryByText('왜 나눠서 세는가')).toBeNull();
   });
 
-  it('「바로 수업 등록」은 되살리지 않고 등록 확정 창을 연다 (24-07)', async () => {
+  it('실패 상담의 「학생 등록」은 되살리지 않고 공용 등록 route로 이동한다', async () => {
     const view = await setup();
     openFailed(view);
     const list = view.getByRole('list', { name: '실패한 상담' });
     const yuna = within(list).getAllByRole('listitem')[0]!;
-    fireEvent.click(within(yuna).getByRole('button', { name: '바로 수업 등록' }));
-    await waitFor(() => expect(view.getByRole('dialog', { name: '등록 확정 — 신유나' })).toBeTruthy());
-    // 되살리기 요청은 가지 않았다
+    fireEvent.click(within(yuna).getByRole('button', { name: '학생 등록' }));
+    expect(push).toHaveBeenCalledWith('/students/new?source=intake&lead=2');
+    expect(view.queryByRole('dialog', { name: '등록 확정 — 신유나' })).toBeNull();
+    // 되살리기·등록 쓰기 요청은 가지 않았다
     const post = vi.spyOn(api, 'post');
     expect(post).not.toHaveBeenCalled();
   });

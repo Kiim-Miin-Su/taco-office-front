@@ -15,7 +15,8 @@ import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
@@ -42,7 +43,7 @@ const response: Ops = {
   intakeHead: INTAKE_HEAD_FIXTURE,
 };
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); push.mockReset(); });
 
 async function setup() {
   const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response });
@@ -112,22 +113,18 @@ describe('§24 되살리기 — 판정은 서버 응답만 소비', () => {
   });
 });
 
-describe('등록 확정 입구 (C91 · A-05)', () => {
-  it('깔때기 안의 건에만 「등록 확정」이 서고 창이 열린다 — 등록·실패 건에는 없다', async () => {
+describe('공용 학생 등록 입구 (최신 관리자 수정사항)', () => {
+  it('진행 건은 상담 번호를 공용 등록 route로 넘기고 등록 완료 건에는 입구가 없다', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
-    const open = view.getByRole('button', { name: '등록 확정' });
+    const open = view.getByRole('button', { name: '학생 등록' });
     fireEvent.click(open);
-    const dialog = await view.findByRole('dialog', { name: '등록 확정 — 진행중학생' });
-    expect(within(dialog).getByLabelText('이름')).toHaveProperty('value', '진행중학생');
-    expect(within(dialog).getByLabelText('학교')).toHaveProperty('value', '언주중');
-    fireEvent.click(within(dialog).getByRole('button', { name: '취소 (Esc)' }));
-    // 등록 확정 창만 닫힌다 — 카드 상세 서랍(역시 dialog)은 남는다 (23-14)
-    await waitFor(() => expect(view.queryByRole('dialog', { name: '등록 확정 — 진행중학생' })).toBeNull());
+    expect(push).toHaveBeenCalledWith('/students/new?source=intake&lead=3');
+    expect(view.queryByRole('dialog', { name: /등록 확정/ })).toBeNull();
     // 등록 건 — 입구 없음
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
     fireEvent.click(view.getByRole('button', { name: /등록학생/ }));
-    expect(view.queryByRole('button', { name: '등록 확정' })).toBeNull();
+    expect(view.queryByRole('button', { name: '학생 등록' })).toBeNull();
   });
 });
 
@@ -150,12 +147,10 @@ describe('상세 서랍의 사용자 글 (23-20 · P0)', () => {
     expect(visibleText()).not.toMatch(INTERNAL);
   });
 
-  it('등록 확정 창의 청구서 체크 글에도 절 번호가 없다', async () => {
+  it('공용 등록 이동 안내에도 내부 절 번호가 없다', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
-    fireEvent.click(view.getByRole('button', { name: '등록 확정' }));
-    const dialog = await view.findByRole('dialog', { name: '등록 확정 — 진행중학생' });
-    expect(within(dialog).getByLabelText('첫 달 수업료 청구서를 함께 냅니다')).toBeTruthy();
+    expect(view.getByText('상담 번호를 이어 받아 공용 등록 화면에서 학생 정보를 검토합니다.')).toBeTruthy();
     expect(visibleText()).not.toMatch(INTERNAL);
   });
 });
@@ -165,11 +160,11 @@ describe('상세 서랍의 사용자 글 (23-20 · P0)', () => {
  * 예전에는 보드 아래 패널(1600×1000 에서 y≈960)이라 누른 뒤 한참 내려가야 했다. 공용 `Drawer` 로 옮겼다.
  */
 describe('카드 → 상세 서랍 (23-14 · P1)', () => {
-  it('진행 건 카드를 누르면 서랍이 열리고 등록 확정·실패 분류·접촉 원장이 그 안에 있으며, Esc 로 닫힌다', async () => {
+  it('진행 건 카드를 누르면 서랍이 열리고 학생 등록·실패 분류·접촉 원장이 그 안에 있으며, Esc 로 닫힌다', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
     const drawer = view.getByRole('dialog', { name: /진행중학생 — 2차 상담/ });
-    expect(within(drawer).getByRole('button', { name: '등록 확정' })).toBeTruthy();
+    expect(within(drawer).getByRole('button', { name: '학생 등록' })).toBeTruthy();
     expect(within(drawer).getByRole('button', { name: '실패로 분류' })).toBeTruthy();
     expect(within(drawer).getByRole('region', { name: '접촉 원장' })).toBeTruthy();
     fireEvent.keyDown(document.body, { key: 'Escape' });
@@ -185,13 +180,12 @@ describe('카드 → 상세 서랍 (23-14 · P1)', () => {
     expect(view.queryByRole('dialog')).toBeNull();
   });
 
-  it('등록 확정 창 위에서 Esc 는 그 창만 닫고 서랍은 남는다', async () => {
+  it('학생 등록을 누르면 공용 route로 이동하고 중첩 창을 만들지 않는다', async () => {
     const view = await setup();
     fireEvent.click(view.getByRole('button', { name: /진행중학생/ }));
-    fireEvent.click(view.getByRole('button', { name: '등록 확정' }));
-    await view.findByRole('dialog', { name: '등록 확정 — 진행중학생' });
-    fireEvent.keyDown(document.body, { key: 'Escape' });
-    await waitFor(() => expect(view.queryByRole('dialog', { name: '등록 확정 — 진행중학생' })).toBeNull());
+    fireEvent.click(view.getByRole('button', { name: '학생 등록' }));
+    expect(push).toHaveBeenCalledWith('/students/new?source=intake&lead=3');
+    expect(view.queryByRole('dialog', { name: /등록 확정/ })).toBeNull();
     expect(view.getByRole('dialog', { name: /진행중학생 — 2차 상담/ })).toBeTruthy();
   });
 });

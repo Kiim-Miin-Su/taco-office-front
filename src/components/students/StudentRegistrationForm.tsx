@@ -8,8 +8,9 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { useMeta } from '@/api/queries';
 import { educationGradeOptions } from '@/lib/education-grades';
 import { todayKst } from '@/lib/calendar';
-import { Banner, Button, Checkbox, FieldError, Input, Label, LinkButton, PageHeader, Select, Textarea } from '@/components/ui';
+import { Banner, Button, Checkbox, FieldError, Input, Label, LinkButton, PageHeader, Segmented, Select, Textarea } from '@/components/ui';
 import { useStudentReadAllowed } from '@/api/students';
+import type { StudentRegistrationSource } from '@/lib/student-registration-route';
 import { EducationGradeSelect } from './EducationGradeSelect';
 
 type ContactType = 'phone' | 'kakao' | 'email' | 'other';
@@ -93,9 +94,15 @@ function ContactRows({ owner, rows, errors, onChange, onAdd, onRemove, minimumRo
   );
 }
 
-export function StudentRegistrationForm() {
+export interface StudentRegistrationFormProps {
+  source?: StudentRegistrationSource;
+  leadId?: number | null;
+}
+
+export function StudentRegistrationForm({ source: entrySource = 'students', leadId = null }: StudentRegistrationFormProps = {}) {
   const allowed = useStudentReadAllowed();
-  const meta = useMeta(allowed);
+  const [mode, setMode] = useState<'create' | 'reactivate'>('create');
+  const meta = useMeta(allowed && mode === 'create');
   const grades = useMemo(() => educationGradeOptions(meta.data), [meta.data]);
   const systems = useMemo(() => [...new Map(grades.map(item => [item.system, item.systemLabel])).entries()], [grades]);
   const [reviewed, setReviewed] = useState(false);
@@ -114,7 +121,7 @@ export function StudentRegistrationForm() {
   const [citizenship, setCitizenship] = useState('');
   const [guardians, setGuardians] = useState<GuardianDraft[]>(() => [guardian()]);
   const [cashReceipt, setCashReceipt] = useState('');
-  const [source, setSource] = useState('');
+  const [referralSource, setReferralSource] = useState('');
   const [notes, setNotes] = useState('');
   const gradeSource = useMemo(() => ({ educationGrades: grades.filter(item => item.system === educationSystem) }), [educationSystem, grades]);
 
@@ -144,13 +151,28 @@ export function StudentRegistrationForm() {
     setErrors(next); setReviewed(true);
   };
 
+  const context = entrySource === 'intake' && leadId
+    ? `상담 #${leadId}에서 시작했습니다.`
+    : entrySource === 'schedule'
+      ? '스케줄에서 시작했습니다.'
+      : '학생 탭에서 시작했습니다.';
+  const returnHref = entrySource === 'intake'
+    ? (leadId ? `/intake?lead=${leadId}` : '/intake')
+    : entrySource === 'schedule' ? '/schedule' : '/students';
+  const returnLabel = entrySource === 'intake' ? '상담으로 돌아가기' : entrySource === 'schedule' ? '스케줄로 돌아가기' : '학생 목록';
+
   return (
     <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-4">
       <PageHeader title="학생 등록" sub="신규 학생 15절 초안 · 수업 생성과 청구는 등록 뒤 별도 업무입니다"
-        right={<LinkButton href="/students">학생 목록</LinkButton>} />
+        right={<LinkButton href={returnHref}>{returnLabel}</LinkButton>} />
+      <Banner tone="info"><span>{context}</span> 모든 진입 경로는 같은 등록 화면과 입력 규칙을 사용합니다.</Banner>
+      <Segmented ariaLabel="학생 등록 방식" value={mode} onChange={setMode} options={[
+        { value: 'create', label: '신규 학생' },
+        { value: 'reactivate', label: '기존 학생 재활성화' },
+      ]} />
       <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 Front 단계입니다. 생성 DTO·학교/국가 선택 계약이 연결되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner>
 
-      <form aria-label="학생 신규 등록 초안" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); review(); }} noValidate>
+      {mode === 'create' ? <form aria-label="학생 신규 등록 초안" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); review(); }} noValidate>
         <Section number={1} title="초기 이력" sub="학년·학교·거주 정보의 적용 기간이 초기 이력이 됩니다. 같은 값을 현재 정보와 이력에 두 번 입력하지 않습니다.">
           <Banner tone="neutral">결제·수강 금액은 여기서 입력하지 않습니다. 적용 시각과 작성자 정보는 서버가 기록합니다.</Banner>
         </Section>
@@ -241,7 +263,7 @@ export function StudentRegistrationForm() {
         </Section>
 
         <Section number={13} title="알게 된 경로">
-          <div className="max-w-sm"><Label htmlFor="student-source">경로</Label><Select id="student-source" data-field-path="source" value={source} onChange={event => setSource(event.target.value)}><option value="">선택하지 않음</option>{SOURCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div>
+          <div className="max-w-sm"><Label htmlFor="student-source">경로</Label><Select id="student-source" data-field-path="source" value={referralSource} onChange={event => setReferralSource(event.target.value)}><option value="">선택하지 않음</option>{SOURCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div>
         </Section>
 
         <Section number={14} title="담당자">
@@ -257,7 +279,19 @@ export function StudentRegistrationForm() {
           <Button type="submit">입력 검토</Button>
           <Button variant="primary" disabled title="StudentCreateDto와 학교·국가 선택 계약 연결 뒤 활성화">학생 등록 계약 연결 대기</Button>
         </div>
-      </form>
+      </form> : (
+        <section aria-label="기존 학생 재활성화" className="rounded-xl border border-line bg-card p-4 sm:p-5">
+          <h2 className="text-[14px] font-bold text-fg">기존 학생 재활성화</h2>
+          <p className="mt-2 text-[12px] leading-relaxed text-fg-2">
+            퇴원 학생의 같은 STU ID를 유지하고 새 상담 기록을 연결합니다. 신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다.
+          </p>
+          <Banner tone="warning" className="mt-4">현재 학생 DTO에는 퇴원 상태와 재활성화 대상 검색·저장 계약이 없습니다. 계약 연결 전에는 후보를 선택하거나 완료로 표시하지 않습니다.</Banner>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+            <div><Label htmlFor="reactivation-student-search">퇴원 학생 검색</Label><Input id="reactivation-student-search" type="search" placeholder="이름·기존 STU ID 검색 계약 연결 대기" disabled /></div>
+            <div className="flex items-end"><Button variant="primary" disabled>재활성화 계약 연결 대기</Button></div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

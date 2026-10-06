@@ -89,8 +89,8 @@ describe('원본 §07 좌측 사이드바 — 도구·집계·접기', () => {
     fireEvent.click(screen.getByRole('button', { name: /변경 이력/ }));
     expect(onHistory).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: '표 나누기' })).toBeNull();
-    const intake = screen.getByRole('link', { name: /신규 학생 등록/ });
-    expect(intake.getAttribute('href')).toBe('/intake');
+    const registration = screen.getByRole('link', { name: /신규 학생 등록/ });
+    expect(registration.getAttribute('href')).toBe('/students/new?source=schedule');
   });
 
   it('가능 시간은 켜고 끄는 콜백을 받으면 살아나고, 켜진 상태를 aria-pressed 로 말한다 (G37)', () => {

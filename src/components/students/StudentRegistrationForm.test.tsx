@@ -40,11 +40,11 @@ afterEach(() => {
   cleanup(); clients.splice(0).forEach(client => client.clear());
   api.defaults.adapter = originalAdapter; useSession.getState().signOut(); vi.restoreAllMocks();
 });
-function setup() {
+function setup(props: Parameters<typeof StudentRegistrationForm>[0] = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  return render(<StudentRegistrationForm />, { wrapper });
+  return render(<StudentRegistrationForm {...props} />, { wrapper });
 }
 
 describe('BOC-03a 학생 신규 등록 초안', () => {
@@ -106,6 +106,20 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     fireEvent.click(remove);
     expect(view.queryByLabelText('학생 연락처 1 값')).toBeNull();
     expect(view.getByRole('button', { name: '+ 학생 연락수단 추가' })).toBeTruthy();
+  });
+
+  it('출발 경로를 표시하고 재활성화 모드에서 동일 STU·새 상담·부작용0을 밝히며 신규 입력을 보존한다', async () => {
+    const view = setup({ source: 'intake', leadId: 18 });
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(view.getByText('상담 #18에서 시작했습니다.')).toBeTruthy();
+    fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '김학생' } });
+    fireEvent.click(view.getByRole('button', { name: '기존 학생 재활성화' }));
+    expect(view.getByText(/같은 STU ID/)).toBeTruthy();
+    expect(view.getByText(/신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다/)).toBeTruthy();
+    expect(view.getByRole('button', { name: '재활성화 계약 연결 대기' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '신규 학생' }));
+    expect((view.getByLabelText('학생 이름') as HTMLInputElement).value).toBe('김학생');
+    expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);
   });
 
   it('미래 생일·잘못된 email·복수 주보호자를 검토하되 다른 입력은 보존한다', async () => {

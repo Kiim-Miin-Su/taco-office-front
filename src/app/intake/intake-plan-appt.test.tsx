@@ -15,7 +15,8 @@ import IntakePage from './page';
 import { INTAKE_HEAD_FIXTURE } from './intake-head.fixture';
 import { OPS_HEAD_FIXTURE } from '@/app/ops/ops-head.fixture';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
@@ -60,7 +61,7 @@ const META = {
 };
 
 const clients: QueryClient[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); useSession.setState({ me: null }); });
+afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); vi.restoreAllMocks(); push.mockReset(); useSession.setState({ me: null }); });
 
 async function setup() {
   useSession.setState({ me: null, ready: true });
@@ -132,19 +133,15 @@ describe('상세 서랍 — 배치안 · 연장 +2일 · 일정 · 스케줄에 
   });
 });
 
-describe('§24 당시 배치안 · 바로 수업 등록 (24-07)', () => {
-  it('실패 카드에 당시 배치안(단가는 서버 값) · 「바로 수업 등록」 창은 그 줄로 종류 · 과목 · 강사를 채운다', async () => {
+describe('§24 당시 배치안 · 공용 학생 등록 (24-07 최신 수정)', () => {
+  it('당시 배치안은 읽기 전용으로 남기고 상담 번호만 공용 등록 route로 넘긴다', async () => {
     const view = await setup();
     fireEvent.click(within(view.getByRole('group', { name: '상담 보기' })).getByRole('button', { name: '등록 실패 내역' }));
     const box = await waitFor(() => view.getByRole('region', { name: '당시 배치안' }));
     expect(box.textContent).toContain('MAP Reading 주2 · Allissa · ₩90,000');
-    expect(view.getByText('당시 배치안이 그대로 채워지고, 요일·시간만 다시 잡으면 됩니다')).toBeTruthy();
-    fireEvent.click(within(view.getByRole('list', { name: '실패한 상담' })).getByRole('button', { name: '바로 수업 등록' }));
-    const dialog = await waitFor(() => view.getByRole('dialog', { name: '등록 확정 — 신유나' }));
-    await waitFor(() => expect((within(dialog).getByLabelText('수업 1 종류') as HTMLSelectElement).value).toBe('class'));
-    expect((within(dialog).getByLabelText('수업 1 과목') as HTMLSelectElement).value).toBe('map-read');
-    expect((within(dialog).getByLabelText('수업 1 강사') as HTMLSelectElement).value).toBe('7');
-    expect(within(dialog).getByText('상담 배치안 1줄이 채워졌습니다 — 요일·시간만 다시 잡으면 됩니다.')).toBeTruthy();
-    expect(within(dialog).getByText('배치안 주 2회')).toBeTruthy();
+    expect(view.getByText('상담 번호만 이어 받고, 학생 정보는 등록 화면에서 검토합니다')).toBeTruthy();
+    fireEvent.click(within(view.getByRole('list', { name: '실패한 상담' })).getByRole('button', { name: '학생 등록' }));
+    expect(push).toHaveBeenCalledWith('/students/new?source=intake&lead=3');
+    expect(view.queryByRole('dialog', { name: /등록 확정/ })).toBeNull();
   });
 });

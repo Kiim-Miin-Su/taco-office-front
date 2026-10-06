@@ -9,7 +9,7 @@
  *
  * 원본 §23 카드의 「SAT Reading 주2 · Rebecca」가 이 줄이다 — 한 줄의 낱말(`label`)은 서버가 만든다(D-R18).
  * 적는 것은 **과목 · 주 N회 · 강사**뿐이다. 단가는 단가표(RATE)가 정본이라 적지 않고, 금액을 볼 수 있으면 서버가 붙여 준 값을 그린다(D-R39).
- * 「등록 확정」 창이 이 줄로 채워지고 §24 「당시 배치안」도 같은 줄이다. 보류 건은 재확인 날짜(서버가 센 유효값)와 「연장 +2일」이 선다.
+ * §24 「당시 배치안」도 같은 줄을 읽는다. 보류 건은 재확인 날짜(서버가 센 유효값)와 「연장 +2일」이 선다.
  * 끝난 건(등록 · 등록 실패)은 읽기만 한다 — 서버도 409 로 막는다. 부모는 `key={lead.id}` 로 세운다.
  */
 'use client';
@@ -109,7 +109,7 @@ export function LeadPlanSection({ lead, editable, onDone }: LeadPlanSectionProps
           ))}
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" variant="secondary" disabled={pending || lines.length >= 8} onClick={() => setLines((ls) => [...ls, toDraft()])}>+ 줄</Button>
-            <span className="text-[11px] text-fg-subtle">단가는 단가표에서 붙습니다 · 요일·시각은 등록 확정 때 잡습니다</span>
+            <span className="text-[11px] text-fg-subtle">단가는 단가표에서 붙습니다 · 요일·시각은 학생 등록 뒤 수업 설정에서 잡습니다</span>
           </div>
           {issue && lines.length ? <p className="text-[11.5px] text-amber">{issue}</p> : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}

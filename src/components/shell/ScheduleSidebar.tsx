@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { CalendarClock, ChevronsLeft, History, Link2, Lock, Plus, UserPlus } from 'lucide-react';
 import type { Meta, ScheduleSeriesCounts } from '@/api/types';
 import { useWorkspace } from '@/store/useWorkspace';
+import { studentRegistrationHref } from '@/lib/student-registration-route';
 
 function CountRow({ color, name, count }: { color: string; name: string; count: number }) {
   return (
@@ -86,7 +87,7 @@ export function ScheduleSidebar({
           <History size={14} aria-hidden />변경 이력
         </button>
         {/* 원문 톤: 신규 학생 등록 보라 */}
-        <Link href="/intake"
+        <Link href={studentRegistrationHref('schedule')}
           className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet text-[12px] font-bold text-white hover:opacity-90">
           <UserPlus size={14} aria-hidden />신규 학생 등록
         </Link>

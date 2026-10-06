@@ -4,10 +4,13 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { StudentRegistrationForm } from '@/components/students/StudentRegistrationForm';
+import { parseStudentRegistrationContext } from '@/lib/student-registration-route';
 
 export default function StudentRegistrationPage() {
-  return <RequireAuth><AppShell><StudentRegistrationForm /></AppShell></RequireAuth>;
+  const context = parseStudentRegistrationContext(useSearchParams());
+  return <RequireAuth><AppShell><StudentRegistrationForm {...context} /></AppShell></RequireAuth>;
 }

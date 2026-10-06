@@ -103,7 +103,7 @@ describe('§23 카드 단계별 단추 줄 (23-14)', () => {
     expect(view.container.querySelectorAll('button button')).toHaveLength(0);
     // 단계마다 서버가 준 단추 그대로
     expect(within(actionsOf(view, '정하윤')).getAllByRole('button').map((b) => b.textContent)).toEqual(['등록', '실패', '연장 +2일']);
-    expect(within(actionsOf(view, '백승우')).getAllByRole('button').map((b) => b.textContent)).toEqual(['2차 · 진단 잡기', '바로 등록', '여기서 종료']);
+    expect(within(actionsOf(view, '백승우')).getAllByRole('button').map((b) => b.textContent)).toEqual(['2차 · 진단 잡기', '여기서 종료']);
     expect(within(actionsOf(view, '박시온')).getAllByRole('button').map((b) => b.textContent)).toEqual(['사후 관리']);
     fireEvent.click(view.getByRole('button', { name: /^임채린/ }));
     await waitFor(() => expect(view.getByRole('dialog')).toBeTruthy());

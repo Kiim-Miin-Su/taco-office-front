@@ -15,7 +15,7 @@
  * TBO-52 1:1 대조: 카드 상세는 보드 아래 패널이 아니라 공용 `Drawer`(23-14) · §24 는 표 대신 분류 카드 + 실패 카드(24-02) ·
  * 사용자 글에는 절·결정 번호·필드명·오류 코드를 적지 않는다(23-20 — 근거 번호는 이런 주석에만 둔다).
  * wave 3: 머리 오른쪽 7탭(23-01 · 24-01) · 카드 오른쪽 위 유입 경로 배지(23-13) · 학년 칩(23-10) · 단계 기한 띠(23-12) ·
- * §24 실패 카드의 실패일 · 재연락 · 사유 분류(24-04~06) · 「실패 사유 N건」 막대(24-05) · 원문 안내 상자 둘(24-08) · 「바로 수업 등록」(24-07).
+ * §24 실패 카드의 실패일 · 재연락 · 사유 분류(24-04~06) · 「실패 사유 N건」 막대(24-05) · 원문 안내 상자 둘(24-08) · 공용 「학생 등록」 진입.
  * 띠 · 재연락 · 사유 분류의 낱말과 날짜 셈은 전부 서버가 준 것이다(D-R18 · D-R37) — 화면은 날짜를 빼지 않는다.
  * 카드의 배치안 한 줄 · 2차/진단 일정 줄(「미생성」) · 보류 재확인 날짜와 §24 「당시 배치안」(23-15 · 23-16 · 24-07)도 서버 값 그대로 그리고,
  * 적는 곳은 상세 서랍의 「2차 · 진단 일정」·「배치안」 두 칸이다.
@@ -37,7 +37,6 @@ import type { Lead, LeadFail, LeadResume } from '@/api/types';
 import { SearchField, type SearchFieldHandle } from '@/components/ui/SearchField';
 import { SearchEmpty } from '@/components/ui/SearchEmpty';
 import { FAILURE_SEARCH_LABEL, filterLeadsByQuery } from '@/lib/intake-search';
-import { LeadEnrollDialog } from '@/components/ops/LeadEnrollDialog';
 import { LeadCreateButton } from '@/components/intake/LeadCreateDialog';
 import { LeadStageMove } from '@/components/intake/LeadStageMove';
 import { LeadTouchLog, touchAtLabel } from '@/components/intake/LeadTouchLog';
@@ -49,9 +48,8 @@ import { LeadCardActions, type LeadCardFocus } from '@/components/intake/LeadCar
 import { LeadCoreEditor } from '@/components/intake/LeadCoreEditor';
 import { won } from '@/lib/money';
 import { positiveQueryId } from '@/lib/url-state';
-import { hrefForStudentTimetable } from '@/lib/report-links';
+import { studentRegistrationHref } from '@/lib/student-registration-route';
 import { useCan } from '@/store/useSession';
-import { useWorkspace } from '@/store/useWorkspace';
 
 /**
  * 칸의 **색만** 화면이 정한다 — 이름도 순서도 서버의 `intakeHead.funnel` 이 쥔다 (D-R18 · D-R25).
@@ -98,7 +96,7 @@ const REVIVAL_SOURCE: Record<string, string> = {
  * 중단 지점은 카드에 칩으로 따로 세우지 않는다 — 원문 카드에 없고, 「· 보류 단계」 줄과 위 분류 카드가 같은 말을 한다(W11 1:1 · N-87).
  * 그 전 단계는 서버 판정 그대로다(명시값 → 도달 기록 · `failFrom` → `revivalStage`).
  * 실패일 · 재연락 · 사유 분류 낱말은 서버가 준 것이다. 실패 시각이 없는 옛 건은 「날짜 기록 없음」이라 적고 지어내지 않는다(N-25).
- * 「내역 · 상태 저장」·「단계로 되살리기」는 같은 상세 서랍(접촉 기록 · 되살리기)을 연다. 「바로 수업 등록」은 되살리기 없이 등록 확정 창으로 간다.
+ * 「내역 · 상태 저장」·「단계로 되살리기」는 같은 상세 서랍(접촉 기록 · 되살리기)을 연다. 「학생 등록」은 되살리기 없이 공용 등록 화면으로 간다.
  */
 function FailedLeadCard({ lead: l, selected, onPick, onEnroll, failFromLabel }: {
   lead: Lead; selected: boolean; onPick: () => void; onEnroll: () => void; failFromLabel: string | null;
@@ -144,7 +142,7 @@ function FailedLeadCard({ lead: l, selected, onPick, onEnroll, failFromLabel }: 
       <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
         <Button size="sm" onClick={onPick}>내역 · 상태 저장</Button>
         <Button size="sm" onClick={onPick}>단계로 되살리기</Button>
-        <Button size="sm" variant="primary" onClick={onEnroll}>바로 수업 등록</Button>
+        <Button size="sm" variant="primary" onClick={onEnroll}>학생 등록</Button>
       </div>
     </article>
   );
@@ -220,9 +218,6 @@ export default function IntakePage() {
   const [recontactOn, setRecontactOn] = useState('');
   const [resumeTo, setResumeTo] = useState<ResumeKey | ''>('');
   const [armed, setArmed] = useState<'fail' | 'resume' | null>(null);
-  // 등록 확정 창 (C91 · A-05) — 열려 있는 동안만 코드표·교재를 읽는다
-  const [enrolling, setEnrolling] = useState(false);
-  const setHandoff = useWorkspace((w) => w.setHandoff);
   /** 카드 단추가 연 서랍의 칸 (23-14) — 실패의 사유 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계. 서랍을 닫거나 다른 건을 고르면 비운다 */
   const [drawerFocus, setDrawerFocus] = useState<LeadCardFocus | null>(null);
   const fail = useFailLead();
@@ -263,10 +258,10 @@ export default function IntakePage() {
     }, 0);
     return () => window.clearTimeout(t);
   }, [drawerFocus, selectedId]);
-  /** 「바로 수업 등록」(24-07) — 그 건을 고르고(되살리지 않고) 곧장 등록 확정 창을 연다 */
+  /** 최신 관리자 수정사항 — 상담 문맥만 식별자로 넘기고 공용 학생 등록 화면으로 간다. */
   const enrollNow = (l: Lead) => {
     if (selectedId !== l.id) pick(l);
-    setEnrolling(true);
+    router.push(studentRegistrationHref('intake', l.id));
   };
 
   // 칸의 이름·순서는 서버의 퍼널 그대로다 — 화면은 색과 담을 것만 정한다 (D-R18 · D-R25)
@@ -540,7 +535,7 @@ export default function IntakePage() {
                   </ul>
                 ) : null}
                 {/* 등록 카드의 사후 관리 줄 (23-18) — 원본 §23 「해피콜 완료 08-15 · 월간 완료 · 청구서 없음 · 교재 없음 · 안내 없음」. 낱말까지 서버가 준다.
-                    됨은 초록 · 아직은 회색. 해피콜 · 월간은 등록 확정이 만든 담당의 할 일을 읽는다(W11 · N-86 — 할 일을 끝내면 「완료」) */}
+                    됨은 초록 · 아직은 회색. 해피콜 · 월간은 기존 등록 확정이 만든 담당의 할 일을 읽는다(W11 · N-86 — 할 일을 끝내면 「완료」) */}
                 {l.aftercare?.length ? (
                   <ul aria-label={`${l.name} 사후 관리`} className="mt-1 flex flex-col gap-0.5">
                     {l.aftercare.map((a) => (
@@ -659,10 +654,10 @@ export default function IntakePage() {
                     </ul>
                   </section>
                   <section className="rounded-xl border border-amber/30 bg-amber/5 p-3">
-                    <h3 className="mb-1.5 text-[13px] font-bold text-amber">바로 수업 등록</h3>
+                    <h3 className="mb-1.5 text-[13px] font-bold text-amber">학생 등록</h3>
                     <ul className="list-disc space-y-1 pl-4 text-[12px] text-fg-2">
-                      <li>되살리기 없이 등록 확정 화면으로 바로 갑니다</li>
-                      <li>당시 배치안이 그대로 채워지고, 요일·시간만 다시 잡으면 됩니다</li>
+                      <li>되살리기 없이 공용 학생 등록 화면으로 갑니다</li>
+                      <li>상담 번호만 이어 받고, 학생 정보는 등록 화면에서 검토합니다</li>
                       <li>실패 이력은 남습니다</li>
                     </ul>
                   </section>
@@ -674,15 +669,15 @@ export default function IntakePage() {
 
       {/*
         카드 상세 (23-14) — 예전에는 보드 아래 패널이라 1600×1000 첫 화면 밖(y≈960)에 열렸다.
-        공용 `Drawer` 로 옮겨 카드를 누르면 바로 옆에서 동작(단계 이동 · 접촉 기록 · 등록 확정 · 실패 분류 · 되살리기)이 보인다.
-        안의 부품(LeadStageMove · LeadTouchLog · LeadEnrollDialog · 실패/되살리기)은 그대로 쓴다.
+        공용 `Drawer` 로 옮겨 카드를 누르면 바로 옆에서 동작(단계 이동 · 접촉 기록 · 학생 등록 · 실패 분류 · 되살리기)이 보인다.
+        안의 부품(LeadStageMove · LeadTouchLog · 실패/되살리기)은 그대로 쓴다.
       */}
       <Drawer
         open={selected !== null}
         onClose={() => { if (selected) pick(selected); }}
         width={560}
         title={selected ? `${selected.name} — ${stageLabel(selected.stage)}${selected.sourceLabel ? ` · ${selected.sourceLabel}` : ''}` : undefined}
-        sub="단계 이동 · 접촉 기록 · 진단 점수 · 등록 확정 · 실패 분류"
+        sub="단계 이동 · 접촉 기록 · 진단 점수 · 학생 등록 · 실패 분류"
       >
         {selected ? (
           <>
@@ -767,17 +762,16 @@ export default function IntakePage() {
                   >
                     {armed === 'resume' ? '한 번 더 누르면 되살리기' : '단계로 되살리기'}
                   </Button>
-                  {/* 원본 §24 「바로 수업 등록」 (24-07) — 되살리기 없이 등록 확정 창으로. 실패 이력은 서버가 남긴다 */}
-                  <Button size="sm" variant="primary" onClick={() => setEnrolling(true)}>바로 수업 등록</Button>
+                  <Button size="sm" variant="primary" onClick={() => enrollNow(selected)}>학생 등록</Button>
                 </div>
                 {resume.isError ? <Banner tone="danger">{apiMessage(resume.error)}</Banner> : null}
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {/* 등록 확정 (C91 · A-05) — 깔때기 안의 어느 단계에서든(보류 → 등록도 같은 길 · A-12). 일곱 가지는 서버가 한 번에 한다 */}
+                {/* 최신 관리자 수정사항 — 등록 입력은 모든 진입점이 공용 학생 등록 화면을 쓴다. */}
                 <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-inset px-3 py-2">
-                  <Button size="sm" onClick={() => setEnrolling(true)}>등록 확정</Button>
-                  <span className="text-[11px] text-fg-subtle">배치안을 적고 미리 본 뒤 — 학생 · 등록 · 시간표 · 첫 달 청구서 · 교재 · 안내 초안 · 알림이 한 번에 만들어집니다</span>
+                  <Button size="sm" onClick={() => enrollNow(selected)}>학생 등록</Button>
+                  <span className="text-[11px] text-fg-subtle">상담 번호를 이어 받아 공용 등록 화면에서 학생 정보를 검토합니다.</span>
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
                   {/* 사유 분류 다섯 (24-05) — 낱말은 서버의 failReasons. 비우면 기존 분류 유지. 중단 지점은 묻지 않는다(지금 단계에서 서버가 판정 · N-87) */}
@@ -831,23 +825,6 @@ export default function IntakePage() {
           </>
         ) : null}
       </Drawer>
-      {/* 등록 확정 창 — 깔때기 안의 건과 **등록 실패 건**(「바로 수업 등록」 · 24-07). 등록된 건만 빠진다 */}
-      {selected && selected.stage !== 'enrolled' ? (
-        <LeadEnrollDialog
-          open={enrolling}
-          lead={selected}
-          onClose={() => setEnrolling(false)}
-          onDone={(r) => {
-            /*
-              PDF A-05 「화면이 그 학생 주간 시간표로 이동한다」(all160 2026-09-30) — 가장 이른 첫 수업의 주로 학생별 시간표를 연다.
-              무엇이 만들어졌는지 한 줄(C91)은 이 화면이 사라지므로 셸에 넘겨 목적지가 한 번 보여 준다.
-            */
-            const firstOn = r.series.map((x) => x.firstLessonOn).filter((d): d is string => Boolean(d)).sort()[0] ?? null;
-            setHandoff({ to: '/schedule', text: `${r.studentName} 등록 확정 — 수업 ${r.series.length}개${firstOn ? ` · 첫 수업 ${firstOn}` : ''}${r.invoice ? ` · 청구서 ${r.invoice.yearMonth}` : ''} · 안내 초안 ${r.guideDrafts}건${r.aftercare?.happyCallOn ? ` · 해피콜 ${r.aftercare.happyCallOn}` : ''}${r.aftercare?.monthlyOn ? ` · 첫 월간 상담 ${r.aftercare.monthlyOn}` : ''}` });
-            router.push(hrefForStudentTimetable(r.studentId, firstOn));
-          }}
-        />
-      ) : null}
     </AppShell></RequireAuth>
   );
 }

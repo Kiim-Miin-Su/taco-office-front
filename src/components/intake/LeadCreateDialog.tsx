@@ -102,7 +102,7 @@ export function LeadCreateButton({ sources, onDone }: LeadCreateButtonProps) {
               <Input id={`${id}-school`} value={school} maxLength={60} onChange={(e) => setSchool(e.target.value)} disabled={pending} />
             </div>
           </div>
-          {/* 학부모 · 연락처 (A-01 ③) — 등록 확정 때 그 학생의 보호자로 이어진다(서버) */}
+          {/* 학부모 · 연락처 (A-01 ③) — 이후 학생 등록 계약에서 보호자 후보로 이어진다. */}
           <div className="grid grid-cols-[96px_1fr] gap-2">
             <div>
               <Label htmlFor={`${id}-prel`}>학부모</Label>

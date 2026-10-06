@@ -7,11 +7,11 @@
 /**
  * §23 카드 아래의 단계별 단추 줄 (23-14 · wave 6) — 원본 컷 「2차 진행 · 보류 · 등록 · 실패 · 연장 +2일 · 사후 관리 · 되살리기」.
  *
- * **서는 단추와 낱말은 서버가 준 `lead.cardActions` 그대로다** — 화면은 단계를 보고 단추를 고르지 않는다(D-R18 · D-R39).
+ * 단추와 낱말은 서버 `lead.cardActions`를 사용하되, 최신 관리자 수정사항에서 퇴역한 1차 단계의 바로 등록만 숨긴다.
  * 단계를 옮기는 단추의 도착지도 서버의 `to`(언제나 그 건의 `nextStages` 안)라 카드가 새 전이를 만들지 않는다.
  * 단추마다 **이미 있는 길**로 간다 — 입력 없이 끝나는 셋(연장 +2일 · 스케줄에 N건 만들기 · 단계 이동/되살리기)은 여기서 부르고,
  * 입력이 필요한 것(실패의 사유 — 중단 지점은 서버가 단계에서 판정 · N-87 · 2차/진단 일정 · 접촉 기록 · 되살릴 단계가 미분류)은 상세 서랍의 그 칸을 연다(`onOpen`) ·
- * 등록은 등록 확정 창(`onEnroll`). 단계 이동과 되살리기는 서랍과 같이 **두 번 눌러야** 한다(「한 번 더 누르면 …」).
+ * 등록은 공용 학생 등록 화면(`onEnroll`). 단계 이동과 되살리기는 서랍과 같이 **두 번 눌러야** 한다(「한 번 더 누르면 …」).
  * 거절(409)은 서버 문장 그대로 단추 줄 아래에 선다. 카드 몸통 단추와 **형제**로 놓인다 — 단추 안에 단추를 두지 않는다(접근성).
  */
 'use client';
@@ -43,7 +43,7 @@ export function LeadCardActions({ lead, onOpen, onEnroll, onDone }: LeadCardActi
   /** 한 번 누른 단추(단계 이동 · 되살리기) — 한 번 더 눌러야 부른다 */
   const [armed, setArmed] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const actions = lead.cardActions ?? [];
+  const actions = (lead.cardActions ?? []).filter(action => !(lead.stage === 'first' && action.key === 'enroll'));
   if (!actions.length) return null;
   const busy = move.isPending || resume.isPending || extend.isPending || schedule.isPending;
   const fail = (e: unknown) => setErr(apiMessage(e));
