@@ -118,7 +118,7 @@ export default function BooksPage() {
                 setIssueCreateRequest((value) => value + 1);
               }}
             >
-              + 배부
+              + 배정
             </Button>
           </div>
         </div>

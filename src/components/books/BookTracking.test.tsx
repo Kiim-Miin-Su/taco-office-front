@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: §38의 여섯 통계·강사 요청·배부(사유 · 진단 한 줄)·진도 회수 입력이 생성 계약과 연결되는지 검증한다.
+ * 목적: §38의 여섯 통계·강사 요청·교재 배정 준비·진도 회수 입력이 최신 화면 계약과 연결되는지 검증한다.
  * 책임/재사용: 실제 컴포넌트와 Query hook을 쓰고 HTTP 어댑터만 fixture로 바꾼다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -9,7 +9,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it } from 'vitest';
 import { api } from '@/api/client';
 import type { Me } from '@/api/types';
-import { todayKst } from '@/lib/calendar';
 import { useSession } from '@/store/useSession';
 import { BookTracking } from './BookTracking';
 
@@ -38,7 +37,7 @@ afterEach(() => {
   mutation = {};
 });
 
-/** 배부 창의 진단 한 줄 fixture — 학생 3 은 진단이 있고, 그 밖의 학생은 없다 */
+/** 배정 창의 진단 한 줄 fixture — 학생 3 은 진단이 있고, 그 밖의 학생은 없다 */
 const DIAG = {
   id: 1, leadId: 8, english: 32, math: null, interview: 58, takenOn: '2026-08-20', level: 'foundation', levelLabel: 'Foundation',
   byId: 2, byName: '김민수', at: '2026-08-20T10:00:00+09:00',
@@ -81,7 +80,10 @@ function setup({
                 teacherName: '김재훈',
                 nextLesson: '2026-09-14 16:00',
                 todoLabel: '확인 필요',
-                todos: withoutIssuedBooks ? [] : [{ key: 'teacher_request', label: '강사 요청', count: 1 }],
+                todos: withoutIssuedBooks ? [] : [
+                  { key: 'guide_missing', label: '안내 없음', count: 1 },
+                  { key: 'teacher_request', label: '강사 요청', count: 1 },
+                ],
                 issues: withoutIssuedBooks ? [] : [
                   {
                     id: 10,
@@ -133,9 +135,10 @@ function setup({
         : config.url === '/books'
           ? {
               items: [
-                { id: 4, code: 'SAT', title: 'SAT Reading', level: 'Master', levelLabel: 'Master', pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
-                { id: 5, code: 'WR', title: 'Writing', pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
-                { id: 6, code: 'MATH', title: 'Math Practice', pages: 120, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 4, code: 'SAT', title: 'SAT Reading', subKey: 'reading', bookLevel: 'master', level: 'Master', levelLabel: 'Master', gradeFrom: 9, gradeTo: 12, pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 7, code: 'READ-F', title: 'Reading Foundation', subKey: 'reading', bookLevel: 'foundation', level: 'Foundation', levelLabel: 'Foundation', gradeFrom: 9, gradeTo: 12, pages: 96, hasNewer: false, hasFile: true, issueCount: 0 },
+                { id: 5, code: 'WR', title: 'Writing', subKey: 'writing', bookLevel: 'foundation', gradeFrom: 4, gradeTo: 8, pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 6, code: 'MATH', title: 'Math Practice', subKey: 'math', bookLevel: 'practice', gradeFrom: 9, gradeTo: 12, pages: 120, hasNewer: false, hasFile: true, issueCount: 1 },
               ],
               bySub: {},
               newerCount: 0,
@@ -145,12 +148,22 @@ function setup({
             }
           : {
               kinds: [],
-              subs: [],
+              subs: [
+                { key: 'reading', name: 'Reading', color: '#315efb' },
+                { key: 'writing', name: 'Writing', color: '#16a34a' },
+                { key: 'math', name: 'Math', color: '#f97316' },
+              ],
               rooms: [],
               zaccs: [],
               invTypes: [],
-              staff: [],
-              students: [{ id: 3, name: '고은성', grade: 'G12' }, { id: 9, name: '한지우', grade: 'G5' }],
+              staff: [
+                { id: 7, name: '김재훈', role: 'teacher', canAdminPage: false, canGpaPack: false },
+                { id: 2, name: '김민수', role: 'admin', canAdminPage: true, canGpaPack: true },
+              ],
+              students: [
+                { id: 3, name: '고은성', grade: 'G12', label: '고은성 · G12' },
+                { id: 9, name: '한지우', grade: 'G5', label: '한지우 · G5' },
+              ],
             };
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   }) as never;
@@ -165,7 +178,7 @@ function setup({
 
 it('학생 허브 배부 deep link는 meta의 정확한 학생을 미리 고르고 복귀 경로를 보존한다', async () => {
   const view = setup({ componentProps: { createRequest: 1, requestedStudentId: 9, targetRequested: true } });
-  await view.findByText('교재 배부');
+  await view.findByText('교재 배정 준비');
   expect((view.getByLabelText('학생') as HTMLSelectElement).value).toBe('9');
   expect(view.getByRole('link', { name: '학생 허브로 돌아가기' }).getAttribute('href')).toBe('/students/9?tab=books');
 });
@@ -173,8 +186,8 @@ it('학생 허브 배부 deep link는 meta의 정확한 학생을 미리 고르�
 it('학생 허브 배부 deep link의 학생이 없으면 첫 학생을 고르거나 생성 폼을 열지 않는다', async () => {
   const view = setup({ componentProps: { createRequest: 1, requestedStudentId: 999, targetRequested: true } });
   await view.findByText(/요청한 학생을 찾을 수 없습니다/);
-  expect(view.queryByText('교재 배부')).toBeNull();
-  expect(view.queryByRole('button', { name: '배부 완료' })).toBeNull();
+  expect(view.queryByText('교재 배정 준비')).toBeNull();
+  expect(view.queryByRole('button', { name: '저장 준비 중' })).toBeNull();
   expect(view.getByRole('link', { name: '학생 목록으로 돌아가기' }).getAttribute('href')).toBe('/students');
   expect(mutation).toEqual({});
 });
@@ -191,6 +204,15 @@ it('원본 여섯 통계와 DB 강사 요청을 표시한다', async () => {
   await waitFor(() => expect(view.getAllByText('강사 요청').length).toBeGreaterThanOrEqual(1));
   expect(view.getByText('고은성 다 풀었습니다')).toBeTruthy();
   expect(view.getAllByText('SAT Reading').length).toBeGreaterThanOrEqual(2);
+});
+
+it('안내 미발송 학생을 먼저 알리고 학년 묶음과 exact 안내 이동을 제공한다', async () => {
+  const view = setup({ componentProps: { view: 'tracking' } });
+  expect(await view.findByText(/교재 안내가 안 나간 학생 1명/)).toBeTruthy();
+  expect(view.getAllByText('G12').length).toBeGreaterThanOrEqual(2);
+  fireEvent.click(view.getByRole('button', { name: '고은성 자세히 펼치기' }));
+  expect(view.getByRole('link', { name: '교재 안내 보내기' }).getAttribute('href'))
+    .toBe('/guides?tab=students&studentId=3');
 });
 
 it('학생은 있지만 배부 교재가 0종이면 빈 진도율 격자 대신 맥락 있는 안내를 표시한다 (P-156)', async () => {
@@ -250,19 +272,19 @@ it('승인·전달 대기는 사유가 있어야 취소·반려하고 종료 사
   expect(mutation.body).toEqual({ state: 'rejected', reason: '교재 재선정' });
 });
 
-it('종료된 교재의 재배부는 학생·교재를 고정하고 reissuedFrom 계보를 보낸다', async () => {
+it('종료된 교재의 재배정도 학생·교재를 고정하고 강사·과목 계약 전 저장을 잠근다', async () => {
   const view = setup({ withReissueCandidate: true });
   fireEvent.click(await view.findByRole('button', { name: '고은성 펼치기' }));
   expect(view.getByText('학부모 요청 · 김민수')).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '고은성 Math Practice 재배부' }));
-  expect(view.getByText('교재 재배부')).toBeTruthy();
+  expect(view.getByText('교재 재배정 준비')).toBeTruthy();
   expect((view.getByLabelText('학생') as HTMLSelectElement).disabled).toBe(true);
   expect((view.getByLabelText('교재') as HTMLSelectElement).disabled).toBe(true);
-  fireEvent.click(view.getByRole('button', { name: '재배부 등록' }));
-  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({
-    studentId: 3, libId: 6, state: 'ok', issuedOn: todayKst(), reissuedFrom: 30,
-  });
+  fireEvent.change(view.getByLabelText('강사'), { target: { value: '7' } });
+  fireEvent.change(view.getByLabelText('과목'), { target: { value: 'math' } });
+  expect((view.getByLabelText('교재') as HTMLSelectElement).value).toBe('6');
+  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(mutation).toEqual({});
 });
 
 it('학생 한 줄의 진도는 각 교재와 짝지어 표시한다', async () => {
@@ -319,39 +341,42 @@ it('교재별 진도율 카드는 레벨 배지 · 오른쪽 인원 · 큰 % · 
   expect(card.parentElement?.className).toContain('xl:grid-cols-3');
 });
 
-/**
- * N-62 — 배부 창은 사유 한 칸을 받고, 고른 학생의 **최신 상담 진단 한 줄**을 보여 주기만 한다.
- * 점수는 배부 요청에 싣지 않는다(D-R22) · 적지 않은 점수는 「—」다.
- */
-it('배부 창은 사유를 함께 보내고 고른 학생의 최신 진단 한 줄을 보여 주기만 한다 (N-62)', async () => {
+it('최신 배정 창은 강사·과목을 먼저 고르고 학생 학년과 과목에 맞는 교재만 단계순으로 보여 준다', async () => {
   const view = setup();
-  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
+  fireEvent.click(await view.findByRole('button', { name: '+ 배정' }));
+  expect(view.getByText('교재 배정 준비')).toBeTruthy();
+  expect(view.queryByLabelText('초기 상태')).toBeNull();
+  expect((view.getByLabelText('학생') as HTMLSelectElement).disabled).toBe(true);
+  fireEvent.change(view.getByLabelText('강사'), { target: { value: '7' } });
+  fireEvent.change(view.getByLabelText('과목'), { target: { value: 'reading' } });
+  expect((view.getByLabelText('학생') as HTMLSelectElement).disabled).toBe(false);
   expect(view.queryByTestId('issue-diag')).toBeNull();
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
   await waitFor(() => expect(view.getByTestId('issue-diag').textContent).toContain('영어 32 · 수학 — · 인터뷰 58 · 레벨 Foundation · 2026-08-20 진단고사'));
+  expect([...(view.getByLabelText('교재') as HTMLSelectElement).options].map((option) => option.textContent))
+    .toEqual(['선택', '기초 · Reading Foundation', '심화 · SAT Reading']);
   fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
-  fireEvent.change(view.getByLabelText('사유'), { target: { value: '  Reading 보강 — 진단 결과  ' } });
-  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
-  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 3, libId: 4, state: 'ok', issuedOn: todayKst(), reason: 'Reading 보강 — 진단 결과' });
+  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(mutation).toEqual({});
 });
 
-it('진단이 없는 학생은 없다고 적고, 빈 사유는 보내지 않는다 (N-62)', async () => {
+it('진단이 없는 학생은 없다고 적고 학년·과목에 맞는 교재가 없으면 선택지를 열지 않는다', async () => {
   const view = setup();
-  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
+  fireEvent.click(await view.findByRole('button', { name: '+ 배정' }));
+  fireEvent.change(view.getByLabelText('강사'), { target: { value: '7' } });
+  fireEvent.change(view.getByLabelText('과목'), { target: { value: 'reading' } });
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '9' } });
   await waitFor(() => expect(view.getByTestId('issue-diag').textContent).toContain('상담 진단 기록이 없습니다'));
-  fireEvent.change(view.getByLabelText('교재'), { target: { value: '5' } });
-  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
-  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 9, libId: 5, state: 'ok', issuedOn: todayKst() });
+  expect(view.getByText('G5과 이 과목에 맞는 교재가 없습니다.')).toBeTruthy();
+  expect([...(view.getByLabelText('교재') as HTMLSelectElement).options].map((option) => option.textContent)).toEqual(['선택']);
+  expect(mutation).toEqual({});
 });
 
 /**
  * 7-3 §38-2(W11 A' · 리드 채택) — 교재 칸 아래 형태 칩 「PDF」 · 「실물 책」은 배부 줄의 것이다.
  * 승인 대기 요청 줄에도 서고(컷 이유찬 · 이하린), 낱말은 서버 formLabel · 배부 창 선택지는 서버 issueForms 그대로.
  */
-it('형태 칩은 서버 낱말 그대로 승인 대기 요청 줄에도 서고, 배부 창에서 고른 형태를 보낸다 (§38-2)', async () => {
+it('형태 칩은 서버 낱말 그대로 승인 대기 요청 줄에 서고 최신 배정 창 선택지도 유지한다 (§38-2)', async () => {
   const view = setup();
   await waitFor(() => expect(view.getByText('75%')).toBeTruthy());
   const chip = view.container.querySelector('[data-issue-form]') as HTMLElement;
@@ -359,44 +384,22 @@ it('형태 칩은 서버 낱말 그대로 승인 대기 요청 줄에도 서고,
   expect((chip.firstElementChild as HTMLElement).className).toContain('bg-orange');
   // 형태를 안 고른 배부 줄에는 칩이 없다
   expect(view.container.querySelectorAll('[data-issue-form]').length).toBe(1);
-  fireEvent.click(view.getByRole('button', { name: '+ 배부' }));
+  fireEvent.click(view.getByRole('button', { name: '+ 배정' }));
   expect([...(view.getByLabelText('형태') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['—', 'PDF', '실물 책']);
-  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
-  fireEvent.change(view.getByLabelText('교재'), { target: { value: '5' } });
   fireEvent.change(view.getByLabelText('형태'), { target: { value: 'pdf' } });
-  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
-  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 3, libId: 5, state: 'ok', issuedOn: todayKst(), form: 'pdf' });
+  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(mutation).toEqual({});
 });
 
-it('배부 생성은 초기 상태를 고르고 대기 상태에는 배부일·진도를 보내지 않는다 (E-52)', async () => {
+it('최신 배정 창은 상태·배부일·초기 진도 입력을 제거하고 기존 writer를 호출하지 않는다', async () => {
   const view = setup();
-  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
-  expect([...(view.getByLabelText('초기 상태') as HTMLSelectElement).options].map((option) => option.textContent))
-    .toEqual(['승인 대기', '전달 대기', '배부 완료']);
-  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
-  fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
-  fireEvent.change(view.getByLabelText('초기 상태'), { target: { value: 'wait' } });
+  fireEvent.click(await view.findByRole('button', { name: '+ 배정' }));
+  expect(view.queryByLabelText('초기 상태')).toBeNull();
   expect(view.queryByLabelText('배부일')).toBeNull();
   expect(view.queryByLabelText('초기 진도 쪽수')).toBeNull();
-  expect(view.getByText('배부일과 진도는 전달 완료 뒤 기록합니다.')).toBeTruthy();
-  fireEvent.click(view.getByRole('button', { name: '승인 요청 등록' }));
-  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({ studentId: 3, libId: 4, state: 'wait' });
-});
-
-it('즉시 배부는 고른 배부일과 0쪽 초기 진도를 생성 DTO로 보낸다 (E-52)', async () => {
-  const view = setup();
-  fireEvent.click(await view.findByRole('button', { name: '+ 배부' }));
-  fireEvent.change(view.getByLabelText('학생'), { target: { value: '3' } });
-  fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
-  fireEvent.change(view.getByLabelText('배부일'), { target: { value: '2026-09-20' } });
-  fireEvent.change(view.getByLabelText('초기 진도 쪽수'), { target: { value: '0' } });
-  fireEvent.click(view.getByRole('button', { name: '배부 완료' }));
-  await waitFor(() => expect(mutation.url).toBe('/books/issues'));
-  expect(mutation.body).toEqual({
-    studentId: 3, libId: 4, state: 'ok', issuedOn: '2026-09-20', progressPage: 0,
-  });
+  expect(view.getByText(/선택 정보가 빠진 배부 기록을 만들지 않도록/)).toBeTruthy();
+  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(mutation).toEqual({});
 });
 
 it('회수는 사용자가 고른 회수일을 기존 return 계약으로 보낸다 (E-55)', async () => {

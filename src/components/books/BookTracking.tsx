@@ -4,23 +4,23 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import {
   useBookIssueDiag,
   useBooks,
   useBookTracking,
-  useCreateBookIssue,
   useMeta,
   useReturnBookIssue,
   useTransitionBookIssue,
   useUpdateBookProgress,
 } from '@/api/queries';
 import { Banner, Button, Chip, Input, Label, LinkButton, Panel, QueryState, Select, StatCard, Textarea, cn, type StatTone } from '@/components/ui';
-import type { BookIssueCreate, LeadDiag } from '@/api/types';
+import type { Book, BookTrackingStudent, LeadDiag } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
-import { bookLevelPresentation, issueFormTone } from '@/lib/book-presentation';
+import { bookLevelPresentation, bookLevelUiLabel, issueFormTone } from '@/lib/book-presentation';
 import { todayKst } from '@/lib/calendar';
+import { educationGradeOption } from '@/lib/education-grades';
 
 /**
  * 머리 여섯 칸의 **자리별 색** — 원문 §38-6 윗줄: 검정 · 호박 · 청록 · 빨강 · 보라 · 초록(컷 실측).
@@ -43,6 +43,55 @@ function diagLine(d: LeadDiag): string {
 
 /** 진도율 카드 왼쪽 띠 — 서가 카드 띠(bookLevelPresentation.bandClass)와 같은 색. 확정 레벨이 아니면 선 색 */
 const LEVEL_BORDER: Readonly<Record<string, string>> = { 'bg-red': 'border-l-red', 'bg-amber': 'border-l-amber', 'bg-green': 'border-l-green' };
+const BOOK_LEVEL_ORDER: Readonly<Record<string, number>> = { foundation: 0, practice: 1, master: 2 };
+
+function gradeNumber(source: unknown, grade: string | null | undefined): number | null {
+  if (!grade) return null;
+  if (grade === 'K') return 0;
+  const direct = /^G(1[0-2]|[1-9])$/.exec(grade);
+  if (direct) return Number(direct[1]);
+  const projected = educationGradeOption(source, grade)?.sort;
+  return typeof projected === 'number' ? projected : null;
+}
+
+/** 최신 배정 창은 학년 범위와 시간표 과목이 둘 다 맞는 교재만 보여 준다. 미분류 값은 맞는 것으로 추정하지 않는다. */
+function assignmentBooks(books: readonly Book[], source: unknown, grade: string | null | undefined, subKey: string): Book[] {
+  const value = gradeNumber(source, grade);
+  if (value === null || !subKey) return [];
+  return books
+    .filter((book) => book.subKey === subKey && book.gradeFrom != null && book.gradeTo != null
+      && book.gradeFrom <= value && value <= book.gradeTo)
+    .sort((a, b) => (BOOK_LEVEL_ORDER[a.bookLevel ?? ''] ?? 99) - (BOOK_LEVEL_ORDER[b.bookLevel ?? ''] ?? 99)
+      || a.title.localeCompare(b.title, 'ko'));
+}
+
+function guideMissing(student: BookTrackingStudent): boolean {
+  return student.todos.some((todo) => todo.key === 'guide_missing');
+}
+
+/** 서버가 준 학년과 안내 상태를 표시 순서에만 사용한다. 학년 대응이나 안내 상태를 화면에서 새로 판정하지 않는다. */
+function trackingGroups(students: readonly BookTrackingStudent[], source: unknown): Array<{ grade: string; students: BookTrackingStudent[] }> {
+  const byGrade = new Map<string, BookTrackingStudent[]>();
+  for (const student of students) {
+    const grade = student.grade ?? '학년 미정';
+    const rows = byGrade.get(grade) ?? [];
+    rows.push(student);
+    byGrade.set(grade, rows);
+  }
+  return [...byGrade.entries()]
+    .sort(([a], [b]) => {
+      const left = gradeNumber(source, a);
+      const right = gradeNumber(source, b);
+      if (left !== null && right !== null) return left - right;
+      if (left !== null) return -1;
+      if (right !== null) return 1;
+      return a.localeCompare(b, 'ko', { numeric: true });
+    })
+    .map(([grade, rows]) => ({
+      grade,
+      students: rows.sort((a, b) => Number(guideMissing(b)) - Number(guideMissing(a)) || a.name.localeCompare(b.name, 'ko')),
+    }));
+}
 
 export function BookTracking({
   view = 'all',
@@ -61,18 +110,16 @@ export function BookTracking({
   const q = useBookTracking();
   const meta = useMeta();
   const books = useBooks();
-  const create = useCreateBookIssue();
   const progress = useUpdateBookProgress();
   const ret = useReturnBookIssue();
   const transition = useTransitionBookIssue();
   const [adding, setAdding] = useState(false);
+  const [teacherId, setTeacherId] = useState('');
+  const [subjectKey, setSubjectKey] = useState('');
   const [studentId, setStudentId] = useState('');
   const [libId, setLibId] = useState('');
   const [reason, setReason] = useState('');
   const [form, setForm] = useState('');
-  const [issueState, setIssueState] = useState<NonNullable<BookIssueCreate['state']>>('ok');
-  const [issuedOn, setIssuedOn] = useState(todayKst());
-  const [initialProgress, setInitialProgress] = useState('');
   const [reissuedFrom, setReissuedFrom] = useState<number | null>(null);
   const diag = useBookIssueDiag(adding && studentId ? Number(studentId) : null);
   const [pages, setPages] = useState<Record<number, string>>({});
@@ -85,6 +132,16 @@ export function BookTracking({
   const targetMissing = targetRequested && meta.data !== undefined && requestedStudent === null;
   const showTracking = view !== 'progress';
   const showProgress = view !== 'tracking';
+  const selectedStudent = meta.data?.students.find((student) => student.id === Number(studentId)) ?? null;
+  const eligibleBooks = useMemo(() => assignmentBooks(
+    books.data?.items ?? [],
+    meta.data,
+    selectedStudent?.grade,
+    subjectKey,
+  ), [books.data?.items, meta.data, selectedStudent?.grade, subjectKey]);
+  const selectableBooks = reissuedFrom && libId && !eligibleBooks.some((book) => book.id === Number(libId))
+    ? [books.data?.items.find((book) => book.id === Number(libId)), ...eligibleBooks].filter((book): book is Book => !!book)
+    : eligibleBooks;
   useEffect(() => {
     if (targetRequested && requestedStudent) setExpandedId(requestedStudent.id);
     if (createRequest <= 0) return;
@@ -102,33 +159,31 @@ export function BookTracking({
   }, [createRequest, meta.data, requestedStudent, targetRequested]);
   const resetCreate = () => {
     setAdding(false);
+    setTeacherId('');
+    setSubjectKey('');
     setStudentId('');
     setLibId('');
     setReason('');
     setForm('');
-    setIssueState('ok');
-    setIssuedOn(todayKst());
-    setInitialProgress('');
     setReissuedFrom(null);
   };
   const beginReissue = (student: number, issue: { id: number; libId: number }) => {
     setStudentId(String(student));
     setLibId(String(issue.libId));
+    setTeacherId('');
+    setSubjectKey('');
     setReissuedFrom(issue.id);
     setReason('');
     setForm('');
-    setIssueState('ok');
-    setIssuedOn(todayKst());
-    setInitialProgress('');
     setAdding(true);
   };
-  const error = create.error ?? transition.error ?? progress.error ?? ret.error;
+  const error = transition.error ?? progress.error ?? ret.error;
   return (
     <div className="space-y-3">
       {showCreateAction ? (
         <div className="flex justify-end">
           <Button aria-expanded={adding} aria-controls="book-issue-create" onClick={() => adding ? resetCreate() : setAdding(true)}>
-            + 배부
+            + 배정
           </Button>
         </div>
       ) : null}
@@ -147,13 +202,38 @@ export function BookTracking({
       {adding ? (
         <div id="book-issue-create">
           <Panel
-            title={reissuedFrom ? '교재 재배부' : '교재 배부'}
-            sub={reissuedFrom ? '이전 종료 배부와 계보를 연결하여 새 배부를 남깁니다' : '학생과 교재는 DB 식별자로 연결하며 중복 배부는 서버가 막습니다'}
+            title={reissuedFrom ? '교재 재배정 준비' : '교재 배정 준비'}
+            sub="강사와 과목을 먼저 고른 뒤 학생 학년에 맞는 교재를 선택합니다"
           >
+            <Banner tone="warning" className="mb-3">
+              강사·과목까지 함께 저장하는 배정 기능을 준비 중입니다. 선택 정보가 빠진 배부 기록을 만들지 않도록 저장을 잠갔습니다.
+            </Banner>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
+                <Label htmlFor="issue-teacher">강사</Label>
+                <Select id="issue-teacher" value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>
+                  <option value="">먼저 선택</option>
+                  {meta.data?.staff.filter((staff) => !staff.canAdminPage).map((staff) => (
+                    <option key={staff.id} value={staff.id}>{staff.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="issue-subject">과목</Label>
+                <Select id="issue-subject" value={subjectKey} onChange={(event) => {
+                  setSubjectKey(event.target.value);
+                  if (!reissuedFrom) setLibId('');
+                }}>
+                  <option value="">먼저 선택</option>
+                  {meta.data?.subs.map((subject) => (
+                    <option key={subject.key} value={subject.key}>{subject.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
                 <Label htmlFor="issue-student">학생</Label>
-                <Select id="issue-student" value={studentId} disabled={reissuedFrom !== null} onChange={(e) => setStudentId(e.target.value)}>
+                <Select id="issue-student" value={studentId} disabled={reissuedFrom !== null || !teacherId || !subjectKey}
+                  onChange={(event) => { setStudentId(event.target.value); setLibId(''); }}>
                   <option value="">선택</option>
                   {meta.data?.students.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -164,56 +244,19 @@ export function BookTracking({
               </div>
               <div>
                 <Label htmlFor="issue-book">교재</Label>
-                <Select id="issue-book" value={libId} disabled={reissuedFrom !== null} onChange={(e) => setLibId(e.target.value)}>
+                <Select id="issue-book" value={libId} disabled={reissuedFrom !== null || !selectedStudent}
+                  onChange={(event) => setLibId(event.target.value)}>
                   <option value="">선택</option>
-                  {books.data?.items.map((b) => (
+                  {selectableBooks.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.title}
+                      {bookLevelUiLabel(b.bookLevel, b.levelLabel)} · {b.title}
                     </option>
                   ))}
                 </Select>
+                {selectedStudent && subjectKey && selectableBooks.length === 0 ? (
+                  <p className="mt-1 text-[11px] text-danger">{selectedStudent.grade ?? '학년 미정'}과 이 과목에 맞는 교재가 없습니다.</p>
+                ) : null}
               </div>
-              <div>
-                <Label htmlFor="issue-state">초기 상태</Label>
-                <Select
-                  id="issue-state"
-                  value={issueState}
-                  onChange={(event) => setIssueState(event.target.value as NonNullable<BookIssueCreate['state']>)}
-                >
-                  <option value="wait">승인 대기</option>
-                  <option value="auto">전달 대기</option>
-                  <option value="ok">배부 완료</option>
-                </Select>
-              </div>
-              {issueState === 'ok' ? (
-                <>
-                  <div>
-                    <Label htmlFor="issue-issued-on">배부일</Label>
-                    <Input
-                      id="issue-issued-on"
-                      type="date"
-                      value={issuedOn}
-                      onChange={(event) => setIssuedOn(event.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="issue-progress">초기 진도 쪽수</Label>
-                    <Input
-                      id="issue-progress"
-                      type="number"
-                      min={0}
-                      max={books.data?.items.find((book) => book.id === Number(libId))?.pages ?? undefined}
-                      value={initialProgress}
-                      onChange={(event) => setInitialProgress(event.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-                </>
-              ) : (
-                <p className="self-end text-[11px] text-fg-subtle">
-                  배부일과 진도는 전달 완료 뒤 기록합니다.
-                </p>
-              )}
               {/* N-62 — 그 학생의 최신 상담 진단 한 줄(읽기만) */}
               {studentId ? (
                 <p data-testid="issue-diag" className="text-[12px] text-fg-subtle sm:col-span-2">
@@ -255,26 +298,10 @@ export function BookTracking({
                 취소
               </Button>
               <Button
-                disabled={!studentId || !libId || create.isPending}
-                onClick={() =>
-                  create.mutate(
-                    {
-                      studentId: Number(studentId), libId: Number(libId), state: issueState,
-                      ...(issueState === 'ok' && issuedOn ? { issuedOn } : {}),
-                      ...(issueState === 'ok' && initialProgress !== '' ? { progressPage: Number(initialProgress) } : {}),
-                      ...(reason.trim() ? { reason: reason.trim() } : {}),
-                      ...(form ? { form: form as BookIssueCreate['form'] } : {}),
-                      ...(reissuedFrom ? { reissuedFrom } : {}),
-                    },
-                    {
-                      onSuccess: () => {
-                        resetCreate();
-                      },
-                    },
-                  )
-                }
+                disabled
+                title="강사·과목을 함께 저장하는 기능을 준비 중입니다"
               >
-                {reissuedFrom ? '재배부 등록' : issueState === 'wait' ? '승인 요청 등록' : issueState === 'auto' ? '전달 대기 등록' : '배부 완료'}
+                저장 준비 중
               </Button>
             </div>
           </Panel>
@@ -311,7 +338,12 @@ export function BookTracking({
                 </div>
               </Banner>
             ) : null}
-            {showTracking ? <Panel title={`학생 ${d.students.length}명`} sub="학생마다 어디까지 갔는지 한 줄로 봅니다">
+            {showTracking && d.students.some(guideMissing) ? (
+              <Banner tone="danger">
+                <b>교재 안내가 안 나간 학생 {d.students.filter(guideMissing).length}명</b> — 먼저 보내 주세요.
+              </Banner>
+            ) : null}
+            {showTracking ? <Panel title={`트래킹 보드 · 학생 ${d.students.length}명`} sub="교재 안내 미발송 우선 · 학년별 · 학생 이름 순">
               <div className="overflow-x-auto">
                 <div className="min-w-[1120px] space-y-2">
                   <div className="grid grid-cols-[30px_150px_minmax(300px,1fr)_180px_220px_120px_64px] px-3 text-[11px] font-bold text-fg-subtle">
@@ -323,7 +355,15 @@ export function BookTracking({
                     <span>다음 수업</span>
                     <span>자세히</span>
                   </div>
-                  {d.students.map((s) => (
+                  {trackingGroups(d.students, meta.data).flatMap((group) => [
+                    <div key={`grade-${group.grade}`} className="flex items-center gap-2 border-b border-line px-3 pb-1 pt-3">
+                      <b>{group.grade}</b>
+                      {educationGradeOption(meta.data, group.grade)?.equivalenceHint ? (
+                        <span className="text-[11px] text-fg-subtle">{educationGradeOption(meta.data, group.grade)?.equivalenceHint}</span>
+                      ) : null}
+                      <Chip size="compact">{group.students.length}명</Chip>
+                    </div>,
+                    ...group.students.map((s) => (
                     <article key={s.id} className="overflow-hidden rounded-xl border border-line bg-card text-[12px]">
                       <div className="grid grid-cols-[30px_150px_minmax(300px,1fr)_180px_220px_120px_64px] items-center gap-2 px-3 py-3">
                         <button
@@ -435,6 +475,11 @@ export function BookTracking({
                       </div>
                       {expandedId === s.id ? (
                         <div id={`book-student-${s.id}-detail`} className="border-t border-line bg-inset px-4 py-3">
+                          <div className="mb-3 flex flex-wrap justify-end gap-2">
+                            <LinkButton href={`/guides?tab=students&studentId=${s.id}`} size="sm">
+                              교재 안내 보내기
+                            </LinkButton>
+                          </div>
                           <div className="space-y-2">
                             {s.issues.length ? (
                               s.issues.map((issue) => {
@@ -569,7 +614,8 @@ export function BookTracking({
                         </div>
                       ) : null}
                     </article>
-                  ))}
+                    )),
+                  ])}
                 </div>
               </div>
             </Panel> : null}
