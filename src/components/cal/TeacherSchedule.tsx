@@ -5,9 +5,9 @@
  */
 
 /**
- * 강사 PPTX §8·§9: 웹/모바일 캘린더의 기본은 오늘 수업 목록이며 관리자 주간표와 다르다
- * (AGENT.md §B 「캘린더 탭에서도 같은 목록 원칙」이 덱 slide 11 의 주간 격자보다 우선한다).
- * 덱 slide 11 에서 목록에 옮겨 오는 것: 안 쓴 리포트 빨간 띠 · 「내 스케줄에 배정된 학생만」 · 날짜별 공휴일 이름표 · 색이 뜻하는 것.
+ * 강사 PPTX §8·§9와 TBO-55 BOC-05b: 기본 오늘 목록에 주간·월간 읽기 보기를 더한다.
+ * 세 보기는 같은 occurrence·공휴일·리포트 상태와 05a exact 수업 허브를 사용한다.
+ * 관리자 캘린더의 생성·드래그·자원 축은 강사 화면에 가져오지 않는다.
  */
 'use client';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,11 +15,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMeta, useOccurrences, useScheduleHolidays, useUnwritten } from '@/api/queries';
 import type { Meta, Occurrence } from '@/api/types';
-import { addDays, dayHeadLabel, hhmm, label, occurrenceKey, teacherSchedule, todayKst } from '@/lib/calendar';
+import {
+  addDays, boundsOf, dayHeadLabel, hhmm, label, monthGrid, occurrenceKey, step, teacherSchedule, todayKst, weekDays,
+} from '@/lib/calendar';
 import { AppShell } from '@/components/shell/AppShell';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 import { ReportDetailDrawer } from '@/components/report/ReportDetailDrawer';
-import { Banner, Button, Chip, LinkButton, Panel } from '@/components/ui';
+import { Banner, Button, Chip, LinkButton, Panel, Segmented } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
 import { STATUS_LABEL, STATUS_LOOK } from './EventBlock';
 import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
@@ -36,6 +38,13 @@ type Lookup = {
   zoom: Map<number, string>;
 };
 type HubView = 'hub' | 'report' | 'lesson';
+type TeacherCalendarView = 'day' | 'week' | 'month';
+
+const TEACHER_CALENDAR_VIEWS: Array<{ value: TeacherCalendarView; label: string }> = [
+  { value: 'day', label: '오늘' },
+  { value: 'week', label: '주간' },
+  { value: 'month', label: '월간' },
+];
 
 /** 리포트 상태색은 기존 블록과 한 표를 공유한다. 취소는 상태 축과 별도로 표시한다. */
 function statusLabel(occ: Occurrence): string {
@@ -120,13 +129,150 @@ function lookups(meta?: Meta): Lookup {
   };
 }
 
+function teacherCalendarBounds(view: TeacherCalendarView, anchor: string): { from: string; to: string } {
+  return view === 'day' ? { from: anchor, to: addDays(anchor, 7) } : boundsOf(view, anchor);
+}
+
+function teacherCalendarLabel(view: TeacherCalendarView, anchor: string): string {
+  if (view === 'month') return `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월`;
+  if (view === 'week') {
+    const days = weekDays(anchor);
+    return `${label(days[0])} – ${label(days[6])}`;
+  }
+  return dayHeadLabel(anchor);
+}
+
+function scheduleHref(view: TeacherCalendarView, anchor: string, occ?: Occurrence): string {
+  const params = new URLSearchParams({ view, anchor });
+  if (occ) {
+    params.set('serId', String(occ.serId));
+    params.set('onDate', occ.onDate);
+    params.set('date', occ.date);
+    params.set('source', 'calendar');
+  }
+  return `/schedule?${params.toString()}`;
+}
+
+function CalendarLessonButton({ occ, lookup, onOpen, compact = false }: {
+  occ: Occurrence;
+  lookup: Lookup;
+  onOpen: (occ: Occurrence) => void;
+  compact?: boolean;
+}) {
+  const canceled = occ.canceled || occ.attendance?.countsForPay === false;
+  const look = STATUS_LOOK[canceled ? 'na' : occ.repState] ?? STATUS_LOOK.na;
+  const subject = (occ.subKey ? lookup.subjects.get(occ.subKey) : undefined)
+    ?? occ.title ?? lookup.kinds.get(occ.kindKey) ?? '수업';
+  const students = occ.students.filter((student) => !student.droppedOnce).map((student) => student.name).join(' · ');
+  return (
+    <button type="button" onClick={() => onOpen(occ)}
+      aria-label={`${label(occ.date)} ${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subject} · ${students || '학생 미정'} · ${statusLabel(occ)}`}
+      className={cn(
+        'min-h-11 w-full rounded-lg border px-2 py-2 text-left transition-colors hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue',
+        look,
+      )}>
+      <span className="flex items-center gap-1.5">
+        <span className="shrink-0 text-[11px] font-bold">{hhmm(occ.startMin)}</span>
+        <span className={cn('min-w-0 flex-1 truncate text-[12px] font-bold', canceled && 'line-through')}>{subject}</span>
+      </span>
+      {!compact ? <span className="mt-0.5 block truncate text-[10px] opacity-80">{students || '학생 미정'} · {statusLabel(occ)}</span> : null}
+    </button>
+  );
+}
+
+function TeacherWeekCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPickDay }: {
+  anchor: string;
+  items: readonly Occurrence[];
+  holidaysOn: ReadonlyMap<string, string[]>;
+  lookup: Lookup;
+  onOpen: (occ: Occurrence) => void;
+  onPickDay: (date: string) => void;
+}) {
+  const days = weekDays(anchor);
+  const grouped = new Map(byDate(items));
+  return (
+    <section role="region" aria-label="주간 캘린더" className="min-w-0">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
+        {days.map((date) => {
+          const lessons = grouped.get(date) ?? EMPTY;
+          return (
+            <article key={date} data-week-date={date} className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
+              <button type="button" onClick={() => onPickDay(date)}
+                aria-label={`${dayHeadLabel(date)} 오늘 보기`}
+                className="min-h-11 w-full border-b border-line bg-inset px-3 py-2 text-left hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue">
+                <span className="flex items-center justify-between gap-2 text-[12px] font-bold text-fg">
+                  <time dateTime={date}>{dayHeadLabel(date)}</time><span className="text-fg-subtle">{lessons.length}건</span>
+                </span>
+                <span className="mt-1 flex flex-wrap gap-1"><HolidayChips names={holidaysOn.get(date)} /></span>
+              </button>
+              {lessons.length ? (
+                <ul className="flex flex-col gap-1.5 p-2">
+                  {lessons.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} /></li>)}
+                </ul>
+              ) : <p className="p-3 text-[11px] text-fg-subtle">수업 없음</p>}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPickDay }: {
+  anchor: string;
+  items: readonly Occurrence[];
+  holidaysOn: ReadonlyMap<string, string[]>;
+  lookup: Lookup;
+  onOpen: (occ: Occurrence) => void;
+  onPickDay: (date: string) => void;
+}) {
+  const days = monthGrid(anchor);
+  const grouped = new Map(byDate(items));
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const month = anchor.slice(0, 7);
+  return (
+    <section role="region" aria-label="월간 캘린더" className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
+        {days.map((date) => {
+          const lessons = grouped.get(date) ?? EMPTY;
+          const shown = expanded.has(date) ? lessons : lessons.slice(0, 3);
+          const more = lessons.length - shown.length;
+          return (
+            <article key={date} data-month-date={date}
+              className={cn('min-h-32 min-w-0 border-b border-r border-line p-2', date.slice(0, 7) !== month && 'bg-inset/60 opacity-70')}>
+              <button type="button" onClick={() => onPickDay(date)} aria-label={`${dayHeadLabel(date)} 오늘 보기`}
+                className="min-h-11 w-full rounded-md px-1 text-left hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue">
+                <span className="flex items-center justify-between gap-1 text-[12px] font-bold text-fg">
+                  <time dateTime={date}>{Number(date.slice(8, 10))}일</time><span className="text-[10px] text-fg-subtle">{lessons.length}건</span>
+                </span>
+                <span className="mt-0.5 flex flex-wrap gap-1"><HolidayChips names={holidaysOn.get(date)} /></span>
+              </button>
+              <ul className="mt-1 flex flex-col gap-1">
+                {shown.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} compact /></li>)}
+              </ul>
+              {more > 0 ? (
+                <button type="button" className="mt-1 min-h-11 w-full rounded-md text-[11px] font-bold text-blue hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue"
+                  onClick={() => setExpanded((current) => new Set(current).add(date))}>+{more}건 더</button>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function TeacherSchedule() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // 분 경계와 탭 복귀에 맞춰 갱신한다. 자정이 지나면 쿼리 범위도 새 오늘을 따라간다.
   const [now, setNow] = useState(() => Date.now());
   const today = todayKst(now);
-  const q = useOccurrences({ from: today, to: addDays(today, 7) });
+  const calendarView = queryEnum(searchParams.get('view'), ['day', 'week', 'month'] as const) ?? 'day';
+  const explicitAnchor = queryIsoDate(searchParams.get('anchor'));
+  const anchor = explicitAnchor ?? today;
+  const calendarRange = teacherCalendarBounds(calendarView, anchor);
+  const q = useOccurrences(calendarRange);
   const rawSerId = searchParams.get('serId');
   const rawOnDate = searchParams.get('onDate');
   const rawDate = searchParams.get('date');
@@ -160,7 +306,7 @@ export function TeacherSchedule() {
   }, [today, refetch, refetchUnwritten]);
   const meta = useMeta();
   const items = q.data?.items ?? EMPTY;
-  const model = useMemo(() => teacherSchedule(items, today), [items, today]);
+  const model = useMemo(() => teacherSchedule(items, anchor), [items, anchor]);
   const lookup = useMemo(() => lookups(meta.data), [meta.data]);
   const requestedOccurrence = validRequestedLesson
     ? (requested.data?.items ?? EMPTY).find((occ) => (
@@ -182,18 +328,24 @@ export function TeacherSchedule() {
     setLocalOccurrence(occ);
     setLocalSource('calendar');
     setHubView('hub');
-    router.replace(`/schedule?serId=${occ.serId}&onDate=${occ.onDate}&date=${occ.date}&source=calendar`);
+    router.replace(scheduleHref(calendarView, anchor, occ));
   };
   const source = localSource ?? queryEnum(searchParams.get('source'), ['home', 'calendar'] as const) ?? 'calendar';
   const closeHub = () => {
     setLocalOccurrence(null);
     setHubView('hub');
-    router.replace(source === 'home' ? '/teacher' : '/schedule');
+    router.replace(source === 'home' ? '/teacher' : scheduleHref(calendarView, anchor));
+  };
+  const navigateCalendar = (view: TeacherCalendarView, nextAnchor: string) => {
+    setLocalOccurrence(null);
+    setLocalSource(null);
+    setHubView('hub');
+    router.replace(scheduleHref(view, nextAnchor));
   };
   const ready = q.data !== undefined && !q.isError;
-  // 공휴일은 목록과 같은 범위(오늘~7일 뒤)만 — 날짜의 사실이라 로그인한 누구나 읽는다(서버 표 한 곳)
+  // 공휴일은 현재 보기와 같은 범위만 — 날짜의 사실이라 로그인한 누구나 읽는다(서버 표 한 곳)
   const teacherSurface = useTeacherSurface();
-  const holidays = useScheduleHolidays({ from: today, to: addDays(today, 7) }, teacherSurface);
+  const holidays = useScheduleHolidays(calendarRange, teacherSurface);
   const holidaysOn = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const h of holidays.data?.items ?? []) map.set(h.date, [...(map.get(h.date) ?? []), h.name]);
@@ -219,43 +371,72 @@ export function TeacherSchedule() {
           </span>
         </Banner>
       ) : null}
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-2">
+        <Segmented<TeacherCalendarView> ariaLabel="강사 캘린더 보기" value={calendarView}
+          className="[&_button]:min-h-11"
+          options={TEACHER_CALENDAR_VIEWS}
+          onChange={(view) => navigateCalendar(view, anchor)} />
+        <div role="group" aria-label="기간 이동" className="ml-auto flex flex-wrap items-center gap-1">
+          <Button className="min-h-11" size="sm" aria-label="이전 기간"
+            onClick={() => navigateCalendar(calendarView, step(calendarView, anchor, -1))}>‹</Button>
+          <span className="min-w-[156px] px-1 text-center text-[12px] font-bold text-fg">
+            {teacherCalendarLabel(calendarView, anchor)}
+          </span>
+          <Button className="min-h-11" size="sm" aria-label="다음 기간"
+            onClick={() => navigateCalendar(calendarView, step(calendarView, anchor, 1))}>›</Button>
+          <Button className="min-h-11" size="sm" aria-label="오늘로 이동"
+            onClick={() => navigateCalendar(calendarView, today)}>오늘</Button>
+        </div>
+      </div>
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
         <div className="flex min-w-0 flex-col gap-5">
-          <TeacherTodayHero date={today} lessons={ready ? model.todayCount : null} minutes={ready ? model.todayMinutes : null} />
+          {calendarView === 'day' ? (
+            <TeacherTodayHero date={anchor} lessons={ready ? model.todayCount : null} minutes={ready ? model.todayMinutes : null} />
+          ) : null}
 
           {q.isLoading ? <div role="status"><Banner tone="neutral">수업을 불러오는 중…</Banner></div> : q.isError ? (
             <div role="alert"><Banner tone="danger">수업을 불러오지 못했습니다. <Button size="sm" onClick={() => void q.refetch()}>다시 시도</Button></Banner></div>
           ) : (
             <>
               {meta.isError ? <Banner tone="warning">과목·장소 이름을 일부 불러오지 못했습니다. 수업 상세에서 확인해 주세요.</Banner> : null}
-              <section aria-label="오늘 전체 스케줄" className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
-                <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-4">
-                  <h2 className="text-[16px] font-bold text-fg">오늘 전체 스케줄</h2>
-                  <HolidayChips names={holidaysOn.get(today)} />
-                  <span className="ml-auto text-[11px] text-fg-subtle">시간 순</span>
-                </div>
-                {model.today.length ? <ul>{model.today.map((occ) => <ScheduleRow key={occurrenceKey(occ)} occ={occ} upcoming={false} lookup={lookup} onOpen={openSchedule} />)}</ul>
-                  : <p className="p-6 text-[13px] text-fg-subtle">오늘 수업이 없습니다.</p>}
-              </section>
-              <section aria-label="다가오는 수업" className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
-                <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-4">
-                  <h2 className="text-[16px] font-bold text-fg">다가오는 수업</h2><span className="text-[11px] text-fg-subtle">앞으로 7일 · {model.upcoming.length}건</span>
-                </div>
-                {model.upcoming.length ? byDate(model.upcoming).map(([date, occs]) => (
-                  // 날짜 묶음 — 덱 리포트 목록(slide 18)의 「8월 25일 (화) 2건」 머리와 같은 모양 · 공휴일 이름표는 그날 머리에
-                  <div key={date} role="group" aria-label={`${dayHeadLabel(date)} · ${occs.length}건`} className="border-t border-line first:border-t-0">
-                    <div className="flex flex-wrap items-center gap-2 bg-inset px-4 py-2 text-[12px] font-bold text-fg">
-                      <time dateTime={date}>{dayHeadLabel(date)}</time>
-                      <Chip size="compact" tone="info">{daysAfter(today, date)}일 뒤</Chip>
-                      <HolidayChips names={holidaysOn.get(date)} />
-                      <span className="ml-auto font-medium text-fg-subtle">{occs.length}건</span>
+              {holidays.isError ? <Banner tone="warning">공휴일 이름을 불러오지 못했습니다. 수업 일정은 그대로 표시합니다.</Banner> : null}
+              {calendarView === 'day' ? (
+                <>
+                  <section aria-label="오늘 전체 스케줄" className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-4">
+                      <h2 className="text-[16px] font-bold text-fg">{anchor === today ? '오늘' : dayHeadLabel(anchor)} 전체 스케줄</h2>
+                      <HolidayChips names={holidaysOn.get(anchor)} />
+                      <span className="ml-auto text-[11px] text-fg-subtle">시간 순</span>
                     </div>
-                    <ul>{occs.map((occ) => <ScheduleRow key={occurrenceKey(occ)} occ={occ} upcoming lookup={lookup} onOpen={openSchedule} />)}</ul>
-                  </div>
-                ))
-                  : <p className="p-6 text-[13px] text-fg-subtle">앞으로 7일 동안 예정된 수업이 없습니다.</p>}
-              </section>
-              <p className="text-[11px] text-fg-subtle">내 스케줄에 배정된 학생만 표시됩니다. 취소·휴강과 출결 취소는 오늘 건수·시수에서 제외합니다.</p>
+                    {model.today.length ? <ul>{model.today.map((occ) => <ScheduleRow key={occurrenceKey(occ)} occ={occ} upcoming={false} lookup={lookup} onOpen={openSchedule} />)}</ul>
+                      : <p className="p-6 text-[13px] text-fg-subtle">{anchor === today ? '오늘' : '선택한 날'} 수업이 없습니다.</p>}
+                  </section>
+                  <section aria-label="다가오는 수업" className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-4">
+                      <h2 className="text-[16px] font-bold text-fg">다가오는 수업</h2><span className="text-[11px] text-fg-subtle">앞으로 7일 · {model.upcoming.length}건</span>
+                    </div>
+                    {model.upcoming.length ? byDate(model.upcoming).map(([date, occs]) => (
+                      <div key={date} role="group" aria-label={`${dayHeadLabel(date)} · ${occs.length}건`} className="border-t border-line first:border-t-0">
+                        <div className="flex flex-wrap items-center gap-2 bg-inset px-4 py-2 text-[12px] font-bold text-fg">
+                          <time dateTime={date}>{dayHeadLabel(date)}</time>
+                          <Chip size="compact" tone="info">{daysAfter(anchor, date)}일 뒤</Chip>
+                          <HolidayChips names={holidaysOn.get(date)} />
+                          <span className="ml-auto font-medium text-fg-subtle">{occs.length}건</span>
+                        </div>
+                        <ul>{occs.map((occ) => <ScheduleRow key={occurrenceKey(occ)} occ={occ} upcoming lookup={lookup} onOpen={openSchedule} />)}</ul>
+                      </div>
+                    ))
+                      : <p className="p-6 text-[13px] text-fg-subtle">앞으로 7일 동안 예정된 수업이 없습니다.</p>}
+                  </section>
+                </>
+              ) : calendarView === 'week' ? (
+                <TeacherWeekCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup}
+                  onOpen={openSchedule} onPickDay={(date) => navigateCalendar('day', date)} />
+              ) : (
+                <TeacherMonthCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup}
+                  onOpen={openSchedule} onPickDay={(date) => navigateCalendar('day', date)} />
+              )}
+              <p className="text-[11px] text-fg-subtle">내 스케줄에 배정된 학생만 표시됩니다. 취소·휴강과 출결 취소는 오늘 보기의 건수·시수에서 제외합니다.</p>
             </>
           )}
         </div>

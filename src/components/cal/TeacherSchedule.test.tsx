@@ -125,6 +125,74 @@ describe('강사 캘린더 — 덱 slide 11·12 대조 (wave 6)', () => {
   });
 });
 
+describe('BOC-05b 강사 오늘·주간·월간 캘린더', () => {
+  it('view와 anchor를 allowlist해 주간의 월요일~일요일만 읽고 같은 범위의 공휴일을 표시한다', () => {
+    nav.search = 'view=week&anchor=2026-09-09';
+    mocks.occurrences.mockReturnValue({ data: { items: [occurrence(3, '2026-09-09', 720)] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-13', items: [{ date: '2026-09-09', name: '추석' }] } });
+
+    const view = render(<TeacherSchedule />);
+
+    expect(mocks.occurrences).toHaveBeenCalledWith({ from: '2026-09-07', to: '2026-09-13' });
+    expect(mocks.holidays).toHaveBeenCalledWith({ from: '2026-09-07', to: '2026-09-13' }, true);
+    const week = within(view.getByRole('region', { name: '주간 캘린더' }));
+    expect(week.getByText('추석')).toBeTruthy();
+    expect(week.getByRole('button', { name: /9\/9.*Writing/ })).toBeTruthy();
+    expect(view.getByRole('button', { name: '주간' }).getAttribute('aria-pressed')).toBe('true');
+    expect(view.queryByText('새 일정')).toBeNull();
+  });
+
+  it('월간은 달을 덮는 격자 범위를 읽고 하루 3건 뒤 나머지를 명시적으로 펼친다', () => {
+    nav.search = 'view=month&anchor=2026-09-15';
+    mocks.occurrences.mockReturnValue({ data: { items: [
+      occurrence(1, '2026-09-09', 600), occurrence(2, '2026-09-09', 660),
+      occurrence(3, '2026-09-09', 720), occurrence(4, '2026-09-09', 780),
+    ] }, isLoading: false, isError: false, refetch: vi.fn() });
+
+    const view = render(<TeacherSchedule />);
+
+    expect(mocks.occurrences).toHaveBeenCalledWith({ from: '2026-08-31', to: '2026-10-04' });
+    const day = view.container.querySelector('[data-month-date="2026-09-09"]') as HTMLElement;
+    expect(day).not.toBeNull();
+    expect(within(day).getAllByRole('button', { name: /9\/9.*Writing/ })).toHaveLength(3);
+    fireEvent.click(within(day).getByRole('button', { name: '+1건 더' }));
+    expect(within(day).getAllByRole('button', { name: /9\/9.*Writing/ })).toHaveLength(4);
+  });
+
+  it('보기·기간·날짜 이동은 URL 한 상태로 보존한다', () => {
+    const view = render(<TeacherSchedule />);
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/schedule?view=week&anchor=2026-09-07');
+
+    nav.search = 'view=week&anchor=2026-09-09';
+    view.rerender(<TeacherSchedule />);
+    fireEvent.click(view.getByRole('button', { name: '다음 기간' }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/schedule?view=week&anchor=2026-09-16');
+    fireEvent.click(view.getByRole('button', { name: '9월 10일 (목) 오늘 보기' }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/schedule?view=day&anchor=2026-09-10');
+  });
+
+  it('주·월 회차도 05a exact 허브를 열고 닫으면 원래 보기와 anchor로 복귀한다', () => {
+    nav.search = 'view=week&anchor=2026-09-09';
+    mocks.occurrences.mockReturnValue({ data: { items: [occurrence(7, '2026-09-09', 720, { onDate: '2026-09-01', repState: 'none' })] }, isLoading: false, isError: false, refetch: vi.fn() });
+    const view = render(<TeacherSchedule />);
+
+    fireEvent.click(view.getByRole('button', { name: /9\/9.*Writing/ }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/schedule?view=week&anchor=2026-09-09&serId=7&onDate=2026-09-01&date=2026-09-09&source=calendar');
+    expect(view.getByRole('dialog', { name: '수업 허브' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '창 닫기' }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/schedule?view=week&anchor=2026-09-09');
+  });
+
+  it('잘못된 view와 anchor는 KST 오늘 보기 범위로만 떨어지고 잘못된 날짜를 조회하지 않는다', () => {
+    nav.search = 'view=agenda&anchor=2026-02-30';
+    const view = render(<TeacherSchedule />);
+    expect(mocks.occurrences).toHaveBeenCalledWith({ from: '2026-09-07', to: '2026-09-14' });
+    expect(view.getByRole('button', { name: '오늘' }).getAttribute('aria-pressed')).toBe('true');
+    expect(view.container.textContent).not.toContain('2026-02-30');
+  });
+});
+
 describe('강사 캘린더 기본 오늘 목록', () => {
   it('강사 정책(리포트 지각 차감)이 화면 최상단 — 제목보다 위에 선다 (대표 결정 2026-09-25)', () => {
     const view = render(<TeacherSchedule />);
@@ -167,7 +235,7 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(today.getByText('리포트 미작성')).toBeTruthy();
     // hero 는 홈과 같은 부품·같은 표기(정각이면 정수) — 덱 「오늘 수업 3건 · 시수 5.5시간」
     expect(view.getByText('오늘 수업 2건 · 시수 2시간')).toBeTruthy();
-    expect(view.queryByText('주간')).toBeNull();
+    expect(view.getByRole('button', { name: '주간' }).getAttribute('aria-pressed')).toBe('false');
     expect(view.queryByText('새 일정')).toBeNull();
   });
 
@@ -194,7 +262,7 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     const view = render(<TeacherSchedule />);
     const rows = within(view.getByRole('region', { name: '오늘 전체 스케줄' })).getAllByRole('button');
     fireEvent.click(rows[0]);
-    expect(nav.replace).toHaveBeenCalledWith('/schedule?serId=1&onDate=2026-09-01&date=2026-09-07&source=calendar');
+    expect(nav.replace).toHaveBeenCalledWith('/schedule?view=day&anchor=2026-09-07&serId=1&onDate=2026-09-01&date=2026-09-07&source=calendar');
     expect(view.getByRole('dialog', { name: '수업 허브' })).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '리포트 열기' }));
     expect(view.getByRole('dialog', { name: '리포트 상세' }).textContent).toContain('1|2026-09-01');
