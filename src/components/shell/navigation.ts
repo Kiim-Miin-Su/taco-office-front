@@ -70,8 +70,8 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     badgeSurfaces: ['sidebar'],
     requires: ADMIN,
   },
-  // §82 GPA 관리 — 상단 업무 탭 밖의 관리자 화면. kind='gpa' 수업 상세에서 연다 (URL 전용).
-  { href: '/gpa', label: 'GPA 관리', surfaces: [], requires: ADMIN },
+  // 최종 수정사항: 신규 진입은 제거하고 과거 감사 링크·북마크만 읽기 전용 화면으로 연다.
+  { href: '/gpa', label: 'GPA 과거 기록', surfaces: [], requires: ADMIN },
   /* §21 서랍의 「줌 계정 관리」가 가는 자리 · §18 의 「프로그램·과목 전체 열기」가 가는 자리.
      둘 다 원본 61컷에 **목적지 화면이 없었다** — 대표 결정(2026-09-12)으로 신설했다.
      원문 상단 10탭에는 없던 화면으로, 서랍 단추와 URL 로만 연다(신규 학생/강사 탭과 별개). */

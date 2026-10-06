@@ -9,9 +9,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { TeacherGpaRequestOptions } from '@/api/types';
 import { BookChangeRequestButton } from './BookChangeRequestButton';
-import { GpaRequestButton } from './GpaRequestButton';
 
 /**
  * N-99 — 강사가 올리는 두 요청. 눌리는지 · 고를 수 있는 것은 서버가 준 것만이고(플래그 · 목록),
@@ -66,49 +64,5 @@ describe('교재 행 「변경 요청」 (N-99)', () => {
     fireEvent.change(within(dialog).getByLabelText('사유'), { target: { value: '진도' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '요청 올리기' }));
     await waitFor(() => expect(within(dialog).getByText('이 교재에 올린 변경 요청이 처리 중입니다')).toBeTruthy());
-  });
-});
-
-describe('「GPA 회차 요청」 (N-99)', () => {
-  const options: TeacherGpaRequestOptions = {
-    services: [{ key: 'quiz', name: 'Quiz 대비', point: 2 }, { key: 'essay', name: '에세이', point: 3 }],
-    occurrences: [
-      { serId: 70, onDate: '2026-09-28', startMin: 1200, endMin: 1240, title: 'GPA 관리', subKey: null, kindKey: 'gpa',
-        students: [{ id: 4, name: '박하경' }, { id: 5, name: '강라율' }] },
-    ],
-  };
-
-  it('창을 열 때만 읽고, 서버가 준 회차 · 그날 명단 · 서비스만 고르며 DTO 모양 그대로 보낸다', async () => {
-    const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) =>
-      ({ data: url === '/teacher/gpa-request-options' ? options : { subs: [], kinds: [] } }) as never);
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { ...created, reqType: 'gpa_request' } } as never);
-    const view = wrap(<GpaRequestButton />);
-    expect(get).not.toHaveBeenCalledWith('/teacher/gpa-request-options');
-    fireEvent.click(view.getByRole('button', { name: 'GPA 회차 요청' }));
-    const dialog = view.getByRole('dialog', { name: 'GPA 회차 요청' });
-    await waitFor(() => expect(within(dialog).getByLabelText('회차')).toBeTruthy());
-    expect(get).toHaveBeenCalledWith('/teacher/gpa-request-options');
-    const student = within(dialog).getByLabelText('학생') as HTMLSelectElement;
-    expect(student.disabled).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText('회차'), { target: { value: '70|2026-09-28' } });
-    expect(Array.from(student.options).map((o) => o.textContent)).toEqual(['선택', '박하경', '강라율']);
-    fireEvent.change(student, { target: { value: '5' } });
-    const send = within(dialog).getByRole('button', { name: '요청 올리기' }) as HTMLButtonElement;
-    expect(send.disabled).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText('서비스'), { target: { value: 'quiz' } });
-    fireEvent.click(send);
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/teacher/requests', {
-      reqType: 'gpa_request', serId: 70, onDate: '2026-09-28', studentId: 5, svcKey: 'quiz',
-    }));
-  });
-
-  it('고를 회차가 없으면 없다고 말하고 올리는 단추가 잠겨 있다', async () => {
-    vi.spyOn(api, 'get').mockImplementation(async (url: string) =>
-      ({ data: url === '/teacher/gpa-request-options' ? { ...options, occurrences: [] } : { subs: [], kinds: [] } }) as never);
-    const view = wrap(<GpaRequestButton />);
-    fireEvent.click(view.getByRole('button', { name: 'GPA 회차 요청' }));
-    const dialog = view.getByRole('dialog', { name: 'GPA 회차 요청' });
-    await waitFor(() => expect(dialog.textContent).toContain('요청할 수 있는 GPA 회차가 없습니다'));
-    expect((within(dialog).getByRole('button', { name: '요청 올리기' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

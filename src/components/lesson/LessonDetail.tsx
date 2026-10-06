@@ -587,12 +587,6 @@ export function LessonDetail({
             {/* 출결 취소는 청구를 바꾸지 않는다 — 청구는 휴강 창에서(N-48). 휴강을 쓸 수 있을 때만 그 창을 여는 단추를 준다 */}
             <AttendanceControl occ={occ} onOpenCancel={canEdit && !occ.canceled ? openCancel : undefined} />
 
-            {occ.kindKey === 'gpa' && canAdminPage && canEdit ? (
-              <p className="text-[12px]">
-                <Link href="/gpa" className="font-bold text-primary underline">GPA 관리 보드 열기 →</Link>
-                <span className="ml-1.5 text-fg-subtle">배정·잔여·회차 소비 (학부모 비공개)</span>
-              </p>
-            ) : null}
             {err ? <div role="alert"><Banner tone="danger">{err}</Banner></div> : null}
             {overlapLines.length ? (
               <div role="status" data-student-overlaps>

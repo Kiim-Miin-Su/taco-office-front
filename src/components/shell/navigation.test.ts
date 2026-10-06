@@ -60,6 +60,14 @@ describe('명세서 탭 노출 SSOT', () => {
     expect(canAccessAppRoute('/permissions', ceo)).toBe(true);
   });
 
+  it('GPA 과거 기록은 메뉴에 노출하지 않고 관리자 직접 URL만 보존한다', () => {
+    expect(adminNavItemsFor('top', ceo).some((item) => item.href === '/gpa')).toBe(false);
+    expect(adminNavItemsFor('sidebar', ceo).some((item) => item.href === '/gpa')).toBe(false);
+    expect(canAccessAppRoute('/gpa', ceo)).toBe(true);
+    expect(canAccessAppRoute('/gpa', teacher)).toBe(false);
+    expect(mostSpecificNavItem('/gpa')?.label).toBe('GPA 과거 기록');
+  });
+
   it.each(['/students', '/staff'])('%s 목록·상세는 두 관리자 플래그가 모두 있어야 열리고 동일 탭이 활성화된다', (path) => {
     for (const route of [path, `${path}/7`]) {
       expect(canAccessAppRoute(route, ceo)).toBe(true);

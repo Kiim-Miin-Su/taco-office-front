@@ -9,15 +9,14 @@ import { useRailPresent, WorkspaceRail } from './WorkspaceRail';
 
 afterEach(cleanup);
 
-describe('원본 §07 우측 rail — 기존 서랍 pane 바로가기', () => {
-  it('여덟 항목을 원본 순서로 렌더하고 배지는 승인/알림에만 붙는다', () => {
+describe('최종 수정사항 우측 rail — GPA 신규 진입을 뺀 기존 서랍 pane 바로가기', () => {
+  it('일곱 항목을 최종 순서로 렌더하고 배지는 승인/알림에만 붙는다', () => {
     render(<WorkspaceRail approvals={10} unread={3} onOpen={vi.fn()} />);
     const nav = screen.getByRole('navigation', { name: '워크스페이스 바로가기' });
-    // GPA 관리는 제 화면이 있어 링크다 — 나머지 일곱은 서랍을 여는 단추다
     const labels = [...nav.children]
       .filter((el) => el.getAttribute('role') !== 'separator')
       .map((el) => el.getAttribute('aria-label'));
-    expect(labels).toEqual(['승인 대기함', '알림', 'GPA 관리', '변경 요청', '구성원', '줌 계정', '할 일', '프로그램']);
+    expect(labels).toEqual(['승인 대기함', '알림', '변경 요청', '구성원', '줌 계정', '할 일', '프로그램']);
     expect(within(screen.getByRole('button', { name: '승인 대기함' })).getByText('10')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: '알림' })).getByText('3')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: '변경 요청' })).queryByText(/\d/)).toBeNull();
@@ -33,16 +32,10 @@ describe('원본 §07 우측 rail — 기존 서랍 pane 바로가기', () => {
     expect(onOpen.mock.calls.map((c) => c[0])).toEqual(['approvals', 'notis', 'todos', 'kinds']);
   });
 
-  /*
-   * 한동안 이 항목이 **꺼져 있었다**(「GPA 관리 — 준비 중」). 그런데 `/gpa` 는 이미 돌고 있었고
-   * 수업 상세가 이미 그리로 링크한다 — **있는 기능이 없는 것처럼 보였다.**
-   */
-  it('GPA 관리는 서랍이 아니라 제 화면으로 가는 링크다 — 꺼 두지 않는다', () => {
+  it('GPA 신규 관리 진입은 최종 수정사항대로 레일에서 보이지 않는다', () => {
     render(<WorkspaceRail approvals={0} unread={0} onOpen={vi.fn()} />);
-    const gpa = screen.getByRole('link', { name: 'GPA 관리' });
-    expect(gpa.getAttribute('href')).toBe('/gpa');
-    expect(gpa.hasAttribute('disabled')).toBe(false);
-    expect(gpa.getAttribute('title')).toBe('GPA 관리');
+    expect(screen.queryByRole('link', { name: 'GPA 관리' })).toBeNull();
+    expect(screen.queryByText('GPA 관리')).toBeNull();
   });
 
   /* g2 대조 20-1 — 원문 레일의 「변경 요청」은 §20 「변경 요청 · 이력」 칸이다. 넣기(§19)는 그 칸의 창이다 */
@@ -75,16 +68,15 @@ describe('원본 §07 우측 rail — 기존 서랍 pane 바로가기', () => {
   });
 
   /*
-   * g2 대조 C-5 — 원문 레일의 아이콘은 GPA 관리=시계 · 변경 요청=되감기 시계 · 구성원=사람+ · 할 일=달력 체크이고,
+   * g2 대조 C-5 — 수정 후 레일의 아이콘은 변경 요청=되감기 시계 · 구성원=사람+ · 할 일=달력 체크이고,
    * **구분선이 둘**(승인 대기함 뒤 · 변경 요청 뒤) 있으며 라벨이 굵다.
    */
   it('아이콘·구분선·굵은 라벨이 원문 레일 그대로다', () => {
     render(<WorkspaceRail approvals={0} unread={0} onOpen={vi.fn()} />);
     const nav = screen.getByRole('navigation', { name: '워크스페이스 바로가기' });
     const order = [...nav.children].map((el) => (el.getAttribute('role') === 'separator' ? '|' : el.getAttribute('aria-label')));
-    expect(order).toEqual(['승인 대기함', '|', '알림', 'GPA 관리', '변경 요청', '|', '구성원', '줌 계정', '할 일', '프로그램']);
+    expect(order).toEqual(['승인 대기함', '|', '알림', '변경 요청', '|', '구성원', '줌 계정', '할 일', '프로그램']);
     const iconOf = (el: HTMLElement) => el.querySelector('svg')?.getAttribute('class') ?? '';
-    expect(iconOf(screen.getByRole('link', { name: 'GPA 관리' }))).toContain('lucide-clock');
     expect(iconOf(screen.getByRole('button', { name: '변경 요청' }))).toContain('lucide-history');
     expect(iconOf(screen.getByRole('button', { name: '구성원' }))).toContain('lucide-user-plus');
     expect(iconOf(screen.getByRole('button', { name: '할 일' }))).toContain('lucide-calendar-check');

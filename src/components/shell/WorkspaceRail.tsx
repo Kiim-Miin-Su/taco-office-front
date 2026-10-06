@@ -5,33 +5,27 @@
  */
 
 /**
- * 원본 §07 우측 rail — 여덟 항목과 순서를 그대로 따른다.
- *
- * 대부분은 전역 `AppDrawer` 의 칸을 열지만, **GPA 관리는 서랍이 아니라 제 화면(`/gpa`)이 있다.**
- * 한동안 「대응 기능이 아직 없다」며 꺼 두었는데 **그 화면은 이미 돌고 있었고**(수업 상세가 이미
- * 그리로 링크한다) 컷에서도 이 항목은 다른 것과 똑같이 살아 있다. 꺼 두면 있는 기능이 없는 것처럼 보인다.
+ * 최종 관리자 수정사항의 우측 rail — GPA 신규 관리 진입을 제거한 일곱 항목과 순서를 따른다.
  *
  * **지금 열린 칸은 어두운 채운 타일**이다(원문 §14~§21 · g2 대조 C-2). 서랍이 레일 왼쪽에 붙으면서
  * 레일이 곧 칸 전환 줄이 됐으므로, 어느 칸을 보고 있는지를 레일이 말한다. 무엇이 열렸는지는
  * 셸이 쥔 서랍 상태 하나(`activePane`)에서 온다 — 레일이 따로 기억하지 않는다.
  *
- * 아이콘·구분선·굵은 라벨은 원문 레일 그대로다(g2 대조 C-5) — GPA 관리=시계 · 변경 요청=되감기 시계 ·
+ * 아이콘·구분선·굵은 라벨은 원문 레일을 따른다(g2 대조 C-5) — 변경 요청=되감기 시계 ·
  * 구성원=사람+ · 할 일=달력 체크, 구분선은 「승인 대기함」 뒤와 「변경 요청」 뒤.
  */
 'use client';
 import { Fragment, useEffect, useSyncExternalStore } from 'react';
-import { Bell, CalendarCheck, Clock, History, Inbox, LayoutGrid, UserPlus, Video } from 'lucide-react';
-import Link from 'next/link';
+import { Bell, CalendarCheck, History, Inbox, LayoutGrid, UserPlus, Video } from 'lucide-react';
 import { cn } from '@/components/ui';
 import type { DrawerPane } from '@/components/drawer/AppDrawer';
 
-/** `pane` 이면 서랍을 열고, `href` 면 그 화면으로 간다. `divider` 는 그 항목 **뒤**의 구분선 */
+/** 모든 항목은 공용 서랍의 pane을 연다. `divider`는 그 항목 뒤의 구분선이다. */
 const ITEMS: Array<{
-  label: string; pane?: DrawerPane; href?: string; icon: typeof Inbox; badge?: 'approvals' | 'unread'; divider?: boolean;
+  label: string; pane: DrawerPane; icon: typeof Inbox; badge?: 'approvals' | 'unread'; divider?: boolean;
 }> = [
   { label: '승인 대기함', pane: 'approvals', icon: Inbox, badge: 'approvals', divider: true },
   { label: '알림', pane: 'notis', icon: Bell, badge: 'unread' },
-  { label: 'GPA 관리', href: '/gpa', icon: Clock },
   // 원문 레일의 「변경 요청」은 §20 「변경 요청 · 이력」 칸이다 — 넣기(§19)는 그 칸의 「+ 변경 요청」 창 (g2 20-1)
   { label: '변경 요청', pane: 'chreqs', icon: History, divider: true },
   { label: '구성원', pane: 'members', icon: UserPlus },
@@ -74,7 +68,7 @@ export function WorkspaceRail({ approvals, unread, onOpen, activePane = null }: 
 
   return (
     <nav aria-label="워크스페이스 바로가기" className="flex h-full w-[52px] flex-col items-center gap-1 overflow-y-auto bg-card py-2">
-      {ITEMS.map(({ label, pane, href, icon: Icon, badge, divider }) => {
+      {ITEMS.map(({ label, pane, icon: Icon, badge, divider }) => {
         const count = badge === 'approvals' ? approvals : badge === 'unread' ? unread : 0;
         const active = pane !== undefined && pane === activePane;
         const look = cn(
@@ -91,15 +85,10 @@ export function WorkspaceRail({ approvals, unread, onOpen, activePane = null }: 
             ) : null}
           </>
         );
-        // 제 화면이 있는 항목은 링크다 — 서랍 칸이 아니다 (GPA 관리 · 위 주석)
-        const item = href ? (
-          <Link href={href} aria-label={label} title={label} className={look}>
-            {inside}
-          </Link>
-        ) : (
+        const item = (
           <button
             type="button"
-            onClick={pane ? () => onOpen(pane) : undefined}
+            onClick={() => onOpen(pane)}
             aria-label={label}
             aria-pressed={active}
             title={label}

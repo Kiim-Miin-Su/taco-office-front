@@ -24,7 +24,6 @@ import { STATUS_LABEL, STATUS_LOOK } from './EventBlock';
 import { LateReportPolicy } from '@/components/teacher/LateReportPolicy';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { TeacherTodayHero } from '@/components/teacher/TeacherTodayHero';
-import { GpaRequestButton } from '@/components/teacher/GpaRequestButton';
 import { useTeacherSurface } from '@/components/teacher/teacher-surface';
 
 const EMPTY: Occurrence[] = [];
@@ -232,8 +231,6 @@ export function TeacherSchedule() {
             <dl className="flex flex-col gap-4 text-[13px]">
               <div className="flex items-center justify-between gap-2"><dt><Link href="/reports" className="font-bold text-fg hover:text-blue">리포트 미작성 ›</Link></dt><dd className="font-bold text-red">{unwritten.isError ? '확인 필요' : unwritten.data?.total ?? '—'}</dd></div>
             </dl>
-            {/* N-99 — GPA 회차 → 「GPA 회차 요청」(학생 · 서비스 · 시각). 고를 회차는 서버가 쓰기와 같은 판정으로 준다 */}
-            <GpaRequestButton className="mt-4 w-full" />
           </Panel>
           {/* 덱 slide 11 오른쪽 「상자 색이 뜻하는 것」 — 줄 왼쪽 색 막대와 상태 칸이 같은 표(STATUS_LOOK)를 쓴다 */}
           <Panel title="색이 뜻하는 것">
