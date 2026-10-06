@@ -16,7 +16,7 @@ import {
   useTransitionBookIssue,
   useUpdateBookProgress,
 } from '@/api/queries';
-import { Banner, Button, Chip, Input, Label, Panel, QueryState, Select, StatCard, Textarea, cn, type StatTone } from '@/components/ui';
+import { Banner, Button, Chip, Input, Label, LinkButton, Panel, QueryState, Select, StatCard, Textarea, cn, type StatTone } from '@/components/ui';
 import type { BookIssueCreate, LeadDiag } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { bookLevelPresentation, issueFormTone } from '@/lib/book-presentation';
@@ -47,9 +47,13 @@ const LEVEL_BORDER: Readonly<Record<string, string>> = { 'bg-red': 'border-l-red
 export function BookTracking({
   createRequest = 0,
   showCreateAction = true,
+  requestedStudentId = null,
+  targetRequested = false,
 }: {
   createRequest?: number;
   showCreateAction?: boolean;
+  requestedStudentId?: number | null;
+  targetRequested?: boolean;
 }) {
   const q = useBookTracking();
   const meta = useMeta();
@@ -72,9 +76,25 @@ export function BookTracking({
   const [returnDates, setReturnDates] = useState<Record<number, string>>({});
   const [endReasons, setEndReasons] = useState<Record<number, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const requestedStudent = requestedStudentId === null
+    ? null
+    : meta.data?.students.find((student) => student.id === requestedStudentId) ?? null;
+  const targetMissing = targetRequested && meta.data !== undefined && requestedStudent === null;
   useEffect(() => {
-    if (createRequest > 0) setAdding(true);
-  }, [createRequest]);
+    if (targetRequested && requestedStudent) setExpandedId(requestedStudent.id);
+    if (createRequest <= 0) return;
+    if (!targetRequested) {
+      setAdding(true);
+      return;
+    }
+    if (requestedStudent) {
+      setStudentId(String(requestedStudent.id));
+      setAdding(true);
+    } else if (meta.data !== undefined) {
+      setAdding(false);
+      setStudentId('');
+    }
+  }, [createRequest, meta.data, requestedStudent, targetRequested]);
   const resetCreate = () => {
     setAdding(false);
     setStudentId('');
@@ -106,6 +126,18 @@ export function BookTracking({
             + 배부
           </Button>
         </div>
+      ) : null}
+      {targetMissing ? (
+        <Banner tone="warning">
+          요청한 학생을 찾을 수 없습니다. 다른 학생을 대신 선택하거나 배부를 등록하지 않습니다.{' '}
+          <LinkButton
+            href="/students"
+            size="sm"
+            variant="secondary"
+          >
+            학생 목록으로 돌아가기
+          </LinkButton>
+        </Banner>
       ) : null}
       {adding ? (
         <div id="book-issue-create">
@@ -209,6 +241,11 @@ export function BookTracking({
               </div>
             </div>
             <div className="mt-3 flex justify-end gap-2">
+              {targetRequested && requestedStudent ? (
+                <LinkButton href={`/students/${requestedStudent.id}?tab=books`} size="sm" variant="secondary">
+                  학생 허브로 돌아가기
+                </LinkButton>
+              ) : null}
               <Button variant="secondary" onClick={resetCreate}>
                 취소
               </Button>

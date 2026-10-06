@@ -73,6 +73,14 @@ describe('§26 조회 계약 통합', () => {
     expect(bad.queryByText(/워크플로 #/)).toBeNull();
   });
 
+  it('학생 허브에서 연 exact 컨설팅은 학생 ID와 컨설팅 탭 복귀 경로를 보존한다', () => {
+    nav.search = '?id=1&studentId=21';
+    const view = render(<ConsultingPage />);
+    expect(view.getByText('워크플로 #1')).toBeTruthy();
+    expect(view.getByRole('link', { name: '학생 허브로 돌아가기' }).getAttribute('href'))
+      .toBe('/students/21?tab=consulting');
+  });
+
   it('§29 생성 성공 응답 id로 즉시 §30 상세을 연다', () => {
     create.mutate.mockImplementation((_body, options) => {
       create.data = { id: 99 };

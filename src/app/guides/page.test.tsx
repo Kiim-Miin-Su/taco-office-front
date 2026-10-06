@@ -9,14 +9,18 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Guide, Guides, Me, GuideDeadline } from '@/api/types';
+import type { Guide, GuideStudent, Guides, Me, GuideDeadline } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { RouteAccess } from '@/components/shell/RequireAuth';
 import GuidesPage from './page';
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
-const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/guides', useRouter: () => nav }));
+const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn(), search: '' }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/guides',
+  useRouter: () => nav,
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
 
 const me: Me = {
   id: 4,
@@ -133,8 +137,56 @@ afterEach(() => {
   cleanup();
   clients.splice(0).forEach((client) => client.clear());
   useSession.getState().signOut();
+  nav.search = '';
   nav.replace.mockClear(); nav.push.mockClear();
   vi.restoreAllMocks();
+});
+
+describe('학생 허브 안내 deep link', () => {
+  const studentProjection = (studentId: number, name: string): GuideStudent => ({
+    studentId,
+    studentName: name,
+    grade: 'G8',
+    guidance: null,
+    lang: null,
+    guideCount: 1,
+    latestGuide: { ...guide(studentId, 'draft', true), studentId, studentName: name, body: `${name} exact 안내` },
+    books: [],
+    diagnostic: null,
+    scores: null,
+  });
+
+  const openDeepLink = (studentId: string | null) => {
+    nav.search = studentId === null ? 'tab=students' : `tab=students&studentId=${studentId}`;
+    vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+      data: url === '/guides/students'
+        ? { items: [studentProjection(1, '학생1'), studentProjection(2, '학생2')] }
+        : response,
+    }));
+    return setup();
+  };
+
+  it('positive studentId의 exact 안내만 열고 학생 허브 복귀 경로를 보존한다', async () => {
+    const view = openDeepLink('2');
+    await view.findByText('학생2 exact 안내');
+    expect(view.queryByText('학생1 exact 안내')).toBeNull();
+    expect(view.getByRole('link', { name: '학생 허브로 돌아가기' }).getAttribute('href'))
+      .toBe('/students/2?tab=assignment');
+  });
+
+  it.each(['abc', '-1', '0', '9007199254740992'])('잘못된 studentId %s는 첫 학생으로 대체하지 않는다', async (studentId) => {
+    const view = openDeepLink(studentId);
+    await view.findByText(/요청한 학생의 안내를 찾을 수 없습니다/);
+    expect(view.queryByText('학생1 exact 안내')).toBeNull();
+    expect(view.queryByRole('button', { name: '수정' })).toBeNull();
+  });
+
+  it('일반 학생별 탭은 첫 학생을 보여 주고 다른 탭 이동 시 studentId를 제거한다', async () => {
+    const view = openDeepLink(null);
+    await view.findByText('학생1 exact 안내');
+    fireEvent.click(view.getByRole('tab', { name: /이력/ }));
+    expect(nav.replace).toHaveBeenLastCalledWith('/guides?tab=history', { scroll: false });
+  });
 });
 
 describe('안내 할 일 — GET /guides 서버 projection이 단일 진실원', () => {

@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
-import { Banner, Button, Chip, Column, PageHeader, Panel, QueryState, StatCard, TabCards, Table } from '@/components/ui';
+import { Banner, Button, Chip, Column, LinkButton, PageHeader, Panel, QueryState, StatCard, TabCards, Table } from '@/components/ui';
 import { ConsultingStageBoard } from '@/components/consulting/ConsultingStageBoard';
 import { ConsultingStageFilters } from '@/components/consulting/ConsultingStageFilters';
 import { useConsulting, useConsAccounting, useConsStudents, useCreateConsulting, useMeta } from '@/api/queries';
@@ -58,6 +58,7 @@ export default function ConsultingPage() {
   // 열 수 있는 건인지는 아래 목록의 canOpen(서버 판정)이 정하고, 없거나 잠긴 건이면 조용히 보드만 보인다
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<number | null>(() => positiveQueryId(searchParams.get('id')));
+  const returnStudentId = positiveQueryId(searchParams.get('studentId'));
   const [startOpen, setStartOpen] = useState(false);
   const meta = useMeta(startOpen);
   const create = useCreateConsulting();
@@ -212,12 +213,21 @@ export default function ConsultingPage() {
         ) : null}
 
         {open !== null ? (
-          <ConsultingContractWorkflow
-            consId={open}
-            summary={openSummary ?? undefined}
-            onClose={() => { setOpenId(null); create.reset(); }}
-            onOpenAccounting={() => { setOpenId(null); create.reset(); setView('money'); }}
-          />
+          <>
+            {returnStudentId ? (
+              <div className="mb-3 text-right">
+                <LinkButton href={`/students/${returnStudentId}?tab=consulting`} size="sm">
+                  학생 허브로 돌아가기
+                </LinkButton>
+              </div>
+            ) : null}
+            <ConsultingContractWorkflow
+              consId={open}
+              summary={openSummary ?? undefined}
+              onClose={() => { setOpenId(null); create.reset(); }}
+              onOpenAccounting={() => { setOpenId(null); create.reset(); setView('money'); }}
+            />
+          </>
         ) : null}
       </AppShell>
     </RequireAuth>

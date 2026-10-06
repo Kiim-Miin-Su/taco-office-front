@@ -106,8 +106,10 @@ function GuideSummary({ student, assignment = false }: { student: GuideStudent; 
       </div>
       <p className="mt-3 whitespace-pre-wrap text-[13px] leading-6">{guide.body?.trim() || '작성된 안내 본문이 없습니다.'}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <LinkButton href="/guides" size="sm">수업 안내 업무 열기</LinkButton>
-        {assignment ? <LinkButton href="/books?tab=tracking" size="sm">교재 배정 업무 열기</LinkButton> : null}
+        <LinkButton href={`/guides?tab=students&studentId=${student.studentId}`} size="sm">
+          {guide.pending ? '수업 안내 수정' : '수업 안내 보기'}
+        </LinkButton>
+        {assignment ? <LinkButton href={`/books?tab=tracking&studentId=${student.studentId}&create=issue`} size="sm">교재 배정 업무 열기</LinkButton> : null}
       </div>
     </Panel>
     {assignment ? <Panel title={`배부 교재 ${student.books.length}종`} sub="안내 학생별 projection의 배부 완료 교재입니다.">
@@ -131,7 +133,7 @@ function BooksTab({ studentId }: { studentId: number }) {
     const student = data.items.find(item => item.studentId === studentId);
     return <Panel title={`교재 ${bookCount.bookCount}종`} sub={bookCount.label ?? '배부 완료 교재 수는 서버 projection을 따릅니다.'}>
       {student?.books.length ? <ul className="space-y-2">{student.books.map(book => <li key={book.issueId} className="rounded-lg border border-line px-3 py-2 text-[12px]"><b>{book.title}</b><span className="ml-2 text-fg-subtle">{[book.edition, book.code].filter(Boolean).join(' · ')}</span></li>)}</ul> : <p className="text-[12px] text-fg-subtle">표시할 배부 교재 상세가 없습니다.</p>}
-      <div className="mt-3"><LinkButton href="/books?tab=tracking" size="sm">교재 트래킹 열기</LinkButton></div>
+      <div className="mt-3"><LinkButton href={`/books?tab=tracking&studentId=${studentId}`} size="sm">교재 트래킹 열기</LinkButton></div>
     </Panel>;
   }}</QueryState>}</QueryState>;
 }
@@ -175,7 +177,7 @@ export function StudentDetail({ studentId, initialTab = 'overview' }: { studentI
         {tab === 'comments' ? <ContractPending title="코멘트">코멘트 공개범위와 학생 aggregate 민감 컬럼 ACL이 확정·생성 계약으로 제공되기 전에는 표시하거나 저장하지 않습니다.</ContractPending> : null}
         {tab === 'consulting' ? <QueryState query={consulting}>{value => {
           const item = value.items.find(candidate => candidate.studentId === data.id);
-          return item ? <ConsultingStudents items={[item]} onOpen={id => router.push(`/consulting?id=${id}`)} /> : <Panel title="컨설팅"><p className="text-[12px] text-fg-subtle">볼 수 있는 이 학생의 컨설팅이 없습니다.</p></Panel>;
+          return item ? <ConsultingStudents items={[item]} onOpen={id => router.push(`/consulting?id=${id}&studentId=${data.id}`)} /> : <Panel title="컨설팅"><p className="text-[12px] text-fg-subtle">볼 수 있는 이 학생의 컨설팅이 없습니다.</p></Panel>;
         }}</QueryState> : null}
         {tab === 'profile' ? <Profile data={data} /> : null}
         {tab === 'billing' ? <>

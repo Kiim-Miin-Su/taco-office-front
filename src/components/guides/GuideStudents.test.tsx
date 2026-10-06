@@ -116,6 +116,43 @@ it('학생을 고르면 그 학생의 서버 최신 안내·진단·교재로 �
   expect(view.getByText('고은설 교재')).toBeTruthy();
 });
 
+it('deep link 학생을 정확히 고르고 학생 허브 복귀 경로를 보존한다', async () => {
+  const response: GuideStudentsDto = { items: [student(1, '강라율'), student(2, '고은설')] };
+  vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+  useSession.setState({ me, ready: true });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(
+    <QueryClientProvider client={client}>
+      <GuideStudents requestedStudentId={2} targetRequested />
+    </QueryClientProvider>,
+  );
+
+  await view.findByText('고은설 서버 최신 안내');
+  expect(view.queryByText('강라율 서버 최신 안내')).toBeNull();
+  expect(view.getByRole('link', { name: '학생 허브로 돌아가기' }).getAttribute('href'))
+    .toBe('/students/2?tab=assignment');
+});
+
+it('deep link 학생이 없으면 첫 학생으로 대체하거나 수정 경로를 열지 않는다', async () => {
+  const response: GuideStudentsDto = { items: [student(1, '강라율'), student(2, '고은설')] };
+  vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+  useSession.setState({ me, ready: true });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const view = render(
+    <QueryClientProvider client={client}>
+      <GuideStudents requestedStudentId={999} targetRequested />
+    </QueryClientProvider>,
+  );
+
+  await view.findByText(/요청한 학생의 안내를 찾을 수 없습니다/);
+  expect(view.queryByText('강라율 서버 최신 안내')).toBeNull();
+  expect(view.queryByRole('button', { name: '수정' })).toBeNull();
+  expect(view.getByRole('link', { name: '학생 목록으로 돌아가기' }).getAttribute('href'))
+    .toBe('/students');
+});
+
 function setupEditor(initial: GuideStudentsDto) {
   let response = initial;
   const writes: Array<{ url: string | undefined; body: unknown }> = [];

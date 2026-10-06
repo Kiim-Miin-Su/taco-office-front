@@ -41,6 +41,12 @@ export default function BooksPage() {
   const canGpaPack = useSession((state) => state.me?.canGpaPack === true);
   const queryTab = tabFromQuery(searchParams.get('tab'), canGpaPack);
   const focusPackId = queryTab === 'requests' ? positiveQueryId(searchParams.get('pack')) : null;
+  const deepIssueCreate = queryTab === 'tracking' && searchParams.get('create') === 'issue';
+  const rawStudentId = searchParams.get('studentId');
+  const requestedStudentId = positiveQueryId(rawStudentId);
+  const targetRequested = queryTab === 'tracking'
+    && (rawStudentId !== null || deepIssueCreate)
+    && issueCreateRequest === 0;
   const [tab, setTab] = useState<BookTab>(queryTab);
   useEffect(() => setTab(queryTab), [queryTab]);
   const selectTab = (next: BookTab) => {
@@ -113,7 +119,14 @@ export default function BooksPage() {
           <WorkSummaryBar summary={drawer.data?.workSummary} />
         </div>
 
-        {tab === 'tracking' ? <BookTracking createRequest={issueCreateRequest} showCreateAction={false} /> : null}
+        {tab === 'tracking' ? (
+          <BookTracking
+            createRequest={issueCreateRequest + (deepIssueCreate ? 1 : 0)}
+            showCreateAction={false}
+            requestedStudentId={requestedStudentId}
+            targetRequested={targetRequested}
+          />
+        ) : null}
         {tab === 'shelf' ? <BookShelf createRequest={bookCreateRequest} showCreateAction={false} /> : null}
         {tab === 'history' ? <BookHistory /> : null}
         {tab === 'requests' && canGpaPack ? <BookPacks focusPackId={focusPackId} /> : null}

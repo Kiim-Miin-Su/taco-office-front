@@ -3,6 +3,7 @@
  * 책임/재사용: 실제 컴포넌트와 Query hook을 쓰고 HTTP 어댑터만 fixture로 바꾼다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
+import type { ComponentProps } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it } from 'vitest';
@@ -43,7 +44,15 @@ const DIAG = {
   byId: 2, byName: '김민수', at: '2026-08-20T10:00:00+09:00',
 };
 
-function setup({ withoutIssuedBooks = false, withReissueCandidate = false }: { withoutIssuedBooks?: boolean; withReissueCandidate?: boolean } = {}) {
+function setup({
+  withoutIssuedBooks = false,
+  withReissueCandidate = false,
+  componentProps,
+}: {
+  withoutIssuedBooks?: boolean;
+  withReissueCandidate?: boolean;
+  componentProps?: ComponentProps<typeof BookTracking>;
+} = {}) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     const diag = /^\/books\/students\/(\d+)\/latest-diag$/.exec(config.url ?? '');
@@ -149,10 +158,33 @@ function setup({ withoutIssuedBooks = false, withReissueCandidate = false }: { w
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
     >
-      <BookTracking />
+      <BookTracking {...componentProps} />
     </QueryClientProvider>,
   );
 }
+
+it('학생 허브 배부 deep link는 meta의 정확한 학생을 미리 고르고 복귀 경로를 보존한다', async () => {
+  const view = setup({ componentProps: { createRequest: 1, requestedStudentId: 9, targetRequested: true } });
+  await view.findByText('교재 배부');
+  expect((view.getByLabelText('학생') as HTMLSelectElement).value).toBe('9');
+  expect(view.getByRole('link', { name: '학생 허브로 돌아가기' }).getAttribute('href')).toBe('/students/9?tab=books');
+});
+
+it('학생 허브 배부 deep link의 학생이 없으면 첫 학생을 고르거나 생성 폼을 열지 않는다', async () => {
+  const view = setup({ componentProps: { createRequest: 1, requestedStudentId: 999, targetRequested: true } });
+  await view.findByText(/요청한 학생을 찾을 수 없습니다/);
+  expect(view.queryByText('교재 배부')).toBeNull();
+  expect(view.queryByRole('button', { name: '배부 완료' })).toBeNull();
+  expect(view.getByRole('link', { name: '학생 목록으로 돌아가기' }).getAttribute('href')).toBe('/students');
+  expect(mutation).toEqual({});
+});
+
+it('학생 허브의 교재 트래킹 링크는 exact 학생 행만 펼친다', async () => {
+  const view = setup({ componentProps: { requestedStudentId: 3, targetRequested: true } });
+  const toggle = await view.findByRole('button', { name: '고은성 접기' });
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(view.queryByText('교재 배부')).toBeNull();
+});
 
 it('원본 여섯 통계와 DB 강사 요청을 표시한다', async () => {
   const view = setup();

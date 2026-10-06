@@ -172,7 +172,12 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(STUDENT_HUB_TABS.map(tab => tab.label)).toEqual(['안내 한눈에', '안내/교재 배정', '시간표', '수업 기록', '리포트', '교재', '코멘트', '컨설팅', '프로필', '수강/청구']);
     expect(view.getByRole('button', { name: '안내 한눈에' }).getAttribute('aria-pressed')).toBe('true');
     await view.findByText('학생A 안내 본문');
-    expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=overview');
+    expect(view.getByRole('link', { name: '수업 안내 수정' }).getAttribute('href'))
+      .toBe('/guides?tab=students&studentId=21');
+    fireEvent.click(view.getByRole('button', { name: '안내/교재 배정' }));
+    expect(view.getByRole('link', { name: '교재 배정 업무 열기' }).getAttribute('href'))
+      .toBe('/books?tab=tracking&studentId=21&create=issue');
+    expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=assignment');
     fireEvent.click(view.getByRole('button', { name: '수업 기록' }));
     expect(replace).toHaveBeenLastCalledWith('/students/21?tab=history', { scroll: false });
     expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=history');

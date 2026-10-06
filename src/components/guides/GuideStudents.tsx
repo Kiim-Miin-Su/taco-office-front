@@ -79,7 +79,7 @@ function StudentRail({
   );
 }
 
-function StudentGuideDetail({ student }: { student: GuideStudent }) {
+function StudentGuideDetail({ student, returnHref }: { student: GuideStudent; returnHref?: string }) {
   const [writing, setWriting] = useState(false);
   // 학부모에게 안내문 보내기 (DQ3) — 보호자·채널 선택과 결과는 보호자 발송 창이 서버에서 읽는다
   const [sendingParent, setSendingParent] = useState(false);
@@ -205,24 +205,66 @@ function StudentGuideDetail({ student }: { student: GuideStudent }) {
           {guide.acknowledgedAt ? `강사 확인 ${kstDateTime(guide.acknowledgedAt)?.slice(5) ?? ''}`.trim() : '강사 확인 대기'}
         </Button>
       </div>
+      {returnHref ? (
+        <div className="border-t border-line px-4 py-3 text-right">
+          <LinkButton href={returnHref} size="sm" variant="secondary">학생 허브로 돌아가기</LinkButton>
+        </div>
+      ) : null}
       </div>
     </div>
   );
 }
 
-export function GuideStudents() {
+export function GuideStudents({
+  requestedStudentId = null,
+  targetRequested = false,
+  onStudentChange,
+}: {
+  requestedStudentId?: number | null;
+  targetRequested?: boolean;
+  onStudentChange?: (studentId: number) => void;
+} = {}) {
   const query = useGuideStudents();
   const [pickedId, setPickedId] = useState<number | null>(null);
+  useEffect(() => {
+    if (targetRequested) setPickedId(requestedStudentId);
+  }, [requestedStudentId, targetRequested]);
 
   return (
     <QueryState query={query} isEmpty={(data) => data.items.length === 0} empty="안내가 있는 학생이 없습니다.">
       {(data) => {
-        const picked = data.items.find((student) => student.studentId === pickedId) ?? data.items[0];
+        const requested = targetRequested
+          ? data.items.find((student) => student.studentId === requestedStudentId) ?? null
+          : null;
+        const picked = targetRequested
+          ? requested
+          : data.items.find((student) => student.studentId === pickedId) ?? data.items[0];
+        const pick = (studentId: number) => {
+          setPickedId(studentId);
+          onStudentChange?.(studentId);
+        };
         return (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <StudentRail students={data.items} pickedId={picked.studentId} onPick={setPickedId} />
-            {/* 다른 학생/안내는 별도 편집 세션이며 같은 안내의 재조회는 초안을 유지한다. */}
-            <StudentGuideDetail key={`${picked.studentId}:${picked.latestGuide.id}`} student={picked} />
+            <StudentRail students={data.items} pickedId={picked?.studentId ?? null} onPick={pick} />
+            {picked ? (
+              /* 다른 학생/안내는 별도 편집 세션이며 같은 안내의 재조회는 초안을 유지한다. */
+              <StudentGuideDetail
+                key={`${picked.studentId}:${picked.latestGuide.id}`}
+                student={picked}
+                returnHref={targetRequested ? `/students/${picked.studentId}?tab=assignment` : undefined}
+              />
+            ) : (
+              <Banner tone="warning">
+                요청한 학생의 안내를 찾을 수 없습니다. 다른 학생을 대신 표시하거나 수정하지 않습니다.{' '}
+                <LinkButton
+                  href="/students"
+                  size="sm"
+                  variant="secondary"
+                >
+                  학생 목록으로 돌아가기
+                </LinkButton>
+              </Banner>
+            )}
           </div>
         );
       }}

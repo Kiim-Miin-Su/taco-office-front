@@ -6,7 +6,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useGuides } from '@/api/queries';
 import { GuideHistory } from '@/components/guides/GuideHistory';
 import { GuideStudents } from '@/components/guides/GuideStudents';
@@ -16,12 +17,30 @@ import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Button, LinkButton } from '@/components/ui/Button';
 import { QueryState } from '@/components/ui/QueryState';
 import { TabCards } from '@/components/ui/TabCards';
+import { positiveQueryId, queryEnum } from '@/lib/url-state';
 
 type GuidePageTab = 'todo' | 'history' | 'students';
+const GUIDE_TABS = ['todo', 'history', 'students'] as const;
 
 export default function GuidesPage() {
-  const [tab, setTab] = useState<GuidePageTab>('todo');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryTab = queryEnum(searchParams.get('tab'), GUIDE_TABS) ?? 'todo';
+  const rawStudentId = searchParams.get('studentId');
+  const requestedStudentId = positiveQueryId(rawStudentId);
+  const targetRequested = queryTab === 'students' && rawStudentId !== null;
+  const [tab, setTab] = useState<GuidePageTab>(queryTab);
+  useEffect(() => setTab(queryTab), [queryTab]);
   const guides = useGuides();
+  const selectTab = (next: GuidePageTab) => {
+    setTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'todo') params.delete('tab');
+    else params.set('tab', next);
+    if (next !== 'students') params.delete('studentId');
+    const query = params.toString();
+    router.replace(query ? `/guides?${query}` : '/guides', { scroll: false });
+  };
 
   return (
     <RequireAuth>
@@ -35,7 +54,7 @@ export default function GuidesPage() {
           <TabCards<GuidePageTab>
             label="수업 안내 화면"
             value={tab}
-            onChange={setTab}
+            onChange={selectTab}
             options={[
               { value: 'todo', label: '할 일', sub: '한 번 + 매번', badge: guides.data?.todoCount },
               { value: 'history', label: '이력', sub: '기간별 기록' },
@@ -56,7 +75,7 @@ export default function GuidesPage() {
                 size="sm"
                 variant="primary"
                 onClick={() => {
-                  setTab('todo');
+                  selectTab('todo');
                   requestAnimationFrame(() => document.getElementById('guide-once')?.scrollIntoView({ behavior: 'smooth' }));
                 }}
               >
@@ -72,7 +91,16 @@ export default function GuidesPage() {
         ) : tab === 'history' ? (
           <GuideHistory />
         ) : (
-          <GuideStudents />
+          <GuideStudents
+            requestedStudentId={requestedStudentId}
+            targetRequested={targetRequested}
+            onStudentChange={(studentId) => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.set('tab', 'students');
+              params.set('studentId', String(studentId));
+              router.replace(`/guides?${params.toString()}`, { scroll: false });
+            }}
+          />
         )}
       </AppShell>
     </RequireAuth>

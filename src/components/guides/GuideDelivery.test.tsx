@@ -17,7 +17,11 @@ import { useSession } from '@/store/useSession';
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/guides', useRouter: () => nav }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/guides',
+  useRouter: () => nav,
+  useSearchParams: () => new URLSearchParams(),
+}));
 const me: Me = { id: 1, name: '관리자', role: 'admin', roleLabel: '관리자', title: null,
   canAdminPage: true, canCrudAll: true, canSeeProfit: false, canCrudAttendance: true,
   canMoney: false, canWage: false, canApprove: true, canHide: true, canGpaPack: true };

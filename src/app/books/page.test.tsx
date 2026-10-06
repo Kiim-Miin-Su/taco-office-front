@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  canGpaPack: true, search: '', replace: vi.fn(), packsEnabled: vi.fn(), packFocus: vi.fn(),
+  canGpaPack: true, search: '', replace: vi.fn(), packsEnabled: vi.fn(), packFocus: vi.fn(), trackingProps: vi.fn(),
 }));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
@@ -30,7 +30,12 @@ vi.mock('@/api/queries', () => ({
 vi.mock('@/store/useSession', () => ({
   useSession: (select: (session: { me: { canGpaPack: boolean } }) => unknown) => select({ me: state }),
 }));
-vi.mock('@/components/books/BookTracking', () => ({ BookTracking: () => <p>트래킹 본문</p> }));
+vi.mock('@/components/books/BookTracking', () => ({
+  BookTracking: (props: unknown) => {
+    state.trackingProps(props);
+    return <p>트래킹 본문</p>;
+  },
+}));
 vi.mock('@/components/books/BookShelf', () => ({ BookShelf: () => <p>서가 본문</p> }));
 vi.mock('@/components/books/BookPacks', () => ({
   BookPacks: ({ focusPackId }: { focusPackId?: number | null }) => {
@@ -49,6 +54,7 @@ afterEach(() => {
   state.replace.mockReset();
   state.packsEnabled.mockReset();
   state.packFocus.mockReset();
+  state.trackingProps.mockReset();
 });
 
 it('원본 순서의 네 탭과 서버 건수를 표시하고 화면을 전환한다', () => {
@@ -101,4 +107,24 @@ it('자료 요청 deep link의 pack identity를 도메인 컴포넌트에 전달
   state.search = 'tab=requests&pack=7';
   render(<BooksPage />);
   expect(state.packFocus).toHaveBeenLastCalledWith(7);
+});
+
+it('학생 허브 배부 deep link를 exact student target으로 트래킹에 전달한다', () => {
+  state.search = 'tab=tracking&studentId=21&create=issue';
+  render(<BooksPage />);
+  expect(state.trackingProps).toHaveBeenLastCalledWith(expect.objectContaining({
+    createRequest: 1,
+    requestedStudentId: 21,
+    targetRequested: true,
+  }));
+});
+
+it.each(['studentId=abc&create=issue', 'create=issue'])('잘못되거나 빠진 학생 deep link도 일반 생성으로 대체하지 않는다: %s', (search) => {
+  state.search = search;
+  render(<BooksPage />);
+  expect(state.trackingProps).toHaveBeenLastCalledWith(expect.objectContaining({
+    createRequest: 1,
+    requestedStudentId: null,
+    targetRequested: true,
+  }));
 });
