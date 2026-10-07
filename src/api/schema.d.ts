@@ -7436,7 +7436,7 @@ export interface components {
             /** @description 마지막 실제 저장 actor */
             writtenById: number;
             writtenByName: string;
-            /** @description 구조화된 결정 수 */
+            /** @description 속기록의 `[정한 것]` 머리말 수 */
             decisionCount: number;
             /** @description 연결된 할 일 수 */
             taskCount: number;
