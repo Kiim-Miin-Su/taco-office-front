@@ -69,7 +69,7 @@ beforeEach(() => {
       if (reactivationSaveConflict) {
         throw new AxiosError('conflict', 'ERR_BAD_REQUEST', config, undefined, {
           config, status: 409, statusText: 'Conflict', headers: {},
-          data: { code: 'STUDENT_PROFILE_VERSION_CONFLICT', message: '다른 관리자가 먼저 변경했습니다. 후보를 다시 조회해 주세요.' },
+          data: { code: 'STUDENT_PROFILE_VERSION_CONFLICT', message: '학생 정보가 변경되었습니다. 후보를 다시 조회한 뒤 재시도해 주세요' },
         });
       }
       const body = typeof config.data === 'string' ? JSON.parse(config.data) as { requestKey: string } : config.data as { requestKey: string };
@@ -160,6 +160,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByText('상담 #18에서 시작했습니다.')).toBeTruthy();
     fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '김학생' } });
     fireEvent.click(view.getByRole('button', { name: '기존 학생 재활성화' }));
+    expect(view.queryByText(/현재는 입력 구조와 검증을 준비하는 단계입니다/)).toBeNull();
     expect(view.getByText(/같은 STU ID/)).toBeTruthy();
     expect(view.getByText(/신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다/)).toBeTruthy();
     await waitFor(() => expect(view.getByRole('button', { name: /김퇴원/ })).toBeTruthy());
@@ -211,7 +212,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     fireEvent.click(view.getByRole('button', { name: '저장 전 미리보기' }));
     await waitFor(() => expect(view.getByText(/미리보기 완료/)).toBeTruthy());
     fireEvent.click(view.getByRole('button', { name: '재활성화 저장' }));
-    await waitFor(() => expect(view.getByText('다른 관리자가 먼저 변경했습니다. 후보를 다시 조회해 주세요.')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('학생 정보가 변경되었습니다. 후보를 다시 조회한 뒤 재시도해 주세요')).toBeTruthy());
     expect((view.getByLabelText('새 상담 내용 *') as HTMLTextAreaElement).value).toBe('충돌해도 남을 상담 초안');
     expect(view.queryByRole('status')).toBeNull();
     expect(view.getByRole('button', { name: '재활성화 저장' }).hasAttribute('disabled')).toBe(true);

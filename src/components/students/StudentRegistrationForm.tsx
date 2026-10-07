@@ -335,7 +335,8 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         { value: 'create', label: '신규 학생' },
         { value: 'reactivate', label: '기존 학생 재활성화' },
       ]} />
-      <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 단계입니다. 학생 생성과 학교·국가 선택 기능이 준비되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner>
+      {/* BOC-03D-03c 권고안 채택(2026-10-07): 미구현 안내는 신규 생성에만 속한다. 실제 저장되는 재활성화에는 표시하지 않는다. */}
+      {mode === 'create' ? <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 단계입니다. 학생 생성과 학교·국가 선택 기능이 준비되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner> : null}
       {mode === 'create' && meta.isPending ? <Banner tone="neutral">등록 선택지를 불러오는 중입니다. 작성한 값은 그대로 유지됩니다.</Banner> : null}
       {mode === 'create' && meta.isError ? <Banner tone="danger">{metaErrorMessage(meta.error)}</Banner> : null}
 
