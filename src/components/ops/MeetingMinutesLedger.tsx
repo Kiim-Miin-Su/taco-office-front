@@ -14,6 +14,14 @@ const TONE: Record<string, ChipTone> = {
   plan: 'purple', consulting: 'teal', marketing: 'danger', dev: 'info', general: 'orange',
 };
 
+/**
+ * BO-Q13 (2026-10-07 사용자가 권고안을 채택해 확정): 사전 안건은 minutes에 섞지 않는 별도 versioned agenda다.
+ * 관리자·매니저가 회의 시작 전까지 쓰고 참석자는 읽으며, 속기록에는 명시적 「안건 가져오기」로만 복사한다.
+ * DTO/OpenAPI에 agenda·expectedVersion·잠금·actor/audit 계약이 생기기 전에는 가짜 저장을 만들지 않는다.
+ * 정책을 바꿀 때는 docs/decisions/PLANNING-REQUIRED.md의 BO-Q13과 이 경계를 함께 수정한다.
+ */
+const AGENDA_CONTRACT_PENDING = '사전 안건은 별도 문서로 보존하며, 저장 기능을 연결한 뒤 작성할 수 있습니다';
+
 export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]; onOpen: (id: number) => void }) {
   const [anchor, setAnchor] = useState(todayKst);
   const today = todayKst();
@@ -41,7 +49,7 @@ export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]
                   <b className="block text-[13px] text-fg">{m.title ?? m.mtTypeLabel}</b>
                   <span className="text-[12px] text-fg-subtle">{m.onDate ? longDateLabel(m.onDate) : '날짜 없음'}{m.startMin == null || m.endMin == null ? '' : ` · ${hhmm(m.startMin)}–${hhmm(m.endMin)}`}</span>
                 </div>
-                <Button size="sm" variant="secondary" disabled title="사전 안건 작성 기준이 확정된 뒤 저장 기능을 연결합니다"
+                <Button size="sm" variant="secondary" disabled title={AGENDA_CONTRACT_PENDING}
                   aria-label={`${m.title ?? m.mtTypeLabel} 미리 안건 쓰기`}>미리 안건 쓰기</Button>
                 <Button size="sm" onClick={() => onOpen(m.id)} aria-label={`${m.title ?? m.mtTypeLabel} 속기록 쓰기`}>속기록 쓰기</Button>
               </li>

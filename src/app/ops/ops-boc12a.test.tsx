@@ -76,7 +76,10 @@ describe('BOC-12a 회의 속기록 전용 탭', () => {
     expect(view.queryByText('회의 2')).toBeNull();
     expect(view.queryByText('회의 6')).toBeNull();
     expect(view.getByRole('button', { name: '회의 1 속기록 쓰기' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '회의 1 미리 안건 쓰기' }).hasAttribute('disabled')).toBe(true);
+    const agenda = view.getByRole('button', { name: '회의 1 미리 안건 쓰기' }) as HTMLButtonElement;
+    expect(agenda.disabled).toBe(true);
+    expect(agenda.title).toContain('별도 문서');
+    expect(agenda.title).toContain('저장 기능을 연결한 뒤');
 
     expect(view.getByRole('heading', { name: '월별 속기록 이력' })).toBeTruthy();
     expect(view.getByText('회의 3')).toBeTruthy();
