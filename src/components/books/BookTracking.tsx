@@ -20,7 +20,7 @@ import type { Book, BookTrackingStudent, LeadDiag } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { bookLevelPresentation, bookLevelUiLabel, issueFormTone } from '@/lib/book-presentation';
 import { todayKst } from '@/lib/calendar';
-import { educationGradeOption } from '@/lib/education-grades';
+import { educationGradeOption, type EducationGradeSource } from '@/lib/education-grades';
 
 /**
  * 머리 여섯 칸의 **자리별 색** — 원문 §38-6 윗줄: 검정 · 호박 · 청록 · 빨강 · 보라 · 초록(컷 실측).
@@ -45,7 +45,7 @@ function diagLine(d: LeadDiag): string {
 const LEVEL_BORDER: Readonly<Record<string, string>> = { 'bg-red': 'border-l-red', 'bg-amber': 'border-l-amber', 'bg-green': 'border-l-green' };
 const BOOK_LEVEL_ORDER: Readonly<Record<string, number>> = { foundation: 0, practice: 1, master: 2 };
 
-function gradeNumber(source: unknown, grade: string | null | undefined): number | null {
+function gradeNumber(source: EducationGradeSource | null | undefined, grade: string | null | undefined): number | null {
   if (!grade) return null;
   if (grade === 'K') return 0;
   const direct = /^G(1[0-2]|[1-9])$/.exec(grade);
@@ -55,7 +55,7 @@ function gradeNumber(source: unknown, grade: string | null | undefined): number 
 }
 
 /** 최신 배정 창은 학년 범위와 시간표 과목이 둘 다 맞는 교재만 보여 준다. 미분류 값은 맞는 것으로 추정하지 않는다. */
-function assignmentBooks(books: readonly Book[], source: unknown, grade: string | null | undefined, subKey: string): Book[] {
+function assignmentBooks(books: readonly Book[], source: EducationGradeSource | null | undefined, grade: string | null | undefined, subKey: string): Book[] {
   const value = gradeNumber(source, grade);
   if (value === null || !subKey) return [];
   return books
@@ -70,7 +70,7 @@ function guideMissing(student: BookTrackingStudent): boolean {
 }
 
 /** 서버가 준 학년과 안내 상태를 표시 순서에만 사용한다. 학년 대응이나 안내 상태를 화면에서 새로 판정하지 않는다. */
-function trackingGroups(students: readonly BookTrackingStudent[], source: unknown): Array<{ grade: string; students: BookTrackingStudent[] }> {
+function trackingGroups(students: readonly BookTrackingStudent[], source: EducationGradeSource | null | undefined): Array<{ grade: string; students: BookTrackingStudent[] }> {
   const byGrade = new Map<string, BookTrackingStudent[]>();
   for (const student of students) {
     const grade = student.grade ?? '학년 미정';

@@ -5,12 +5,12 @@
  */
 'use client';
 import { Select } from '@/components/ui';
-import { educationGradeOption, educationGradeOptions, hasEducationGradeContract } from '@/lib/education-grades';
+import { educationGradeOption, educationGradeOptions, hasEducationGradeContract, type EducationGradeSource } from '@/lib/education-grades';
 
 export interface EducationGradeSelectProps {
   id?: string;
   ariaLabel?: string;
-  source?: unknown;
+  source?: EducationGradeSource;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;

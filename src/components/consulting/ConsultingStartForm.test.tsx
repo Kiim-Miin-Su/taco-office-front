@@ -21,7 +21,7 @@ const REQUESTER_WORDS = [{ key: 'mother', label: '어머니' }, { key: 'father',
 const PICK_WORDS = { typeWords: TYPE_WORDS, requesterWords: REQUESTER_WORDS };
 
 const meta = {
-  kinds: [], subs: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [], genders: [],
+  kinds: [], subs: [], educationGrades: [], rooms: [], zaccs: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [], genders: [],
   staff: [
     { id: 2, name: '김민수', role: 'admin', canAdminPage: true, canGpaPack: true },
     { id: 3, name: '김범준', role: 'manager', canAdminPage: true, canGpaPack: true },

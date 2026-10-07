@@ -63,6 +63,8 @@ export type Room = S['RoomDto'];
 export type Zacc = S['ZaccDto'];
 export type StaffBrief = S['StaffBriefDto'];
 export type StudentBrief = S['StudentBriefDto'];
+/** BOC-01D-02 세 교육체계 학년 projection — Backend DTO/OpenAPI 생성 타입 */
+export type EducationGradeOption = S['EducationGradeOptionDto'];
 /** 학생 성별 선택지(N-83 · 선택 칸) — 관리자 표 아바타에만 쓴다 */
 export type Gender = S['GenderDto'];
 

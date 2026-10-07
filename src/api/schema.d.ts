@@ -4565,6 +4565,22 @@ export interface components {
             name: string;
             color: string;
         };
+        EducationGradeOptionDto: {
+            /** @description STU.grade에 저장할 원문값. 예: G5, Y6, 초5 */
+            value: string;
+            /** @enum {string} */
+            system: "US" | "GB" | "KR";
+            /** @description optgroup 이름 */
+            systemLabel: string;
+            /** @description 선택지 문구. 예: Y6 (= G5) */
+            optionLabel: string;
+            /** @description 선택 후 대응 안내. 예: = G5 · 초5 */
+            equivalenceHint: string;
+            /** @description 학생 목록 표시. 예: Y6 · G5 */
+            listLabel: string;
+            /** @description 미국 K=0, G1=1 … G12=12 기준 대응 순서 */
+            sort: number;
+        };
         RoomDto: {
             id: number;
             branch: string;
@@ -4678,6 +4694,8 @@ export interface components {
         MetaDto: {
             kinds: components["schemas"]["KindDto"][];
             subs: components["schemas"]["SubDto"][];
+            /** @description BOC-01D-02 활성 39개 학년 projection. 영속 46행은 보존한다. */
+            educationGrades: components["schemas"]["EducationGradeOptionDto"][];
             rooms: components["schemas"]["RoomDto"][];
             zaccs: components["schemas"]["ZaccDto"][];
             staff: components["schemas"]["StaffBriefDto"][];
@@ -12321,6 +12339,8 @@ export interface components {
             tag: string | null;
             /** @description 고르기에 적는 이름 — 「이름 · 꼬리」(꼬리가 없으면 이름). 화면은 이 글을 그대로 쓴다 (D-R18) */
             label: string;
+            /** @description 정확히 대응되는 active 값이면 서버 listLabel, 아니면 legacy 원문. 자동 변환하지 않는다. */
+            gradeDisplay: string | null;
             /** @description STU.created_at 그대로(KST). 등록 확정/첫 수업 시각으로 추정하지 않는다. */
             createdAt: string | null;
             genderLabel: string | null;
@@ -12335,6 +12355,8 @@ export interface components {
             pageSize: number;
             /** @description 현재 학생 DB의 학년 값. 검색 결과와 별개이며 미상값을 만들지 않는다. */
             grades: string[];
+            /** @description BOC-01D-02 활성 39개 학년 projection. 필터·등록·목록이 함께 쓴다. */
+            educationGrades: components["schemas"]["EducationGradeOptionDto"][];
         };
         StudentGuardianSummaryDto: {
             id: number;
@@ -12380,6 +12402,8 @@ export interface components {
             tag: string | null;
             /** @description 고르기에 적는 이름 — 「이름 · 꼬리」(꼬리가 없으면 이름). 화면은 이 글을 그대로 쓴다 (D-R18) */
             label: string;
+            /** @description 정확히 대응되는 active 값이면 서버 listLabel, 아니면 legacy 원문. 자동 변환하지 않는다. */
+            gradeDisplay: string | null;
             /** @description STU.created_at 그대로(KST). 등록 확정/첫 수업 시각으로 추정하지 않는다. */
             createdAt: string | null;
             genderLabel: string | null;
@@ -30940,7 +30964,7 @@ export interface operations {
             query?: {
                 /** @description 현재 STU 이름·학교·학년의 literal 부분 검색. 미전환 LEAD 검색은 아직 포함하지 않는다. */
                 q?: string;
-                /** @description 현행 STU.grade의 정확한 값. 교육체계별 학년 카탈로그는 후속 계약이다. */
+                /** @description STU.grade의 정확한 원문값. 선택지는 응답 educationGrades를 사용한다. */
                 grade?: string;
                 page?: number;
             };

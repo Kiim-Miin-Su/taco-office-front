@@ -16,7 +16,7 @@ afterEach(cleanup);
 
 const meta: Meta = {
   kinds: [{ key: 'class', name: '수업', color: '#123456', cap: 4, grp: 'lesson', rep: true, extra: false }],
-  subs: [{ key: 'writing', name: 'Writing', color: '#654321' }],
+  subs: [{ key: 'writing', name: 'Writing', color: '#654321' }], educationGrades: [],
   rooms: [{ id: 7, name: '강의실 7', branch: '본원' }], zaccs: [{ id: 5, label: 'TN Zoom 1' }], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [],
   genders: [{ key: 'female', label: '여' }, { key: 'male', label: '남' }],
   students: [{ id: 3, name: '학생 3', tag: null, label: '학생 3' }],

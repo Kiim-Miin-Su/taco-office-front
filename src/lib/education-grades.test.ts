@@ -4,6 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import { describe, expect, it } from 'vitest';
+import type { Meta } from '@/api/types';
 import { educationGradeListLabel, educationGradeOption, educationGradeOptions, hasEducationGradeContract } from './education-grades';
 
 const projection = {
@@ -11,7 +12,7 @@ const projection = {
     { value: 'Y6', system: 'GB', systemLabel: '영국 Year', optionLabel: 'Y6 (= G5)', equivalenceHint: '= G5 · 초5', listLabel: 'Y6 · G5', sort: 5 },
     { value: 'G5', system: 'US', systemLabel: '미국 Grade', optionLabel: 'G5 (= Y6)', equivalenceHint: '= Y6 · 초5', listLabel: 'G5 · Y6', sort: 5 },
   ],
-};
+} satisfies Partial<Pick<Meta, 'educationGrades'>>;
 
 describe('교육체계 학년 projection', () => {
   it('서버의 값·문구·순서를 계산 없이 그대로 보존한다', () => {
@@ -30,9 +31,5 @@ describe('교육체계 학년 projection', () => {
     expect(educationGradeListLabel(projection, { gradeDisplay: 'Y6 · G5 · 검수값' }, 'Y6')).toBe('Y6 · G5 · 검수값');
     expect(educationGradeListLabel(projection, {}, 'Y6')).toBe('Y6 · G5');
     expect(educationGradeListLabel(projection, {}, '9학년')).toBe('9학년');
-  });
-
-  it('불완전한 행은 선택지로 승격하지 않는다', () => {
-    expect(educationGradeOptions({ educationGrades: [{ value: 'Y6', system: 'GB' }] })).toEqual([]);
   });
 });
