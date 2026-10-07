@@ -3454,7 +3454,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 수업 히스토리 — 월 기록 + 본인 정산 (강사 덱 §29~31 · D-R7·D-R32·D-15) */
+        /** 수업 히스토리 — 서버 KST 직전 달 기록 + 본인 정산 (강사 덱 §29~31 · D-R7·D-R32·D-15) */
         get: operations["TeacherController_history"];
         put?: never;
         post?: never;
@@ -28089,7 +28089,7 @@ export interface operations {
     TeacherController_history: {
         parameters: {
             query?: {
-                /** @description YYYY-MM (KST) — 없으면 이번 달 */
+                /** @description 이전 클라이언트 호환용 검증값. 서버가 계산한 KST 직전 달과 다르면 400 TEACHER_HISTORY_MONTH_MISMATCH. 생략 권장. */
                 month?: string;
             };
             header?: never;
@@ -28106,7 +28106,7 @@ export interface operations {
                     "application/json": components["schemas"]["TeacherHistoryDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description TEACHER_HISTORY_MONTH_MISMATCH — 서버 KST 직전 달과 다른 legacy month */
             400: {
                 headers: {
                     [name: string]: unknown;

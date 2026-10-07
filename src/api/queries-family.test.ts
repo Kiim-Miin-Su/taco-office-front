@@ -125,7 +125,6 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   reportDeliveryHistory: qk.reportDeliveryHistory({ onDate: '2026-09-12' }),
   board: qk.board({ ...RANGE }),
   exec: qk.exec({ ...RANGE }),
-  teacherHistory: qk.teacherHistory('2026-09'),
   teacherGuides: qk.teacherGuides(undefined),
   teacherUnav: qk.teacherUnav(undefined),
   gpa: qk.gpa('2026-09-01'),
@@ -175,6 +174,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.teacherHome,
   // 강사 머리줄(시간대·시급·내 알림) — 읽음 처리가 이 갈래만 다시 읽는다
   qk.teacherShell,
+  // 강사 월기록 — 서버 KST 직전 달 하나만 읽는 상수 키 (BOC-09D-01)
+  qk.teacherHistory,
   qk.receivedGuides,
   qk.guides,
   qk.guideStudents,

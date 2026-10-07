@@ -80,20 +80,14 @@ const data = (): TeacherHistory => ({
   bonusRules: [],
 });
 
-it('서버 조회는 KST 전월 하나로 고정하고 월 이동 입력을 노출하지 않는다', async () => {
-  vi.useFakeTimers();
-  try {
-    vi.setSystemTime(new Date('2026-10-07T03:00:00Z'));
-    mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
-    const view = render(<TeacherHistoryPage />);
-    expect(mocks.history).toHaveBeenCalledWith('2026-09');
-    expect(view.getByText('KST 전월 고정 조회')).toBeTruthy();
-    expect(view.queryByRole('button', { name: '← 지난달' })).toBeNull();
-    expect(view.queryByRole('button', { name: '이번 달' })).toBeNull();
-    expect(view.queryByRole('button', { name: '다음 달 →' })).toBeNull();
-  } finally {
-    vi.useRealTimers();
-  }
+it('서버 권위 전월 조회를 인자 없이 사용하고 월 이동 입력을 노출하지 않는다', async () => {
+  mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
+  const view = render(<TeacherHistoryPage />);
+  expect(mocks.history).toHaveBeenCalledWith();
+  expect(view.getByText('KST 전월 고정 조회')).toBeTruthy();
+  expect(view.queryByRole('button', { name: '← 지난달' })).toBeNull();
+  expect(view.queryByRole('button', { name: '이번 달' })).toBeNull();
+  expect(view.queryByRole('button', { name: '다음 달 →' })).toBeNull();
 });
 
 it('히스토리의 시급 변경 신청은 기존 강사 홈 writer로 이동한다', async () => {

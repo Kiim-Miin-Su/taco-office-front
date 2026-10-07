@@ -303,7 +303,7 @@ export const qk = {
   teacherHome: ['teacher', 'home'] as const,
   /* 강사 머리줄(시간대·시급·내 알림) — 강사 전용 · 서버가 본인 고정 */
   teacherShell: ['teacher', 'shell'] as const,
-  teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
+  teacherHistory: ['teacher', 'history', 'server-previous-month'] as const,
   teacherPrivateNoteReceipts: ['teacher', 'private-notes', 'receipts'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
   receivedGuides: ['teacher', 'received-guides'] as const,
@@ -1815,12 +1815,16 @@ export function useCreateDiagnostic(): UseMutationResult<TeacherGuideDiag, unkno
   });
 }
 
-/** 수업 히스토리 — 월 기록+본인 정산. month 생략이면 서버가 이번 달(KST)로 판정한다 (D-R7·D-R32·D-15). */
-export function useTeacherHistory(month?: string): UseQueryResult<TeacherHistory> {
+/**
+ * BOC-09D-01 권고안: 강사 월기록은 서버가 계산한 KST 직전 달만 읽는다.
+ * Front는 month를 보내거나 같은 규칙을 재판정하지 않는다. 정책 변경 시 Back controller/KST helper,
+ * 생성 OpenAPI 타입, 강사 히스토리 화면, 두 수정사항 대조표·scenario·portfolio를 함께 고친다.
+ */
+export function useTeacherHistory(): UseQueryResult<TeacherHistory> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey(qk.teacherHistory(month), viewerId),
-    queryFn: async () => (await api.get<TeacherHistory>('/teacher/history', { params: month ? { month } : {} })).data,
+    queryKey: sessionQueryKey(qk.teacherHistory, viewerId),
+    queryFn: async () => (await api.get<TeacherHistory>('/teacher/history')).data,
     staleTime: 60 * 1000,
   });
 }

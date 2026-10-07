@@ -25,7 +25,7 @@ afterEach(() => { useSession.getState().signOut(); vi.restoreAllMocks(); });
 it('생성 계약 그대로 POST하고 본문 없는 영수증을 받은 뒤 최근 전달·강사 히스토리를 다시 읽는다', async () => {
   useSession.getState().signIn('teacher-private-note-test', teacher);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  client.setQueryData([...family.teacherHistory, '2026-09'], { marker: 'old history' });
+  client.setQueryData([...family.teacherHistory, 'server-previous-month'], { marker: 'old history' });
   const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { items: [receipt] } });
   const post = vi.spyOn(api, 'post').mockResolvedValue({ data: receipt });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -38,7 +38,7 @@ it('생성 계약 그대로 POST하고 본문 없는 영수증을 받은 뒤 최
     expect(get).toHaveBeenCalledWith('/teacher/private-notes/receipts');
     expect(result).toEqual(receipt);
     expect(result).not.toHaveProperty('body');
-    expect(client.getQueryState([...family.teacherHistory, '2026-09'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState([...family.teacherHistory, 'server-previous-month'])?.isInvalidated).toBe(true);
     await waitFor(() => expect(get.mock.calls.filter(([path]) => path === '/teacher/private-notes/receipts')).toHaveLength(2));
   } finally {
     view.unmount();

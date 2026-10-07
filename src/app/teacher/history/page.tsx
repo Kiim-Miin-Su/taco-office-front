@@ -24,7 +24,6 @@ import { LATE_TONE, REP, dowOf, hm, hours } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { useLessonName } from '@/components/teacher/lesson-name';
-import { previousMonthKst } from '@/lib/calendar';
 import { TeacherPrivateNoteDraft } from '@/components/teacher/TeacherPrivateNoteDraft';
 
 function kindChips(l: TeacherHistoryLesson): Array<{ label: string; tone: Tone }> {
@@ -158,8 +157,7 @@ function Row({ l, onNote }: { l: TeacherHistoryLesson; onNote: (lesson: TeacherH
 }
 
 export default function TeacherHistoryPage() {
-  const month = previousMonthKst();
-  const q = useTeacherHistory(month);
+  const q = useTeacherHistory();
   const meta = useMeta();
   const [privateNote, setPrivateNote] = useState<{ lesson: TeacherHistoryLesson; subject: string } | null>(null);
   return (
