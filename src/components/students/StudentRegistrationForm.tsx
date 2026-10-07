@@ -6,18 +6,20 @@
 'use client';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMeta } from '@/api/queries';
-import { ApiError } from '@/api/client';
+import { ApiError, apiMessage } from '@/api/client';
 import type { StaffBrief, StudentBrief } from '@/api/types';
-import { educationGradeOptions } from '@/lib/education-grades';
 import { todayKst } from '@/lib/calendar';
 import {
   STUDENT_PERIOD_STATE_LABEL, normalizeStudentPeriod, studentPeriodState, studentPeriodsOverlap,
   type StudentPeriod, type StudentPeriodPrecision,
 } from '@/lib/student-profile-period';
 import { Banner, Button, Checkbox, Chip, FieldError, Input, Label, LinkButton, PageHeader, Segmented, Select, Textarea } from '@/components/ui';
-import { useStudentReadAllowed } from '@/api/students';
+import {
+  useStudentCreate, useStudentCreatePreview, useStudentReadAllowed, useStudentRegistrationOptions,
+  useStudentSchoolCreate, useStudentSchoolSearch,
+  type StudentCreate, type StudentCreatePreview, type StudentCreateResult, type StudentSchoolOption,
+} from '@/api/students';
 import type { StudentRegistrationSource } from '@/lib/student-registration-route';
-import { EducationGradeSelect } from './EducationGradeSelect';
 import { StudentReactivationSection } from './StudentReactivationSection';
 
 type ContactType = 'phone' | 'kakao' | 'email' | 'other';
@@ -28,6 +30,7 @@ interface GuardianDraft {
 }
 interface SchoolDraft {
   key: number;
+  schoolId: number | null;
   query: string;
   from: string;
   fromPrecision: StudentPeriodPrecision;
@@ -40,7 +43,7 @@ let nextKey = 0;
 const contact = (): ContactDraft => ({ key: ++nextKey, type: 'phone', value: '', label: '' });
 const guardian = (): GuardianDraft => ({ key: ++nextKey, relation: '', relationOther: '', name: '', country: '', isPrimary: false, isPayer: false, contacts: [contact()] });
 const school = (): SchoolDraft => ({
-  key: ++nextKey, query: '', from: todayKst(), fromPrecision: 'day', to: '', toPrecision: 'day', openEnded: true,
+  key: ++nextKey, schoolId: null, query: '', from: todayKst(), fromPrecision: 'day', to: '', toPrecision: 'day', openEnded: true,
 });
 const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -183,6 +186,48 @@ function PeriodPreview({ row }: { row: Pick<SchoolDraft, 'from' | 'fromPrecision
   );
 }
 
+function SchoolSelector({ row, index, invalid, onChange }: {
+  row: SchoolDraft; index: number; invalid?: string; onChange: (patch: Partial<SchoolDraft>) => void;
+}) {
+  const search = useStudentSchoolSearch(row.query, row.schoolId === null);
+  const create = useStudentSchoolCreate();
+  const [issue, setIssue] = useState<string | null>(null);
+  const choose = (option: StudentSchoolOption) => {
+    setIssue(null); onChange({ schoolId: option.id, query: option.name });
+  };
+  const add = async () => {
+    if (!row.query.trim()) return;
+    setIssue(null);
+    try {
+      choose(await create.mutateAsync({
+        requestKey: globalThis.crypto.randomUUID(), name: row.query.trim(),
+        countryCode: null, region: null, campus: null,
+      }));
+    } catch (error) { setIssue(apiMessage(error)); }
+  };
+  return <div className="md:col-span-2">
+    <Label htmlFor={`schoolHistory[${index}]-query`}>학교 {index + 1} 이름</Label>
+    <Input id={`schoolHistory[${index}]-query`} aria-label={`학교 ${index + 1} 이름`} type="search"
+      data-field-path={`schoolHistory[${index}].query`} value={row.query} maxLength={120}
+      error={Boolean(invalid)} onChange={event => onChange({ schoolId: null, query: event.target.value })}
+      placeholder="학교명 검색" />
+    {row.schoolId !== null ? <div className="mt-2 flex items-center gap-2"><Chip tone="success">선택됨 · #{row.schoolId}</Chip>
+      <Button size="sm" onClick={() => onChange({ schoolId: null })}>다시 선택</Button></div> : null}
+    {row.schoolId === null && row.query.trim() && search.isPending ? <p role="status" className="mt-2 text-[12px] text-fg-subtle">학교를 찾는 중…</p> : null}
+    {row.schoolId === null && search.data?.length ? <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {search.data.map(option => <Button key={option.id} size="sm" aria-label={`학교 ${option.name} 선택`} onClick={() => choose(option)}>
+        {option.name}{option.countryLabel ? ` · ${option.countryLabel}` : ''}{option.campus ? ` · ${option.campus}` : ''}
+      </Button>)}
+    </div> : null}
+    {row.schoolId === null && row.query.trim() && search.isSuccess && !search.data.length ? <div className="mt-2 flex flex-wrap items-center gap-2">
+      <span className="text-[12px] text-fg-subtle">검색 결과가 없습니다.</span>
+      <Button size="sm" disabled={create.isPending} onClick={add}>입력한 학교 추가</Button>
+    </div> : null}
+    {search.isError ? <FieldError>{apiMessage(search.error)}</FieldError> : null}
+    <FieldError>{invalid ?? issue}</FieldError>
+  </div>;
+}
+
 interface PickerCandidate { id: number; label: string; actionLabel: string }
 function RegistrationMultiPicker({ kind, query, onQuery, candidates, selectedIds, pending, error, onAdd, onRemove }: {
   kind: '담당자' | '형제·자매';
@@ -232,8 +277,9 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
   const allowed = useStudentReadAllowed();
   const [mode, setMode] = useState<'create' | 'reactivate'>('create');
   const meta = useMeta(allowed && mode === 'create');
-  const grades = useMemo(() => educationGradeOptions(meta.data), [meta.data]);
-  const systems = useMemo(() => [...new Map(grades.map(item => [item.system, item.systemLabel])).entries()], [grades]);
+  const options = useStudentRegistrationOptions(allowed && mode === 'create');
+  const grades = options.data?.educationGrades ?? [];
+  const systems = useMemo(() => [...new Set(grades.map(item => item.educationSystem))], [grades]);
   const [reviewed, setReviewed] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [name, setName] = useState('');
@@ -247,6 +293,8 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
   const [gradeTo, setGradeTo] = useState('');
   const [gradeToPrecision, setGradeToPrecision] = useState<StudentPeriodPrecision>('day');
   const [gradeOpenEnded, setGradeOpenEnded] = useState(true);
+  const [residenceCountry, setResidenceCountry] = useState('');
+  const [residenceTimezone, setResidenceTimezone] = useState('');
   const [contacts, setContacts] = useState<ContactDraft[]>([]);
   const [birthDate, setBirthDate] = useState('');
   const [citizenship, setCitizenship] = useState('');
@@ -258,7 +306,13 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
   const [assigneeQuery, setAssigneeQuery] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
-  const gradeSource = useMemo(() => ({ educationGrades: grades.filter(item => item.system === educationSystem) }), [educationSystem, grades]);
+  const [allowSameName, setAllowSameName] = useState(false);
+  const previewMutation = useStudentCreatePreview();
+  const saveMutation = useStudentCreate();
+  const [prepared, setPrepared] = useState<{ body: StudentCreate; preview: StudentCreatePreview } | null>(null);
+  const [saved, setSaved] = useState<StudentCreateResult | null>(null);
+  const [issue, setIssue] = useState<string | null>(null);
+  const selectedCountry = options.data?.countries.find(country => country.code === residenceCountry) ?? null;
   const staffCandidates = useMemo<PickerCandidate[]>(() => (meta.data?.staff ?? []).map((item: StaffBrief) => ({
     id: item.id, label: `${item.name}${item.title ? ` · ${item.title}` : ''}`, actionLabel: item.name,
   })), [meta.data?.staff]);
@@ -271,18 +325,20 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
   const patchContact = (rows: ContactDraft[], index: number, patch: Partial<ContactDraft>) => rows.map((row, at) => at === index ? { ...row, ...patch } : row);
   const patchGuardian = (index: number, patch: Partial<GuardianDraft>) => setGuardians(rows => rows.map((row, at) => at === index ? { ...row, ...patch } : row));
   const patchSchool = (index: number, patch: Partial<SchoolDraft>) => setSchoolHistory(rows => rows.map((row, at) => at === index ? { ...row, ...patch } : row));
-  const review = () => {
+  const validateDraft = (): Errors => {
     const next: Errors = {};
+    if (entrySource === 'intake' && leadId === null) next.entrySource = '상담에서 시작한 등록에는 상담 ID가 필요합니다.';
     if (!name.trim()) next.name = '학생 이름을 입력해 주세요.';
     if (!gender) next.gender = '성별을 선택해 주세요.';
-    if (!systems.length) next.grade = '교육체계와 학년 선택 기능이 필요합니다.';
+    if (!systems.length) next.grade = '교육체계와 학년 선택지를 불러오지 못했습니다.';
     else if (!educationSystem || !grade || !gradeFrom) next.grade = '교육체계와 학년을 선택해 주세요.';
     else {
       try {
-        normalizeStudentPeriod({
+        const period = normalizeStudentPeriod({
           from: gradeFrom, fromPrecision: gradeFromPrecision,
           to: gradeOpenEnded ? null : gradeTo, toPrecision: gradeOpenEnded ? null : gradeToPrecision,
         });
+        if (studentPeriodState(period, todayKst()) !== 'current') next.grade = '등록일에 적용되는 학년 기간이 필요합니다.';
       } catch (error) {
         next.grade = error instanceof Error ? error.message.replace('STUDENT_PERIOD_INVALID: ', '') : '학년 기간을 확인해 주세요.';
       }
@@ -290,6 +346,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
     const schoolPeriods: Array<{ index: number; period: StudentPeriod }> = [];
     schoolHistory.forEach((row, index) => {
       if (!row.query.trim()) return;
+      if (row.schoolId === null) next[`schoolHistory[${index}].schoolId`] = '검색 결과에서 학교를 선택하거나 새 학교를 추가해 주세요.';
       try { schoolPeriods.push({ index, period: normalizeStudentPeriod(periodInput(row)) }); }
       catch (error) {
         next[`schoolHistory[${index}].period`] = error instanceof Error ? error.message.replace('STUDENT_PERIOD_INVALID: ', '') : '학교 기간을 확인해 주세요.';
@@ -300,7 +357,8 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         next.schoolHistory = `학교 이력 ${schoolPeriods[left].index + 1}과 ${schoolPeriods[right].index + 1}의 포함 기간이 겹칩니다. 기간을 명시적으로 수정해 주세요.`;
       }
     }
-    next.residenceCountryCode = '거주 국가 선택 계약 연결이 필요합니다.';
+    if (!residenceCountry) next.residenceCountryCode = '거주 국가를 선택해 주세요.';
+    else if ((selectedCountry?.timezones.length ?? 0) > 1 && !residenceTimezone) next.residenceTimezone = '지역·시간대를 선택해 주세요.';
     if (birthDate && birthDate > todayKst()) next.birthDate = '생년월일은 오늘보다 늦을 수 없습니다.';
     if (guardians.filter(row => row.isPrimary).length > 1) next.guardiansPrimary = '주보호자는 한 명만 선택할 수 있습니다.';
     guardians.forEach((row, guardianIndex) => {
@@ -313,7 +371,66 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         if (item.type === 'other' && !item.label.trim()) next[`${path}.label`] = '기타 연락처 이름을 입력해 주세요.';
       });
     });
-    setErrors(next); setReviewed(true);
+    contacts.forEach((item, index) => {
+      const path = `contacts[${index}]`;
+      if (!item.value.trim()) next[`${path}.value`] = '학생 연락처를 입력해 주세요.';
+      else if (item.type === 'email' && !email.test(item.value.trim())) next[`${path}.value`] = '이메일 형식을 확인해 주세요.';
+      if (item.type === 'other' && !item.label.trim()) next[`${path}.label`] = '기타 연락처 이름을 입력해 주세요.';
+    });
+    return next;
+  };
+  const review = () => { const next = validateDraft(); setErrors(next); setReviewed(true); return next; };
+
+  const build = (requestKey: string): StudentCreate | null => {
+    const next = review();
+    if (Object.keys(next).length) return null;
+    const gradePeriod = normalizeStudentPeriod({
+      from: gradeFrom, fromPrecision: gradeFromPrecision,
+      to: gradeOpenEnded ? null : gradeTo, toPrecision: gradeOpenEnded ? null : gradeToPrecision,
+    });
+    const timezone = residenceTimezone || selectedCountry?.timezones[0]?.timezone || null;
+    return {
+      requestKey, entrySource, leadId: entrySource === 'intake' ? leadId : null,
+      name: name.trim(), englishName: englishName.trim() || null, gender: gender as StudentCreate['gender'],
+      schoolHistory: schoolHistory.filter(row => row.schoolId !== null).map(row => {
+        const period = normalizeStudentPeriod(periodInput(row));
+        return { schoolId: row.schoolId!, from: period.from, fromPrecision: row.fromPrecision,
+          to: period.to, toPrecision: row.openEnded ? null : row.toPrecision };
+      }),
+      gradeHistory: [{ educationSystem: educationSystem as StudentCreate['gradeHistory'][number]['educationSystem'], gradeCode: grade, from: gradePeriod.from,
+        fromPrecision: gradeFromPrecision, to: gradePeriod.to, toPrecision: gradeOpenEnded ? null : gradeToPrecision }],
+      residenceHistory: [{ countryCode: residenceCountry, timezone, from: todayKst(), fromPrecision: 'day', to: null, toPrecision: null }],
+      textHistory: [],
+      contacts: contacts.map(row => ({ kind: row.type, value: row.value.trim(), label: row.type === 'other' ? row.label.trim() : null })),
+      birthDate: birthDate || null, hasCitizenship: citizenship === '' ? null : citizenship === 'true',
+      guardians: guardians.map(row => ({
+        relation: row.relation as StudentCreate['guardians'][number]['relation'],
+        relationOther: row.relation === 'other' ? row.relationOther.trim() : null,
+        name: row.name.trim() || null, countryCode: row.country || null,
+        isPrimary: row.isPrimary, isPayer: row.isPayer,
+        contacts: row.contacts.map(item => ({ kind: item.type, value: item.value.trim(), label: item.type === 'other' ? item.label.trim() : null })),
+      })),
+      cashReceiptNumber: cashReceipt.trim() || null, siblingIds,
+      source: referralSource ? referralSource as NonNullable<StudentCreate['source']> : null,
+      assigneeIds, notes: notes.trim() || null, allowSameName,
+    };
+  };
+  const preview = async () => {
+    setPrepared(null); setSaved(null); setIssue(null);
+    const body = build(globalThis.crypto.randomUUID());
+    if (!body) return;
+    try { setPrepared({ body, preview: await previewMutation.mutateAsync(body) }); }
+    catch (error) { setIssue(apiMessage(error)); }
+  };
+  const save = async () => {
+    if (!prepared) return;
+    setIssue(null);
+    const current = build(prepared.body.requestKey);
+    if (!current || JSON.stringify(current) !== JSON.stringify(prepared.body)) {
+      setPrepared(null); setIssue('입력값이 바뀌었습니다. 저장 전 미리보기를 다시 실행해 주세요.'); return;
+    }
+    try { setSaved(await saveMutation.mutateAsync(prepared.body)); }
+    catch (error) { setPrepared(null); setIssue(apiMessage(error)); }
   };
 
   const context = entrySource === 'intake' && leadId
@@ -335,12 +452,10 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         { value: 'create', label: '신규 학생' },
         { value: 'reactivate', label: '기존 학생 재활성화' },
       ]} />
-      {/* BOC-03D-03c 권고안 채택(2026-10-07): 미구현 안내는 신규 생성에만 속한다. 실제 저장되는 재활성화에는 표시하지 않는다. */}
-      {mode === 'create' ? <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 단계입니다. 학생 생성과 학교·국가 선택 기능이 준비되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner> : null}
-      {mode === 'create' && meta.isPending ? <Banner tone="neutral">등록 선택지를 불러오는 중입니다. 작성한 값은 그대로 유지됩니다.</Banner> : null}
-      {mode === 'create' && meta.isError ? <Banner tone="danger">{metaErrorMessage(meta.error)}</Banner> : null}
+      {mode === 'create' && (meta.isPending || options.isPending) ? <Banner tone="neutral">등록 선택지를 불러오는 중입니다. 작성한 값은 그대로 유지됩니다.</Banner> : null}
+      {mode === 'create' && (meta.isError || options.isError) ? <Banner tone="danger">{metaErrorMessage(meta.error ?? options.error)}</Banner> : null}
 
-      {mode === 'create' ? <form aria-label="학생 신규 등록 초안" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); review(); }} noValidate>
+      {mode === 'create' ? <form aria-label="학생 신규 등록" className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void preview(); }} noValidate>
         <Section number={1} title="초기 이력" sub="학년·학교·거주 정보의 적용 기간이 초기 이력이 됩니다. 같은 값을 현재 정보와 이력에 두 번 입력하지 않습니다.">
           <Banner tone="neutral">결제·수강 금액은 여기서 입력하지 않습니다. 적용 시각과 작성자 정보는 서버가 기록합니다.</Banner>
         </Section>
@@ -358,7 +473,6 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
 
         <Section number={4} title="학교" sub="검색 결과에서 학교를 고르고 재학 기간을 기록합니다. 이름만으로 같은 학교를 합치지 않습니다.">
           <div className="flex flex-col gap-4">
-            <Banner tone="neutral">학교 검색·추가 기능을 준비 중입니다. 이름과 기간 초안은 보존하지만 학교가 선택됐다고 표시하지 않습니다.</Banner>
             {schoolHistory.map((row, index) => {
               const base = `schoolHistory[${index}]`;
               const number = index + 1;
@@ -369,7 +483,8 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
                     onClick={() => setSchoolHistory(rows => rows.filter((_, at) => at !== index))}>제거</Button>
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="md:col-span-2"><Label htmlFor={`${base}-query`}>학교 {number} 이름</Label><Input id={`${base}-query`} aria-label={`학교 ${number} 이름`} type="search" data-field-path={`${base}.query`} value={row.query} maxLength={100} onChange={event => patchSchool(index, { query: event.target.value })} placeholder="학교명 검색 기능 준비 중" /></div>
+                  <SchoolSelector row={row} index={index} invalid={errors[`${base}.schoolId`]}
+                    onChange={patch => patchSchool(index, patch)} />
                   <PeriodBoundary id={`${base}-from`} label={`학교 ${number} 시작`} path={`${base}.from`} value={row.from} precision={row.fromPrecision}
                     invalid={Boolean(errors[`${base}.period`])}
                     onValue={value => patchSchool(index, { from: value })}
@@ -388,14 +503,14 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
               </div>;
             })}
             <FieldError>{errors.schoolHistory}</FieldError>
-            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setSchoolHistory(rows => [...rows, school()])}>+ 학교 이력 추가</Button><Button size="sm" disabled>학교 검색·선택 기능 준비 중</Button></div>
+            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setSchoolHistory(rows => [...rows, school()])}>+ 학교 이력 추가</Button></div>
           </div>
         </Section>
 
         <Section number={5} title="교육체계와 학년">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div><Label htmlFor="education-system">교육체계 *</Label><Select id="education-system" aria-label="교육체계" data-field-path="educationSystem" value={educationSystem} error={Boolean(errors.grade)} disabled={!systems.length} onChange={event => { setEducationSystem(event.target.value); setGrade(''); }}><option value="">선택</option>{systems.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div>
-            <div><Label htmlFor="education-grade">학년 *</Label><EducationGradeSelect id="education-grade" ariaLabel="학년" fieldPath="gradeCode" source={gradeSource} value={grade} onChange={setGrade} disabled={!educationSystem} /></div>
+            <div><Label htmlFor="education-system">교육체계 *</Label><Select id="education-system" aria-label="교육체계" data-field-path="educationSystem" value={educationSystem} error={Boolean(errors.grade)} disabled={!systems.length} onChange={event => { setEducationSystem(event.target.value); setGrade(''); }}><option value="">선택</option>{systems.map(value => <option key={value} value={value}>{value}</option>)}</Select></div>
+            <div><Label htmlFor="education-grade">학년 *</Label><Select id="education-grade" aria-label="학년" data-field-path="gradeCode" value={grade} disabled={!educationSystem} onChange={event => setGrade(event.target.value)}><option value="">선택</option>{grades.filter(item => item.educationSystem === educationSystem).map(item => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></div>
             <PeriodBoundary id="grade-from" label="학년 적용 시작" path="gradeHistory[0].from" value={gradeFrom} precision={gradeFromPrecision}
               invalid={Boolean(errors.grade)}
               onValue={setGradeFrom} onPrecision={precision => { setGradeFromPrecision(precision); setGradeFrom(valueForPrecision(gradeFrom, precision)); }} />
@@ -417,8 +532,8 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
 
         <Section number={7} title="거주 국가와 시간대">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div><Label htmlFor="residence-country">거주 국가 *</Label><Select id="residence-country" aria-label="거주 국가" data-field-path="residenceCountryCode" value="" error={Boolean(errors.residenceCountryCode)} disabled><option value="">국가 선택 기능 준비 중</option></Select><FieldError>{errors.residenceCountryCode}</FieldError></div>
-            <div><Label htmlFor="residence-timezone">지역·시간대</Label><Select id="residence-timezone" data-field-path="residenceTimezone" value="" disabled><option value="">국가 선택 뒤 표시</option></Select></div>
+            <div><Label htmlFor="residence-country">거주 국가 *</Label><Select id="residence-country" aria-label="거주 국가" data-field-path="residenceCountryCode" value={residenceCountry} error={Boolean(errors.residenceCountryCode)} disabled={options.isPending || options.isError} onChange={event => { setResidenceCountry(event.target.value); setResidenceTimezone(''); }}><option value="">선택</option>{(options.data?.countries ?? []).map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</Select><FieldError>{errors.residenceCountryCode}</FieldError></div>
+            <div><Label htmlFor="residence-timezone">지역·시간대</Label><Select id="residence-timezone" aria-label="지역·시간대" data-field-path="residenceTimezone" value={residenceTimezone} error={Boolean(errors.residenceTimezone)} disabled={!selectedCountry} onChange={event => setResidenceTimezone(event.target.value)}><option value="">{(selectedCountry?.timezones.length ?? 0) <= 1 ? '대표 시간대 자동 적용' : '선택'}</option>{(selectedCountry?.timezones ?? []).map(zone => <option key={zone.timezone} value={zone.timezone}>{zone.label}</option>)}</Select><FieldError>{errors.residenceTimezone}</FieldError></div>
           </div>
         </Section>
 
@@ -438,10 +553,10 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
                 <div key={row.key} className="rounded-xl border border-line bg-inset p-3 sm:p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-[13px] font-bold">보호자 {guardianIndex + 1}</h3><Button size="sm" aria-label={`보호자 ${guardianIndex + 1} 제거`} disabled={guardians.length === 1} onClick={() => setGuardians(rows => rows.filter((_, at) => at !== guardianIndex))}>보호자 제거</Button></div>
                   <div data-testid={`guardian-fields-${guardianIndex}`} className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div><Label htmlFor={`${base}-relation`}>관계 *</Label><Select id={`${base}-relation`} aria-label={`보호자 ${guardianIndex + 1} 관계`} data-field-path={`${base}.relation`} value={row.relation} error={Boolean(errors[`${base}.relation`])} onChange={event => patchGuardian(guardianIndex, { relation: event.target.value })}><option value="">선택</option>{RELATIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select><FieldError>{errors[`${base}.relation`]}</FieldError></div>
+                    <div><Label htmlFor={`${base}-relation`}>관계 *</Label><Select id={`${base}-relation`} aria-label={`보호자 ${guardianIndex + 1} 관계`} data-field-path={`${base}.relation`} value={row.relation} error={Boolean(errors[`${base}.relation`])} onChange={event => patchGuardian(guardianIndex, { relation: event.target.value })}><option value="">선택</option>{(options.data?.guardianRelations ?? RELATIONS.map(([key, label]) => ({ key, label }))).map(({ key, label }) => <option key={key} value={key}>{label}</option>)}</Select><FieldError>{errors[`${base}.relation`]}</FieldError></div>
                     <div><Label htmlFor={`${base}-name`}>이름</Label><Input id={`${base}-name`} aria-label={`보호자 ${guardianIndex + 1} 이름`} data-field-path={`${base}.name`} maxLength={80} value={row.name} onChange={event => patchGuardian(guardianIndex, { name: event.target.value })} /></div>
                     {row.relation === 'other' ? <div><Label htmlFor={`${base}-relation-other`}>기타 관계</Label><Input id={`${base}-relation-other`} data-field-path={`${base}.relationOther`} maxLength={40} value={row.relationOther} onChange={event => patchGuardian(guardianIndex, { relationOther: event.target.value })} /></div> : null}
-                    <div><Label htmlFor={`${base}-country`}>거주 국가</Label><Select id={`${base}-country`} data-field-path={`${base}.countryCode`} value={row.country} disabled onChange={event => patchGuardian(guardianIndex, { country: event.target.value })}><option value="">국가 선택 기능 준비 중</option></Select></div>
+                    <div><Label htmlFor={`${base}-country`}>거주 국가</Label><Select id={`${base}-country`} data-field-path={`${base}.countryCode`} value={row.country} onChange={event => patchGuardian(guardianIndex, { country: event.target.value })}><option value="">선택하지 않음</option>{(options.data?.countries ?? []).map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</Select></div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-4">
                     <Checkbox aria-label={`보호자 ${guardianIndex + 1} 주보호자`} data-field-path={`${base}.isPrimary`} checked={row.isPrimary} onChange={event => patchGuardian(guardianIndex, { isPrimary: event.target.checked })} label="주보호자" />
@@ -472,7 +587,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         </Section>
 
         <Section number={13} title="알게 된 경로">
-          <div className="max-w-sm"><Label htmlFor="student-source">경로</Label><Select id="student-source" data-field-path="source" value={referralSource} onChange={event => setReferralSource(event.target.value)}><option value="">선택하지 않음</option>{SOURCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div>
+          <div className="max-w-sm"><Label htmlFor="student-source">경로</Label><Select id="student-source" data-field-path="source" value={referralSource} onChange={event => setReferralSource(event.target.value)}><option value="">선택하지 않음</option>{(options.data?.sources ?? SOURCES.map(([key, label]) => ({ key, label }))).map(({ key, label }) => <option key={key} value={key}>{label}</option>)}</Select></div>
         </Section>
 
         <Section number={14} title="담당자">
@@ -485,12 +600,17 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
 
         <Section number={15} title="기타">
           <Label htmlFor="student-notes" hint={`${notes.length} / 2000`}>주의사항 등</Label><Textarea id="student-notes" data-field-path="notes" maxLength={2000} value={notes} onChange={event => setNotes(event.target.value)} />
+          <div className="mt-3"><Checkbox aria-label="동명이인 확인" data-field-path="allowSameName" checked={allowSameName} onChange={event => setAllowSameName(event.target.checked)} label="검색된 동명이인과 다른 학생입니다" /></div>
         </Section>
 
-        {reviewed ? <Banner tone={Object.keys(errors).length ? 'warning' : 'neutral'}>{Object.keys(errors).length ? '입력을 보완해 주세요. 작성한 값은 그대로 유지됩니다.' : '화면 검토를 통과했습니다. 학생 생성 기능이 준비되기 전에는 등록할 수 없습니다.'}</Banner> : null}
+        {reviewed ? <Banner tone={Object.keys(errors).length ? 'warning' : 'neutral'}>{Object.keys(errors).length ? '입력을 보완해 주세요. 작성한 값은 그대로 유지됩니다.' : '화면 검토를 통과했습니다.'}</Banner> : null}
+        {prepared ? <Banner tone="success">미리보기 완료 · 기간 {prepared.preview.summary.schoolPeriods + prepared.preview.summary.gradePeriods + prepared.preview.summary.residencePeriods + prepared.preview.summary.textPeriods}건 · 보호자 {prepared.preview.summary.guardians}명</Banner> : null}
+        {issue ? <Banner tone="danger">{issue}</Banner> : null}
+        {saved ? <Banner tone="success"><span role="status">{name.trim()} 학생을 등록했습니다.</span> <LinkButton href={`/students/${saved.studentId}`}>학생 상세 보기</LinkButton></Banner> : null}
         <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-xl border border-line bg-card p-3 shadow-sm">
-          <Button type="submit">입력 검토</Button>
-          <Button variant="primary" disabled title="학생 생성과 학교·국가 선택 기능이 준비된 뒤 사용할 수 있습니다">학생 등록 기능 준비 중</Button>
+          <Button onClick={review}>입력 검토</Button>
+          <Button type="submit" disabled={previewMutation.isPending || saveMutation.isPending}>저장 전 미리보기</Button>
+          <Button variant="primary" disabled={!prepared || previewMutation.isPending || saveMutation.isPending} onClick={() => { void save(); }}>학생 등록</Button>
         </div>
       </form> : <StudentReactivationSection entrySource={entrySource} leadId={leadId} />}
     </div>

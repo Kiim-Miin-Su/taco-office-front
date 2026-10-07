@@ -35,6 +35,27 @@ const populatedMeta = {
     { id: 2, name: '이도윤', grade: 'G8', school: null, gender: 'male', tag: null, label: '이도윤' },
   ],
 };
+const registrationOptions = {
+  countries: [
+    { code: 'KR', label: '대한민국', timezones: [{ timezone: 'Asia/Seoul', label: '한국 표준시', representative: true }] },
+    { code: 'US', label: '미국', timezones: [
+      { timezone: 'America/New_York', label: '미 동부', representative: true },
+      { timezone: 'America/Los_Angeles', label: '미 서부', representative: false },
+    ] },
+  ],
+  educationGrades: [
+    { educationSystem: 'KR', code: 'E6', label: '초등학교 6학년', sort: 6 },
+    { educationSystem: 'US', code: 'G5', label: 'Grade 5', sort: 5 },
+  ],
+  guardianRelations: [
+    { key: 'mother', label: '어머니' }, { key: 'father', label: '아버지' },
+    { key: 'aunt', label: '이모님' }, { key: 'driver', label: '기사님' }, { key: 'other', label: '기타' },
+  ],
+  sources: [
+    { key: 'kakao', label: '카카오' }, { key: 'phone', label: '전화' }, { key: 'blog', label: '블로그' },
+    { key: 'instagram', label: '인스타그램' }, { key: 'referral', label: '소개' }, { key: 'walkin', label: '방문' },
+  ],
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
@@ -55,6 +76,29 @@ beforeEach(() => {
   useSession.getState().signIn('student-registration-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
+    if (config.url === '/students/options') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: registrationOptions };
+    }
+    if (config.url === '/students/schools' && config.method === 'get') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: [] };
+    }
+    if (config.url === '/students/schools' && config.method === 'post') {
+      return { config, status: 201, statusText: 'Created', headers: {}, data: { id: 91, name: '새 학교', countryCode: null, countryLabel: null, region: null, campus: null } };
+    }
+    if (config.url === '/students/preview') {
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) as { requestKey: string } : config.data as { requestKey: string };
+      return { config, status: 200, statusText: 'OK', headers: {}, data: {
+        saved: false, requestKey: body.requestKey, studentId: null, profileVersion: null,
+        summary: { schoolPeriods: 0, gradePeriods: 1, residencePeriods: 1, textPeriods: 0, studentContacts: 0, guardians: 1, siblingLinks: 0, assignees: 0 },
+      } };
+    }
+    if (config.url === '/students' && config.method === 'post') {
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) as { requestKey: string } : config.data as { requestKey: string };
+      return { config, status: 201, statusText: 'Created', headers: {}, data: {
+        saved: true, replayed: false, requestKey: body.requestKey, studentId: 101, profileVersion: '1', createdAt: '2026-10-07T09:00:00.000Z',
+        summary: { schoolPeriods: 0, gradePeriods: 1, residencePeriods: 1, textPeriods: 0, studentContacts: 0, guardians: 1, siblingLinks: 0, assignees: 0 },
+      } };
+    }
     if (config.url === '/students/reactivation-candidates') {
       return { config, status: 200, statusText: 'OK', headers: {}, data: reactivationCandidates };
     }
@@ -92,12 +136,15 @@ function setup(props: Parameters<typeof StudentRegistrationForm>[0] = {}) {
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return render(<StudentRegistrationForm {...props} />, { wrapper });
 }
+async function waitForInitialQueries() {
+  await waitFor(() => expect(requests.filter(request => request.url === '/meta' || request.url === '/students/options')).toHaveLength(2));
+}
 
 describe('BOC-03a 학생 신규 등록 초안', () => {
   it('15절을 원문 순서로 그리고 실제 입력에 배열 경로를 붙인다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
-    expect(requests[0]).toMatchObject({ method: 'get', url: '/meta' });
+    await waitForInitialQueries();
+    expect(requests.map(request => request.url)).toEqual(expect.arrayContaining(['/meta', '/students/options']));
     const headings = view.getAllByRole('heading', { level: 2 }).map(node => node.textContent);
     expect(headings).toEqual([
       '1. 초기 이력', '2. 이름', '3. 성별', '4. 학교', '5. 교육체계와 학년',
@@ -107,20 +154,20 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByLabelText('학생 이름').getAttribute('data-field-path')).toBe('name');
     expect(view.getByLabelText('보호자 1 연락처 1 값').getAttribute('data-field-path')).toBe('guardians[0].contacts[0].value');
     const paths = [...view.container.querySelectorAll<HTMLElement>('[data-field-path]')].map(node => node.dataset.fieldPath);
-    expect(paths).toHaveLength(28);
+    expect(paths).toHaveLength(29);
     expect(new Set(paths).size).toBe(paths.length);
-    expect(view.getByRole('button', { name: '학생 등록 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '학생 등록' }).hasAttribute('disabled')).toBe(true);
     expect(view.queryByText(/등록되었습니다/)).toBeNull();
   });
 
   it('빈 초안을 검토하면 필수 오류를 절별로 보여 주고 쓰기 요청은 만들지 않는다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     fireEvent.click(view.getByRole('button', { name: '입력 검토' }));
     expect(view.getByText('학생 이름을 입력해 주세요.')).toBeTruthy();
     expect(view.getByText('성별을 선택해 주세요.')).toBeTruthy();
     expect(view.getByText('교육체계와 학년을 선택해 주세요.')).toBeTruthy();
-    expect(view.getByText('거주 국가 선택 계약 연결이 필요합니다.')).toBeTruthy();
+    expect(view.getByText('거주 국가를 선택해 주세요.')).toBeTruthy();
     expect(view.getByText('보호자 관계를 선택해 주세요.')).toBeTruthy();
     expect(view.getByText('보호자 연락처를 입력해 주세요.')).toBeTruthy();
     expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);
@@ -128,24 +175,24 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
 
   it('보호자와 연락처를 반복 추가·제거해도 최소 한 행과 index 경로를 유지한다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     fireEvent.click(view.getByRole('button', { name: '+ 보호자 추가' }));
     expect(view.getByLabelText('보호자 2 관계').getAttribute('data-field-path')).toBe('guardians[1].relation');
     fireEvent.click(view.getByRole('button', { name: '보호자 1 연락처 추가' }));
     expect(view.getByLabelText('보호자 1 연락처 2 값').getAttribute('data-field-path')).toBe('guardians[0].contacts[1].value');
-    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(37);
+    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(38);
     fireEvent.click(view.getByRole('button', { name: '보호자 1 연락처 2 제거' }));
     expect(view.queryByLabelText('보호자 1 연락처 2 값')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '보호자 2 제거' }));
     expect(view.queryByLabelText('보호자 2 관계')).toBeNull();
-    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(28);
+    expect(view.container.querySelectorAll('[data-field-path]')).toHaveLength(29);
     expect(view.getByRole('button', { name: '보호자 1 제거' }).hasAttribute('disabled')).toBe(true);
     expect(view.getByRole('button', { name: '보호자 1 연락처 1 제거' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('선택 입력인 학생 연락처는 마지막 행도 제거해 다시 0개로 만들 수 있다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     fireEvent.click(view.getByRole('button', { name: '+ 학생 연락수단 추가' }));
     const remove = view.getByRole('button', { name: '학생 연락처 1 제거' });
     expect(remove.hasAttribute('disabled')).toBe(false);
@@ -154,9 +201,40 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByRole('button', { name: '+ 학생 연락수단 추가' })).toBeTruthy();
   });
 
+  it('화면 검토와 동일한 requestKey·body로 preview한 뒤 신규 학생을 저장한다', async () => {
+    const view = setup();
+    await waitForInitialQueries();
+    fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '김신규' } });
+    fireEvent.change(view.getByLabelText('성별'), { target: { value: 'female' } });
+    fireEvent.change(view.getByLabelText('교육체계'), { target: { value: 'KR' } });
+    fireEvent.change(view.getByLabelText('학년'), { target: { value: 'E6' } });
+    fireEvent.change(view.container.querySelector('#residence-country')!, { target: { value: 'KR' } });
+    fireEvent.change(view.getByLabelText('보호자 1 관계'), { target: { value: 'mother' } });
+    fireEvent.change(view.getByLabelText('보호자 1 연락처 1 값'), { target: { value: '010-1111-2222' } });
+
+    fireEvent.click(view.getByRole('button', { name: '저장 전 미리보기' }));
+    await waitFor(() => expect(view.getByText(/미리보기 완료/)).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: '학생 등록' }));
+    await waitFor(() => expect(view.getByText('김신규 학생을 등록했습니다.')).toBeTruthy());
+
+    const writes = requests.filter(request => request.method === 'post' && request.url !== '/students/schools');
+    expect(writes.map(request => request.url)).toEqual(['/students/preview', '/students']);
+    const bodies = writes.map(request => typeof request.data === 'string'
+      ? JSON.parse(request.data) as Record<string, unknown>
+      : request.data as Record<string, unknown>);
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[0]).toMatchObject({
+      entrySource: 'students', leadId: null, name: '김신규', gender: 'female',
+      gradeHistory: [{ educationSystem: 'KR', gradeCode: 'E6' }],
+      residenceHistory: [{ countryCode: 'KR', timezone: 'Asia/Seoul' }],
+      guardians: [{ relation: 'mother', contacts: [{ kind: 'phone', value: '010-1111-2222' }] }],
+    });
+    expect(typeof bodies[0].requestKey).toBe('string');
+  });
+
   it('출발 경로를 표시하고 withdrawn 후보만 같은 STU·새 상담으로 preview 뒤 저장하며 신규 입력을 보존한다', async () => {
     const view = setup({ source: 'intake', leadId: 18 });
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     expect(view.getByText('상담 #18에서 시작했습니다.')).toBeTruthy();
     fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '김학생' } });
     fireEvent.click(view.getByRole('button', { name: '기존 학생 재활성화' }));
@@ -184,7 +262,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
 
   it('미래 생일·잘못된 email·복수 주보호자를 검토하되 다른 입력은 보존한다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '김학생' } });
     fireEvent.change(view.getByLabelText('생년월일'), { target: { value: '2999-01-01' } });
     fireEvent.change(view.getByLabelText('보호자 1 관계'), { target: { value: 'mother' } });
@@ -233,7 +311,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
 
   it('기본 레이아웃은 좁은 폭 1열이며 보호자 묶음의 controls가 고정 폭을 강제하지 않는다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     const section = view.getByRole('region', { name: '학생 보호자 입력' });
     const grid = within(section).getByTestId('guardian-fields-0');
     expect(grid.className).toContain('grid-cols-1');
@@ -244,7 +322,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
   it('활성 담당자와 서버 표시 형제를 검색·복수 선택하고 중복 없이 제거한다', async () => {
     responseMeta = populatedMeta;
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
 
     fireEvent.change(view.getByLabelText('담당자 검색'), { target: { value: '김' } });
     fireEvent.click(view.getByRole('button', { name: '담당자 김민선 선택' }));
@@ -265,7 +343,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
 
   it('학교 기간의 연·월·일 정밀도와 종료 없음을 보존하고 겹침을 숨기지 않는다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
 
     fireEvent.change(view.getByLabelText('학교 1 이름'), { target: { value: 'A 학교' } });
     fireEvent.change(view.getByLabelText('학교 1 시작 정밀도'), { target: { value: 'year' } });
@@ -290,7 +368,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
 
   it('종료가 시작보다 앞선 기간은 거절하고 다른 초안을 보존한다', async () => {
     const view = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '보존 학생' } });
     fireEvent.change(view.getByLabelText('학교 1 이름'), { target: { value: '기간 학교' } });
     fireEvent.change(view.getByLabelText('학교 1 시작'), { target: { value: '2026-10-10' } });
@@ -304,7 +382,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
 
   it('선택지가 비면 빈 상태를 보이고 403이면 권한 상태와 초안 보존을 알린다', async () => {
     const empty = setup();
-    await waitFor(() => expect(requests).toHaveLength(1));
+    await waitForInitialQueries();
     expect(empty.getByText('선택 가능한 담당자가 없습니다.')).toBeTruthy();
     expect(empty.getByText('선택 가능한 형제·자매가 없습니다.')).toBeTruthy();
     empty.unmount();
