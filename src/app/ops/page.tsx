@@ -35,7 +35,7 @@ import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
 import { MeetingDetail } from '@/components/ops/MeetingDetail';
-import { MeetingMinutesLedger } from '@/components/ops/MeetingMinutesLedger';
+import { MeetingMinutesLedger, type MeetingLedgerView } from '@/components/ops/MeetingMinutesLedger';
 import { ComplaintCreateButton } from '@/components/ops/ComplaintForm';
 import { ComplaintDetail } from '@/components/ops/ComplaintDetail';
 import { ComplaintRefunds } from '@/components/ops/ComplaintRefunds';
@@ -173,6 +173,8 @@ export default function OpsPage() {
   const [planTab, setPlanTab] = useState<'board' | 'due'>('board');
   const [planId, setPlanId] = useState<number | null>(queryPlanId);
   const [meetingId, setMeetingId] = useState<number | null>(queryMeetingId);
+  const [meetingView, setMeetingView] = useState<MeetingLedgerView>('minutes');
+  const openMeeting = (id: number, view: MeetingLedgerView = 'minutes') => { setMeetingView(view); setMeetingId(id); };
   // §67 카드 처리 창 · 강사 교체 마법사 (C93) — 컴플레인에서 열면 학생·건을 미리 채운다
   const [cplId, setCplId] = useState<number | null>(queryCplId);
   const [wizard, setWizard] = useState<TeacherChangePreset | null>(null);
@@ -224,6 +226,7 @@ export default function OpsPage() {
   useEffect(() => {
     setTab(queryTab);
     setPlanId(queryPlanId);
+    setMeetingView('minutes');
     setMeetingId(queryMeetingId);
     setCplId(queryCplId);
     if (queryCplId) setPeriods((p) => ({ ...p, complaint: 'all' }));
@@ -238,7 +241,7 @@ export default function OpsPage() {
    */
   const meetingRow = (r: Meeting) => (
     <li key={r.id}>
-      <button type="button" onClick={() => setMeetingId(r.id)}
+      <button type="button" onClick={() => openMeeting(r.id)}
         aria-label={`회의 ${r.mtTypeLabel}${r.onDate ? ` ${r.onDate}` : ''}${r.title ? ` ${r.title}` : ''}`}
         className={`flex w-full flex-wrap items-center gap-2 rounded-lg border border-l-4 border-dashed border-line bg-card px-3 py-2 text-left hover:bg-inset ${MT_BORDER[r.mtType] ?? 'border-l-line-2'}`}
       >
@@ -461,7 +464,7 @@ export default function OpsPage() {
             {meetingList(meetings, '이 기간에는 회의가 없습니다')}
           </>
         )
-        : tab === 'minutes' ? <MeetingMinutesLedger meetings={d.meetings} onOpen={setMeetingId} />
+        : tab === 'minutes' ? <MeetingMinutesLedger meetings={d.meetings} onOpen={openMeeting} />
         : tab === 'mkt' ? (
           <>
             {/* 원문 §59·§60 의 속 갈래(카드형) — 트래킹 · 대표 피드백 · 회의 속기록 (C-6 · 59-6) · 오른쪽 끝 「+ 오늘 한 것」 (59-3 · C-7) */}
@@ -692,7 +695,7 @@ export default function OpsPage() {
         onDone={(row) => { setEditingMarketing(null); setNotice(`고쳤습니다 — ${row.name}`); }} />
       <SuggestionsAdmin open={suggestionOpen} rows={d?.suggestions ?? []}
         onClose={() => router.replace(`/ops?tab=${tab}`)} />
-      <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} onClose={() => setMeetingId(null)} />
+      <MeetingDetail meetingId={meetingId} staff={meta.data?.staff} initialView={meetingView} onClose={() => setMeetingId(null)} />
       <ComplaintDetail
         complaint={(d?.complaints ?? []).find((c) => c.id === cplId) ?? null}
         stages={d?.cplStages ?? []}

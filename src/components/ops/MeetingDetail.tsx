@@ -36,8 +36,10 @@ import {
 } from '@/api/queries';
 import type { MeetingAttendee, MeetingTask, StaffBrief } from '@/api/types';
 import { hhmm, monthDayLabel } from '@/lib/calendar';
+import { MeetingAgendaPanel } from './MeetingAgendaPanel';
 
-type Tab = 'pre' | 'minutes' | 'tasks';
+type Tab = 'agenda' | 'pre' | 'minutes' | 'tasks';
+export type MeetingOpenView = 'agenda' | 'minutes';
 
 /** 칩 색만 화면이 고른다 — 낱말은 서버가 준 stateLabel 이다 (D-R18) */
 const ATTEND_TONE: Record<string, 'warning' | 'success' | 'neutral'> = {
@@ -79,8 +81,8 @@ function TaskRow({ t, busy, onToggle }: { t: MeetingTask; busy: boolean; onToggl
 }
 
 export function MeetingDetail({
-  meetingId, staff, onClose,
-}: { meetingId: number | null; staff?: StaffBrief[]; onClose: () => void }) {
+  meetingId, staff, initialView = 'minutes', onClose,
+}: { meetingId: number | null; staff?: StaffBrief[]; initialView?: MeetingOpenView; onClose: () => void }) {
   const q = useMeetingDetail(meetingId);
   const save = useWriteMinutes();
   const assign = useAssignMeetingTask();
@@ -109,7 +111,7 @@ export function MeetingDetail({
 
   // 회의를 바꿔 열면 초안을 그 회의 것으로 갈아 끼운다 — 남의 속기록 위에 쓰지 않는다
   useEffect(() => { setDraft(d?.minutes ?? ''); }, [d?.id, d?.minutes]);
-  useEffect(() => { setTab('minutes'); setTitle(''); setToId(''); setDueOn(''); setNoticeSent(null); }, [meetingId]);
+  useEffect(() => { setTab(initialView); setTitle(''); setToId(''); setDueOn(''); setNoticeSent(null); }, [initialView, meetingId]);
 
   const insert = (word: string) => setDraft((v) => (v.endsWith('\n') || v === '' ? `${v}${word}\n` : `${v}\n${word}\n`));
 
@@ -199,11 +201,21 @@ export function MeetingDetail({
             value={tab}
             onChange={setTab}
             options={[
+              { value: 'agenda', label: `사전 안건 ${d.agenda ? 1 : 0}` },
               { value: 'pre', label: `① 사전 자료 ${d.preFiles.length}` },
               { value: 'minutes', label: `② 속기록 ${d.minutes ? 1 : 0}` },
               { value: 'tasks', label: `③ 할 일 ${d.tasks.length}` },
             ]}
           />
+
+          {tab === 'agenda' ? (
+            <MeetingAgendaPanel
+              agenda={d.agenda}
+              canPrepare={d.canEdit}
+              reloadAgenda={async () => (await q.refetch()).data?.agenda ?? null}
+              onUseMinutesDraft={(minutesDraft) => { setDraft(minutesDraft); setTab('minutes'); }}
+            />
+          ) : null}
 
           {tab === 'pre' ? (
             d.preFiles.length === 0 ? (

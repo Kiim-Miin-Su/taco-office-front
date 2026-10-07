@@ -162,6 +162,18 @@ it('사전 자료가 없으면 빈 상태를 보인다', () => {
   expect(v.getByText('사전 자료가 없습니다')).toBeTruthy();
 });
 
+it('목록에서 사전 안건으로 열면 별도 안건 화면을 먼저 보이고 minutes에 섞지 않는다 (BO-Q13 권고안 채택)', () => {
+  state.data = { ...base, agenda: { meetingId: 4, content: '가격 정책 결정', version: 3,
+    createdAt: '2026-10-07T09:00:00+09:00', createdById: 2, createdByName: '김민수',
+    updatedAt: '2026-10-07T10:00:00+09:00', updatedById: 3, updatedByName: '김민선',
+    locked: false, lockedAt: null, canEdit: true, editBlockedReason: null, canImportToMinutes: true } };
+  const v = render(<MeetingDetail meetingId={4} staff={staff} initialView="agenda" onClose={() => {}} />);
+  expect(v.getByText('가격 정책 결정')).toBeTruthy();
+  expect(v.queryByLabelText('속기록')).toBeNull();
+  expect((v.getByLabelText('사전 안건 내용') as HTMLTextAreaElement).readOnly).toBe(true);
+  expect(v.getByText(/저장 기능을 연결하는 중/)).toBeTruthy();
+});
+
 /* ── 원문 §66 — 가운데 큰 창 (66-1) ─────────────────────────────────── */
 
 it('회의 상세는 오른쪽 서랍이 아니라 가운데 큰 창이다 — 머리 × 와 원문 §66 바닥 「닫기」 (66-1 · w5 재대조)', () => {

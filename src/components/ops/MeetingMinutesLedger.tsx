@@ -17,12 +17,12 @@ const TONE: Record<string, ChipTone> = {
 /**
  * BO-Q13 (2026-10-07 사용자가 권고안을 채택해 확정): 사전 안건은 minutes에 섞지 않는 별도 versioned agenda다.
  * 관리자·매니저가 회의 시작 전까지 쓰고 참석자는 읽으며, 속기록에는 명시적 「안건 가져오기」로만 복사한다.
- * DTO/OpenAPI에 agenda·expectedVersion·잠금·actor/audit 계약이 생기기 전에는 가짜 저장을 만들지 않는다.
+ * 생성 계약의 agenda·expectedVersion·잠금·actor/audit를 표시하되, 실제 endpoint 전에는 가짜 저장을 만들지 않는다.
  * 정책을 바꿀 때는 docs/decisions/PLANNING-REQUIRED.md의 BO-Q13과 이 경계를 함께 수정한다.
  */
-const AGENDA_CONTRACT_PENDING = '사전 안건은 별도 문서로 보존하며, 저장 기능을 연결한 뒤 작성할 수 있습니다';
+export type MeetingLedgerView = 'agenda' | 'minutes';
 
-export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]; onOpen: (id: number) => void }) {
+export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]; onOpen: (id: number, view: MeetingLedgerView) => void }) {
   const [anchor, setAnchor] = useState(todayKst);
   const today = todayKst();
   const writeRows = meetings
@@ -48,10 +48,11 @@ export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]
                 <div className="min-w-44 flex-1">
                   <b className="block text-[13px] text-fg">{m.title ?? m.mtTypeLabel}</b>
                   <span className="text-[12px] text-fg-subtle">{m.onDate ? longDateLabel(m.onDate) : '날짜 없음'}{m.startMin == null || m.endMin == null ? '' : ` · ${hhmm(m.startMin)}–${hhmm(m.endMin)}`}</span>
+                  {m.agenda ? <span className="mt-1 block text-[12px] text-fg-2">안건 · {m.agenda.preview} · {m.agenda.updatedByName}</span> : null}
                 </div>
-                <Button size="sm" variant="secondary" disabled title={AGENDA_CONTRACT_PENDING}
-                  aria-label={`${m.title ?? m.mtTypeLabel} 미리 안건 쓰기`}>미리 안건 쓰기</Button>
-                <Button size="sm" onClick={() => onOpen(m.id)} aria-label={`${m.title ?? m.mtTypeLabel} 속기록 쓰기`}>속기록 쓰기</Button>
+                <Button size="sm" variant="secondary" onClick={() => onOpen(m.id, 'agenda')}
+                  aria-label={`${m.title ?? m.mtTypeLabel} ${m.agenda ? '안건 보기' : '미리 안건 쓰기'}`}>{m.agenda ? '안건 보기' : '미리 안건 쓰기'}</Button>
+                <Button size="sm" onClick={() => onOpen(m.id, 'minutes')} aria-label={`${m.title ?? m.mtTypeLabel} 속기록 쓰기`}>속기록 쓰기</Button>
               </li>
             ))}
           </ul>
@@ -68,7 +69,9 @@ export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]
             <Button size="sm" variant="ghost" onClick={() => setAnchor(todayKst())}>이번 달</Button>
           </div>
         </div>
-        <Banner tone="neutral" className="mb-2">작성자 · 본문 전문 · 결정 · 할 일 요약은 목록 계약 반영 전까지 회의 상세에서 확인합니다.</Banner>
+        {historyRows.some((m) => !m.minutesSummary) ? (
+          <Banner tone="neutral" className="mb-2">요약이 없는 이전 기록은 회의 상세에서 확인합니다.</Banner>
+        ) : null}
         {historyRows.length === 0 ? <Banner tone="neutral">이 달에 저장한 속기록이 없습니다.</Banner> : (
           <ul className="flex flex-col gap-2">
             {historyRows.map((m) => (
@@ -77,9 +80,15 @@ export function MeetingMinutesLedger({ meetings, onOpen }: { meetings: Meeting[]
                 <div className="min-w-44 flex-1">
                   <b className="block text-[13px] text-fg">{m.title ?? m.mtTypeLabel}</b>
                   <span className="text-[12px] text-fg-subtle">{m.onDate ? longDateLabel(m.onDate) : '날짜 없음'} · 참석 {m.confirmed}/{m.attendees}</span>
+                  {m.minutesSummary ? (
+                    <>
+                      <span className="mt-1 block text-[12px] text-fg-2">{m.minutesSummary.preview}</span>
+                      <span className="block text-[12px] text-fg-subtle">{m.minutesSummary.writtenByName} · 결정 {m.minutesSummary.decisionCount} · 할 일 {m.minutesSummary.taskDone}/{m.minutesSummary.taskCount}</span>
+                    </>
+                  ) : null}
                 </div>
-                <Button size="sm" variant="secondary" onClick={() => onOpen(m.id)} aria-label={`${m.title ?? m.mtTypeLabel} 열기`}>열기</Button>
-                <Button size="sm" onClick={() => onOpen(m.id)} aria-label={`${m.title ?? m.mtTypeLabel} 고치기`}>고치기</Button>
+                <Button size="sm" variant="secondary" onClick={() => onOpen(m.id, 'minutes')} aria-label={`${m.title ?? m.mtTypeLabel} 열기`}>열기</Button>
+                <Button size="sm" onClick={() => onOpen(m.id, 'minutes')} aria-label={`${m.title ?? m.mtTypeLabel} 고치기`}>고치기</Button>
               </li>
             ))}
           </ul>

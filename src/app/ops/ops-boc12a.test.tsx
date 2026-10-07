@@ -20,7 +20,10 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(n
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/ops/PlanReport', () => ({ PlanReport: () => null }));
-vi.mock('@/components/ops/MeetingDetail', () => ({ MeetingDetail: ({ meetingId }: { meetingId: number | null }) => meetingId ? <div>회의 상세 #{meetingId}</div> : null }));
+vi.mock('@/components/ops/MeetingDetail', () => ({
+  MeetingDetail: ({ meetingId, initialView }: { meetingId: number | null; initialView?: string }) => meetingId
+    ? <div>회의 상세 #{meetingId} · {initialView}</div> : null,
+}));
 
 const me: Me = {
   id: 4, name: '대표', role: 'ceo', roleLabel: '대표', title: null, canAdminPage: true, canCrudAll: true,
@@ -43,8 +46,10 @@ const data: Ops = {
   meetings: [
     meeting(1, addDays(today, -2), false),
     meeting(2, addDays(today, 8), false),
-    meeting(3, today, true),
-    meeting(4, addDays(today, -7), false),
+    { ...meeting(3, today, true), minutesSummary: { meetingId: 3, preview: '가격 정책을 확정함', version: 2,
+      writtenAt: '2026-10-07T10:00:00+09:00', writtenById: 4, writtenByName: '대표', decisionCount: 1, taskCount: 2, taskDone: 1 } },
+    { ...meeting(4, addDays(today, -7), false), agenda: { preview: '채용 일정 검토', version: 2,
+      updatedAt: '2026-10-06T10:00:00+09:00', updatedById: 4, updatedByName: '대표', locked: false } },
     meeting(5, addDays(today, 7), false),
     meeting(6, addDays(today, -8), false),
   ],
@@ -77,13 +82,17 @@ describe('BOC-12a 회의 속기록 전용 탭', () => {
     expect(view.queryByText('회의 6')).toBeNull();
     expect(view.getByRole('button', { name: '회의 1 속기록 쓰기' })).toBeTruthy();
     const agenda = view.getByRole('button', { name: '회의 1 미리 안건 쓰기' }) as HTMLButtonElement;
-    expect(agenda.disabled).toBe(true);
-    expect(agenda.title).toContain('별도 문서');
-    expect(agenda.title).toContain('저장 기능을 연결한 뒤');
+    expect(agenda.disabled).toBe(false);
+    fireEvent.click(agenda);
+    expect(view.getByText('회의 상세 #1 · agenda')).toBeTruthy();
+    expect(view.getByText(/안건 · 채용 일정 검토 · 대표/)).toBeTruthy();
+    expect(view.getByRole('button', { name: '회의 4 안건 보기' })).toBeTruthy();
 
     expect(view.getByRole('heading', { name: '월별 속기록 이력' })).toBeTruthy();
     expect(view.getByText('회의 3')).toBeTruthy();
+    expect(view.getByText('가격 정책을 확정함')).toBeTruthy();
+    expect(view.getByText('대표 · 결정 1 · 할 일 1/2')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '회의 3 열기' }));
-    expect(view.getByText('회의 상세 #3')).toBeTruthy();
+    expect(view.getByText('회의 상세 #3 · minutes')).toBeTruthy();
   });
 });
