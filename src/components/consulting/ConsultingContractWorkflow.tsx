@@ -27,6 +27,7 @@ import { WideDialog } from '@/components/ui/WideDialog';
 import { fileUploadBody } from '@/lib/file-upload';
 import { CONSULTING_CONTRACT_STEPS, CONSULTING_SHARES, CONSULTING_STAGE_BY_KEY } from '@/lib/consulting';
 import { won } from '@/lib/money';
+import { useRequestKey } from '@/lib/request-key';
 import { ConsultingContractStepper } from './ConsultingContractStepper';
 import { ConsultingActivity } from './ConsultingActivity';
 import { ConsultingCloseDialog } from './ConsultingCloseDialog';
@@ -61,6 +62,7 @@ const FILE_ROLE_VIEW: Record<ConsultingFile['role'], { label: string; tone: 'inf
  */
 function ShareEditor({ detail, meta }: { detail: ConsultingDetail; meta?: Meta }) {
   const update = useUpdateConsultingShare();
+  const requestKey = useRequestKey();
   const updateLock = useRef(false);
   const [updatePending, setUpdatePending] = useState(false);
   const [open, setOpen] = useState(false);
@@ -88,7 +90,9 @@ function ShareEditor({ detail, meta }: { detail: ConsultingDetail; meta?: Meta }
     setShare(nextShare);
     if (nextShare !== 'picked') setPickedStaffIds([]);
     try {
-      await update.mutateAsync({ consId: detail.id, share: nextShare, ...(nextShare === 'picked' ? { pickedStaffIds: nextPicked } : {}) });
+      const payload = { expectedVersion: detail.version ?? 1, share: nextShare, ...(nextShare === 'picked' ? { pickedStaffIds: nextPicked } : {}) };
+      await update.mutateAsync({ consId: detail.id, ...payload, requestKey: requestKey.keyFor(payload) });
+      requestKey.reset();
     } catch { /* mutation error and rollback are rendered/reconciled by the shared query hook */ }
     finally {
       updateLock.current = false;

@@ -65,6 +65,9 @@ import type {
   ConsultingFileCreate,
   ConsultingList,
   ConsultingShareUpdate,
+  ConsultingTemplate,
+  ConsultingTemplates,
+  ConsultingTemplateWrite,
   DayCancel,
   DayCancelNoticeList,
   DayCancelResult,
@@ -265,6 +268,7 @@ export const qk = {
   acctPrivacy: ['accounting', 'privacy'] as const,
   ops: ['ops'] as const,
   consulting: ['consulting'] as const,
+  consultingTemplates: ['consulting', 'templates'] as const,
   /** §30 계약 5단계 상세 — 건별 서버 projection. */
   consultingDetail: (id: number) => ['consulting', 'detail', id] as const,
   /** §28 회계 — 같은 탭의 다른 질의다. 갈래 앞자락은 `family.consulting` (C58) */
@@ -1197,6 +1201,23 @@ export function useCreateConsulting(): UseMutationResult<ConsultingDetail, unkno
     mutationFn: async (body) => (await api.post<ConsultingDetail>('/consulting', body)).data,
     onSuccess: (detail) => qc.setQueryData(sessionQueryKey(qk.consultingDetail(detail.id), viewerId), detail),
     onSettled: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
+  });
+}
+
+export function useConsultingTemplates(enabled = true): UseQueryResult<ConsultingTemplates> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.consultingTemplates, viewerId),
+    queryFn: async () => (await api.get<ConsultingTemplates>('/consulting/templates')).data,
+    enabled,
+  });
+}
+
+export function useWriteConsultingTemplate(): UseMutationResult<ConsultingTemplate, unknown, { consType: string } & ConsultingTemplateWrite> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ consType, ...body }) => (await api.patch<ConsultingTemplate>(`/consulting/templates/${consType}`, body)).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.consulting }); },
   });
 }
 

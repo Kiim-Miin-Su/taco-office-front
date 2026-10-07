@@ -34,7 +34,7 @@ describe('ConsultingCoreEditor', () => {
     fireEvent.change(view.getByLabelText('시작'), { target: { value: '2026-10-02' } });
     fireEvent.change(view.getByLabelText('종료'), { target: { value: '2027-01-15' } });
     fireEvent.click(view.getByRole('button', { name: '저장' }));
-    expect(mutate).toHaveBeenCalledWith({ consId: 5, studentIds: [10, 11], requester: 'father', ownerId: 3, amount: 900000, sessions: 6, startOn: '2026-10-02', endOn: '2027-01-15' }, expect.any(Object));
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ consId: 5, expectedVersion: 1, requestKey: expect.any(String), studentIds: [10, 11], requester: 'father', ownerId: 3, amount: 900000, sessions: 6, startOn: '2026-10-02', endOn: '2027-01-15' }), expect.any(Object));
   });
 
   it('서버 canEdit=false면 편집기를 세우지 않는다', () => {
@@ -47,6 +47,6 @@ describe('ConsultingCoreEditor', () => {
     fireEvent.click(view.getByRole('button', { name: '고치기' }));
     fireEvent.change(view.getByLabelText('약정 회차'), { target: { value: '5' } });
     fireEvent.click(view.getByRole('button', { name: '저장' }));
-    expect(mutate).toHaveBeenCalledWith({ consId: 5, sessions: 5 }, expect.any(Object));
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ consId: 5, expectedVersion: 1, requestKey: expect.any(String), sessions: 5 }), expect.any(Object));
   });
 });

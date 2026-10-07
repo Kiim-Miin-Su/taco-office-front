@@ -9,6 +9,7 @@ import { apiMessage } from '@/api/client';
 import { useMeta, useUpdateConsultingCore } from '@/api/queries';
 import type { ConsultingDetail, ConsultingPatch } from '@/api/types';
 import { Banner, Button, Input, Label, Select } from '@/components/ui';
+import { useRequestKey } from '@/lib/request-key';
 
 const requesterLabel = (value: ConsultingPatch['requester']) => value === 'mother' ? '어머니' : '아버지';
 const toggleId = (values: number[], id: number) => values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
@@ -17,6 +18,7 @@ export function ConsultingCoreEditor({ detail, onDone }: { detail: ConsultingDet
   const [open, setOpen] = useState(false);
   const meta = useMeta(open);
   const patch = useUpdateConsultingCore();
+  const requestKey = useRequestKey();
   const [studentIds, setStudentIds] = useState(detail.studentIds);
   const [requester, setRequester] = useState<NonNullable<ConsultingPatch['requester']>>(detail.requester ?? 'mother');
   const [ownerId, setOwnerId] = useState(detail.ownerId == null ? '' : String(detail.ownerId));
@@ -40,17 +42,18 @@ export function ConsultingCoreEditor({ detail, onDone }: { detail: ConsultingDet
           : !Number.isInteger(parsedSessions) || parsedSessions <= 0 ? '회차는 1회 이상의 정수로 입력해 주세요.'
             : !startOn || !endOn || startOn > endOn ? '시작일과 종료일을 올바른 순서로 입력해 주세요.' : null;
     setIssue(nextIssue); if (nextIssue) return;
-    const body: ConsultingPatch = {};
-    if (studentIds.length !== detail.studentIds.length || studentIds.some((id) => !detail.studentIds.includes(id))) body.studentIds = studentIds;
-    if (requester !== detail.requester) body.requester = requester;
-    if (parsedOwner !== detail.ownerId) body.ownerId = parsedOwner;
-    if (parsedAmount !== detail.amount) body.amount = parsedAmount;
-    if (parsedSessions !== detail.sessions) body.sessions = parsedSessions;
-    if (startOn !== detail.startOn) body.startOn = startOn;
-    if (endOn !== detail.endOn) body.endOn = endOn;
-    if (Object.keys(body).length === 0) { setOpen(false); return; }
-    patch.mutate({ consId: detail.id, ...body }, {
-      onSuccess: () => { setOpen(false); onDone?.(); },
+    const changes: Omit<ConsultingPatch, 'expectedVersion' | 'requestKey'> = {};
+    if (studentIds.length !== detail.studentIds.length || studentIds.some((id) => !detail.studentIds.includes(id))) changes.studentIds = studentIds;
+    if (requester !== detail.requester) changes.requester = requester;
+    if (parsedOwner !== detail.ownerId) changes.ownerId = parsedOwner;
+    if (parsedAmount !== detail.amount) changes.amount = parsedAmount;
+    if (parsedSessions !== detail.sessions) changes.sessions = parsedSessions;
+    if (startOn !== detail.startOn) changes.startOn = startOn;
+    if (endOn !== detail.endOn) changes.endOn = endOn;
+    if (Object.keys(changes).length === 0) { setOpen(false); return; }
+    const payload = { expectedVersion: detail.version ?? 1, ...changes };
+    patch.mutate({ consId: detail.id, ...payload, requestKey: requestKey.keyFor(payload) }, {
+      onSuccess: () => { requestKey.reset(); setOpen(false); onDone?.(); },
     });
   };
   if (!detail.capabilities.canEdit) return null;

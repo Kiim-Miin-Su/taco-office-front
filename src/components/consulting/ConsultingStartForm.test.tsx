@@ -34,6 +34,24 @@ const meta = {
 } satisfies Meta;
 
 describe('ConsultingStartForm', () => {
+  it('담당 후보에는 활성 강사를 포함하지만 지정 공개 후보에는 백오피스 사용자만 보인다', () => {
+    const view = render(<ConsultingStartForm {...PICK_WORDS} meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={vi.fn()} />);
+    expect(view.getByRole('option', { name: '김재훈' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '지정 공개' }));
+    expect(view.getByRole('button', { name: '김민수' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '김재훈' })).toBeNull();
+  });
+
+  it('기본 항목이 없는 유형은 비활성화하고 서버 차단 사유를 화면에 적는다', () => {
+    const types = TYPE_WORDS.map((item) => item.key === 'essay'
+      ? { ...item, enabled: false, blockedReason: '기본 항목 미설정 — 이 유형의 컨설팅 시작을 막습니다' }
+      : { ...item, enabled: true, blockedReason: null });
+    const view = render(<ConsultingStartForm typeWords={types} requesterWords={REQUESTER_WORDS} meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={vi.fn()} />);
+    expect((view.getByRole('button', { name: '에세이 지도' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByRole('list', { name: '시작할 수 없는 컨설팅 유형' }).textContent)
+      .toContain('에세이 지도 — 기본 항목 미설정 — 이 유형의 컨설팅 시작을 막습니다');
+  });
+
   it('확정된 학생 identity로 열면 그 학생만 미리 선택해 생성 DTO에 보낸다', () => {
     const submit = vi.fn<(body: ConsultingCreate) => void>();
     const view = render(<ConsultingStartForm {...PICK_WORDS} meta={meta} initialStudentIds={[10]} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
@@ -81,11 +99,11 @@ describe('ConsultingStartForm', () => {
     fireEvent.click(view.getByRole('button', { name: '김민수' }));
     fireEvent.click(view.getByRole('button', { name: '시작하기' }));
 
-    expect(submit).toHaveBeenCalledWith({
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({
       consType: 'essay', studentIds: [10, 11], requester: 'father', ownerId: 3,
       amount: 800000, sessions: 6, startOn: '2026-09-21', endOn: '2026-10-20',
-      share: 'picked', pickedStaffIds: [2],
-    });
+      share: 'picked', pickedStaffIds: [2], requestKey: expect.any(String),
+    }));
     expect(Object.keys(submit.mock.calls[0][0]).sort()).not.toContain('stage');
     expect(Object.keys(submit.mock.calls[0][0]).sort()).not.toContain('items');
   });

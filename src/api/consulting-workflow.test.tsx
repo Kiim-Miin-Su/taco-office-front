@@ -68,7 +68,7 @@ describe('컨설팅 공개범위 낙관 갱신', () => {
     const hook = renderHook(() => useUpdateConsultingShare(), { wrapper });
     const mutation = hook.result.current;
     hook.unmount();
-    const pending = mutation.mutateAsync({ consId: 7, share: 'picked', pickedStaffIds: [2] }).catch(() => undefined);
+    const pending = mutation.mutateAsync({ consId: 7, share: 'picked', pickedStaffIds: [2], expectedVersion: 1, requestKey: '11111111-1111-4111-8111-111111111111' }).catch(() => undefined);
     await waitFor(() => expect(client.getQueryData<ConsultingDetail>(detailKey)?.share).toBe('picked'));
     const optimistic = client.getQueryData<ConsultingList>(listKey)?.items ?? [];
     expect(optimistic.map((item) => [item.id, item.share])).toEqual([[7, 'picked'], [8, 'all']]);
@@ -86,7 +86,7 @@ describe('컨설팅 공개범위 낙관 갱신', () => {
     const hook = renderHook(() => useUpdateConsultingShare(), { wrapper });
     const mutation = hook.result.current;
     hook.unmount();
-    await mutation.mutateAsync({ consId: 7, share: 'private' });
+    await mutation.mutateAsync({ consId: 7, share: 'private', expectedVersion: 1, requestKey: '22222222-2222-4222-8222-222222222222' });
     expect(client.getQueryData<ConsultingDetail>(detailKey)?.contractStep).toBe(4);
     client.clear();
   });

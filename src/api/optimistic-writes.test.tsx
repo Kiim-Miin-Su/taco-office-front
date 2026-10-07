@@ -52,7 +52,7 @@ const cases = [
       client.setQueryData(listKey, { marker, items: [7, 8].map((id) => ({ id, share: 'all' })) });
       detailKeys.forEach((queryKey, i) => client.setQueryData(queryKey, { marker, id: 7 + i, share: 'all', pickedStaffIds: [] }));
     },
-    useWrite() { const mutation = useUpdateConsultingShare(); return (i: number) => mutation.mutateAsync({ consId: 7 + i, share: 'picked', pickedStaffIds: [10 + i] }); },
+    useWrite() { const mutation = useUpdateConsultingShare(); return (i: number) => mutation.mutateAsync({ consId: 7 + i, share: 'picked', pickedStaffIds: [10 + i], expectedVersion: 1, requestKey: `11111111-1111-4111-8111-11111111111${i}` }); },
     result: (i: number) => ({ marker: 'original', id: 7 + i, share: 'picked', pickedStaffIds: [10 + i], serverOnly: 'confirmed' }),
     expectState(client: QueryClient, flags: boolean[]) {
       expect(read(client, listKey).items.map((item) => item.share)).toEqual(flags.map((flag) => flag ? 'picked' : 'all'));
@@ -189,9 +189,9 @@ it('같은 컨설팅 공개범위도 B 서버 응답 뒤 A의 늦은 성공이 B
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const view = renderHook(() => [useUpdateConsultingShare(), useUpdateConsultingShare()], { wrapper });
   let pa!: Promise<unknown>, pb!: Promise<unknown>;
-  act(() => { pa = view.result.current[0].mutateAsync({ consId: 7, share: 'picked', pickedStaffIds: [10] }); });
+  act(() => { pa = view.result.current[0].mutateAsync({ consId: 7, share: 'picked', pickedStaffIds: [10], expectedVersion: 1, requestKey: '11111111-1111-4111-8111-111111111111' }); });
   await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
-  act(() => { pb = view.result.current[1].mutateAsync({ consId: 7, share: 'private' }); });
+  act(() => { pb = view.result.current[1].mutateAsync({ consId: 7, share: 'private', expectedVersion: 1, requestKey: '22222222-2222-4222-8222-222222222222' }); });
   await waitFor(() => expect(patch).toHaveBeenCalledTimes(2));
   const latest = { id: 7, share: 'private', pickedStaffIds: [], contractStep: 4 };
   await act(async () => { b.resolve({ data: latest }); await pb; });

@@ -2961,6 +2961,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consulting/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 유형별 기본 항목 설정 — 활성 version과 미설정 차단 사유 */
+        get: operations["ConsultingController_templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consulting/templates/{consType}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 유형별 기본 항목 새 version 저장 — BOC-04D-03c */
+        patch: operations["ConsultingController_writeTemplate"];
+        trace?: never;
+    };
     "/consulting/{id}/items/{itemId}": {
         parameters: {
             query?: never;
@@ -9906,6 +9940,8 @@ export interface components {
             projected: number;
         };
         ConsultingCreateDto: {
+            /** Format: uuid */
+            requestKey: string;
             /**
              * @description §29 확정 10종. 레거시 조회 코드는 이 enum으로 축소하지 않는다.
              * @enum {string}
@@ -10008,6 +10044,8 @@ export interface components {
         };
         ConsultingDetailDto: {
             id: number;
+            /** @description 핵심정보·공개범위 optimistic version. 레거시 fixture에는 생략 가능 */
+            version?: number;
             consType: string;
             consTypeLabel: string;
             /** @enum {string} */
@@ -10036,6 +10074,8 @@ export interface components {
             pickedStaffIds: number[];
             pickedStaffNames: string[];
             createdAt: string;
+            createdBy?: number | null;
+            templateVersion?: number | null;
             typeCapability: components["schemas"]["ConsultingTypeCapabilityDto"];
             capabilities: components["schemas"]["ConsultingCapabilitiesDto"];
             contractFiles: components["schemas"]["ConsultingFileDto"][];
@@ -10190,6 +10230,12 @@ export interface components {
             key: string;
             /** @description 「편입 · 전학」 · 「어머니」 … */
             label: string;
+            /** @description 종류 선택 가능 여부. 요청자 낱말에는 생략한다. */
+            enabled?: boolean;
+            /** @description 기본 항목 미설정 등 시작 차단 사유 */
+            blockedReason?: string | null;
+            /** @description 활성 기본 항목 version. 미설정이면 null */
+            templateVersion?: number | null;
         };
         ConsultingListDto: {
             items: components["schemas"]["ConsultingDto"][];
@@ -10207,6 +10253,34 @@ export interface components {
             requesters?: components["schemas"]["ConsultingWordDto"][];
             /** @description §27 학생별 탭 머리 「학생 N명」 — 이 사람이 볼 수 있는 건(csCan)의 학생 수. `GET /consulting/students` 의 줄 수와 같은 셈이다(26-03 · D-R37) */
             studentCount?: number;
+        };
+        ConsultingTemplateItemDto: {
+            seq: number;
+            label: string;
+            required: boolean;
+        };
+        ConsultingTemplateDto: {
+            /** @enum {string} */
+            consType: "admissions" | "boarding" | "transfer" | "essay" | "interview" | "exam" | "roadmap" | "college" | "portfolio" | "visa";
+            label: string;
+            version: number | null;
+            items: components["schemas"]["ConsultingTemplateItemDto"][];
+            enabled: boolean;
+            blockedReason: string | null;
+        };
+        ConsultingTemplatesDto: {
+            items: components["schemas"]["ConsultingTemplateDto"][];
+        };
+        ConsultingTemplateItemWriteDto: {
+            label: string;
+            required: boolean;
+        };
+        ConsultingTemplateWriteDto: {
+            /** @description 활성 version. 미설정 유형의 첫 저장은 0 */
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
+            items: components["schemas"]["ConsultingTemplateItemWriteDto"][];
         };
         ConsItemToggleDto: {
             /** @description true = 완료 처리(처리자·시각 서버 기록) · false = 해제 */
@@ -10357,6 +10431,10 @@ export interface components {
             canSeeAmounts: boolean;
         };
         ConsultingPatchDto: {
+            /** @description 화면이 읽은 ConsultingDetailDto.version */
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
             studentIds?: number[];
             /** @enum {string} */
             requester?: "mother" | "father";
@@ -10369,6 +10447,10 @@ export interface components {
             endOn?: string;
         };
         ConsultingShareUpdateDto: {
+            /** @description 화면이 읽은 ConsultingDetailDto.version */
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
             /** @enum {string} */
             share: "all" | "money_only" | "picked" | "private";
             /** @description share='picked'일 때 1명 이상 필수 */
@@ -25782,6 +25864,156 @@ export interface operations {
                 };
             };
             /** @description code CONS_PICK_REQUIRED · CONS_PICK_FORBIDDEN · CONS_DATE_ORDER */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultingTemplatesDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ConsultingController_writeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consType: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsultingTemplateWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultingTemplateDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CONS_TEMPLATE_VERSION_CONFLICT · CONS_TEMPLATE_REQUEST_KEY_REUSED · CONS_TEMPLATE_REPLAY_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;

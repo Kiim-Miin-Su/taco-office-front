@@ -13,6 +13,7 @@ import { Banner, Button, Input, Label, Select, cn } from '@/components/ui';
 import { CONSULTING_SHARES } from '@/lib/consulting';
 import { todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
+import { useRequestKey } from '@/lib/request-key';
 
 type ShareWord = components['schemas']['ConsultingShareWordDto'];
 /** 서버 `ConsultingListDto.types · requesters` 한 줄 — 종류·요청자 낱말은 서버 표 한 벌이다(29-02 · D-R18) */
@@ -66,7 +67,10 @@ export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivat
   onCancel: () => void;
   onSubmit: (body: ConsultingCreate) => void;
 }) {
-  const owners = meta.staff.filter((staff) => staff.canAdminPage);
+  // BOC-04D-03c 권고안: 관리자 p69의 담당 후보는 활성 직원 전체다. 공개 지정 후보와 혼동하지 않는다.
+  const owners = meta.staff;
+  const pickedCandidates = meta.staff.filter((staff) => staff.canAdminPage);
+  const requestKey = useRequestKey();
   const [consType, setConsType] = useState<ConsultingCreate['consType']>('admissions');
   const [studentIds, setStudentIds] = useState<number[]>(() => [...initialStudentIds]);
   const [requester, setRequester] = useState<Requester>('mother');
@@ -84,7 +88,10 @@ export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivat
     event.preventDefault();
     const parsedAmount = Number(amount);
     const parsedSessions = Number(sessions);
-    const nextIssue = studentIds.length === 0
+    const selectedType = typeWords.find((item) => item.key === consType);
+    const nextIssue = selectedType?.enabled === false
+      ? selectedType.blockedReason ?? '이 유형의 기본 항목을 먼저 설정해 주세요.'
+      : studentIds.length === 0
       ? '학생을 한 명 이상 선택해 주세요.'
       : ownerId <= 0
         ? '담당자를 선택해 주세요.'
@@ -99,7 +106,7 @@ export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivat
                 : null;
     setIssue(nextIssue);
     if (nextIssue) return;
-    onSubmit({
+    const body = {
       consType,
       studentIds,
       requester,
@@ -110,7 +117,8 @@ export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivat
       endOn,
       share,
       ...(share === 'picked' ? { pickedStaffIds } : {}),
-    });
+    };
+    onSubmit({ ...body, requestKey: requestKey.keyFor(body) });
   };
 
   return (
@@ -118,18 +126,27 @@ export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivat
       <fieldset>
         <legend className="mb-2 text-[12px] font-bold text-fg">어떤 컨설팅 *</legend>
         <div className="flex flex-wrap gap-2">
-          {typeWords.map(({ key, label }) => ({ value: key as ConsultingCreate['consType'], label })).map(({ value, label }) => (
+          {typeWords.map(({ key, label, enabled, blockedReason }) => ({ value: key as ConsultingCreate['consType'], label, enabled: enabled !== false, blockedReason })).map(({ value, label, enabled, blockedReason }) => (
             <button
               key={value}
               type="button"
               aria-pressed={consType === value}
+              disabled={!enabled}
+              title={blockedReason ?? undefined}
               onClick={() => setConsType(value)}
-              className={`rounded-lg border px-3 py-2 text-[12px] font-bold transition-colors ${consType === value ? 'border-blue bg-blue text-white' : 'border-line bg-card text-fg hover:border-blue'}`}
+              className={`rounded-lg border px-3 py-2 text-[12px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${consType === value ? 'border-blue bg-blue text-white' : 'border-line bg-card text-fg hover:border-blue'}`}
             >
               {label}
             </button>
           ))}
         </div>
+        {typeWords.some((item) => item.enabled === false) ? (
+          <ul className="mt-2 space-y-1 text-[12px] text-fg-subtle" aria-label="시작할 수 없는 컨설팅 유형">
+            {typeWords.filter((item) => item.enabled === false).map((item) => (
+              <li key={item.key}><b>{item.label}</b> — {item.blockedReason ?? '기본 항목을 먼저 설정해 주세요.'}</li>
+            ))}
+          </ul>
+        ) : null}
       </fieldset>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
@@ -195,7 +212,7 @@ export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivat
         ) : null}
         {share === 'picked' ? (
           <div className="mt-3 flex flex-wrap gap-1.5 rounded-lg border border-line p-2">
-            {owners.map((staff) => {
+            {pickedCandidates.map((staff) => {
               const selected = pickedStaffIds.includes(staff.id);
               return <button key={staff.id} type="button" aria-pressed={selected} onClick={() => setPickedStaffIds((current) => toggleId(current, staff.id))}
                 className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-bold ${selected ? 'border-blue bg-blue text-white' : 'border-line bg-card text-fg'}`}>{staff.name}</button>;

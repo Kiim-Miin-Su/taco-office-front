@@ -23,6 +23,7 @@ import { ConsultingContractWorkflow } from '@/components/consulting/ConsultingCo
 import { ConsultingStartForm } from '@/components/consulting/ConsultingStartForm';
 import { WideDialog } from '@/components/ui/WideDialog';
 import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
+import { ConsultingTemplateSettings } from '@/components/consulting/ConsultingTemplateSettings';
 import type { Consulting } from '@/api/types';
 import {
   CONSULTING_CONTRACT_STEPS,
@@ -60,6 +61,7 @@ export default function ConsultingPage() {
   const [openId, setOpenId] = useState<number | null>(() => positiveQueryId(searchParams.get('id')));
   const returnStudentId = positiveQueryId(searchParams.get('studentId'));
   const [startOpen, setStartOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const meta = useMeta(startOpen);
   const create = useCreateConsulting();
   const [stage, setStage] = useState<ConsultingStageFilterValue>('all');
@@ -122,7 +124,7 @@ export default function ConsultingPage() {
         <PageHeader
           title="컨설팅"
           sub="계약서 · 회차 진행 · 종료 안내를 한 곳에서 봅니다"
-          right={<Button variant="primary" onClick={() => { create.reset(); setStartOpen(true); }}>+ 컨설팅 시작</Button>}
+          right={<div className="flex gap-2"><Button onClick={() => setTemplateOpen(true)}>기본 항목 설정</Button><Button variant="primary" onClick={() => { create.reset(); setStartOpen(true); }}>+ 컨설팅 시작</Button></div>}
           center={(
             <TabCards
               label="컨설팅 보기" value={view} onChange={setView}
@@ -211,6 +213,10 @@ export default function ConsultingPage() {
             )}</QueryState>
           </WideDialog>
         ) : null}
+
+        {templateOpen ? <WideDialog open title="컨설팅 기본 항목 설정" onClose={() => setTemplateOpen(false)}>
+          <ConsultingTemplateSettings onDone={() => setTemplateOpen(false)} />
+        </WideDialog> : null}
 
         {open !== null ? (
           <>
