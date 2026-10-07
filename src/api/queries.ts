@@ -126,6 +126,10 @@ import type {
   ScheduleTeacherGuides,
   MeetingCreate,
   MeetingCreateResult,
+  MeetingAgenda,
+  MeetingAgendaImport,
+  MeetingAgendaImportResult,
+  MeetingAgendaWrite,
   MeetingDetail,
   MeetingNoticeResult,
   ExecAreaOwner,
@@ -3087,6 +3091,33 @@ export function useMeetingDetail(id: number | null): UseQueryResult<MeetingDetai
     queryKey: sessionQueryKey(qk.meeting(id ?? 0), viewerId),
     queryFn: async () => (await api.get<MeetingDetail>(`/ops/meetings/${id}`)).data,
     enabled: id !== null,
+  });
+}
+
+/**
+ * BO-Q13 권고안 채택(2026-10-07): 별도 versioned agenda writer.
+ * 정책 변경 시 결정 원장, MeetingAgendaPanel/MeetingMinutesLedger, Backend DTO/service/migration 주석을 함께 수정한다.
+ */
+export function useWriteMeetingAgenda(): UseMutationResult<
+  MeetingAgenda,
+  unknown,
+  { id: number; body: MeetingAgendaWrite }
+> {
+  const invalidate = useOpsFamilyInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, body }) => (await api.put<MeetingAgenda>(`/ops/meetings/${id}/agenda`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 명시적 가져오기만 허용하며 서버의 saved=false 속기록 초안을 그대로 반환한다. */
+export function useImportMeetingAgenda(): UseMutationResult<
+  MeetingAgendaImportResult,
+  unknown,
+  { id: number; body: MeetingAgendaImport }
+> {
+  return useMutation({
+    mutationFn: async ({ id, body }) => (await api.post<MeetingAgendaImportResult>(`/ops/meetings/${id}/agenda/import`, body)).data,
   });
 }
 

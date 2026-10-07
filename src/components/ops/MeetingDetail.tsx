@@ -32,7 +32,8 @@ import { Banner, Button, Checkbox, Chip, Label, Input, LinkButton, Segmented, Se
 import { WideDialog } from '../ui/WideDialog';
 import { apiMessage } from '@/api/client';
 import {
-  useAssignMeetingTask, useDrawerWrite, useMeetingDetail, useRespondMeeting, useSendMeetingNotice, useWriteMinutes,
+  useAssignMeetingTask, useDrawerWrite, useImportMeetingAgenda, useMeetingDetail, useRespondMeeting,
+  useSendMeetingNotice, useWriteMeetingAgenda, useWriteMinutes,
 } from '@/api/queries';
 import type { MeetingAttendee, MeetingTask, StaffBrief } from '@/api/types';
 import { hhmm, monthDayLabel } from '@/lib/calendar';
@@ -88,6 +89,8 @@ export function MeetingDetail({
   const assign = useAssignMeetingTask();
   const notice = useSendMeetingNotice();
   const respond = useRespondMeeting();
+  const agendaSave = useWriteMeetingAgenda();
+  const agendaImport = useImportMeetingAgenda();
   // 보낸 알림 수 — 서버가 센 수를 그대로 알린다(화면이 참석자를 세지 않는다)
   const [noticeSent, setNoticeSent] = useState<number | null>(null);
   // ③ 할 일 체크 — 서랍·운영 할 일과 같은 쓰기. 누가 체크할 수 있는지는 서버(`patchTodo`)가 정한다
@@ -212,6 +215,8 @@ export function MeetingDetail({
             <MeetingAgendaPanel
               agenda={d.agenda}
               canPrepare={d.canEdit}
+              saveAgenda={(body) => agendaSave.mutateAsync({ id: d.id, body })}
+              importAgenda={(body) => agendaImport.mutateAsync({ id: d.id, body })}
               reloadAgenda={async () => (await q.refetch()).data?.agenda ?? null}
               onUseMinutesDraft={(minutesDraft) => { setDraft(minutesDraft); setTab('minutes'); }}
             />

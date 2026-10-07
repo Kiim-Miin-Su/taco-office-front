@@ -7,13 +7,15 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import type { MeetingDetail as MeetingDetailDto, StaffBrief } from '@/api/types';
 
-const { state, save, assign, todo, notice, respond } = vi.hoisted(() => ({
+const { state, save, assign, todo, notice, respond, agendaSave, agendaImport } = vi.hoisted(() => ({
   state: { data: undefined as MeetingDetailDto | undefined, isLoading: false, isError: false, error: null },
   save: vi.fn(),
   assign: vi.fn(),
   todo: vi.fn(),
   notice: vi.fn(),
   respond: vi.fn(),
+  agendaSave: vi.fn(),
+  agendaImport: vi.fn(),
 }));
 vi.mock('@/api/queries', () => ({
   useMeetingDetail: () => state,
@@ -24,6 +26,8 @@ vi.mock('@/api/queries', () => ({
   // W11 · N-32 — 「안내 보내기」 · 본인 참석 응답
   useSendMeetingNotice: () => ({ mutate: notice, isPending: false, isError: false, error: null }),
   useRespondMeeting: () => ({ mutate: respond, isPending: false, isError: false, error: null }),
+  useWriteMeetingAgenda: () => ({ mutateAsync: agendaSave, isPending: false, isError: false, error: null }),
+  useImportMeetingAgenda: () => ({ mutateAsync: agendaImport, isPending: false, isError: false, error: null }),
 }));
 
 const { MeetingDetail } = await import('./MeetingDetail');
@@ -162,16 +166,23 @@ it('사전 자료가 없으면 빈 상태를 보인다', () => {
   expect(v.getByText('사전 자료가 없습니다')).toBeTruthy();
 });
 
-it('목록에서 사전 안건으로 열면 별도 안건 화면을 먼저 보이고 minutes에 섞지 않는다 (BO-Q13 권고안 채택)', () => {
-  state.data = { ...base, agenda: { meetingId: 4, content: '가격 정책 결정', version: 3,
+it('목록에서 사전 안건으로 열어 생성 runtime writer에 version과 본문을 보내고 minutes에 섞지 않는다 (BO-Q13 권고안 채택)', async () => {
+  const agenda = { meetingId: 4, content: '가격 정책 결정', version: 3,
     createdAt: '2026-10-07T09:00:00+09:00', createdById: 2, createdByName: '김민수',
     updatedAt: '2026-10-07T10:00:00+09:00', updatedById: 3, updatedByName: '김민선',
-    locked: false, lockedAt: null, canEdit: true, editBlockedReason: null, canImportToMinutes: true } };
+    locked: false, lockedAt: null, canEdit: true, editBlockedReason: null, canImportToMinutes: true } as const;
+  state.data = { ...base, agenda };
+  agendaSave.mockResolvedValue({ ...agenda, content: '가격 정책과 일정 결정', version: 4 });
   const v = render(<MeetingDetail meetingId={4} staff={staff} initialView="agenda" onClose={() => {}} />);
   expect(v.getByText('가격 정책 결정')).toBeTruthy();
   expect(v.queryByLabelText('속기록')).toBeNull();
-  expect((v.getByLabelText('사전 안건 내용') as HTMLTextAreaElement).readOnly).toBe(true);
-  expect(v.getByText(/저장 기능을 연결하는 중/)).toBeTruthy();
+  expect((v.getByLabelText('사전 안건 내용') as HTMLTextAreaElement).readOnly).toBe(false);
+  expect(v.queryByText(/저장 기능을 연결하는 중/)).toBeNull();
+  fireEvent.change(v.getByLabelText('사전 안건 내용'), { target: { value: '가격 정책과 일정 결정' } });
+  fireEvent.click(v.getByRole('button', { name: '사전 안건 저장' }));
+  await waitFor(() => expect(agendaSave).toHaveBeenCalledWith({
+    id: 4, body: { content: '가격 정책과 일정 결정', expectedVersion: 3 },
+  }));
 });
 
 /* ── 원문 §66 — 가운데 큰 창 (66-1) ─────────────────────────────────── */

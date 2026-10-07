@@ -2049,6 +2049,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/meetings/{id}/agenda": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 회의 전 사전 안건 생성·수정 — 별도 version, 실제 시작 잠금, expectedVersion 충돌 */
+        put: operations["OpsController_writeMeetingAgenda"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/meetings/{id}/agenda/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 현재 안건을 속기록 미저장 초안으로 명시적으로 가져오기 — 자동 저장·병합 없음 */
+        post: operations["OpsController_importMeetingAgenda"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/meetings/{id}/notice": {
         parameters: {
             query?: never;
@@ -8520,6 +8554,30 @@ export interface components {
             /** @description 보는 사람의 참석 응답 — 참석자가 아니면 null */
             myAttend: components["schemas"]["MeetingMyAttendDto"] | null;
         };
+        MeetingAgendaWriteDto: {
+            /** @description 사전 안건 본문 */
+            content: string;
+            /** @description create=null · update=현재 version. 불일치하면 409 MEETING_AGENDA_VERSION_CONFLICT */
+            expectedVersion: number | null;
+        };
+        MeetingAgendaImportDto: {
+            expectedVersion: number;
+        };
+        MeetingAgendaImportResultDto: {
+            meetingId: number;
+            agendaVersion: number;
+            /** @description 속기록 입력 칸에 놓을 미저장 초안 */
+            minutesDraft: string;
+            /** Format: date-time */
+            sourceUpdatedAt: string;
+            sourceUpdatedById: number;
+            sourceUpdatedByName: string;
+            /**
+             * @description 자동 저장·자동 병합하지 않았음을 고정한다
+             * @enum {boolean}
+             */
+            saved: false;
+        };
         MeetingNoticeResultDto: {
             /** @description 보낸 알림 수 — 참석자(보낸 사람 · 그만둔 사람 제외) */
             sent: number;
@@ -12341,30 +12399,6 @@ export interface components {
             historyTotal: number;
             /** @description 보호자/수강/감사 각 최대50건 */
             historyLimit: number;
-        };
-        MeetingAgendaWriteDto: {
-            /** @description 사전 안건 본문 */
-            content: string;
-            /** @description create=null · update=현재 version. 불일치하면 409 MEETING_AGENDA_VERSION_CONFLICT */
-            expectedVersion: number | null;
-        };
-        MeetingAgendaImportDto: {
-            expectedVersion: number;
-        };
-        MeetingAgendaImportResultDto: {
-            meetingId: number;
-            agendaVersion: number;
-            /** @description 속기록 입력 칸에 놓을 미저장 초안 */
-            minutesDraft: string;
-            /** Format: date-time */
-            sourceUpdatedAt: string;
-            sourceUpdatedById: number;
-            sourceUpdatedByName: string;
-            /**
-             * @description 자동 저장·자동 병합하지 않았음을 고정한다
-             * @enum {boolean}
-             */
-            saved: false;
         };
     };
     responses: never;
@@ -20963,6 +20997,156 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_writeMeetingAgenda: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingAgendaWriteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingAgendaDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MEETING_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MEETING_AGENDA_LOCKED | MEETING_AGENDA_START_UNKNOWN | MEETING_AGENDA_VERSION_CONFLICT */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_importMeetingAgenda: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingAgendaImportDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingAgendaImportResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MEETING_AGENDA_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MEETING_AGENDA_VERSION_CONFLICT */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
