@@ -3106,7 +3106,10 @@ export function useWriteMeetingAgenda(): UseMutationResult<
   const invalidate = useOpsFamilyInvalidate();
   return useMutation({
     mutationFn: async ({ id, body }) => (await api.put<MeetingAgenda>(`/ops/meetings/${id}/agenda`, body)).data,
-    onSettled: invalidate,
+    // BO-Q13 권고안 채택: 409 때 family.ops를 자동 재조회하면 사용자의 충돌 초안이 서버 본문으로 덮인다.
+    // 성공한 쓰기만 갱신하고, 충돌 후 서버 본문 반영은 화면의 명시적 「최신 안건 다시 불러오기」로 한정한다.
+    // 정책 변경 시 MeetingAgendaPanel의 충돌 UX와 docs 결정 원장을 같은 청크에서 함께 수정한다.
+    onSuccess: invalidate,
   });
 }
 
@@ -3116,6 +3119,7 @@ export function useImportMeetingAgenda(): UseMutationResult<
   unknown,
   { id: number; body: MeetingAgendaImport }
 > {
+  // BO-Q13 권고안: saved=false 초안 조회이므로 서버 정본을 바꾸지 않으며 cache invalidate도 하지 않는다.
   return useMutation({
     mutationFn: async ({ id, body }) => (await api.post<MeetingAgendaImportResult>(`/ops/meetings/${id}/agenda/import`, body)).data,
   });
