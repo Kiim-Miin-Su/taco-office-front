@@ -5,7 +5,7 @@
  */
 'use client';
 import { useMemo, useState, type ReactNode } from 'react';
-import { useMeta } from '@/api/queries';
+import { useConsulting, useCreateConsulting, useMeta } from '@/api/queries';
 import { ApiError, apiMessage } from '@/api/client';
 import type { StaffBrief, StudentBrief } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -14,6 +14,7 @@ import {
   type StudentPeriod, type StudentPeriodPrecision,
 } from '@/lib/student-profile-period';
 import { Banner, Button, Checkbox, Chip, FieldError, Input, Label, LinkButton, PageHeader, Segmented, Select, Textarea } from '@/components/ui';
+import { WideDialog } from '@/components/ui/WideDialog';
 import {
   useStudentCreate, useStudentCreatePreview, useStudentReadAllowed, useStudentRegistrationOptions,
   useStudentSchoolCreate, useStudentSchoolSearch,
@@ -21,6 +22,7 @@ import {
 } from '@/api/students';
 import type { StudentRegistrationSource } from '@/lib/student-registration-route';
 import { StudentReactivationSection } from './StudentReactivationSection';
+import { ConsultingStartForm } from '@/components/consulting/ConsultingStartForm';
 
 type ContactType = 'phone' | 'kakao' | 'email' | 'other';
 interface ContactDraft { key: number; type: ContactType; value: string; label: string }
@@ -311,6 +313,13 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
   const saveMutation = useStudentCreate();
   const [prepared, setPrepared] = useState<{ body: StudentCreate; preview: StudentCreatePreview } | null>(null);
   const [saved, setSaved] = useState<StudentCreateResult | null>(null);
+  // BOC-03B-03 권고안 채택(2026-10-08): 학생 등록 commit과 선택 컨설팅은 별도 mutation이다.
+  // 컨설팅 실패가 등록 성공을 되돌리거나 성공 배너를 지우지 않으며 같은 창에서 재시도한다.
+  // 정책 변경 시 ConsultingStartForm·D05 QA·BOC-03D5 기능 문서의 PPTX/Figma 대응표를 함께 갱신한다.
+  const [consultingOpen, setConsultingOpen] = useState(false);
+  const [consultingId, setConsultingId] = useState<number | null>(null);
+  const consulting = useConsulting(Boolean(saved && consultingOpen));
+  const createConsulting = useCreateConsulting();
   const [issue, setIssue] = useState<string | null>(null);
   const selectedCountry = options.data?.countries.find(country => country.code === residenceCountry) ?? null;
   const staffCandidates = useMemo<PickerCandidate[]>(() => (meta.data?.staff ?? []).map((item: StaffBrief) => ({
@@ -429,7 +438,10 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
     if (!current || JSON.stringify(current) !== JSON.stringify(prepared.body)) {
       setPrepared(null); setIssue('입력값이 바뀌었습니다. 저장 전 미리보기를 다시 실행해 주세요.'); return;
     }
-    try { setSaved(await saveMutation.mutateAsync(prepared.body)); }
+    try {
+      setSaved(await saveMutation.mutateAsync(prepared.body));
+      setConsultingId(null);
+    }
     catch (error) { setPrepared(null); setIssue(apiMessage(error)); }
   };
 
@@ -606,7 +618,13 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         {reviewed ? <Banner tone={Object.keys(errors).length ? 'warning' : 'neutral'}>{Object.keys(errors).length ? '입력을 보완해 주세요. 작성한 값은 그대로 유지됩니다.' : '화면 검토를 통과했습니다.'}</Banner> : null}
         {prepared ? <Banner tone="success">미리보기 완료 · 기간 {prepared.preview.summary.schoolPeriods + prepared.preview.summary.gradePeriods + prepared.preview.summary.residencePeriods + prepared.preview.summary.textPeriods}건 · 보호자 {prepared.preview.summary.guardians}명</Banner> : null}
         {issue ? <Banner tone="danger">{issue}</Banner> : null}
-        {saved ? <Banner tone="success"><span role="status">{name.trim()} 학생을 등록했습니다.</span> <LinkButton href={`/students/${saved.studentId}`}>학생 상세 보기</LinkButton></Banner> : null}
+        {saved ? <Banner tone="success">
+          <span role="status">{name.trim()} 학생을 등록했습니다.</span>{' '}
+          <LinkButton href={`/students/${saved.studentId}`}>학생 상세 보기</LinkButton>{' '}
+          {consultingId === null
+            ? <Button size="sm" onClick={() => { createConsulting.reset(); setConsultingOpen(true); }}>이어서 컨설팅 시작</Button>
+            : <LinkButton href={`/consulting?id=${consultingId}&studentId=${saved.studentId}`}>생성한 컨설팅 보기</LinkButton>}
+        </Banner> : null}
         <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-xl border border-line bg-card p-3 shadow-sm">
           {/* BOC-03D-04c 권고안 채택: 390px 실제 브라우저에서 주요 동작의 44px 터치 높이를 보장한다. */}
           <Button className="max-sm:min-h-11" onClick={review}>입력 검토</Button>
@@ -614,6 +632,28 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
           <Button className="max-sm:min-h-11" variant="primary" disabled={!prepared || previewMutation.isPending || saveMutation.isPending} onClick={() => { void save(); }}>학생 등록</Button>
         </div>
       </form> : <StudentReactivationSection entrySource={entrySource} leadId={leadId} />}
+      {saved && consultingOpen ? <WideDialog open width={800} onClose={() => setConsultingOpen(false)} title="등록 후 컨설팅 시작" sub="학생 등록은 이미 완료됐습니다. 컨설팅은 별도로 저장합니다.">
+        {consulting.isPending || meta.isPending ? <Banner tone="neutral">컨설팅 선택지를 불러오는 중입니다.</Banner> : null}
+        {consulting.isError || meta.isError ? <div className="flex flex-col gap-3">
+          <Banner tone="danger">컨설팅 선택지를 불러오지 못했습니다. 학생 등록은 유지됩니다.</Banner>
+          <Button onClick={() => { void consulting.refetch(); void meta.refetch(); }}>다시 불러오기</Button>
+        </div> : null}
+        {consulting.data && meta.data ? <ConsultingStartForm
+          meta={meta.data}
+          initialStudentIds={[saved.studentId]}
+          canSetPrivate={consulting.data.canSetPrivate}
+          shareWords={consulting.data.shares}
+          typeWords={consulting.data.types}
+          requesterWords={consulting.data.requesters}
+          pending={createConsulting.isPending}
+          error={createConsulting.error}
+          onCancel={() => setConsultingOpen(false)}
+          onSubmit={(body) => createConsulting.mutate(body, { onSuccess: detail => {
+            setConsultingId(detail.id);
+            setConsultingOpen(false);
+          } })}
+        /> : null}
+      </WideDialog> : null}
     </div>
   );
 }

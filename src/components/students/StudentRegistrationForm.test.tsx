@@ -61,6 +61,18 @@ const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
 let responseMeta: typeof meta | typeof populatedMeta;
 let reactivationSaveConflict: boolean;
+let consultingSaveFailures: number;
+const consultingList = {
+  items: [], canSeeAmounts: false, canSetPrivate: false, stages: [], studentCount: 0,
+  shares: [
+    { key: 'all', label: '전체 공개', meaning: '관리자 누구나 봅니다' },
+    { key: 'money_only', label: '수납만 공개', meaning: '금액만 보이고 내용은 숨깁니다' },
+    { key: 'picked', label: '지정 공개', meaning: '고른 사람만 봅니다' },
+    { key: 'private', label: '전체 비공개', meaning: '담당자와 대표만 봅니다' },
+  ],
+  types: [{ key: 'admissions', label: '국제학교 지원' }],
+  requesters: [{ key: 'mother', label: '어머니' }, { key: 'father', label: '아버지' }],
+};
 const reactivationCandidates = {
   items: [
     { studentId: 17, name: '김퇴원', englishName: 'Rest', gradeLabel: 'G5', schoolLabel: 'SIS', status: 'withdrawn', reactivatable: true, blockedCode: null, profileVersion: '0', lastConsultationAt: null, withdrawnOn: '2026-10-06' },
@@ -73,6 +85,7 @@ beforeEach(() => {
   requests = [];
   responseMeta = meta;
   reactivationSaveConflict = false;
+  consultingSaveFailures = 0;
   useSession.getState().signIn('student-registration-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
@@ -94,10 +107,29 @@ beforeEach(() => {
     }
     if (config.url === '/students' && config.method === 'post') {
       const body = typeof config.data === 'string' ? JSON.parse(config.data) as { requestKey: string } : config.data as { requestKey: string };
+      responseMeta = {
+        ...populatedMeta,
+        students: [...populatedMeta.students, {
+          id: 101, name: '김신규', grade: 'E6', school: null, gender: 'female', tag: null, label: '김신규',
+        }],
+      };
       return { config, status: 201, statusText: 'Created', headers: {}, data: {
         saved: true, replayed: false, requestKey: body.requestKey, studentId: 101, profileVersion: '1', createdAt: '2026-10-07T09:00:00.000Z',
         summary: { schoolPeriods: 0, gradePeriods: 1, residencePeriods: 1, textPeriods: 0, studentContacts: 0, guardians: 1, siblingLinks: 0, assignees: 0 },
       } };
+    }
+    if (config.url === '/consulting' && config.method === 'get') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: consultingList };
+    }
+    if (config.url === '/consulting' && config.method === 'post') {
+      if (consultingSaveFailures > 0) {
+        consultingSaveFailures -= 1;
+        throw new AxiosError('consulting failed', 'ERR_BAD_REQUEST', config, undefined, {
+          config, status: 409, statusText: 'Conflict', headers: {},
+          data: { code: 'CONSULTING_CREATE_FAILED', message: '컨설팅 저장에 실패했습니다. 다시 시도해 주세요' },
+        });
+      }
+      return { config, status: 201, statusText: 'Created', headers: {}, data: { id: 301 } };
     }
     if (config.url === '/students/reactivation-candidates') {
       return { config, status: 200, statusText: 'OK', headers: {}, data: reactivationCandidates };
@@ -233,6 +265,51 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
       guardians: [{ relation: 'mother', contacts: [{ kind: 'phone', value: '010-1111-2222' }] }],
     });
     expect(typeof bodies[0].requestKey).toBe('string');
+  });
+
+  it('학생 등록을 먼저 확정하고 선택 컨설팅 실패 시 같은 초안만 재시도한다', async () => {
+    consultingSaveFailures = 1;
+    const view = setup();
+    await waitForInitialQueries();
+    fireEvent.change(view.getByLabelText('학생 이름'), { target: { value: '김신규' } });
+    fireEvent.change(view.getByLabelText('성별'), { target: { value: 'female' } });
+    fireEvent.change(view.getByLabelText('교육체계'), { target: { value: 'KR' } });
+    fireEvent.change(view.getByLabelText('학년'), { target: { value: 'E6' } });
+    fireEvent.change(view.container.querySelector('#residence-country')!, { target: { value: 'KR' } });
+    fireEvent.change(view.getByLabelText('보호자 1 관계'), { target: { value: 'mother' } });
+    fireEvent.change(view.getByLabelText('보호자 1 연락처 1 값'), { target: { value: '010-1111-2222' } });
+    fireEvent.click(view.getByRole('button', { name: '저장 전 미리보기' }));
+    await waitFor(() => expect(view.getByText(/미리보기 완료/)).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: '학생 등록' }));
+    await waitFor(() => expect(view.getByText('김신규 학생을 등록했습니다.')).toBeTruthy());
+
+    fireEvent.click(view.getByRole('button', { name: '이어서 컨설팅 시작' }));
+    await waitFor(() => expect(view.getByRole('dialog', { name: '등록 후 컨설팅 시작' })).toBeTruthy());
+    await waitFor(() => expect(view.getByRole('button', { name: '김신규', pressed: true })).toBeTruthy());
+    fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '800000' } });
+    fireEvent.change(view.getByLabelText('회차 *'), { target: { value: '6' } });
+    fireEvent.change(view.getByLabelText('종료 *'), { target: { value: '2026-12-31' } });
+    fireEvent.click(view.getByRole('button', { name: '시작하기' }));
+
+    await waitFor(() => expect(view.getByText('컨설팅 저장에 실패했습니다. 다시 시도해 주세요')).toBeTruthy());
+    expect(view.getByText('김신규 학생을 등록했습니다.')).toBeTruthy();
+    expect(view.getByRole('link', { name: '학생 상세 보기' }).getAttribute('href')).toBe('/students/101');
+    expect((view.getByLabelText('금액 *') as HTMLInputElement).value).toBe('800000');
+    expect((view.getByLabelText('회차 *') as HTMLInputElement).value).toBe('6');
+    expect((view.getByLabelText('종료 *') as HTMLInputElement).value).toBe('2026-12-31');
+
+    fireEvent.click(view.getByRole('button', { name: '시작하기' }));
+    await waitFor(() => expect(view.getByRole('link', { name: '생성한 컨설팅 보기' })).toBeTruthy());
+    expect(view.getByRole('link', { name: '생성한 컨설팅 보기' }).getAttribute('href')).toBe('/consulting?id=301&studentId=101');
+    const studentWrites = requests.filter(request => request.method === 'post' && request.url === '/students');
+    const consultingWrites = requests.filter(request => request.method === 'post' && request.url === '/consulting');
+    expect(studentWrites).toHaveLength(1);
+    expect(consultingWrites).toHaveLength(2);
+    const consultingBodies = consultingWrites.map(request => typeof request.data === 'string'
+      ? JSON.parse(request.data) as Record<string, unknown>
+      : request.data as Record<string, unknown>);
+    expect(consultingBodies[1]).toEqual(consultingBodies[0]);
+    expect(consultingBodies[0]).toMatchObject({ studentIds: [101], amount: 800000, sessions: 6 });
   });
 
   it('출발 경로를 표시하고 withdrawn 후보만 같은 STU·새 상담으로 preview 뒤 저장하며 신규 입력을 보존한다', async () => {

@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
 import { api } from './client';
-import { sessionQueryKey } from './queries';
+import { qk, sessionQueryKey } from './queries';
 import type { components, paths } from './schema';
 
 export type StudentDirectory = components['schemas']['StudentDirectoryDto'];
@@ -104,6 +104,7 @@ export function useStudentCreate() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: studentKeys.all }),
         queryClient.invalidateQueries({ queryKey: studentKeys.detail(result.studentId) }),
+        queryClient.invalidateQueries({ queryKey: qk.meta }),
       ]);
     },
   });

@@ -34,6 +34,18 @@ const meta = {
 } satisfies Meta;
 
 describe('ConsultingStartForm', () => {
+  it('확정된 학생 identity로 열면 그 학생만 미리 선택해 생성 DTO에 보낸다', () => {
+    const submit = vi.fn<(body: ConsultingCreate) => void>();
+    const view = render(<ConsultingStartForm {...PICK_WORDS} meta={meta} initialStudentIds={[10]} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={submit} />);
+    expect(view.getByRole('button', { name: '고은성', pressed: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: '강라율', pressed: false })).toBeTruthy();
+    fireEvent.change(view.getByLabelText('금액 *'), { target: { value: '800000' } });
+    fireEvent.change(view.getByLabelText('회차 *'), { target: { value: '6' } });
+    fireEvent.change(view.getByLabelText('종료 *'), { target: { value: '2026-12-31' } });
+    fireEvent.click(view.getByRole('button', { name: '시작하기' }));
+    expect(submit.mock.calls[0][0]).toMatchObject({ studentIds: [10], amount: 800000, sessions: 6 });
+  });
+
   it('「전체 비공개」는 대표만 고른다 — canSetPrivate 이 아니면 칸 자체가 없다 (S4 · §76)', () => {
     const view = render(<ConsultingStartForm {...PICK_WORDS} meta={meta} canSetPrivate={false} pending={false} onCancel={vi.fn()} onSubmit={vi.fn()} />);
     expect(view.queryByRole('button', { name: '전체 비공개' })).toBeNull();

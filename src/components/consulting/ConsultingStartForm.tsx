@@ -49,8 +49,10 @@ function toggleId(values: number[], id: number): number[] {
   return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
 
-export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords = [], requesterWords = [], pending, error, onCancel, onSubmit }: {
+export function ConsultingStartForm({ meta, initialStudentIds = [], canSetPrivate, shareWords, typeWords = [], requesterWords = [], pending, error, onCancel, onSubmit }: {
   meta: Meta;
+  /** 등록 완료 흐름처럼 학생 identity가 이미 확정된 진입에서만 사용한다. */
+  initialStudentIds?: readonly number[];
   /** 서버 `ConsultingListDto.types` — 「어떤 컨설팅」 칩 10(원본 차례 · 「편입 · 전학」 29-02) */
   typeWords?: readonly Word[];
   /** 서버 `ConsultingListDto.requesters` — 「누가 요청」 칩 둘 */
@@ -66,7 +68,7 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords
 }) {
   const owners = meta.staff.filter((staff) => staff.canAdminPage);
   const [consType, setConsType] = useState<ConsultingCreate['consType']>('admissions');
-  const [studentIds, setStudentIds] = useState<number[]>([]);
+  const [studentIds, setStudentIds] = useState<number[]>(() => [...initialStudentIds]);
   const [requester, setRequester] = useState<Requester>('mother');
   const [ownerId, setOwnerId] = useState(owners[0]?.id ?? 0);
   const [amount, setAmount] = useState('');

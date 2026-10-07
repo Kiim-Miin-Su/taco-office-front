@@ -1165,11 +1165,12 @@ export function useOps(query: OpsQuery = {}, enabled = true): UseQueryResult<Ops
 }
 
 /** §29 컨설팅 — 금액은 canSeeAmounts 가 false 면 서버가 null 로 내려준다 */
-export function useConsulting(): UseQueryResult<ConsultingList> {
+export function useConsulting(enabled = true): UseQueryResult<ConsultingList> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.consulting, viewerId),
     queryFn: async () => (await api.get<ConsultingList>('/consulting')).data,
+    enabled,
     staleTime: 60 * 1000,
   });
 }
