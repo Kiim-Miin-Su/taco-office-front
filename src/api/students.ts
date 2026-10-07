@@ -14,6 +14,19 @@ export type StudentDirectoryRow = components['schemas']['StudentDirectoryRowDto'
 export type StudentRead = components['schemas']['StudentReadDto'];
 export type StudentListQuery = NonNullable<paths['/students']['get']['parameters']['query']>;
 
+/**
+ * BOC-03D-01 권고안 채택(2026-10-07): 15절 등록은 기존 LeadEnrollDto와 섞지 않고
+ * Back DTO에서 생성한 schema만 사용한다. runtime POST path가 아직 없으므로 이 단계에서는
+ * 타입만 공개하고 mutation이나 성공 상태를 만들지 않는다. 정책을 바꿀 때는 Back
+ * student-registration.dto.ts와 P-STU15/BOC-03 문서를 같은 청크에서 수정한다.
+ */
+export type StudentCreate = components['schemas']['StudentCreateDto'];
+export type StudentCreatePreview = components['schemas']['StudentCreatePreviewDto'];
+export type StudentCreateResult = components['schemas']['StudentCreateResultDto'];
+export type StudentRegistrationOptions = components['schemas']['StudentRegistrationOptionsDto'];
+export type StudentSchoolOption = components['schemas']['StudentSchoolOptionDto'];
+export type StudentSchoolCreate = components['schemas']['StudentSchoolCreateDto'];
+
 export const studentKeys = {
   all: ['students'] as const,
   list: (params: StudentListQuery) => ['students', 'list', params] as const,

@@ -12424,6 +12424,286 @@ export interface components {
             /** @description 보호자/수강/감사 각 최대50건 */
             historyLimit: number;
         };
+        StudentRegistrationPeriodDto: {
+            /**
+             * Format: date
+             * @description 유효 시작 경계 — 종료와 모두 포함
+             */
+            from: string;
+            /**
+             * @description 사용자가 알고 입력한 시작 정밀도
+             * @enum {string}
+             */
+            fromPrecision: "year" | "month" | "day";
+            /**
+             * Format: date
+             * @description 유효 종료 경계 — null이면 계속
+             */
+            to: string | null;
+            /**
+             * @description 종료가 있으면 사용자가 입력한 정밀도, 없으면 null
+             * @enum {string|null}
+             */
+            toPrecision: "year" | "month" | "day" | null;
+            /** @description 기간 기록 메모. 연락처·금액 원문 저장 용도가 아니다. */
+            memo?: string;
+        };
+        StudentRegistrationSchoolPeriodDto: {
+            /**
+             * Format: date
+             * @description 유효 시작 경계 — 종료와 모두 포함
+             */
+            from: string;
+            /**
+             * @description 사용자가 알고 입력한 시작 정밀도
+             * @enum {string}
+             */
+            fromPrecision: "year" | "month" | "day";
+            /**
+             * Format: date
+             * @description 유효 종료 경계 — null이면 계속
+             */
+            to: string | null;
+            /**
+             * @description 종료가 있으면 사용자가 입력한 정밀도, 없으면 null
+             * @enum {string|null}
+             */
+            toPrecision: "year" | "month" | "day" | null;
+            /** @description 기간 기록 메모. 연락처·금액 원문 저장 용도가 아니다. */
+            memo?: string;
+            schoolId: number;
+        };
+        StudentRegistrationGradePeriodDto: {
+            /**
+             * Format: date
+             * @description 유효 시작 경계 — 종료와 모두 포함
+             */
+            from: string;
+            /**
+             * @description 사용자가 알고 입력한 시작 정밀도
+             * @enum {string}
+             */
+            fromPrecision: "year" | "month" | "day";
+            /**
+             * Format: date
+             * @description 유효 종료 경계 — null이면 계속
+             */
+            to: string | null;
+            /**
+             * @description 종료가 있으면 사용자가 입력한 정밀도, 없으면 null
+             * @enum {string|null}
+             */
+            toPrecision: "year" | "month" | "day" | null;
+            /** @description 기간 기록 메모. 연락처·금액 원문 저장 용도가 아니다. */
+            memo?: string;
+            /** @enum {string} */
+            educationSystem: "US" | "GB" | "KR" | "OTHER";
+            /** @description GET /students/options의 활성 교육체계별 학년 code */
+            gradeCode: string;
+        };
+        StudentRegistrationResidencePeriodDto: {
+            /**
+             * Format: date
+             * @description 유효 시작 경계 — 종료와 모두 포함
+             */
+            from: string;
+            /**
+             * @description 사용자가 알고 입력한 시작 정밀도
+             * @enum {string}
+             */
+            fromPrecision: "year" | "month" | "day";
+            /**
+             * Format: date
+             * @description 유효 종료 경계 — null이면 계속
+             */
+            to: string | null;
+            /**
+             * @description 종료가 있으면 사용자가 입력한 정밀도, 없으면 null
+             * @enum {string|null}
+             */
+            toPrecision: "year" | "month" | "day" | null;
+            /** @description 기간 기록 메모. 연락처·금액 원문 저장 용도가 아니다. */
+            memo?: string;
+            /** @description GET /students/options의 국가 code */
+            countryCode: string;
+            /** @description 그 국가의 IANA timezone. 복수 시간대 국가는 Backend가 필수로 검사한다. */
+            timezone: string | null;
+        };
+        StudentRegistrationTextPeriodDto: {
+            /**
+             * Format: date
+             * @description 유효 시작 경계 — 종료와 모두 포함
+             */
+            from: string;
+            /**
+             * @description 사용자가 알고 입력한 시작 정밀도
+             * @enum {string}
+             */
+            fromPrecision: "year" | "month" | "day";
+            /**
+             * Format: date
+             * @description 유효 종료 경계 — null이면 계속
+             */
+            to: string | null;
+            /**
+             * @description 종료가 있으면 사용자가 입력한 정밀도, 없으면 null
+             * @enum {string|null}
+             */
+            toPrecision: "year" | "month" | "day" | null;
+            /** @description 기간 기록 메모. 연락처·금액 원문 저장 용도가 아니다. */
+            memo?: string;
+            /** @enum {string} */
+            field: "want" | "guidance" | "lang" | "target_exam";
+            value: string;
+        };
+        StudentRegistrationContactDto: {
+            /** @enum {string} */
+            kind: "phone" | "kakao" | "email" | "other";
+            /** @description kind별 정규화·형식 검사는 공용 Backend validator가 다시 수행한다. */
+            value: string;
+            /** @description kind=other일 때 필수. 나머지는 null. */
+            label: string | null;
+        };
+        StudentRegistrationGuardianDto: {
+            /** @enum {string} */
+            relation: "mother" | "father" | "aunt" | "driver" | "other";
+            relationOther: string | null;
+            /** @description 이름을 모르면 null. 관계를 이름으로 복제하지 않는다. */
+            name: string | null;
+            countryCode: string | null;
+            /** @description 0명 허용, 전체 guardians에서 최대 1명은 Backend가 검사한다. */
+            isPrimary: boolean;
+            /** @description 납부자 선택은 강제하지 않는다. */
+            isPayer: boolean;
+            contacts: components["schemas"]["StudentRegistrationContactDto"][];
+        };
+        StudentCreateDto: {
+            /**
+             * Format: uuid
+             * @description 같은 actor·같은 body 재시도는 기존 결과, 같은 key의 다른 body는 409
+             */
+            requestKey: string;
+            /**
+             * @description 공용 등록 화면의 실제 진입 문맥
+             * @enum {string}
+             */
+            entrySource: "students" | "schedule" | "intake";
+            /** @description entrySource=intake일 때만 상담 원천 id */
+            leadId: number | null;
+            name: string;
+            englishName: string | null;
+            /**
+             * @description 신규 학생만 필수. 기존 NULL 학생을 재활성화할 때 소급 강제하지 않는다.
+             * @enum {string}
+             */
+            gender: "male" | "female";
+            schoolHistory: components["schemas"]["StudentRegistrationSchoolPeriodDto"][];
+            /** @description 등록일에 유효한 active 학년 행이 최소 하나 있어야 한다. */
+            gradeHistory: components["schemas"]["StudentRegistrationGradePeriodDto"][];
+            /** @description 등록일에 유효한 거주국 행이 최소 하나 있어야 한다. */
+            residenceHistory: components["schemas"]["StudentRegistrationResidencePeriodDto"][];
+            /** @description 원하는 것·지도·언어·시험·주의사항의 초기 기간 이력 */
+            textHistory: components["schemas"]["StudentRegistrationTextPeriodDto"][];
+            /** @description 학생 본인 연락처는 0개 허용 */
+            contacts: components["schemas"]["StudentRegistrationContactDto"][];
+            /**
+             * Format: date
+             * @description 미래 날짜는 Backend가 KST 오늘 기준으로 거절한다.
+             */
+            birthDate: string | null;
+            /** @description true/false/미상 null을 구분한다. */
+            hasCitizenship: boolean | null;
+            guardians: components["schemas"]["StudentRegistrationGuardianDto"][];
+            /** @description 별도 PII key로 암호화하며 응답·LOG에 원문을 반환하지 않는다. */
+            cashReceiptNumber: string | null;
+            siblingIds: number[];
+            /** @enum {string|null} */
+            source: "kakao" | "phone" | "blog" | "instagram" | "referral" | "walkin" | null;
+            assigneeIds: number[];
+            /** @description 15절 기타. 기간 notes와 중복 저장하지 않고 writer가 textHistory로 정규화한다. */
+            notes: string | null;
+            /** @description 동명이인 후보 확인 뒤에도 새 학생으로 만들겠다는 명시값. 같은 이름·학년·학교 중복은 별도 409. */
+            allowSameName: boolean;
+        };
+        StudentRegistrationTimezoneOptionDto: {
+            timezone: string;
+            label: string;
+            representative: boolean;
+        };
+        StudentRegistrationCountryOptionDto: {
+            code: string;
+            label: string;
+            timezones: components["schemas"]["StudentRegistrationTimezoneOptionDto"][];
+        };
+        StudentRegistrationWordDto: {
+            key: string;
+            label: string;
+        };
+        StudentRegistrationOptionsDto: {
+            countries: components["schemas"]["StudentRegistrationCountryOptionDto"][];
+            /** @description active39 등록 선택지. 비활성·legacy 46행은 보존하되 신규 선택에서 제외한다. */
+            educationGrades: components["schemas"]["EducationGradeOptionDto"][];
+            guardianRelations: components["schemas"]["StudentRegistrationWordDto"][];
+            sources: components["schemas"]["StudentRegistrationWordDto"][];
+        };
+        StudentSchoolOptionDto: {
+            id: number;
+            name: string;
+            countryCode: string | null;
+            countryLabel: string | null;
+            region: string | null;
+            campus: string | null;
+            active: boolean;
+        };
+        StudentSchoolSearchQueryDto: {
+            q: string;
+        };
+        StudentSchoolCreateDto: {
+            /** Format: uuid */
+            requestKey: string;
+            name: string;
+            countryCode: string | null;
+            region: string | null;
+            campus: string | null;
+        };
+        StudentRegistrationSummaryDto: {
+            schoolPeriods: number;
+            gradePeriods: number;
+            residencePeriods: number;
+            textPeriods: number;
+            studentContacts: number;
+            guardians: number;
+            siblingLinks: number;
+            assignees: number;
+        };
+        StudentCreatePreviewDto: {
+            /**
+             * @description preview는 같은 writer를 끝까지 실행한 뒤 rollback한다.
+             * @enum {boolean}
+             */
+            saved: false;
+            /** Format: uuid */
+            requestKey: string;
+            /** @enum {number|null} */
+            studentId: null;
+            /** @enum {string|null} */
+            profileVersion: null;
+            summary: components["schemas"]["StudentRegistrationSummaryDto"];
+        };
+        StudentCreateResultDto: {
+            /** @enum {boolean} */
+            saved: true;
+            /** Format: uuid */
+            requestKey: string;
+            studentId: number;
+            /** @description DB bigint를 JS number로 축소하지 않는 decimal string */
+            profileVersion: string;
+            /** @description 같은 requestKey·같은 body의 기존 결과인가 */
+            replayed: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            summary: components["schemas"]["StudentRegistrationSummaryDto"];
+        };
     };
     responses: never;
     parameters: never;
