@@ -87,6 +87,7 @@ function setup({
                 issues: withoutIssuedBooks ? [] : [
                   {
                     id: 10,
+                    version: 1,
                     libId: 4,
                     studentId: 3,
                     state: 'ok',
@@ -96,6 +97,7 @@ function setup({
                   },
                   {
                     id: 12,
+                    version: 1,
                     libId: 5,
                     studentId: 3,
                     state: 'ok',
@@ -103,10 +105,10 @@ function setup({
                     progressPage: 60,
                     progressPercent: 75,
                   },
-                  { id: 11, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1', form: 'print', formLabel: '실물 책' },
+                  { id: 11, version: 1, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1', form: 'print', formLabel: '실물 책' },
                 ],
                 reissueCandidates: withReissueCandidate ? [{
-                  id: 30, libId: 6, studentId: 3, state: 'canceled', stateLabel: '취소',
+                  id: 30, version: 1, libId: 6, studentId: 3, state: 'canceled', stateLabel: '취소',
                   endedReason: '학부모 요청', endedBy: 2, endedByName: '김민수', endedAt: '2026-09-27T01:00:00.000Z',
                 }] : [],
               },
@@ -132,13 +134,22 @@ function setup({
             teacherRequests: [{ id: 7, requesterName: '김재훈', studentName: '고은성', message: '다 풀었습니다' }],
             issueForms: [{ key: 'pdf', label: 'PDF' }, { key: 'print', label: '실물 책' }],
           }
+        : config.url === '/books/assignment-options'
+          ? {
+              contexts: [
+                { teacherId: 7, teacherName: '김재훈', subKey: 'reading', subName: 'Reading', studentId: 3, studentName: '고은성', grade: 'G12' },
+                { teacherId: 7, teacherName: '김재훈', subKey: 'reading', subName: 'Reading', studentId: 9, studentName: '한지우', grade: 'G5' },
+                { teacherId: 7, teacherName: '김재훈', subKey: 'math', subName: 'Math', studentId: 3, studentName: '고은성', grade: 'G12' },
+                { teacherId: 2, teacherName: '김민수', subKey: 'reading', subName: 'Reading', studentId: 3, studentName: '고은성', grade: 'G12' },
+              ],
+            }
         : config.url === '/books'
           ? {
               items: [
-                { id: 4, code: 'SAT', title: 'SAT Reading', subKey: 'reading', bookLevel: 'master', level: 'Master', levelLabel: 'Master', gradeFrom: 9, gradeTo: 12, pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
-                { id: 7, code: 'READ-F', title: 'Reading Foundation', subKey: 'reading', bookLevel: 'foundation', level: 'Foundation', levelLabel: 'Foundation', gradeFrom: 9, gradeTo: 12, pages: 96, hasNewer: false, hasFile: true, issueCount: 0 },
-                { id: 5, code: 'WR', title: 'Writing', subKey: 'writing', bookLevel: 'foundation', gradeFrom: 4, gradeTo: 8, pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
-                { id: 6, code: 'MATH', title: 'Math Practice', subKey: 'math', bookLevel: 'practice', gradeFrom: 9, gradeTo: 12, pages: 120, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 4, versId: 104, edition: 'v1', code: 'SAT', title: 'SAT Reading', subKey: 'reading', bookLevel: 'master', level: 'Master', levelLabel: 'Master', gradeFrom: 9, gradeTo: 12, pages: 100, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 7, versId: 107, edition: 'v1', code: 'READ-F', title: 'Reading Foundation', subKey: 'reading', bookLevel: 'foundation', level: 'Foundation', levelLabel: 'Foundation', gradeFrom: 9, gradeTo: 12, pages: 96, hasNewer: false, hasFile: true, issueCount: 0 },
+                { id: 5, versId: 105, edition: 'v1', code: 'WR', title: 'Writing', subKey: 'writing', bookLevel: 'foundation', gradeFrom: 4, gradeTo: 8, pages: 80, hasNewer: false, hasFile: true, issueCount: 1 },
+                { id: 6, versId: 106, edition: 'v1', code: 'MATH', title: 'Math Practice', subKey: 'math', bookLevel: 'practice', gradeFrom: 9, gradeTo: 12, pages: 120, hasNewer: false, hasFile: true, issueCount: 1 },
               ],
               bySub: {},
               newerCount: 0,
@@ -248,7 +259,7 @@ it('진도 입력은 페이지 숫자만 DTO로 보내고 퍼센트는 보내지
   fireEvent.change(view.getByLabelText('고은성 SAT Reading 진도 쪽수'), { target: { value: '55' } });
   fireEvent.click(view.getByRole('button', { name: '고은성 SAT Reading 진도 저장' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues/10/progress'));
-  expect(mutation.body).toEqual({ progressPage: 55 });
+  expect(mutation.body).toEqual({ progressPage: 55, expectedVersion: 1 });
 });
 
 it('승인 대기는 공용 전이 hook으로 auto 상태만 보낸다', async () => {
@@ -257,7 +268,7 @@ it('승인 대기는 공용 전이 hook으로 auto 상태만 보낸다', async (
   fireEvent.click(view.getByRole('button', { name: '고은성 펼치기' }));
   fireEvent.click(view.getByRole('button', { name: '고은성 SAT Reading 승인' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues/11/state'));
-  expect(mutation.body).toEqual({ state: 'auto' });
+  expect(mutation.body).toEqual({ state: 'auto', expectedVersion: 1 });
 });
 
 it('승인·전달 대기는 사유가 있어야 취소·반려하고 종료 사유를 같이 보낸다', async () => {
@@ -269,22 +280,27 @@ it('승인·전달 대기는 사유가 있어야 취소·반려하고 종료 사
   expect((reject as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(reject);
   await waitFor(() => expect(mutation.url).toBe('/books/issues/11/state'));
-  expect(mutation.body).toEqual({ state: 'rejected', reason: '교재 재선정' });
+  expect(mutation.body).toEqual({ state: 'rejected', reason: '교재 재선정', expectedVersion: 1 });
 });
 
-it('종료된 교재의 재배정도 학생·교재를 고정하고 강사·과목 계약 전 저장을 잠근다', async () => {
+it('종료된 교재의 재배정은 학생·교재를 고정하고 같은 수업 문맥과 계보를 새 writer에 보낸다', async () => {
   const view = setup({ withReissueCandidate: true });
   fireEvent.click(await view.findByRole('button', { name: '고은성 펼치기' }));
   expect(view.getByText('학부모 요청 · 김민수')).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '고은성 Math Practice 재배부' }));
   expect(view.getByText('교재 재배정 준비')).toBeTruthy();
+  await view.findByRole('option', { name: '김재훈' });
   expect((view.getByLabelText('학생') as HTMLSelectElement).disabled).toBe(true);
   expect((view.getByLabelText('교재') as HTMLSelectElement).disabled).toBe(true);
   fireEvent.change(view.getByLabelText('강사'), { target: { value: '7' } });
   fireEvent.change(view.getByLabelText('과목'), { target: { value: 'math' } });
   expect((view.getByLabelText('교재') as HTMLSelectElement).value).toBe('6');
-  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
-  expect(mutation).toEqual({});
+  const submit = view.getByRole('button', { name: '배정 요청' }) as HTMLButtonElement;
+  expect(submit.disabled).toBe(false);
+  fireEvent.click(submit);
+  await waitFor(() => expect(mutation.url).toBe('/books/assignments'));
+  expect(mutation.body).toMatchObject({ libId: 6, versId: 106, studentId: 3, teacherId: 7, subKey: 'math', reissuedFrom: 30 });
+  expect((mutation.body as { requestKey: string }).requestKey).toMatch(/^[0-9a-f-]{36}$/);
 });
 
 it('학생 한 줄의 진도는 각 교재와 짝지어 표시한다', async () => {
@@ -341,10 +357,11 @@ it('교재별 진도율 카드는 레벨 배지 · 오른쪽 인원 · 큰 % · 
   expect(card.parentElement?.className).toContain('xl:grid-cols-3');
 });
 
-it('최신 배정 창은 강사·과목을 먼저 고르고 학생 학년과 과목에 맞는 교재만 단계순으로 보여 준다', async () => {
+it('최신 배정 창은 실제 수업의 강사·과목을 먼저 고르고 학생 학년·현재 판까지 새 writer에 보낸다', async () => {
   const view = setup();
   fireEvent.click(await view.findByRole('button', { name: '+ 배정' }));
   expect(view.getByText('교재 배정 준비')).toBeTruthy();
+  await view.findByRole('option', { name: '김재훈' });
   expect(view.queryByLabelText('초기 상태')).toBeNull();
   expect((view.getByLabelText('학생') as HTMLSelectElement).disabled).toBe(true);
   fireEvent.change(view.getByLabelText('강사'), { target: { value: '7' } });
@@ -356,13 +373,18 @@ it('최신 배정 창은 강사·과목을 먼저 고르고 학생 학년과 과
   expect([...(view.getByLabelText('교재') as HTMLSelectElement).options].map((option) => option.textContent))
     .toEqual(['선택', '기초 · Reading Foundation', '심화 · SAT Reading']);
   fireEvent.change(view.getByLabelText('교재'), { target: { value: '4' } });
-  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
-  expect(mutation).toEqual({});
+  const submit = view.getByRole('button', { name: '배정 요청' }) as HTMLButtonElement;
+  expect(submit.disabled).toBe(false);
+  fireEvent.click(submit);
+  await waitFor(() => expect(mutation.url).toBe('/books/assignments'));
+  expect(mutation.body).toMatchObject({ libId: 4, versId: 104, studentId: 3, teacherId: 7, subKey: 'reading' });
+  expect((mutation.body as { requestKey: string }).requestKey).toMatch(/^[0-9a-f-]{36}$/);
 });
 
 it('진단이 없는 학생은 없다고 적고 학년·과목에 맞는 교재가 없으면 선택지를 열지 않는다', async () => {
   const view = setup();
   fireEvent.click(await view.findByRole('button', { name: '+ 배정' }));
+  await view.findByRole('option', { name: '김재훈' });
   fireEvent.change(view.getByLabelText('강사'), { target: { value: '7' } });
   fireEvent.change(view.getByLabelText('과목'), { target: { value: 'reading' } });
   fireEvent.change(view.getByLabelText('학생'), { target: { value: '9' } });
@@ -387,18 +409,18 @@ it('형태 칩은 서버 낱말 그대로 승인 대기 요청 줄에 서고 최
   fireEvent.click(view.getByRole('button', { name: '+ 배정' }));
   expect([...(view.getByLabelText('형태') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['—', 'PDF', '실물 책']);
   fireEvent.change(view.getByLabelText('형태'), { target: { value: 'pdf' } });
-  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole('button', { name: '배정 요청' }) as HTMLButtonElement).disabled).toBe(true);
   expect(mutation).toEqual({});
 });
 
-it('최신 배정 창은 상태·배부일·초기 진도 입력을 제거하고 기존 writer를 호출하지 않는다', async () => {
+it('최신 배정 창은 상태·배부일·초기 진도 입력을 제거하고 실제 수업 문맥 writer만 안내한다', async () => {
   const view = setup();
   fireEvent.click(await view.findByRole('button', { name: '+ 배정' }));
   expect(view.queryByLabelText('초기 상태')).toBeNull();
   expect(view.queryByLabelText('배부일')).toBeNull();
   expect(view.queryByLabelText('초기 진도 쪽수')).toBeNull();
-  expect(view.getByText(/선택 정보가 빠진 배부 기록을 만들지 않도록/)).toBeTruthy();
-  expect((view.getByRole('button', { name: '저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(view.getByText(/실제 수업의 강사·과목·학생 조합만/)).toBeTruthy();
+  expect((view.getByRole('button', { name: '배정 요청' }) as HTMLButtonElement).disabled).toBe(true);
   expect(mutation).toEqual({});
 });
 
@@ -408,5 +430,5 @@ it('회수는 사용자가 고른 회수일을 기존 return 계약으로 보낸
   fireEvent.change(view.getByLabelText('고은성 SAT Reading 회수일'), { target: { value: '2026-09-21' } });
   fireEvent.click(view.getByRole('button', { name: '고은성 SAT Reading 회수' }));
   await waitFor(() => expect(mutation.url).toBe('/books/issues/10/return'));
-  expect(mutation.body).toEqual({ returnedOn: '2026-09-21' });
+  expect(mutation.body).toEqual({ returnedOn: '2026-09-21', expectedVersion: 1 });
 });

@@ -23,8 +23,12 @@ import type {
   BookHistory,
   BookHistoryQuery,
   BookIssue,
+  BookAssignmentCreate,
+  BookAssignmentOptions,
   BookIssueCreate,
   BookIssueDiag,
+  BookIssueProgress,
+  BookIssueReturn,
   BookIssueTransition,
   BookPack,
   BookPackPatch,
@@ -274,6 +278,7 @@ export const qk = {
   bookIssueDiag: (studentId: number) => ['books', 'issue-diag', studentId] as const,
   bookHistory: ['books', 'history'] as const,
   bookTracking: ['books', 'tracking'] as const,
+  bookAssignmentOptions: ['books', 'assignment-options'] as const,
   bookPacks: ['books', 'deliveries'] as const,
   guides: ['guides'] as const,
   guideStudents: ['guides', 'students'] as const,
@@ -1265,6 +1270,16 @@ export function useBookTracking(enabled = true): UseQueryResult<BookTracking> {
   });
 }
 
+export function useBookAssignmentOptions(enabled = true): UseQueryResult<BookAssignmentOptions> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bookAssignmentOptions, viewerId),
+    queryFn: async () => (await api.get<BookAssignmentOptions>('/books/assignment-options')).data,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useBookPacks(enabled = true): UseQueryResult<BookPacks> {
   const viewerId = useViewerId();
   return useQuery({
@@ -1318,6 +1333,14 @@ export function useCreateBookIssue(): UseMutationResult<BookIssue, unknown, Book
   });
 }
 
+export function useCreateBookAssignment(): UseMutationResult<BookIssue, unknown, BookAssignmentCreate> {
+  const invalidate = useBooksInvalidate({ board: true });
+  return useMutation({
+    mutationFn: async (body) => (await api.post<BookIssue>('/books/assignments', body)).data,
+    onSettled: invalidate,
+  });
+}
+
 export function useTransitionBookIssue(): UseMutationResult<BookIssue, unknown, { id: number } & BookIssueTransition> {
   const invalidate = useBooksInvalidate({ board: true });
   return useMutation({
@@ -1326,16 +1349,16 @@ export function useTransitionBookIssue(): UseMutationResult<BookIssue, unknown, 
   });
 }
 
-export function useUpdateBookProgress(): UseMutationResult<BookIssue, unknown, { id: number; progressPage: number }> {
+export function useUpdateBookProgress(): UseMutationResult<BookIssue, unknown, { id: number } & BookIssueProgress> {
   const invalidate = useBooksInvalidate();
   return useMutation({
-    mutationFn: async ({ id, progressPage }) =>
-      (await api.patch<BookIssue>(`/books/issues/${id}/progress`, { progressPage })).data,
+    mutationFn: async ({ id, ...body }) =>
+      (await api.patch<BookIssue>(`/books/issues/${id}/progress`, body)).data,
     onSettled: invalidate,
   });
 }
 
-export function useReturnBookIssue(): UseMutationResult<BookIssue, unknown, { id: number; returnedOn?: string }> {
+export function useReturnBookIssue(): UseMutationResult<BookIssue, unknown, { id: number } & BookIssueReturn> {
   const invalidate = useBooksInvalidate({ board: true });
   return useMutation({
     mutationFn: async ({ id, ...body }) => (await api.post<BookIssue>(`/books/issues/${id}/return`, body)).data,

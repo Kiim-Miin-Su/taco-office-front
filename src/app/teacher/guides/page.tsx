@@ -223,12 +223,16 @@ function ReceivedGuidesSection() {
 
 export default function TeacherGuidesPage() {
   const lessonName = useLessonName();
+  const router = useRouter();
+  const search = useSearchParams();
   const viewerId = useSession((state) => state.me?.id ?? null);
   const [week, setWeek] = useState<string | undefined>(undefined);
   const [pickedId, setPickedId] = useState<number | null>(null);
   /** 진단을 쓰고 있는 학생 — 한 번에 한 명 (화면이 두 폼을 들고 있으면 어느 쪽을 저장했는지 흐려진다) */
   const [writing, setWriting] = useState<number | null>(null);
   const q = useTeacherGuides(week);
+  const requestedStudents = search.getAll('studentId');
+  const requestedStudentId = requestedStudents.length === 1 ? positiveQueryId(requestedStudents[0]) : null;
   return (
     <RequireAuth>
       <AppShell>
@@ -250,10 +254,18 @@ export default function TeacherGuidesPage() {
             materialization horizon 밖 주에서 과거 주로 돌아갈 길이 없다. 빈 목록은 레일 안에서 말한다. */}
         <QueryState query={q} isEmpty={() => false}>
           {(d) => {
-            const picked = d.students.find((s) => s.studentId === pickedId) ?? d.students[0];
+            // BOC-04D-03b 권고안: 교재 배정 알림의 학생 id는 정확히 한 개일 때만 연다.
+            // 잘못됐거나 현재 주 담당이 아니면 첫 학생으로 대체해 다른 학생 정보를 노출하지 않는다.
+            const requested = requestedStudents.length > 0;
+            const picked = requested
+              ? d.students.find((s) => s.studentId === requestedStudentId)
+              : d.students.find((s) => s.studentId === pickedId) ?? d.students[0];
             return (
               <>
                 <p className="text-[12px] text-fg-subtle">{md(d.weekFrom)} – {md(d.weekTo)} · 담당 학생 {d.students.length}명</p>
+                {requested && !picked ? (
+                  <Banner tone="warning" className="mt-3">요청한 학생을 이 주의 담당 학생에서 확인할 수 없습니다.</Banner>
+                ) : null}
                 <div className="mt-3 flex flex-col gap-4 lg:flex-row">
                   <aside className="w-full shrink-0 lg:w-[300px]">
                     <div className="rounded-t-xl bg-fg px-4 py-3 text-card">
@@ -286,7 +298,10 @@ export default function TeacherGuidesPage() {
                             key={s.studentId}
                             s={s}
                             active={picked?.studentId === s.studentId}
-                            onPick={() => setPickedId(s.studentId)}
+                            onPick={() => {
+                              setPickedId(s.studentId);
+                              router.replace(`/teacher/guides?studentId=${s.studentId}`, { scroll: false });
+                            }}
                           />
                         ))
                       )}

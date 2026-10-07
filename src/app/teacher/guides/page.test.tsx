@@ -102,6 +102,30 @@ it('받은 안내 다음에 일반 자료요청 초안을 두고 현재 주 학�
   expect(calls.filter((call) => call.method === 'post')).toHaveLength(0);
 });
 
+it('교재 배정 알림의 studentId는 정확한 이번 주 담당 학생만 열고 목록 선택도 URL에 보존한다', async () => {
+  const first: TeacherGuides['students'][number] = {
+    studentId: 4, name: '수신 학생', grade: 'G9', weekCount: 1, lessons: [], books: [], diag: null, notes: [],
+  };
+  const second: TeacherGuides['students'][number] = {
+    ...first, studentId: 8, name: '둘째 학생', grade: 'G10',
+  };
+  const { view } = setup({ search: 'studentId=8', students: [first, second] });
+  expect(await view.findByRole('heading', { name: '둘째 학생', level: 2 })).toBeTruthy();
+  expect(view.queryByRole('heading', { name: '수신 학생', level: 2 })).toBeNull();
+  const studentButton = view.getAllByRole('button').find((button) => button.textContent?.includes('수신 학생') && button.textContent.includes('주 1회'))!;
+  fireEvent.click(studentButton);
+  expect(nav.replace).toHaveBeenCalledWith('/teacher/guides?studentId=4', { scroll: false });
+});
+
+it.each(['studentId=999', 'studentId=4&studentId=4', 'studentId=-1'])('잘못되거나 타인인 교재 배정 학생 query %s는 첫 학생을 대신 열지 않는다', async (search) => {
+  const student: TeacherGuides['students'][number] = {
+    studentId: 4, name: '수신 학생', grade: 'G9', weekCount: 1, lessons: [], books: [], diag: null, notes: [],
+  };
+  const { view } = setup({ search, students: [student] });
+  expect(await view.findByText('요청한 학생을 이 주의 담당 학생에서 확인할 수 없습니다.')).toBeTruthy();
+  expect(view.queryByRole('heading', { name: '수신 학생', level: 2 })).toBeNull();
+});
+
 it('수신 조회 실패는 주별 학생 영역을 지우지 않고 확인 요청0이다', async () => {
   const { view, calls } = setup({ receivedError: true });
   await view.findByText('불러오지 못했습니다');

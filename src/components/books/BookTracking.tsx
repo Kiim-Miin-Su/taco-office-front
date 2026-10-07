@@ -7,9 +7,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import {
+  useBookAssignmentOptions,
   useBookIssueDiag,
   useBooks,
   useBookTracking,
+  useCreateBookAssignment,
   useMeta,
   useReturnBookIssue,
   useTransitionBookIssue,
@@ -21,6 +23,7 @@ import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { bookLevelPresentation, bookLevelUiLabel, issueFormTone } from '@/lib/book-presentation';
 import { todayKst } from '@/lib/calendar';
 import { educationGradeOption, type EducationGradeSource } from '@/lib/education-grades';
+import { useRequestKey } from '@/lib/request-key';
 
 /**
  * 머리 여섯 칸의 **자리별 색** — 원문 §38-6 윗줄: 검정 · 호박 · 청록 · 빨강 · 보라 · 초록(컷 실측).
@@ -59,7 +62,7 @@ function assignmentBooks(books: readonly Book[], source: EducationGradeSource | 
   const value = gradeNumber(source, grade);
   if (value === null || !subKey) return [];
   return books
-    .filter((book) => book.subKey === subKey && book.gradeFrom != null && book.gradeTo != null
+    .filter((book) => book.subKey === subKey && book.versId != null && book.gradeFrom != null && book.gradeTo != null
       && book.gradeFrom <= value && value <= book.gradeTo)
     .sort((a, b) => (BOOK_LEVEL_ORDER[a.bookLevel ?? ''] ?? 99) - (BOOK_LEVEL_ORDER[b.bookLevel ?? ''] ?? 99)
       || a.title.localeCompare(b.title, 'ko'));
@@ -110,10 +113,13 @@ export function BookTracking({
   const q = useBookTracking();
   const meta = useMeta();
   const books = useBooks();
+  const createAssignment = useCreateBookAssignment();
+  const requestKey = useRequestKey();
   const progress = useUpdateBookProgress();
   const ret = useReturnBookIssue();
   const transition = useTransitionBookIssue();
   const [adding, setAdding] = useState(false);
+  const assignmentOptions = useBookAssignmentOptions(adding);
   const [teacherId, setTeacherId] = useState('');
   const [subjectKey, setSubjectKey] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -121,6 +127,7 @@ export function BookTracking({
   const [reason, setReason] = useState('');
   const [form, setForm] = useState('');
   const [reissuedFrom, setReissuedFrom] = useState<number | null>(null);
+  const [createdMessage, setCreatedMessage] = useState<string | null>(null);
   const diag = useBookIssueDiag(adding && studentId ? Number(studentId) : null);
   const [pages, setPages] = useState<Record<number, string>>({});
   const [returnDates, setReturnDates] = useState<Record<number, string>>({});
@@ -133,6 +140,33 @@ export function BookTracking({
   const showTracking = view !== 'progress';
   const showProgress = view !== 'tracking';
   const selectedStudent = meta.data?.students.find((student) => student.id === Number(studentId)) ?? null;
+  const contexts = assignmentOptions.data?.contexts ?? [];
+  const teacherOptions = useMemo(() => {
+    const unique = new Map<number, string>();
+    for (const context of contexts) unique.set(context.teacherId, context.teacherName);
+    return [...unique].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [contexts]);
+  const subjectOptions = useMemo(() => {
+    const unique = new Map<string, string>();
+    for (const context of contexts) {
+      if (context.teacherId === Number(teacherId)
+        && (!reissuedFrom || context.studentId === Number(studentId))) unique.set(context.subKey, context.subName);
+    }
+    return [...unique].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [contexts, reissuedFrom, studentId, teacherId]);
+  const studentOptions = useMemo(() => {
+    const unique = new Map<number, { name: string; grade: string | null }>();
+    for (const context of contexts) {
+      if (context.teacherId === Number(teacherId) && context.subKey === subjectKey) {
+        unique.set(context.studentId, { name: context.studentName, grade: context.grade ?? null });
+      }
+    }
+    return [...unique].map(([id, value]) => ({ id, label: `${value.name}${value.grade ? ` · ${value.grade}` : ''}` }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ko'));
+  }, [contexts, subjectKey, teacherId]);
+  const visibleStudentOptions = studentId && !studentOptions.some((student) => student.id === Number(studentId))
+    ? [{ id: Number(studentId), label: selectedStudent?.label ?? `학생 #${studentId}` }, ...studentOptions]
+    : studentOptions;
   const eligibleBooks = useMemo(() => assignmentBooks(
     books.data?.items ?? [],
     meta.data,
@@ -166,6 +200,7 @@ export function BookTracking({
     setReason('');
     setForm('');
     setReissuedFrom(null);
+    requestKey.reset();
   };
   const beginReissue = (student: number, issue: { id: number; libId: number }) => {
     setStudentId(String(student));
@@ -176,8 +211,29 @@ export function BookTracking({
     setReason('');
     setForm('');
     setAdding(true);
+    setCreatedMessage(null);
   };
-  const error = transition.error ?? progress.error ?? ret.error;
+  const selectedBook = books.data?.items.find((book) => book.id === Number(libId)) ?? null;
+  const canSubmit = Boolean(teacherId && subjectKey && studentId && selectedBook?.versId);
+  const submitAssignment = () => {
+    if (!canSubmit || !selectedBook?.versId) return;
+    const command = {
+      libId: Number(libId), versId: selectedBook.versId, studentId: Number(studentId),
+      teacherId: Number(teacherId), subKey: subjectKey,
+      ...(reissuedFrom ? { reissuedFrom } : {}),
+      ...(reason.trim() ? { reason: reason.trim() } : {}),
+      ...(form ? { form: form as 'pdf' | 'print' } : {}),
+    };
+    createAssignment.mutate({ ...command, requestKey: requestKey.keyFor(command) }, {
+      onSuccess: (issue) => {
+        requestKey.reset();
+        setCreatedMessage(`${selectedStudent?.name ?? '학생'} · ${selectedBook.title} 배정을 승인 대기로 등록했습니다.`);
+        resetCreate();
+        setExpandedId(issue.studentId);
+      },
+    });
+  };
+  const error = createAssignment.error ?? assignmentOptions.error ?? transition.error ?? progress.error ?? ret.error;
   return (
     <div className="space-y-3">
       {showCreateAction ? (
@@ -187,6 +243,7 @@ export function BookTracking({
           </Button>
         </div>
       ) : null}
+      {createdMessage ? <Banner tone="success">{createdMessage}</Banner> : null}
       {targetMissing ? (
         <Banner tone="warning">
           요청한 학생을 찾을 수 없습니다. 다른 학생을 대신 선택하거나 배부를 등록하지 않습니다.{' '}
@@ -205,15 +262,20 @@ export function BookTracking({
             title={reissuedFrom ? '교재 재배정 준비' : '교재 배정 준비'}
             sub="강사와 과목을 먼저 고른 뒤 학생 학년에 맞는 교재를 선택합니다"
           >
-            <Banner tone="warning" className="mb-3">
-              강사·과목을 함께 저장하는 배정 기능을 준비 중입니다. 선택 정보가 빠진 배부 기록을 만들지 않도록 저장을 잠갔습니다.
+            <Banner tone="info" className="mb-3">
+              실제 수업의 강사·과목·학생 조합만 선택할 수 있으며 저장하면 승인 대기로 등록됩니다.
             </Banner>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="issue-teacher">강사</Label>
-                <Select id="issue-teacher" value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>
+                <Select id="issue-teacher" value={teacherId} onChange={(event) => {
+                  setTeacherId(event.target.value);
+                  setSubjectKey('');
+                  if (!reissuedFrom && !targetRequested) setStudentId('');
+                  if (!reissuedFrom) setLibId('');
+                }}>
                   <option value="">먼저 선택</option>
-                  {meta.data?.staff.filter((staff) => !staff.canAdminPage).map((staff) => (
+                  {teacherOptions.map((staff) => (
                     <option key={staff.id} value={staff.id}>{staff.name}</option>
                   ))}
                 </Select>
@@ -221,11 +283,15 @@ export function BookTracking({
               <div>
                 <Label htmlFor="issue-subject">과목</Label>
                 <Select id="issue-subject" value={subjectKey} onChange={(event) => {
-                  setSubjectKey(event.target.value);
+                  const next = event.target.value;
+                  setSubjectKey(next);
+                  const stillEligible = contexts.some((context) => context.teacherId === Number(teacherId)
+                    && context.subKey === next && context.studentId === Number(studentId));
+                  if (!reissuedFrom && !stillEligible) setStudentId('');
                   if (!reissuedFrom) setLibId('');
                 }}>
                   <option value="">먼저 선택</option>
-                  {meta.data?.subs.map((subject) => (
+                  {subjectOptions.map((subject) => (
                     <option key={subject.key} value={subject.key}>{subject.name}</option>
                   ))}
                 </Select>
@@ -235,7 +301,7 @@ export function BookTracking({
                 <Select id="issue-student" value={studentId} disabled={reissuedFrom !== null || !teacherId || !subjectKey}
                   onChange={(event) => { setStudentId(event.target.value); setLibId(''); }}>
                   <option value="">선택</option>
-                  {meta.data?.students.map((s) => (
+                  {visibleStudentOptions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.label}
                     </option>
@@ -298,10 +364,10 @@ export function BookTracking({
                 취소
               </Button>
               <Button
-                disabled
-                title="강사·과목을 함께 저장하는 기능을 준비 중입니다"
+                disabled={!canSubmit || createAssignment.isPending}
+                onClick={submitAssignment}
               >
-                저장 준비 중
+                {createAssignment.isPending ? '등록 중…' : '배정 요청'}
               </Button>
             </div>
           </Panel>
@@ -500,7 +566,9 @@ export function BookTracking({
                                           size="sm"
                                           aria-label={`${s.name} ${bookTitle} ${issue.state === 'wait' ? '승인' : '전달 완료'}`}
                                           disabled={transition.isPending}
-                                          onClick={() => transition.mutate({ id: issue.id, state: issue.state === 'wait' ? 'auto' : 'ok' })}
+                                          onClick={() => transition.mutate({
+                                            id: issue.id, state: issue.state === 'wait' ? 'auto' : 'ok', expectedVersion: issue.version,
+                                          })}
                                         >
                                           {issue.state === 'wait' ? '승인' : '전달 완료'}
                                         </Button>
@@ -517,7 +585,9 @@ export function BookTracking({
                                           variant="secondary"
                                           aria-label={`${s.name} ${bookTitle} 반려`}
                                           disabled={!endReasons[issue.id]?.trim() || transition.isPending}
-                                          onClick={() => transition.mutate({ id: issue.id, state: 'rejected', reason: endReasons[issue.id].trim() })}
+                                          onClick={() => transition.mutate({
+                                            id: issue.id, state: 'rejected', reason: endReasons[issue.id].trim(), expectedVersion: issue.version,
+                                          })}
                                         >
                                           반려
                                         </Button>
@@ -526,7 +596,9 @@ export function BookTracking({
                                           variant="secondary"
                                           aria-label={`${s.name} ${bookTitle} 취소`}
                                           disabled={!endReasons[issue.id]?.trim() || transition.isPending}
-                                          onClick={() => transition.mutate({ id: issue.id, state: 'canceled', reason: endReasons[issue.id].trim() })}
+                                          onClick={() => transition.mutate({
+                                            id: issue.id, state: 'canceled', reason: endReasons[issue.id].trim(), expectedVersion: issue.version,
+                                          })}
                                         >
                                           취소
                                         </Button>
@@ -551,7 +623,7 @@ export function BookTracking({
                                           aria-label={`${s.name} ${bookTitle} 진도 저장`}
                                           disabled={!pages[issue.id] || progress.isPending}
                                           onClick={() =>
-                                            progress.mutate({ id: issue.id, progressPage: Number(pages[issue.id]) })
+                                            progress.mutate({ id: issue.id, progressPage: Number(pages[issue.id]), expectedVersion: issue.version })
                                           }
                                         >
                                           저장
@@ -569,7 +641,9 @@ export function BookTracking({
                                           variant="secondary"
                                           aria-label={`${s.name} ${bookTitle} 회수`}
                                           disabled={ret.isPending}
-                                          onClick={() => ret.mutate({ id: issue.id, returnedOn: returnDates[issue.id] ?? todayKst() })}
+                                          onClick={() => ret.mutate({
+                                            id: issue.id, returnedOn: returnDates[issue.id] ?? todayKst(), expectedVersion: issue.version,
+                                          })}
                                         >
                                           회수
                                         </Button>

@@ -407,11 +407,14 @@ export type Book = S['BookDto'];
 export type BookWrite = S['BookWriteDto'];
 export type BookPatch = S['BookPatchDto'];
 export type BookIssue = S['BookIssueDto'];
+export type BookAssignmentCreate = S['BookAssignmentCreateDto'];
+export type BookAssignmentOptions = S['BookAssignmentOptionsDto'];
 export type BookTrackingStudent = S['BookTrackingStudentDto'];
 export type BookTracking = S['BookTrackingDto'];
 export type BookIssueCreate = S['BookIssueCreateDto'];
 export type BookIssueTransition = S['BookIssueTransitionDto'];
 export type BookIssueProgress = S['BookIssueProgressDto'];
+export type BookIssueReturn = S['BookIssueReturnDto'];
 /** §39 서가 필터 — 과목 · 레벨 · 학년 (N-47 · 거르기는 서버가 한다) */
 export type BookShelfQuery = NonNullable<paths['/books']['get']['parameters']['query']>;
 /** 배부 창의 진단 한 줄 — 그 학생의 최신 상담 진단 (N-62) */
