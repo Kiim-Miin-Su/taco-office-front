@@ -22,13 +22,13 @@ const base: Dto = {
   totalAmount: 1700000, totalPaid: 400000, totalDue: 1300000,
   items: [
     {
-      id: 1, studentName: '민제인', students: [{ id: 11, name: '민제인' }], consType: 'essay', typeLabel: '에세이 지도', stage: 'contract', stageLabel: '계약',
+      id: 1, version: 1, studentName: '민제인', students: [{ id: 11, name: '민제인' }], consType: 'essay', typeLabel: '에세이 지도', stage: 'contract', stageLabel: '계약',
       amount: 900000, paid: 0, due: 900000, payments: [], invId: null, canInvoice: false,
       // 계약 단계라 서명본 전 — 서버가 납부를 막는다 (S5)
       canAddPayment: false, payBlockedReason: '서명본 등록 뒤 수납할 수 있습니다',
     },
     {
-      id: 2, studentName: '고은성', students: [{ id: 12, name: '고은성' }], consType: 'visa', typeLabel: '비자 · 서류', stage: 'running', stageLabel: '진행',
+      id: 2, version: 3, studentName: '고은성', students: [{ id: 12, name: '고은성' }], consType: 'visa', typeLabel: '비자 · 서류', stage: 'running', stageLabel: '진행',
       amount: 800000, paid: 400000, due: 400000,
       payments: [{ id: 7, amount: 400000, paidOn: '2026-07-12', memo: '계약금', byName: '김민수' }],
       invId: null, canInvoice: true, canAddPayment: true, payBlockedReason: null,
@@ -171,7 +171,23 @@ it('전환할 수 있는 건은 눌리고, 누르면 그 건 하나만 보낸다
   fireEvent.click(v.getAllByRole('button', { name: '열기' })[1]);
   expect(v.queryByLabelText('청구서를 받을 학생')).toBeNull();
   fireEvent.click(v.getByRole('button', { name: '청구서로 전환' }));
-  expect(conv).toHaveBeenCalledWith({ consId: 2 });
+  expect(conv).toHaveBeenCalledWith(expect.objectContaining({
+    consId: 2, expectedVersion: 3,
+    requestKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+  }), expect.any(Object));
+});
+
+it('청구 전환은 실패 재시도에 같은 requestKey를 쓰고 성공 뒤 다음 전환은 새 키를 쓴다', () => {
+  const v = render(<ConsultingAccounting data={clone()} />);
+  fireEvent.click(v.getAllByRole('button', { name: '열기' })[1]);
+  const button = v.getByRole('button', { name: '청구서로 전환' });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  const firstKey = conv.mock.calls[0][0].requestKey as string;
+  expect(conv.mock.calls[1][0].requestKey).toBe(firstKey);
+  (conv.mock.calls[1][1] as { onSuccess: () => void }).onSuccess();
+  fireEvent.click(button);
+  expect(conv.mock.calls[2][0].requestKey).not.toBe(firstKey);
 });
 
 /** N-33 ② (W11) — 학생이 여럿인 건은 409 로 막혀 끝나던 자리. 이제 사람이 받는 학생을 골라 보낸다(서버가 대신 고르지 않는다) */
@@ -186,7 +202,9 @@ it('학생이 여럿이면 받는 학생을 골라야 전환이 눌리고, 고�
   fireEvent.change(v.getByLabelText('청구서를 받을 학생'), { target: { value: '13' } });
   expect(button.hasAttribute('disabled')).toBe(false);
   fireEvent.click(button);
-  expect(conv).toHaveBeenCalledWith({ consId: 2, studentId: 13 });
+  expect(conv).toHaveBeenCalledWith(expect.objectContaining({
+    consId: 2, expectedVersion: 3, studentId: 13, requestKey: expect.any(String),
+  }), expect.any(Object));
 });
 
 it('이미 전환한 건은 청구서 번호를 보여 주고 다시 눌리지 않는다', () => {

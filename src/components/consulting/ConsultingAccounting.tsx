@@ -50,6 +50,9 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
   const addPayment = useAddConsPayment();
   // 안건 N-132 — 실패 뒤 다시 넣으면 같은 키(서버가 앞선 줄로 수렴) · 고치면 새 키 · 성공하면 다음은 새 납부
   const requestKey = useRequestKey();
+  // BOC-04D-03d 권고안 채택: 청구 전환은 납부와 별개의 writer라 요청 키 수명도 분리한다.
+  // 정책 변경 시 DTO/OpenAPI/useConsToInvoice/CONS_WRITE_REQ/P-BOC04D03D를 함께 고친다.
+  const invoiceRequestKey = useRequestKey();
   const toInvoice = useConsToInvoice();
 
   const rows = data?.items ?? [];
@@ -223,7 +226,13 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
                 variant="primary"
                 disabled={!open.canInvoice || toInvoice.isPending || (pickStudent && !invStudent)}
                 title={open.canInvoice && pickStudent && !invStudent ? '청구서를 받을 학생을 먼저 고르세요' : undefined}
-                onClick={() => toInvoice.mutate({ consId: open.id, ...(pickStudent ? { studentId: Number(invStudent) } : {}) })}
+                onClick={() => {
+                  const body = { expectedVersion: open.version, ...(pickStudent ? { studentId: Number(invStudent) } : {}) };
+                  toInvoice.mutate(
+                    { consId: open.id, ...body, requestKey: invoiceRequestKey.keyFor(body) },
+                    { onSuccess: () => invoiceRequestKey.reset() },
+                  );
+                }}
               >
                 {toInvoice.isPending ? '전환 중…' : '청구서로 전환'}
               </Button>

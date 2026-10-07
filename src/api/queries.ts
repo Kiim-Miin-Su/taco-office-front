@@ -54,6 +54,7 @@ import type {
   ConsItem,
   ConsItemsEdit,
   ConsPaymentCreate,
+  ConsToInvoice,
   ConsStudents,
   ConsClose, ConsCloseResult, ConsSession, ConsSessionCreate, ConsSessionsResult, ConsSessionWrite,
   ConsultingCreate,
@@ -2693,12 +2694,12 @@ export function useAddConsPayment(): UseMutationResult<ConsAccountRow, unknown, 
  * 청구서로 전환 — §28 동작 ②. 청구서가 생기므로 회계 탭(§53)도 함께 버린다.
  * 받는 학생(`studentId`)은 사람이 고른다 — 학생이 여럿이면 필수 · 한 명이면 비운다(서버가 그 학생으로 낸다 · N-33 ②).
  */
-export function useConsToInvoice(): UseMutationResult<ConsAccountRow, unknown, { consId: number; studentId?: number }> {
+export function useConsToInvoice(): UseMutationResult<ConsAccountRow, unknown, { consId: number } & ConsToInvoice> {
   const qc = useQueryClient();
   const invalidate = useConsultingFamilyInvalidate();
   return useMutation({
-    mutationFn: async ({ consId, studentId }) =>
-      (await api.post<ConsAccountRow>(`/consulting/${consId}/invoice`, studentId === undefined ? {} : { studentId })).data,
+    mutationFn: async ({ consId, ...body }) =>
+      (await api.post<ConsAccountRow>(`/consulting/${consId}/invoice`, body)).data,
     onSettled: () => {
       invalidate();
       void qc.invalidateQueries({ queryKey: family.accounting });

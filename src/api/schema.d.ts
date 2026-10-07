@@ -3384,7 +3384,7 @@ export interface paths {
         put?: never;
         /**
          * 청구서로 전환 — §28 동작 ② · 연동 「INV 에 csid 로 연결」
-         * @description **남은 돈으로** 청구서를 낸다. 계약 전액으로 내면 이미 받은 돈이 §53 미수금에 한 번 더 얹힌다. 전환 뒤에도 납부 기록은 cons_pay 에 그대로 남는다 — cs_id 는 연결이지 소유가 아니다. 받는 학생은 사람이 고른다(studentId · 학생이 여럿이면 필수 · 한 명이면 비워도 그 학생 · N-33 ②). 감사 원장에 남는다(N-73).
+         * @description **남은 돈으로** 청구서를 낸다. 계약 전액으로 내면 이미 받은 돈이 §53 미수금에 한 번 더 얹힌다. 전환 뒤에도 납부 기록은 cons_pay 에 그대로 남는다 — cs_id 는 연결이지 소유가 아니다. 받는 학생은 사람이 고른다(studentId · 학생이 여럿이면 필수 · 한 명이면 비워도 그 학생 · N-33 ②). expectedVersion과 requestKey로 경합·재시도를 막고 실제 actor와 결과 청구서를 요청 원장·감사 원장에 남긴다.
          */
         post: operations["ConsultingController_toInvoice"];
         delete?: never;
@@ -10336,6 +10336,8 @@ export interface components {
         };
         ConsAccountRowDto: {
             id: number;
+            /** @description 청구 전환 등 aggregate 쓰기의 현재 version */
+            version: number;
             /** @description 학생 — 여럿이면 쉼표로 잇는다 */
             studentName: string;
             /** @description 학생 id · 이름 — 여럿이면 「청구서로 전환」에서 받는 학생을 고른다(이름 차례) */
@@ -10579,6 +10581,13 @@ export interface components {
             requestKey: string;
         };
         ConsToInvoiceDto: {
+            /** @description 화면이 읽은 ConsAccountRowDto.version */
+            expectedVersion: number;
+            /**
+             * Format: uuid
+             * @description 같은 전환 재시도를 청구서 한 장으로 수렴시키는 요청 키
+             */
+            requestKey: string;
             /** @description 청구서를 받을 학생 — 그 컨설팅의 학생이어야 한다. 학생이 여럿이면 필수 */
             studentId?: number;
         };
@@ -27739,7 +27748,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code CONS_INV_EXISTS · CONS_INV_NOT_PAID_STEP · CONS_INV_NOTHING_DUE · CONS_INV_STUDENT_AMBIGUOUS(학생이 여럿인데 고르지 않음 · 학생 없음) · MONTH_CLOSED(전환 청구서의 달 — 오늘의 달 — 이 마감됨 · 발행 · 이월과 같은 문장) · 400 CONS_INV_STUDENT_INVALID */
+            /** @description code CONS_INV_EXISTS · CONS_INV_VERSION_CONFLICT · CONS_INV_REQUEST_KEY_REUSED · CONS_INV_REQUEST_REPLAY_STALE · CONS_INV_NOT_PAID_STEP · CONS_INV_NOTHING_DUE · CONS_INV_STUDENT_AMBIGUOUS(학생이 여럿인데 고르지 않음 · 학생 없음) · MONTH_CLOSED(전환 청구서의 달 — 오늘의 달 — 이 마감됨 · 발행 · 이월과 같은 문장) · 400 CONS_INV_STUDENT_INVALID */
             409: {
                 headers: {
                     [name: string]: unknown;

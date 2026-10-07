@@ -353,6 +353,7 @@ export type ConsAccounting = S['ConsAccountingDto'];
 export type ConsAccountRow = S['ConsAccountRowDto'];
 export type ConsPayment = S['ConsPaymentDto'];
 export type ConsPaymentCreate = S['ConsPaymentCreateDto'];
+export type ConsToInvoice = S['ConsToInvoiceDto'];
 
 /* §27 컨설팅 학생별 (C59) — 「csCan() 으로 볼 수 있는 것만 집계합니다」는 서버가 지킨다 */
 export type ConsStudents = S['ConsStudentsDto'];
