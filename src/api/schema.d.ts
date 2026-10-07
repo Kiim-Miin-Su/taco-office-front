@@ -4421,6 +4421,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/students/{id}/hub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학생 10탭 aggregate — 이어서 할 일·리포트·코멘트·청구 exact student projection
+         * @description BOC-04D-01 권고안: 세 목록은 독립 keyset cursor를 쓰며 금액은 canMoney, 컨설팅 건수는 공용 공개 범위를 통과한 것만 반환한다. 강사는 이 관리자 경계에서 403이다.
+         */
+        get: operations["StudentsController_hub"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/students/{id}": {
         parameters: {
             query?: never;
@@ -12849,6 +12869,80 @@ export interface components {
             /** Format: date-time */
             reactivatedAt: string;
             effects: components["schemas"]["StudentReactivationEffectsDto"];
+        };
+        StudentHubNextActionDto: {
+            /** @enum {string} */
+            key: "schedule" | "billing" | "consulting" | "books" | "guides" | "lead";
+            label: string;
+            /** @description 서버가 exact studentId로 센 현재 건수 */
+            count: number;
+            /** @description 0건도 숨기지 않는 서버 상태 문장 */
+            stateLabel: string;
+            /** @description 기존 도메인 화면의 학생 문맥 deep link */
+            href: string;
+        };
+        StudentHubReportDto: {
+            id: number;
+            onDate: string;
+            kindName: string;
+            subjectName: string | null;
+            teacherName: string | null;
+            /** @enum {string} */
+            state: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            /** @description 서버 공용 리포트 상태 낱말 */
+            stateLabel: string;
+            submittedAt: string | null;
+        };
+        StudentHubReportPageDto: {
+            items: components["schemas"]["StudentHubReportDto"][];
+            total: number;
+            nextCursor: string | null;
+        };
+        StudentHubCommentDto: {
+            id: number;
+            serId: number | null;
+            authorId: number;
+            authorName: string | null;
+            body: string;
+            createdAt: string;
+        };
+        StudentHubCommentPageDto: {
+            items: components["schemas"]["StudentHubCommentDto"][];
+            total: number;
+            nextCursor: string | null;
+        };
+        StudentHubInvoiceDto: {
+            id: number;
+            yearMonth: string;
+            invType: string;
+            /** @description 서버 공용 청구 종류 낱말 */
+            invTypeLabel: string;
+            title: string;
+            /** @enum {string} */
+            state: "draft" | "sent" | "unpaid" | "partial" | "paid" | "void";
+            /** @description 서버 공용 청구 상태 낱말 */
+            stateLabel: string;
+            dueOn: string | null;
+            /** @description canMoney를 통과할 때만 값 */
+            amount: number | null;
+            /** @description canMoney를 통과할 때만 값 */
+            paidAmount: number | null;
+            /** @description 서버 계산 amount-paidAmount. canMoney를 통과할 때만 값 */
+            remainingAmount: number | null;
+        };
+        StudentHubInvoicePageDto: {
+            items: components["schemas"]["StudentHubInvoiceDto"][];
+            total: number;
+            nextCursor: string | null;
+        };
+        StudentHubDto: {
+            studentId: number;
+            /** @description 청구 금액 projection 권한 */
+            canSeeAmounts: boolean;
+            nextActions: components["schemas"]["StudentHubNextActionDto"][];
+            reports: components["schemas"]["StudentHubReportPageDto"];
+            comments: components["schemas"]["StudentHubCommentPageDto"];
+            invoices: components["schemas"]["StudentHubInvoicePageDto"];
         };
         StudentGuardianSummaryDto: {
             id: number;
@@ -32155,6 +32249,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudentRegistrationConflictDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_hub: {
+        parameters: {
+            query?: {
+                /** @description 리포트·코멘트·청구 각각의 페이지 크기 */
+                limit?: number;
+                /** @description 리포트 다음 페이지 불투명 커서 */
+                reportsCursor?: string;
+                /** @description 코멘트 다음 페이지 불투명 커서 */
+                commentsCursor?: string;
+                /** @description 청구 다음 페이지 불투명 커서 */
+                invoicesCursor?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentHubDto"];
+                };
+            };
+            /** @description STUDENT_HUB_CURSOR_INVALID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

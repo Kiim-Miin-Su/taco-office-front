@@ -3,7 +3,7 @@
  * 책임/재사용: Back DTO→OpenAPI 생성 타입, 공용 api/sessionQueryKey를 재사용하고 화면에 서버 상태 판정을 복제하지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/store/useSession';
 import { api } from './client';
 import { qk, sessionQueryKey } from './queries';
@@ -13,6 +13,8 @@ export type StudentDirectory = components['schemas']['StudentDirectoryDto'];
 export type StudentDirectoryRow = components['schemas']['StudentDirectoryRowDto'];
 export type StudentRead = components['schemas']['StudentReadDto'];
 export type StudentListQuery = NonNullable<paths['/students']['get']['parameters']['query']>;
+export type StudentHub = components['schemas']['StudentHubDto'];
+export type StudentHubSection = 'reports' | 'comments' | 'invoices';
 
 /**
  * BOC-03D-01 권고안 채택(2026-10-07): 15절 등록은 기존 LeadEnrollDto와 섞지 않고
@@ -49,6 +51,8 @@ export const studentKeys = {
   all: ['students'] as const,
   list: (params: StudentListQuery) => ['students', 'list', params] as const,
   detail: (id: number | null) => ['students', 'detail', id] as const,
+  hub: (id: number | null) => ['students', 'hub', id] as const,
+  hubSection: (id: number | null, section: StudentHubSection) => ['students', 'hub', id, section] as const,
   registrationOptions: ['students', 'registration-options'] as const,
   schools: (q: string) => ['students', 'schools', q] as const,
   reactivationCandidates: (params: StudentReactivationCandidateQuery) => ['students', 'reactivation-candidates', params] as const,
@@ -127,6 +131,37 @@ export function useStudentRead(id: number | null) {
     queryKey: sessionQueryKey(studentKeys.detail(id), viewerId),
     queryFn: async ({ signal }) => (await api.get<StudentRead>(`/students/${id}`, { signal })).data,
     enabled: allowed && id !== null && Number.isSafeInteger(id) && id > 0,
+  });
+}
+
+/**
+ * BOC-04D-01 권고안 채택(2026-10-08): 학생 허브 집계와 cursor는 생성 OpenAPI
+ * 계약만 소비한다. 금액·상태·건수를 Front에서 다시 계산하지 않는다. 정책 변경 시
+ * Back students DTO/service, P-STUDENT-HUB, BOC-04, Figma 대응표와 portfolio를 함께 수정한다.
+ */
+export function useStudentHub(id: number | null, enabled = true) {
+  const viewerId = useSession(state => state.me?.id ?? 'anonymous');
+  const allowed = useStudentReadAllowed();
+  return useQuery({
+    queryKey: sessionQueryKey(studentKeys.hub(id), viewerId),
+    queryFn: async ({ signal }) => (await api.get<StudentHub>(`/students/${id}/hub`, { signal })).data,
+    enabled: allowed && enabled && id !== null && Number.isSafeInteger(id) && id > 0,
+  });
+}
+
+export function useStudentHubSection(id: number | null, section: StudentHubSection, enabled = true) {
+  const viewerId = useSession(state => state.me?.id ?? 'anonymous');
+  const allowed = useStudentReadAllowed();
+  return useInfiniteQuery({
+    queryKey: sessionQueryKey(studentKeys.hubSection(id, section), viewerId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam, signal }) => {
+      const params = pageParam ? section === 'reports' ? { reportsCursor: pageParam }
+        : section === 'comments' ? { commentsCursor: pageParam } : { invoicesCursor: pageParam } : undefined;
+      return (await api.get<StudentHub>(`/students/${id}/hub`, { params, signal })).data;
+    },
+    getNextPageParam: lastPage => lastPage[section].nextCursor ?? undefined,
+    enabled: allowed && enabled && id !== null && Number.isSafeInteger(id) && id > 0,
   });
 }
 

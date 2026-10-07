@@ -10,10 +10,10 @@ import { useRouter } from 'next/navigation';
 import { ApiError } from '@/api/client';
 import { useConsStudents, useGuideStudents, useMeta, useStudentBooks } from '@/api/queries';
 import type { GuideStudent, Meta } from '@/api/types';
-import { useStudentRead, useStudentReadAllowed, type StudentRead } from '@/api/students';
+import { useStudentHub, useStudentHubSection, useStudentRead, useStudentReadAllowed, type StudentHub, type StudentRead } from '@/api/students';
 import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
 import { GuideKindChip, GuideStateChip } from '@/components/guides/GuideStatus';
-import { Banner, Chip, Input, LinkButton, PageHeader, Panel, QueryState, Table, Tabs, cn, type Column } from '@/components/ui';
+import { Banner, Button, Chip, Input, LinkButton, PageHeader, Panel, QueryState, Table, Tabs, cn, type Column } from '@/components/ui';
 import { kstDateTime } from '@/lib/calendar';
 
 export type StudentHubTab = 'overview' | 'assignment' | 'schedule' | 'history' | 'reports' | 'books' | 'comments' | 'consulting' | 'profile' | 'billing';
@@ -138,8 +138,74 @@ function BooksTab({ studentId }: { studentId: number }) {
   }}</QueryState>}</QueryState>;
 }
 
-function ContractPending({ title, children, href, link }: { title: string; children: string; href?: string; link?: string }) {
-  return <Panel title={title}><Banner tone="warning" title="학생별 생성 기능 준비 중">{children}</Banner>{href && link ? <div className="mt-3"><LinkButton href={href} size="sm">{link}</LinkButton></div> : null}</Panel>;
+function HubNextActions({ studentId }: { studentId: number }) {
+  const query = useStudentHub(studentId);
+  return <QueryState query={query}>{data => <Panel title="이어서 할 일" sub="이 학생의 현재 기록에서 확인한 결과입니다.">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {data.nextActions.map(item => <Link key={item.key} href={item.href} className="rounded-lg border border-line px-3 py-3 transition-colors hover:bg-inset">
+        <span className="block text-[12px] text-fg-subtle">{item.label}</span>
+        <b className="mt-1 block text-[13px]">{item.stateLabel}</b>
+      </Link>)}
+    </div>
+  </Panel>}</QueryState>;
+}
+
+type HubReport = StudentHub['reports']['items'][number];
+const reportColumns: Column<HubReport>[] = [
+  { key: 'date', head: '수업일', cell: row => row.onDate },
+  { key: 'subject', head: '수업', cell: row => [row.kindName, row.subjectName].filter(Boolean).join(' · ') },
+  { key: 'teacher', head: '강사', cell: row => row.teacherName ?? '미정' },
+  { key: 'state', head: '상태', cell: row => row.stateLabel },
+];
+
+function ReportsTab({ studentId }: { studentId: number }) {
+  const query = useStudentHubSection(studentId, 'reports');
+  if (query.isPending) return <Panel title="리포트"><p className="text-[12px] text-fg-subtle">불러오는 중…</p></Panel>;
+  if (query.isError) return <Banner tone="warning" title="리포트를 불러오지 못했습니다"><Button className="mt-2" size="sm" onClick={() => void query.refetch()}>다시 시도</Button></Banner>;
+  const items = query.data.pages.flatMap(page => page.reports.items);
+  const total = query.data.pages[0]?.reports.total ?? 0;
+  return <Panel title={`리포트 ${total}건`} sub="이 학생의 승인 상태 목록입니다. 리포트 본문은 기존 리포트 화면에서 엽니다.">
+    <div className="overflow-x-auto"><Table columns={reportColumns} rows={items} rowKey={row => row.id} empty="이 학생의 리포트가 없습니다." className="min-w-[520px]" /></div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      {query.hasNextPage ? <Button size="sm" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? '불러오는 중…' : '리포트 더 보기'}</Button> : null}
+      <LinkButton href="/reports" size="sm">리포트 업무 열기</LinkButton>
+    </div>
+  </Panel>;
+}
+
+function CommentsTab({ studentId }: { studentId: number }) {
+  const query = useStudentHubSection(studentId, 'comments');
+  if (query.isPending) return <Panel title="코멘트"><p className="text-[12px] text-fg-subtle">불러오는 중…</p></Panel>;
+  if (query.isError) return <Banner tone="warning" title="코멘트를 불러오지 못했습니다"><Button className="mt-2" size="sm" onClick={() => void query.refetch()}>다시 시도</Button></Banner>;
+  const items = query.data.pages.flatMap(page => page.comments.items);
+  const total = query.data.pages[0]?.comments.total ?? 0;
+  return <Panel title={`코멘트 ${total}건`} sub="관리자 학생 허브 전용 조회입니다. 학부모 전달 문서에는 포함되지 않습니다.">
+    {items.length ? <ul className="space-y-2">{items.map(item => <li key={item.id} className="rounded-lg border border-line px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle"><b className="text-fg">{item.authorName ?? `직원 #${item.authorId}`}</b><span>{kstDateTime(item.createdAt) ?? item.createdAt}</span>{item.serId ? <Chip>수업 #{item.serId}</Chip> : null}</div>
+      <p className="mt-2 whitespace-pre-wrap text-[13px] leading-6">{item.body}</p>
+    </li>)}</ul> : <p className="text-[12px] text-fg-subtle">이 학생의 코멘트가 없습니다.</p>}
+    {query.hasNextPage ? <Button className="mt-3" size="sm" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? '불러오는 중…' : '코멘트 더 보기'}</Button> : null}
+  </Panel>;
+}
+
+function InvoicesTab({ studentId, enrollments, enrollmentTotal }: { studentId: number; enrollments: StudentRead['enrollments']; enrollmentTotal: number }) {
+  const query = useStudentHubSection(studentId, 'invoices');
+  if (query.isPending) return <Panel title="학생별 청구"><p className="text-[12px] text-fg-subtle">불러오는 중…</p></Panel>;
+  if (query.isError) return <Banner tone="warning" title="청구 내역을 불러오지 못했습니다"><Button className="mt-2" size="sm" onClick={() => void query.refetch()}>다시 시도</Button></Banner>;
+  const items = query.data.pages.flatMap(page => page.invoices.items);
+  const first = query.data.pages[0];
+  const total = first?.invoices.total ?? 0;
+  const money = (value: number | null) => value === null ? '금액 비공개' : `${value.toLocaleString('ko-KR')}원`;
+  return <>
+    <Panel title={`수강 기록 ${enrollmentTotal}건`} sub="확인된 기존 수강 기록입니다."><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
+    <Panel title={`학생별 청구 ${total}건`} sub={first?.canSeeAmounts ? '현재 계정에서 볼 수 있는 청구 금액입니다.' : '현재 계정에서는 청구 금액을 볼 수 없습니다.'}>
+      {items.length ? <ul className="space-y-2">{items.map(item => <li key={item.id} className="flex flex-col gap-1 rounded-lg border border-line px-3 py-3 text-[12px] sm:flex-row sm:items-center sm:justify-between">
+        <span><b>{item.title}</b><span className="ml-2 text-fg-subtle">{item.yearMonth} · {item.invTypeLabel} · {item.stateLabel}</span></span>
+        <span className="font-semibold">{money(item.remainingAmount)}</span>
+      </li>)}</ul> : <p className="text-[12px] text-fg-subtle">이 학생의 청구 내역이 없습니다.</p>}
+      <div className="mt-3 flex flex-wrap gap-2">{query.hasNextPage ? <Button size="sm" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? '불러오는 중…' : '청구 더 보기'}</Button> : null}{first?.canSeeAmounts ? <LinkButton href={`/accounting?studentId=${studentId}`} size="sm">회계 업무 열기</LinkButton> : null}</div>
+    </Panel>
+  </>;
 }
 
 export function StudentDetail({ studentId, initialTab = 'overview' }: { studentId: number | null; initialTab?: StudentHubTab }) {
@@ -164,7 +230,7 @@ export function StudentDetail({ studentId, initialTab = 'overview' }: { studentI
       <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start"><QueryState query={meta} isEmpty={value => value.students.length === 0} empty="표시할 학생이 없습니다.">{value => <StudentRail data={value} currentId={data.id} tab={tab} />}</QueryState></aside>
       <main className="min-w-0 space-y-4">
         <div className="overflow-x-auto"><Tabs<StudentHubTab> ariaLabel="학생 허브 보기" className="min-w-max [&>button]:min-h-11" value={tab} onChange={selectTab} options={STUDENT_HUB_TABS} /></div>
-        {tab === 'overview' ? <GuideTab studentId={data.id} /> : null}
+        {tab === 'overview' ? <><HubNextActions studentId={data.id} /><GuideTab studentId={data.id} /></> : null}
         {tab === 'assignment' ? <GuideTab studentId={data.id} assignment /> : null}
         {tab === 'schedule' ? <Panel title="학생 시간표" sub="공용 수업 일정의 학생 보기를 엽니다."><LinkButton href={`/schedule?studentId=${data.id}`}>학생 시간표 열기</LinkButton></Panel> : null}
         {tab === 'history' ? <>
@@ -172,18 +238,15 @@ export function StudentDetail({ studentId, initialTab = 'overview' }: { studentI
           <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub={`기존 수강 시작일 내림차순 최대${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
           <Panel title={`기존 감사 ${data.historyTotal}건`} sub={`기록 시각 내림차순 · 최근${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={historyColumns} rows={data.history} rowKey={row => row.id} className="min-w-[540px]" empty="연결된 감사 기록이 없습니다. 변경이 없었다는 뜻은 아닙니다." /></div></Panel>
         </> : null}
-        {tab === 'reports' ? <ContractPending title="리포트" href="/reports" link="리포트 업무 열기">현재 리포트 목록은 학생별로 자료를 안전하게 분리할 수 없습니다.</ContractPending> : null}
+        {tab === 'reports' ? <ReportsTab studentId={data.id} /> : null}
         {tab === 'books' ? <BooksTab studentId={data.id} /> : null}
-        {tab === 'comments' ? <ContractPending title="코멘트">코멘트 공개 범위와 학생별 민감 정보 권한이 확정되기 전에는 표시하거나 저장하지 않습니다.</ContractPending> : null}
+        {tab === 'comments' ? <CommentsTab studentId={data.id} /> : null}
         {tab === 'consulting' ? <QueryState query={consulting}>{value => {
           const item = value.items.find(candidate => candidate.studentId === data.id);
           return item ? <ConsultingStudents items={[item]} onOpen={id => router.push(`/consulting?id=${id}&studentId=${data.id}`)} /> : <Panel title="컨설팅"><p className="text-[12px] text-fg-subtle">볼 수 있는 이 학생의 컨설팅이 없습니다.</p></Panel>;
         }}</QueryState> : null}
         {tab === 'profile' ? <Profile data={data} /> : null}
-        {tab === 'billing' ? <>
-          <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub="확인된 기존 수강 기록입니다."><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
-          <ContractPending title="학생별 청구" href="/accounting" link="회계 업무 열기">현재 회계 조회는 학생별 금액·납부 상태를 안전하게 제공하지 않아 이 화면에서 임의로 계산하지 않습니다.</ContractPending>
-        </> : null}
+        {tab === 'billing' ? <InvoicesTab studentId={data.id} enrollments={data.enrollments} enrollmentTotal={data.enrollmentTotal} /> : null}
       </main>
     </div>
   </div>}</QueryState>;

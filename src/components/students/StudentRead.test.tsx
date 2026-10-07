@@ -10,7 +10,7 @@ import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import { sessionQueryKey } from '@/api/queries';
-import { studentKeys, useStudentDirectory, type StudentDirectory, type StudentRead } from '@/api/students';
+import { studentKeys, useStudentDirectory, type StudentDirectory, type StudentHub, type StudentRead } from '@/api/students';
 import type { Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { StudentDirectory as Directory } from './StudentDirectory';
@@ -46,6 +46,20 @@ const guide = {
 };
 const guideStudents = { items: [{ studentId: 21, studentName: '학생A', grade: 'G8', guidance: null, lang: null, guideCount: 1,
   latestGuide: guide, books: [{ issueId: 8, libId: 9, versId: 10, code: 'BK-1', title: 'Writing Book', edition: '2판', seTe: null, subKey: 'writing', level: null }], diagnostic: null, scores: null }] };
+const hub: StudentHub = {
+  studentId: 21, canSeeAmounts: false,
+  nextActions: [
+    { key: 'schedule', label: '스케줄', count: 2, stateLabel: '2회 예정', href: '/schedule?studentId=21' },
+    { key: 'billing', label: '회계', count: 1, stateLabel: '1건 처리 중', href: '/students/21?tab=billing' },
+    { key: 'consulting', label: '컨설팅', count: 0, stateLabel: '진행 중 컨설팅 없음', href: '/consulting?studentId=21' },
+    { key: 'books', label: '교재', count: 1, stateLabel: '1종 사용 중', href: '/books?tab=tracking&studentId=21' },
+    { key: 'guides', label: '안내', count: 1, stateLabel: '1건 확인 필요', href: '/guides?tab=students&studentId=21' },
+    { key: 'lead', label: '상담 카드', count: 1, stateLabel: '1건 연결', href: '/intake' },
+  ],
+  reports: { total: 2, nextCursor: 'reports_next', items: [{ id: 51, onDate: '2026-10-07', kindName: '수업', subjectName: 'Writing', teacherName: '강사A', state: 'wait', stateLabel: '승인 대기', submittedAt: '2026-10-07T01:00:00Z' }] },
+  comments: { total: 2, nextCursor: 'comments_next', items: [{ id: 61, serId: 4, authorId: 3, authorName: '매니저', body: '학생 코멘트', createdAt: '2026-10-07T01:00:00Z' }] },
+  invoices: { total: 2, nextCursor: 'invoices_next', items: [{ id: 71, yearMonth: '2026-10', invType: 'tuition', invTypeLabel: '수업료 청구', title: '10월 수업료', state: 'partial', stateLabel: '일부 납부', dueOn: '2026-10-10', amount: null, paidAmount: null, remainingAmount: null }] },
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
@@ -57,12 +71,15 @@ beforeEach(() => {
   useSession.getState().signIn('unit-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
+    const nextHub = config.params?.reportsCursor ? { ...hub, reports: { total: 2, nextCursor: null, items: [{ ...hub.reports.items[0], id: 50, onDate: '2026-10-06' }] } }
+      : config.params?.commentsCursor ? { ...hub, comments: { total: 2, nextCursor: null, items: [{ ...hub.comments.items[0], id: 60, body: '이전 코멘트' }] } }
+        : config.params?.invoicesCursor ? { ...hub, invoices: { total: 2, nextCursor: null, items: [{ ...hub.invoices.items[0], id: 70, yearMonth: '2026-09' }] } } : hub;
     const data = config.url === '/students' ? { ...directory, page: config.params?.page ?? 1 }
       : config.url === '/meta' ? meta
         : config.url === '/guides/students' ? guideStudents
           : config.url === '/schedule/students/21/books' ? { studentId: 21, bookCount: 1, label: null }
             : config.url === '/consulting/students' ? { items: [] }
-              : detail;
+              : config.url === '/students/21/hub' ? nextHub : detail;
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   };
 });
@@ -171,6 +188,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     await view.findByRole('heading', { name: student.label });
     expect(STUDENT_HUB_TABS.map(tab => tab.label)).toEqual(['안내 한눈에', '안내/교재 배정', '시간표', '수업 기록', '리포트', '교재', '코멘트', '컨설팅', '프로필', '수강/청구']);
     expect(view.getByRole('button', { name: '안내 한눈에' }).getAttribute('aria-pressed')).toBe('true');
+    await view.findByText('2회 예정');
     await view.findByText('학생A 안내 본문');
     expect(view.getByRole('link', { name: '수업 안내 수정' }).getAttribute('href'))
       .toBe('/guides?tab=students&studentId=21');
@@ -188,19 +206,25 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByText('기존 감사 51건')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '시간표' }));
     expect(view.getByRole('link', { name: '학생 시간표 열기' }).getAttribute('href')).toBe('/schedule?studentId=21');
-    expect(requests.map(request => request.url).sort()).toEqual(['/guides/students', '/meta', '/students/21'].sort());
+    expect(requests.map(request => request.url).sort()).toEqual(['/guides/students', '/meta', '/students/21', '/students/21/hub'].sort());
     expect(requests.every(request => request.method === 'get')).toBe(true);
   });
 
-  it('탭별 생성 reader만 lazy 호출하고 계약 부재 탭은 성공이나 0건으로 가장하지 않는다', async () => {
+  it('학생별 aggregate를 탭 진입 시 lazy 호출하고 각 cursor로만 더 불러온다', async () => {
     const view = render(<StudentDetail studentId={21} />, setup());
     await view.findByText('학생A 안내 본문');
     expect(requests.some(request => request.url === '/schedule/students/21/books')).toBe(false);
     expect(requests.some(request => request.url === '/consulting/students')).toBe(false);
     fireEvent.click(view.getByRole('button', { name: '리포트' }));
-    expect(view.getByText(/학생별로 자료를 안전하게 분리할 수 없/)).toBeTruthy();
+    await view.findByText('리포트 2건');
+    expect(view.getByText('승인 대기')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '리포트 더 보기' }));
+    await waitFor(() => expect(requests.some(request => request.params?.reportsCursor === 'reports_next')).toBe(true));
     fireEvent.click(view.getByRole('button', { name: '코멘트' }));
-    expect(view.getByText(/코멘트 공개 범위/)).toBeTruthy();
+    await view.findByText('학생 코멘트');
+    fireEvent.click(view.getByRole('button', { name: '코멘트 더 보기' }));
+    await view.findByText('이전 코멘트');
+    expect(requests.some(request => request.params?.commentsCursor === 'comments_next')).toBe(true);
     fireEvent.click(view.getByRole('button', { name: '교재' }));
     await view.findByText('Writing Book');
     expect(requests.filter(request => request.url === '/schedule/students/21/books')).toHaveLength(1);
@@ -208,7 +232,11 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     await view.findByText('볼 수 있는 이 학생의 컨설팅이 없습니다.');
     expect(requests.filter(request => request.url === '/consulting/students')).toHaveLength(1);
     fireEvent.click(view.getByRole('button', { name: '수강/청구' }));
-    expect(view.getByText(/학생별 금액·납부 상태를 안전하게 제공하지 않아/)).toBeTruthy();
+    await view.findByText('학생별 청구 2건');
+    expect(view.getByText('금액 비공개')).toBeTruthy();
+    expect(view.queryByRole('link', { name: '회계 업무 열기' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '청구 더 보기' }));
+    await waitFor(() => expect(requests.some(request => request.params?.invoicesCursor === 'invoices_next')).toBe(true));
     expect(requests.every(request => ['get', undefined].includes(request.method))).toBe(true);
   });
 
