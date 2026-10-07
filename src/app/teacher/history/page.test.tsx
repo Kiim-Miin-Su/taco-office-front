@@ -69,7 +69,7 @@ const data = (): TeacherHistory => ({
     bonus: 0, correctionCount: 0, lateCount: 0, note: null,
     breakdown: [
       { key: 'general', label: '일반 수업', lessonCount: 7, minutes: 540, amount: 378000, note: null },
-      { key: 'kinder', label: 'Kinder 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: '현재 모델에 Kinder 표시 없음' },
+      { key: 'kinder', label: 'Kinder 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
       { key: 'group', label: '그룹 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
       { key: 'diag', label: '진단고사 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
       { key: 'mock', label: '모의수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
@@ -215,7 +215,7 @@ it('정산 금액은 서버가 내려준 기본 시급·Kinder·그룹·진단·
   const d = data();
   d.settlement.breakdown = [
     { key: 'general', label: '일반 수업', lessonCount: 4, minutes: 240, amount: 180000, note: null },
-    { key: 'kinder', label: 'Kinder 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: '현재 모델에 Kinder 표시가 없어 적용하지 않습니다' },
+    { key: 'kinder', label: 'Kinder 수업 가산', lessonCount: 0, minutes: 0, amount: 0, note: null },
     { key: 'group', label: '그룹 수업 가산', lessonCount: 1, minutes: 60, amount: 10000, note: null },
     { key: 'diag', label: '진단고사 가산', lessonCount: 1, minutes: 60, amount: 15000, note: null },
     { key: 'mock', label: '모의수업 가산', lessonCount: 1, minutes: 60, amount: 15000, note: null },
@@ -232,7 +232,7 @@ it('정산 금액은 서버가 내려준 기본 시급·Kinder·그룹·진단·
   expect(view.getByText('그룹 수업 가산').parentElement?.textContent).toContain('1건 · 1시간');
   expect(view.getByText('진단고사 가산').parentElement?.textContent).toContain('1건 · 1시간');
   expect(view.getByText('모의수업 가산').parentElement?.textContent).toContain('1건 · 1시간');
-  expect(text).toContain('현재 모델에 Kinder 표시가 없어 적용하지 않습니다');
+  expect(text).not.toContain('Kinder 표시가 없어');
   expect(text).toContain(won(220000));
 });
 
@@ -287,7 +287,7 @@ it('가산 · 보정 — 줄의 가산 · 보정 칩 · 확정 안내 문장 · 
       settlement: { ...d.settlement, bonus: 15000, correctionCount: 1, note: '앞선 확정 달의 회차 1건이 이 달 정산에 보정으로 들어옵니다' },
       bonusRules: [
         { label: '모의수업', hint: '한 번에 얼마', amount: 15000, applied: true, note: null },
-        { label: 'Kinder 수업', hint: '시급에 더함', amount: null, applied: false, note: 'Kinder 수업을 가르는 표시가 아직 없어 0원으로 셉니다 — 규칙은 적어 둘 수 있습니다' },
+        { label: 'Kinder 수업', hint: '시급에 더함', amount: null, applied: true, note: null },
       ],
     },
     isLoading: false, isError: false,
@@ -302,11 +302,11 @@ it('가산 · 보정 — 줄의 가산 · 보정 칩 · 확정 안내 문장 · 
   // 확정 · 보정 안내 한 문장 · 수업료 산식의 가산 포함
   expect(text).toContain('앞선 확정 달의 회차 1건이 이 달 정산에 보정으로 들어옵니다');
   expect(text).toContain(`가산 ${won(15000)} 포함`);
-  // 가산 규칙 칸 — 낱말 · 금액 · 셈에 안 드는 까닭까지 서버 것
+  // 가산 규칙 칸 — 낱말 · 금액 · 명시 표식 계산 지원 여부까지 서버 것
   const rules = view.getByRole('list', { name: '가산 규칙' });
   expect(rules.textContent).toContain(`모의수업한 번에 얼마 +${won(15000)}`);
   expect(rules.textContent).toContain('Kinder 수업시급에 더함 · 없음');
-  expect(rules.textContent).toContain('Kinder 수업을 가르는 표시가 아직 없어 0원으로 셉니다');
+  expect(rules.textContent).not.toContain('Kinder 수업을 가르는 표시가 아직 없어');
   // 옛 안내(「가산은 정책 확정 전」)는 사라졌다
   expect(text).not.toContain('정책 확정 전이라 단일 시급 기준');
 });

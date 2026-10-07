@@ -18,13 +18,12 @@ const ceo: Me = {
   canSeeProfit: true, canCrudAttendance: true, canMoney: true, canWage: true,
   canApprove: true, canHide: true, canGpaPack: true,
 };
-const KINDER_NOTE = 'Kinder 수업을 가르는 표시가 아직 없어 0원으로 셉니다 — 규칙은 적어 둘 수 있습니다';
 const book: PayoutBonusBook = {
   today: '2026-09-27', canWrite: true, rule: '가산은 리포트를 쓴 수업에만 붙습니다',
   slots: [
     { kind: 'per_session', kindKey: 'mock', label: '모의수업', hint: '한 번에 얼마', d1Amount: 15000, currentAmount: 15000, currentFrom: '2026-09-27', nextAmount: null, nextFrom: null, applied: true, note: null },
     { kind: 'per_session', kindKey: 'diagx', label: '진단고사', hint: '한 번에 얼마', d1Amount: 15000, currentAmount: null, currentFrom: null, nextAmount: 20000, nextFrom: '2026-10-01', applied: true, note: null },
-    { kind: 'kinder_hourly', kindKey: null, label: 'Kinder 수업', hint: '시급에 더함', d1Amount: 10000, currentAmount: null, currentFrom: null, nextAmount: null, nextFrom: null, applied: false, note: KINDER_NOTE },
+    { kind: 'kinder_hourly', kindKey: null, label: 'Kinder 수업', hint: '시급에 더함', d1Amount: 10000, currentAmount: null, currentFrom: null, nextAmount: null, nextFrom: null, applied: true, note: null },
     { kind: 'group_per_student', kindKey: null, label: '그룹 학생 한 명 늘 때', hint: '한 명당', d1Amount: 5000, currentAmount: null, currentFrom: null, nextAmount: null, nextFrom: null, applied: true, note: null },
   ],
   rules: [
@@ -61,7 +60,7 @@ function setup(ui: ReactNode, o: { data?: PayoutBonusBook; me?: Me; onPost?: () 
 
 const flat = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ');
 
-it('칸 넷은 서버 차례 · 낱말 그대로 — 오늘 금액 · 예약 줄 · Kinder 는 셈에 들지 않는 까닭까지 (N-93)', async () => {
+it('칸 넷은 서버 차례 · 낱말 그대로 — 오늘 금액 · 예약 줄 · Kinder 명시 표식 계산 지원까지 (N-93)', async () => {
   const view = setup(<BonusRules />);
   await waitFor(() => expect(view.getByText('가산은 리포트를 쓴 수업에만 붙습니다')).toBeTruthy());
   expect(gets).toEqual(['/accounting/bonus-rules']);
@@ -71,7 +70,7 @@ it('칸 넷은 서버 차례 · 낱말 그대로 — 오늘 금액 · 예약 줄
   expect(slot('모의수업한 번에 얼마')).toContain('2026-09-27');
   expect(slot('진단고사한 번에 얼마')).toContain('없음');
   expect(slot('진단고사한 번에 얼마')).toContain(`2026-10-01부터 ${won(20000)}`);
-  expect(slot('Kinder 수업시급에 더함')).toContain(KINDER_NOTE);
+  expect(slot('Kinder 수업시급에 더함')).toContain('셈에 듦');
   expect(slot('그룹 학생 한 명 늘 때한 명당')).toContain('셈에 듦');
   // 적은 줄 — 「한 번에」는 수업 종류 이름이 앞에 선다 · 오늘 붙는 줄은 「지금」
   expect(rows.find((r) => r.startsWith('진단고사 · 한 번에'))).toContain('10월부터 인상');
@@ -100,14 +99,14 @@ it('「새 줄」은 그 칸의 지금 금액(없으면 D1 값)과 오늘로 채
   await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
 });
 
-it('그룹 · Kinder 는 수업 종류를 보내지 않고, Kinder 창은 셈에 들지 않는 까닭을 먼저 말한다 · 거절은 서버 문장 그대로', async () => {
+it('그룹 · Kinder 는 수업 종류를 보내지 않고, 권고 기본값으로 새 줄을 연다 · 거절은 서버 문장 그대로', async () => {
   const view = setup(<BonusRules />, {
     onPost: () => ({ status: 409, data: { code: 'BONUS_SAME_DAY', message: '같은 날짜에 이미 적은 줄이 있습니다 — 다른 날짜로 새 줄을 적으세요' } }),
   });
   await waitFor(() => expect(view.getAllByRole('button', { name: '새 줄' })).toHaveLength(4));
   fireEvent.click(view.getAllByRole('button', { name: '새 줄' })[2]!);
   const kinder = view.getByRole('dialog', { name: '가산 규칙 — Kinder 수업' });
-  expect(within(kinder).getByText(KINDER_NOTE)).toBeTruthy();
+  expect(within(kinder).queryByRole('alert')).toBeNull();
   expect((within(kinder).getByLabelText(/금액/) as HTMLInputElement).value).toBe('10000');
   fireEvent.click(within(kinder).getByRole('button', { name: '취소 (Esc)' }));
   fireEvent.click(view.getAllByRole('button', { name: '새 줄' })[3]!);
@@ -130,7 +129,7 @@ it('강사료 정산의 「추가로 드리는 돈」은 오늘 걸린 값을 �
   const box = await view.findByRole('region', { name: '추가로 드리는 돈' });
   expect(flat(box)).toContain(`모의수업한 번에 얼마${won(15000)}`);
   expect(flat(box)).toContain('진단고사한 번에 얼마없음');
-  expect(flat(box)).toContain(KINDER_NOTE);
+  expect(flat(box)).toContain('Kinder 수업시급에 더함없음');
   expect(within(box).queryByRole('spinbutton')).toBeNull();
   fireEvent.click(within(box).getByRole('button', { name: '정리 · 기준 › 가산 규칙에서 바꿉니다 ›' }));
   expect(onEdit).toHaveBeenCalledTimes(1);

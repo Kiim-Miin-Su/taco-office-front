@@ -258,7 +258,7 @@ export type InvoiceVoid = S['InvoiceVoidDto'];
 export type PayoutSheet = S['PayoutSheetDto'];
 export type PayoutSheetRow = S['PayoutSheetRowDto'];
 export type PayoutConfirm = S['PayoutConfirmDto'];
-/** 정리 · 기준 › 가산 규칙 (N-93) — 새 줄로만 바꾸고 셈은 서버 `lib/payout-sheet.lessonBonus` 하나 */
+/** 정리 · 기준 › 가산 규칙 (N-93) — 새 줄로만 바꾸고 셈은 서버 `lib/payout-sheet.lessonCompensation` 하나 */
 export type PayoutBonusBook = S['PayoutBonusBookDto'];
 export type PayoutBonusSlot = S['PayoutBonusSlotDto'];
 export type PayoutBonusRule = S['PayoutBonusRuleDto'];

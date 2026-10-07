@@ -1024,7 +1024,7 @@ export interface paths {
         };
         /**
          * 가산 규칙 — 칸 셋(한 번에 · Kinder 시급에 더함 · 그룹 한 명당)과 적은 줄 전부 (N-93)
-         * @description 셈은 lib/payout-sheet 의 한 함수가 시트 · 확정 · 강사 히스토리에 같이 한다. D1 금액은 칸을 미리 채울 값이지 데이터가 아니다. Kinder 는 수업을 가를 표시가 모델에 없어 0 원으로 센다(applied=false · note).
+         * @description 셈은 lib/payout-sheet의 공용 계산기가 시트·확정·강사 히스토리에 같이 적용한다. 진단·모의는 회차 총액, 명시 Kinder 표식의 일반 class는 1대1 기본 시급+시간 가산과 그룹0, 일반 그룹은 학생당 시간 가산이다.
          */
         get: operations["AccountingController_bonusBook"];
         put?: never;
@@ -6663,7 +6663,7 @@ export interface components {
             nextAmount: number | null;
             /** @description 앞으로 걸릴 줄의 적용일 */
             nextFrom: string | null;
-            /** @description 셈에 실제로 드는가 — Kinder 는 수업을 가를 표시가 없어 false */
+            /** @description 셈에 실제로 드는가 — Kinder는 별도 명시 표식이 유효한 일반 class에서 true */
             applied: boolean;
             /** @description 셈에 안 드는 까닭(서버 문장) */
             note: string | null;
@@ -6699,7 +6699,7 @@ export interface components {
             today: string;
             /** @description 규칙을 적을 수 있는가 — canWage */
             canWrite: boolean;
-            /** @description 셈의 규칙 한 줄(서버 문장) — 「그룹은 그날 학생 수 × 금액을 시급에 더한다」 등 */
+            /** @description 진단·모의 총액, Kinder 1대1 시간 가산, 일반 그룹 학생당 시간 가산의 서버 계산 규칙 */
             rule: string;
         };
         PayoutBonusRuleWriteDto: {
@@ -11035,7 +11035,7 @@ export interface components {
             hint: string;
             /** @description 오늘 걸린 금액 — 적은 줄이 없으면 null(가산 없음) */
             amount: number | null;
-            /** @description 셈에 실제로 드는가 — Kinder 는 표시가 없어 false */
+            /** @description 셈에 실제로 드는가 — Kinder는 별도 명시 표식이 유효한 일반 class에서 true */
             applied: boolean;
             /** @description 셈에 안 드는 까닭 */
             note: string | null;
