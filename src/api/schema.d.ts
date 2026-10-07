@@ -4305,6 +4305,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/students/reactivation-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 기존 학생 재활성화 후보 — 명시 상태·현재 profile version
+         * @description BOC-03D-03b 권고안: 휴원·수강 종료·현재 명단으로 상태를 추정하지 않는다. event가 없는 기존 학생은 unknown으로 반환한다.
+         */
+        get: operations["StudentsController_reactivationCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/{id}/reactivate/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 기존 학생 재활성화 미리보기 — 쓰기 0, requestKey 미소모 */
+        post: operations["StudentsController_previewReactivation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/{id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 기존 학생 재활성화 — 같은 STU·새 상담·상태/감사 한 transaction
+         * @description 신규 STU·수강·수업·청구·교재·안내·첫 수업 task를 만들지 않는다. 같은 actor/requestKey/body 재시도는 기존 결과를 반환한다.
+         */
+        post: operations["StudentsController_reactivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/students/{id}": {
         parameters: {
             query?: never;
@@ -12358,6 +12415,121 @@ export interface components {
             /** @description BOC-01D-02 활성 39개 학년 projection. 필터·등록·목록이 함께 쓴다. */
             educationGrades: components["schemas"]["EducationGradeOptionDto"][];
         };
+        StudentReactivationCandidateDto: {
+            studentId: number;
+            name: string;
+            englishName: string | null;
+            gradeLabel: string | null;
+            schoolLabel: string | null;
+            /**
+             * @description 권위 상태 projection. 휴원·수강 종료로 추정하지 않는다.
+             * @enum {string}
+             */
+            status: "withdrawn" | "active" | "unknown";
+            /** @description status=withdrawn이고 별도 차단 사유가 없을 때만 true */
+            reactivatable: boolean;
+            /** @description ACTIVE_STUDENT | STATUS_UNKNOWN. 화면이 상태를 다시 계산하지 않는다. */
+            blockedCode: string | null;
+            /** @description 재활성화 expectedProfileVersion에 그대로 보내는 bigint decimal string. 기존 학생의 0도 유효하다. */
+            profileVersion: string;
+            /** Format: date-time */
+            lastConsultationAt: string | null;
+            /**
+             * Format: date
+             * @description 명시적으로 저장된 마지막 퇴원일. 수강 종료일 추정값이 아니다.
+             */
+            withdrawnOn: string | null;
+        };
+        StudentReactivationCandidatesDto: {
+            items: components["schemas"]["StudentReactivationCandidateDto"][];
+            total: number;
+            page: number;
+            /** @enum {integer} */
+            pageSize: 10;
+        };
+        StudentReactivationConsultationDto: {
+            /**
+             * @description 수동 상담 정보의 방문·전화·카카오톡·기타
+             * @enum {string}
+             */
+            channel: "visit" | "phone" | "kakao" | "other";
+            content: string;
+            /**
+             * Format: date
+             * @description 다음 일정은 선택. 작성자·작성시각은 서버가 기록한다.
+             */
+            nextOn: string | null;
+        };
+        StudentReactivationDto: {
+            /**
+             * Format: uuid
+             * @description 같은 actor·같은 정규화 body 재시도는 기존 결과, 다른 body는 409
+             */
+            requestKey: string;
+            studentId: number;
+            /** @description 후보 응답의 profileVersion. 기존 학생의 0도 허용하며 JS number로 변환하지 않는다. */
+            expectedProfileVersion: string;
+            /** @enum {string} */
+            entrySource: "students" | "schedule" | "intake";
+            /** @description intake 진입의 원천 lead. 재활성화 상담 record 자체의 identity는 아니다. */
+            leadId: number | null;
+            /**
+             * Format: date
+             * @description KST 업무 재활성화일. 과거/미래 허용 범위는 Backend가 검증한다.
+             */
+            reactivateOn: string;
+            /** @description 기존 접촉 원장을 오변환하지 않고 새 수동 상담 정보를 한 transaction에 기록한다. */
+            consultation: components["schemas"]["StudentReactivationConsultationDto"];
+        };
+        StudentReactivationEffectsDto: {
+            /** @enum {boolean} */
+            studentCreated: false;
+            /** @enum {boolean} */
+            enrollmentCreated: false;
+            /** @enum {boolean} */
+            lessonCreated: false;
+            /** @enum {boolean} */
+            invoiceCreated: false;
+            /** @enum {boolean} */
+            bookIssueCreated: false;
+            /** @enum {boolean} */
+            guideCreated: false;
+            /** @enum {boolean} */
+            firstLessonTaskCreated: false;
+        };
+        StudentReactivationPreviewDto: {
+            /** @enum {boolean} */
+            saved: false;
+            /** Format: uuid */
+            requestKey: string;
+            studentId: number;
+            profileVersion: string;
+            /** @enum {number|null} */
+            consultationId: null;
+            effects: components["schemas"]["StudentReactivationEffectsDto"];
+        };
+        StudentRegistrationConflictDto: {
+            /**
+             * @description 공용 오류 코드. HTTP status와 함께 판정한다.
+             * @enum {string}
+             */
+            code: "STUDENT_CREATE_REQUEST_KEY_REUSED" | "STUDENT_REACTIVATION_REQUEST_KEY_REUSED" | "STUDENT_PROFILE_VERSION_CONFLICT" | "STUDENT_DUPLICATE" | "STUDENT_SAME_NAME" | "STUDENT_REGISTRATION_OPTION_INACTIVE" | "STUDENT_REGISTRATION_REFERENCE_NOT_FOUND" | "STUDENT_REGISTRATION_PERIOD_CONFLICT" | "STUDENT_REACTIVATION_ACTIVE" | "STUDENT_REACTIVATION_STATUS_UNKNOWN" | "STUDENT_REACTIVATION_LEAD_CHANGED" | "STUDENT_REACTIVATION_LEAD_LINKED";
+            /** @description 재조회·수정 방법을 설명하는 사용자 안내. PII·현재 row 원문은 포함하지 않는다. */
+            message: string;
+        };
+        StudentReactivationResultDto: {
+            /** @enum {boolean} */
+            saved: true;
+            /** Format: uuid */
+            requestKey: string;
+            studentId: number;
+            profileVersion: string;
+            consultationId: number;
+            replayed: boolean;
+            /** Format: date-time */
+            reactivatedAt: string;
+            effects: components["schemas"]["StudentReactivationEffectsDto"];
+        };
         StudentGuardianSummaryDto: {
             id: number;
             name: string;
@@ -12709,121 +12881,6 @@ export interface components {
             q?: string;
             /** @default 1 */
             page: number;
-        };
-        StudentReactivationCandidateDto: {
-            studentId: number;
-            name: string;
-            englishName: string | null;
-            gradeLabel: string | null;
-            schoolLabel: string | null;
-            /**
-             * @description 권위 상태 projection. 휴원·수강 종료로 추정하지 않는다.
-             * @enum {string}
-             */
-            status: "withdrawn" | "active" | "unknown";
-            /** @description status=withdrawn이고 별도 차단 사유가 없을 때만 true */
-            reactivatable: boolean;
-            /** @description ACTIVE_STUDENT | STATUS_UNKNOWN. 화면이 상태를 다시 계산하지 않는다. */
-            blockedCode: string | null;
-            /** @description 재활성화 expectedProfileVersion에 그대로 보내는 bigint decimal string. 기존 학생의 0도 유효하다. */
-            profileVersion: string;
-            /** Format: date-time */
-            lastConsultationAt: string | null;
-            /**
-             * Format: date
-             * @description 명시적으로 저장된 마지막 퇴원일. 수강 종료일 추정값이 아니다.
-             */
-            withdrawnOn: string | null;
-        };
-        StudentReactivationCandidatesDto: {
-            items: components["schemas"]["StudentReactivationCandidateDto"][];
-            total: number;
-            page: number;
-            /** @enum {integer} */
-            pageSize: 10;
-        };
-        StudentReactivationConsultationDto: {
-            /**
-             * @description 수동 상담 정보의 방문·전화·카카오톡·기타
-             * @enum {string}
-             */
-            channel: "visit" | "phone" | "kakao" | "other";
-            content: string;
-            /**
-             * Format: date
-             * @description 다음 일정은 선택. 작성자·작성시각은 서버가 기록한다.
-             */
-            nextOn: string | null;
-        };
-        StudentReactivationDto: {
-            /**
-             * Format: uuid
-             * @description 같은 actor·같은 정규화 body 재시도는 기존 결과, 다른 body는 409
-             */
-            requestKey: string;
-            studentId: number;
-            /** @description 후보 응답의 profileVersion. 기존 학생의 0도 허용하며 JS number로 변환하지 않는다. */
-            expectedProfileVersion: string;
-            /** @enum {string} */
-            entrySource: "students" | "schedule" | "intake";
-            /** @description intake 진입의 원천 lead. 재활성화 상담 record 자체의 identity는 아니다. */
-            leadId: number | null;
-            /**
-             * Format: date
-             * @description KST 업무 재활성화일. 과거/미래 허용 범위는 Backend가 검증한다.
-             */
-            reactivateOn: string;
-            /** @description 기존 접촉 원장을 오변환하지 않고 새 수동 상담 정보를 한 transaction에 기록한다. */
-            consultation: components["schemas"]["StudentReactivationConsultationDto"];
-        };
-        StudentReactivationEffectsDto: {
-            /** @enum {boolean} */
-            studentCreated: false;
-            /** @enum {boolean} */
-            enrollmentCreated: false;
-            /** @enum {boolean} */
-            lessonCreated: false;
-            /** @enum {boolean} */
-            invoiceCreated: false;
-            /** @enum {boolean} */
-            bookIssueCreated: false;
-            /** @enum {boolean} */
-            guideCreated: false;
-            /** @enum {boolean} */
-            firstLessonTaskCreated: false;
-        };
-        StudentReactivationPreviewDto: {
-            /** @enum {boolean} */
-            saved: false;
-            /** Format: uuid */
-            requestKey: string;
-            studentId: number;
-            profileVersion: string;
-            /** @enum {number|null} */
-            consultationId: null;
-            effects: components["schemas"]["StudentReactivationEffectsDto"];
-        };
-        StudentReactivationResultDto: {
-            /** @enum {boolean} */
-            saved: true;
-            /** Format: uuid */
-            requestKey: string;
-            studentId: number;
-            profileVersion: string;
-            consultationId: number;
-            replayed: boolean;
-            /** Format: date-time */
-            reactivatedAt: string;
-            effects: components["schemas"]["StudentReactivationEffectsDto"];
-        };
-        StudentRegistrationConflictDto: {
-            /**
-             * @description 공용 오류 코드. HTTP status와 함께 판정한다.
-             * @enum {string}
-             */
-            code: "STUDENT_CREATE_REQUEST_KEY_REUSED" | "STUDENT_REACTIVATION_REQUEST_KEY_REUSED" | "STUDENT_PROFILE_VERSION_CONFLICT" | "STUDENT_DUPLICATE" | "STUDENT_SAME_NAME" | "STUDENT_REGISTRATION_OPTION_INACTIVE" | "STUDENT_REGISTRATION_REFERENCE_NOT_FOUND" | "STUDENT_REGISTRATION_PERIOD_CONFLICT" | "STUDENT_REACTIVATION_ACTIVE" | "STUDENT_REACTIVATION_STATUS_UNKNOWN" | "STUDENT_REACTIVATION_LEAD_CHANGED" | "STUDENT_REACTIVATION_LEAD_LINKED";
-            /** @description 재조회·수정 방법을 설명하는 사용자 안내. PII·현재 row 원문은 포함하지 않는다. */
-            message: string;
         };
     };
     responses: never;
@@ -31425,6 +31482,239 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_reactivationCandidates: {
+        parameters: {
+            query?: {
+                /** @description 이름·영문명 literal 검색. 빈 값은 최신 후보 10명. */
+                q?: string;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentReactivationCandidatesDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_previewReactivation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentReactivationDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentReactivationPreviewDto"];
+                };
+            };
+            /** @description STUDENT_ID_MISMATCH | STUDENT_REACTIVATION_LEAD_INVALID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentRegistrationConflictDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_reactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentReactivationDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentReactivationResultDto"];
+                };
+            };
+            /** @description STUDENT_ID_MISMATCH | STUDENT_REACTIVATION_LEAD_INVALID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentRegistrationConflictDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

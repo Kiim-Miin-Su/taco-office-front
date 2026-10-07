@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: StudentRegistrationForm.tsx — 신규 학생 15절의 순서·반복 입력·Front 초안 검증을 한 화면에서 소유한다.
- * 책임/재사용: 공용 UI/useMeta/교육체계 projection/세션 권한을 재사용한다. 생성 DTO 전에는 POST나 저장 성공을 만들지 않는다.
+ * 목적: StudentRegistrationForm.tsx — 신규 학생 15절의 순서·반복 입력·Front 초안 검증과 등록 방식 전환을 소유한다.
+ * 책임/재사용: 공용 UI/useMeta/교육체계 projection/세션 권한을 재사용하고 재활성화 실제 흐름은 전용 section에 위임한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
@@ -18,6 +18,7 @@ import { Banner, Button, Checkbox, Chip, FieldError, Input, Label, LinkButton, P
 import { useStudentReadAllowed } from '@/api/students';
 import type { StudentRegistrationSource } from '@/lib/student-registration-route';
 import { EducationGradeSelect } from './EducationGradeSelect';
+import { StudentReactivationSection } from './StudentReactivationSection';
 
 type ContactType = 'phone' | 'kakao' | 'email' | 'other';
 interface ContactDraft { key: number; type: ContactType; value: string; label: string }
@@ -490,19 +491,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
           <Button type="submit">입력 검토</Button>
           <Button variant="primary" disabled title="학생 생성과 학교·국가 선택 기능이 준비된 뒤 사용할 수 있습니다">학생 등록 기능 준비 중</Button>
         </div>
-      </form> : (
-        <section aria-label="기존 학생 재활성화" className="rounded-xl border border-line bg-card p-4 sm:p-5">
-          <h2 className="text-[14px] font-bold text-fg">기존 학생 재활성화</h2>
-          <p className="mt-2 text-[12px] leading-relaxed text-fg-2">
-            퇴원 학생의 같은 STU ID를 유지하고 새 상담 기록을 연결합니다. 신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다.
-          </p>
-          <Banner tone="warning" className="mt-4">현재는 퇴원 학생의 재활성화 대상 검색과 저장을 지원하지 않습니다. 기능이 준비되기 전에는 후보를 선택하거나 완료로 표시하지 않습니다.</Banner>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-            <div><Label htmlFor="reactivation-student-search">퇴원 학생 검색</Label><Input id="reactivation-student-search" type="search" placeholder="이름·기존 STU ID 검색 기능 준비 중" disabled /></div>
-            <div className="flex items-end"><Button variant="primary" disabled>재활성화 기능 준비 중</Button></div>
-          </div>
-        </section>
-      )}
+      </form> : <StudentReactivationSection entrySource={entrySource} leadId={leadId} />}
     </div>
   );
 }

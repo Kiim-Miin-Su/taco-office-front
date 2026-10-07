@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: StudentRegistrationForm.test.tsx — BOC-03a 신규 학생 15절 초안·검증·계약 대기 경계를 회귀한다.
- * 책임/재사용: 실제 화면/useMeta/세션을 사용하고 HTTP adapter만 대역으로 둔다. DTO·DB 저장 완료를 주장하지 않는다.
+ * 목적: StudentRegistrationForm.test.tsx — BOC-03a 신규 학생 15절 초안과 BOC-03D-03b 재활성화 HTTP 흐름을 회귀한다.
+ * 책임/재사용: 실제 화면/useMeta/세션을 사용하고 HTTP adapter만 대역으로 둔다. 실제 DB·브라우저 저장 완료는 별도 증거로 검증한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
@@ -39,13 +39,46 @@ const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
 let responseMeta: typeof meta | typeof populatedMeta;
+let reactivationSaveConflict: boolean;
+const reactivationCandidates = {
+  items: [
+    { studentId: 17, name: '김퇴원', englishName: 'Rest', gradeLabel: 'G5', schoolLabel: 'SIS', status: 'withdrawn', reactivatable: true, blockedCode: null, profileVersion: '0', lastConsultationAt: null, withdrawnOn: '2026-10-06' },
+    { studentId: 18, name: '이확인', englishName: null, gradeLabel: null, schoolLabel: null, status: 'unknown', reactivatable: false, blockedCode: 'STATUS_UNKNOWN', profileVersion: '0', lastConsultationAt: null, withdrawnOn: null },
+  ],
+  total: 2, page: 1, pageSize: 10,
+};
 
 beforeEach(() => {
   requests = [];
   responseMeta = meta;
+  reactivationSaveConflict = false;
   useSession.getState().signIn('student-registration-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
+    if (config.url === '/students/reactivation-candidates') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: reactivationCandidates };
+    }
+    if (config.url === '/students/17/reactivate/preview') {
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) as { requestKey: string } : config.data as { requestKey: string };
+      return { config, status: 200, statusText: 'OK', headers: {}, data: {
+        saved: false, requestKey: body.requestKey, studentId: 17, profileVersion: '1', consultationId: null,
+        effects: { studentCreated: false, enrollmentCreated: false, lessonCreated: false, invoiceCreated: false, bookCreated: false, guideCreated: false, firstLessonTaskCreated: false },
+      } };
+    }
+    if (config.url === '/students/17/reactivate') {
+      if (reactivationSaveConflict) {
+        throw new AxiosError('conflict', 'ERR_BAD_REQUEST', config, undefined, {
+          config, status: 409, statusText: 'Conflict', headers: {},
+          data: { code: 'STUDENT_PROFILE_VERSION_CONFLICT', message: '다른 관리자가 먼저 변경했습니다. 후보를 다시 조회해 주세요.' },
+        });
+      }
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) as { requestKey: string } : config.data as { requestKey: string };
+      return { config, status: 201, statusText: 'Created', headers: {}, data: {
+        saved: true, requestKey: body.requestKey, studentId: 17, profileVersion: '1', consultationId: 31,
+        replayed: false, reactivatedAt: '2026-10-07T09:00:00.000Z',
+        effects: { studentCreated: false, enrollmentCreated: false, lessonCreated: false, invoiceCreated: false, bookCreated: false, guideCreated: false, firstLessonTaskCreated: false },
+      } };
+    }
     return { config, status: 200, statusText: 'OK', headers: {}, data: responseMeta };
   };
 });
@@ -121,7 +154,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByRole('button', { name: '+ 학생 연락수단 추가' })).toBeTruthy();
   });
 
-  it('출발 경로를 표시하고 재활성화 모드에서 동일 STU·새 상담·부작용0을 밝히며 신규 입력을 보존한다', async () => {
+  it('출발 경로를 표시하고 withdrawn 후보만 같은 STU·새 상담으로 preview 뒤 저장하며 신규 입력을 보존한다', async () => {
     const view = setup({ source: 'intake', leadId: 18 });
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(view.getByText('상담 #18에서 시작했습니다.')).toBeTruthy();
@@ -129,10 +162,23 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     fireEvent.click(view.getByRole('button', { name: '기존 학생 재활성화' }));
     expect(view.getByText(/같은 STU ID/)).toBeTruthy();
     expect(view.getByText(/신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다/)).toBeTruthy();
-    expect(view.getByRole('button', { name: '재활성화 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
+    await waitFor(() => expect(view.getByRole('button', { name: /김퇴원/ })).toBeTruthy());
+    expect(view.getByRole('button', { name: /이확인/ }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: /김퇴원/ }));
+    expect(view.getByRole('button', { name: '재활성화 저장' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.change(view.getByLabelText('새 상담 내용 *'), { target: { value: '  복귀 상담 완료  ' } });
+    fireEvent.click(view.getByRole('button', { name: '저장 전 미리보기' }));
+    await waitFor(() => expect(view.getByText(/미리보기 완료/)).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: '재활성화 저장' }));
+    await waitFor(() => expect(view.getByRole('status').textContent).toContain('김퇴원 학생을 재활성화했습니다'));
+    const writes = requests.filter(request => request.method === 'post');
+    expect(writes.map(request => request.url)).toEqual(['/students/17/reactivate/preview', '/students/17/reactivate']);
+    const bodies = writes.map(request => typeof request.data === 'string' ? JSON.parse(request.data) as Record<string, unknown> : request.data as Record<string, unknown>);
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[0]).toMatchObject({ studentId: 17, expectedProfileVersion: '0', entrySource: 'intake', leadId: 18,
+      consultation: { channel: 'phone', content: '복귀 상담 완료', nextOn: null } });
     fireEvent.click(view.getByRole('button', { name: '신규 학생' }));
     expect((view.getByLabelText('학생 이름') as HTMLInputElement).value).toBe('김학생');
-    expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);
   });
 
   it('미래 생일·잘못된 email·복수 주보호자를 검토하되 다른 입력은 보존한다', async () => {
@@ -153,6 +199,26 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(view.getByText('이메일 형식을 확인해 주세요.')).toBeTruthy();
     expect(view.getByText('주보호자는 한 명만 선택할 수 있습니다.')).toBeTruthy();
     expect((view.getByLabelText('학생 이름') as HTMLInputElement).value).toBe('김학생');
+  });
+
+  it('재활성화 409는 성공으로 표시하지 않고 상담 초안을 보존한 채 다시 preview하게 한다', async () => {
+    reactivationSaveConflict = true;
+    const view = setup();
+    fireEvent.click(view.getByRole('button', { name: '기존 학생 재활성화' }));
+    await waitFor(() => expect(view.getByRole('button', { name: /김퇴원/ })).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: /김퇴원/ }));
+    fireEvent.change(view.getByLabelText('새 상담 내용 *'), { target: { value: '충돌해도 남을 상담 초안' } });
+    fireEvent.click(view.getByRole('button', { name: '저장 전 미리보기' }));
+    await waitFor(() => expect(view.getByText(/미리보기 완료/)).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: '재활성화 저장' }));
+    await waitFor(() => expect(view.getByText('다른 관리자가 먼저 변경했습니다. 후보를 다시 조회해 주세요.')).toBeTruthy());
+    expect((view.getByLabelText('새 상담 내용 *') as HTMLTextAreaElement).value).toBe('충돌해도 남을 상담 초안');
+    expect(view.queryByRole('status')).toBeNull();
+    expect(view.getByRole('button', { name: '재활성화 저장' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '저장 전 미리보기' }).hasAttribute('disabled')).toBe(false);
+    fireEvent.click(view.getByRole('button', { name: '검색' }));
+    await waitFor(() => expect(requests.filter(request => request.url === '/students/reactivation-candidates')).toHaveLength(2));
+    expect(view.queryByLabelText('새 상담 내용 *')).toBeNull();
   });
 
   it('권한 없는 계정은 폼과 meta 요청을 모두 열지 않는다', async () => {
