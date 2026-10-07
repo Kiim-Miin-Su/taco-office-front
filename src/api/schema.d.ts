@@ -12725,7 +12725,7 @@ export interface components {
             reactivatable: boolean;
             /** @description ACTIVE_STUDENT | STATUS_UNKNOWN. 화면이 상태를 다시 계산하지 않는다. */
             blockedCode: string | null;
-            /** @description 재활성화 expectedProfileVersion에 그대로 보내는 bigint decimal string */
+            /** @description 재활성화 expectedProfileVersion에 그대로 보내는 bigint decimal string. 기존 학생의 0도 유효하다. */
             profileVersion: string;
             /** Format: date-time */
             lastConsultationAt: string | null;
@@ -12762,7 +12762,7 @@ export interface components {
              */
             requestKey: string;
             studentId: number;
-            /** @description 후보 응답의 profileVersion. JS number로 변환하지 않는다. */
+            /** @description 후보 응답의 profileVersion. 기존 학생의 0도 허용하며 JS number로 변환하지 않는다. */
             expectedProfileVersion: string;
             /** @enum {string} */
             entrySource: "students" | "schedule" | "intake";
