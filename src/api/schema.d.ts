@@ -4509,6 +4509,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/students/{id}/kinder-marker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 학생 Kinder 명시 표식 append-only 이력 — 학년·나이 파생 없음 */
+        get: operations["StudentsController_kinderHistory"];
+        put?: never;
+        /**
+         * 학생 Kinder 표식 예약 — 미래 효력·version·일반 class 1대1 강제
+         * @description 충돌 시 학생을 자동 제거하거나 수업을 분리하지 않고 원래 회차일·실제 수업일·충돌기간을 409로 반환합니다.
+         */
+        post: operations["StudentsController_createKinderMarker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/students/{id}": {
         parameters: {
             query?: never;
@@ -13183,6 +13204,48 @@ export interface components {
             reports: components["schemas"]["StudentHubReportPageDto"];
             comments: components["schemas"]["StudentHubCommentPageDto"];
             invoices: components["schemas"]["StudentHubInvoicePageDto"];
+        };
+        StudentKinderMarkerDto: {
+            id: number;
+            studentId: number;
+            version: number;
+            marked: boolean;
+            effectiveFrom: string;
+            reason?: string | null;
+            setBy: number;
+            setByName: string;
+            createdAt: string;
+        };
+        StudentKinderMarkerHistoryDto: {
+            studentId: number;
+            /** @description 현재 마지막 append version. 이력 없음은 0 */
+            currentVersion: number;
+            /** @description 지금 효력이 있는 마지막 표식 */
+            current?: components["schemas"]["StudentKinderMarkerDto"] | null;
+            /** @description version 오름차순 전체 이력. 미래 예약도 포함 */
+            items: components["schemas"]["StudentKinderMarkerDto"][];
+        };
+        StudentKinderMarkerCreateDto: {
+            /** @description true=Kinder, false=일반. 학년·나이에서 파생하지 않는 명시 표식 */
+            marked: boolean;
+            /** @description 미래 실제 수업 시작부터 적용할 timezone 포함 ISO 시각 */
+            effectiveFrom: string;
+            /** @description 정책 변경 사유. 공백만 보낼 수 없음 */
+            reason?: string | null;
+            /** @description 현재 마지막 version. 최초 표식은 0 */
+            expectedVersion: number;
+        };
+        StudentKinderMarkerConflictDto: {
+            /** @enum {string} */
+            code: "KINDER_GROUP_CONFLICT" | "KINDER_MARKER_VERSION_CONFLICT" | "KINDER_MARKER_NOT_FUTURE";
+            message: string;
+            serId?: number;
+            onDate?: string;
+            date?: string;
+            conflictFrom?: string;
+            conflictTo?: string | null;
+            studentIds?: number[];
+            currentVersion?: number;
         };
         StudentGuardianSummaryDto: {
             id: number;
@@ -32912,6 +32975,158 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_kinderHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentKinderMarkerHistoryDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    StudentsController_createKinderMarker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentKinderMarkerCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentKinderMarkerDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentKinderMarkerConflictDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

@@ -15,6 +15,10 @@ export type StudentRead = components['schemas']['StudentReadDto'];
 export type StudentListQuery = NonNullable<paths['/students']['get']['parameters']['query']>;
 export type StudentHub = components['schemas']['StudentHubDto'];
 export type AdminStudentPrivateNotes = components['schemas']['AdminStudentPrivateNoteListDto'];
+export type StudentKinderMarker = components['schemas']['StudentKinderMarkerDto'];
+export type StudentKinderMarkerCreate = components['schemas']['StudentKinderMarkerCreateDto'];
+export type StudentKinderMarkerHistory = components['schemas']['StudentKinderMarkerHistoryDto'];
+export type StudentKinderMarkerConflict = components['schemas']['StudentKinderMarkerConflictDto'];
 export type StudentHubSection = 'reports' | 'comments' | 'invoices';
 
 /**
@@ -55,6 +59,7 @@ export const studentKeys = {
   hub: (id: number | null) => ['students', 'hub', id] as const,
   hubSection: (id: number | null, section: StudentHubSection) => ['students', 'hub', id, section] as const,
   privateNotes: (id: number | null) => ['students', 'private-notes', id] as const,
+  kinderMarker: (id: number | null) => ['students', 'kinder-marker', id] as const,
   registrationOptions: ['students', 'registration-options'] as const,
   schools: (q: string) => ['students', 'schools', q] as const,
   reactivationCandidates: (params: StudentReactivationCandidateQuery) => ['students', 'reactivation-candidates', params] as const,
@@ -159,6 +164,28 @@ export function useStudentPrivateNotes(id: number | null, enabled = true) {
     queryKey: sessionQueryKey(studentKeys.privateNotes(id), viewerId),
     queryFn: async ({ signal }) => (await api.get<AdminStudentPrivateNotes>(`/students/${id}/private-notes`, { signal })).data,
     enabled: allowed && enabled && id !== null && Number.isSafeInteger(id) && id > 0,
+  });
+}
+
+/** BO-09E-01: 학년·나이 추정 없이 서버 append-only marker 이력만 읽는다. */
+export function useStudentKinderMarker(id: number | null, enabled = true) {
+  const viewerId = useSession(state => state.me?.id ?? 'anonymous');
+  const allowed = useStudentReadAllowed();
+  return useQuery({
+    queryKey: sessionQueryKey(studentKeys.kinderMarker(id), viewerId),
+    queryFn: async ({ signal }) => (await api.get<StudentKinderMarkerHistory>(`/students/${id}/kinder-marker`, { signal })).data,
+    enabled: allowed && enabled && id !== null && Number.isSafeInteger(id) && id > 0,
+  });
+}
+
+export function useCreateStudentKinderMarker() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ studentId, body }: { studentId: number; body: StudentKinderMarkerCreate }) =>
+      (await api.post<StudentKinderMarker>(`/students/${studentId}/kinder-marker`, body)).data,
+    onSuccess: async (_result, command) => {
+      await queryClient.invalidateQueries({ queryKey: studentKeys.kinderMarker(command.studentId) });
+    },
   });
 }
 

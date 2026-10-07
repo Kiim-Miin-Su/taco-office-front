@@ -15,6 +15,7 @@ import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
 import { GuideKindChip, GuideStateChip } from '@/components/guides/GuideStatus';
 import { Banner, Button, Chip, Input, LinkButton, PageHeader, Panel, QueryState, Table, Tabs, cn, type Column } from '@/components/ui';
 import { kstDateTime } from '@/lib/calendar';
+import { KinderMarkerPanel } from './KinderMarkerPanel';
 
 export type StudentHubTab = 'overview' | 'assignment' | 'schedule' | 'history' | 'reports' | 'books' | 'comments' | 'consulting' | 'profile' | 'billing';
 export const STUDENT_HUB_TABS: Array<{ value: StudentHubTab; label: string }> = [
@@ -86,6 +87,7 @@ function Profile({ data }: { data: StudentRead }) {
     ['기존 등록 시작일', data.startedOn], ['학생 DB 생성일 (KST)', kstDateTime(data.createdAt)],
   ];
   return <>
+    <KinderMarkerPanel studentId={data.id} />
     <Panel title="현재 학생 정보" sub="미상값은 추정하지 않습니다. 생성 시각과 등록 시작일은 서로 다른 DB 값입니다.">
       <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">{facts.map(([label, value]) => <div key={label}><dt className="text-fg-subtle">{label}</dt><dd className="mt-1 break-words font-medium text-fg">{value || '미상'}</dd></div>)}</dl>
     </Panel>

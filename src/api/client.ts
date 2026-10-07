@@ -23,6 +23,7 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly status: number,
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -234,6 +235,7 @@ api.interceptors.response.use(
       body?.code ?? 'ERROR',
       body?.message ?? err.message,
       status,
+      body,
     );
   },
 );
