@@ -57,7 +57,11 @@ function gradeNumber(source: EducationGradeSource | null | undefined, grade: str
   return typeof projected === 'number' ? projected : null;
 }
 
-/** 최신 배정 창은 학년 범위와 시간표 과목이 둘 다 맞는 교재만 보여 준다. 미분류 값은 맞는 것으로 추정하지 않는다. */
+/**
+ * BOC-04D-03b 권고안 채택: 최신 배정 창은 실제 lesson 문맥과 학년 범위가 모두 맞는
+ * 현재 판만 보여 주며 미분류 값은 맞는 것으로 추정하지 않는다. 정책 변경 시 생성
+ * DTO/OpenAPI, Backend writer·migration·DBML과 BOC-04D3B 체크리스트를 같은 청크에서 갱신한다.
+ */
 function assignmentBooks(books: readonly Book[], source: EducationGradeSource | null | undefined, grade: string | null | undefined, subKey: string): Book[] {
   const value = gradeNumber(source, grade);
   if (value === null || !subKey) return [];
