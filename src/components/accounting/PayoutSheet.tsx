@@ -143,7 +143,7 @@ function TeacherCard({ r, selected, onSelect }: { r: PayoutSheetRow; selected: b
     >
       <span className="flex min-w-0 flex-col gap-1">
         <b className="text-[14px] text-fg">{r.staffName}</b>
-        <span className="text-[11.5px] text-fg-2">
+        <span className="text-[12px] text-fg-2">
           {r.writtenCount}번 · {num1(r.writtenMinutes)}시간
           {r.unwrittenMinutes > 0 ? <span className="text-red"> · 못 드림 {num1(r.unwrittenMinutes)}h</span> : null}
         </span>
@@ -155,7 +155,7 @@ function TeacherCard({ r, selected, onSelect }: { r: PayoutSheetRow; selected: b
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
         <b className="text-[15px] text-primary">{won(r.net)}</b>
-        <span className="text-[11px] font-bold text-fg-subtle">자세히 ›</span>
+        <span className="text-[12px] font-bold text-fg-subtle">자세히 ›</span>
       </span>
     </button>
   );
@@ -202,7 +202,7 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
       key: 'n', head: '수업', cell: (l) => (
         <span className="flex flex-col">
           <span className="font-bold text-fg">{l.name}</span>
-          {l.students ? <span className="text-[11px] text-fg-subtle">{l.students}</span> : null}
+          {l.students ? <span className="text-[12px] text-fg-subtle">{l.students}</span> : null}
         </span>
       ),
     },
@@ -211,7 +211,7 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
         <span className="flex flex-wrap items-center gap-1">
           <Chip tone={SETTLE_TONE[l.settle]}>{l.settleLabel}</Chip>
           {/* 확정된 달의 줄은 지급 확정 근거 줄에서 온 굳은 값이다 (N-36 ①) — 시급이 바뀌어도 이 값은 안 바뀐다 */}
-          {l.frozen ? <span className="text-[10.5px] text-fg-subtle" title="지급 확정 때 남긴 회차 줄의 값입니다">확정 값</span> : null}
+          {l.frozen ? <span className="text-[12px] text-fg-subtle" title="지급 확정 때 남긴 회차 줄의 값입니다">확정 값</span> : null}
         </span>
       ),
     },
@@ -243,7 +243,7 @@ function PayoutDetailPane({ row, month }: { row: PayoutSheetRow; month: string }
           <PayoutConfirmButton row={row} />
         ) : row.confirmBlockedReason ? (
           // 단추가 서지 않는 까닭 — 서버 문장 그대로 (D-R18 · D-R39)
-          <p className="max-w-[260px] text-right text-[11.5px] text-fg-subtle">{row.confirmBlockedReason}</p>
+          <p className="max-w-[260px] text-right text-[12px] text-fg-subtle">{row.confirmBlockedReason}</p>
         ) : null}
       </header>
 
@@ -312,11 +312,11 @@ export function PayoutSheet({ data, loading, month, onMonthChange, below }: Payo
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[13px] font-bold text-fg">{monthLabel(month)} 강사료 정산</h2>
-          <p className="mt-0.5 text-[11px] text-fg-subtle">
+          <p className="mt-0.5 text-[12px] text-fg-subtle">
             리포트를 쓴 수업만 셉니다 — 미작성은 빠지고, 빠진 만큼이 옆에 보입니다. 휴강은 시수에 들지 않습니다.
           </p>
           {data ? (
-            <p className="mt-1 text-[11.5px]">
+            <p className="mt-1 text-[12px]">
               {data.monthEnded
                 ? <span className="text-fg-2">달이 끝났습니다 — 확정할 수 있습니다</span>
                 : <span className="text-amber">아직 끝나지 않은 달입니다 — 리포트가 더 들어오므로 확정은 다음 달부터</span>}
@@ -343,7 +343,7 @@ export function PayoutSheet({ data, loading, month, onMonthChange, below }: Payo
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-2">
           <h3 className="flex items-baseline gap-2 border-b border-line pb-2 text-[13px] font-bold text-fg">
-            선생님 <span className="text-[11.5px] font-normal text-fg-subtle">{rows.length}명 · 눌러서 자세히</span>
+            선생님 <span className="text-[12px] font-normal text-fg-subtle">{rows.length}명 · 눌러서 자세히</span>
           </h3>
           {rows.length === 0 ? (
             <p className="py-6 text-center text-[12px] text-fg-subtle">{loading ? '불러오는 중…' : '이 달에 수업을 맡은 강사가 없습니다'}</p>

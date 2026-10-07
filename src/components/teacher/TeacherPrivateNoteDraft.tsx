@@ -46,7 +46,7 @@ export function TeacherPrivateNoteDraft({
       footer={(
         <>
           <Button className="!h-11" onClick={onClose}>취소</Button>
-          <Button className="!h-11" variant="primary" disabled>저장 계약 준비 중</Button>
+          <Button className="!h-11" variant="primary" disabled>저장 기능 준비 중</Button>
         </>
       )}
     >

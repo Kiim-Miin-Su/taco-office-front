@@ -127,7 +127,7 @@ export function ConsultingCloseDialog({ open, detail, onClose, onDone }: Consult
           <blockquote className="mt-2 whitespace-pre-wrap rounded border border-line bg-card p-2 text-[12px]">{preview.noticeBody}</blockquote>
           {/* I-95 「카카오로 보낼 수 있는 문구」 — 서버 안내문 그대로 복사한다(카카오 발송 채널은 없다 · N-42/DQ3) */}
           <KakaoCopyText text={preview.noticeBody} />
-          {preview.notified ? <p className="mt-2 text-[11px] text-fg-subtle">담당에게 알림이 갑니다.</p> : null}
+          {preview.notified ? <p className="mt-2 text-[12px] text-fg-subtle">담당에게 알림이 갑니다.</p> : null}
         </div>
       ) : null}
     </Dialog>

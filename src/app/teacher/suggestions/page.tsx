@@ -45,7 +45,7 @@ function SuggestionCard({ s }: { s: TeacherSuggestion }) {
       <p className="mt-2 text-[13.5px] leading-relaxed text-fg">{s.body}</p>
       {s.reply ? (
         <div className="mt-3 rounded-lg border border-green/40 bg-green/5 px-3 py-2.5">
-          <div className="text-[11.5px] font-bold text-fg-subtle">
+          <div className="text-[12px] font-bold text-fg-subtle">
             관리자 {s.replyBy ?? ''}{s.replyOn ? ` · ${md(s.replyOn)}` : ''}
           </div>
           <p className="mt-1 text-[13px] font-bold leading-relaxed text-fg">{s.reply}</p>
@@ -125,7 +125,7 @@ export default function TeacherSuggestionsPage() {
                             className={`rounded-lg border px-3 py-2.5 text-left disabled:opacity-50 ${category === c.key ? 'border-primary bg-primary/5' : 'border-line bg-card'}`}
                           >
                             <div className="text-[13px] font-bold text-fg">{c.label}</div>
-                            <div className="mt-0.5 text-[11px] text-fg-subtle">{c.sub}</div>
+                            <div className="mt-0.5 text-[12px] text-fg-subtle">{c.sub}</div>
                           </button>
                         ))}
                       </div>
@@ -153,7 +153,7 @@ export default function TeacherSuggestionsPage() {
                       >
                         {create.isPending ? '보내는 중…' : spent ? '이번 달 한도를 모두 사용했습니다' : '건의 사항 보내기'}
                       </Button>
-                      <p className="mt-3 text-[11px] leading-relaxed text-fg-subtle">
+                      <p className="mt-3 text-[12px] leading-relaxed text-fg-subtle">
                         시급·정산 관련 문의는 관리자만 확인하며 다른 강사에게 공개되지 않습니다.
                         급한 일은 건의 사항 대신 관리자에게 직접 연락 주세요.
                       </p>

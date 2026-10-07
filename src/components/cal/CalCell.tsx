@@ -114,7 +114,7 @@ export function CalCell({
       }}
     >
       {head !== undefined ? (
-        <div className={cn('flex items-center gap-1 text-[11px]', muted ? 'text-line-2' : 'text-fg-subtle')}>
+        <div className={cn('flex items-center gap-1 text-[12px]', muted ? 'text-line-2' : 'text-fg-subtle')}>
           {onPickDate ? (
             <button type="button" onClick={() => onPickDate(date)}
               aria-label={`${date} (${KO_DOW[dowOf(date)]}) 날짜 선택`}
@@ -130,7 +130,7 @@ export function CalCell({
           {/* 원문 §09 날짜 옆 공휴일 이름 칩 — 이름은 서버 표 그대로(대체공휴일 「광복절 대체」) */}
           {holidays?.map((name) => (
             <span key={name} data-holiday={name} title={name}
-              className="min-w-0 truncate rounded bg-red/10 px-1 text-[10px] font-bold text-red">{name}</span>
+              className="min-w-0 truncate rounded bg-red/10 px-1 text-[12px] font-bold text-red">{name}</span>
           ))}
           {/* 빈 날짜에는 수를 적지 않는다 — 원문 §09 의 빈 칸에는 「0건」이 없고, 있는 칸도 숫자만 적는다(「8」) */}
           {items.length > 0 ? <span className="ml-auto" title={`${items.length}건`}>{items.length}</span> : null}
@@ -158,7 +158,7 @@ export function CalCell({
         <button
           type="button"
           onClick={() => onMore?.(date)}
-          className="mt-auto rounded px-1 text-left text-[11px] font-bold text-fg-subtle hover:text-blue"
+          className="mt-auto rounded px-1 text-left text-[12px] font-bold text-fg-subtle hover:text-blue"
         >
           +{hidden}건 더
         </button>

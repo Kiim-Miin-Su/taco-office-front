@@ -39,13 +39,13 @@ function ComplaintStudentEvidence({ studentId, subjects }: { studentId: number; 
     <section aria-label="학생 근거" className="rounded-lg border border-line bg-bg-2 p-3">
       <div className="mb-2">
         <h3 className="text-[12px] font-bold text-fg">학생 근거</h3>
-        <p className="mt-0.5 text-[11px] text-fg-subtle">진단 이력과 승인된 최근 리포트를 함께 확인합니다.</p>
+        <p className="mt-0.5 text-[12px] text-fg-subtle">진단 이력과 승인된 최근 리포트를 함께 확인합니다.</p>
       </div>
       <div className="flex flex-col gap-3">
         <div className="rounded-lg border border-line bg-card p-3">
-          <h4 className="mb-2 text-[11px] font-bold text-fg-2">진단 이력</h4>
-          {diagnostic.isPending ? <p className="text-[11.5px] text-fg-subtle">진단 기록을 불러오는 중…</p>
-            : diagnostic.isError ? <p className="text-[11.5px] text-red">진단 기록을 불러오지 못했습니다.</p>
+          <h4 className="mb-2 text-[12px] font-bold text-fg-2">진단 이력</h4>
+          {diagnostic.isPending ? <p className="text-[12px] text-fg-subtle">진단 기록을 불러오는 중…</p>
+            : diagnostic.isError ? <p className="text-[12px] text-red">진단 기록을 불러오지 못했습니다.</p>
               : diagnostic.data?.diag ? (
                 <>
                   <GuideScoreCards scores={diagnostic.data.diag} />
@@ -53,17 +53,17 @@ function ComplaintStudentEvidence({ studentId, subjects }: { studentId: number; 
                     진단 이력 보기
                   </LinkButton>
                 </>
-              ) : <p className="text-[11.5px] text-fg-subtle">진단 이력이 없습니다.</p>}
+              ) : <p className="text-[12px] text-fg-subtle">진단 이력이 없습니다.</p>}
         </div>
 
         <div className="rounded-lg border border-line bg-card p-3">
-          <h4 className="mb-2 text-[11px] font-bold text-fg-2">최근 승인 리포트</h4>
-          {reports.isPending ? <p className="text-[11.5px] text-fg-subtle">리포트를 불러오는 중…</p>
-            : reports.isError ? <p className="text-[11.5px] text-red">리포트를 불러오지 못했습니다.</p>
+          <h4 className="mb-2 text-[12px] font-bold text-fg-2">최근 승인 리포트</h4>
+          {reports.isPending ? <p className="text-[12px] text-fg-subtle">리포트를 불러오는 중…</p>
+            : reports.isError ? <p className="text-[12px] text-red">리포트를 불러오지 못했습니다.</p>
               : recent.length ? (
                 <ul className="flex flex-col gap-1.5">
                   {recent.map((report) => (
-                    <li key={report.id} className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                    <li key={report.id} className="flex flex-wrap items-center gap-1.5 text-[12px]">
                       <b className="text-fg">{report.date}</b>
                       <span className="text-fg-2">{subjectName(report)}</span>
                       <span className="text-fg-subtle">{report.teacherName ?? '담당 기록 없음'}</span>
@@ -74,7 +74,7 @@ function ComplaintStudentEvidence({ studentId, subjects }: { studentId: number; 
                     </li>
                   ))}
                 </ul>
-              ) : <p className="text-[11.5px] text-fg-subtle">승인된 리포트가 없습니다.</p>}
+              ) : <p className="text-[12px] text-fg-subtle">승인된 리포트가 없습니다.</p>}
         </div>
       </div>
     </section>

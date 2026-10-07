@@ -57,7 +57,7 @@ function PayCalendar({ from, to, days, today, canSee }: {
 
   return (
     <div role="group" aria-label="입금 달력" className="rounded-xl border border-line bg-card p-3">
-      <div className="mb-2 grid grid-cols-7 gap-1.5 text-center text-[11.5px] font-bold">
+      <div className="mb-2 grid grid-cols-7 gap-1.5 text-center text-[12px] font-bold">
         {KO_DOW.map((w, i) => <span key={w} className={i === 0 ? 'text-red' : 'text-fg-2'}>{w}</span>)}
       </div>
       <div className="grid grid-cols-7 gap-1.5">
@@ -80,11 +80,11 @@ function PayCalendar({ from, to, days, today, canSee }: {
               <span className={cn('text-[12px] font-bold', dowOf(iso) === 0 ? 'text-red' : 'text-fg')}>{day}</span>
               {/* 원문 §55 달력 칸은 숫자만이다(「840,000」) — ₩ 는 칸 제목(마우스)과 위 요약에 선다. 모양은 `lib/money` 한 곳 (N-92) */}
               {d ? (
-                <span className="mt-1 block text-[11px] font-bold text-fg">{canSee ? won(d.amount, { unit: false }) : `${d.count}건`}</span>
+                <span className="mt-1 block text-[12px] font-bold text-fg">{canSee ? won(d.amount, { unit: false }) : `${d.count}건`}</span>
               ) : null}
               {/* 숫자 배지 = 그날 기한인 **예정** 건수 — 서버가 센 값 */}
               {d && d.expectedCount > 0 ? (
-                <span aria-label={`예정 ${d.expectedCount}건`} className="absolute right-1.5 top-1.5 inline-flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                <span aria-label={`예정 ${d.expectedCount}건`} className="absolute right-1.5 top-1.5 inline-flex size-5 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-white">
                   {d.expectedCount}
                 </span>
               ) : null}
@@ -101,7 +101,7 @@ function ByCategory({ data }: { data: Cashflow }) {
   return (
     <section aria-label="분류별">
       <h3 className="mb-2 flex items-baseline gap-2 border-b border-line pb-2 text-[13px] font-bold text-fg">
-        분류별 <span className="text-[11.5px] font-normal text-fg-subtle">{data.label}</span>
+        분류별 <span className="text-[12px] font-normal text-fg-subtle">{data.label}</span>
       </h3>
       <ul className="flex flex-col gap-2">
         {data.categories.map((c) => (
@@ -114,7 +114,7 @@ function ByCategory({ data }: { data: Cashflow }) {
             <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-line">
               <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, c.rate ?? 0))}%` }} />
             </span>
-            <span className="text-right text-[11px] text-fg-2">{c.rate === null ? '—' : `${c.rate}%`}</span>
+            <span className="text-right text-[12px] text-fg-2">{c.rate === null ? '—' : `${c.rate}%`}</span>
           </li>
         ))}
       </ul>
@@ -131,7 +131,7 @@ export function OpenList({ data }: { data: Cashflow }) {
   return (
     <section aria-label="미수 전체">
       <h3 className="mb-2 flex items-baseline gap-2 border-b border-line pb-2 text-[13px] font-bold text-fg">
-        미수 전체 <span className="text-[11.5px] font-normal text-fg-subtle">기간과 무관</span>
+        미수 전체 <span className="text-[12px] font-normal text-fg-subtle">기간과 무관</span>
       </h3>
       {data.open.length === 0 ? (
         <p className="text-[12px] text-fg-subtle">받을 돈이 남은 청구서가 없습니다</p>
@@ -149,7 +149,7 @@ export function OpenList({ data }: { data: Cashflow }) {
               <span className="text-fg-2">{o.partLabel}</span>
               {/* null 은 권한이 없거나 컨설팅 비공개(N-94)로 가려진 줄이다 — 낱말은 한 벌(「비공개」) · 남은 돈에는 「미확인」이 없다 */}
               <span className="text-right font-bold text-fg">{won(o.amount)}</span>
-              <span className={cn('min-w-12 text-right text-[11px] font-bold', o.tone === 'danger' ? 'text-red' : 'text-fg-2')}>{o.whenLabel}</span>
+              <span className={cn('min-w-12 text-right text-[12px] font-bold', o.tone === 'danger' ? 'text-red' : 'text-fg-2')}>{o.whenLabel}</span>
             </li>
           ))}
         </ul>
@@ -190,7 +190,7 @@ export function PaymentFlow() {
               onClick={() => { if (period !== 'all') setAnchor((a) => step(period, a, -1)); }}>‹</Button>
             <span className="flex min-w-32 flex-col px-2">
               <b className="text-[13px] text-fg">{d?.label ?? '…'}</b>
-              <span className="text-[11px] text-fg-subtle">{d?.dayCount ? `${d.dayCount}일` : ' '}</span>
+              <span className="text-[12px] text-fg-subtle">{d?.dayCount ? `${d.dayCount}일` : ' '}</span>
             </span>
             <Button size="sm" variant="ghost" aria-label="다음 기간" disabled={period === 'all'}
               onClick={() => { if (period !== 'all') setAnchor((a) => step(period, a, 1)); }}>›</Button>
@@ -198,7 +198,7 @@ export function PaymentFlow() {
           </div>
           {/* 요약 — 청구 = 입금 + 예정. 세 수와 건수는 서버가 낸다 */}
           {d ? (
-            <div role="group" aria-label="기간 요약" className="ml-auto flex items-end gap-4 text-[11px] text-fg-subtle">
+            <div role="group" aria-label="기간 요약" className="ml-auto flex items-end gap-4 text-[12px] text-fg-subtle">
               <span className="flex flex-col"><b className="text-[15px] text-fg">{d.count}</b>건</span>
               <span className="flex flex-col"><b className="text-[15px] text-fg">{won(d.billed)}</b>청구</span>
               <span className="flex flex-col"><b className="text-[15px] text-green">{won(d.paid)}</b>입금</span>
@@ -213,7 +213,7 @@ export function PaymentFlow() {
           /* 분류 칩 — 누르면 그 분류만 센다(요약·달력). 칩의 건수는 고른 분류와 무관한 이 기간의 수라 줄이 흔들리지 않는다.
              「전체」의 수는 여섯 칸의 합이다 — 한 줄은 정확히 한 분류에 드는 것을 서버 회귀가 센다 */
           <div role="group" aria-label="분류" className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl bg-inset px-3 py-2">
-            <span className="mr-1 text-[11.5px] font-bold text-fg-subtle">분류</span>
+            <span className="mr-1 text-[12px] font-bold text-fg-subtle">분류</span>
             <ChipButton pressed={category === ''} onClick={() => setCategory('')}>
               전체 {d.categories.reduce((n, c) => n + c.count, 0)}
             </ChipButton>

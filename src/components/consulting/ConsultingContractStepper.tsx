@@ -46,7 +46,7 @@ export function ConsultingContractStepper({ steps, current, complete = false }: 
               {state === 'done' ? '✓' : s.step}
             </span>
             <span className={cn('mt-1.5 text-[12.5px] font-bold', state === 'todo' ? 'text-fg-subtle' : 'text-fg')}>{s.label}</span>
-            <span className="text-[10.5px] text-fg-subtle">{s.sub}</span>
+            <span className="text-[12px] text-fg-subtle">{s.sub}</span>
           </li>
         );
       })}

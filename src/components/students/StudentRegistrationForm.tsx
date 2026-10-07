@@ -88,7 +88,7 @@ function Section({ number, title, sub, children, ariaLabel }: {
   return (
     <section aria-label={ariaLabel} className="rounded-xl border border-line bg-card p-4 sm:p-5">
       <h2 className="text-[14px] font-bold text-fg">{heading}</h2>
-      {sub ? <p className="mt-1 text-[11px] leading-relaxed text-fg-subtle">{sub}</p> : null}
+      {sub ? <p className="mt-1 text-[12px] leading-relaxed text-fg-subtle">{sub}</p> : null}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -171,10 +171,10 @@ function PeriodBoundary({ id, label, path, value, precision, invalid, onValue, o
 
 function PeriodPreview({ row }: { row: Pick<SchoolDraft, 'from' | 'fromPrecision' | 'to' | 'toPrecision' | 'openEnded'> }) {
   const period = periodOrNull(row);
-  if (!period) return <p role="status" className="text-[11px] text-danger">기간을 확인해 주세요.</p>;
+  if (!period) return <p role="status" className="text-[12px] text-danger">기간을 확인해 주세요.</p>;
   const state = studentPeriodState(period, todayKst());
   return (
-    <div className="flex flex-wrap items-center gap-2 text-[11px] text-fg-subtle">
+    <div className="flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle">
       <Chip size="compact" tone={state === 'current' ? 'success' : state === 'future' ? 'info' : 'neutral'}>{STUDENT_PERIOD_STATE_LABEL[state]}</Chip>
       <span>{period.from} ~ {period.to ?? '계속'}</span>
       <span>입력 정밀도 {row.fromPrecision}{row.openEnded ? '' : ` / ${row.toPrecision}`}</span>
@@ -206,10 +206,10 @@ function RegistrationMultiPicker({ kind, query, onQuery, candidates, selectedIds
         <Input id={`${kind}-search`} aria-label={`${kind} 검색`} type="search" data-field-path={kind === '담당자' ? 'assigneeIds' : 'siblingIds'}
           value={query} disabled={pending || error} placeholder={kind === '담당자' ? '이름·직함 검색' : '이름·학년·학교 검색'} onChange={event => onQuery(event.target.value)} />
       </div>
-      {pending ? <p role="status" className="text-[11px] text-fg-subtle">{kind} 선택지를 불러오는 중…</p> : null}
+      {pending ? <p role="status" className="text-[12px] text-fg-subtle">{kind} 선택지를 불러오는 중…</p> : null}
       {error ? <Banner tone="danger">{kind} 선택지를 불러오지 못했습니다. 입력한 초안은 유지됩니다.</Banner> : null}
-      {!pending && !error && !candidates.length ? <p role="status" className="text-[11px] text-fg-subtle">선택 가능한 {kind}가 없습니다.</p> : null}
-      {!pending && !error && normalized && candidates.length && !visible.length ? <p role="status" className="text-[11px] text-fg-subtle">검색 결과가 없습니다.</p> : null}
+      {!pending && !error && !candidates.length ? <p role="status" className="text-[12px] text-fg-subtle">선택 가능한 {kind}가 없습니다.</p> : null}
+      {!pending && !error && normalized && candidates.length && !visible.length ? <p role="status" className="text-[12px] text-fg-subtle">검색 결과가 없습니다.</p> : null}
       {visible.length ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {visible.map(item => <Button key={item.id} size="sm" aria-label={`${kind} ${item.actionLabel} 선택`} onClick={() => { onAdd(item.id); onQuery(''); }}>{item.label}</Button>)}
       </div> : null}
@@ -274,7 +274,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
     const next: Errors = {};
     if (!name.trim()) next.name = '학생 이름을 입력해 주세요.';
     if (!gender) next.gender = '성별을 선택해 주세요.';
-    if (!systems.length) next.grade = '교육체계·학년 선택 DTO 연결이 필요합니다.';
+    if (!systems.length) next.grade = '교육체계와 학년 선택 기능이 필요합니다.';
     else if (!educationSystem || !grade || !gradeFrom) next.grade = '교육체계와 학년을 선택해 주세요.';
     else {
       try {
@@ -334,7 +334,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         { value: 'create', label: '신규 학생' },
         { value: 'reactivate', label: '기존 학생 재활성화' },
       ]} />
-      <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 Front 단계입니다. 생성 DTO·학교/국가 선택 계약이 연결되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner>
+      <Banner tone="neutral">현재는 입력 구조와 검증을 준비하는 단계입니다. 학생 생성과 학교·국가 선택 기능이 준비되기 전에는 등록 요청을 보내거나 성공으로 표시하지 않습니다.</Banner>
       {mode === 'create' && meta.isPending ? <Banner tone="neutral">등록 선택지를 불러오는 중입니다. 작성한 값은 그대로 유지됩니다.</Banner> : null}
       {mode === 'create' && meta.isError ? <Banner tone="danger">{metaErrorMessage(meta.error)}</Banner> : null}
 
@@ -356,7 +356,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
 
         <Section number={4} title="학교" sub="검색 결과에서 학교를 고르고 재학 기간을 기록합니다. 이름만으로 같은 학교를 합치지 않습니다.">
           <div className="flex flex-col gap-4">
-            <Banner tone="neutral">학교 검색·추가 연결을 준비 중입니다. 이름과 기간 초안은 보존하지만 학교가 선택됐다고 표시하지 않습니다.</Banner>
+            <Banner tone="neutral">학교 검색·추가 기능을 준비 중입니다. 이름과 기간 초안은 보존하지만 학교가 선택됐다고 표시하지 않습니다.</Banner>
             {schoolHistory.map((row, index) => {
               const base = `schoolHistory[${index}]`;
               const number = index + 1;
@@ -367,7 +367,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
                     onClick={() => setSchoolHistory(rows => rows.filter((_, at) => at !== index))}>제거</Button>
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="md:col-span-2"><Label htmlFor={`${base}-query`}>학교 {number} 이름</Label><Input id={`${base}-query`} aria-label={`학교 ${number} 이름`} type="search" data-field-path={`${base}.query`} value={row.query} maxLength={100} onChange={event => patchSchool(index, { query: event.target.value })} placeholder="학교명 검색 · 전용 API 연결 대기" /></div>
+                  <div className="md:col-span-2"><Label htmlFor={`${base}-query`}>학교 {number} 이름</Label><Input id={`${base}-query`} aria-label={`학교 ${number} 이름`} type="search" data-field-path={`${base}.query`} value={row.query} maxLength={100} onChange={event => patchSchool(index, { query: event.target.value })} placeholder="학교명 검색 기능 준비 중" /></div>
                   <PeriodBoundary id={`${base}-from`} label={`학교 ${number} 시작`} path={`${base}.from`} value={row.from} precision={row.fromPrecision}
                     invalid={Boolean(errors[`${base}.period`])}
                     onValue={value => patchSchool(index, { from: value })}
@@ -378,7 +378,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
                     {!row.openEnded ? <PeriodBoundary id={`${base}-to`} label={`학교 ${number} 종료`} path={`${base}.to`} value={row.to} precision={row.toPrecision}
                       invalid={Boolean(errors[`${base}.period`])}
                       onValue={value => patchSchool(index, { to: value })}
-                      onPrecision={precision => patchSchool(index, { toPrecision: precision, to: valueForPrecision(row.to, precision) })} /> : <p className="text-[11px] text-fg-subtle">종료 없음 · 계속 재학</p>}
+                      onPrecision={precision => patchSchool(index, { toPrecision: precision, to: valueForPrecision(row.to, precision) })} /> : <p className="text-[12px] text-fg-subtle">종료 없음 · 계속 재학</p>}
                   </div>
                 </div>
                 <FieldError>{errors[`${base}.period`]}</FieldError>
@@ -386,7 +386,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
               </div>;
             })}
             <FieldError>{errors.schoolHistory}</FieldError>
-            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setSchoolHistory(rows => [...rows, school()])}>+ 학교 이력 추가</Button><Button size="sm" disabled>학교 검색·선택 계약 대기</Button></div>
+            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setSchoolHistory(rows => [...rows, school()])}>+ 학교 이력 추가</Button><Button size="sm" disabled>학교 검색·선택 기능 준비 중</Button></div>
           </div>
         </Section>
 
@@ -402,7 +402,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
                 onChange={event => setGradeOpenEnded(!event.target.checked)} label="종료일 있음" />
               {!gradeOpenEnded ? <PeriodBoundary id="grade-to" label="학년 적용 종료" path="gradeHistory[0].to" value={gradeTo} precision={gradeToPrecision}
                 invalid={Boolean(errors.grade)}
-                onValue={setGradeTo} onPrecision={precision => { setGradeToPrecision(precision); setGradeTo(valueForPrecision(gradeTo, precision)); }} /> : <p className="text-[11px] text-fg-subtle">종료 없음 · 계속 적용</p>}
+                onValue={setGradeTo} onPrecision={precision => { setGradeToPrecision(precision); setGradeTo(valueForPrecision(gradeTo, precision)); }} /> : <p className="text-[12px] text-fg-subtle">종료 없음 · 계속 적용</p>}
             </div>
           </div>
           <FieldError>{errors.grade}</FieldError>
@@ -415,7 +415,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
 
         <Section number={7} title="거주 국가와 시간대">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div><Label htmlFor="residence-country">거주 국가 *</Label><Select id="residence-country" aria-label="거주 국가" data-field-path="residenceCountryCode" value="" error={Boolean(errors.residenceCountryCode)} disabled><option value="">국가 선택 DTO 연결 대기</option></Select><FieldError>{errors.residenceCountryCode}</FieldError></div>
+            <div><Label htmlFor="residence-country">거주 국가 *</Label><Select id="residence-country" aria-label="거주 국가" data-field-path="residenceCountryCode" value="" error={Boolean(errors.residenceCountryCode)} disabled><option value="">국가 선택 기능 준비 중</option></Select><FieldError>{errors.residenceCountryCode}</FieldError></div>
             <div><Label htmlFor="residence-timezone">지역·시간대</Label><Select id="residence-timezone" data-field-path="residenceTimezone" value="" disabled><option value="">국가 선택 뒤 표시</option></Select></div>
           </div>
         </Section>
@@ -439,7 +439,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
                     <div><Label htmlFor={`${base}-relation`}>관계 *</Label><Select id={`${base}-relation`} aria-label={`보호자 ${guardianIndex + 1} 관계`} data-field-path={`${base}.relation`} value={row.relation} error={Boolean(errors[`${base}.relation`])} onChange={event => patchGuardian(guardianIndex, { relation: event.target.value })}><option value="">선택</option>{RELATIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select><FieldError>{errors[`${base}.relation`]}</FieldError></div>
                     <div><Label htmlFor={`${base}-name`}>이름</Label><Input id={`${base}-name`} aria-label={`보호자 ${guardianIndex + 1} 이름`} data-field-path={`${base}.name`} maxLength={80} value={row.name} onChange={event => patchGuardian(guardianIndex, { name: event.target.value })} /></div>
                     {row.relation === 'other' ? <div><Label htmlFor={`${base}-relation-other`}>기타 관계</Label><Input id={`${base}-relation-other`} data-field-path={`${base}.relationOther`} maxLength={40} value={row.relationOther} onChange={event => patchGuardian(guardianIndex, { relationOther: event.target.value })} /></div> : null}
-                    <div><Label htmlFor={`${base}-country`}>거주 국가</Label><Select id={`${base}-country`} data-field-path={`${base}.countryCode`} value={row.country} disabled onChange={event => patchGuardian(guardianIndex, { country: event.target.value })}><option value="">국가 DTO 연결 대기</option></Select></div>
+                    <div><Label htmlFor={`${base}-country`}>거주 국가</Label><Select id={`${base}-country`} data-field-path={`${base}.countryCode`} value={row.country} disabled onChange={event => patchGuardian(guardianIndex, { country: event.target.value })}><option value="">국가 선택 기능 준비 중</option></Select></div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-4">
                     <Checkbox aria-label={`보호자 ${guardianIndex + 1} 주보호자`} data-field-path={`${base}.isPrimary`} checked={row.isPrimary} onChange={event => patchGuardian(guardianIndex, { isPrimary: event.target.checked })} label="주보호자" />
@@ -466,7 +466,7 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
             selectedIds={siblingIds} pending={meta.isPending} error={meta.isError}
             onAdd={id => setSiblingIds(ids => ids.includes(id) ? ids : [...ids, id])}
             onRemove={id => setSiblingIds(ids => ids.filter(value => value !== id))} />
-          <p className="mt-3 text-[11px] text-fg-subtle">현재 재원 학생만 후보로 표시합니다. 실제 양방향 가족 연결은 학생 등록을 완료할 때 저장됩니다.</p>
+          <p className="mt-3 text-[12px] text-fg-subtle">현재 재원 학생만 후보로 표시합니다. 실제 양방향 가족 연결은 학생 등록을 완료할 때 저장됩니다.</p>
         </Section>
 
         <Section number={13} title="알게 된 경로">
@@ -478,17 +478,17 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
             selectedIds={assigneeIds} pending={meta.isPending} error={meta.isError}
             onAdd={id => setAssigneeIds(ids => ids.includes(id) ? ids : [...ids, id])}
             onRemove={id => setAssigneeIds(ids => ids.filter(value => value !== id))} />
-          <p className="mt-3 text-[11px] text-fg-subtle">현재 활성 직원만 후보로 표시합니다. 등록을 완료할 때 담당 가능 여부를 다시 확인합니다.</p>
+          <p className="mt-3 text-[12px] text-fg-subtle">현재 활성 직원만 후보로 표시합니다. 등록을 완료할 때 담당 가능 여부를 다시 확인합니다.</p>
         </Section>
 
         <Section number={15} title="기타">
           <Label htmlFor="student-notes" hint={`${notes.length} / 2000`}>주의사항 등</Label><Textarea id="student-notes" data-field-path="notes" maxLength={2000} value={notes} onChange={event => setNotes(event.target.value)} />
         </Section>
 
-        {reviewed ? <Banner tone={Object.keys(errors).length ? 'warning' : 'neutral'}>{Object.keys(errors).length ? '입력을 보완해 주세요. 작성한 값은 그대로 유지됩니다.' : '화면 검토를 통과했습니다. 생성 DTO 연결 전에는 등록할 수 없습니다.'}</Banner> : null}
+        {reviewed ? <Banner tone={Object.keys(errors).length ? 'warning' : 'neutral'}>{Object.keys(errors).length ? '입력을 보완해 주세요. 작성한 값은 그대로 유지됩니다.' : '화면 검토를 통과했습니다. 학생 생성 기능이 준비되기 전에는 등록할 수 없습니다.'}</Banner> : null}
         <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-xl border border-line bg-card p-3 shadow-sm">
           <Button type="submit">입력 검토</Button>
-          <Button variant="primary" disabled title="StudentCreateDto와 학교·국가 선택 계약 연결 뒤 활성화">학생 등록 계약 연결 대기</Button>
+          <Button variant="primary" disabled title="학생 생성과 학교·국가 선택 기능이 준비된 뒤 사용할 수 있습니다">학생 등록 기능 준비 중</Button>
         </div>
       </form> : (
         <section aria-label="기존 학생 재활성화" className="rounded-xl border border-line bg-card p-4 sm:p-5">
@@ -496,10 +496,10 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
           <p className="mt-2 text-[12px] leading-relaxed text-fg-2">
             퇴원 학생의 같은 STU ID를 유지하고 새 상담 기록을 연결합니다. 신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다.
           </p>
-          <Banner tone="warning" className="mt-4">현재 학생 DTO에는 퇴원 상태와 재활성화 대상 검색·저장 계약이 없습니다. 계약 연결 전에는 후보를 선택하거나 완료로 표시하지 않습니다.</Banner>
+          <Banner tone="warning" className="mt-4">현재는 퇴원 학생의 재활성화 대상 검색과 저장을 지원하지 않습니다. 기능이 준비되기 전에는 후보를 선택하거나 완료로 표시하지 않습니다.</Banner>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-            <div><Label htmlFor="reactivation-student-search">퇴원 학생 검색</Label><Input id="reactivation-student-search" type="search" placeholder="이름·기존 STU ID 검색 계약 연결 대기" disabled /></div>
-            <div className="flex items-end"><Button variant="primary" disabled>재활성화 계약 연결 대기</Button></div>
+            <div><Label htmlFor="reactivation-student-search">퇴원 학생 검색</Label><Input id="reactivation-student-search" type="search" placeholder="이름·기존 STU ID 검색 기능 준비 중" disabled /></div>
+            <div className="flex items-end"><Button variant="primary" disabled>재활성화 기능 준비 중</Button></div>
           </div>
         </section>
       )}

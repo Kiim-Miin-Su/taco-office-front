@@ -107,7 +107,7 @@ export function ManualPaymentButton() {
               <Input id={`${id}-reason`} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} disabled={create.isPending} placeholder="예: 교재비" />
             </div>
           </div>
-          <p className="text-[11px] text-fg-subtle">적으면 「들어온 돈」의 <b>기타</b> 분류로 들어갑니다 — 넣은 사람이 함께 남습니다.</p>
+          <p className="text-[12px] text-fg-subtle">적으면 「들어온 돈」의 <b>기타</b> 분류로 들어갑니다 — 넣은 사람이 함께 남습니다.</p>
           {err ? <Banner tone="danger">{err}</Banner> : null}
         </div>
       </Dialog>

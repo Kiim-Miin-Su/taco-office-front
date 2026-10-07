@@ -57,13 +57,13 @@ export function UndoControl({ onFail }: { onFail: (message: string) => void }) {
       {open ? (
         <div role="menu" aria-label="되돌릴 단계"
           className="absolute left-0 top-full z-30 mt-1 w-64 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
-          <p className="px-2 py-1 text-[11px] text-fg-subtle">누른 단계까지 최근 것부터 차례로 되돌립니다</p>
+          <p className="px-2 py-1 text-[12px] text-fg-subtle">누른 단계까지 최근 것부터 차례로 되돌립니다</p>
           {undo.steps.map((step, i) => (
             <button key={step.token} type="button" role="menuitem"
               onClick={() => { setOpen(false); undo.undoTo(i + 1, { onFail }); }}
               className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-[12px] font-bold hover:bg-inset">
               <span className="truncate" title={step.label}>{step.label}</span>
-              <span className="shrink-0 text-[11px] font-normal text-fg-subtle">{i === 0 ? '최근' : `${i + 1}단계`}</span>
+              <span className="shrink-0 text-[12px] font-normal text-fg-subtle">{i === 0 ? '최근' : `${i + 1}단계`}</span>
             </button>
           ))}
         </div>

@@ -44,41 +44,41 @@ export function Legend({ items, colorOf, subName, kindName, display = 'schedule'
   return (
     <div role="group" aria-label="시간표 범례"
       className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-line bg-card px-3 py-2.5">
-      <span className="text-[11px] font-bold text-fg">보는 법</span>
+      <span className="text-[12px] font-bold text-fg">보는 법</span>
       {folded ? null : (
         <>
           {display === 'report' ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold text-fg-subtle">색 = 리포트</span>
+              <span className="text-[12px] font-bold text-fg-subtle">색 = 리포트</span>
               {STATUS_LABEL.map(([key, label]) => (
-                <span key={key} className={cn('rounded border px-1.5 py-0.5 text-[10px] font-bold', STATUS_LOOK[key])}>{label}</span>
+                <span key={key} className={cn('rounded border px-1.5 py-0.5 text-[12px] font-bold', STATUS_LOOK[key])}>{label}</span>
               ))}
             </div>
           ) : (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold text-fg-subtle">색 = 과목 · 과목 없으면 종류</span>
+              <span className="text-[12px] font-bold text-fg-subtle">색 = 과목 · 과목 없으면 종류</span>
               {Array.from(entries, ([key, occ]) => (
                 <span key={key} style={eventColorStyle(colorOf(occ))}
-                  className={`overflow-hidden rounded border py-0.5 pl-2 pr-1.5 text-[10px] font-bold ${styles.subject}`}>
+                  className={`overflow-hidden rounded border py-0.5 pl-2 pr-1.5 text-[12px] font-bold ${styles.subject}`}>
                   {(occ.subKey ? subName?.(occ) : kindName?.(occ)) ?? occ.title ?? kindName?.(occ) ?? '코드 정보 없음'}
                 </span>
               ))}
             </div>
           )}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-fg-subtle">테두리 = 어디서</span>
-            <span className="rounded border border-solid border-fg-subtle px-1.5 py-0.5 text-[10px]">현장</span>
-            <span className={`rounded border border-dashed border-fg-subtle px-1.5 py-0.5 text-[10px] ${styles.online}`}>온라인</span>
+            <span className="text-[12px] font-bold text-fg-subtle">테두리 = 어디서</span>
+            <span className="rounded border border-solid border-fg-subtle px-1.5 py-0.5 text-[12px]">현장</span>
+            <span className={`rounded border border-dashed border-fg-subtle px-1.5 py-0.5 text-[12px] ${styles.online}`}>온라인</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-fg-subtle">취소</span>
-            <span className="rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-fg line-through">취소된 수업</span>
+            <span className="text-[12px] font-bold text-fg-subtle">취소</span>
+            <span className="rounded border border-line px-1.5 py-0.5 text-[12px] font-medium text-fg line-through">취소된 수업</span>
             {/* 블록과 같은 모양 클래스 — 사유는 서버의 휴강 사유(cancelKind), 휴원은 명단의 paused 다 */}
-            <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-fg ${styles.cancelStudent}`}>학생 결강</span>
-            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium text-fg ${styles.cancelAcademy}`}>학원 취소</span>
-            <span className={`rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-fg ${styles.paused}`}>휴원</span>
+            <span className={`rounded border border-line px-1.5 py-0.5 text-[12px] font-medium text-fg ${styles.cancelStudent}`}>학생 결강</span>
+            <span className={`rounded border px-1.5 py-0.5 text-[12px] font-medium text-fg ${styles.cancelAcademy}`}>학원 취소</span>
+            <span className={`rounded border border-line px-1.5 py-0.5 text-[12px] font-medium text-fg ${styles.paused}`}>휴원</span>
             {/* 격자의 불가 띠와 같은 클래스 — 「가능 시간」을 켰을 때만 격자가 그리므로 그때만 적는다 */}
-            {unavOn ? <span data-legend-unav className={`rounded px-1.5 py-0.5 text-[10px] ${styles.unavBand}`}>강사 불가</span> : null}
+            {unavOn ? <span data-legend-unav className={`rounded px-1.5 py-0.5 text-[12px] ${styles.unavBand}`}>강사 불가</span> : null}
           </div>
           {/* 블록 오른쪽 위 점 — 찬 점은 그날 명단, 빈 점은 남은 자리 (원문 「●●○ 정원 · 여석」) */}
           <div className="flex items-center gap-1.5">
@@ -87,14 +87,14 @@ export function Legend({ items, colorOf, subName, kindName, display = 'schedule'
               <span className="size-[6px] rounded-full bg-current" />
               <span className="size-[6px] rounded-full border border-current" />
             </span>
-            <span className="text-[11px] font-bold text-fg-subtle">정원 · 여석</span>
+            <span className="text-[12px] font-bold text-fg-subtle">정원 · 여석</span>
           </div>
           {/* 원문 「[미작성] 리포트」 — 끝났는데 리포트가 없는 수업의 블록 배지와 같은 낱말·색 */}
           <div data-legend-unwritten className="flex items-center gap-1.5">
-            <span className={cn('rounded-sm px-1 text-[10px] font-bold leading-[14px]', UNWRITTEN_BADGE.look)}>{UNWRITTEN_BADGE.label}</span>
-            <span className="text-[11px] font-bold text-fg-subtle">리포트</span>
+            <span className={cn('rounded-sm px-1 text-[12px] font-bold leading-[14px]', UNWRITTEN_BADGE.look)}>{UNWRITTEN_BADGE.label}</span>
+            <span className="text-[12px] font-bold text-fg-subtle">리포트</span>
           </div>
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-[12px] text-fg-subtle">
             블록에 마우스를 올리면 전체 정보 · 끌면 이동 · 한 번 누르면 선택 · 두 번 누르면 수업 상세
           </span>
         </>

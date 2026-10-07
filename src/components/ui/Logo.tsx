@@ -62,7 +62,7 @@ export function Logo({
         return org ? (
           <span className="flex flex-col">
             {name}
-            <span className={cn('text-[11px] font-medium leading-4', onDark ? 'text-line-2' : 'text-fg-subtle')}>{org}</span>
+            <span className={cn('text-[12px] font-medium leading-4', onDark ? 'text-line-2' : 'text-fg-subtle')}>{org}</span>
           </span>
         ) : name;
       })() : null}

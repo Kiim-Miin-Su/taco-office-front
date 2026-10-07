@@ -162,7 +162,7 @@ function SuggestionReplyAction({ row, busy, error, onReply }: {
         error={short}
         onChange={(event) => setReply(event.currentTarget.value)}
       />
-      {short ? <p id={`suggestion-reply-${row.id}-error`} className="mt-1 text-[11px] font-bold text-red">답변은 15자 이상 적어 주세요.</p> : null}
+      {short ? <p id={`suggestion-reply-${row.id}-error`} className="mt-1 text-[12px] font-bold text-red">답변은 15자 이상 적어 주세요.</p> : null}
       <div className="mt-2 flex justify-end gap-1">
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => { setEditing(false); setReply(''); }}>취소</Button>
         <Button size="sm" variant="primary" disabled={busy || value.length < 15}
@@ -206,7 +206,7 @@ function ApList({ rows, onGo, onReview, busy, canReplySuggestions, onSuggestionR
             >
               <ApprovalRowContent row={r} variant="inbox" />
               {r.actBlockedReason ? (
-                <p className="mt-1 text-[11px] text-fg-subtle">{r.actBlockedReason}</p>
+                <p className="mt-1 text-[12px] text-fg-subtle">{r.actBlockedReason}</p>
               ) : null}
             </Link>
           )}
@@ -377,7 +377,7 @@ type TodoRowItem = Pick<DrawerTodo, 'id' | 'title' | 'done' | 'src' | 'srcLabel'
  * 회차가 투영에서 사라졌으면 서버가 go 를 비운다 — 이름만 서고 없는 회차로 보내지 않는다.
  */
 function TodoLessonChip({ lesson }: { lesson: TodoLesson }) {
-  const look = 'inline-flex shrink-0 items-center gap-1.5 rounded-md bg-inset px-2 py-0.5 text-[11px] font-bold text-fg-2';
+  const look = 'inline-flex shrink-0 items-center gap-1.5 rounded-md bg-inset px-2 py-0.5 text-[12px] font-bold text-fg-2';
   const body = (
     <>
       <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: lesson.color ?? 'var(--fg-subtle)' }} />
@@ -420,13 +420,13 @@ export function TodoRows({ items, busy, onToggle, onEdit, layout = 'drawer' }: {
             {t.lesson ? <TodoLessonChip lesson={t.lesson} /> : null}
             <span className="flex shrink-0 items-baseline gap-1.5">
               <b className="text-[12px] text-fg">{t.toName ?? '미배정'}</b>
-              <span className="text-[11px] text-fg-subtle">{t.fromName ?? '—'} 지시</span>
+              <span className="text-[12px] text-fg-subtle">{t.fromName ?? '—'} 지시</span>
             </span>
             {/* 원문 §64 「고치기」 — 흰 바탕 · 붉은 글자 · 옅은 붉은 테두리(서랍의 되돌리기 어려운 쪽과 같은 모양) */}
             {onEdit ? <Button size="sm" className={DANGER_OUTLINE} disabled={busy} onClick={() => onEdit(t.id)} aria-label={`${t.title} 기한 고치기`}>고치기</Button> : null}
             {/* 「원본」 — 서버가 지은 주소 그대로(W11 A' 후속 2). 수업 할 일은 연결 수업 칩이 같은 주소라 한 번만 세운다 */}
             {t.go && t.go !== t.lesson?.go ? (
-              <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
+              <Link href={t.go} className="shrink-0 text-[12px] font-bold text-blue hover:underline">원본</Link>
             ) : null}
           </li>
         ))}
@@ -434,7 +434,7 @@ export function TodoRows({ items, busy, onToggle, onEdit, layout = 'drawer' }: {
     );
   }
   return items.length === 0 ? (
-    <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[11px] text-fg-subtle">할 일 없음</p>
+    <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-[12px] text-fg-subtle">할 일 없음</p>
   ) : (
     <ul className="flex flex-col gap-1.5">
       {items.map((t) => (
@@ -449,7 +449,7 @@ export function TodoRows({ items, busy, onToggle, onEdit, layout = 'drawer' }: {
             <p className={`text-[12px] font-bold ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>
               {t.title}
             </p>
-            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-fg-subtle">
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-fg-subtle">
               <span className={`h-2 w-2 rounded-full ${TODO_SOURCE_DOT[t.src] ?? 'bg-line'}`} aria-hidden />
               <span>{t.srcLabel}</span>
               <span>· {t.fromName ?? '—'} → {t.toName ?? '—'}</span>
@@ -458,7 +458,7 @@ export function TodoRows({ items, busy, onToggle, onEdit, layout = 'drawer' }: {
           </div>
           {onEdit ? <Button size="sm" disabled={busy} onClick={() => onEdit(t.id)} aria-label={`${t.title} 기한 고치기`}>고치기</Button> : null}
           {t.go ? (
-            <Link href={t.go} className="shrink-0 text-[11px] font-bold text-blue hover:underline">원본</Link>
+            <Link href={t.go} className="shrink-0 text-[12px] font-bold text-blue hover:underline">원본</Link>
           ) : null}
         </li>
       ))}
@@ -527,7 +527,7 @@ export function TodosPane({ todos, members, meId, box, onBox, onToggle, onCreate
         />
         <div className="ml-auto flex items-center gap-1">
           <Button size="sm" aria-label="이전 기간" onClick={() => setAnchor(stepTodoPeriod(period, anchor, -1))}>‹</Button>
-          <span className="min-w-[150px] text-center text-[11px] font-bold text-fg">{todoPeriodLabel(period, anchor)}</span>
+          <span className="min-w-[150px] text-center text-[12px] font-bold text-fg">{todoPeriodLabel(period, anchor)}</span>
           <Button size="sm" aria-label="다음 기간" onClick={() => setAnchor(stepTodoPeriod(period, anchor, 1))}>›</Button>
           <Button size="sm" onClick={() => setAnchor(todayKst())}>오늘</Button>
         </div>
@@ -687,7 +687,7 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
                   <div className="min-w-0 flex-1">
                     <p className="text-[13.5px] font-bold text-fg">{n.title ?? n.body}</p>
                     {n.title ? <p className="mt-0.5 text-[12.5px] font-bold text-fg-2">{n.body}</p> : null}
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] font-bold text-fg-subtle">
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px] font-bold text-fg-subtle">
                       <span>
                         {[n.categoryLabel, n.fromName ?? '시스템', n.fromRoleLabel, n.at.slice(11, 16)].filter(Boolean).join(' · ')}
                       </span>
@@ -735,7 +735,7 @@ export function NotisPane({ notis, categories, meId, windowDays, olderCount, onR
         ) : olderCount > 0 ? (
           <Button size="sm" disabled={busy} onClick={() => onWiden(true)}>예전 알림 {olderCount}건도 보기</Button>
         ) : null}
-        <span className="text-[11px] text-fg-subtle">
+        <span className="text-[12px] text-fg-subtle">
           {widened
             ? '보관된 전부를 보고 있습니다.'
             : `최근 ${windowDays}일만 보입니다 — 예전 것은 지운 것이 아니라 접어 둔 것입니다.`}
@@ -876,7 +876,7 @@ export function MembersPane({
                 <span className={`text-[12px] font-bold ${m.active ? 'text-fg' : 'text-fg-subtle line-through'}`}>
                   {m.name}
                 </span>
-                <span className="text-[11px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
+                <span className="text-[12px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
                 {/* 직함은 컷의 묶음 이름이 있던 자리다 — 묶음으로 못 옮기는 대신 줄에 남긴다 */}
                 {m.title ? <Chip size="compact" tone="neutral">{m.title}</Chip> : null}
                 {/* W8 — 계정 상태는 서버 값 그대로: 첫 설정을 안 끝낸 계정 · 사용 중지된 계정 */}
@@ -893,7 +893,7 @@ export function MembersPane({
                   <>
                     {/* 줄이 없는 강사는 「시급 없음」이라 적지 않는다 — 단추만 서고 첫 줄은 창에서 적는다 */}
                     {m.wageRate != null ? (
-                      <span className="text-[11px] tabular-nums text-fg-2">시급 {won(m.wageRate)}{m.wageFrom ? ` · ${m.wageFrom} 부터` : ''}</span>
+                      <span className="text-[12px] tabular-nums text-fg-2">시급 {won(m.wageRate)}{m.wageFrom ? ` · ${m.wageFrom} 부터` : ''}</span>
                     ) : null}
                     <WageChangeButton member={m} />
                   </>
@@ -1117,7 +1117,7 @@ export function ChangeReqForm({
             <Checkbox label="24:00 (자정에 종료)" checked={endsAtMidnight}
               onChange={(e) => set('endMin', e.target.checked ? '1440' : '')} />
           </div>
-          {timeIssue ? <p className="col-span-2 text-[11px] text-red">{timeIssue}</p> : null}
+          {timeIssue ? <p className="col-span-2 text-[12px] text-red">{timeIssue}</p> : null}
         </div>
       ) : null}
 
@@ -1254,7 +1254,7 @@ export function ChangeReqsPane({ rows, onCreate }: {
       {shown.some((c) => c.rejectReason) ? (
         <ul className="mt-3 flex flex-col gap-1.5">
           {shown.filter((c) => c.rejectReason).map((c) => (
-            <li key={c.id} className="rounded bg-red/5 px-2 py-1 text-[11px] text-red">
+            <li key={c.id} className="rounded bg-red/5 px-2 py-1 text-[12px] text-red">
               #{c.id} {c.onDate} — {c.rejectReason}
             </li>
           ))}
@@ -1283,7 +1283,7 @@ function ZoomCount({ label: name, value, note }: { label: string; value: ReactNo
     <div className="rounded-lg border border-line bg-card px-3 py-3 text-center">
       <strong className="block text-[24px] leading-none text-fg">{value}</strong>
       <span className="mt-1.5 block text-[12px] font-bold text-fg-2">{name}</span>
-      {note ? <span className="mt-0.5 block text-[10.5px] text-fg-subtle">{note}</span> : null}
+      {note ? <span className="mt-0.5 block text-[12px] text-fg-subtle">{note}</span> : null}
     </div>
   );
 }

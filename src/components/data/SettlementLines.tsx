@@ -40,7 +40,7 @@ export function SettlementLines({ lines }: { lines: SettlementLine[] }) {
                 {l.label}
               </div>
               {l.detail ? (
-                <div className={cn('mt-0.5 text-[10.5px]', total ? 'text-line-2' : cut ? 'text-red' : 'text-fg-subtle')}>
+                <div className={cn('mt-0.5 text-[12px]', total ? 'text-line-2' : cut ? 'text-red' : 'text-fg-subtle')}>
                   {l.detail}
                 </div>
               ) : null}

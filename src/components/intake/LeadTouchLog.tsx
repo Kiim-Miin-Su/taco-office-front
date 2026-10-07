@@ -94,7 +94,7 @@ export function LeadTouchLog({ lead, kinds, onDone, defaultAdding = false }: Lea
               <Chip tone="neutral" size="compact">{t.kindLabel}</Chip>
               <span className="text-fg">{t.note}</span>
               {t.nextOn ? <span className="text-fg-subtle">→ {t.nextOn.slice(5).replace('-', '/')}</span> : null}
-              <span className="ml-auto text-[11px] text-fg-subtle">{t.byName ?? '—'} · {touchAtLabel(t.at)}</span>
+              <span className="ml-auto text-[12px] text-fg-subtle">{t.byName ?? '—'} · {touchAtLabel(t.at)}</span>
             </li>
           ))}
         </ul>

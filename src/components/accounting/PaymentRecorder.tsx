@@ -111,7 +111,7 @@ export function PaymentRecorder({ invoices, payments, initialInvId = null }: {
                     </span>
                     <span className="shrink-0 text-[12px] font-bold text-fg">{won(i.amount)}</span>
                   </span>
-                  <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-fg-subtle">
+                  <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-fg-subtle">
                     <span className="min-w-0 grow truncate">{i.title}</span>
                     {i.state === 'partial' ? <Chip size="compact" tone="warning">일부 {won(i.paidAmount)}</Chip> : null}
                     {i.overdueDays > 0 ? <Chip size="compact" tone="danger">연체 {i.overdueDays}일</Chip> : null}
@@ -134,15 +134,15 @@ export function PaymentRecorder({ invoices, payments, initialInvId = null }: {
           <>
             <div className="mb-3 grid grid-cols-3 gap-2 rounded-lg border border-line bg-inset px-3 py-2.5 text-center">
               <span>
-                <span className="block text-[11px] text-fg-subtle">청구</span>
+                <span className="block text-[12px] text-fg-subtle">청구</span>
                 <b className="text-[13.5px] text-fg">{won(picked.amount)}</b>
               </span>
               <span>
-                <span className="block text-[11px] text-fg-subtle">누계</span>
+                <span className="block text-[12px] text-fg-subtle">누계</span>
                 <b className="text-[13.5px] text-fg">{won(picked.paidAmount)}</b>
               </span>
               <span>
-                <span className="block text-[11px] text-fg-subtle">남은 금액</span>
+                <span className="block text-[12px] text-fg-subtle">남은 금액</span>
                 <b className={`text-[13.5px] ${picked.remaining === 0 ? 'text-fg-subtle' : 'text-red'}`}>
                   {won(picked.remaining)}
                 </b>
@@ -170,8 +170,8 @@ export function PaymentRecorder({ invoices, payments, initialInvId = null }: {
                   <li key={p.id} className="flex items-center gap-3 rounded-lg border border-line bg-card px-3 py-2">
                     <span className="w-24 shrink-0 text-[12px] font-bold text-fg">{p.paidOn ?? '미확인'}</span>
                     <span className="w-24 shrink-0 text-right text-[12.5px] font-bold text-fg">{won(p.amount, { empty: '미확인' })}</span>
-                    <span className="w-12 shrink-0 text-[11.5px] text-fg-subtle">{p.method ? (METHOD_LABEL[p.method as PayMethod] ?? p.method) : '—'}</span>
-                    <span className="min-w-0 grow truncate text-[11.5px] text-fg-subtle">{p.reason ?? ''}</span>
+                    <span className="w-12 shrink-0 text-[12px] text-fg-subtle">{p.method ? (METHOD_LABEL[p.method as PayMethod] ?? p.method) : '—'}</span>
+                    <span className="min-w-0 grow truncate text-[12px] text-fg-subtle">{p.reason ?? ''}</span>
                     {picked.state === 'paid' ? null : (
                       <Button
                         size="sm"

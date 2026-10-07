@@ -128,9 +128,9 @@ function PrepLine({ row, glyph }: { row: PrepRow; glyph?: '▶' | '▼' }) {
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-[13px] font-bold text-fg">{row.label}</span>
         {/* 부제도 서버의 낱말이다 — 「1명 / 정원 4명 · 이담흔」 (D-R18) */}
-        {row.detail ? <span className="truncate text-[11.5px] text-fg-2" title={row.detail}>{row.detail}</span> : null}
+        {row.detail ? <span className="truncate text-[12px] text-fg-2" title={row.detail}>{row.detail}</span> : null}
       </span>
-      {glyph ? <span aria-hidden className="shrink-0 text-[10px] text-fg-subtle">{glyph}</span> : null}
+      {glyph ? <span aria-hidden className="shrink-0 text-[12px] text-fg-subtle">{glyph}</span> : null}
     </>
   );
 }
@@ -367,7 +367,7 @@ export function LessonDetail({
                 </Chip>
               </>
             ) : null}
-            {s.droppedOnce ? <span className="text-[11px] text-fg-subtle">그날 빠짐</span> : null}
+            {s.droppedOnce ? <span className="text-[12px] text-fg-subtle">그날 빠짐</span> : null}
             {/* 휴원 중 — 명단에 남되 그날 인원·청구에서 빠진다. 기간·복귀는 오른쪽 학생 카드에서 (C92-c) */}
             {s.paused ? <Chip tone="warning">휴원</Chip> : null}
             {s.late ? <Chip tone="warning" title="출석은 유지되고 이 회차 지각으로 기록되었습니다">지각</Chip> : null}
@@ -411,7 +411,7 @@ export function LessonDetail({
               ))}
             </div>
             {candidates.length > ROSTER_CANDIDATE_MAX ? (
-              <p className="text-[11px] text-fg-subtle">
+              <p className="text-[12px] text-fg-subtle">
                 외 {candidates.length - ROSTER_CANDIDATE_MAX}명 — 이름으로 좁혀 주세요
               </p>
             ) : null}
@@ -427,7 +427,7 @@ export function LessonDetail({
       {canEdit ? (
         <Banner tone="success" className="self-start">
           <b>넣거나 빼면 함께 일어납니다</b>
-          <ul className="mt-1 list-disc pl-4 text-[11.5px] leading-relaxed">
+          <ul className="mt-1 list-disc pl-4 text-[12px] leading-relaxed">
             <li>학생 시간표에 이 수업이 바로 들어가거나 빠집니다</li>
             <li>수업 안내와 교재 배정이 필요하면 물어봅니다</li>
             <li>정원이 바뀌면 1인 단가가 다시 계산됩니다</li>

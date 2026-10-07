@@ -96,7 +96,7 @@ it('A27 계좌 입력은 기존 학생·강사 projection만 대상으로 쓰고
   expect(accountNo.autocomplete).toBe('new-password');
   expect(view.getByText('저장 후 표시 예시 · **** 7890')).toBeTruthy();
   expect(view.container.textContent).not.toContain('123-456-7890');
-  expect((view.getByRole('button', { name: '암호화 저장 계약 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole('button', { name: '암호화 저장 기능 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
 
   fireEvent.click(within(view.getByRole('group', { name: '계좌 용도' })).getByRole('button', { name: '학생 환불' }));
   expect((view.getByLabelText('대상 학생') as HTMLSelectElement).value).toBe('');
@@ -113,11 +113,11 @@ it('?tab=accounts는 권한·암호화·마스킹·CRUD·실패 경계를 읽고
   await waitFor(() => expect(view.getByRole('heading', { name: '계좌 — 학생 환불 · 강사 지급' })).toBeTruthy());
 
   expect(view.getByText(/대표와 계좌 권한을 받은 회계 담당자만/)).toBeTruthy();
-  expect(view.getByText(/전용 조회 DTO가 없어 저장 계좌를 표시하지 않습니다/)).toBeTruthy();
+  expect(view.getByText(/전용 조회 기능이 준비되기 전에는 저장 계좌를 표시하지 않습니다/)).toBeTruthy();
   for (const field of [
-    '암호문 · key version · 마지막 4자리', 'canRead · canWrite · canReveal',
-    'create · update · delete version', 'actual actor · requestKey · 감사',
-    '지급·환불 원장 참조 · 마스킹 snapshot', '키 누락·복호화 실패 시 fail-closed',
+    '암호화 값 · 암호화 키 버전 · 마지막 4자리', '조회 · 저장 · 원문 확인 권한',
+    '생성 · 수정 · 삭제 변경 이력', '실제 처리자 · 중복 제출 방지 · 감사',
+    '지급·환불 원장 연결 · 마스킹 기록', '암호화 키 누락·복호화 실패 시 접근 차단',
   ]) expect(view.getByText(field)).toBeTruthy();
   expect(view.queryByLabelText(/주민등록번호/)).toBeNull();
 

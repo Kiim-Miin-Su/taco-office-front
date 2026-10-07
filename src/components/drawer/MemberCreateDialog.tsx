@@ -143,7 +143,7 @@ export function MemberCreateButton({
               <Input id={`${id}-name`} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} disabled={pending} autoComplete="off" />
             </div>
             <div>
-              <Label htmlFor={`${id}-title`} hint="권한과 무관 (D-R39)">직함</Label>
+              <Label htmlFor={`${id}-title`} hint="직함은 접근 권한을 바꾸지 않습니다">직함</Label>
               <Input id={`${id}-title`} value={title} maxLength={20} onChange={(e) => setTitle(e.target.value)} disabled={pending} placeholder="영어 · 코디네이터" />
             </div>
           </div>
@@ -161,7 +161,7 @@ export function MemberCreateButton({
             </div>
           </div>
           {loginIdRule || tempPasswordRule ? (
-            <div className="-mt-1 flex flex-col gap-0.5 text-[11px] text-fg-subtle">
+            <div className="-mt-1 flex flex-col gap-0.5 text-[12px] text-fg-subtle">
               {loginIdRule ? <p>아이디: {loginIdRule}</p> : null}
               {tempPasswordRule ? <p>{tempPasswordRule}</p> : null}
             </div>
@@ -195,7 +195,7 @@ export function MemberCreateButton({
             </div>
           ) : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
-          <p className="text-[11px] text-fg-subtle">만들면 넘겨줄 아이디와 임시 비밀번호를 한 번 보여 드립니다 — 창을 닫으면 비밀번호는 다시 볼 수 없습니다.</p>
+          <p className="text-[12px] text-fg-subtle">만들면 넘겨줄 아이디와 임시 비밀번호를 한 번 보여 드립니다 — 창을 닫으면 비밀번호는 다시 볼 수 없습니다.</p>
         </div>
         )}
       </Dialog>

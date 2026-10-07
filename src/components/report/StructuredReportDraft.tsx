@@ -294,7 +294,7 @@ function MaterialFields({ id, label, value, books, requireAmount, inspected, onC
     <section aria-labelledby={`${id}-title`} className="rounded-xl border border-line bg-card p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id={`${id}-title`} className="text-[13px] font-bold text-fg">{label}</h3>
-        <span className="text-[10px] text-fg-subtle">교재 정식 이름 · 쪽 범위{requireAmount ? ' · 분량' : ''}</span>
+        <span className="text-[12px] text-fg-subtle">교재 정식 이름 · 쪽 범위{requireAmount ? ' · 분량' : ''}</span>
       </div>
       {books.length ? (
         <div role="group" aria-label={`${label} 교재`} className="mt-2 flex flex-wrap gap-2">
@@ -304,10 +304,10 @@ function MaterialFields({ id, label, value, books, requireAmount, inspected, onC
               {book.title}{book.edition ? ` · ${book.edition}` : ''}
             </Button>
           ))}
-          <Button size="sm" className="min-h-11" disabled title="교재·자료 등록 DTO 연결 후 활성화">＋ 새 교재·자료 추가 준비 중</Button>
+          <Button size="sm" className="min-h-11" disabled title="교재·자료 등록 기능이 준비된 뒤 사용할 수 있습니다">＋ 새 교재·자료 추가 준비 중</Button>
         </div>
       ) : (
-        <p className="mt-2 text-[11px] font-bold text-amber">배부 교재를 찾지 못했습니다. 교재 identity 계약이 연결되기 전에는 쪽 범위를 저장할 수 없습니다.</p>
+        <p className="mt-2 text-[12px] font-bold text-amber">배부 교재를 찾지 못했습니다. 교재를 정확히 연결하는 기능이 준비되기 전에는 쪽 범위를 저장할 수 없습니다.</p>
       )}
       <div className={`mt-3 grid grid-cols-1 gap-3 ${requireAmount ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
@@ -330,7 +330,7 @@ function MaterialFields({ id, label, value, books, requireAmount, inspected, onC
           </div>
         ) : null}
       </div>
-      {inspected && issue ? <p role="alert" className="mt-2 text-[11px] font-bold text-red">{issue}</p> : null}
+      {inspected && issue ? <p role="alert" className="mt-2 text-[12px] font-bold text-red">{issue}</p> : null}
     </section>
   );
 }
@@ -392,7 +392,7 @@ function DevelopmentDraft({ kind, value, inspected, onChange }: {
             <Segmented ariaLabel={`${area.label} 평가`} className="mt-2 flex w-full [&>button]:min-h-11 [&>button]:grow"
               options={[...DEVELOPMENT_LEVELS]} value={row.level}
               onChange={(level) => onChange({ ...value, development: { ...value.development, [area.key]: { ...row, level } } })} />
-            {inspected && !row.level ? <p role="alert" className="mt-1 text-[11px] font-bold text-red">평가 단계를 선택해 주세요.</p> : null}
+            {inspected && !row.level ? <p role="alert" className="mt-1 text-[12px] font-bold text-red">평가 단계를 선택해 주세요.</p> : null}
             <div className="mt-3">
               <Label htmlFor={`structured-${area.key}-observation`} hint="30자 이상">관찰</Label>
               <CountedTextarea id={`structured-${area.key}-observation`} min={30} showError={inspected}
@@ -422,7 +422,7 @@ function ScoreInput({ id, label, value, inspected, onChange }: {
       <Label htmlFor={id}>{label}</Label>
       <Input id={id} type="number" inputMode="numeric" min={0} max={100} step={1} value={value} error={Boolean(issue)}
         aria-invalid={Boolean(issue)} onChange={(event) => onChange(event.currentTarget.value)} placeholder="0–100" />
-      {issue ? <p role="alert" className="mt-1 text-[11px] font-bold text-red">{issue}</p> : null}
+      {issue ? <p role="alert" className="mt-1 text-[12px] font-bold text-red">{issue}</p> : null}
     </div>
   );
 }
@@ -541,7 +541,7 @@ function ReportPromptPanel({ detail, kind, draft, books }: {
       <header className="flex flex-wrap items-center justify-between gap-2 bg-fg px-4 py-3 text-white">
         <div>
           <h3 id="structured-prompt-title" className="text-[13px] font-bold">리포트 작성용 AI 프롬프트</h3>
-          <p className="mt-0.5 text-[11px] text-white/75">복사해서 AI에 붙여 넣으면 초안이 나옵니다. 이 화면은 외부로 전송하지 않습니다.</p>
+          <p className="mt-0.5 text-[12px] text-white/75">복사해서 AI에 붙여 넣으면 초안이 나옵니다. 이 화면은 외부로 전송하지 않습니다.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {entries.map((entry) => (
@@ -567,7 +567,7 @@ function ReportPromptPanel({ detail, kind, draft, books }: {
         tabIndex={0}
         className="max-h-80 overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-sans text-[12px] leading-relaxed text-fg"
       >{selected.text}</pre>
-      {message ? <p role="status" className={`border-t border-line px-4 py-2 text-[11px] font-bold ${message.ok ? 'text-green' : 'text-red'}`}>{message.text}</p> : null}
+      {message ? <p role="status" className={`border-t border-line px-4 py-2 text-[12px] font-bold ${message.ok ? 'text-green' : 'text-red'}`}>{message.text}</p> : null}
     </section>
   );
 }
@@ -598,7 +598,7 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
   const inspect = () => {
     setInspected(true);
     const issues = draftIssues(kind, detail, draft, bookOptions);
-    setInspectionMessage(issues.length ? `확인할 항목: ${issues.join(' · ')}` : '현재 화면의 필수 입력 검사를 통과했습니다. 서버 저장 계약 연결 후 승인 요청할 수 있습니다.');
+    setInspectionMessage(issues.length ? `확인할 항목: ${issues.join(' · ')}` : '현재 화면의 필수 입력 검사를 통과했습니다. 저장 기능이 준비된 뒤 승인 요청할 수 있습니다.');
   };
 
   return (
@@ -611,7 +611,7 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
             value={draft.language} onChange={(language) => setDraft({ ...draft, language })} />
         </div>
         {autosave.restoredAt !== null && dirty ? (
-          <span className="text-[11px] text-fg-subtle">로컬 초안 복원 · {autosaveStampLabel(autosave.restoredAt)}</span>
+          <span className="text-[12px] text-fg-subtle">로컬 초안 복원 · {autosaveStampLabel(autosave.restoredAt)}</span>
         ) : null}
       </div>
 
@@ -634,15 +634,14 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
       {!invalidKinderCount ? <ReportPromptPanel detail={detail} kind={kind} draft={draft} books={bookOptions} /> : null}
 
       {inspectionMessage ? <Banner tone={inspectionMessage.startsWith('확인할') ? 'danger' : 'success'}>{inspectionMessage}</Banner> : null}
-      <Banner tone="warning" title="구조화 저장 계약 연결 전">
-        이 초안은 현재 브라우저에만 보존됩니다. 학생·교재 identity, 양식 버전, 언어, expectedVersion과 구조화 본문 DTO가 없어
-        기존 content/progress/homework writer로 변환하거나 저장 성공으로 표시하지 않습니다.
+      <Banner tone="warning" title="구조화 저장 기능 준비 중">
+        이 초안은 현재 브라우저에만 보존됩니다. 학생·교재, 양식 버전, 언어, 동시 수정 여부와 구조화 본문을 함께 저장하는 기능이 준비되기 전에는 저장 성공으로 표시하지 않습니다.
       </Banner>
       <div className="flex flex-wrap justify-end gap-2">
         {dirty ? <Button className="min-h-11" onClick={() => { autosave.discard(); setDraft(initial); setInspected(false); setInspectionMessage(null); }}>초안 비우기</Button> : null}
         <Button className="min-h-11" onClick={inspect}>입력 검사</Button>
-        <Button className="min-h-11" disabled title="구조화 DTO/OpenAPI 연결 후 활성화">임시 저장 계약 준비 중</Button>
-        <Button className="min-h-11" variant="success" disabled title="양식 버전·expectedVersion·서버 검증 연결 후 활성화">승인 요청 계약 준비 중</Button>
+        <Button className="min-h-11" disabled title="구조화 저장 기능이 준비된 뒤 사용할 수 있습니다">임시 저장 기능 준비 중</Button>
+        <Button className="min-h-11" variant="success" disabled title="양식 버전·동시 수정 확인 기능이 준비된 뒤 사용할 수 있습니다">승인 요청 기능 준비 중</Button>
       </div>
     </div>
   );

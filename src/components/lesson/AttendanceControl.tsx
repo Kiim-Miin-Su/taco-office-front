@@ -107,7 +107,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
     return (
       <section>
         <h3 className="mb-2 text-[12px] font-bold text-fg">출결</h3>
-        <div className="rounded-lg border border-line bg-inset p-3 text-[11px] text-fg-subtle">
+        <div className="rounded-lg border border-line bg-inset p-3 text-[12px] text-fg-subtle">
           {occ.canceled ? '휴강·취소된 일정에는 출결이 없습니다.' : '수업이 끝난 뒤 출결을 확정할 수 있습니다.'}
         </div>
       </section>
@@ -133,15 +133,15 @@ export function AttendanceControl({ occ, onOpenCancel }: {
                 ? '수업 완료로 확정되었습니다.'
                 : `수업 취소 · ${REASON_LABEL[attendance.reason!]}`}
             </p>
-            <p className="mt-1 text-[11px] text-fg-subtle">
+            <p className="mt-1 text-[12px] text-fg-subtle">
               {attendance.confirmedByName} · {confirmedAt(attendance.confirmedAt)} 확정
             </p>
-            <p className="mt-1 text-[11px] font-bold text-fg-2">
+            <p className="mt-1 text-[12px] font-bold text-fg-2">
               {attendance.countsForPay ? '정산 기준 · 시수·페이에 포함' : '정산 기준 · 시수 0 · 페이 0'}
             </p>
             {attendance.result === 'completed' && attendance.lateStudents?.length ? (
               <div className="mt-2 flex flex-wrap items-center gap-1" aria-label="지각 학생">
-                <span className="mr-1 text-[11px] font-bold text-fg-subtle">지각</span>
+                <span className="mr-1 text-[12px] font-bold text-fg-subtle">지각</span>
                 {attendance.lateStudents.map((student) => (
                   <Chip key={student.studentId} tone="warning" size="compact">{student.studentName}</Chip>
                 ))}
@@ -164,7 +164,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
             ) : null}
           </div>
         ) : (
-          <p className="mt-2 text-[11px] text-fg-subtle">출결 변경은 관리자 이상만 할 수 있습니다.</p>
+          <p className="mt-2 text-[12px] text-fg-subtle">출결 변경은 관리자 이상만 할 수 있습니다.</p>
         )}
         {error && !open ? <div className="mt-3"><ConflictGuard result="blocking" message={error} /></div> : null}
       </div>
@@ -186,11 +186,11 @@ export function AttendanceControl({ occ, onOpenCancel }: {
           </>
         )}
       >
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-[12px] text-fg-subtle">
           {occ.date} · {hhmm(occ.startMin)}–{hhmm(occ.endMin)} · {occ.title ?? occ.kindKey}
         </p>
         {!attendance ? (
-          <div className="mt-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[11px] text-fg-2">
+          <div className="mt-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[12px] text-fg-2">
             종료 시각이 지났지만 아직 확정되지 않았습니다.
           </div>
         ) : null}
@@ -202,7 +202,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
             className={`rounded-lg border p-3 text-left ${result === 'completed' ? 'border-blue bg-blue/5' : 'border-line'}`}
           >
             <span className="text-[12px] font-bold text-fg">완료</span>
-            <span className="mt-1 block text-[11px] text-fg-subtle">시수·페이에 포함됩니다.</span>
+            <span className="mt-1 block text-[12px] text-fg-subtle">시수·페이에 포함됩니다.</span>
           </button>
           <button
             type="button" aria-pressed={result === 'canceled'}
@@ -210,14 +210,14 @@ export function AttendanceControl({ occ, onOpenCancel }: {
             className={`rounded-lg border p-3 text-left ${result === 'canceled' ? 'border-red bg-red/5' : 'border-line'}`}
           >
             <span className="text-[12px] font-bold text-fg">취소</span>
-            <span className="mt-1 block text-[11px] text-fg-subtle">시수 0 · 페이 0의 근거 사유를 남깁니다.</span>
+            <span className="mt-1 block text-[12px] text-fg-subtle">시수 0 · 페이 0의 근거 사유를 남깁니다.</span>
           </button>
         </div>
 
         {result === 'completed' ? (
           <div className="mt-3 rounded-lg border border-line bg-inset p-3">
-            <p className="text-[11px] font-bold text-fg">지각 학생</p>
-            <p className="mt-0.5 text-[10px] text-fg-subtle">출석·청구·강사료 계산은 완료 상태 그대로 유지됩니다.</p>
+            <p className="text-[12px] font-bold text-fg">지각 학생</p>
+            <p className="mt-0.5 text-[12px] text-fg-subtle">출석·청구·강사료 계산은 완료 상태 그대로 유지됩니다.</p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
               {occ.students.map((student) => {
                 const inactive = student.droppedOnce || student.paused;
@@ -237,13 +237,13 @@ export function AttendanceControl({ occ, onOpenCancel }: {
                   />
                 );
               })}
-              {occ.students.length === 0 ? <span className="text-[11px] text-fg-subtle">표시할 학생이 없습니다.</span> : null}
+              {occ.students.length === 0 ? <span className="text-[12px] text-fg-subtle">표시할 학생이 없습니다.</span> : null}
             </div>
           </div>
         ) : null}
 
         {result === 'canceled' ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-inset p-2.5 text-[11px] text-fg-2"
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-inset p-2.5 text-[12px] text-fg-2"
             data-attendance-bill-note>
             <span className="min-w-0 flex-1">
               <b className="text-fg">청구는 휴강 창에서</b> — 출결 취소는 강사료만 정합니다. 학생 청구에서 빼려면 휴강 창에서 사유와 처리를 고릅니다.
@@ -258,7 +258,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
 
         {result === 'canceled' ? (
           <div className="mt-3">
-            <p className="mb-2 text-[11px] font-bold text-fg-subtle">취소 사유</p>
+            <p className="mb-2 text-[12px] font-bold text-fg-subtle">취소 사유</p>
             <div className="flex flex-wrap gap-2">
               {CANCEL_REASONS.map((item) => (
                 <Button
@@ -275,7 +275,7 @@ export function AttendanceControl({ occ, onOpenCancel }: {
           </div>
         ) : null}
         {error ? <div className="mt-3"><ConflictGuard result="blocking" message={error} /></div> : null}
-        <p className="mt-4 text-[10px] text-fg-subtle">확정자·시각과 모든 정정 이력이 기록됩니다.</p>
+        <p className="mt-4 text-[12px] text-fg-subtle">확정자·시각과 모든 정정 이력이 기록됩니다.</p>
       </Dialog>
     </section>
   );

@@ -106,7 +106,7 @@ function shortNames(names: string[]): string {
 }
 
 function Badge({ look, children }: { look: string; children: ReactNode }) {
-  return <span className={cn('max-w-[60%] shrink-0 truncate rounded-sm px-1 text-[9.5px] leading-[14px]', look)}>{children}</span>;
+  return <span className={cn('max-w-[60%] shrink-0 truncate rounded-sm px-1 text-[12px] leading-[14px]', look)}>{children}</span>;
 }
 
 /** 드래그 payload — 페이지의 onDragEnd 가 이 모양만 읽는다 */
@@ -222,7 +222,7 @@ export function EventBlock({
     // 개인표 — 시간대 줄이 둘째다(원문 「14:00 –15:30」: 시작은 굵게, 끝은 작게). 셋째 줄은 그 표에 없는 사람이다
     details.push({
       key: 'time', keep: 0,
-      node: <><span className="text-[11px] font-bold">{hhmm(occ.startMin)}</span> –{hhmm(occ.endMin)}</>,
+      node: <><span className="text-[12px] font-bold">{hhmm(occ.startMin)}</span> –{hhmm(occ.endMin)}</>,
     });
     const who = person === 'student' ? occ.teacherName : names;
     if (who) details.push({ key: 'who', keep: 1, node: who });
@@ -319,7 +319,7 @@ export function EventBlock({
         )}
         aria-pressed={selected}
       >
-        <div className="flex min-w-0 items-center gap-1 text-[11px] font-bold leading-[15px]">
+        <div className="flex min-w-0 items-center gap-1 text-[12px] font-bold leading-[15px]">
           {hideTime || person ? null : <span className="shrink-0">{hhmm(occ.startMin)}</span>}
           <span className="min-w-0 flex-1 truncate">{heading}</span>
           {/* 추가 수업(KIND.extra)은 시간표에서 「추가」로 갈린다 — 판정은 서버의 `extra` 다 (C94-d · C-38) */}
@@ -337,7 +337,7 @@ export function EventBlock({
         </div>
         {details.filter((d) => kept.has(d.key)).map((d) => (
           <div key={d.key} className={cn(
-            'mt-0.5 truncate text-[10px] leading-[12px]',
+            'mt-0.5 truncate text-[12px] leading-[12px]',
             d.key === 'status' ? 'font-bold opacity-90' : d.key === 'teacher' ? 'font-bold opacity-80'
               : d.key === 'memo' ? 'font-bold' : 'opacity-80',
           )}>

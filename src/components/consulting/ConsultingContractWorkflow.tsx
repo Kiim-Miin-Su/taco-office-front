@@ -156,7 +156,7 @@ function StepSection({ title, chip, right, sub, children }: { title: string; chi
         <span className="flex min-w-0 items-center gap-2">
           <h3 className="text-[12.5px] font-bold text-fg-2">{title}</h3>
           {chip ? <Chip tone="success" size="compact">{chip}</Chip> : null}
-          {sub ? <span className="text-[11px] text-fg-subtle">{sub}</span> : null}
+          {sub ? <span className="text-[12px] text-fg-subtle">{sub}</span> : null}
         </span>
         {right}
       </header>
@@ -322,7 +322,7 @@ function ContractActions({ detail, onOpenAccounting }: { detail: ConsultingDetai
       <Button variant="primary" disabled={!detail.capabilities.canAddPayment && !detail.capabilities.canCreateInvoice}
         title={!detail.capabilities.canAddPayment && !detail.capabilities.canCreateInvoice ? '대표의 회계 권한이 필요합니다' : undefined}
         onClick={onOpenAccounting}>수납·청구서 열기</Button>
-      {detail.payment.invoiceId ? <p className="mt-2 text-[11px] text-fg-subtle">청구서 #{detail.payment.invoiceId} 연결됨</p> : null}
+      {detail.payment.invoiceId ? <p className="mt-2 text-[12px] text-fg-subtle">청구서 #{detail.payment.invoiceId} 연결됨</p> : null}
     </StepSection>
   </div>;
 }
@@ -345,7 +345,7 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
       {/* 「회차」는 서버의 「한 회차」(오늘 이하)다 — 앞으로 잡아 둔 날짜는 세지 않는다 (C95 · N-18) */}
       {/* 「받은 돈」은 호박색이다 — 원본 §30 요약 타일 (30-15) */}
       {[['계약 금액', won(detail.amount), ''], ['받은 돈', won(detail.payment.paid), 'text-amber'], ['회차', `${detail.sessionsDone} / ${detail.sessions ?? '—'}회${detail.sessionsPlanned ? ` · 잡힌 ${detail.sessionsPlanned}` : ''}`, ''], ['종료', detail.stage === 'done' && detail.closedByName ? `${detail.endOn ?? '—'} · ${detail.closedByName}` : detail.endOn ?? '—', '']].map(([label, value, tone]) => (
-        <div key={label} className="rounded-lg bg-inset p-3"><p className="text-[10px] font-bold text-fg-subtle">{label}</p><p className={`mt-1 text-[15px] font-bold ${tone}`}>{value}</p></div>
+        <div key={label} className="rounded-lg bg-inset p-3"><p className="text-[12px] font-bold text-fg-subtle">{label}</p><p className={`mt-1 text-[15px] font-bold ${tone}`}>{value}</p></div>
       ))}
     </div>
     {!detail.typeCapability.defaultItemsSupported ? <Banner tone="warning" className="mb-4">{detail.typeCapability.reason ?? '이 유형의 기본 진행 항목은 아직 확정되지 않았습니다.'}</Banner> : null}
@@ -403,7 +403,7 @@ function WorkflowContent({ detail, summary, onClose, onOpenAccounting }: { detai
         {/* 원문 바닥 「지우기」는 테두리 단추 · 빨간 글자다(채움 아님 · W11 재대조) — 확인 창의 「지우기」만 채움 */}
         <Button variant="secondary" className="text-red" disabled={!detail.capabilities.canArchive || archive.isPending}
           title={detail.capabilities.archiveBlockedReason ?? undefined} onClick={() => setConfirmArchive(true)}>지우기</Button>
-        {detail.capabilities.archiveBlockedReason ? <span className="text-[11px] text-fg-subtle">{detail.capabilities.archiveBlockedReason}</span> : null}
+        {detail.capabilities.archiveBlockedReason ? <span className="text-[12px] text-fg-subtle">{detail.capabilities.archiveBlockedReason}</span> : null}
       </span>
       <Button onClick={onClose}>닫기</Button>
     </div>

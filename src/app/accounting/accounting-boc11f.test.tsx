@@ -109,7 +109,7 @@ it('A22 교재 판매는 학생·기존 카탈로그를 연결하되 판매·재
 it('수단별 수수료는 서버 집계·정책 snapshot 전 값을 추정하지 않고 교재·입금 화면으로 이동한다', async () => {
   const view = mount();
   await waitFor(() => expect(view.getByRole('heading', { name: '결제 수단별 정산' })).toBeTruthy());
-  const summary = view.getByRole('region', { name: '결제 수단별 집계 계약' });
+  const summary = view.getByRole('region', { name: '결제 수단별 집계' });
   for (const label of ['건수', '금액 · 비중', '지급수수료', '순수납']) expect(within(summary).getByText(label)).toBeTruthy();
   expect(within(summary).getAllByText('—')).toHaveLength(4);
   expect(view.getByText(/수수료율과 반올림 기준을 화면에서 정하지 않습니다/)).toBeTruthy();

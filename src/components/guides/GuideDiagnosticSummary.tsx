@@ -25,12 +25,12 @@ export function GuideScoreCards({ scores }: { scores: LeadDiag | null | undefine
       <div className="grid grid-cols-3 gap-2">
         {cards.map(([label, value]) => (
           <div key={label} className="rounded-lg border border-line bg-card p-3 text-center">
-            <div className="text-[11px] font-bold text-fg-subtle">{label}</div>
+            <div className="text-[12px] font-bold text-fg-subtle">{label}</div>
             <div className="mt-1 text-[22px] font-bold text-fg">{value ?? '—'}</div>
           </div>
         ))}
       </div>
-      <p className="mt-1.5 text-[11px] text-fg-subtle">
+      <p className="mt-1.5 text-[12px] text-fg-subtle">
         {[scores.takenOn ? `${scores.takenOn} 진단고사` : '진단고사', scores.levelLabel ? `레벨 ${scores.levelLabel}` : null,
           scores.byName ? `${scores.byName} 기록` : null].filter(Boolean).join(' · ')}
       </p>

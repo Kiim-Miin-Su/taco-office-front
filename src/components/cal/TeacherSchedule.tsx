@@ -84,7 +84,7 @@ function ScheduleRow({ occ, upcoming, lookup, onOpen }: {
         aria-label={`${upcoming ? `${label(occ.date)} ` : ''}${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subject} · ${students || '학생 미정'} · ${statusLabel(occ)}`}>
         <span className="flex w-12 shrink-0 flex-col">
           <span className="text-[14px] font-bold text-fg">{hhmm(occ.startMin)}</span>
-          <span className="text-[11px] text-fg-subtle">{hhmm(occ.endMin)}</span>
+          <span className="text-[12px] text-fg-subtle">{hhmm(occ.endMin)}</span>
         </span>
         <span aria-hidden="true" style={{ backgroundColor: 'currentColor' }}
           className={cn('h-9 w-1 shrink-0 rounded', look)} />
@@ -95,9 +95,9 @@ function ScheduleRow({ occ, upcoming, lookup, onOpen }: {
           <span className="mt-1 block break-words text-[12px] text-fg-2">
             {students || '학생 미정'} · {occ.mode === 'online' ? '비대면' : '대면'}
           </span>
-          <span className="mt-1 block break-words text-[11px] text-fg-subtle">{place}</span>
+          <span className="mt-1 block break-words text-[12px] text-fg-subtle">{place}</span>
         </span>
-        <span className={cn('ml-auto shrink-0 rounded-md border px-2 py-1 text-[11px] font-bold', look)}>
+        <span className={cn('ml-auto shrink-0 rounded-md border px-2 py-1 text-[12px] font-bold', look)}>
           {statusLabel(occ)}
         </span>
       </button>
@@ -173,10 +173,10 @@ function CalendarLessonButton({ occ, lookup, onOpen, compact = false }: {
         look,
       )}>
       <span className="flex items-center gap-1.5">
-        <span className="shrink-0 text-[11px] font-bold">{hhmm(occ.startMin)}</span>
+        <span className="shrink-0 text-[12px] font-bold">{hhmm(occ.startMin)}</span>
         <span className={cn('min-w-0 flex-1 truncate text-[12px] font-bold', canceled && 'line-through')}>{subject}</span>
       </span>
-      {!compact ? <span className="mt-0.5 block truncate text-[10px] opacity-80">{students || '학생 미정'} · {statusLabel(occ)}</span> : null}
+      {!compact ? <span className="mt-0.5 block truncate text-[12px] opacity-80">{students || '학생 미정'} · {statusLabel(occ)}</span> : null}
     </button>
   );
 }
@@ -210,7 +210,7 @@ function TeacherWeekCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPick
                 <ul className="flex flex-col gap-1.5 p-2">
                   {lessons.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} /></li>)}
                 </ul>
-              ) : <p className="p-3 text-[11px] text-fg-subtle">수업 없음</p>}
+              ) : <p className="p-3 text-[12px] text-fg-subtle">수업 없음</p>}
             </article>
           );
         })}
@@ -244,7 +244,7 @@ function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPic
               <button type="button" onClick={() => onPickDay(date)} aria-label={`${dayHeadLabel(date)} 오늘 보기`}
                 className="min-h-11 w-full rounded-md px-1 text-left hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue">
                 <span className="flex items-center justify-between gap-1 text-[12px] font-bold text-fg">
-                  <time dateTime={date}>{Number(date.slice(8, 10))}일</time><span className="text-[10px] text-fg-subtle">{lessons.length}건</span>
+                  <time dateTime={date}>{Number(date.slice(8, 10))}일</time><span className="text-[12px] text-fg-subtle">{lessons.length}건</span>
                 </span>
                 <span className="mt-0.5 flex flex-wrap gap-1"><HolidayChips names={holidaysOn.get(date)} /></span>
               </button>
@@ -252,7 +252,7 @@ function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPic
                 {shown.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} compact /></li>)}
               </ul>
               {more > 0 ? (
-                <button type="button" className="mt-1 min-h-11 w-full rounded-md text-[11px] font-bold text-blue hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue"
+                <button type="button" className="mt-1 min-h-11 w-full rounded-md text-[12px] font-bold text-blue hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue"
                   onClick={() => setExpanded((current) => new Set(current).add(date))}>+{more}건 더</button>
               ) : null}
             </article>
@@ -412,14 +412,14 @@ export function TeacherSchedule() {
                     <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-4">
                       <h2 className="text-[16px] font-bold text-fg">{anchor === today ? '오늘' : dayHeadLabel(anchor)} 전체 스케줄</h2>
                       <HolidayChips names={holidaysOn.get(anchor)} />
-                      <span className="ml-auto text-[11px] text-fg-subtle">시간 순</span>
+                      <span className="ml-auto text-[12px] text-fg-subtle">시간 순</span>
                     </div>
                     {model.today.length ? <ul>{model.today.map((occ) => <ScheduleRow key={occurrenceKey(occ)} occ={occ} upcoming={false} lookup={lookup} onOpen={openSchedule} />)}</ul>
                       : <p className="p-6 text-[13px] text-fg-subtle">{anchor === today ? '오늘' : '선택한 날'} 수업이 없습니다.</p>}
                   </section>
                   <section aria-label="다가오는 수업" className="min-w-0 overflow-hidden rounded-xl border border-line bg-card">
                     <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-4">
-                      <h2 className="text-[16px] font-bold text-fg">다가오는 수업</h2><span className="text-[11px] text-fg-subtle">앞으로 7일 · {model.upcoming.length}건</span>
+                      <h2 className="text-[16px] font-bold text-fg">다가오는 수업</h2><span className="text-[12px] text-fg-subtle">앞으로 7일 · {model.upcoming.length}건</span>
                     </div>
                     {model.upcoming.length ? byDate(model.upcoming).map(([date, occs]) => (
                       <div key={date} role="group" aria-label={`${dayHeadLabel(date)} · ${occs.length}건`} className="border-t border-line first:border-t-0">
@@ -442,7 +442,7 @@ export function TeacherSchedule() {
                 <TeacherMonthCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup}
                   onOpen={openSchedule} onPickDay={(date) => navigateCalendar('day', date)} />
               )}
-              <p className="text-[11px] text-fg-subtle">내 스케줄에 배정된 학생만 표시됩니다. 취소·휴강과 출결 취소는 오늘 보기의 건수·시수에서 제외합니다.</p>
+              <p className="text-[12px] text-fg-subtle">내 스케줄에 배정된 학생만 표시됩니다. 취소·휴강과 출결 취소는 오늘 보기의 건수·시수에서 제외합니다.</p>
             </>
           )}
         </div>

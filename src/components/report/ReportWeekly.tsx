@@ -130,10 +130,10 @@ function BundleCard({ bundle, weekOf, onOpenReport, onSend }: {
           </p>
         )}
         {bundle.summary ? (
-          <p className="mt-1 text-[11px] text-fg-subtle">{`${bundle.summary.byName ?? '—'} · ${bundle.summary.at.slice(5, 16).replace('T', ' ')}`}</p>
+          <p className="mt-1 text-[12px] text-fg-subtle">{`${bundle.summary.byName ?? '—'} · ${bundle.summary.at.slice(5, 16).replace('T', ' ')}`}</p>
         ) : null}
         {!bundle.canWriteSummary && bundle.summaryBlockedReason ? (
-          <p className="mt-1 text-[11px] text-fg-subtle">{bundle.summaryBlockedReason}</p>
+          <p className="mt-1 text-[12px] text-fg-subtle">{bundle.summaryBlockedReason}</p>
         ) : null}
         {save.isError ? <Banner tone="danger" className="mt-2"><p role="alert">{apiMessage(save.error)}</p></Banner> : null}
       </div>
@@ -151,12 +151,12 @@ function BundleCard({ bundle, weekOf, onOpenReport, onSend }: {
         </Button>
       </div>
       {!bundle.canSend && bundle.sendBlockedReason ? (
-        <p className="mt-1 text-right text-[11px] text-fg-subtle">{bundle.sendBlockedReason}</p>
+        <p className="mt-1 text-right text-[12px] text-fg-subtle">{bundle.sendBlockedReason}</p>
       ) : null}
       {bundle.plainText ? (
         <details className="mt-2">
           <summary className="cursor-pointer text-[12px] font-bold text-primary">보낼 본문 보기</summary>
-          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-inset p-3 text-[11.5px] text-fg">
+          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-inset p-3 text-[12px] text-fg">
             {bundle.plainText}
           </pre>
         </details>

@@ -65,11 +65,11 @@ export function TeacherNotiDrawer({ open, onClose, shell, me }: {
                 <span className="flex items-center gap-2">
                   {n.read ? null : <span aria-hidden className="size-2 shrink-0 rounded-full bg-red" />}
                   <Chip size="compact">{n.categoryLabel}</Chip>
-                  <span className="ml-auto shrink-0 text-[11px] text-fg-subtle">{shortAt(n.at)}</span>
+                  <span className="ml-auto shrink-0 text-[12px] text-fg-subtle">{shortAt(n.at)}</span>
                 </span>
                 {n.title ? <b className="text-fg">{n.title}</b> : null}
                 <span className={n.title ? 'text-fg-subtle' : 'font-bold'}>{n.body}</span>
-                {n.fromName ? <span className="text-[11px] text-fg-subtle">{n.fromName}</span> : null}
+                {n.fromName ? <span className="text-[12px] text-fg-subtle">{n.fromName}</span> : null}
                 <span className="sr-only">{n.read ? '읽음' : '안 읽음'}</span>
               </button>
             </li>

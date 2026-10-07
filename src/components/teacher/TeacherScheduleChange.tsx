@@ -86,9 +86,9 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
             <Banner tone="info" title="관리자 승인 후 반영">
               변경 요청을 보내도 승인 전에는 원래 일정이 유지됩니다. 관리자가 승인할 때 충돌과 월 마감을 다시 검사합니다.
             </Banner>
-            <Banner tone="warning" title="최신 저장 계약 연결 전">
-              날짜 이동·서버 KST 10일 경계·requestKey/revision을 함께 저장하는 DTO/OpenAPI가 아직 없습니다.
-              초안만 제공하며 기존 변경 요청 writer나 관리자 일정 writer로 우회하지 않습니다.
+            <Banner tone="warning" title="저장 기능 준비 중">
+              날짜 이동·한국 시간 10일 기준·중복 제출·동시 수정을 함께 처리하는 기능을 준비 중입니다.
+              지금은 초안만 제공하며 다른 요청 경로로 대신 저장하지 않습니다.
             </Banner>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="min-w-0">
@@ -104,7 +104,7 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
                 <Input id="teacher-change-end" type="time" step={300} value={end} onChange={(event) => setEnd(event.currentTarget.value)} />
               </div>
             </div>
-            {timeIssue ? <p role="alert" className="text-[11px] text-red">{timeIssue}</p> : null}
+            {timeIssue ? <p role="alert" className="text-[12px] text-red">{timeIssue}</p> : null}
             <div>
               <Label htmlFor="teacher-change-reason">변경 사유</Label>
               <textarea
@@ -118,9 +118,9 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-fg-subtle">{requestReady ? '초안 입력 완료 · 서버 계약 연결 대기' : '날짜 또는 시각을 바꾸고 사유를 입력해 주세요.'}</span>
-              <Button className="ml-auto min-h-11" variant="primary" disabled title="DTO/OpenAPI와 서버의 승인 요청 계약 연결 후 활성화">
-                변경 요청 계약 준비 중
+              <span className="text-[12px] text-fg-subtle">{requestReady ? '초안 입력 완료 · 저장 기능 준비 중' : '날짜 또는 시각을 바꾸고 사유를 입력해 주세요.'}</span>
+              <Button className="ml-auto min-h-11" variant="primary" disabled title="승인 요청 저장 기능이 준비된 뒤 사용할 수 있습니다">
+                변경 요청 기능 준비 중
               </Button>
             </div>
           </>
@@ -129,8 +129,8 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
             <Banner tone="warning" title={days < 0 ? '지난 수업은 건의만 가능합니다' : '10일 미만은 건의로 요청합니다'}>
               이 회차의 원래 날짜와 실제 수업일을 건의에 함께 연결해야 합니다. 관리자가 답변해도 일정은 자동으로 바뀌지 않습니다.
             </Banner>
-            <Banner tone="warning" title="exact 건의 계약 연결 전">
-              기존 건의 DTO는 회차 identity를 구조화해 저장하지 않습니다. 자유 입력 writer에 숨겨 넣지 않고 초안만 보존합니다.
+            <Banner tone="warning" title="수업 연결 기능 준비 중">
+              현재 건의 기능은 원래 회차와 실제 수업일을 함께 저장할 수 없습니다. 지금은 초안만 보존합니다.
             </Banner>
             <div>
               <Label htmlFor="teacher-lesson-suggestion-category">분류</Label>
@@ -158,9 +158,9 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
                 className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-card px-3 text-[13px] font-bold text-fg hover:bg-inset focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">
                 건의 사항 전체 보기
               </Link>
-              <span className="text-[11px] text-fg-subtle">{suggestionReady ? '초안 입력 완료 · exact 계약 연결 대기' : '분류와 내용을 입력해 주세요.'}</span>
-              <Button className="ml-auto min-h-11" variant="primary" disabled title="회차 identity DTO/OpenAPI 연결 후 활성화">
-                건의 계약 준비 중
+              <span className="text-[12px] text-fg-subtle">{suggestionReady ? '초안 입력 완료 · 수업 연결 기능 준비 중' : '분류와 내용을 입력해 주세요.'}</span>
+              <Button className="ml-auto min-h-11" variant="primary" disabled title="수업 회차 연결 기능이 준비된 뒤 사용할 수 있습니다">
+                건의 기능 준비 중
               </Button>
             </div>
           </>

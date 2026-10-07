@@ -110,7 +110,7 @@ export default function ProgramsPage() {
       key: 'p', head: '프로그램', width: 150,
       cell: (r) => {
         const key = subjectProgramKey(r);
-        return key ? (kindName.get(key) ?? key) : <span className="text-fg-subtle">계약 연결 전</span>;
+        return key ? (kindName.get(key) ?? key) : <span className="text-fg-subtle">변경 기능 준비 중</span>;
       },
     },
     { key: 's', head: '순서', width: 70, align: 'right', cell: (r) => r.sort ?? '—' },
@@ -254,9 +254,9 @@ export default function ProgramsPage() {
                 </div>
                 <div><Label htmlFor="s-color">색</Label><Input id="s-color" type="color" value={subForm.color} onChange={(e) => setSubForm({ ...subForm, color: e.target.value })} /></div>
               </div>
-              <Banner tone="info" className="mt-3">과목은 프로그램 하나에 속해야 합니다. 프로그램 저장 계약을 DTO·OpenAPI 단계에서 연결할 때까지 새 과목 저장은 잠겨 있습니다.</Banner>
+              <Banner tone="info" className="mt-3">과목은 프로그램 하나에 속해야 합니다. 프로그램별 과목 저장 기능이 준비될 때까지 새 과목 저장은 잠겨 있습니다.</Banner>
               <div className="mt-3 flex justify-end">
-                <Button disabled>DTO 연결 후 만들기</Button>
+                <Button disabled>저장 기능 준비 중</Button>
               </div>
             </Panel>
 
@@ -265,9 +265,9 @@ export default function ProgramsPage() {
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div><Label htmlFor="se-name">이름</Label><Input id="se-name" maxLength={40} value={editSub.name} onChange={(e) => setEditSub({ ...editSub, name: e.target.value })} /></div>
                   <div>
-                    <Label htmlFor="se-kind" hint="DTO 연결 후 변경">프로그램</Label>
+                    <Label htmlFor="se-kind" hint="변경 기능 준비 중">프로그램</Label>
                     <Select id="se-kind" value={editSub.kindKey ?? ''} disabled>
-                      <option value="">계약 연결 전</option>
+                      <option value="">변경 기능 준비 중</option>
                       {(q.data?.kinds ?? []).map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
                     </Select>
                   </div>

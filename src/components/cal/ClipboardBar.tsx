@@ -28,7 +28,7 @@ export function ClipboardBar({ count, cut, target, pasteDisabled = false, pasteB
       <span aria-hidden className="text-[16px]">📋</span>
       <div className="min-w-0">
         <p className="text-[12px] font-bold text-fg">{count}건 {cut ? '잘라내기' : '복사'}됨</p>
-        <p className="truncate text-[11px] text-fg-subtle">
+        <p className="truncate text-[12px] text-fg-subtle">
           {target ? `붙일 곳 ${target}` : '붙일 빈 칸을 먼저 고르세요'} · Ctrl/⌘ + V 또는 붙여넣기
         </p>
       </div>

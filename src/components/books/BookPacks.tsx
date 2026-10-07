@@ -226,7 +226,7 @@ function BookPackCard({
               <div key={book.id} className="flex flex-wrap items-center gap-1.5">
                 {book.level ? (
                   <span data-level-marker title={level.label}
-                    className={`inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[11px] font-black text-white ${level.bandClass}`}>
+                    className={`inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[12px] font-black text-white ${level.bandClass}`}>
                     {level.marker}
                   </span>
                 ) : null}
@@ -234,7 +234,7 @@ function BookPackCard({
                 {/* 원문 §41 교재 줄의 작은 SE/TE 배지 — 누르면 내려받기 (g4 §41-3 · wave 6) */}
                 <FileDownloadButton id={book.seFileId} label="SE" variant="badge" itemTitle={book.title} />
                 <FileDownloadButton id={book.teFileId} label="TE" variant="badge" tone="violet" itemTitle={book.title} />
-                <span className="font-mono text-[10.5px] text-fg-subtle">{book.code}</span>
+                <span className="font-mono text-[12px] text-fg-subtle">{book.code}</span>
               </div>
             );
           })}
@@ -254,12 +254,12 @@ function BookPackCard({
         </p>
       </div>
       {exportState === 'done' ? (
-        <p className="mt-2 text-[11px] text-green" role="status">
+        <p className="mt-2 text-[12px] text-green" role="status">
           PNG 저장을 시작했습니다.
         </p>
       ) : null}
       {exportState === 'error' ? (
-        <p className="mt-2 text-[11px] text-red" role="alert">
+        <p className="mt-2 text-[12px] text-red" role="alert">
           PNG를 만들지 못했습니다.
         </p>
       ) : null}

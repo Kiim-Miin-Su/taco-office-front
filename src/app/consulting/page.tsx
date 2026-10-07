@@ -110,7 +110,7 @@ export default function ConsultingPage() {
     {
       key: 'a', head: '금액', width: 120, align: 'right',
       cell: (r) => (r.amount === null || r.amount === undefined
-        ? <span className="text-[11px] text-fg-subtle">{MASKED}</span>
+        ? <span className="text-[12px] text-fg-subtle">{MASKED}</span>
         : won(r.amount)),
     },
   ];

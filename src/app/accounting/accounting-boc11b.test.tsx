@@ -82,7 +82,7 @@ it('A24 조정 탭은 최종 PPTX의 입력을 받고 대표 승인 전 청구 �
 
   expect((view.getByLabelText('구분') as HTMLSelectElement).value).toBe('refund');
   expect((view.getByLabelText('학생') as HTMLSelectElement).value).toBe('7');
-  expect((view.getByRole('button', { name: '승인 요청 계약 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole('button', { name: '승인 요청 기능 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
   expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);
 });
 
@@ -90,7 +90,7 @@ it('?tab=adjustments 직접 진입도 같은 초안과 계약 필드를 열고 �
   nav.search = 'tab=adjustments';
   const view = mount();
   await waitFor(() => expect(view.getByRole('heading', { name: '조정 — 환불 · 할인' })).toBeTruthy());
-  for (const field of ['requestKey · expectedVersion', '대표 승인 · 반려 사유', '청구 반영 · 취소 · 되돌리기', 'actual actor · 감사 · 알림']) {
+  for (const field of ['중복 제출 방지 · 동시 수정 확인', '대표 승인 · 반려 사유', '청구 반영 · 취소 · 되돌리기', '실제 처리자 · 변경 이력 · 알림']) {
     expect(view.getByText(field)).toBeTruthy();
   }
   expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);

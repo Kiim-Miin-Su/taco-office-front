@@ -88,7 +88,7 @@ function BonusRuleForm({ slot, today, onClose }: { slot: PayoutBonusSlot | null;
             <Label htmlFor={`${id}-reason`} hint="선택 · 200자">사유</Label>
             <Input id={`${id}-reason`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} disabled={write.isPending} />
           </div>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-[12px] text-fg-subtle">
             새 줄은 그 날짜의 수업부터 붙고 지난 줄은 그대로입니다 — 확정한 달은 바뀌지 않습니다. 0원은 그 날부터 가산을 멈춥니다.
           </p>
           {!slot.applied && slot.note ? <Banner tone="warning">{slot.note}</Banner> : null}
@@ -110,7 +110,7 @@ export function BonusRules() {
       key: 'l', head: '칸', cell: (s) => (
         <span className="flex flex-col">
           <b className="text-fg">{s.label}</b>
-          <span className="text-[11px] text-fg-subtle">{s.hint}</span>
+          <span className="text-[12px] text-fg-subtle">{s.hint}</span>
         </span>
       ),
     },
@@ -120,7 +120,7 @@ export function BonusRules() {
       key: 'n', head: '예약', width: 170,
       cell: (s) => (s.nextAmount === null ? <span className="text-fg-subtle">—</span> : <span>{s.nextFrom}부터 {won(s.nextAmount)}</span>),
     },
-    { key: 'a', head: '셈', cell: (s) => (s.applied ? <Chip size="compact" tone="success">셈에 듦</Chip> : <span className="text-[11px] text-amber">{s.note}</span>) },
+    { key: 'a', head: '셈', cell: (s) => (s.applied ? <Chip size="compact" tone="success">셈에 듦</Chip> : <span className="text-[12px] text-amber">{s.note}</span>) },
     {
       key: 'w', head: '', width: 90, align: 'right',
       cell: (s) => (d?.canWrite ? <Button type="button" size="sm" variant="secondary" onClick={() => setSlot(s)}>새 줄</Button> : null),
@@ -143,7 +143,7 @@ export function BonusRules() {
       {q.isError ? <Banner tone="danger">{apiMessage(q.error)}</Banner> : null}
       <Panel title="가산 규칙" sub={d?.rule ?? '강사료에 더하는 돈 — 칸마다 새 줄로 바꿉니다'}>
         <Table columns={slotCols} rows={d?.slots ?? []} rowKey={slotKey} empty={q.isLoading ? '불러오는 중…' : '칸이 없습니다'} />
-        {d && !d.canWrite ? <p className="mt-2 text-[11px] text-fg-subtle">가산 규칙을 적을 권한이 없습니다 — 보기만 합니다.</p> : null}
+        {d && !d.canWrite ? <p className="mt-2 text-[12px] text-fg-subtle">가산 규칙을 적을 권한이 없습니다 — 보기만 합니다.</p> : null}
       </Panel>
       <Panel title="적은 줄" sub="적용일이 늦은 줄부터 · 지난 줄은 고치지 않습니다">
         <Table columns={ruleCols} rows={d?.rules ?? []} rowKey={(r) => r.id} empty={q.isLoading ? '불러오는 중…' : '적은 줄이 없습니다 — 가산 없이 시급만 셉니다'} />
@@ -173,8 +173,8 @@ export function BonusSummary({ onEdit }: { onEdit?: () => void }) {
           <li key={slotKey(s)} className="flex items-center justify-between gap-3 px-3 py-2">
             <span className="flex min-w-0 flex-col">
               <b className="text-[12.5px] text-fg">{s.label}</b>
-              <span className="text-[11px] text-fg-subtle">{s.hint}</span>
-              {!s.applied && s.note ? <span className="text-[10.5px] text-amber">{s.note}</span> : null}
+              <span className="text-[12px] text-fg-subtle">{s.hint}</span>
+              {!s.applied && s.note ? <span className="text-[12px] text-amber">{s.note}</span> : null}
             </span>
             <b className="shrink-0 text-[13px] text-fg">{s.currentAmount === null ? '없음' : won(s.currentAmount)}</b>
           </li>

@@ -58,7 +58,7 @@ export function ChipButton({
       className={cn('rounded-full disabled:opacity-50', pressed ? 'ring-2 ring-primary ring-offset-1 ring-offset-bg' : '', className)}
     >
       {pressed && pressedTone === 'ink' ? (
-        <span data-chip-pressed="ink" className="inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full bg-fg px-2 text-[11px] font-bold text-card">
+        <span data-chip-pressed="ink" className="inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full bg-fg px-2 text-[12px] font-bold text-card">
           {dot ? <ChipDot color={dot} /> : null}{children}
         </span>
       ) : (

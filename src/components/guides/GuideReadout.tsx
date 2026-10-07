@@ -9,7 +9,7 @@ import type { Guide } from '@/api/types';
 export function GuideBody({ body }: Pick<Guide, 'body'>) {
   return (
     <div className="mt-3 rounded-lg bg-inset p-3">
-      <div className="text-[11px] font-bold text-fg-subtle">안내 본문</div>
+      <div className="text-[12px] font-bold text-fg-subtle">안내 본문</div>
       <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">
         {body ?? '작성된 안내가 없습니다.'}
       </p>
@@ -25,7 +25,7 @@ export function GuideNote({ label, text, tone }: { label: string; text: string |
   const look = tone === 'warning' ? 'border-amber/30 bg-amber/5' : 'border-blue/30 bg-blue/5';
   return (
     <section aria-label={label} className={`rounded-lg border p-3 ${look}`}>
-      <div className="text-[11px] font-bold text-fg-subtle">{label}</div>
+      <div className="text-[12px] font-bold text-fg-subtle">{label}</div>
       <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{text?.trim() ? text : '적지 않음'}</p>
     </section>
   );
@@ -36,7 +36,7 @@ type Timeline = Pick<Guide,
 
 export function GuideTimeline({ guide }: { guide: Timeline }) {
   return (
-    <footer className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-subtle">
+    <footer className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-fg-subtle">
       <span>
         작성 {guide.createdAt.slice(0, 16).replace('T', ' ')}
         {guide.createdByName ? ` · ${guide.createdByName}` : ''}

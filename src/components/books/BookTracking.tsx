@@ -206,7 +206,7 @@ export function BookTracking({
             sub="강사와 과목을 먼저 고른 뒤 학생 학년에 맞는 교재를 선택합니다"
           >
             <Banner tone="warning" className="mb-3">
-              강사·과목까지 함께 저장하는 배정 기능을 준비 중입니다. 선택 정보가 빠진 배부 기록을 만들지 않도록 저장을 잠갔습니다.
+              강사·과목을 함께 저장하는 배정 기능을 준비 중입니다. 선택 정보가 빠진 배부 기록을 만들지 않도록 저장을 잠갔습니다.
             </Banner>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -254,7 +254,7 @@ export function BookTracking({
                   ))}
                 </Select>
                 {selectedStudent && subjectKey && selectableBooks.length === 0 ? (
-                  <p className="mt-1 text-[11px] text-danger">{selectedStudent.grade ?? '학년 미정'}과 이 과목에 맞는 교재가 없습니다.</p>
+                  <p className="mt-1 text-[12px] text-danger">{selectedStudent.grade ?? '학년 미정'}과 이 과목에 맞는 교재가 없습니다.</p>
                 ) : null}
               </div>
               {/* N-62 — 그 학생의 최신 상담 진단 한 줄(읽기만) */}
@@ -346,7 +346,7 @@ export function BookTracking({
             {showTracking ? <Panel title={`트래킹 보드 · 학생 ${d.students.length}명`} sub="교재 안내 미발송 우선 · 학년별 · 학생 이름 순">
               <div className="overflow-x-auto">
                 <div className="min-w-[1120px] space-y-2">
-                  <div className="grid grid-cols-[30px_150px_minmax(300px,1fr)_180px_220px_120px_64px] px-3 text-[11px] font-bold text-fg-subtle">
+                  <div className="grid grid-cols-[30px_150px_minmax(300px,1fr)_180px_220px_120px_64px] px-3 text-[12px] font-bold text-fg-subtle">
                     <span />
                     <span>학생</span>
                     <span>교재</span>
@@ -359,7 +359,7 @@ export function BookTracking({
                     <div key={`grade-${group.grade}`} className="flex items-center gap-2 border-b border-line px-3 pb-1 pt-3">
                       <b>{group.grade}</b>
                       {educationGradeOption(meta.data, group.grade)?.equivalenceHint ? (
-                        <span className="text-[11px] text-fg-subtle">{educationGradeOption(meta.data, group.grade)?.equivalenceHint}</span>
+                        <span className="text-[12px] text-fg-subtle">{educationGradeOption(meta.data, group.grade)?.equivalenceHint}</span>
                       ) : null}
                       <Chip size="compact">{group.students.length}명</Chip>
                     </div>,
@@ -378,7 +378,7 @@ export function BookTracking({
                         </button>
                         <div>
                           <b>{s.name}</b> <Chip size="compact">{s.grade ?? '—'}</Chip>
-                          <p className="mt-1 text-[10px] text-fg-subtle">{s.teacherName ?? '담당 미정'}</p>
+                          <p className="mt-1 text-[12px] text-fg-subtle">{s.teacherName ?? '담당 미정'}</p>
                         </div>
                         <div className="space-y-1">
                           {s.issues.length ? (
@@ -391,7 +391,7 @@ export function BookTracking({
                                     data-level-marker
                                     title={bookLevelPresentation(book?.levelLabel).label}
                                     className={cn(
-                                      'inline-flex h-4 min-w-4 items-center justify-center rounded-[3px] px-0.5 text-[10px] font-bold text-white',
+                                      'inline-flex h-4 min-w-4 items-center justify-center rounded-[3px] px-0.5 text-[12px] font-bold text-white',
                                       bookLevelPresentation(book?.levelLabel).bandClass,
                                     )}
                                   >
@@ -456,7 +456,7 @@ export function BookTracking({
                             <>
                               {/* 원문 「오늘 / 08-21」 — 둘째 줄은 날짜 (g4 §38-5) */}
                               <span>{s.nextLesson.slice(0, 10) === todayKst() ? '오늘' : s.nextLesson.slice(11, 16)}</span>
-                              <p className="text-[10px] text-fg-subtle">{s.nextLesson.slice(5, 10)}</p>
+                              <p className="text-[12px] text-fg-subtle">{s.nextLesson.slice(5, 10)}</p>
                             </>
                           ) : (
                             '예정 없음'
@@ -671,7 +671,7 @@ export function BookTracking({
                         {book.students.map((student) => (
                           <div
                             key={student.studentId}
-                            className="grid grid-cols-[1fr_2fr_44px_36px] items-center gap-2 text-[11px]"
+                            className="grid grid-cols-[1fr_2fr_44px_36px] items-center gap-2 text-[12px]"
                           >
                             <b>{student.name}</b>
                             <div className="h-1.5 rounded bg-inset">

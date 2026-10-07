@@ -47,7 +47,7 @@ function Card({ c, onOpen }: { c: InvBoardCard; onOpen?: (invId: number) => void
       {c.studentTag ? <Chip size="compact" tone="neutral">{c.studentTag}</Chip> : null}
       {c.overdueDays > 0 ? <Chip size="compact" styleKind="solid" tone="danger">연체</Chip> : null}
       {onOpen ? (
-        <button type="button" className="ml-auto shrink-0 text-[11px] font-bold text-fg-2 hover:underline"
+        <button type="button" className="ml-auto shrink-0 text-[12px] font-bold text-fg-2 hover:underline"
           aria-label={`${c.studentName} 청구서 자세히`} onClick={() => onOpen(c.invId)}>
           자세히 ›
         </button>

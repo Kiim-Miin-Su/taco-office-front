@@ -125,7 +125,7 @@ export default function OnboardingPage() {
         <QueryState query={info}>
           {(data) => (
             <>
-              <p className="mt-2 text-[11px] text-fg-subtle">아이디 {data.loginId} — 바뀌지 않습니다</p>
+              <p className="mt-2 text-[12px] text-fg-subtle">아이디 {data.loginId} — 바뀌지 않습니다</p>
               {/* 비밀번호 관리자가 새 비밀번호를 이 아이디에 붙여 저장하게 — 보이지 않는 읽기 전용 칸 */}
               <input type="text" name="username" autoComplete="username" value={data.loginId} readOnly hidden />
 
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
                   id="ob-pw" type="password" value={password} autoComplete="new-password"
                   onChange={(e) => setPassword(e.currentTarget.value)}
                 />
-                <p className="mt-1 text-[11px] text-fg-subtle">{data.passwordRule}</p>
+                <p className="mt-1 text-[12px] text-fg-subtle">{data.passwordRule}</p>
               </div>
               <div className="mt-3">
                 <Label htmlFor="ob-pw2">새 비밀번호 확인</Label>

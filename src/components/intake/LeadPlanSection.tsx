@@ -104,14 +104,14 @@ export function LeadPlanSection({ lead, editable, onDone }: LeadPlanSectionProps
                   {(meta.data?.staff ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Select>
               </div>
-              <button type="button" className="pb-2 text-[11px] text-fg-subtle hover:text-red" disabled={pending} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>줄 빼기</button>
+              <button type="button" className="pb-2 text-[12px] text-fg-subtle hover:text-red" disabled={pending} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>줄 빼기</button>
             </div>
           ))}
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" variant="secondary" disabled={pending || lines.length >= 8} onClick={() => setLines((ls) => [...ls, toDraft()])}>+ 줄</Button>
-            <span className="text-[11px] text-fg-subtle">단가는 단가표에서 붙습니다 · 요일·시각은 학생 등록 뒤 수업 설정에서 잡습니다</span>
+            <span className="text-[12px] text-fg-subtle">단가는 단가표에서 붙습니다 · 요일·시각은 학생 등록 뒤 수업 설정에서 잡습니다</span>
           </div>
-          {issue && lines.length ? <p className="text-[11.5px] text-amber">{issue}</p> : null}
+          {issue && lines.length ? <p className="text-[12px] text-amber">{issue}</p> : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
           <div className="flex items-center gap-2">
             <Button type="button" size="sm" onClick={submit} disabled={pending || issue !== null}>{pending ? '저장 중…' : '저장'}</Button>

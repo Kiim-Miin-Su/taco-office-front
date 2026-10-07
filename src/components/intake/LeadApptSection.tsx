@@ -204,7 +204,7 @@ export function LeadApptSection({ lead, kinds, editable, onDone }: LeadApptSecti
               {(meta.data?.staff ?? []).map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
             </Select>
           </div>
-          {issue ? <p className="text-[11.5px] text-amber">{issue}</p> : null}
+          {issue ? <p className="text-[12px] text-amber">{issue}</p> : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" variant="primary" onClick={submitBook} disabled={busy || issue !== null || !draft.ownerId}
               title={!draft.ownerId ? '담당을 고르면 시간표에 넣습니다' : undefined}>

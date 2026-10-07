@@ -24,8 +24,8 @@ export function KakaoCopyText({ text, className }: { text: string; className?: s
   return (
     <div role="group" aria-label="카카오톡 문구" className={className ?? 'mt-2 flex flex-wrap items-center gap-2'}>
       <Button type="button" size="sm" variant="secondary" onClick={() => void copy()}>카카오톡 문구 복사</Button>
-      <span className="text-[11px] text-fg-subtle">카카오톡으로는 보내지 않습니다 — 글만 복사합니다</span>
-      {said ? <span role="status" className={`text-[11px] ${said.ok ? 'text-green' : 'text-red'}`}>{said.text}</span> : null}
+      <span className="text-[12px] text-fg-subtle">카카오톡으로는 보내지 않습니다 — 글만 복사합니다</span>
+      {said ? <span role="status" className={`text-[12px] ${said.ok ? 'text-green' : 'text-red'}`}>{said.text}</span> : null}
     </div>
   );
 }

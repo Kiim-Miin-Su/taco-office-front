@@ -17,7 +17,7 @@ export function Panel({ title, sub, right, children, className }: {
         <header className="mb-3 flex items-start justify-between gap-3">
           <div>
             {title ? <h2 className="text-[13px] font-bold text-fg">{title}</h2> : null}
-            {sub ? <p className="mt-0.5 text-[11px] text-fg-subtle">{sub}</p> : null}
+            {sub ? <p className="mt-0.5 text-[12px] text-fg-subtle">{sub}</p> : null}
           </div>
           {right ? <div className="flex shrink-0 items-center gap-2">{right}</div> : null}
         </header>
@@ -36,7 +36,7 @@ export function LevelBar({ value, tone = 'blue', label, className }: { value: nu
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
         <div className={cn('h-full rounded-full', bar)} style={{ width: `${pct * 100}%` }} />
       </div>
-      {label ? <span className="shrink-0 text-[10px] font-bold text-fg-subtle">{label}</span> : null}
+      {label ? <span className="shrink-0 text-[12px] font-bold text-fg-subtle">{label}</span> : null}
     </div>
   );
 }

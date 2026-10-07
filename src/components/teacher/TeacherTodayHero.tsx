@@ -78,7 +78,7 @@ export function TeacherTodayHero({ date, lessons, minutes }: {
       {time ? (
         <div data-teacher-clock="" className="ml-auto text-right">
           <p className="text-[24px] font-bold leading-none tabular-nums">{time}</p>
-          {tzLabel ? <p className="mt-1.5 text-[11px] text-line-2">{tzLabel} 기준</p> : null}
+          {tzLabel ? <p className="mt-1.5 text-[12px] text-line-2">{tzLabel} 기준</p> : null}
         </div>
       ) : null}
     </header>

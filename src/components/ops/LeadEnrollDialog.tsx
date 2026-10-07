@@ -270,12 +270,12 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
 
         {/* 배치안 줄 — 줄마다 시간표 규칙 하나 + 등록 한 줄 (+ 교재) */}
         <section aria-label="배치안" className="flex flex-col gap-2">
-          {fromPlanCount ? <p className="text-[11.5px] text-fg-2">상담 배치안 {fromPlanCount}줄이 채워졌습니다 — 요일·시간만 다시 잡으면 됩니다.</p> : null}
+          {fromPlanCount ? <p className="text-[12px] text-fg-2">상담 배치안 {fromPlanCount}줄이 채워졌습니다 — 요일·시간만 다시 잡으면 됩니다.</p> : null}
           {lines.map((l, i) => (
             <div key={l.key} className="rounded-lg border border-line p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[12px] font-bold text-fg">수업 {i + 1}</span>
-                {lines.length > 1 ? <button type="button" className="text-[11px] text-fg-subtle hover:text-red" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} disabled={pending}>줄 빼기</button> : null}
+                {lines.length > 1 ? <button type="button" className="text-[12px] text-fg-subtle hover:text-red" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} disabled={pending}>줄 빼기</button> : null}
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {field('종류', (
@@ -428,7 +428,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
           </section>
         ) : null}
 
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-[12px] text-fg-subtle">
           학생 · 등록 · 시간표 · 첫 달 청구서 · 교재 요청 · 첫 수업 안내 초안 · 알림 · 사후 관리 할 일(해피콜 · 월간 상담)이 <b>한 번에</b> 만들어지고 상담은 「등록」으로 옮겨집니다.
           겹치는 시간이면 서버가 막고 아무것도 남지 않습니다. 미리 본 값 그대로 등록됩니다.
         </p>
@@ -448,7 +448,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
                     ))}
                   </div>
                 ))}
-                <p className="text-[11px]">미리 잡지 않습니다 — 누르면 그 줄의 시각만 바뀌고, 다시 미리 봐야 등록할 수 있습니다.</p>
+                <p className="text-[12px]">미리 잡지 않습니다 — 누르면 그 줄의 시각만 바뀌고, 다시 미리 봐야 등록할 수 있습니다.</p>
               </div>
             ) : null}
             {errCode === 'STUDENT_SAME_NAME' ? (
@@ -456,7 +456,7 @@ export function LeadEnrollDialog({ open, lead, onClose, onDone }: LeadEnrollDial
             ) : null}
           </Banner>
         ) : altApplied ? <Banner tone="info">{altApplied}</Banner>
-          : 'issue' in built ? <p className="text-[11px] text-fg-subtle">{built.issue}</p> : null}
+          : 'issue' in built ? <p className="text-[12px] text-fg-subtle">{built.issue}</p> : null}
       </div>
     </Dialog>
   );

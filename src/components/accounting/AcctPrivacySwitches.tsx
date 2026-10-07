@@ -68,7 +68,7 @@ export function AcctPrivacySwitches() {
         {target ? (
           <div className="flex flex-col gap-2 text-[12.5px] text-fg-2">
             <p>{turnOn ? `켜면 ${target.scope}` : '끄면 금액을 볼 수 있는 사람 모두에게 그 줄 금액이 다시 보입니다.'}</p>
-            <p className="text-[11.5px] text-fg-subtle">
+            <p className="text-[12px] text-fg-subtle">
               {target.setByName ? `마지막으로 바꾼 사람 · ${target.setByName}${target.setAt ? ` · ${target.setAt}` : ''}` : '아직 켠 적이 없습니다'}
             </p>
             {err ? <Banner tone="danger">{err}</Banner> : null}

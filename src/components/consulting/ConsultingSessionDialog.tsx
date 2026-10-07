@@ -127,7 +127,7 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
                   // 주황 점 — 그 날짜 · 그 시각에 담당(강의실)의 다른 일정이 있다. 서버 미리보기의 판정 그대로다(화면이 겹침을 세지 않는다)
                   const hit = busy.find((b) => b.date === d);
                   return hit ? (
-                    <span role="status" aria-label={`${md(d)} 담당 일정 겹침`} className="flex items-center gap-1 text-[11px] font-medium text-amber">
+                    <span role="status" aria-label={`${md(d)} 담당 일정 겹침`} className="flex items-center gap-1 text-[12px] font-medium text-amber">
                       <span data-busy-dot aria-hidden className="inline-block h-2 w-2 rounded-full bg-amber" />
                       {hit.lines.join(' · ')}
                     </span>
@@ -173,7 +173,7 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
         </div>
       </div>
 
-      {'issue' in built ? <p className="mt-2 text-[11px] text-fg-subtle">{built.issue}</p> : null}
+      {'issue' in built ? <p className="mt-2 text-[12px] text-fg-subtle">{built.issue}</p> : null}
       {err ? <Banner tone="danger" className="mt-3">{err}</Banner> : null}
 
       {busy.length ? (
@@ -200,9 +200,9 @@ export function ConsultingSessionDialog({ open, detail, onClose, onDone }: Consu
               </li>
             ))}
           </ol>
-          {preview.overContract ? <p className="mt-2 text-[11px] text-amber">약정 회차를 넘깁니다 — 막지는 않습니다.</p> : null}
+          {preview.overContract ? <p className="mt-2 text-[12px] text-amber">약정 회차를 넘깁니다 — 막지는 않습니다.</p> : null}
           {preview.unavailable.length ? <Banner tone="warning" className="mt-2">{unavailableLines(preview.unavailable).join(' · ')}</Banner> : null}
-          {preview.notified ? <p className="mt-2 text-[11px] text-fg-subtle">담당에게 알림이 갑니다.</p> : null}
+          {preview.notified ? <p className="mt-2 text-[12px] text-fg-subtle">담당에게 알림이 갑니다.</p> : null}
         </div>
       ) : null}
     </Dialog>

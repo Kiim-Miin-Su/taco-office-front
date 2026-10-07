@@ -64,10 +64,10 @@ export function CodeRequestButton({ spec, left, busy, disabled, onSend, error, n
       </Button>
       {error ? <p role="alert" className="mt-1 text-[12px] font-bold text-red">{error}</p> : null}
       {spec && !spec.ready && spec.notReadyReason ? (
-        <p className="mt-1 text-[11px] font-bold text-red">{spec.notReadyReason}</p>
+        <p className="mt-1 text-[12px] font-bold text-red">{spec.notReadyReason}</p>
       ) : null}
-      {note ? <p className="mt-1 text-[11px] text-fg-subtle">{note}</p> : null}
-      {devCode ? <p className="mt-1 text-[11px] font-bold text-fg">개발용 코드: {devCode}</p> : null}
+      {note ? <p className="mt-1 text-[12px] text-fg-subtle">{note}</p> : null}
+      {devCode ? <p className="mt-1 text-[12px] font-bold text-fg">개발용 코드: {devCode}</p> : null}
     </div>
   );
 }

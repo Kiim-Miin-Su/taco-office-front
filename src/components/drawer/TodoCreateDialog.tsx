@@ -80,7 +80,7 @@ export function LessonTodoButton({ lesson, people }: { lesson: TodoLessonKey; pe
   return (
     <>
       {result ? (
-        <span role={result.ok ? 'status' : 'alert'} className={`text-[11.5px] ${result.ok ? 'text-fg-2' : 'font-bold text-red'}`}>
+        <span role={result.ok ? 'status' : 'alert'} className={`text-[12px] ${result.ok ? 'text-fg-2' : 'font-bold text-red'}`}>
           {result.text}
         </span>
       ) : null}

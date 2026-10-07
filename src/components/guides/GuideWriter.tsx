@@ -153,7 +153,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
                   disabled={!x.copyable || write.isPending || copy.isPending}
                   onChange={() => togglePick(x.id)}
                 />
-                {x.skipReason ? <span className="text-[11px] text-fg-subtle">{x.skipReason}</span> : null}
+                {x.skipReason ? <span className="text-[12px] text-fg-subtle">{x.skipReason}</span> : null}
               </li>
             ))}
           </ul>
@@ -171,7 +171,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
         <div>
           <Label htmlFor="g-admin-note">관리자 코멘트 · 강사만</Label>
           <Textarea id="g-admin-note" rows={3} maxLength={4000} value={adminNote} onChange={(e) => setAdminNote(e.target.value)} />
-          <p className="mt-1 text-[11px] text-fg-subtle">강사에게만 보입니다. 안내 본문과 안내문 PNG에는 들어가지 않습니다.</p>
+          <p className="mt-1 text-[12px] text-fg-subtle">강사에게만 보입니다. 안내 본문과 안내문 PNG에는 들어가지 않습니다.</p>
         </div>
       </div>
 
@@ -191,7 +191,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
             const name = m.studentName ?? '이름 없음';
             return (
               <div key={m.studentId} role="tabpanel" aria-label={`${name} 진단`}>
-                <p className="mb-1.5 text-[11px] text-fg-subtle">
+                <p className="mb-1.5 text-[12px] text-fg-subtle">
                   {m.diagnostic ? `마지막 진단 ${m.diagnostic.createdAt.slice(0, 10)} — 고쳐 저장하면 새 진단 한 줄이 쌓입니다` : '아직 진단이 없습니다'}
                 </p>
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -207,7 +207,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
             );
           })}
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-            {diagSaved ? <span role="status" className="mr-auto text-[11px] text-green">{diagSaved}</span> : null}
+            {diagSaved ? <span role="status" className="mr-auto text-[12px] text-green">{diagSaved}</span> : null}
             {members.length > 1 ? (
               <Button size="sm" variant="secondary" onClick={copyDiagToOthers} disabled={writeDiag.isPending}>이 진단을 나머지 학생에게 복사</Button>
             ) : null}

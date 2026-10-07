@@ -82,8 +82,8 @@ export interface ChipProps {
 }
 
 const SIZE: Record<ChipSize, string> = {
-  compact: 'h-5 min-w-5 justify-center px-1.5 text-[10px]',
-  default: 'h-[22px] px-2 text-[11px]',
+  compact: 'h-5 min-w-5 justify-center px-1.5 text-[12px]',
+  default: 'h-[22px] px-2 text-[12px]',
 };
 
 export function Chip({
@@ -94,7 +94,7 @@ export function Chip({
     return (
       <span
         title={title}
-        className={cn('inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-bold', size === 'compact' ? 'text-[10px]' : 'text-[11px]', DOT_TEXT[tone], className)}
+        className={cn('inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-bold', size === 'compact' ? 'text-[12px]' : 'text-[12px]', DOT_TEXT[tone], className)}
       >
         {/* 컷 §47·§86 의 점은 모서리 둥근 작은 네모다 */}
         <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-sm', DOT_MARK[tone])} />

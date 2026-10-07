@@ -210,8 +210,8 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     expect(view.container.querySelector('#rep-content')).toBeNull();
     expect(view.getByLabelText('수업 내용')).toBeTruthy();
     expect(view.getAllByRole('button', { name: 'AP Chemistry Practice' })).toHaveLength(2);
-    expect(view.getByRole('button', { name: '임시 저장 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
-    expect(view.getByRole('button', { name: '승인 요청 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '임시 저장 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '승인 요청 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
     const guide = view.getByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' });
     expect(guide.querySelectorAll('ol > li')).toHaveLength(4);
     expect(guide.textContent).toContain('그래도 사실은 빠뜨리지 마세요.');
@@ -236,14 +236,14 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     }));
     expect(view.container.querySelector('#rep-content')).toBeNull();
     expect(view.getByRole('region', { name: '첫 학생 진단' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '임시 저장 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '임시 저장 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
     expect(view.queryByRole('button', { name: '승인 요청하기' })).toBeNull();
   });
 
   it('승인 대기 강사 화면은 expectedVersion 계약 전 읽기 전용 경계를 말한다', () => {
     as(false);
     const view = mount(detail({ canEdit: false, state: 'wait', body: { content: '제출본', progress: '12쪽', homework: '13쪽' } }));
-    expect(view.getByText('승인 대기 수정 계약 연결 전')).toBeTruthy();
+    expect(view.getByText('승인 대기 수정 기능 준비 중')).toBeTruthy();
     expect(view.container.querySelectorAll('textarea')).toHaveLength(0);
   });
 
@@ -252,7 +252,7 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     const view = mount(detail());
     expect(view.getByText('관리자 대리 작성')).toBeTruthy();
     expect(view.getByText('실제 작성자 관리자 · 대상 강사 강사')).toBeTruthy();
-    expect(view.getByRole('button', { name: '임시 저장 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '임시 저장 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
     expect(view.queryByRole('button', { name: '임시저장' })).toBeNull();
     expect(view.queryByRole('button', { name: '제출' })).toBeNull();
     expect(view.queryByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' })).toBeNull();

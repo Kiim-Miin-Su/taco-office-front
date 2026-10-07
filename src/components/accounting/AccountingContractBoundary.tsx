@@ -23,14 +23,14 @@ export function AccountingContractBoundary({
     <Panel>
       <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="mb-1"><Chip tone="warning">생성 계약 대기</Chip></div>
+          <div className="mb-1"><Chip tone="warning">저장 기능 준비 중</Chip></div>
           <h2 className="text-[15px] font-bold text-fg">{title}</h2>
           <p className="mt-1 max-w-3xl text-[12px] leading-relaxed text-fg-subtle">{description}</p>
         </div>
         <Button size="sm" variant="secondary" onClick={onNext}>{nextLabel}</Button>
       </header>
       <Banner tone="neutral" className="mb-3">
-        화면 구조와 이동 경로만 엽니다. 아래 값을 보증하는 DTO가 생기기 전에는 기존 입금·정산 값을 조합해 표시하거나 완료 처리하지 않습니다.
+        화면 구조와 이동 경로만 제공합니다. 아래 값을 정확히 저장할 수 있기 전에는 기존 입금·정산 값을 조합해 표시하거나 완료 처리하지 않습니다.
       </Banner>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={`${title} 필요 필드`}>
         {fields.map((field) => (

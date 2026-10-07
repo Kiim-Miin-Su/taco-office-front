@@ -184,7 +184,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
 
         {known.length ? (
           <section aria-label="대상 수업" className="rounded-lg border border-line p-3">
-            <p className="mb-1.5 text-[11px] font-bold text-fg-subtle">대상 수업 — 빼면 다시 미리 봅니다</p>
+            <p className="mb-1.5 text-[12px] font-bold text-fg-subtle">대상 수업 — 빼면 다시 미리 봅니다</p>
             <ul className="flex flex-col gap-1">
               {known.map((s) => (
                 <li key={s.serId} className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
@@ -206,7 +206,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
             <ol className="flex flex-col gap-1">
               {preview.steps.map((st, i) => (
                 <li key={st.key} className="flex items-start gap-2">
-                  <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green text-[10px] font-bold text-white" aria-hidden>✓</span>
+                  <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green text-[12px] font-bold text-white" aria-hidden>✓</span>
                   <span className="text-fg"><b>{i + 1}. {st.label}</b> {st.count}{st.key === 'notify' ? '명' : st.key === 'book' ? '권' : st.key === 'schedule' || st.key === 'payout' ? '회' : '건'} <span className="text-fg-2">— {st.note}</span></span>
                 </li>
               ))}
@@ -246,7 +246,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
           </section>
         ) : null}
 
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-[12px] text-fg-subtle">
           스케줄 · 안내 초안 · 학부모 안내 · 교재 확인 · 정산 시수 · 선생님 전달 여섯을 <b>한 번에</b> 합니다. 새 강사가 그 시각에 바쁘면 서버가 막고 아무것도 남지 않습니다.
           미리 본 값 그대로 교체됩니다.
         </p>
@@ -255,7 +255,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
             {err}
             {conflicts.length ? <ul className="mt-1 list-disc pl-4">{conflicts.map((c) => <li key={c}>{c}</li>)}</ul> : null}
           </Banner>
-        ) : 'issue' in built ? <p className="text-[11px] text-fg-subtle">{built.issue}</p> : null}
+        ) : 'issue' in built ? <p className="text-[12px] text-fg-subtle">{built.issue}</p> : null}
       </div>
     </Dialog>
   );

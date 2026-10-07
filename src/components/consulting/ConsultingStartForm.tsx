@@ -132,7 +132,7 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
         <fieldset>
-          <legend className="mb-1 flex w-full justify-between text-[11px] font-bold text-fg-subtle">
+          <legend className="mb-1 flex w-full justify-between text-[12px] font-bold text-fg-subtle">
             <span>학생 *</span><span>{studentIds.length}명 · 여러 명 가능</span>
           </legend>
           <div className="max-h-44 overflow-y-auto rounded-lg border border-line p-2">
@@ -156,7 +156,7 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords
         </fieldset>
         {/* 원본 §29 「누가 요청」은 필수 표시 없는 칩 둘이다 — 고른 것은 강조 테두리 (29-03) */}
         <fieldset>
-          <legend className="mb-1 text-[11px] font-bold text-fg-subtle">누가 요청</legend>
+          <legend className="mb-1 text-[12px] font-bold text-fg-subtle">누가 요청</legend>
           <div className="flex flex-wrap gap-1.5">
             {requesterWords.map((r) => (
               <ChoiceChip key={r.key} on={requester === r.key} onClick={() => setRequester(r.key as Requester)} onClass="border-primary bg-primary/10 text-primary">{r.label}</ChoiceChip>
@@ -189,7 +189,7 @@ export function ConsultingStartForm({ meta, canSetPrivate, shareWords, typeWords
           ))}
         </div>
         {shareOptions(canSetPrivate, shareWords).find((o) => o.value === share)?.meaning ? (
-          <p className="mt-1.5 text-[11.5px] text-fg-2">{shareOptions(canSetPrivate, shareWords).find((o) => o.value === share)?.meaning}</p>
+          <p className="mt-1.5 text-[12px] text-fg-2">{shareOptions(canSetPrivate, shareWords).find((o) => o.value === share)?.meaning}</p>
         ) : null}
         {share === 'picked' ? (
           <div className="mt-3 flex flex-wrap gap-1.5 rounded-lg border border-line p-2">

@@ -189,7 +189,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           <button type="button" onClick={() => setSearch(true)} aria-haspopup="dialog" aria-label="검색" aria-keyshortcuts="Meta+K Control+K" title="검색 (⌘K)"
             className="flex h-[30px] shrink-0 items-center gap-1 rounded-md border border-header-tool-line bg-header-tool px-2.5 text-[12px] font-bold text-line-2">
             <Search size={14} aria-hidden /><span className="hidden min-[1680px]:inline">검색</span>
-            <kbd aria-hidden className="ml-1 hidden rounded border border-header-tool-line px-1 text-[10px] font-medium min-[1680px]:inline">⌘K</kbd>
+            <kbd aria-hidden className="ml-1 hidden rounded border border-header-tool-line px-1 text-[12px] font-medium min-[1680px]:inline">⌘K</kbd>
           </button>
           <button type="button" onClick={() => void toggleFullScreen()} aria-label={fullScreen ? '전체 화면 종료' : '전체 화면'}
             title={fullScreen ? '전체 화면 종료' : '전체 화면'}
@@ -221,7 +221,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
                 1536 미만에서는 「● N」만 — 업무 탭 자리를 먼저 준다(QA 0926 B-1 · 스케줄은 머리 양끝에 패널 단추 둘이 더 선다 B-1r) */}
             <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber ring-1 ring-white/60" /><span aria-hidden className="hidden min-[1536px]:inline">승인 대기 </span><span aria-hidden className="rounded bg-white/15 px-1.5">{approvalCount}</span>
           </button> : null}
-          <details className="relative shrink-0 text-[11px] text-line-2 sm:ml-2">
+          <details className="relative shrink-0 text-[12px] text-line-2 sm:ml-2">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정"
               title={me ? `${me.name} · ${me.title || me.roleLabel}` : undefined}>
               <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span>
@@ -229,7 +229,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
                   업무 탭 자리를 먼저 준다(QA 0926 B-1 · B-1r) */}
               <span className="hidden min-[1680px]:inline">{me?.name}</span>
               {/* 역할의 낱말도 서버가 만든다 — 화면이 제 표를 들면 서랍 §17 과 여기가 갈린다 (D-R18) */}
-              {me ? <span className="hidden rounded bg-header-tool px-1.5 py-0.5 text-[10px] min-[1440px]:inline">{me.title || me.roleLabel}</span> : null}
+              {me ? <span className="hidden rounded bg-header-tool px-1.5 py-0.5 text-[12px] min-[1440px]:inline">{me.title || me.roleLabel}</span> : null}
             </summary>
             <div className="absolute right-0 top-full z-30 mt-1 min-w-28 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
               <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>

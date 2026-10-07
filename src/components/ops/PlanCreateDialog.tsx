@@ -124,7 +124,7 @@ export function PlanCreateButton({ can, shareWords = [], onDone }: PlanCreateBut
                 options={shareWords.map((w) => ({ value: w.key, label: w.label }))} onChange={setShare} />
               {shareValue === 'picked' ? (
                 <fieldset className="mt-2">
-                  <legend className="text-[11px] text-fg-subtle">볼 사람 — 담당과 결재권자는 늘 봅니다</legend>
+                  <legend className="text-[12px] text-fg-subtle">볼 사람 — 담당과 결재권자는 늘 봅니다</legend>
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                     {(meta.data?.staff ?? []).map((s) => (
                       <label key={s.id} className="flex items-center gap-1 text-[12px]">
@@ -143,7 +143,7 @@ export function PlanCreateButton({ can, shareWords = [], onDone }: PlanCreateBut
           ) : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
           {/* S6 전에는 「보드에서 옮깁니다」라 적었는데 **옮기는 길이 아예 없었다** — 없는 단추를 가리키고 있었다 */}
-          <p className="text-[11px] text-fg-subtle">올리면 기획 보드의 첫 칸에 섭니다 — 적어서 대표께 올리는 것은 보고서에서 합니다.</p>
+          <p className="text-[12px] text-fg-subtle">올리면 기획 보드의 첫 칸에 섭니다 — 적어서 대표께 올리는 것은 보고서에서 합니다.</p>
         </div>
       </Dialog>
     </>

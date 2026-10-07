@@ -269,13 +269,13 @@ export function BookShelf({
                 onClick={() => openFolder(item.key, item.label)}
                 className="min-h-20 rounded-xl border border-line bg-card p-3 text-left transition hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40">
                 <b className="block text-[14px] text-fg">{item.label}</b>
-                {item.hint ? <span className="mt-1 block text-[11px] text-fg-subtle">{item.hint}</span> : null}
+                {item.hint ? <span className="mt-1 block text-[12px] text-fg-subtle">{item.hint}</span> : null}
                 <span className="mt-2 block text-[12px] font-bold text-primary">교재 {item.count}종</span>
               </button>
             ))}
           </div>
         )}
-        {folderAxis === 'level' ? <p className="mt-2 text-[11px] text-fg-subtle">저장 키는 기존 Foundation · Practice · Master를 유지하고 화면에는 기초 · 실전 · 심화로 표시합니다.</p> : null}
+        {folderAxis === 'level' ? <p className="mt-2 text-[12px] text-fg-subtle">저장 키는 기존 Foundation · Practice · Master를 유지하고 화면에는 기초 · 실전 · 심화로 표시합니다.</p> : null}
       </Panel>
       {/*
         원본 §39 — 연초록 필터 판이 **경고 띠 위**에 있고 1줄 = 과목 + 레벨, 2줄 = 학년이다(g4 §39-2).
@@ -508,9 +508,9 @@ export function BookShelf({
                   <span className="h-3 w-3 self-center rounded" style={{ backgroundColor: group.color }} />
                   <h3 className="text-[15px] font-bold" style={{ color: readableAccentColor(group.color) }}>{group.name}</h3>
                   {group.categories.length ? (
-                    <span className="text-[11px] text-fg-subtle">{group.categories.join(' · ')}</span>
+                    <span className="text-[12px] text-fg-subtle">{group.categories.join(' · ')}</span>
                   ) : null}
-                  <span className="ml-auto text-[11px] text-fg-subtle">{group.items.length}종</span>
+                  <span className="ml-auto text-[12px] text-fg-subtle">{group.items.length}종</span>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                   {group.items.map((b) => {
@@ -536,7 +536,7 @@ export function BookShelf({
                           <div className="min-w-0 flex-1 p-3">
                             {/* 원문 §39 카드 윗줄 — 소분류(과목 색) */}
                             {b.bookCategoryName ? (
-                              <p data-book-category className="text-[11px] font-bold"
+                              <p data-book-category className="text-[12px] font-bold"
                                 style={{ color: readableAccentColor(bookSubjectColor(b.bookSubjectColor)) }}>
                                 {b.bookCategoryName}
                               </p>
@@ -555,7 +555,7 @@ export function BookShelf({
                             </div>
                             {/* 원문 §39 카드 아래 줄 — 왼쪽 코드 · 오른쪽 작은 SE/TE 배지(누르면 내려받기) (g4 §39-5 · wave 6) */}
                             <div data-book-file-line className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-line pt-2">
-                              <span data-book-code className="font-mono text-[10.5px] text-fg-subtle">{b.code}</span>
+                              <span data-book-code className="font-mono text-[12px] text-fg-subtle">{b.code}</span>
                               <span className="inline-flex items-center gap-1">
                                 <FileDownloadButton id={b.seFileId} label="SE" variant="badge" itemTitle={b.title} />
                                 <FileDownloadButton id={b.teFileId} label="TE" variant="badge" tone="violet" itemTitle={b.title} />
@@ -566,7 +566,7 @@ export function BookShelf({
                             <button
                               type="button"
                               aria-label={`${b.title} 편집`}
-                              className="flex flex-1 items-center justify-center text-[11px] font-bold hover:bg-inset"
+                              className="flex flex-1 items-center justify-center text-[12px] font-bold hover:bg-inset"
                               title="교재 정보 고치기"
                               onClick={() => openEdit(b)}
                             >

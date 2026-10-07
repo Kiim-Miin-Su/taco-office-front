@@ -60,7 +60,7 @@ export function MemberHandoverBox({ loginId, password }: MemberHandover) {
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" variant="secondary" onClick={() => { void copy(); }}>복사</Button>
-        {note ? <span role="status" className="text-[11.5px] text-fg-2">{note}</span> : null}
+        {note ? <span role="status" className="text-[12px] text-fg-2">{note}</span> : null}
       </div>
     </section>
   );
@@ -201,7 +201,7 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
               <Input id={`${id}-name`} value={draft.name} maxLength={40} onChange={(e) => set('name')(e.target.value)} disabled={pending} autoComplete="off" />
             </div>
             <div>
-              <Label htmlFor={`${id}-title`} hint="권한과 무관 (D-R39)">직함</Label>
+              <Label htmlFor={`${id}-title`} hint="직함은 접근 권한을 바꾸지 않습니다">직함</Label>
               <Input id={`${id}-title`} value={draft.title} maxLength={20} onChange={(e) => set('title')(e.target.value)} disabled={pending} />
             </div>
           </div>
@@ -209,7 +209,7 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
             <Label htmlFor={`${id}-login`}>아이디</Label>
             <Input id={`${id}-login`} value={draft.loginId} maxLength={120} onChange={(e) => set('loginId')(e.target.value)} disabled={pending}
               autoComplete="off" autoCapitalize="none" spellCheck={false} />
-            {loginIdRule ? <p className="mt-1 text-[11px] text-fg-subtle">{loginIdRule}</p> : null}
+            {loginIdRule ? <p className="mt-1 text-[12px] text-fg-subtle">{loginIdRule}</p> : null}
           </div>
           <div>
             <Label htmlFor={`${id}-email`} hint="바꾸거나 비우면 첫 설정을 다시 합니다">이메일 (선택)</Label>
@@ -235,7 +235,7 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
           {permRows.length > 0 ? (
             <fieldset className="rounded-xl border border-line p-3">
               <legend className="px-1 text-[12px] font-bold text-fg">사람별 권한 예외</legend>
-              <p className="mb-2 text-[11.5px] leading-relaxed text-fg-subtle">
+              <p className="mb-2 text-[12px] leading-relaxed text-fg-subtle">
                 역할이 정한 것과 다르게 할 때만 바꿉니다 — 「역할 따름」이면 역할대로입니다.
               </p>
               <ul className="flex flex-col gap-2">
@@ -243,7 +243,7 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
                   <li key={p.key} className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[12.5px] text-fg">
                       {p.label}
-                      <span className="ml-1.5 text-[11px] text-fg-subtle">역할 기본 {p.roleDefault ? '켬' : '끔'}</span>
+                      <span className="ml-1.5 text-[12px] text-fg-subtle">역할 기본 {p.roleDefault ? '켬' : '끔'}</span>
                     </span>
                     <Segmented<PermChoice> ariaLabel={p.label} value={perms[p.key] ?? 'role'} disabled={pending}
                       onChange={(next) => setPerms((cur) => ({ ...cur, [p.key]: next }))} options={PERM_CHOICES} />
@@ -264,7 +264,7 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
             </Banner>
           ) : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
-          <p className="text-[11px] text-fg-subtle">시급은 여기서 바꾸지 않습니다 — 「시급 수정」을 쓰세요.</p>
+          <p className="text-[12px] text-fg-subtle">시급은 여기서 바꾸지 않습니다 — 「시급 수정」을 쓰세요.</p>
         </div>
       </Dialog>
     </>
@@ -323,7 +323,7 @@ function MemberResetButton({ member, tempPasswordRule }: { member: Member; tempP
               {/* 넘겨줄 값이라 보이게 적는다 — 저장된 비밀번호 채우기는 끈다 */}
               <Input id={`${id}-temp`} value={password} maxLength={200} onChange={(e) => setPassword(e.target.value)} disabled={pending}
                 autoComplete="off" autoCapitalize="none" spellCheck={false} className="font-mono" />
-              {tempPasswordRule ? <p className="mt-1 text-[11px] text-fg-subtle">{tempPasswordRule}</p> : null}
+              {tempPasswordRule ? <p className="mt-1 text-[12px] text-fg-subtle">{tempPasswordRule}</p> : null}
             </div>
             {err ? <Banner tone="danger">{err}</Banner> : null}
           </div>

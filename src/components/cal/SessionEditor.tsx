@@ -430,7 +430,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
               {occ.recurring ? <Chip tone="info">반복 수업 — 저장할 때 범위를 묻습니다</Chip> : null}
             </div>
             {mode !== occ.mode ? (
-              <p className="text-[11px] text-fg-subtle" role="status">
+              <p className="text-[12px] text-fg-subtle" role="status">
                 {mode === 'online'
                   ? '온라인으로 바꾸면 강의실을 비웁니다. 줌 계정을 고르면 이 수업에 붙이고, 겹치면 저장되지 않습니다.'
                   : '현장으로 바꾸면 이 수업의 줌 계정을 풉니다. 강의실을 고르면 함께 잡고, 겹치면 저장되지 않습니다.'}
@@ -501,7 +501,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
                 { value: 'weekly', label: '매주' }, { value: 'biweekly', label: '격주' },
               ]} />
               {!initialRepeat?.supported ? (
-                <p className="mt-1 text-[11px] text-amber">현재 규칙 {occRrule}은 간편 선택 밖입니다. 새 주기를 고르기 전에는 그대로 보존합니다.</p>
+                <p className="mt-1 text-[12px] text-amber">현재 규칙 {occRrule}은 간편 선택 밖입니다. 새 주기를 고르기 전에는 그대로 보존합니다.</p>
               ) : null}
             </div>
             {repeat === 'weekly' || repeat === 'biweekly' ? (
@@ -526,7 +526,7 @@ export function SessionEditor({ draft, edit, meta, onClose, onCreated, onSaved }
                   {...f.register('toDate', { onChange: () => setRecurrenceEndTouched(true) })} />
               </div>
             ) : null}
-            <p className="text-[11px] text-fg-subtle">수강 학생은 수업 상세의 명단에서 넣고 뺍니다.</p>
+            <p className="text-[12px] text-fg-subtle">수강 학생은 수업 상세의 명단에서 넣고 뺍니다.</p>
 
             {errorBox}
             {footer('저장', '저장하는 중…')}

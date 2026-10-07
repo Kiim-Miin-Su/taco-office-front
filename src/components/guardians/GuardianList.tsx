@@ -99,14 +99,14 @@ function GuardianForm({ initial, channels, pending, error, onCancel, onSubmit }:
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <span className="text-[11px] font-bold text-fg-subtle">받는 채널</span>
+        <span className="text-[12px] font-bold text-fg-subtle">받는 채널</span>
         {channels.map((c) => (
           <Checkbox key={c.channel} label={`${c.label} 받기`} checked={d.receive[c.channel]}
             onChange={(e) => set('receive', { ...d.receive, [c.channel]: e.target.checked })} />
         ))}
         <Checkbox label="대표 보호자" checked={d.isPrimary} onChange={(e) => set('isPrimary', e.target.checked)} />
       </div>
-      <p className="mt-2 text-[11px] text-fg-subtle">메일 주소나 휴대폰 번호 중 하나는 있어야 합니다. 대표로 고르면 전 대표는 내려갑니다.</p>
+      <p className="mt-2 text-[12px] text-fg-subtle">메일 주소나 휴대폰 번호 중 하나는 있어야 합니다. 대표로 고르면 전 대표는 내려갑니다.</p>
       {error ? <Banner tone="danger" className="mt-2"><p role="alert">{error}</p></Banner> : null}
       <div className="mt-3 flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>취소</Button>
@@ -146,7 +146,7 @@ function GuardianRow({ g, channels, busy, onEdit, onDeactivate, onReactivate }: 
           )}
         </span>
       </div>
-      <div className="mt-1 flex flex-wrap gap-x-3 text-[11.5px] text-fg-2">
+      <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-fg-2">
         <span>{g.email ?? '메일 없음'}</span>
         <span>{g.phoneDisplay ?? '휴대폰 없음'}</span>
       </div>

@@ -120,7 +120,7 @@ export function UnwrittenReportBoard({
               >
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-[13px]">{teacher.teacherName}</b>
-                  <span className="mt-0.5 block text-[11px] text-fg-subtle">
+                  <span className="mt-0.5 block text-[12px] text-fg-subtle">
                     {oldestLabel(data, teacher)}
                   </span>
                 </span>

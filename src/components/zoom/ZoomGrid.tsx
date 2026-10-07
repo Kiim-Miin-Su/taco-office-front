@@ -28,7 +28,7 @@ export function ZoomGrid({ board, compact = false }: { board: ZoomBoard; compact
   const cell = compact ? 'h-4' : 'h-5';
   return (
     <div className="overflow-x-auto">
-      <table className={compact ? 'text-[11px]' : 'text-[12px]'}>
+      <table className={compact ? 'text-[12px]' : 'text-[12px]'}>
         <thead>
           <tr>
             <th className="px-2 py-1 text-left font-bold">

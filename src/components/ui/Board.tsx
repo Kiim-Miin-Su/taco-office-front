@@ -8,7 +8,7 @@
  * 단계 보드 — 상담(§23) · 컨설팅(§26) · 기획(§61) · 컴플레인(§67) · 회계(§52) 가 같은 모양이다.
  * 탭마다 보드를 새로 그리면 칸 너비와 카드 높이가 조금씩 달라진다.
  */
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { cn } from './cn';
 import { Chip, type ChipTone } from './Chip';
 
@@ -78,8 +78,12 @@ export function Board<T>({
 }: BoardProps<T>) {
   return (
     <div
-      className={cn('grid gap-3', className)}
-      style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
+      className={cn(
+        'grid grid-flow-col auto-cols-[minmax(14rem,1fr)] gap-3 overflow-x-auto pb-2',
+        'sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-[repeat(var(--board-columns),minmax(0,1fr))] sm:overflow-visible sm:pb-0',
+        className,
+      )}
+      style={{ '--board-columns': columns.length } as CSSProperties}
     >
       {columns.map((c, i) => (
         <section
@@ -99,7 +103,7 @@ export function Board<T>({
                 {/* 번호는 **자리**를 말한다 — 컷의 ①②③ 은 왼쪽에서 오른쪽으로 올리는 순서다 */}
                 {numbered ? (
                   c.ink && accent
-                    ? <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fg px-1.5 text-[10px] font-bold text-card">{i + 1}</span>
+                    ? <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fg px-1.5 text-[12px] font-bold text-card">{i + 1}</span>
                     : <Chip size="compact" tone={c.tone ?? 'neutral'} styleKind={accent ? 'solid' : 'soft'}>{i + 1}</Chip>
                 ) : null}
                 <span className="truncate text-[12px] font-bold text-fg">{c.label}</span>
@@ -113,12 +117,12 @@ export function Board<T>({
                 <span className={cn('shrink-0 text-[20px] font-bold leading-none', c.ink ? 'text-fg' : COUNT_TEXT[c.tone ?? 'neutral'])}>{c.items.length}</span>
               ) : null}
             </div>
-            {c.sub ? <p className="mt-0.5 text-[10.5px] text-fg-subtle">{c.sub}</p> : null}
+            {c.sub ? <p className="mt-0.5 text-[12px] text-fg-subtle">{c.sub}</p> : null}
             {c.note ? <div className="mt-1 text-[13px] font-bold text-fg">{c.note}</div> : null}
           </header>
           <div className="flex flex-col gap-2">
             {c.items.length === 0 ? (
-              <p className="px-1 py-4 text-center text-[11px] text-fg-subtle">{empty}</p>
+              <p className="px-1 py-4 text-center text-[12px] text-fg-subtle">{empty}</p>
             ) : (
               c.items.map((it) => (
                 <article key={itemKey(it)} className={cardClassName?.(it) ?? 'rounded-lg border border-line bg-card p-2.5'}>

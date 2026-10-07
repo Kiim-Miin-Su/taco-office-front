@@ -100,8 +100,8 @@ it('최종 수정사항의 과목당 프로그램을 표시하되 DTO 쓰기 계
   const apRow = view.getByText('AP Chemistry').closest('tr')!;
   expect(apRow.textContent).toContain('정규 수업');
   expect(view.getByLabelText('프로그램')).toBeTruthy();
-  expect(view.getByText(/프로그램 저장 계약을 DTO·OpenAPI 단계에서 연결할 때까지/)).toBeTruthy();
-  expect((view.getByRole('button', { name: 'DTO 연결 후 만들기' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(view.getByText(/프로그램별 과목 저장 기능이 준비될 때까지/)).toBeTruthy();
+  expect((view.getByRole('button', { name: '저장 기능 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
 
   fireEvent.click(within(apRow).getByRole('button', { name: '고치기' }));
   await waitFor(() => expect(view.container.querySelector('#se-kind')).toBeTruthy());

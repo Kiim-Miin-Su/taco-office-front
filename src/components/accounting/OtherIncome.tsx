@@ -66,15 +66,15 @@ function Row({ row }: { row: OtherIncomeRow }) {
         <span className="flex min-w-0 grow flex-wrap items-center gap-x-2 gap-y-1 py-3">
           <span aria-hidden className={cn('size-2 shrink-0 rounded-full', tone.dot)} />
           <span className="text-[13.5px] font-bold text-fg">{row.label}</span>
-          <span className="truncate text-[11.5px] text-fg-subtle">{row.sub}</span>
+          <span className="truncate text-[12px] text-fg-subtle">{row.sub}</span>
         </span>
         <span className="flex shrink-0 flex-wrap items-center justify-end gap-2 py-3 pr-3">
-          <span className="text-[11.5px] text-fg-subtle">{row.count}건</span>
+          <span className="text-[12px] text-fg-subtle">{row.count}건</span>
           <span className="text-[14px] font-bold text-fg">{won(row.amount)}</span>
           <Chip tone="success">받음 {won(row.paid)}</Chip>
           {/* 0 이면 뱃지를 달지 않는다 — 「청구 안 함 0」은 아무 말도 하지 않는다 */}
           {row.unbilled > 0 ? <Chip tone="danger">청구 안 함 {row.unbilled}</Chip> : null}
-          <span aria-hidden className={cn('text-[11px] text-fg-subtle transition-transform', open && 'rotate-90')}>▶</span>
+          <span aria-hidden className={cn('text-[12px] text-fg-subtle transition-transform', open && 'rotate-90')}>▶</span>
         </span>
       </button>
 
@@ -87,8 +87,8 @@ function Row({ row }: { row: OtherIncomeRow }) {
               <div key={g.key}>
                 {/* 날짜 묶음 머리 — 이름도 건수도 합계도 서버가 만든 값이다 (N-40 · D-R37) */}
                 <div className="flex items-baseline justify-between gap-2 bg-inset px-4 py-1.5">
-                  <span className="text-[11.5px] font-bold text-fg-2">{g.label}</span>
-                  <span className="text-[11px] text-fg-subtle">{g.count}건 · {won(g.amount)}</span>
+                  <span className="text-[12px] font-bold text-fg-2">{g.label}</span>
+                  <span className="text-[12px] text-fg-subtle">{g.count}건 · {won(g.amount)}</span>
                 </div>
                 <ul className="divide-y divide-line">
                   {g.items.map((it) => (
@@ -98,7 +98,7 @@ function Row({ row }: { row: OtherIncomeRow }) {
                       {/* 상태 낱말도 서버가 짓는다 — 화면이 코드값을 찍지 않는다 (D-R18) */}
                       <Chip tone={it.unbilled ? 'neutral' : 'info'}>{it.stateLabel}</Chip>
                       <span className="w-24 shrink-0 text-right text-[12.5px] font-bold">{won(it.amount)}</span>
-                      <span className="w-24 shrink-0 text-right text-[11.5px] text-fg-subtle">받음 {won(it.paid)}</span>
+                      <span className="w-24 shrink-0 text-right text-[12px] text-fg-subtle">받음 {won(it.paid)}</span>
                     </li>
                   ))}
                 </ul>

@@ -56,7 +56,7 @@ export function BookSalesFeeBoundary({
       <Panel>
         <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="mb-1"><Chip tone="warning">생성 계약 대기</Chip></div>
+            <div className="mb-1"><Chip tone="warning">저장 기능 준비 중</Chip></div>
             <h2 className="text-[15px] font-bold text-fg">교재 판매 · 결제 수수료</h2>
             <p className="mt-1 max-w-3xl text-[12px] leading-relaxed text-fg-subtle">
               교재 카탈로그에서 판매 대상을 고르고, 판매·청구·입금·재고 이동을 한 거래로 연결합니다.
@@ -69,7 +69,7 @@ export function BookSalesFeeBoundary({
         </header>
 
         <Banner tone="warning" className="mb-4">
-          수기 입금은 청구서가 없는 돈의 입금 기록이며 <b>교재 판매 원장을 대신하지 않습니다.</b> 판매 저장은 재고·청구/PAY·취소/환불·월 마감 계약이 함께 생긴 뒤 엽니다.
+          수기 입금은 청구서가 없는 돈의 입금 기록이며 <b>교재 판매 원장을 대신하지 않습니다.</b> 판매 저장은 재고·청구·입금·취소·환불·월 마감을 함께 처리할 수 있을 때 엽니다.
         </Banner>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="교재 판매 입력">
@@ -120,9 +120,9 @@ export function BookSalesFeeBoundary({
             <FieldError>{priceError ? '0원 이상의 정수로 적어 주세요' : undefined}</FieldError>
           </div>
           <div>
-            <Label htmlFor={`${id}-payment-method`} hint="서버 코드표 대기">결제 수단</Label>
+            <Label htmlFor={`${id}-payment-method`} hint="결제 수단 목록 준비 중">결제 수단</Label>
             <Select className="max-sm:h-11" id={`${id}-payment-method`} disabled value="">
-              <option value="">선택지 계약 대기</option>
+              <option value="">선택지 기능 준비 중</option>
             </Select>
           </div>
           <div className="sm:col-span-2">
@@ -136,29 +136,29 @@ export function BookSalesFeeBoundary({
         </div>
         <div className="mt-3 flex flex-wrap justify-end gap-1.5">
           <Button className="max-sm:min-h-11" size="sm" variant="secondary" onClick={reset}>초기화</Button>
-          <Button className="max-sm:min-h-11" size="sm" disabled title="판매·재고·청구/PAY 생성 계약이 필요합니다">교재 판매 저장 준비 중</Button>
+          <Button className="max-sm:min-h-11" size="sm" disabled title="판매·재고·청구·입금 연결 기능이 준비된 뒤 사용할 수 있습니다">교재 판매 저장 준비 중</Button>
         </div>
       </Panel>
 
       <Panel>
         <header className="mb-3">
-          <div className="mb-1"><Chip tone="warning">집계 계약 대기</Chip></div>
+          <div className="mb-1"><Chip tone="warning">집계 기능 준비 중</Chip></div>
           <h3 className="text-[15px] font-bold text-fg">결제 수단별 정산</h3>
           <p className="mt-1 text-[12px] text-fg-subtle">선택 기간의 결제 수단별 건수·금액·비중·지급수수료·순수납을 서버 집계로 읽습니다.</p>
         </header>
         <Banner tone="neutral" className="mb-3">
-          결제 수단 코드, 수수료율과 반올림 기준을 화면에서 정하지 않습니다. 거래 당시 정책 snapshot과 취소·환불을 반영한 서버 결과만 표시합니다.
+          결제 수단 코드, 수수료율과 반올림 기준을 화면에서 정하지 않습니다. 거래 당시 정책 기록과 취소·환불을 반영한 계산 결과만 표시합니다.
         </Banner>
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="region" aria-label="결제 수단별 집계 계약">
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="region" aria-label="결제 수단별 집계">
           {SUMMARY_FIELDS.map((field) => (
             <div key={field} className="rounded-xl border border-line bg-inset p-3">
-              <div className="text-[11px] text-fg-subtle">{field}</div>
+              <div className="text-[12px] text-fg-subtle">{field}</div>
               <b className="mt-1 block text-[16px] text-fg">—</b>
             </div>
           ))}
         </section>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="교재 판매 생성 계약 필드">
-          {['판매·환불 version', 'invoiceId · payId', '재고 이동 · 판매 snapshot', '증빙 · 월 마감 상태'].map((field) => (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="교재 판매 저장 항목">
+          {['판매·환불 변경 이력', '청구 · 입금 연결', '재고 이동 · 판매 시점 기록', '증빙 · 월 마감 상태'].map((field) => (
             <div key={field} className="rounded-lg border border-dashed border-line-2 bg-card px-3 py-2 text-[12px] font-medium text-fg-2">{field}</div>
           ))}
         </div>

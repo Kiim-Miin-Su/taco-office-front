@@ -213,7 +213,7 @@ describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () =
       expect(dialog.getByText(/승인 전에는 원래 일정/)).toBeTruthy();
       expect((dialog.getByLabelText('변경 날짜') as HTMLInputElement).value).toBe(date);
       expect((dialog.getByLabelText('새 시작') as HTMLInputElement).value).toBe('10:00');
-      expect(dialog.getByRole('button', { name: '변경 요청 계약 준비 중' })).toHaveProperty('disabled', true);
+      expect(dialog.getByRole('button', { name: '변경 요청 기능 준비 중' })).toHaveProperty('disabled', true);
       expect(mocks.scheduleWrite).not.toHaveBeenCalled();
       cleanup();
     }
@@ -227,7 +227,7 @@ describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () =
       fireEvent.click(view.getByRole('button', { name: '이 수업으로 건의 열기' }));
       const dialog = within(view.getByRole('dialog', { name: '수업 건의 초안' }));
       expect(dialog.getByText(/회차 #/).textContent).toContain(`회차 #7 · 원래 회차일 ${date}`);
-      expect(dialog.getByRole('button', { name: '건의 계약 준비 중' })).toHaveProperty('disabled', true);
+      expect(dialog.getByRole('button', { name: '건의 기능 준비 중' })).toHaveProperty('disabled', true);
       expect(dialog.getByRole('link', { name: '건의 사항 전체 보기' }).getAttribute('href')).toBe('/teacher/suggestions');
       expect(mocks.scheduleWrite).not.toHaveBeenCalled();
       cleanup();

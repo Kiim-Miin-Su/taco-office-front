@@ -275,7 +275,7 @@ export function ScheduleToolbar({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
-        <span className="text-[11px] font-bold text-fg-subtle">밀도</span>
+        <span className="text-[12px] font-bold text-fg-subtle">밀도</span>
         <Segmented ariaLabel="스케줄 밀도" options={DENSITIES} value={filters.density} onChange={(value) => change('density', value)} />
         {onFreeToggle ? (
           <Button size="sm" variant={freeOn && freeAvailable ? 'dark' : 'secondary'} aria-pressed={freeOn && freeAvailable}

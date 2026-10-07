@@ -77,7 +77,7 @@ const TREND_BAR_MAX = 72;
 /** 판 배지 — ⇧ 는 「더 나중 판이 있다」는 서버 판정 하나만 본다 */
 export function BookVersionBadge({ book }: { book: Book }) {
   const use = useUseBookVersion();
-  if (!book.edition) return <span className="text-[11px] text-fg-subtle">판 없음</span>;
+  if (!book.edition) return <span className="text-[12px] text-fg-subtle">판 없음</span>;
   // 원본 §39 카드 — 지금 판 칩이 곧 바꾸기 단추 「v2026.03 ⇧」 하나다(g4 §39-5). ⇧ 는 서버 hasNewer 하나만 본다
   if (book.hasNewer && book.latestVersId) {
     const label = `${book.edition} — ${book.latestEdition ?? '가장 나중 판'} 로 바꿉니다`;
@@ -292,7 +292,7 @@ export function BookHistory() {
         <div className="ml-auto flex items-center gap-5 text-[12px]">
           <b className="text-[20px]">
             {q.data?.total ?? '—'}
-            <small className="ml-1 text-[11px]">건</small>
+            <small className="ml-1 text-[12px]">건</small>
           </b>
           <span>
             교재 <b>{q.data?.bookCount ?? '—'}</b>
@@ -311,11 +311,11 @@ export function BookHistory() {
           전체
         </ChipButton>
         {/* 상위 두 갈래 — 수는 서버 bookCount · guideCount 그대로 (g4 §40-3). 점 색은 컷 실측(교재 파랑 · 수업 안내 초록) */}
-        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-fg">
+        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-fg">
           <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-blue" />
           {`교재 ${q.data?.bookCount ?? 0}`}
         </span>
-        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-fg">
+        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-fg">
           <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-green" />
           {`수업 안내 ${q.data?.guideCount ?? 0}`}
         </span>
@@ -373,7 +373,7 @@ export function BookHistory() {
                           key={row.id}
                           data-history-group={actionLook(row.action).group}
                           className={cn(
-                            'grid grid-cols-[48px_104px_minmax(180px,1fr)_110px_minmax(120px,1fr)_90px_80px] items-center gap-2 border-l-4 px-2 py-2 text-[11px]',
+                            'grid grid-cols-[48px_104px_minmax(180px,1fr)_110px_minmax(120px,1fr)_90px_80px] items-center gap-2 border-l-4 px-2 py-2 text-[12px]',
                             TONE_STRIPE[actionLook(row.action).tone],
                           )}
                         >
@@ -433,7 +433,7 @@ export function BookHistory() {
             </div>
           </Panel>
           <Panel title="여기에 남는 것">
-            <ul className="list-disc space-y-2 pl-4 text-[11px]">
+            <ul className="list-disc space-y-2 pl-4 text-[12px]">
               <li>교재 배부 · 교체 · 제외 · 업로드</li>
               <li>강사 변경 요청과 처리 결과</li>
               <li>수업 안내 작성 · 발송 · 강사 확인</li>

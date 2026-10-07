@@ -61,14 +61,14 @@ export function GpaPointCard({ s, selected = false, onSelect, className }: {
       <span className="flex items-start gap-2">
         <span className="min-w-0 grow truncate text-[13px] font-bold text-fg">
           {s.name}
-          {s.grade ? <span className="ml-1 text-[11px] font-normal text-fg-subtle">{s.grade}</span> : null}
+          {s.grade ? <span className="ml-1 text-[12px] font-normal text-fg-subtle">{s.grade}</span> : null}
         </span>
         <Chip size="compact" tone={s.over ? 'danger' : 'success'} styleKind={s.over ? 'solid' : 'soft'}>
           {s.over ? `${-s.remain}p 초과` : `${s.remain}p 남음`}
         </Chip>
       </span>
 
-      <span className="mt-0.5 block text-[11.5px] text-fg-subtle">
+      <span className="mt-0.5 block text-[12px] text-fg-subtle">
         {s.coordName ?? '—'} · 배정 {s.alloc}p
       </span>
 
@@ -87,7 +87,7 @@ export function GpaPointCard({ s, selected = false, onSelect, className }: {
       </span>
 
       {s.over ? (
-        <span className="mt-1.5 block text-[10.5px] text-red">추가 결제 또는 다음 사이클 조정이 필요합니다</span>
+        <span className="mt-1.5 block text-[12px] text-red">추가 결제 또는 다음 사이클 조정이 필요합니다</span>
       ) : null}
     </button>
   );

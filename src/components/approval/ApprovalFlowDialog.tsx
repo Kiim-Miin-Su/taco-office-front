@@ -28,7 +28,7 @@ function FlowSection({ id, title, rows, count, hint, danger = false, onNavigate 
     <section aria-labelledby={`approval-flow-${id}`}>
       <h3 id={`approval-flow-${id}`} className="mb-2 flex items-baseline gap-2 text-[13px] font-bold">
         <span className={danger ? 'text-red' : 'text-fg'}>{title}</span>
-        <span className="text-[11.5px] text-fg-subtle">{count}건{count > 0 && hint ? ` · ${hint}` : ''}</span>
+        <span className="text-[12px] text-fg-subtle">{count}건{count > 0 && hint ? ` · ${hint}` : ''}</span>
       </h3>
       {rows.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
@@ -52,7 +52,7 @@ function FlowSection({ id, title, rows, count, hint, danger = false, onNavigate 
             </li>
           ))}
         </ul>
-      ) : <p className="rounded-lg bg-inset px-3 py-4 text-center text-[11px] text-fg-subtle">없습니다</p>}
+      ) : <p className="rounded-lg bg-inset px-3 py-4 text-center text-[12px] text-fg-subtle">없습니다</p>}
     </section>
   );
 }
@@ -85,8 +85,8 @@ export function ApprovalFlowDialog({ open, flow, onClose }: {
           return (
             <div key={tile.kind} className={cn('rounded-xl border p-3', live ? mark.frame : 'border-line bg-inset')}>
               <strong className={cn('block text-[22px] leading-none', live ? mark.text : 'text-fg-subtle')}>{tile.count}</strong>
-              <p className="mt-2 text-[11.5px] font-bold text-fg">{tile.kindLabel}</p>
-              <p className="mt-0.5 text-[10px] text-fg-subtle">{tile.toLabel}</p>
+              <p className="mt-2 text-[12px] font-bold text-fg">{tile.kindLabel}</p>
+              <p className="mt-0.5 text-[12px] text-fg-subtle">{tile.toLabel}</p>
             </div>
           );
         })}

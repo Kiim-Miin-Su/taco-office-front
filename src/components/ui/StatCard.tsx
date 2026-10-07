@@ -62,7 +62,7 @@ export interface StatCardProps {
 }
 
 export function StatCard({ label, value, note, tone = 'neutral', fill = false, accent, dim = false, valueFirst = false, className }: StatCardProps) {
-  const labelEl = <div className={cn('text-[11px] font-bold text-fg-subtle', valueFirst && 'mt-1')}>{label}</div>;
+  const labelEl = <div className={cn('text-[12px] font-bold text-fg-subtle', valueFirst && 'mt-1')}>{label}</div>;
   const valueEl = <div className={cn(!valueFirst && 'mt-1', 'text-[26px] font-bold leading-tight', dim ? 'text-fg-subtle' : VALUE[tone])}>{value}</div>;
   return (
     <div
@@ -74,7 +74,7 @@ export function StatCard({ label, value, note, tone = 'neutral', fill = false, a
       )}
     >
       {valueFirst ? <>{valueEl}{labelEl}</> : <>{labelEl}{valueEl}</>}
-      {note ? <div className="mt-1 text-[11px] text-fg-subtle">{note}</div> : null}
+      {note ? <div className="mt-1 text-[12px] text-fg-subtle">{note}</div> : null}
     </div>
   );
 }

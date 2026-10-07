@@ -62,7 +62,7 @@ function GroupedReportList({ rows, subjectName, onOpen, head, selected, status }
                       <span className="w-11 shrink-0 text-[12px] font-bold tabular-nums text-fg-2">{time}</span>
                       <span className="min-w-0 grow">
                         <b className="block truncate text-[13px] text-fg">{students}</b>
-                        <span className="block truncate text-[11px] text-fg-subtle">{subjectName(row.subKey)}</span>
+                        <span className="block truncate text-[12px] text-fg-subtle">{subjectName(row.subKey)}</span>
                       </span>
                       <StatusBadge state={row.state} />
                     </button>
@@ -82,7 +82,7 @@ function GroupedReportList({ rows, subjectName, onOpen, head, selected, status }
           <span>{head.title}</span>
           {/* 수 알약은 테두리만 — 흰 바탕을 겹치면 붉은 머리가 옅어져 흰 글자가 4.5:1 아래로 내려간다(4.17:1 · P-159 all160 QA).
               글자는 머리 제목과 같은 바탕 위에 선다 */}
-          <span className="rounded-full border border-white/60 px-2 text-[11px] tabular-nums">{head.count ?? rows.length}</span>
+          <span className="rounded-full border border-white/60 px-2 text-[12px] tabular-nums">{head.count ?? rows.length}</span>
         </div>
       ) : null}
       {body ?? <p className="px-3 py-8 text-center text-[12px] text-fg-subtle">리포트가 없습니다</p>}
@@ -136,7 +136,7 @@ export function TeacherReportList({ rows, subjectName, onOpen, grouped = false, 
             <span className="flex items-start justify-between gap-3">
               <span>
                 <b className="block text-[13px] text-fg">{subjectName(row.subKey)}</b>
-                <span className="mt-0.5 block text-[11px] text-fg-subtle">
+                <span className="mt-0.5 block text-[12px] text-fg-subtle">
                   {row.date} · {row.startMin === null ? '시간 미정' : hhmm(row.startMin)}
                 </span>
               </span>

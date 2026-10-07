@@ -81,7 +81,7 @@ function SendGroups({ data, disabled, onResend }: {
               <span className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" aria-hidden>⌄</span>
             </summary>
             <div className="p-3">
-              <h4 className="mb-2 text-[11px] font-bold text-fg-subtle">기록지</h4>
+              <h4 className="mb-2 text-[12px] font-bold text-fg-subtle">기록지</h4>
               <ul className="space-y-1.5">
                 {rows.map((row) => (
                   <SendLine key={row.id} row={row} disabled={disabled} onResend={() => onResend(row)} />
@@ -89,7 +89,7 @@ function SendGroups({ data, disabled, onResend }: {
               </ul>
               {/* 목록은 최근 100건까지 싣는다 — 묶음 수가 더 많으면 그 사실을 적는다(수는 서버가 전부 센 값) */}
               {rows.length < group.count ? (
-                <p className="mt-2 text-[11px] text-fg-subtle">{`최근 ${rows.length}건만 보입니다 — 이 묶음은 모두 ${group.count}건입니다`}</p>
+                <p className="mt-2 text-[12px] text-fg-subtle">{`최근 ${rows.length}건만 보입니다 — 이 묶음은 모두 ${group.count}건입니다`}</p>
               ) : null}
             </div>
           </details>
@@ -124,11 +124,11 @@ export function ReportDeliveryHistory({
         <div>
           {/* 탭 이름과 머리가 한 화면에서 갈리지 않게 「보낸 내역」 — 상세 안은 그대로 (g5 48-01) */}
           <h3 className="text-[13px] font-bold text-fg">{compact ? '내보내기 이력' : '보낸 내역'}</h3>
-          {!compact ? <p className="mt-0.5 text-[11px] text-fg-subtle">보낸 내용과 파일을 덮어쓰지 않고 그대로 보관합니다.</p> : null}
+          {!compact ? <p className="mt-0.5 text-[12px] text-fg-subtle">보낸 내용과 파일을 덮어쓰지 않고 그대로 보관합니다.</p> : null}
         </div>
         <div className="flex items-center gap-3">
           {!compact ? <span className="text-[12px] font-bold text-fg">{`기록지 ${query.data?.sheets ?? 0}장`}</span> : null}
-          <span className="text-[11px] text-fg-subtle">{query.data?.total ?? 0}건</span>
+          <span className="text-[12px] text-fg-subtle">{query.data?.total ?? 0}건</span>
           {!compact ? <Segmented ariaLabel="보낸 내역 묶음" options={SPANS} value={span} onChange={setSpan} /> : null}
         </div>
       </div>

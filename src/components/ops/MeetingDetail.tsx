@@ -68,9 +68,9 @@ function TaskRow({ t, busy, onToggle }: { t: MeetingTask; busy: boolean; onToggl
       <Checkbox checked={t.done} disabled={busy || !t.canToggle} aria-label={`${t.title} 완료`}
         onChange={(e) => onToggle(t.id, e.currentTarget.checked)} />
       <span className={`flex-1 text-[12.5px] ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>{t.title}</span>
-      <span className="text-[11px] text-fg-subtle">{t.toName ?? '미배정'}</span>
+      <span className="text-[12px] text-fg-subtle">{t.toName ?? '미배정'}</span>
       {t.dueOn ? (
-        <span className={`text-[11px] ${t.overdueDays > 0 ? 'font-bold text-red' : 'text-fg-subtle'}`}>
+        <span className={`text-[12px] ${t.overdueDays > 0 ? 'font-bold text-red' : 'text-fg-subtle'}`}>
           {t.dueOn.slice(5)}{t.overdueDays > 0 ? ` · ${t.overdueDays}일 지남` : ''}
         </span>
       ) : null}
@@ -178,7 +178,7 @@ export function MeetingDetail({
               {/* 내 응답 — 참석자 본인만 · 자기 줄만 바뀐다(대리 입력 없음 · N-32). 답하지 않으면 「응답 대기」 그대로 */}
               {d.canRespond && d.myAttend ? (
                 <div className="flex items-center gap-1.5" role="group" aria-label="내 참석 응답">
-                  <span className="text-[11px] text-fg-subtle">내 응답</span>
+                  <span className="text-[12px] text-fg-subtle">내 응답</span>
                   <Button size="sm" variant={d.myAttend.state === 'in' ? 'success' : 'secondary'}
                     aria-pressed={d.myAttend.state === 'in'} disabled={respond.isPending}
                     onClick={() => respond.mutate({ id: d.id, confirmed: true })}>참석</Button>
@@ -223,7 +223,7 @@ export function MeetingDetail({
                 {/* 원문 「속기록 *」 — 비우고는 저장하지 않는다 (66-4) */}
                 <Label htmlFor="mt-minutes">속기록 <span className="text-red">*</span></Label>
                 {/* 안내 문구도 서버가 준 것이다 — 회의마다 머리말이 제각각이 되지 않게 */}
-                <span className="text-[11px] text-fg-subtle">{d.minutesHint}</span>
+                <span className="text-[12px] text-fg-subtle">{d.minutesHint}</span>
               </div>
               {/* 참석자로만 여는 사람은 읽기만 한다 — 저장 경로는 운영 권한이 지킨다 */}
               <Textarea id="mt-minutes" aria-label="속기록" aria-required rows={10} maxLength={8000} value={draft}
@@ -236,7 +236,7 @@ export function MeetingDetail({
                   ))}
                 </div>
               ) : null}
-              <p className="mt-2 text-[11px] text-fg-subtle">
+              <p className="mt-2 text-[12px] text-fg-subtle">
                 {d.minutesAt
                   ? `마지막 저장 ${d.minutesAt.slice(0, 16).replace('T', ' ')} · ${d.minutesByName ?? '—'}`
                   : '아직 저장한 적이 없습니다'}
@@ -251,7 +251,7 @@ export function MeetingDetail({
                 <p className="text-[12px] text-fg-subtle">배정한 할 일이 없습니다</p>
               ) : (
                 <>
-                  <p className="mb-1.5 text-[11px] text-fg-subtle">끝낸 것 {d.taskDone}/{d.tasks.length}</p>
+                  <p className="mb-1.5 text-[12px] text-fg-subtle">끝낸 것 {d.taskDone}/{d.tasks.length}</p>
                   <ul className="flex flex-col gap-1">
                     {d.tasks.map((t) => <TaskRow key={t.id} t={t} busy={todoWrite.isPending} onToggle={toggleTask} />)}
                   </ul>
@@ -287,7 +287,7 @@ export function MeetingDetail({
                       배정
                     </Button>
                   </div>
-                  <p className="mt-1 text-[11px] text-fg-subtle">배정하면 담당자의 할 일 목록에 들어가고 알림이 갑니다.</p>
+                  <p className="mt-1 text-[12px] text-fg-subtle">배정하면 담당자의 할 일 목록에 들어가고 알림이 갑니다.</p>
                   {assign.isError ? <Banner tone="danger" className="mt-2">{apiMessage(assign.error)}</Banner> : null}
                 </>
               ) : null}

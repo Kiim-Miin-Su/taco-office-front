@@ -68,7 +68,7 @@ it.each([
 
   expect(nav.replace).toHaveBeenLastCalledWith(`/accounting?tab=${tab}`, { scroll: false });
   expect(view.getByRole('heading', { name: heading })).toBeTruthy();
-  expect(view.getByText('생성 계약 대기')).toBeTruthy();
+  expect(view.getByText('저장 기능 준비 중')).toBeTruthy();
   expect(view.getByRole('button', { name: backLabel })).toBeTruthy();
   expect(view.queryByRole('button', { name: /발행 완료|일괄 지급|취소|삭제/ })).toBeNull();
 });

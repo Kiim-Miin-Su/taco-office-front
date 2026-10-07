@@ -127,7 +127,7 @@ export function ExpenseCreateButton({ categories, onDone, verb = '등록' }: Exp
               onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
             />
           </div>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-[12px] text-fg-subtle">
             올리면 <b>심사 대기</b>로 들어갑니다 — 확정 금액은 대표가 심사에서 넣고, 신청 금액은 그 칸의 안내일 뿐입니다.
             본인이 올린 신청은 본인이 심사할 수 없습니다.
           </p>

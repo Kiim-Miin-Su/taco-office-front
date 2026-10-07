@@ -39,8 +39,8 @@ function Profile({ data }: { data: Detail }) {
 
 function Assignments({ data, calendar = false }: { data: Detail; calendar?: boolean }) {
   return <Panel title="현재 배정 수업·학생" sub={calendar
-    ? '현재 DTO는 반복 수업 규칙만 제공합니다. 주·월 실제 회차는 관리자 targetStaff facade 이후 연결합니다.'
-    : 'SER 수업 규칙의 현재 담당자와 명단입니다. 교체 전 배정은 포함하지 않습니다.'}>
+    ? '현재 등록된 반복 수업만 표시합니다. 주·월 실제 회차는 관리자용 조회 기능이 준비된 뒤 제공합니다.'
+    : '현재 담당 중인 수업과 명단입니다. 교체 전 배정은 포함하지 않습니다.'}>
     {data.assignments.length === 0 ? <p className="text-[12px] text-fg-subtle">현재 배정된 수업이 없습니다.</p>
       : <ul className="divide-y divide-line">{data.assignments.map((assignment) => <li key={assignment.id} className="py-2 text-[12px]">
         <b>{assignment.kindName}{assignment.subjectName ? ` · ${assignment.subjectName}` : ''}</b>
@@ -50,7 +50,7 @@ function Assignments({ data, calendar = false }: { data: Detail; calendar?: bool
 }
 
 function Reports({ data }: { data: Detail }) {
-  return <Panel title="작성된 수업 리포트" sub="REP.teacher_id 기준 · 날짜 최신순. 미작성 회차는 targetStaff 리포트 facade 전에는 집계하지 않습니다.">
+  return <Panel title="작성된 수업 리포트" sub="작성자 기준 · 날짜 최신순입니다. 미작성 회차는 관리자용 집계가 준비된 뒤 제공합니다.">
     {data.reports.length === 0 ? <p className="text-[12px] text-fg-subtle">작성된 수업 리포트가 없습니다.</p>
       : <ul className="divide-y divide-line">{data.reports.map((report) => <li key={report.id} className="py-2 text-[12px]">
         <b>{report.onDate} · {report.kindName}{report.subjectName ? ` · ${report.subjectName}` : ''}</b>
@@ -77,8 +77,8 @@ function History({ data, audit, hasNextPage, fetching, fetchNext }: {
             <span>{payout.yearMonth} · {payout.state}{payout.confirmedAt ? ` · 확정 ${at(payout.confirmedAt)}` : ''}</span><strong>{won(payout.net)}</strong>
           </li>)}</ul>}
     </Panel>
-    <Panel title="정보 변경 감사 이력" sub="실제 actor · 시각 · 변경 내용. 연락처·인증·권한·급여 값은 공개하지 않습니다.">
-      {audit.length === 0 ? <p className="text-[12px] text-fg-subtle">기록된 STAFF 변경 이력이 없습니다.</p>
+    <Panel title="정보 변경 감사 이력" sub="변경한 사람 · 시각 · 변경 내용입니다. 연락처·인증·권한·급여 값은 공개하지 않습니다.">
+      {audit.length === 0 ? <p className="text-[12px] text-fg-subtle">기록된 정보 변경 이력이 없습니다.</p>
         : <ol className="divide-y divide-line">{audit.map((event) => <li key={event.id} className="py-3 text-[12px]">
           <div className="flex flex-wrap items-center gap-2"><b>{event.actionLabel}</b><span className="text-fg-subtle">{at(event.at)} · {event.actorName ?? '작성자 미상'}</span></div>
           {event.changes.length ? <ul className="mt-1 pl-4 text-fg-2">{event.changes.map((change) => <li key={change.field}>{change.field}: {change.before ?? '—'} → {change.after ?? '—'}</li>)}</ul> : null}
@@ -90,9 +90,9 @@ function History({ data, audit, hasNextPage, fetching, fetchNext }: {
 }
 
 function ContractPending({ title, reason }: { title: string; reason: string }) {
-  return <Panel title={`${title} 계약 준비 중`} sub="표시할 수 없는 값을 빈 목록으로 만들지 않습니다.">
+  return <Panel title={`${title} 준비 중`} sub="필요한 조회 기능이 준비되기 전까지 임의의 빈 목록을 표시하지 않습니다.">
     <p className="text-[12px] leading-6 text-fg-2">{reason}</p>
-    <p className="mt-2 text-[12px] text-fg-subtle">관리자 actor 권한을 유지하며 실제 세션을 강사로 바꾸지 않습니다. 조회·작성·승인 action은 전용 targetStaff 계약 뒤에 연결합니다.</p>
+    <p className="mt-2 text-[12px] text-fg-subtle">관리자 권한을 유지한 채 대상 강사의 정보를 조회합니다. 조회·작성·승인은 각 기능이 준비된 뒤 제공합니다.</p>
   </Panel>;
 }
 
@@ -116,7 +116,7 @@ export default function StaffDetailPage() {
   const selectTab = (next: StaffTab) => { if (id !== null) router.replace(`/staff/${id}?tab=${next}`, { scroll: false }); };
 
   return <RequireAuth><AppShell>
-    <PageHeader title={data?.profile.name ?? '강사 상세'} sub="관리자용 강사 8탭 · 읽기 계약부터 연결" right={<LinkButton href="/staff">강사 목록</LinkButton>} />
+    <PageHeader title={data?.profile.name ?? '강사 상세'} sub="관리자용 강사 8탭 · 확인 가능한 정보부터 제공" right={<LinkButton href="/staff">강사 목록</LinkButton>} />
     {id === null ? <Banner tone="danger">강사 번호가 올바르지 않습니다.</Banner> : null}
     {detail.isError ? <Banner tone="danger">{apiMessage(detail.error)}</Banner> : null}
     {detail.isPending && id !== null ? <p role="status" className="text-[12px] text-fg-subtle">강사 상세를 불러오는 중…</p> : null}
@@ -125,22 +125,22 @@ export default function StaffDetailPage() {
       <TabCards<StaffTab> label="강사 업무" value={tab} onChange={selectTab} options={[
         { value: 'home', label: '홈', sub: '기본 정보' },
         { value: 'calendar', label: '캘린더', sub: `현재 ${data.assignments.length}개` },
-        { value: 'unavailable', label: '불가 시간', sub: '계약 준비' },
+        { value: 'unavailable', label: '불가 시간', sub: '기능 준비 중' },
         { value: 'reports', label: '리포트', sub: `${data.reports.length}건` },
-        { value: 'guides', label: '수업 안내', sub: '계약 준비' },
+        { value: 'guides', label: '수업 안내', sub: '기능 준비 중' },
         { value: 'history', label: '히스토리', sub: '정산·변경' },
-        { value: 'suggestions', label: '건의 사항', sub: '계약 준비' },
-        { value: 'inbox', label: '들어온 것', sub: '계약 준비' },
+        { value: 'suggestions', label: '건의 사항', sub: '기능 준비 중' },
+        { value: 'inbox', label: '들어온 것', sub: '기능 준비 중' },
       ]} />
-      <Banner tone="warning">현재 관리자 projection에 있는 값만 표시합니다. 강사 본인 API를 대리 호출하거나 미수집 과거 이력을 추정하지 않습니다.</Banner>
+      <Banner tone="warning">현재 관리자에게 제공되는 값만 표시합니다. 아직 수집하지 않은 과거 이력은 추정해 표시하지 않습니다.</Banner>
       {tab === 'home' ? <div className="space-y-4"><Profile data={data} /><Assignments data={data} /></div> : null}
       {tab === 'calendar' ? <Assignments data={data} calendar /> : null}
       {tab === 'reports' ? <Reports data={data} /> : null}
       {tab === 'history' ? <History data={data} audit={audit} hasNextPage={Boolean(detail.hasNextPage)} fetching={detail.isFetchingNextPage} fetchNext={() => void detail.fetchNextPage()} /> : null}
-      {tab === 'unavailable' ? <ContractPending title="대상 강사 불가 시간" reason="현재 불가 시간 API는 강사 본인 또는 일정 관리 화면 계약만 제공하며, 이 허브의 targetStaff 응답과 10일 정책 판정은 없습니다." /> : null}
-      {tab === 'guides' ? <ContractPending title="대상 강사 수업 안내" reason="기존 안내 reader와 받은 안내는 방향이 다릅니다. 관리자 허브용 대상 강사 범위·읽음 상태·민감 본문 projection을 먼저 정의합니다." /> : null}
-      {tab === 'suggestions' ? <ContractPending title="대상 강사 건의 사항" reason="관리자 전체 건의 목록에서 이름으로 거르지 않습니다. 안정적인 teacherId filter와 답변 readback 계약이 필요합니다." /> : null}
-      {tab === 'inbox' ? <ContractPending title="대상 강사 들어온 것" reason="강사 개인 알림을 관리자 세션으로 읽지 않습니다. 승인·답변·안내 receipt만 허용하는 별도 projection이 필요합니다." /> : null}
+      {tab === 'unavailable' ? <ContractPending title="대상 강사 불가 시간" reason="현재는 강사 본인 또는 일정 관리 화면에서만 불가 시간을 확인할 수 있습니다. 대상 강사의 10일 기준 조회 기능은 준비 중입니다." /> : null}
+      {tab === 'guides' ? <ContractPending title="대상 강사 수업 안내" reason="관리자용 수업 안내 조회 범위와 읽음 상태 표시를 준비 중입니다." /> : null}
+      {tab === 'suggestions' ? <ContractPending title="대상 강사 건의 사항" reason="대상 강사의 건의와 답변을 정확히 연결하는 조회 기능을 준비 중입니다." /> : null}
+      {tab === 'inbox' ? <ContractPending title="대상 강사 들어온 것" reason="강사의 개인 알림은 표시하지 않습니다. 관리자에게 필요한 승인·답변·안내 확인 내역만 제공할 예정입니다." /> : null}
     </div> : null}
   </AppShell></RequireAuth>;
 }

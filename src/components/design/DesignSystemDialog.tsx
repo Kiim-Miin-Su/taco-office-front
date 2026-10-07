@@ -127,13 +127,13 @@ function ColorRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit
       </label>
       <span className="min-w-0 grow">
         <span className="block text-[13.5px] font-bold">{row.name}</span>
-        <span className="block text-[11.5px] text-fg-subtle">{row.use}</span>
+        <span className="block text-[12px] text-fg-subtle">{row.use}</span>
       </span>
       {CONTRAST_ADJUSTED.includes(row.key)
         ? <Chip tone="warning">대비 보강</Chip>
         : null}
       {/* 값 칩 — 원문 컷은 옅은 갈색 바탕에 흐린 글자다 */}
-      <code className="shrink-0 rounded-md bg-primary/10 px-2 py-1 font-mono text-[11.5px] uppercase text-fg-subtle">
+      <code className="shrink-0 rounded-md bg-primary/10 px-2 py-1 font-mono text-[12px] uppercase text-fg-subtle">
         {value || '—'}
       </code>
     </li>
@@ -151,7 +151,7 @@ function SizeRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit:
       />
       <span className="min-w-0 grow">
         <span className="block text-[13.5px] font-bold">{row.name}</span>
-        <span className="block text-[11.5px] text-fg-subtle">{row.use}</span>
+        <span className="block text-[12px] text-fg-subtle">{row.use}</span>
       </span>
       {px !== null ? (
         <input
@@ -161,9 +161,9 @@ function SizeRow({ row, value, onEdit }: { row: TokenRow; value: string; onEdit:
           aria-label={`${row.name} 바꾸기`}
           value={px}
           onChange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isInteger(n) && n >= 0) onEdit(row.key, `${n}px`); }}
-          className="w-20 shrink-0 rounded-md border border-line bg-card px-2 py-1 text-right font-mono text-[11.5px]"
+          className="w-20 shrink-0 rounded-md border border-line bg-card px-2 py-1 text-right font-mono text-[12px]"
         />
-      ) : <code className="shrink-0 rounded-md bg-inset px-2 py-1 font-mono text-[11.5px]">{value || '—'}</code>}
+      ) : <code className="shrink-0 rounded-md bg-inset px-2 py-1 font-mono text-[12px]">{value || '—'}</code>}
     </li>
   );
 }
@@ -180,9 +180,9 @@ function Part({ k, uncounted = false, children }: { k: string; uncounted?: boole
       {/* 머리는 옅은 바탕 · 「N회 씀」은 옅은 갈색 칩에 기본 색 글자다 (원문 컷) */}
       <header className="flex items-center gap-2 rounded-t-xl border-b border-line bg-primary/5 px-4 py-2.5">
         <h3 className="text-[13.5px] font-bold">{row.name}</h3>
-        <p className="min-w-0 grow truncate text-[11.5px] text-fg-subtle">{row.sub}</p>
+        <p className="min-w-0 grow truncate text-[12px] text-fg-subtle">{row.sub}</p>
         {uncounted ? null : (
-          <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">
+          <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-[12px] font-bold text-primary">
             {n}회 씀
           </span>
         )}
@@ -255,7 +255,7 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
           {/* 바꾼 것이 있을 때만 선다 — 쉬는 모양은 원문 컷 그대로다 */}
           {editedCount > 0 ? (
             <>
-              <span className="text-[11.5px] text-fg-subtle">바꾼 것 {editedCount} · 이 브라우저에 저장됨</span>
+              <span className="text-[12px] text-fg-subtle">바꾼 것 {editedCount} · 이 브라우저에 저장됨</span>
               <Button size="sm" onClick={reset}>처음으로</Button>
             </>
           ) : null}
@@ -286,7 +286,7 @@ export function DesignSystemDialog({ open, onClose }: DesignSystemDialogProps) {
             >
               <span className="block text-[13.5px] font-bold">{label}</span>
               {/* 고른 칸의 개수는 흐리게 — `card` 는 투명도 조각이 없는 토큰이라 「card 글자 70%」 클래스는 만들어지지 않고 조용히 빠진다 */}
-              <span className={cn('block text-[11.5px]', pane === v ? 'opacity-70' : 'text-fg-subtle')}>{n}개</span>
+              <span className={cn('block text-[12px]', pane === v ? 'opacity-70' : 'text-fg-subtle')}>{n}개</span>
             </button>
           ))}
         </nav>

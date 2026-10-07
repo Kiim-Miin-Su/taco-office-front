@@ -107,7 +107,7 @@ function FailedLeadCard({ lead: l, selected, onPick, onEnroll, failFromLabel }: 
       <div className="flex items-start gap-2">
         <button type="button" aria-pressed={selected} onClick={onPick} className="min-w-0 grow text-left">
           <b className="text-[13px] text-fg">{l.name}</b>{' '}
-          <span className="text-[11px] text-fg-subtle">{[l.grade, l.school].filter(Boolean).join(' · ') || '—'}</span>
+          <span className="text-[12px] text-fg-subtle">{[l.grade, l.school].filter(Boolean).join(' · ') || '—'}</span>
         </button>
         <IntakeChannelBadge source={l.source} label={l.sourceLabel} />
         {l.recontact ? <Chip tone={l.recontact.tone as Tone} styleKind="solid" size="compact">{l.recontact.label}</Chip> : null}
@@ -116,18 +116,18 @@ function FailedLeadCard({ lead: l, selected, onPick, onEnroll, failFromLabel }: 
         {l.reasonKindLabel ? <Chip styleKind="solid" size="compact">{l.reasonKindLabel}</Chip> : null}
         {l.reason ? <span className="text-[12px] text-fg-2">{l.reason}</span> : null}
       </div>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11.5px]">
-        <div><dt className="text-[10.5px] text-fg-subtle">실패</dt><dd className="text-fg">{l.failedAt ?? '날짜 기록 없음'}{failFromLabel ? ` · ${failFromLabel} 단계` : ''}</dd></div>
-        <div><dt className="text-[10.5px] text-fg-subtle">재연락</dt><dd className="text-fg">{l.recontact?.on ? `${l.recontact.on} (${l.recontact.dueLabel})` : '—'}</dd></div>
-        <div><dt className="text-[10.5px] text-fg-subtle">담당</dt><dd className="text-fg">{l.ownerName ?? '미배정'}</dd></div>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
+        <div><dt className="text-[12px] text-fg-subtle">실패</dt><dd className="text-fg">{l.failedAt ?? '날짜 기록 없음'}{failFromLabel ? ` · ${failFromLabel} 단계` : ''}</dd></div>
+        <div><dt className="text-[12px] text-fg-subtle">재연락</dt><dd className="text-fg">{l.recontact?.on ? `${l.recontact.on} (${l.recontact.dueLabel})` : '—'}</dd></div>
+        <div><dt className="text-[12px] text-fg-subtle">담당</dt><dd className="text-fg">{l.ownerName ?? '미배정'}</dd></div>
       </dl>
       {/* 원본 §24 「당시 배치안」 — 배치안 줄 그대로 · 단가는 금액을 볼 수 있을 때만 서버가 준다. 월 합계는 산식이 정해지지 않아 싣지 않는다 */}
       {l.plan?.length ? (
         <section aria-label="당시 배치안" className="rounded-lg bg-inset p-2">
-          <h4 className="mb-1 text-[11.5px] font-bold text-fg">당시 배치안</h4>
+          <h4 className="mb-1 text-[12px] font-bold text-fg">당시 배치안</h4>
           <ul className="flex flex-col gap-1">
             {l.plan.map((p) => (
-              <li key={p.seq} className="rounded-md bg-card px-2 py-1 text-[11.5px] font-bold text-fg-2">
+              <li key={p.seq} className="rounded-md bg-card px-2 py-1 text-[12px] font-bold text-fg-2">
                 {p.label}{p.unitPrice != null ? ` · ${won(p.unitPrice)}` : ''}
               </li>
             ))}
@@ -135,7 +135,7 @@ function FailedLeadCard({ lead: l, selected, onPick, onEnroll, failFromLabel }: 
         </section>
       ) : null}
       {last ? (
-        <p className="border-l-2 border-line pl-2 text-[11.5px] text-fg-2">
+        <p className="border-l-2 border-line pl-2 text-[12px] text-fg-2">
           {last.byName ?? '—'} · {touchAtLabel(last.at)} — {last.note}
         </p>
       ) : null}
@@ -393,12 +393,12 @@ export default function IntakePage() {
         {/* 등록률 · 사후 관리 임박 — 원본은 초록 · 호박 바탕 타일에 큰 수 위 · 작은 이름 아래 (23-03) */}
         <span className="ml-2 inline-flex flex-col items-center rounded-lg border border-green/30 bg-green/10 px-3 py-1">
           <b className="text-[15px] text-green">{head?.enrollRate ?? 0}%</b>
-          <span className="text-[11px] text-green">등록률</span>
+          <span className="text-[12px] text-green">등록률</span>
         </span>
         {/* 「사후 관리 임박」 타일 (N-44) — 다음 예정일이 오늘~D+2 인 건. 수는 서버가 센다 */}
         <span className="inline-flex flex-col items-center rounded-lg border border-amber/30 bg-amber/10 px-3 py-1" title="다음 접촉·상담 예정일이 오늘부터 이틀 안인 건">
           <b className="text-[15px] text-amber">{head?.followUpSoon ?? 0}</b>
-          <span className="text-[11px] text-amber">사후 관리 임박</span>
+          <span className="text-[12px] text-amber">사후 관리 임박</span>
         </span>
       </div>
 
@@ -495,30 +495,30 @@ export default function IntakePage() {
                   <IntakeChannelBadge source={l.source} label={l.sourceLabel} />
                 </div>
                 {/* 학교 · 담당 — 학교를 모르면 「—」 자리를 남긴다(원본 §23 등록 카드 「— · 김민선」 · W11 1:1) */}
-                <div className="mt-0.5 text-[10.5px] text-fg-subtle">{`${l.school || '—'} · ${l.ownerName ?? '미배정'}`}</div>
+                <div className="mt-0.5 text-[12px] text-fg-subtle">{`${l.school || '—'} · ${l.ownerName ?? '미배정'}`}</div>
                 {/* 카드 한 줄 메모 (23-11) — 실패 건은 사유(기울임), 1차는 「원하는 것」, 그 밖은 배치안.
                     「원하는 것」은 이제 LEAD 칸이다(A-01 · v4.57) — 접촉 원장 글이 아니라 연락처가 섞이지 않는다(전에 카드에 안 올린 까닭이 사라졌다) */}
                 {l.stage === 'first' && l.want ? (
-                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] text-fg-2"><span className="sr-only">원하는 것: </span>{l.want}</p>
+                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[12px] text-fg-2"><span className="sr-only">원하는 것: </span>{l.want}</p>
                 ) : null}
                 {l.stage === 'failed' && l.reason ? (
-                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] italic text-fg-2">{l.reason}</p>
+                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[12px] italic text-fg-2">{l.reason}</p>
                 ) : null}
                 {/* 실패 카드의 「상태」 한 줄 — 원본 §23 「상태 · 재연락 완료 · 09-18」. 낱말 · 날짜는 서버의 재연락 판정 그대로(24-06 과 같은 값 · W11 1:1) */}
                 {l.stage === 'failed' && l.recontact ? (
-                  <div className="mt-1 flex items-center gap-2 rounded bg-inset px-1.5 py-0.5 text-[10px] text-fg-2">
+                  <div className="mt-1 flex items-center gap-2 rounded bg-inset px-1.5 py-0.5 text-[12px] text-fg-2">
                     <span className="w-9 shrink-0 font-bold">상태</span>
                     <span className="min-w-0 grow truncate">{l.recontact.label}{l.recontact.on ? ` · ${l.recontact.on.slice(5)}` : ''}</span>
                   </div>
                 ) : null}
                 {/* 배치안 한 줄 (23-16) — 원본 「SAT Reading 주2 · Rebecca」. 낱말은 서버의 줄 label 을 잇는다 */}
                 {l.stage !== 'failed' && l.stage !== 'enrolled' && l.plan?.length ? (
-                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] font-bold text-fg-2">{leadPlanSummary(l.plan)}</p>
+                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[12px] font-bold text-fg-2">{leadPlanSummary(l.plan)}</p>
                 ) : null}
                 {/* 등록 카드의 「등록 수업」 한 줄 (23-11) — 원본 「모의수업 A 주1 · KJ」. 그 학생의 지금 명단을 서버가 낱말로 만든다(배치안과 같은 모양) ·
                     등록 건에만 선다 */}
                 {l.lessons?.length ? (
-                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[10.5px] font-bold text-fg-2">
+                  <p className="mt-1 border-l-2 border-line pl-1.5 text-[12px] font-bold text-fg-2">
                     <span className="sr-only">등록 수업: </span><span>{l.lessons.join(' · ')}</span>
                   </p>
                 ) : null}
@@ -526,7 +526,7 @@ export default function IntakePage() {
                 {l.appts?.length ? (
                   <ul aria-label={`${l.name} 일정`} className="mt-1 flex flex-col gap-0.5">
                     {l.appts.map((a) => (
-                      <li key={a.kind} className={cn('flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px]', a.scheduled ? 'bg-inset text-fg-2' : 'bg-red/5 text-red')}>
+                      <li key={a.kind} className={cn('flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[12px]', a.scheduled ? 'bg-inset text-fg-2' : 'bg-red/5 text-red')}>
                         <span className="w-6 shrink-0 font-bold">{a.kindLabel}</span>
                         <span className="min-w-0 grow truncate">{leadApptLine(a)}</span>
                         {a.scheduled ? null : <Chip tone="danger" styleKind="solid" size="compact">미생성</Chip>}
@@ -539,7 +539,7 @@ export default function IntakePage() {
                 {l.aftercare?.length ? (
                   <ul aria-label={`${l.name} 사후 관리`} className="mt-1 flex flex-col gap-0.5">
                     {l.aftercare.map((a) => (
-                      <li key={a.key} className={cn('flex items-center gap-2 rounded px-1.5 py-0.5 text-[10px]', a.done ? 'bg-green/10 text-green' : 'bg-inset text-fg-2')}>
+                      <li key={a.key} className={cn('flex items-center gap-2 rounded px-1.5 py-0.5 text-[12px]', a.done ? 'bg-green/10 text-green' : 'bg-inset text-fg-2')}>
                         <span className="w-9 shrink-0 font-bold">{a.label}</span>
                         <span className="min-w-0 grow truncate">{a.value}</span>
                       </li>
@@ -548,11 +548,11 @@ export default function IntakePage() {
                 ) : null}
                 {/* 보류 재확인 날짜 (23-16) — 서버가 센 유효값 */}
                 {l.stage === 'hold' && l.recheckOn ? (
-                  <p className="mt-1 text-[10.5px] font-bold text-red">재확인 {l.recheckOn}</p>
+                  <p className="mt-1 text-[12px] font-bold text-red">재확인 {l.recheckOn}</p>
                 ) : null}
                 {/* 단계 기한 띠 (23-12) — 할 일 · 기한은 서버가 만든다. 들어온 날을 모르는 옛 건은 띠가 없다 */}
                 {l.stageDue ? (
-                  <div className={cn('mt-1.5 flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[10.5px] font-bold', DUE_BAND[l.stageDue.tone] ?? DUE_BAND.neutral)}>
+                  <div className={cn('mt-1.5 flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[12px] font-bold', DUE_BAND[l.stageDue.tone] ?? DUE_BAND.neutral)}>
                     <span className="min-w-0 truncate" title={l.stageDue.task}>{l.stageDue.task}</span>
                     {l.stageDue.dueLabel ? <span className="shrink-0">{l.stageDue.dueLabel}</span> : null}
                   </div>
@@ -771,7 +771,7 @@ export default function IntakePage() {
                 {/* 최신 관리자 수정사항 — 등록 입력은 모든 진입점이 공용 학생 등록 화면을 쓴다. */}
                 <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-inset px-3 py-2">
                   <Button size="sm" onClick={() => enrollNow(selected)}>학생 등록</Button>
-                  <span className="text-[11px] text-fg-subtle">상담 번호를 이어 받아 공용 등록 화면에서 학생 정보를 검토합니다.</span>
+                  <span className="text-[12px] text-fg-subtle">상담 번호를 이어 받아 공용 등록 화면에서 학생 정보를 검토합니다.</span>
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
                   {/* 사유 분류 다섯 (24-05) — 낱말은 서버의 failReasons. 비우면 기존 분류 유지. 중단 지점은 묻지 않는다(지금 단계에서 서버가 판정 · N-87) */}
@@ -815,7 +815,7 @@ export default function IntakePage() {
                     {armed === 'fail' ? '한 번 더 누르면 실패 확정' : '실패로 분류'}
                   </Button>
                   {/* 서버가 실패 순간의 단계를 lead.fail_from 에 남기고 그 단계가 곧 중단 지점이다(N-87) — 사람에게는 필드명 대신 그 뜻을 적는다 (23-20) */}
-                  <span className="text-[11px] text-fg-subtle">
+                  <span className="text-[12px] text-fg-subtle">
                     지금 단계 「{stageLabel(selected.stage)}」{stopOfStage(selected.stage) ? ` — 「${stopOfStage(selected.stage)}」으로 분류되고` : ' —'} 되살릴 때 이 단계로 돌아갑니다.
                   </span>
                 </div>

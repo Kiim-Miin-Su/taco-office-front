@@ -19,6 +19,9 @@ const col = (container: HTMLElement, key: string) => container.querySelector(`[d
 describe('Board — 칸 윗선 단계색 · 칸 바탕 · 구분선 · 이름 옆 건수(§23 23-09 · §26 26-05)', () => {
   it('기본(accent 끔)은 지금 모양이다 — 윗선 없음 · 건수는 오른쪽 칩', () => {
     const v = render(<Board columns={[{ ...columns[0] }]} itemKey={(i) => i.id} renderCard={(i) => i.name} />);
+    expect(v.container.firstElementChild?.className).toContain('auto-cols-[minmax(14rem,1fr)]');
+    expect(v.container.firstElementChild?.className).toContain('sm:grid-cols-[repeat(var(--board-columns),minmax(0,1fr))]');
+    expect((v.container.firstElementChild as HTMLElement).style.getPropertyValue('--board-columns')).toBe('1');
     const hold = col(v.container, 'hold');
     expect(hold.className).toContain('bg-inset');
     expect(hold.className).not.toContain('border-t-[3px]');

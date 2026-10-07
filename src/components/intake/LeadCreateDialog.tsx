@@ -136,7 +136,7 @@ export function LeadCreateButton({ sources, onDone }: LeadCreateButtonProps) {
           </div>
           {err ? <Banner tone="danger">{err}</Banner> : null}
           {/* 근거: 원본 §23 「유입 즉시 1차 카드 생성」 · N-45 — 절·결정 번호는 주석에만 둔다 (23-20) */}
-          <p className="text-[11px] text-fg-subtle">접수하면 「1차 상담」 칸에 카드가 서고 단계 기록이 시작됩니다.</p>
+          <p className="text-[12px] text-fg-subtle">접수하면 「1차 상담」 칸에 카드가 서고 단계 기록이 시작됩니다.</p>
         </div>
       </Dialog>
     </>

@@ -33,7 +33,7 @@ export function MyExpenses({ summary, enabled }: { summary: DrawerData['myExpens
     <section aria-label="내 지출 신청" className="mt-6 border-t border-line pt-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h3 className="text-[13px] font-bold text-fg">내 지출 신청</h3>
-        <span className="text-[11.5px] text-fg-subtle">심사 대기 {summary.pending} · 반려 {summary.rejected}</span>
+        <span className="text-[12px] text-fg-subtle">심사 대기 {summary.pending} · 반려 {summary.rejected}</span>
         <span className="ml-auto">
           {q.data ? <ExpenseCreateButton categories={q.data.categories} verb="신청" /> : null}
         </span>
@@ -56,7 +56,7 @@ export function MyExpenses({ summary, enabled }: { summary: DrawerData['myExpens
                 <ExpenseReceiptButton expense={e} />
                 <Chip size="compact" tone={STATE[e.state].tone}>{STATE[e.state].label}</Chip>
               </div>
-              {e.state !== 'pending' && e.reason ? <p className="mt-1 text-[11.5px] text-fg-2">사유 — {e.reason}</p> : null}
+              {e.state !== 'pending' && e.reason ? <p className="mt-1 text-[12px] text-fg-2">사유 — {e.reason}</p> : null}
             </li>
           ))}
         </ul>

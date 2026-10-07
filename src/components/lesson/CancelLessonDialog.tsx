@@ -137,17 +137,17 @@ export function CancelLessonDialog({
               <option key={r.key} value={r.key}>{r.label}</option>
             ))}
           </Select>
-          {!reasons?.length ? <p className="mt-1 text-[11px] text-fg-subtle">코드표를 읽는 중입니다…</p> : null}
+          {!reasons?.length ? <p className="mt-1 text-[12px] text-fg-subtle">코드표를 읽는 중입니다…</p> : null}
           {/* C-32 — 안내를 남기는 사유인지도 서버의 코드표(parentNotice)다. 화면이 사유 코드를 비교하지 않는다 (D-R39) */}
           {reason?.parentNotice && !wholeDayOn ? (
-            <p className="mt-1 text-[11px] text-fg-subtle">
+            <p className="mt-1 text-[12px] text-fg-subtle">
               이 회차 학생마다 학부모 안내를 준비합니다 — 저장 뒤 화면 위 「학부모 일괄 안내」에서 보호자와 채널을 골라 보냅니다.
             </p>
           ) : null}
         </div>
 
         <fieldset>
-          <legend className="mb-1 text-[11px] font-bold text-fg-subtle">처리</legend>
+          <legend className="mb-1 text-[12px] font-bold text-fg-subtle">처리</legend>
           <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="처리">
             {treatRows.map((t) => {
               // 차감 잠금은 서버의 deductible 이다 — 화면이 사유 코드를 비교하지 않는다 (D-R39)
@@ -175,7 +175,7 @@ export function CancelLessonDialog({
                   <span className="flex flex-col">
                     <span className="text-[12.5px] font-bold text-fg">{t.label}</span>
                     {/* 부제도 서버의 낱말이다 — 「이번 달 청구에서 빼고 다음 달로 넘깁니다 (기본)」 */}
-                    <span className="text-[11px] text-fg-subtle">{t.sub}</span>
+                    <span className="text-[12px] text-fg-subtle">{t.sub}</span>
                   </span>
                 </label>
               );
@@ -185,7 +185,7 @@ export function CancelLessonDialog({
 
         {isMakeup ? (
           <fieldset className="rounded-lg border border-line p-3">
-            <legend className="px-1 text-[11px] font-bold text-fg-subtle">보강 회차 — 종류·명단·강사는 원래 회차 그대로</legend>
+            <legend className="px-1 text-[12px] font-bold text-fg-subtle">보강 회차 — 종류·명단·강사는 원래 회차 그대로</legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="col-span-2 sm:col-span-1">
                 <Label htmlFor={`${id}-mk-date`}>날짜</Label>
@@ -208,8 +208,8 @@ export function CancelLessonDialog({
                   onChange={(e) => setMakeupEnd(e.target.checked ? '24:00' : '')} />
               </div>
             </div>
-            {makeupIssue ? <p className="mt-1 text-[11px] text-red">{makeupIssue}</p> : null}
-            <p className="mt-1 text-[11px] text-fg-subtle">원래 회차는 세지 않고 보강 회차가 대신 섭니다 — 강사·강의실이 겹치면 서버가 되돌립니다.</p>
+            {makeupIssue ? <p className="mt-1 text-[12px] text-red">{makeupIssue}</p> : null}
+            <p className="mt-1 text-[12px] text-fg-subtle">원래 회차는 세지 않고 보강 회차가 대신 섭니다 — 강사·강의실이 겹치면 서버가 되돌립니다.</p>
           </fieldset>
         ) : null}
 

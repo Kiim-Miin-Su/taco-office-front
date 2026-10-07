@@ -134,7 +134,7 @@ function HeadBox({ label, value, tone }: { label: string; value: string; tone?: 
       )}
     >
       <div className={cn('text-[15px] font-bold', tone === 'warning' ? 'text-amber' : tone === 'info' ? 'text-blue' : 'text-fg')}>{value}</div>
-      <div className="mt-0.5 text-[10.5px] text-fg-subtle">{label}</div>
+      <div className="mt-0.5 text-[12px] text-fg-subtle">{label}</div>
     </div>
   );
 }
@@ -151,7 +151,7 @@ function ProgressBar({ row }: { row: TuitionRow }) {
         {/* 너비도 서버가 낸 percent 다 — 화면이 done/total 을 다시 나누면 막대와 숫자가 갈린다 */}
         <span aria-hidden className="block h-full bg-green" style={{ width: `${row.percent}%` }} />
       </div>
-      <div className="mt-1 text-center text-[11px] text-fg-subtle">{row.percent}%</div>
+      <div className="mt-1 text-center text-[12px] text-fg-subtle">{row.percent}%</div>
     </div>
   );
 }
@@ -183,7 +183,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
             <span className="text-fg-subtle"> / {r.total}</span>
           </span>
           {/* 추가 수업(KIND.extra)은 전체에 들되 따로 센다 — 청구서에서도 제 줄이다 (C94-d · C-38) */}
-          {r.extra > 0 ? <span className="text-[10.5px] text-blue">추가 {r.extra}</span> : null}
+          {r.extra > 0 ? <span className="text-[12px] text-blue">추가 {r.extra}</span> : null}
         </span>
       ),
     },
@@ -195,7 +195,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
           {r.canceled > 0
             ? <span className="font-bold text-red">{r.canceled}</span>
             : <span className="text-fg-subtle">—</span>}
-          {r.deducted > 0 ? <span className="text-[10.5px] text-amber">차감 {r.deducted}</span> : null}
+          {r.deducted > 0 ? <span className="text-[12px] text-amber">차감 {r.deducted}</span> : null}
         </span>
       ),
     },
@@ -204,15 +204,15 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
       key: 'u', head: '시급', width: 120, align: 'right',
       cell: (r) => {
         if (r.unitPrice === null || r.unitPrice === undefined) {
-          return <span className="text-[11px] text-fg-subtle">{MASKED}</span>;
+          return <span className="text-[12px] text-fg-subtle">{MASKED}</span>;
         }
         // 단가표에 그 과목이 없다 — ₩0 을 시급이라고 적지 않는다 (위 주석 ②)
-        if (r.priceCount === 0) return <span className="text-[11.5px] text-fg-subtle">단가 없음</span>;
+        if (r.priceCount === 0) return <span className="text-[12px] text-fg-subtle">단가 없음</span>;
         return (
           <span>
             <span className="block">{won(r.unitPrice)}</span>
             {/* 컷이 「개별 단가」와 「일반」을 갈라 적는다 — 예외인지 한눈에 보여야 한다 */}
-            <span className="block text-[10.5px] text-fg-subtle">
+            <span className="block text-[12px] text-fg-subtle">
               {r.unitPriceOverride ? '개별 단가' : '일반'}
             </span>
           </span>
@@ -235,12 +235,12 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
             <Chip tone="info">이월 {r.carriedInSessions}회{r.carriedIn ? ` · ${won(r.carriedIn)}` : ''} 받음</Chip>
           ) : null}
           {r.carriedAt ? (
-            <span className="text-[11px] text-fg-subtle">넘김 {r.carriedAt.slice(5, 10)}</span>
+            <span className="text-[12px] text-fg-subtle">넘김 {r.carriedAt.slice(5, 10)}</span>
           ) : r.carryable && onCarry ? (
             <button
               type="button"
               disabled={carryingId === r.studentId}
-              className="rounded-md bg-primary px-2 py-1 text-[11.5px] font-bold text-white disabled:opacity-50"
+              className="rounded-md bg-primary px-2 py-1 text-[12px] font-bold text-white disabled:opacity-50"
               onClick={(e) => { e.stopPropagation(); onCarry(r.studentId); }}
             >
               {carryingId === r.studentId ? '넘기는 중…' : '이월 처리'}
@@ -253,7 +253,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
           ) : null}
           <button
             type="button"
-            className="rounded-md border border-line px-2 py-1 text-[11.5px] font-bold text-fg-2 hover:bg-inset"
+            className="rounded-md border border-line px-2 py-1 text-[12px] font-bold text-fg-2 hover:bg-inset"
             onClick={(e) => { e.stopPropagation(); setOpenId(r.studentId); }}
           >
             내역
@@ -279,7 +279,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
               {data ? `${Number(data.month.slice(5))}월 수업 진행` : '수업 진행'}
             </h2>
             {data ? (
-              <p className="mt-0.5 text-[11px] text-fg-subtle">
+              <p className="mt-0.5 text-[12px] text-fg-subtle">
                 오늘 {data.today.slice(5)} 기준 · {data.daysPast}일 지남 · {data.daysLeft}일 남음
               </p>
             ) : null}
@@ -350,7 +350,7 @@ export function TuitionTable({ data, loading, onCarry, carryingId, onCloseMonth,
                 ))}
               </ul>
             )}
-            <p className="mt-4 border-t border-line pt-3 text-[11px] text-fg-subtle">
+            <p className="mt-4 border-t border-line pt-3 text-[12px] text-fg-subtle">
               이 줄이 곧 청구서의 줄입니다 — 청구서를 만들 때 이 계산 결과를 그대로 씁니다.
               「지금까지」는 이 중 이미 한 수업만 센 값이고, 결강은 「넘길 돈」으로 따로 섭니다.
             </p>

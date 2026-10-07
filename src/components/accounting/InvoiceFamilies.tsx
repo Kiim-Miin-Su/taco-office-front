@@ -16,7 +16,7 @@ type Family = Accounting['families'][number];
 export function InvoiceFamilies({ families, onOpen }: { families: Family[]; onOpen?: (invId: number) => void }) {
   return (
     <section aria-label="형제 합산" className="mb-3 rounded-lg border border-line bg-card p-3">
-      <p className="mb-2 text-[11.5px] text-fg-subtle">같은 달 · 같은 보호자 연락처로 묶인 형제의 청구서를 합쳐 봅니다. 청구서는 학생마다 그대로입니다.</p>
+      <p className="mb-2 text-[12px] text-fg-subtle">같은 달 · 같은 보호자 연락처로 묶인 형제의 청구서를 합쳐 봅니다. 청구서는 학생마다 그대로입니다.</p>
       {families.length === 0 ? <p className="text-[12px] text-fg-subtle">묶인 형제 청구서가 없습니다.</p> : (
         <ul className="flex flex-col gap-1.5">
           {families.map((f) => (
@@ -28,7 +28,7 @@ export function InvoiceFamilies({ families, onOpen }: { families: Family[]; onOp
               {onOpen ? (
                 <span className="ml-auto flex gap-1">
                   {f.invoiceIds.map((id) => (
-                    <button key={id} type="button" className="text-[11.5px] font-bold text-primary hover:underline" onClick={() => onOpen(id)}>
+                    <button key={id} type="button" className="text-[12px] font-bold text-primary hover:underline" onClick={() => onOpen(id)}>
                       {`#${id} 열기`}
                     </button>
                   ))}

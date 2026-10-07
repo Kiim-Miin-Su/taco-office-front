@@ -89,7 +89,7 @@ function SessionCard({ consId, session, locked }: { consId: number; session: Con
                 onChange={(e) => { const v = e.target.value; setDraft((d) => ({ ...d, [key]: v })); }} />
             </div>
           ))}
-          <p className="text-[11px] text-fg-subtle sm:col-span-2">「다음까지」를 적으면 담당자의 할 일로 올라가고 알림이 갑니다.</p>
+          <p className="text-[12px] text-fg-subtle sm:col-span-2">「다음까지」를 적으면 담당자의 할 일로 올라가고 알림이 갑니다.</p>
           {write.isError ? <Banner tone="danger" className="sm:col-span-2">{apiMessage(write.error)}</Banner> : null}
           <div className="flex justify-end gap-2 sm:col-span-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={write.isPending}>닫기</Button>
@@ -101,20 +101,20 @@ function SessionCard({ consId, session, locked }: { consId: number; session: Con
           <dl className="grid grid-cols-1 overflow-hidden rounded-lg bg-inset sm:grid-cols-3 sm:divide-x sm:divide-line">
             {BODY.map(([key, label]) => (
               <div key={key} className="px-3 py-2">
-                <dt className="text-[10px] font-bold text-fg-subtle">{label}</dt>
+                <dt className="text-[12px] font-bold text-fg-subtle">{label}</dt>
                 <dd className="text-[12.5px] font-bold text-fg">{session[key] ?? '—'}</dd>
               </div>
             ))}
           </dl>
           {session.result ? (
             <div>
-              <p className="text-[10px] font-bold text-fg-subtle">결과</p>
+              <p className="text-[12px] font-bold text-fg-subtle">결과</p>
               <blockquote className="mt-1 rounded-r-lg border-l-[3px] border-violet bg-inset px-3 py-2 text-[12.5px] font-bold text-fg">{session.result}</blockquote>
             </div>
           ) : null}
           {session.nextUntil ? (
             <div>
-              <p className="text-[10px] font-bold text-fg-subtle">다음까지</p>
+              <p className="text-[12px] font-bold text-fg-subtle">다음까지</p>
               <p className="mt-1 rounded-lg bg-amber/10 px-3 py-2 text-[12.5px] font-bold text-amber">{session.nextUntil}</p>
             </div>
           ) : null}
@@ -177,11 +177,11 @@ export function ConsultingActivity({ item, detail, onAddSession }: { item: Consu
                   <button type="button" aria-pressed={row.done} aria-label={`${row.label} ${row.done ? '완료 해제' : '완료 처리'}`} disabled={toggle.isPending || locked}
                     title={locked ? '종료된 컨설팅입니다' : row.done ? '완료 해제' : '완료 처리'}
                     onClick={() => toggle.mutate({ consId: item.id, itemId: row.id, done: !row.done })}
-                    className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border text-[11px] font-bold ${row.done ? 'border-green bg-green text-white' : 'border-line text-transparent'}`}>✓</button>
+                    className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border text-[12px] font-bold ${row.done ? 'border-green bg-green text-white' : 'border-line text-transparent'}`}>✓</button>
                   <span className="min-w-0 grow">
                     <span className={`block text-[12.5px] font-bold ${row.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>{row.label}</span>
                     {/* 처리 시각 · 처리자 (31-04) — 서버의 doneAt · doneBy. 안 끝낸 항목은 기한이 있으면 서버가 적은 D-day(I-94) · 없으면 「기한 없음」 */}
-                    <span className="block text-[10.5px] text-fg-subtle">
+                    <span className="block text-[12px] text-fg-subtle">
                       {row.done ? [at, row.doneBy].filter(Boolean).join(' · ') : row.dueLabel ? (
                         <span data-due data-overdue={row.dueOverdue ? 'true' : 'false'} title={`기한 ${row.dueOn ?? ''}`}
                           className={cn('inline-block rounded px-1 font-bold', row.dueOverdue ? 'bg-red/10 text-red' : 'bg-amber/10 text-amber')}>

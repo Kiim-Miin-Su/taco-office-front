@@ -106,7 +106,7 @@ export function DiagnosticForm({ studentId, studentName, serId, onDone, onCancel
           {write.isPending ? '저장 중…' : '진단 저장'}
         </Button>
       </div>
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-[12px] text-fg-subtle">
         저장한 진단은 고치지 않고 쌓입니다 — 그때의 판단이 사라지면 안 되기 때문입니다. 화면에는 늘 최신 한 건이 보입니다.
       </p>
     </div>

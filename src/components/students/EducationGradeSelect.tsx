@@ -40,7 +40,7 @@ export function EducationGradeSelect({
 
   const message = picked?.equivalenceHint
     ?? (legacy ? '기존 학년 값입니다. 새 선택지로 자동 변환하지 않습니다.'
-      : !contractReady && showContractState ? '학년 선택 DTO 연결 전입니다. 기존 값은 그대로 보존됩니다.' : null);
+      : !contractReady && showContractState ? '학년 선택 기능을 준비 중입니다. 기존 값은 그대로 보존됩니다.' : null);
 
   return (
     <div className="min-w-0">
@@ -53,7 +53,7 @@ export function EducationGradeSelect({
           </optgroup>
         )) : fallback.map((item) => <option key={item} value={item}>{item}</option>)}
       </Select>
-      {message ? <p role="status" className="mt-1 text-[10px] text-fg-subtle">{message}</p> : null}
+      {message ? <p role="status" className="mt-1 text-[12px] text-fg-subtle">{message}</p> : null}
     </div>
   );
 }

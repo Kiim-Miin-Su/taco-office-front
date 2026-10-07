@@ -11,10 +11,10 @@ import { Banner, Button, Chip, FieldError, Input, Label, Panel, Select, Textarea
 type AdjustmentKind = '' | 'discount' | 'refund' | 'sibling_discount' | 'carry';
 
 const REQUIRED_CONTRACT = [
-  'requestKey · expectedVersion',
+  '중복 제출 방지 · 동시 수정 확인',
   '대표 승인 · 반려 사유',
   '청구 반영 · 취소 · 되돌리기',
-  'actual actor · 감사 · 알림',
+  '실제 처리자 · 변경 이력 · 알림',
 ] as const;
 
 export function AdjustmentContractBoundary({ invoices, onOpenInvoices }: {
@@ -52,7 +52,7 @@ export function AdjustmentContractBoundary({ invoices, onOpenInvoices }: {
       <Panel>
         <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="mb-1"><Chip tone="warning">생성 계약 대기</Chip></div>
+            <div className="mb-1"><Chip tone="warning">저장 기능 준비 중</Chip></div>
             <h2 className="text-[15px] font-bold text-fg">조정 — 환불 · 할인</h2>
             <p className="mt-1 text-[12px] text-fg-subtle">환불과 할인은 대표 승인 후 반영됩니다</p>
           </div>
@@ -60,7 +60,7 @@ export function AdjustmentContractBoundary({ invoices, onOpenInvoices }: {
         </header>
 
         <Banner tone="warning" className="mb-4">
-          <b>승인 전 청구 금액은 바뀌지 않습니다.</b> 조정 요청·대표 승인·청구 반영을 한 트랜잭션으로 보증하는 DTO와 writer가 생길 때까지 제출을 잠급니다.
+          <b>승인 전 청구 금액은 바뀌지 않습니다.</b> 조정 요청·대표 승인·청구 반영을 한 번에 안전하게 처리할 수 있을 때까지 제출을 잠급니다.
         </Banner>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="조정 등록 입력">
@@ -99,21 +99,21 @@ export function AdjustmentContractBoundary({ invoices, onOpenInvoices }: {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] text-fg-subtle">초안은 이 화면에만 있으며 서버·청구서·대표 보고에는 기록되지 않습니다.</p>
+          <p className="text-[12px] text-fg-subtle">초안은 이 화면에만 있으며 서버·청구서·대표 보고에는 기록되지 않습니다.</p>
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={clear}>입력 지우기</Button>
-            <Button size="sm" disabled title="조정 생성 DTO와 대표 승인 writer가 필요합니다">승인 요청 계약 준비 중</Button>
+            <Button size="sm" disabled title="조정 생성과 대표 승인 기능이 준비된 뒤 사용할 수 있습니다">승인 요청 기능 준비 중</Button>
           </div>
         </div>
       </Panel>
 
-      <Panel title="조정 원장 계약" sub="승인 대기 · 승인 · 반려 · 반영 취소 · 되돌리기를 같은 version으로 읽습니다">
+      <Panel title="조정 원장" sub="승인 대기 · 승인 · 반려 · 반영 취소 · 되돌리기를 같은 변경 이력으로 확인합니다">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="조정 원장 필요 필드">
           {REQUIRED_CONTRACT.map((field) => (
             <div key={field} className="rounded-lg border border-line bg-inset px-3 py-2 text-[12px] font-bold text-fg-2">{field}</div>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-fg-subtle">현재 생성 OpenAPI의 중앙 결재 종류에도 조정이 없습니다. 기존 지출·시급 보정 승인으로 합치지 않습니다.</p>
+        <p className="mt-3 text-[12px] text-fg-subtle">현재 중앙 결재에는 조정 종류가 없습니다. 기존 지출·시급 보정 승인으로 합치지 않습니다.</p>
       </Panel>
     </div>
   );

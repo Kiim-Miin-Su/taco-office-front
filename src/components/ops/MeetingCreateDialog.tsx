@@ -176,7 +176,7 @@ export function MeetingCreateButton({ mtTypes, can, onDone }: MeetingCreateButto
             </div>
           </div>
         </div>
-        {'issue' in built ? <p className="mt-2 text-[11px] text-fg-subtle">{built.issue}</p> : null}
+        {'issue' in built ? <p className="mt-2 text-[12px] text-fg-subtle">{built.issue}</p> : null}
         {err ? <Banner tone="danger" className="mt-3">{err}</Banner> : null}
       </Dialog>
     </>

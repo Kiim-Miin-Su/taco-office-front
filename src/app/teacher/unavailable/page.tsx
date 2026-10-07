@@ -50,10 +50,10 @@ function DayColumn({ date, open, blocks, sel, onDown, onEnter, onActivate }: {
   const [p0, p1] = picked ? [Math.min(picked.a, picked.b), Math.max(picked.a, picked.b) + 1] : [0, 0];
   return (
     <div className="w-[96px] shrink-0 border-r border-line last:border-r-0">
-      <div className={`border-b border-line px-1 py-1.5 text-center text-[11px] ${open ? '' : 'bg-inset opacity-60'}`}>
+      <div className={`border-b border-line px-1 py-1.5 text-center text-[12px] ${open ? '' : 'bg-inset opacity-60'}`}>
         <b className={sun ? 'text-red' : 'text-fg'}>{dowOf(date)}</b>
         <span className="ml-1 text-fg-subtle">{Number(date.slice(8, 10))}</span>
-        {open ? null : <span className="ml-1 rounded bg-line px-1 text-[10px] text-fg-subtle">마감</span>}
+        {open ? null : <span className="ml-1 rounded bg-line px-1 text-[12px] text-fg-subtle">마감</span>}
       </div>
       <div className="relative" style={{ height: (H1 - H0) * CELL }}>
         {Array.from({ length: H1 - H0 }, (_, i) => {
@@ -81,7 +81,7 @@ function DayColumn({ date, open, blocks, sel, onDown, onEnter, onActivate }: {
           <div
             key={b.id}
             title={`${hm(b.startMin)}–${hm(b.endMin)} · ${b.reason}`}
-            className="pointer-events-none absolute inset-x-0.5 overflow-hidden rounded-md bg-fg/85 px-1 py-0.5 text-[10px] leading-tight text-card"
+            className="pointer-events-none absolute inset-x-0.5 overflow-hidden rounded-md bg-fg/85 px-1 py-0.5 text-[12px] leading-tight text-card"
             style={{ top: ((b.startMin - H0 * 60) / 60) * CELL, height: Math.max(16, ((b.endMin - b.startMin) / 60) * CELL - 2) }}
           >
             {hm(b.startMin)}–{hm(b.endMin)}
@@ -142,18 +142,18 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
         TN Academy 강사 단톡방에 바로 올려 주세요. 관리자가 확인하고 직접 조정합니다.
       </div>
 
-      <Banner className="mt-2" tone="warning" title="최신 저장 계약 연결 전">
-        10일 경계·사유 15자·실제 배정 수업 충돌을 서버가 함께 검증하는 DTO/OpenAPI가 아직 없습니다.
-        입력 초안과 기존 내역 조회만 제공하며, 등록·삭제는 배정 수업 충돌 계약까지 연결된 뒤 저장할 수 있습니다.
+      <Banner className="mt-2" tone="warning" title="저장 기능 준비 중">
+        10일 기준·사유 15자·실제 배정 수업 충돌을 함께 확인하는 기능을 준비 중입니다.
+        입력 초안과 기존 내역 조회만 제공하며, 등록·삭제는 충돌 확인 기능이 준비된 뒤 사용할 수 있습니다.
       </Banner>
 
-      <Panel className="mt-4" title="2주 격자 · 08:00 – 23:00" sub="날짜별 10일 전부터 초안 입력 · 서버 저장 계약 연결 전">
+      <Panel className="mt-4" title="2주 격자 · 08:00 – 23:00" sub="날짜별 10일 전부터 초안 입력 · 저장 기능 준비 중">
         <div className="overflow-x-auto">
           <div className="flex min-w-[1400px] select-none">
             <div className="w-12 shrink-0">
-              <div className="border-b border-transparent px-1 py-1.5 text-[11px]">&nbsp;</div>
+              <div className="border-b border-transparent px-1 py-1.5 text-[12px]">&nbsp;</div>
               {Array.from({ length: H1 - H0 }, (_, i) => (
-                <div key={i} className="flex h-11 items-start justify-end pr-1.5 text-[10.5px] text-fg-subtle">{hm((H0 + i) * 60)}</div>
+                <div key={i} className="flex h-11 items-start justify-end pr-1.5 text-[12px] text-fg-subtle">{hm((H0 + i) * 60)}</div>
               ))}
             </div>
             {days.map((date) => (
@@ -193,8 +193,8 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
               <span className={`text-[12px] ${reasonLength >= REQUIRED_REASON_LENGTH ? 'text-green' : 'text-fg-subtle'}`}>
                 {reasonLength}/500자 · {reasonLength >= REQUIRED_REASON_LENGTH ? '입력 완료' : `최소 ${REQUIRED_REASON_LENGTH}자`}
               </span>
-              <Button className="ml-auto min-h-11" variant="primary" disabled title="DTO/OpenAPI와 서버의 10일·15자·배정 수업 충돌 계약 연결 후 활성화">
-                저장 계약 준비 중
+              <Button className="ml-auto min-h-11" variant="primary" disabled title="10일 기준·사유 길이·배정 수업 충돌 확인 기능이 준비된 뒤 사용할 수 있습니다">
+                저장 기능 준비 중
               </Button>
             </div>
           </div>
@@ -216,9 +216,9 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
                   <div className="w-28 shrink-0 text-[13px] text-fg">{hm(b.startMin)} – {hm(b.endMin)}</div>
                   <div className="min-w-0 grow truncate text-[12.5px] text-fg-subtle" title={b.reason}>{b.reason}</div>
                   <Button size="sm" className="min-h-11" disabled title={b.canDelete
-                    ? '새 10일 삭제 계약 연결 후 활성화'
+                    ? '10일 삭제 기준이 준비된 뒤 사용할 수 있습니다'
                     : '서버가 마감된 기존 등록으로 판정했습니다'}>
-                    {b.canDelete ? '삭제 계약 준비 중' : '삭제 불가'}
+                    {b.canDelete ? '삭제 기능 준비 중' : '삭제 불가'}
                   </Button>
                 </li>
               ))}

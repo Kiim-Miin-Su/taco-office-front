@@ -69,7 +69,7 @@ export function ShellSearch({ open, onClose, me }: { open: boolean; onClose: () 
           if (!rows.length) return null;
           return (
             <section key={group} className="mb-3" aria-label={group}>
-              <h3 className="px-1 pb-1 text-[11px] font-bold text-fg-subtle">{group}</h3>
+              <h3 className="px-1 pb-1 text-[12px] font-bold text-fg-subtle">{group}</h3>
               <ul className="flex flex-col gap-1">
                 {rows.map((hit) => (
                   <li key={hit.key}>

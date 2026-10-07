@@ -67,7 +67,7 @@ it('Kinder는 4영역 3단계·관찰·종합 소견만 있고 그룹 의견은 
   }
   expect(view.getByLabelText('종합 소견')).toBeTruthy();
   expect(view.queryByText(/개별 의견/)).toBeNull();
-  expect(view.getByRole('button', { name: '승인 요청 계약 준비 중' }).hasAttribute('disabled')).toBe(true);
+  expect(view.getByRole('button', { name: '승인 요청 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
 });
 
 it('Kinder에 학생이 둘이면 양식을 열지 않고 1대1 제한을 표시한다', () => {

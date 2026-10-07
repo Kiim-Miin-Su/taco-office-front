@@ -31,7 +31,7 @@ it('강사 초안은 최신 네 종류·학생·필요일·내용을 한 경로�
   fireEvent.change(view.getByLabelText('요청 내용 *'), { target: { value: 'Unit 4 복습용 문제와 정답지를 준비해 주세요.' } });
 
   expect(view.getByText('초안 입력 완료 · 저장 기능 연결 대기')).toBeTruthy();
-  const submit = view.getByRole('button', { name: '요청 계약 준비 중' });
+  const submit = view.getByRole('button', { name: '요청 기능 준비 중' });
   expect(submit).toHaveProperty('disabled', true);
   fireEvent.click(submit);
   expect(view.queryByText(/요청을 접수했습니다/)).toBeNull();
@@ -41,7 +41,7 @@ it('담당 학생 계약이 없으면 임의 명단을 만들지 않고 사유�
   const view = render(<MaterialRequestDraft viewerId={2} students={[]} studentsUnavailable />);
   expect(view.getByText('전체 담당 학생 선택 기능을 준비 중입니다.')).toBeTruthy();
   expect(view.getByLabelText('학생 *')).toHaveProperty('disabled', true);
-  expect(view.getByRole('button', { name: '요청 계약 준비 중' })).toHaveProperty('disabled', true);
+  expect(view.getByRole('button', { name: '요청 기능 준비 중' })).toHaveProperty('disabled', true);
 });
 
 it('로그인 사용자나 담당 학생 후보가 바뀌면 이전 강사의 초안을 지운다', () => {

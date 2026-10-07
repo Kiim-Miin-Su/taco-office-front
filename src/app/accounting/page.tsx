@@ -64,7 +64,7 @@ function Head({ v, loaded }: { v: number | null | undefined; loaded: boolean }) 
 
 /** 공용 원화 포맷을 재사용한다. 미확인 입금과 권한 가림을 호출부에서 구별한다. */
 function Won({ v, bold, empty }: { v: number | null; bold?: boolean; empty?: string }) {
-  if (v === null) return <span className="text-[11px] text-fg-subtle">{won(v, { empty })}</span>;
+  if (v === null) return <span className="text-[12px] text-fg-subtle">{won(v, { empty })}</span>;
   return <span className={bold ? 'font-bold' : undefined}>{won(v)}</span>;
 }
 
@@ -196,7 +196,7 @@ export default function AccountingPage() {
       // 분납이면 **지금 기한**(못 채운 가장 이른 회차의 예정일)과 그 회차다 — 둘 다 서버 값 (N-79 · §55 「2회차」)
       key: 'due', head: '예정일', width: 120,
       cell: (r) => (r.nextInstallmentSeq != null
-        ? <span>{r.nextDueOn}<span className="ml-1 text-[11px] text-fg-subtle">{r.nextInstallmentSeq}회차</span></span>
+        ? <span>{r.nextDueOn}<span className="ml-1 text-[12px] text-fg-subtle">{r.nextInstallmentSeq}회차</span></span>
         : (r.dueOn ?? '—')),
     },
     // 전달 · 취소 — 단추가 서는지는 서버의 canDeliver/canVoid 다 (C94-a · D-R39)
@@ -302,7 +302,7 @@ export default function AccountingPage() {
               batchPreset={batchPreset}
               heading={(
                 <h2 className="flex items-baseline gap-2 text-[15px] font-bold text-fg">
-                  청구서 <span className="text-[11.5px] font-normal text-fg-subtle">왼쪽에서 오른쪽으로 밀어 갑니다</span>
+                  청구서 <span className="text-[12px] font-normal text-fg-subtle">왼쪽에서 오른쪽으로 밀어 갑니다</span>
                 </h2>
               )}
             />
@@ -323,7 +323,7 @@ export default function AccountingPage() {
             />
             <div className="mb-2 flex flex-wrap items-center gap-3">
               <h3 className="text-[13px] font-bold text-fg">
-                청구서 <span className="text-[11.5px] font-normal text-fg-subtle">전체 {q.data?.invoices.length ?? 0}건</span>
+                청구서 <span className="text-[12px] font-normal text-fg-subtle">전체 {q.data?.invoices.length ?? 0}건</span>
               </h3>
               {/* A-13 — 각각(기본) · 형제 합산(서버 묶음 · 보기만). 묶인 형제가 없으면 고를 것이 없다 */}
               {(q.data?.families ?? []).length > 0 ? (
@@ -387,7 +387,7 @@ export default function AccountingPage() {
               invoices={q.data?.invoices ?? []} payments={q.data?.payments ?? []} />
             {/* 입금 줄 하나하나는 기간과 무관하게 그대로 둔다 — 달력은 날마다의 합이라 줄을 대신하지 못한다 */}
             <h3 className="mb-2 mt-4 text-[13px] font-bold text-fg">
-              입금 줄 <span className="text-[11.5px] font-normal text-fg-subtle">전체 기간 · {q.data?.payments.length ?? 0}건</span>
+              입금 줄 <span className="text-[12px] font-normal text-fg-subtle">전체 기간 · {q.data?.payments.length ?? 0}건</span>
             </h3>
             <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
           </>

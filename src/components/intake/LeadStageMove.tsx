@@ -58,7 +58,7 @@ export function LeadStageMove({ lead, onDone }: LeadStageMoveProps) {
       >
         {pending ? '옮기는 중…' : armed ? '한 번 더 누르면 이동' : '다음 단계 →'}
       </Button>
-      <span className="text-[11px] text-fg-subtle">옮기면 단계 기록에 한 줄이 남고, 대표 보고의 상담 퍼널이 그 기록으로 셉니다.</span>
+      <span className="text-[12px] text-fg-subtle">옮기면 단계 기록에 한 줄이 남고, 대표 보고의 상담 퍼널이 그 기록으로 셉니다.</span>
       {move.isError ? <Banner tone="danger" className="basis-full">{apiMessage(move.error)}</Banner> : null}
     </div>
   );

@@ -33,7 +33,7 @@ function CountRow({ color, name, count }: { color: string; name: string; count: 
 }
 
 /** 머리 오른쪽 작은 단추 — 원문 §07 「프로그램 [관리] [전체]」 */
-const HEAD_TOOL = 'rounded border border-line bg-card px-1.5 py-px text-[10px] font-bold text-fg-subtle hover:bg-inset';
+const HEAD_TOOL = 'rounded border border-line bg-card px-1.5 py-px text-[12px] font-bold text-fg-subtle hover:bg-inset';
 
 export function ScheduleSidebar({
   meta, counts, canEdit, onCreate, onHistory, availabilityOn = false, onAvailability, onClearKind, onClearSub,
@@ -94,23 +94,23 @@ export function ScheduleSidebar({
       </div>
 
       {/* 원문 KST 카드 — 🔒 + 파란 안내 글 */}
-      <div className="shrink-0 rounded-lg border border-blue/30 bg-blue/[0.06] px-2.5 py-2 text-[11px] leading-relaxed text-blue">
+      <div className="shrink-0 rounded-lg border border-blue/30 bg-blue/[0.06] px-2.5 py-2 text-[12px] leading-relaxed text-blue">
         <b className="flex items-center gap-1 text-fg"><Lock size={12} aria-hidden />서울 KST 고정</b>
         관리자 화면은 항상 한국 시간
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* 원문 §07 「프로그램 [관리] [전체]」 — 관리는 §18 프로그램 관리, 전체는 종류 거르기 풀기 */}
-        <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-bold text-fg">
+        <div className="mb-1 flex items-center gap-1 px-1 text-[12px] font-bold text-fg">
           프로그램
           <span className="ml-auto" />
           {canOpenPrograms ? <Link href="/programs" className={HEAD_TOOL}>관리</Link> : null}
           {onClearKind ? <button type="button" onClick={onClearKind} className={HEAD_TOOL} aria-label="프로그램 거르기 풀기">전체</button> : null}
         </div>
-        {!counts ? <p className="px-1 py-1 text-[11px] text-fg-subtle">일정 원본 수를 읽는 중…</p> : null}
+        {!counts ? <p className="px-1 py-1 text-[12px] text-fg-subtle">일정 원본 수를 읽는 중…</p> : null}
         {(counts?.groups ?? []).map((group) => (
           <section key={group.grp} className="mb-2">
-            <h3 className="flex items-center px-1 py-1 text-[11px] font-bold text-fg-subtle">
+            <h3 className="flex items-center px-1 py-1 text-[12px] font-bold text-fg-subtle">
               {group.label}<span className="ml-auto">{group.count}</span>
             </h3>
             <ul>
@@ -123,7 +123,7 @@ export function ScheduleSidebar({
         ))}
         {counts?.subs.length ? (
           <section className="mb-2">
-            <h3 className="flex items-center gap-1 px-1 py-1 text-[11px] font-bold text-fg-subtle">
+            <h3 className="flex items-center gap-1 px-1 py-1 text-[12px] font-bold text-fg-subtle">
               과목<span className="ml-auto" />
               {canOpenPrograms ? <Link href="/programs" className={HEAD_TOOL}>관리</Link> : null}
               {onClearSub ? <button type="button" onClick={onClearSub} className={HEAD_TOOL} aria-label="과목 거르기 풀기">전체</button> : null}

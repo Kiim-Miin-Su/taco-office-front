@@ -33,7 +33,7 @@ interface ConsultingStageBoardProps {
 function MoneyPair({ item }: { item: Consulting }) {
   if (item.amount == null && item.paidAmount == null) return null;
   return (
-    <span className="text-[10.5px] font-bold text-fg-2">
+    <span className="text-[12px] font-bold text-fg-2">
       {won(item.paidAmount ?? 0)} / {item.amount == null ? '—' : won(item.amount)}
     </span>
   );
@@ -73,7 +73,7 @@ function ConsultingCard({ item }: { item: Consulting }) {
 
       {/* 「어머니 · 김범준」 — 요청자와 담당. 둘 다 없으면 줄이 서지 않는다 */}
       {item.requesterLabel || item.ownerName ? (
-        <p className="mt-1 text-[10.5px] text-fg-subtle">
+        <p className="mt-1 text-[12px] text-fg-subtle">
           {[item.requesterLabel, item.ownerName].filter(Boolean).join(' · ')}
         </p>
       ) : null}
@@ -93,7 +93,7 @@ function ConsultingCard({ item }: { item: Consulting }) {
           {/* 진행 카드는 막대 왼쪽에 보라 글자 「2/6회」 (26-09) — 수는 서버가 센 「한 회차」다 */}
           <div className="flex items-center gap-2">
             {item.stage === 'running' && item.canOpen ? (
-              <b className="shrink-0 text-[11px] text-violet">{completedSessions}/{totalSessions || '—'}회</b>
+              <b className="shrink-0 text-[12px] text-violet">{completedSessions}/{totalSessions || '—'}회</b>
             ) : null}
             <div className="min-w-0 grow">
               <ConsultingProgress
@@ -110,11 +110,11 @@ function ConsultingCard({ item }: { item: Consulting }) {
           </div>
           {/* 원본에는 없는 줄이라 **말할 것이 있을 때만** 선다 — 끝난 날 · 잠김 · 앞으로 잡아 둔 날짜(기록 ≠ 완료 · N-18) */}
           {item.stage === 'done' ? (
-            <p className="mt-1.5 text-[10px] text-fg-subtle">{item.endOn ?? '종료일 미정'} · 종료</p>
+            <p className="mt-1.5 text-[12px] text-fg-subtle">{item.endOn ?? '종료일 미정'} · 종료</p>
           ) : !item.canOpen ? (
-            <p className="mt-1.5 text-[10px] text-fg-subtle">회차 기록 잠김</p>
+            <p className="mt-1.5 text-[12px] text-fg-subtle">회차 기록 잠김</p>
           ) : plannedSessions > 0 ? (
-            <p className="mt-1.5 text-[10px] text-fg-subtle">잡힌 날짜 {plannedSessions}</p>
+            <p className="mt-1.5 text-[12px] text-fg-subtle">잡힌 날짜 {plannedSessions}</p>
           ) : null}
         </div>
       )}
@@ -128,7 +128,7 @@ function ConsultingCard({ item }: { item: Consulting }) {
         <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5">
           <MoneyPair item={item} />
           {item.ageDays != null ? (
-            <span className={item.stage === 'done' ? 'ml-auto text-[10.5px] text-fg-subtle' : 'ml-auto text-[10.5px] font-bold text-fg-2'}>
+            <span className={item.stage === 'done' ? 'ml-auto text-[12px] text-fg-subtle' : 'ml-auto text-[12px] font-bold text-fg-2'}>
               {item.ageDays}일 지남
             </span>
           ) : null}

@@ -134,7 +134,7 @@ function HistoricalBoard({ d, anchor, setAnchor }: {
           </Button>
           <span className="min-w-0 grow text-center">
             <span className="block text-[14px] font-bold text-fg">{cycle.no}차 사이클</span>
-            <span className="block text-[11px] text-fg-subtle">{cycle.from} ~ {cycle.to}</span>
+            <span className="block text-[12px] text-fg-subtle">{cycle.from} ~ {cycle.to}</span>
           </span>
           <Button
             aria-label="다음 사이클"
@@ -171,7 +171,7 @@ function HistoricalBoard({ d, anchor, setAnchor }: {
       </Panel>
 
       {picked ? (
-        <Panel className="mt-4" title={<>{picked.name} 회차 내역 <span className="ml-1 text-[11px] font-normal text-fg-subtle">{uses.length}건</span></>}>
+        <Panel className="mt-4" title={<>{picked.name} 회차 내역 <span className="ml-1 text-[12px] font-normal text-fg-subtle">{uses.length}건</span></>}>
           <Table columns={historyCols} rows={uses} rowKey={(entry) => entry.id} empty="이 사이클 회차 기록이 없습니다" />
         </Panel>
       ) : null}

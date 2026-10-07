@@ -52,7 +52,7 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg bg-inset p-3">
-          <div className="text-[11px] font-bold text-fg-subtle">회차</div>
+          <div className="text-[12px] font-bold text-fg-subtle">회차</div>
           {/*
             「2 / 6」은 **한 회차**(오늘까지)다 — §26 카드 · §30 머리와 같은 서버 셈(sessionsDone · 27-04).
             기록 행 수(sessionsLogged)는 앞으로 잡아 둔 날짜까지 세어 두 화면의 수가 갈렸다. 잡아 둔 날짜는 따로 적는다.
@@ -65,11 +65,11 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
             label={`회차 ${c.sessionsDone}회 / 약정 ${c.sessions ?? 0}회`}
           />
           {c.sessionsLogged > c.sessionsDone ? (
-            <div className="mt-1 text-[11px] text-fg-subtle">잡힌 날짜 {c.sessionsLogged - c.sessionsDone}</div>
+            <div className="mt-1 text-[12px] text-fg-subtle">잡힌 날짜 {c.sessionsLogged - c.sessionsDone}</div>
           ) : null}
         </div>
         <div className="rounded-lg bg-inset p-3">
-          <div className="text-[11px] font-bold text-fg-subtle">항목</div>
+          <div className="text-[12px] font-bold text-fg-subtle">항목</div>
           <div className="mb-2 text-[17px] font-bold">{c.itemsDone} / {c.itemsTotal}</div>
           <ConsultingProgress
             value={c.itemsDone} max={c.itemsTotal}
@@ -77,9 +77,9 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
           />
         </div>
         <div className="rounded-lg bg-inset p-3">
-          <div className="text-[11px] font-bold text-fg-subtle">납부</div>
+          <div className="text-[12px] font-bold text-fg-subtle">납부</div>
           <div className="text-[17px] font-bold text-amber">{won(c.paid)}</div>
-          <div className="text-[11px] text-fg-subtle">/ {won(c.amount)}</div>
+          <div className="text-[12px] text-fg-subtle">/ {won(c.amount)}</div>
         </div>
       </div>
 
@@ -89,7 +89,7 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
             <li
               key={i.id}
               className={cn(
-                'rounded-md px-2 py-1 text-[11.5px]',
+                'rounded-md px-2 py-1 text-[12px]',
                 i.done ? 'bg-inset text-fg-subtle line-through' : 'bg-line-2/40 font-bold text-fg',
               )}
             >
@@ -99,7 +99,7 @@ function CaseCard({ c, onOpen }: { c: ConsStudentCase; onOpen?: (id: number) => 
         </ul>
       ) : c.itemsTotal > 0 ? (
         // 숫자는 살아 있고 줄만 안 내려온 경우 — 「항목이 없다」와 구분해서 말한다
-        <p className="mt-3 text-[11.5px] text-fg-subtle">
+        <p className="mt-3 text-[12px] text-fg-subtle">
           이 건의 내용은 공개 범위 밖입니다 — 항목 {c.itemsDone}/{c.itemsTotal} 만 보입니다.
         </p>
       ) : null}
@@ -132,7 +132,7 @@ export function ConsultingStudents({ items, loading, onOpen }: ConsultingStudent
       <section aria-label="학생 목록" className="self-start overflow-hidden rounded-xl border border-line bg-card">
         <header className="flex items-baseline gap-2 bg-header px-3 py-2.5">
           <h2 className="text-[13px] font-bold text-white">학생 {list.length}명</h2>
-          <span className="text-[11px] text-white/60">눌러서 자세히</span>
+          <span className="text-[12px] text-white/60">눌러서 자세히</span>
         </header>
         <ul className="divide-y divide-line">
           {list.map((s) => {
@@ -159,9 +159,9 @@ export function ConsultingStudents({ items, loading, onOpen }: ConsultingStudent
                       </Chip>
                     ))}
                   </div>
-                  <div className="mt-1.5 text-[11.5px] text-fg-subtle">{moneyPair(s.paid, s.amount)}</div>
+                  <div className="mt-1.5 text-[12px] text-fg-subtle">{moneyPair(s.paid, s.amount)}</div>
                   {/* 고른 줄 표시 「▶」 (27-03) */}
-                  {on ? <span aria-hidden className="mt-1 block text-[10px] text-fg-subtle">▶</span> : null}
+                  {on ? <span aria-hidden className="mt-1 block text-[12px] text-fg-subtle">▶</span> : null}
                 </button>
               </li>
             );

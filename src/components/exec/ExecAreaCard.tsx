@@ -101,7 +101,7 @@ export function ExecAreaCard({
           data-print="chrome"
           onClick={onGo}
           aria-label={`${area.label} 보기`}
-          className="ml-auto shrink-0 rounded-md bg-card/70 px-2 py-0.5 text-[11.5px] font-bold text-fg-2 hover:bg-card"
+          className="ml-auto shrink-0 rounded-md bg-card/70 px-2 py-0.5 text-[12px] font-bold text-fg-2 hover:bg-card"
         >
           보기 <span aria-hidden>›</span>
         </button>
@@ -114,8 +114,8 @@ export function ExecAreaCard({
           <ul className="mt-1.5 flex flex-col gap-0.5" aria-label={`${area.label} 숫자`}>
             {area.tiles.map((t) => (
               <li key={t.key} className={cn('flex min-w-0 items-baseline gap-1.5 rounded-md border px-2 py-0.5', t.alert ? 'border-red/30 bg-red/5' : 'border-line bg-card')}>
-                <span className="shrink-0 text-[11px] font-bold text-fg-2">{t.label}</span>
-                {t.sub ? <span className="min-w-0 truncate text-[10.5px] text-fg-subtle" title={t.sub}>{t.sub}</span> : null}
+                <span className="shrink-0 text-[12px] font-bold text-fg-2">{t.label}</span>
+                {t.sub ? <span className="min-w-0 truncate text-[12px] text-fg-subtle" title={t.sub}>{t.sub}</span> : null}
                 <b className={cn('ml-auto shrink-0 text-[13px] leading-tight', t.alert ? 'text-red' : 'text-fg')}>{tileValue(t)}</b>
               </li>
             ))}
@@ -127,9 +127,9 @@ export function ExecAreaCard({
           <ul className={cn('mt-2 grid gap-2', area.tiles.length >= 3 ? 'grid-cols-3' : 'grid-cols-2')} aria-label={`${area.label} 숫자`}>
             {area.tiles.map((t) => (
               <li key={t.key} className={cn('rounded-lg border px-2.5 py-2', t.alert ? 'border-red/30 bg-red/5' : 'border-line bg-card')}>
-                <div className="text-[11px] font-bold text-fg-2">{t.label}</div>
+                <div className="text-[12px] font-bold text-fg-2">{t.label}</div>
                 <div className={cn('mt-0.5 text-[16px] font-bold leading-tight', t.alert ? 'text-red' : 'text-fg')}>{tileValue(t)}</div>
-                {t.sub ? <div className="mt-0.5 truncate text-[11px] text-fg-subtle" title={t.sub}>{t.sub}</div> : null}
+                {t.sub ? <div className="mt-0.5 truncate text-[12px] text-fg-subtle" title={t.sub}>{t.sub}</div> : null}
               </li>
             ))}
           </ul>
@@ -147,7 +147,7 @@ export function ExecAreaCard({
             aria-expanded={open}
             aria-controls={listId}
             onClick={() => setOpen((v) => !v)}
-            className={cn('flex w-full items-center gap-1 text-left font-bold text-fg hover:bg-inset', dense ? 'px-3 py-1 text-[11.5px]' : 'px-3.5 py-2 text-[12px]')}
+            className={cn('flex w-full items-center gap-1 text-left font-bold text-fg hover:bg-inset', dense ? 'px-3 py-1 text-[12px]' : 'px-3.5 py-2 text-[12px]')}
             title={dense ? `${area.itemsLabel} ${open ? '접기' : '펼치기'}` : undefined}
           >
             <span className={cn(dense && 'min-w-0 truncate')}>{area.itemsLabel} {open ? '접기' : '펼치기'}</span> <span aria-hidden>{open ? '▴' : '▾'}</span>
@@ -162,7 +162,7 @@ export function ExecAreaCard({
                     className="flex w-full items-center gap-2 rounded-md border border-line bg-card px-2.5 py-1.5 text-left hover:border-primary/50"
                   >
                     <span className="min-w-0 grow truncate text-[12px] font-bold text-fg">{it.title}</span>
-                    {it.sub ? <span className="shrink-0 text-[11px] text-fg-subtle">{it.sub}</span> : null}
+                    {it.sub ? <span className="shrink-0 text-[12px] text-fg-subtle">{it.sub}</span> : null}
                     <span aria-hidden className="shrink-0 text-fg-subtle">›</span>
                   </button>
                 </li>
@@ -177,7 +177,7 @@ export function ExecAreaCard({
         <div className={cn('flex flex-wrap items-center gap-2', dense ? 'mb-0.5 min-h-4' : 'mb-1.5 min-h-5')}>
           {area.ownerName
             ? <b className="text-[12px] text-fg">{area.ownerName}</b>
-            : <span className="text-[11.5px] text-fg-subtle">담당 없음</span>}
+            : <span className="text-[12px] text-fg-subtle">담당 없음</span>}
           {pickable && picking ? (
             <span className="w-40" data-print="chrome">
               <Select
@@ -206,7 +206,7 @@ export function ExecAreaCard({
               disabled={ownerBusy}
               onClick={() => setPicking(true)}
               aria-label={`${area.label} 담당 바꾸기`}
-              className="text-[11px] text-fg-subtle hover:text-fg hover:underline disabled:opacity-40"
+              className="text-[12px] text-fg-subtle hover:text-fg hover:underline disabled:opacity-40"
             >
               바꾸기
             </button>

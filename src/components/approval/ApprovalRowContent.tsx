@@ -95,7 +95,7 @@ export function ApprovalRowContent({ row, variant }: {
     </Chip>
   );
   const why = back && row.why ? (
-    <p className="mt-1.5 rounded bg-red/5 px-2 py-1 text-[11px] text-red">
+    <p className="mt-1.5 rounded bg-red/5 px-2 py-1 text-[12px] text-red">
       <span className="font-bold">반려 사유</span> · {row.why}
     </p>
   ) : null;
@@ -107,9 +107,9 @@ export function ApprovalRowContent({ row, variant }: {
         <div className="flex items-center gap-2">
           {badge}
           <span className="min-w-0 truncate text-[12.5px] font-bold text-fg">{row.title}</span>
-          {row.sub ? <span className="min-w-0 flex-1 truncate text-[11px] text-fg-subtle">{row.sub}</span> : <span className="flex-1" />}
-          {route ? <span className="shrink-0 text-[11px] font-bold text-fg-2">{route}</span> : null}
-          <time dateTime={row.at} className="shrink-0 text-[11px] text-fg-subtle">{stamp(row.at, false)}</time>
+          {row.sub ? <span className="min-w-0 flex-1 truncate text-[12px] text-fg-subtle">{row.sub}</span> : <span className="flex-1" />}
+          {route ? <span className="shrink-0 text-[12px] font-bold text-fg-2">{route}</span> : null}
+          <time dateTime={row.at} className="shrink-0 text-[12px] text-fg-subtle">{stamp(row.at, false)}</time>
           <ChevronRight size={14} aria-hidden className="shrink-0 text-fg-subtle" />
         </div>
         {why}
@@ -125,8 +125,8 @@ export function ApprovalRowContent({ row, variant }: {
       <div className="flex items-center gap-2">
         {badge}
         <span className="shrink-0 text-[13px] font-bold text-fg">{who}</span>
-        {row.byName ? <span className="min-w-0 flex-1 truncate text-[11px] text-fg-subtle">{row.title}</span> : <span className="flex-1" />}
-        <time dateTime={row.at} className="shrink-0 text-[11px] text-fg-subtle">{stamp(row.at, true)}</time>
+        {row.byName ? <span className="min-w-0 flex-1 truncate text-[12px] text-fg-subtle">{row.title}</span> : <span className="flex-1" />}
+        <time dateTime={row.at} className="shrink-0 text-[12px] text-fg-subtle">{stamp(row.at, true)}</time>
       </div>
       {box ? <p className="mt-2 rounded-md bg-inset px-2.5 py-1.5 text-[12px] font-bold text-fg">{box}</p> : null}
       {/* 올린 사람이 자기 말로 적은 사유 — 원문 §14 의 인용 줄(분류 색 세로 띠 · g2 14-4). 서버가 주지 않으면 서지 않는다 */}

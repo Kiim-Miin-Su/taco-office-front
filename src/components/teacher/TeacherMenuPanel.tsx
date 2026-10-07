@@ -126,7 +126,7 @@ export function TeacherMenuPanel({
         {me ? (
           <div data-teacher-user="" className="mt-auto flex flex-col gap-2 border-t border-line px-3 py-3 text-[12px]">
             <div className="flex items-center gap-2">
-              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-inset text-[11px] font-bold text-primary">
+              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-inset text-[12px] font-bold text-primary">
                 {me.name.slice(-2)}
               </span>
               <div className="min-w-0">

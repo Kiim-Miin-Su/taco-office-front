@@ -83,7 +83,7 @@ it('A25 수강 정지는 최종 PPTX의 14일 후보와 효력을 보여 주되 
   expect(row.textContent).toContain('2건');
   expect(row.textContent).toContain('보류 대상');
   expect(within(table).queryByText('이하린')).toBeNull();
-  for (const name of ['납입 독촉 계약 준비 중', '수강 정지 계약 준비 중']) {
+  for (const name of ['납입 독촉 기능 준비 중', '수강 정지 기능 준비 중']) {
     expect((within(row).getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
   }
   expect(view.getByText(/기존 일정은 유지하고 새 일정 저장만 차단/)).toBeTruthy();
@@ -101,9 +101,9 @@ it('?tab=suspensions는 임계일을 화면 초안으로만 바꾸고 정책 저
   fireEvent.change(view.getByLabelText('보류 기준 일'), { target: { value: '17' } });
   expect(view.queryByText('양찬욱')).toBeNull();
   expect(view.getByText('현재 조회값에서 기준을 넘은 학생이 없습니다')).toBeTruthy();
-  expect((view.getByRole('button', { name: '기준 저장 계약 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole('button', { name: '기준 저장 기능 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
 
-  for (const field of ['후보 판정 · threshold version', '영향 수업 · 신규 배정 차단', '정지 · 해제 version', 'actual actor · 이력 · 알림']) {
+  for (const field of ['후보 기준 · 적용 버전', '영향 수업 · 신규 배정 차단', '정지 · 해제 변경 이력', '실제 처리자 · 이력 · 알림']) {
     expect(view.getByText(field)).toBeTruthy();
   }
   expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);

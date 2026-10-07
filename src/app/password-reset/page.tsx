@@ -145,7 +145,7 @@ export default function PasswordResetPage() {
                   id="pr-pw" type="password" value={password} autoComplete="new-password"
                   onChange={(e) => setPassword(e.currentTarget.value)}
                 />
-                <p className="mt-1 text-[11px] text-fg-subtle">{data.passwordRule}</p>
+                <p className="mt-1 text-[12px] text-fg-subtle">{data.passwordRule}</p>
               </div>
               <div className="mt-3">
                 <Label htmlFor="pr-pw2">새 비밀번호 확인</Label>

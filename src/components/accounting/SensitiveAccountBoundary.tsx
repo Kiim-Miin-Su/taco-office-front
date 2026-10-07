@@ -11,12 +11,12 @@ import { Banner, Button, Chip, FieldError, Input, Label, Panel, Segmented, Selec
 type AccountPurpose = 'teacher_payout' | 'student_refund';
 
 const REQUIRED_CONTRACT = [
-  '암호문 · key version · 마지막 4자리',
-  'canRead · canWrite · canReveal',
-  'create · update · delete version',
-  'actual actor · requestKey · 감사',
-  '지급·환불 원장 참조 · 마스킹 snapshot',
-  '키 누락·복호화 실패 시 fail-closed',
+  '암호화 값 · 암호화 키 버전 · 마지막 4자리',
+  '조회 · 저장 · 원문 확인 권한',
+  '생성 · 수정 · 삭제 변경 이력',
+  '실제 처리자 · 중복 제출 방지 · 감사',
+  '지급·환불 원장 연결 · 마스킹 기록',
+  '암호화 키 누락·복호화 실패 시 접근 차단',
 ] as const;
 
 export function SensitiveAccountBoundary({ invoices, payoutRows, payoutLoading, onOpenInvoices, onOpenLedger }: {
@@ -81,7 +81,7 @@ export function SensitiveAccountBoundary({ invoices, payoutRows, payoutLoading, 
       <Panel>
         <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="mb-1"><Chip tone="warning">생성 계약 대기</Chip></div>
+            <div className="mb-1"><Chip tone="warning">저장 기능 준비 중</Chip></div>
             <h2 className="text-[15px] font-bold text-fg">계좌 — 학생 환불 · 강사 지급</h2>
             <p className="mt-1 text-[12px] text-fg-subtle">은행 · 계좌번호 · 예금주를 용도별 대상과 연결합니다</p>
           </div>
@@ -91,7 +91,7 @@ export function SensitiveAccountBoundary({ invoices, payoutRows, payoutLoading, 
         </header>
 
         <Banner tone="warning" className="mb-4">
-          <b>대표와 계좌 권한을 받은 회계 담당자만</b> 저장 계좌를 다룹니다. 전용 capability·암호화 writer·키 실패 응답이 생길 때까지 저장과 원문 재조회는 잠급니다.
+          <b>대표와 계좌 권한을 받은 회계 담당자만</b> 저장 계좌를 다룹니다. 전용 권한·암호화 저장·키 실패 처리가 준비될 때까지 저장과 원문 재조회는 잠급니다.
         </Banner>
 
         <div className="mb-4">
@@ -107,8 +107,8 @@ export function SensitiveAccountBoundary({ invoices, payoutRows, payoutLoading, 
               <option value="">선택</option>
               {targets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}
             </Select>
-            {purpose === 'teacher_payout' && payoutLoading ? <p className="mt-1 text-[11px] text-fg-subtle">강사 대상을 불러오는 중…</p> : null}
-            {!payoutLoading && targets.length === 0 ? <p className="mt-1 text-[11px] text-fg-subtle">현재 조회 projection에 대상이 없습니다</p> : null}
+            {purpose === 'teacher_payout' && payoutLoading ? <p className="mt-1 text-[12px] text-fg-subtle">강사 대상을 불러오는 중…</p> : null}
+            {!payoutLoading && targets.length === 0 ? <p className="mt-1 text-[12px] text-fg-subtle">현재 조회 가능한 대상이 없습니다</p> : null}
           </div>
           <div>
             <Label htmlFor={`${id}-bank`}>은행</Label>
@@ -125,7 +125,7 @@ export function SensitiveAccountBoundary({ invoices, payoutRows, payoutLoading, 
               onBlur={() => setTouched((value) => ({ ...value, accountNo: true }))}
               onChange={(event) => setAccountNo(event.target.value)} placeholder="화면에 원문을 다시 표시하지 않습니다" />
             <FieldError>{required('accountNo', accountNo) ? '계좌번호를 적어 주세요' : undefined}</FieldError>
-            {last4 ? <p className="mt-1 text-[11px] font-bold text-fg-2">저장 후 표시 예시 · **** {last4}</p> : null}
+            {last4 ? <p className="mt-1 text-[12px] font-bold text-fg-2">저장 후 표시 예시 · **** {last4}</p> : null}
           </div>
           <div>
             <Label htmlFor={`${id}-holder`}>예금주</Label>
@@ -138,28 +138,28 @@ export function SensitiveAccountBoundary({ invoices, payoutRows, payoutLoading, 
         </div>
 
         <div className="sticky bottom-2 z-10 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-card/95 p-2 shadow-sm backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-          <p className="text-[11px] text-fg-subtle">대상·용도를 바꾸면 민감 초안을 즉시 지웁니다. 새 값은 서버·검색·로그·내보내기에 전송되지 않습니다.</p>
+          <p className="text-[12px] text-fg-subtle">대상·용도를 바꾸면 민감 초안을 즉시 지웁니다. 새 값은 서버·검색·로그·내보내기에 전송되지 않습니다.</p>
           <div className="flex gap-2">
             <Button className="max-sm:min-h-11" size="sm" variant="secondary" onClick={clear}>초안 지우기</Button>
-            <Button className="max-sm:min-h-11" size="sm" disabled title="계좌 capability와 암호화 CRUD writer가 필요합니다">암호화 저장 계약 준비 중</Button>
+            <Button className="max-sm:min-h-11" size="sm" disabled title="계좌 권한과 암호화 생성·수정·삭제 기능이 준비된 뒤 사용할 수 있습니다">암호화 저장 기능 준비 중</Button>
           </div>
         </div>
       </Panel>
 
       <Panel title="저장 계좌" sub="목록·상세·검색·파일·알림에는 마지막 4자리만 반환합니다">
         <p className="rounded-xl border border-line bg-inset px-3 py-8 text-center text-[12px] text-fg-subtle">
-          전용 조회 DTO가 없어 저장 계좌를 표시하지 않습니다
+          전용 조회 기능이 준비되기 전에는 저장 계좌를 표시하지 않습니다
         </p>
-        <p className="mt-3 text-[11px] text-fg-subtle">주민등록번호 수집·조회·출력은 업무 범위와 보존 정책이 결정되기 전까지 입력 경로를 만들지 않습니다.</p>
+        <p className="mt-3 text-[12px] text-fg-subtle">주민등록번호 수집·조회·출력은 업무 범위와 보존 정책이 결정되기 전까지 입력 경로를 만들지 않습니다.</p>
       </Panel>
 
-      <Panel title="계좌 보안·CRUD 계약" sub="생성·수정·삭제·복호화는 같은 권한과 version·감사 규칙으로 처리합니다">
+      <Panel title="계좌 보안·변경 기준" sub="생성·수정·삭제·복호화는 같은 권한과 변경 이력·감사 규칙으로 처리합니다">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="계좌 계약 필요 필드">
           {REQUIRED_CONTRACT.map((field) => (
             <div key={field} className="rounded-lg border border-line bg-inset px-3 py-2 text-[12px] font-bold text-fg-2">{field}</div>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-fg-subtle">기존 회계 금액 권한을 계좌 권한으로 간주하지 않습니다. 회계 담당자 범위·원문 확인 목적·보존 기간은 BO-Q9에서 확정합니다.</p>
+        <p className="mt-3 text-[12px] text-fg-subtle">기존 회계 금액 권한을 계좌 권한으로 간주하지 않습니다. 회계 담당자 범위·원문 확인 목적·보존 기간은 별도 정책으로 확정합니다.</p>
       </Panel>
     </div>
   );

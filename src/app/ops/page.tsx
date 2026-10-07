@@ -246,9 +246,9 @@ export default function OpsPage() {
         <Chip size="compact" styleKind="solid" tone={MT_TONE[r.mtType] ?? 'neutral'}>{r.mtTypeShort}</Chip>
         <b className="text-[13px] text-fg">{r.onDate ? longDateLabel(r.onDate) : '날짜 없음'}</b>
         {r.startMin == null || r.endMin == null
-          ? <span className="text-[10.5px] text-fg-subtle">시각 없음</span>
-          : <span className="text-[11.5px] text-fg-subtle">{hhmm(r.startMin)}–{hhmm(r.endMin)}</span>}
-        {r.title ? <span className="truncate text-[11.5px] text-fg-2">{r.title}</span> : null}
+          ? <span className="text-[12px] text-fg-subtle">시각 없음</span>
+          : <span className="text-[12px] text-fg-subtle">{hhmm(r.startMin)}–{hhmm(r.endMin)}</span>}
+        {r.title ? <span className="truncate text-[12px] text-fg-2">{r.title}</span> : null}
         <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
           {(r.attendeeList ?? []).map((a) => (
             <Chip key={a.staffId} size="compact" styleKind="solid" tone={ATTEND_TONE[a.state] ?? 'neutral'} title={a.stateLabel}>{a.name}</Chip>
@@ -285,7 +285,7 @@ export default function OpsPage() {
           </div>
         )}
         {extra}
-        {q.isFetching ? <span className="text-[11px] text-fg-subtle">받는 중…</span> : null}
+        {q.isFetching ? <span className="text-[12px] text-fg-subtle">받는 중…</span> : null}
         {right ? <div className="ml-auto flex flex-wrap items-center gap-1.5">{right}</div> : null}
       </div>
     );
@@ -300,7 +300,7 @@ export default function OpsPage() {
     { key: 'n', head: '활동', cell: (r) => (
       <span className="flex flex-col">
         <span className="font-bold">{r.name}</span>
-        {r.memo ? <span className="text-[11px] text-fg-subtle">{r.memo}</span> : null}
+        {r.memo ? <span className="text-[12px] text-fg-subtle">{r.memo}</span> : null}
       </span>
     ) },
     { key: 'c', head: '채널', width: 110, cell: (r) => <Chip>{r.channelLabel}</Chip> },
@@ -312,12 +312,12 @@ export default function OpsPage() {
       cell: (r) => <span className={r.enrolled ? 'font-bold text-green' : 'text-fg-subtle'}>{r.enrolled}</span> },
     { key: 'co', head: '비용', width: 110, align: 'right',
       cell: (r) => (r.cost ?? null) === null
-        ? <span className="text-[11px] text-fg-subtle">{MASKED}</span>
+        ? <span className="text-[12px] text-fg-subtle">{MASKED}</span>
         : won(r.cost as number) },
     { key: 'cpe', head: '등록당', width: 120, align: 'right',
       cell: (r) => {
         const c = r.costPerEnroll ?? null;
-        if (c === null) return <span className="text-[11px] text-fg-subtle">{(r.cost ?? null) === null ? MASKED : '—'}</span>;
+        if (c === null) return <span className="text-[12px] text-fg-subtle">{(r.cost ?? null) === null ? MASKED : '—'}</span>;
         return <span className={c > 100000 ? 'font-bold text-red' : 'font-bold'}>{won(c)}</span>;
       } },
     { key: 'edit', head: '', width: 68, align: 'right', cell: (r) => (
@@ -380,7 +380,7 @@ export default function OpsPage() {
         <div>
           <button type="button" aria-expanded={open} className="flex items-start gap-1.5 text-left font-bold"
             onClick={(e) => { e.stopPropagation(); toggleCplHist(r.id); }}>
-            <span aria-hidden className={cn('mt-0.5 text-[10px] text-fg-subtle transition-transform', open && 'rotate-90')}>▶</span>
+            <span aria-hidden className={cn('mt-0.5 text-[12px] text-fg-subtle transition-transform', open && 'rotate-90')}>▶</span>
             <span>{r.body}</span>
           </button>
           {open ? (
@@ -511,13 +511,13 @@ export default function OpsPage() {
                 {/* 원문 §59 필터 띠 「어디에 · 누가」 — 건수가 있는 것만 · 많은 순 · 수는 서버 (59-4). 거르기는 받은 줄에서 한다 */}
                 <div className="mb-3 flex flex-col gap-1.5 rounded-xl bg-inset px-3 py-2">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="w-10 shrink-0 text-[11px] font-bold text-fg-subtle">어디에</span>
+                    <span className="w-10 shrink-0 text-[12px] font-bold text-fg-subtle">어디에</span>
                     <ChipRow ariaLabel="어디에" value={mktChannel} onChange={setMktChannel} pressedTone="ink"
                       allCount={d?.marketing.length ?? 0}
                       options={(d?.mktChannelCounts ?? []).map((c) => ({ value: c.key, label: c.label, count: c.count }))} />
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="w-10 shrink-0 text-[11px] font-bold text-fg-subtle">누가</span>
+                    <span className="w-10 shrink-0 text-[12px] font-bold text-fg-subtle">누가</span>
                     <ChipRow ariaLabel="누가" value={mktBy} onChange={setMktBy} pressedTone="ink"
                       allCount={d?.marketing.length ?? 0}
                       options={(d?.mktByCounts ?? []).map((c) => ({ value: c.key, label: c.label, count: c.count }))} />
@@ -563,7 +563,7 @@ export default function OpsPage() {
                 {/* 원문 §61 보드 머리 한 줄 (61-8) */}
                 <h3 className="mb-2 flex flex-wrap items-baseline gap-2 text-[15px] font-bold text-fg">
                   기획 결재
-                  <span className="text-[11.5px] font-normal text-fg-subtle">왼쪽에서 오른쪽으로 올립니다 · 카드를 누르면 보고서가 열립니다</span>
+                  <span className="text-[12px] font-normal text-fg-subtle">왼쪽에서 오른쪽으로 올립니다 · 카드를 누르면 보고서가 열립니다</span>
                 </h3>
                 {/* 칸 머리 = 윗선 단계색 · 번호 원 채움 · 오른쪽 큰 단계색 건수(g6 C-9) */}
                 <Board numbered accent countStyle="big" columns={planCols} itemKey={(p) => p.id}
@@ -580,14 +580,14 @@ export default function OpsPage() {
                       </div>
                     ) : null}
                     <div className="text-[12px] font-bold text-fg">{p.title}</div>
-                    <div className="mt-1 flex items-center justify-between gap-1 text-[10.5px]">
+                    <div className="mt-1 flex items-center justify-between gap-1 text-[12px]">
                       <span className="font-bold text-fg-2">{p.ownerName ?? '—'}</span>
                       {p.taskTotal > 0 ? <span className="text-fg-subtle">과제 {p.taskDone}/{p.taskTotal}</span> : null}
                     </div>
                     {/* 반려된 기한은 반려가 지운 날짜로 선다 — 원문 「D-2 08-19 · 기한 반려」(W11 · N-95 · 낱말·남은 날은 서버) */}
                     {p.dueOn || p.dueRejectedOn ? (
                       <div className="mt-1.5 border-t border-line pt-1.5">
-                        <div className="flex items-baseline gap-1.5 text-[10.5px]">
+                        <div className="flex items-baseline gap-1.5 text-[12px]">
                           {p.dueLabel ? <b className={p.overdueDays > 0 ? 'text-red' : 'text-fg'}>{p.dueLabel}</b> : null}
                           <span className="text-fg-subtle">{(p.dueOn ?? p.dueRejectedOn ?? '').slice(5)}</span>
                         </div>
@@ -638,7 +638,7 @@ export default function OpsPage() {
                   value: c.key, label: c.label, count: c.count > 0 ? c.count : undefined, dot: CPL_AREA_DOT[c.key],
                 }))} />
             ))}
-            <p className="mb-2 text-[11px] text-fg-subtle">카드를 누르면 담당 · 단계 · 조치 · 결과를 적습니다</p>
+            <p className="mb-2 text-[12px] text-fg-subtle">카드를 누르면 담당 · 단계 · 조치 · 결과를 적습니다</p>
             {cplTab === 'history' ? (
               <Table columns={cplHistoryCols} rows={d?.complaints ?? []} rowKey={(r) => r.id} empty="이 기간에는 컴플레인이 없습니다"
                 onRowClick={(r) => toggleCplHist(r.id)} />
@@ -656,7 +656,7 @@ export default function OpsPage() {
                 <div className="mt-1.5 text-[12px] font-bold text-fg">{c.body}</div>
                 {/* 원문 카드에는 조치·결과 글이 없다(67-7) — 그 글은 카드를 눌러 여는 처리 창과 「이력」 표에 있다 */}
                 {/* 학생 이름 옆에 누가 알렸는지 — 원본 §67 「고은설 어머니」 (67-5 · wave 6). 낱말은 서버, 모르는 건(옛 행)은 붙이지 않는다 */}
-                <div className="mt-1 text-[10.5px] text-fg-subtle">
+                <div className="mt-1 text-[12px] text-fg-subtle">
                   <span className="font-bold text-fg-2">{c.studentName ?? '문의자'}</span>
                   {c.requesterLabel ? <span className="ml-1">{c.requesterLabel}</span> : null}
                 </div>
@@ -664,7 +664,7 @@ export default function OpsPage() {
                   원본 §67 카드의 바닥 줄 — 왼쪽에 담당, 오른쪽에 지난 날. 기한이 지났으면 그것이 먼저다 (J-98 · 서버가 센다).
                   **담당이 없는 것은 빈칸이 아니라 할 일이다** — 접수 칸의 한 줄이 그렇게 말한다.
                 */}
-                <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5 text-[10.5px]">
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-1.5 text-[12px]">
                   {c.ownerName
                     ? <Chip size="compact" tone="neutral">{c.ownerName}</Chip>
                     : <span className="font-bold text-red">담당 없음</span>}

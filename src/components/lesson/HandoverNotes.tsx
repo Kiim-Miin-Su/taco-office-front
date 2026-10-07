@@ -29,19 +29,19 @@ export function HandoverNoteList({ notes, total, empty = '아직 남긴 인수�
   total?: number;
   empty?: string;
 }) {
-  if (notes.length === 0) return <p className="text-[11.5px] text-fg-subtle">{empty}</p>;
+  if (notes.length === 0) return <p className="text-[12px] text-fg-subtle">{empty}</p>;
   return (
     <>
       <ul className="flex flex-col gap-1.5">
         {notes.map((n) => (
           <li key={n.id} className="rounded-lg border border-line bg-bg-2 px-2.5 py-2">
             <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-fg">{n.body}</p>
-            <p className="mt-1 text-[10.5px] text-fg-subtle">{n.authorName ?? '—'} · {at(n.createdAt)}</p>
+            <p className="mt-1 text-[12px] text-fg-subtle">{n.authorName ?? '—'} · {at(n.createdAt)}</p>
           </li>
         ))}
       </ul>
       {total !== undefined && total > notes.length ? (
-        <p className="mt-1 text-[10.5px] text-fg-subtle">최근 {notes.length}줄만 보입니다 · 전체 {total}줄</p>
+        <p className="mt-1 text-[12px] text-fg-subtle">최근 {notes.length}줄만 보입니다 · 전체 {total}줄</p>
       ) : null}
     </>
   );

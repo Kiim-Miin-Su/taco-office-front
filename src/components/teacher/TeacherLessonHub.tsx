@@ -42,7 +42,7 @@ export function TeacherLessonHub({ occ, today, kindName, subName, focusScheduleC
             <Chip>{kindName ?? '일정'}</Chip>
           </div>
           <p className="mt-1 text-[12px] text-fg-2">{students || '학생 미정'} · {occ.mode === 'online' ? '비대면' : '대면'}</p>
-          {occ.date !== occ.onDate ? <p className="mt-1 text-[11px] text-fg-subtle">원래 회차일 {occ.onDate} · 실제 수업일 {occ.date}</p> : null}
+          {occ.date !== occ.onDate ? <p className="mt-1 text-[12px] text-fg-subtle">원래 회차일 {occ.onDate} · 실제 수업일 {occ.date}</p> : null}
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
@@ -54,7 +54,7 @@ export function TeacherLessonHub({ occ, today, kindName, subName, focusScheduleC
           <Button className="min-h-11" aria-label="수업 안내 열기" disabled title={exactContractMissing}>수업 안내</Button>
           <Button className="min-h-11" aria-label="학생 이력 열기" disabled title={exactContractMissing}>학생 이력</Button>
         </div>
-        <p className="text-[11px] text-fg-subtle">수업 안내·학생 이력은 {exactContractMissing}</p>
+        <p className="text-[12px] text-fg-subtle">수업 안내·학생 이력은 {exactContractMissing}</p>
         <Button className="min-h-11" variant="primary"
           id={scheduleChangeId}
           aria-label={changeMode === 'request' ? '일정 변경 요청 열기' : '이 수업으로 건의 열기'}

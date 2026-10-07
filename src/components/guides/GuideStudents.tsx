@@ -67,7 +67,7 @@ function StudentRail({
                     <b className="truncate text-[13.5px]">{student.studentName}</b>
                     {student.grade ? <Chip size="compact">{student.grade}</Chip> : null}
                   </span>
-                  <span className="mt-1 block text-[11px] text-fg-subtle">안내 {student.guideCount}건</span>
+                  <span className="mt-1 block text-[12px] text-fg-subtle">안내 {student.guideCount}건</span>
                 </span>
                 <GuideStateChip state={student.latestGuide.state} />
               </button>
@@ -130,11 +130,11 @@ function StudentGuideDetail({ student, returnHref }: { student: GuideStudent; re
 
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded-lg border border-amber/30 bg-amber/5 p-3">
-            <div className="text-[11px] font-bold text-fg-subtle">지도 강도</div>
+            <div className="text-[12px] font-bold text-fg-subtle">지도 강도</div>
             <div className="mt-1 text-[17px] font-bold text-amber">{student.guidance ?? '미설정'}</div>
           </div>
           <div className="rounded-lg border border-blue/30 bg-blue/5 p-3">
-            <div className="text-[11px] font-bold text-fg-subtle">수업 언어</div>
+            <div className="text-[12px] font-bold text-fg-subtle">수업 언어</div>
             <div className="mt-1 text-[17px] font-bold text-blue">
               {student.lang ? (LANG_LABEL[student.lang] ?? student.lang) : '미설정'}
             </div>
@@ -165,7 +165,7 @@ function StudentGuideDetail({ student, returnHref }: { student: GuideStudent; re
                   {/* 원문 §44 교재 줄 앞 레벨 사각 「P」 — §38 · §39 · §41 과 같은 선택기 · 낱말은 서버 level(N-47 · W11 A 후속) */}
                   {book.level ? (
                     <span data-level-marker title={bookLevelPresentation(book.level).label}
-                      className={cn('inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[11px] font-black text-white',
+                      className={cn('inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[12px] font-black text-white',
                         bookLevelPresentation(book.level).bandClass)}>
                       {bookLevelPresentation(book.level).marker}
                     </span>
@@ -173,7 +173,7 @@ function StudentGuideDetail({ student, returnHref }: { student: GuideStudent; re
                   {book.seTe ? <Chip tone="purple">{book.seTe}</Chip> : null}
                   <span className="min-w-0 grow text-[13px] font-bold">{book.title}</span>
                   {book.edition ? <Chip>{book.edition}</Chip> : null}
-                  <span className="text-[11px] text-fg-subtle">{book.code}</span>
+                  <span className="text-[12px] text-fg-subtle">{book.code}</span>
                 </li>
               ))}
             </ul>

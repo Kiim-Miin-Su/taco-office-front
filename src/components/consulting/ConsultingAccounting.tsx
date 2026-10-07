@@ -94,7 +94,7 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
     {
       key: 'a', head: '계약', width: 110, align: 'right',
       cell: (r) => (r.amount === null || r.amount === undefined
-        ? <span className="text-[11px] text-fg-subtle">{MASKED}</span>
+        ? <span className="text-[12px] text-fg-subtle">{MASKED}</span>
         : won(r.amount)),
     },
     { key: 'p', head: '받음', width: 110, align: 'right', cell: (r) => won(r.paid) },
@@ -186,7 +186,7 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
               value={amount} onChange={(e) => setAmount(e.target.value)}
               placeholder={payFor?.due ? String(payFor.due) : '0'}
             />
-            <p className="mt-1 text-[11px] text-fg-subtle">남은 돈은 서버가 다시 계산합니다.</p>
+            <p className="mt-1 text-[12px] text-fg-subtle">남은 돈은 서버가 다시 계산합니다.</p>
           </div>
           <div>
             <Label htmlFor="cons-pay-on">받은 날</Label>
@@ -212,7 +212,7 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
         footer={
           open ? (
             <div className="flex w-full items-center justify-between gap-2">
-              <span className="text-[11px] text-fg-subtle">
+              <span className="text-[12px] text-fg-subtle">
                 {open.invId !== null && open.invId !== undefined
                   ? `청구서 #${open.invId} 로 전환되었습니다`
                   : open.canInvoice
@@ -254,12 +254,12 @@ export function ConsultingAccounting({ data, loading }: ConsultingAccountingProp
                     <span className="w-20 shrink-0 text-[12px] text-fg-subtle">{p.paidOn}</span>
                     <span className="w-28 shrink-0 text-right text-[13px] font-bold">{won(p.amount)}</span>
                     <span className="min-w-0 grow truncate text-[12px]">{p.memo ?? ''}</span>
-                    <span className="shrink-0 text-[11px] text-fg-subtle">{p.byName ?? ''}</span>
+                    <span className="shrink-0 text-[12px] text-fg-subtle">{p.byName ?? ''}</span>
                   </li>
                 ))}
               </ul>
             )}
-            <p className="mt-4 border-t border-line pt-3 text-[11px] text-fg-subtle">
+            <p className="mt-4 border-t border-line pt-3 text-[12px] text-fg-subtle">
               청구서로 전환해도 이 기록은 그대로 남습니다 — 청구서와 이어 둘 뿐 옮기지 않습니다. 전환 뒤 입금은 그 청구서에 적고, 받은 돈에 함께 셉니다.
             </p>
           </div>

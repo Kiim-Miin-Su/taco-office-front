@@ -61,7 +61,7 @@ export function BoardMarks({
               aria-hidden
               title={`${MARK_LABEL[mark.key]} · ${state === 'missing' ? (mark.note ?? MARK_WORD[state]) : MARK_WORD[state]}`}
               className={cn(
-                'inline-flex h-4 w-4 items-center justify-center rounded-[4px] text-[10px] font-bold leading-none',
+                'inline-flex h-4 w-4 items-center justify-center rounded-[4px] text-[12px] font-bold leading-none',
                 state === 'missing' ? 'bg-red text-white' : state === 'done' ? 'bg-green/10 text-green' : 'border border-line text-fg-2',
               )}
             >
@@ -85,14 +85,14 @@ export function BoardMarks({
             aria-label={`${MARK_LABEL[mark.key]} ${MARK_WORD[state]}`}
             title={mark.note ?? `${MARK_LABEL[mark.key]} ${MARK_WORD[state]}`}
             className={cn(
-              'inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-full px-2 text-[11px] font-bold',
+              'inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-full px-2 text-[12px] font-bold',
               state === 'missing' ? 'bg-red/10 text-red' : state === 'done' ? 'bg-green/10 text-green' : 'border border-line text-fg-2',
             )}
           >
             <span
               aria-hidden
               className={cn(
-                'inline-flex h-3.5 min-w-3.5 items-center justify-center text-[10px] leading-none',
+                'inline-flex h-3.5 min-w-3.5 items-center justify-center text-[12px] leading-none',
                 // 원문 「!」는 붉은 사각 — 기호 자리만 채운다
                 state === 'missing' ? 'rounded-[3px] bg-red px-0.5 text-white' : '',
               )}
@@ -158,11 +158,11 @@ export function BoardLessonCard({
         className={cn(look, 'px-2 py-1.5')}
         style={stripe}
       >
-        <div className={cn('flex items-baseline gap-1 text-[11px]', state === 'canceled' ? 'text-fg-subtle line-through' : '')}>
+        <div className={cn('flex items-baseline gap-1 text-[12px]', state === 'canceled' ? 'text-fg-subtle line-through' : '')}>
           <b>{row.startAt}</b>
           <b className="truncate" title={name}>{name}</b>
         </div>
-        <div className="truncate text-[11px] text-fg-subtle" title={who}>
+        <div className="truncate text-[12px] text-fg-subtle" title={who}>
           {row.teacherName ?? '미배정'} · {row.studentNames.length}명
         </div>
         <div className="mt-1">
@@ -271,7 +271,7 @@ export function WeekBoard({
             >
               <h3 className={cn('text-[12px] font-bold', stat && stat.remaining > 0 ? 'text-red' : 'text-fg')}>{head}</h3>
               {lessons.length === 0 ? (
-                <p className="py-4 text-center text-[11px] text-fg-subtle">{loading ? '불러오는 중…' : '없음'}</p>
+                <p className="py-4 text-center text-[12px] text-fg-subtle">{loading ? '불러오는 중…' : '없음'}</p>
               ) : (
                 lessons.map((row) => <BoardLessonCard key={row.occId} row={row} compact colorOf={colorOf} onOpen={onOpen} />)
               )}
@@ -330,7 +330,7 @@ export function MonthBoard({
       className="overflow-hidden rounded-xl border border-line bg-card">
       <div role="row" className="grid grid-cols-7 bg-header">
         {KO_DOW.map((word) => (
-          <div key={word} role="columnheader" className="px-2 py-1.5 text-[11px] font-bold text-card">{word}</div>
+          <div key={word} role="columnheader" className="px-2 py-1.5 text-[12px] font-bold text-card">{word}</div>
         ))}
       </div>
       {Array.from({ length: grid.length / 7 }, (_, week) => (
@@ -369,7 +369,7 @@ export function MonthBoard({
                       {+date.slice(8, 10)}
                     </span>
                     {!outside && stat && stat.lessons > 0 ? (
-                      <span className="text-[10px] font-bold text-red">{stat.lessons}</span>
+                      <span className="text-[12px] font-bold text-red">{stat.lessons}</span>
                     ) : null}
                   </span>
                   {!outside && stat && stat.remaining > 0 ? (

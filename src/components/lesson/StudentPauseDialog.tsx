@@ -85,12 +85,12 @@ export function StudentPauseDialog({ open, title, defaultFrom, pending = false, 
             <Input id={`${id}-to`} type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} disabled={pending} />
           </div>
         </div>
-        {issue && from ? <p className="text-[11px] text-red">{issue}</p> : null}
+        {issue && from ? <p className="text-[12px] text-red">{issue}</p> : null}
         <div>
           <Label htmlFor={`${id}-reason`} hint={`${reason.length} / 200`}>사유</Label>
           <Textarea id={`${id}-reason`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} disabled={pending} placeholder="예: 가족 여행 · 시험 준비" />
         </div>
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-[12px] text-fg-subtle">
           기간 안의 회차는 학생 시간표와 수업료에서 빠지고, 수업 명단에는 「휴원」으로 남습니다. 회차는 지우지 않습니다 — 복귀하면 그대로 돌아옵니다.
         </p>
         {error ? <Banner tone="danger">{error}</Banner> : null}
@@ -149,8 +149,8 @@ export function StudentResumeDialog({ open, title, pause, pending = false, error
           <Label htmlFor={`${id}-on`}>복귀일</Label>
           <Input id={`${id}-on`} type="date" value={on} min={pause?.fromDate} onChange={(e) => setOn(e.target.value)} disabled={pending} />
         </div>
-        {issue && on ? <p className="text-[11px] text-red">{issue}</p> : null}
-        <p className="text-[11px] text-fg-subtle">복귀일부터 시간표·수업료가 재개됩니다. 휴원 기간은 이력으로 남습니다.</p>
+        {issue && on ? <p className="text-[12px] text-red">{issue}</p> : null}
+        <p className="text-[12px] text-fg-subtle">복귀일부터 시간표·수업료가 재개됩니다. 휴원 기간은 이력으로 남습니다.</p>
         {error ? <Banner tone="danger">{error}</Banner> : null}
       </div>
     </Dialog>

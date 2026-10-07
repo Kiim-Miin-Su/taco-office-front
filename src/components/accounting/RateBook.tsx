@@ -138,9 +138,9 @@ export function RateBook({ data, loading }: { data: RateBookData | undefined; lo
         </Banner>
 
         <div className="mb-4 grid gap-2 sm:grid-cols-3" aria-label="Kinder와 그룹 단가 원칙">
-          <div className="rounded-xl border border-line bg-inset p-3"><div className="text-[11px] text-fg-subtle">Kinder 정원</div><b className="mt-1 block text-[13px] text-fg">Kinder 학생은 1명만</b></div>
-          <div className="rounded-xl border border-line bg-inset p-3"><div className="text-[11px] text-fg-subtle">Kinder 강사 급여</div><b className="mt-1 block text-[13px] text-fg">강사 급여 · 기본 시급 +10,000원/시간</b></div>
-          <div className="rounded-xl border border-line bg-inset p-3"><div className="text-[11px] text-fg-subtle">Kinder 그룹 가산</div><b className="mt-1 block text-[13px] text-fg">그룹 가산 · 0원</b></div>
+          <div className="rounded-xl border border-line bg-inset p-3"><div className="text-[12px] text-fg-subtle">Kinder 정원</div><b className="mt-1 block text-[13px] text-fg">Kinder 학생은 1명만</b></div>
+          <div className="rounded-xl border border-line bg-inset p-3"><div className="text-[12px] text-fg-subtle">Kinder 강사 급여</div><b className="mt-1 block text-[13px] text-fg">강사 급여 · 기본 시급 +10,000원/시간</b></div>
+          <div className="rounded-xl border border-line bg-inset p-3"><div className="text-[12px] text-fg-subtle">Kinder 그룹 가산</div><b className="mt-1 block text-[13px] text-fg">그룹 가산 · 0원</b></div>
         </div>
 
         <div className="mb-4">
@@ -231,7 +231,7 @@ export function RateBook({ data, loading }: { data: RateBookData | undefined; lo
         {mode === 'student' ? <p className="mt-3 rounded-lg border border-line bg-inset px-3 py-2 text-[12px] font-bold text-fg-2">기준 대비 % · 서버 재계산 후 표시</p> : null}
 
         <div className="sticky bottom-2 z-10 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-card/95 p-2 shadow-sm backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-          <p className="text-[11px] text-fg-subtle">저장한 단가는 적용 기간에 맞춰 청구와 수업료에 반영되며, 이미 확정된 청구와 급여는 바뀌지 않습니다.</p>
+          <p className="text-[12px] text-fg-subtle">저장한 단가는 적용 기간에 맞춰 청구와 수업료에 반영되며, 이미 확정된 청구와 급여는 바뀌지 않습니다.</p>
           <div className="flex gap-2">
             <Button className="max-sm:min-h-11" size="sm" variant="secondary" onClick={() => resetDraft()}>초안 지우기</Button>
             <Button className="max-sm:min-h-11" size="sm" disabled title="시간당 단가 저장 기능을 준비하고 있습니다">

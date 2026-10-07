@@ -42,12 +42,12 @@ function PostBlock({ post }: { post: MfbPost }) {
   const look = isComment ? 'border-orange bg-orange/5' : isHold ? 'border-line-2 bg-inset' : 'border-green bg-green/5';
   return (
     <div aria-label={post.kindLabel} className={`border-l-2 px-3 py-2 ${look}`}>
-      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${isComment ? 'text-orange' : isHold ? 'text-fg-2' : 'text-green'}`}>
+      <span className={`inline-flex items-center gap-1.5 text-[12px] font-bold ${isComment ? 'text-orange' : isHold ? 'text-fg-2' : 'text-green'}`}>
         {post.byName ?? '—'}
         {isHold ? <Chip size="compact">{post.kindLabel}</Chip> : null}
       </span>
       <p className="mt-1 whitespace-pre-wrap text-[12.5px] text-fg">{post.body}</p>
-      {isComment ? null : <span className="mt-1 block text-[10.5px] italic text-fg-subtle">{shortAt(post.at)}</span>}
+      {isComment ? null : <span className="mt-1 block text-[12px] italic text-fg-subtle">{shortAt(post.at)}</span>}
     </div>
   );
 }
@@ -152,7 +152,7 @@ export function MarketingFeedback({
                   <span className="font-bold">{t.name}</span>
                 </span>
               )}
-              right={<span className="text-[11px] text-fg-subtle">{shortAt(t.at)}</span>}
+              right={<span className="text-[12px] text-fg-subtle">{shortAt(t.at)}</span>}
             >
               <div className="flex flex-col gap-2">
                 {t.posts.map((p) => <PostBlock key={p.id} post={p} />)}

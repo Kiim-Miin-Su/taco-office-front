@@ -102,7 +102,7 @@ function Section({ no, name, action, children }: { no: number; name: string; act
   return (
     <section className="mt-4">
       <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-line pb-1">
-        <h3 className="text-[11px] tracking-widest text-fg-subtle">{no} · {name}</h3>
+        <h3 className="text-[12px] tracking-widest text-fg-subtle">{no} · {name}</h3>
         {action}
       </div>
       {children}
@@ -166,7 +166,7 @@ function ShareEditor({ detail, words, people, busy, onSave, onCancel }: {
         options={words.map((w) => ({ value: w.key, label: w.label }))} onChange={setShare} />
       {share === 'picked' ? (
         <fieldset className="mt-2">
-          <legend className="text-[11px] text-fg-subtle">볼 사람 — 담당과 결재권자는 늘 봅니다</legend>
+          <legend className="text-[12px] text-fg-subtle">볼 사람 — 담당과 결재권자는 늘 봅니다</legend>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
             {people.map((p) => (
               <label key={p.id} className="flex items-center gap-1 text-[12px]">
@@ -196,9 +196,9 @@ function TaskRow({ t, busy, onToggle }: { t: PlanTask; busy: boolean; onToggle: 
       <Checkbox checked={t.done} disabled={busy} aria-label={`${t.title} 완료`}
         onChange={(e) => onToggle(t.id, e.currentTarget.checked)} />
       <span className={`flex-1 text-[12.5px] ${t.done ? 'text-fg-subtle line-through' : 'text-fg'}`}>{t.title}</span>
-      <span className="text-[11px] text-fg-subtle">{t.toName ?? '미배정'}</span>
+      <span className="text-[12px] text-fg-subtle">{t.toName ?? '미배정'}</span>
       {t.dueOn ? (
-        <span className={`text-[11px] ${t.overdueDays > 0 ? 'font-bold text-red' : 'text-fg-subtle'}`}>
+        <span className={`text-[12px] ${t.overdueDays > 0 ? 'font-bold text-red' : 'text-fg-subtle'}`}>
           {t.dueOn.slice(5)}{t.overdueDays > 0 ? ` · ${t.overdueDays}일 지남` : ''}
         </span>
       ) : null}
@@ -318,7 +318,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
             </Button>
           ))}
           {d.canEdit && dirty && d.nextStages.length ? (
-            <span className="text-[11px] text-fg-subtle">올리기 전에 적은 것을 먼저 저장합니다</span>
+            <span className="text-[12px] text-fg-subtle">올리기 전에 적은 것을 먼저 저장합니다</span>
           ) : null}
         </span>
       ) : null}
@@ -376,17 +376,17 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
       {d ? (
         <div className="flex gap-3">
           {/* 원문 §65 왼쪽의 「보고」 동그라미 — 문서의 종류를 적는 표지다 */}
-          <span aria-hidden className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-fg text-[10px] font-bold text-white">보고</span>
+          <span aria-hidden className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-fg text-[12px] font-bold text-white">보고</span>
           <article aria-label="기획 보고서 본문" className="min-w-0 flex-1 rounded-lg border border-line border-t-4 border-t-amber bg-card px-8 py-6 shadow-sm">
           {/* 레터헤드 (w5 · 65-2) — 값은 전부 서버가 준 것이다 (D-R37) */}
-          <div className="flex items-baseline justify-between gap-2 text-[11px] font-bold tracking-[0.2em] text-fg-subtle">
+          <div className="flex items-baseline justify-between gap-2 text-[12px] font-bold tracking-[0.2em] text-fg-subtle">
             <span>TN ACADEMY · 기획 보고</span>
             <span className="tracking-normal">{d.createdOn.replaceAll('-', '.')}</span>
           </div>
           <p className="mt-5 text-[26px] font-bold leading-tight text-fg">{d.title}</p>
           <dl className="mt-3 flex flex-wrap gap-x-10 gap-y-2">
             <div>
-              <dt className="text-[10.5px] text-fg-subtle">담당</dt>
+              <dt className="text-[12px] text-fg-subtle">담당</dt>
               <dd className="text-[14px] font-bold text-fg">
                 {d.canChangeOwner && staff?.length ? (
                   <span className="flex items-center gap-1">
@@ -404,10 +404,10 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
               </dd>
             </div>
             <div>
-              <dt className="text-[10.5px] text-fg-subtle">마감</dt>
+              <dt className="text-[12px] text-fg-subtle">마감</dt>
               <dd className="flex items-baseline gap-2">
                 <b className={`text-[14px] ${d.overdueDays > 0 ? 'text-red' : 'text-fg'}`}>{d.dueOn ?? '미정'}</b>
-                {d.overdueDays > 0 ? <span className="text-[11px] text-fg-subtle">{d.overdueDays}일 지남</span> : null}
+                {d.overdueDays > 0 ? <span className="text-[12px] text-fg-subtle">{d.overdueDays}일 지남</span> : null}
               </dd>
               {d.dueState === 'none' ? null
                 : <Chip className="mt-1" size="compact" styleKind="solid" tone={DUE_STATE_TONE[d.dueState] ?? 'warning'}>{d.dueStateLabel}</Chip>}
@@ -415,15 +415,15 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
             {/* 공개 범위 (N-72) — 옛 기획은 칸이 없다(모두에게 보이고 칩이 없다) */}
             {d.shareLabel ? (
               <div>
-                <dt className="text-[10.5px] text-fg-subtle">공개</dt>
+                <dt className="text-[12px] text-fg-subtle">공개</dt>
                 <dd className="flex flex-wrap items-baseline gap-2">
                   <b className="text-[14px] text-fg">{d.shareLabel}</b>
-                  {d.pickNames.length ? <span className="text-[11px] text-fg-subtle">{d.pickNames.join(', ')}</span> : null}
+                  {d.pickNames.length ? <span className="text-[12px] text-fg-subtle">{d.pickNames.join(', ')}</span> : null}
                 </dd>
               </div>
             ) : null}
             <div>
-              <dt className="text-[10.5px] text-fg-subtle">과제</dt>
+              <dt className="text-[12px] text-fg-subtle">과제</dt>
               <dd className="text-[14px] font-bold text-fg" aria-label={`과제 ${d.taskDone}/${d.tasks.length}`}>{d.taskDone}/{d.tasks.length}</dd>
             </div>
           </dl>
@@ -463,7 +463,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
             </Banner>
           ) : null}
           {d.dueState === 'approved' && d.dueApprovedByName ? (
-            <p className="mt-1 text-[11px] text-fg-subtle">기한은 {d.dueApprovedByName} 님이 승인했습니다.</p>
+            <p className="mt-1 text-[12px] text-fg-subtle">기한은 {d.dueApprovedByName} 님이 승인했습니다.</p>
           ) : null}
           {/* 반려된 기한은 사라지지 않는다 — 무엇을 누가 반려했는지 남고, 새 기한을 내면 비워진다 (N-95) */}
           {d.dueState === 'rejected' || (d.dueState === 'none' && d.canEdit) ? (
@@ -494,7 +494,7 @@ export function PlanReport({ planId, staff, shareWords, onClose }: {
           ) : null}
           {/* 못 고치면 칸을 없애지 않고 잠그고 이유를 적는다 (S5 의 대표 보고 메모 칸과 같다) */}
           {!d.canEdit && d.editBlockedReason ? (
-            <p className="mt-2 text-[11px] text-fg-subtle">{d.editBlockedReason}</p>
+            <p className="mt-2 text-[12px] text-fg-subtle">{d.editBlockedReason}</p>
           ) : null}
 
           <Section no={1} name="목표">

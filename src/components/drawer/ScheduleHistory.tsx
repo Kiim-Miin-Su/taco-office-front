@@ -40,8 +40,8 @@ export function ScheduleHistory({ enabled }: { enabled: boolean }) {
           {rows.map((r) => (
             <li key={r.id} className="flex flex-col gap-0.5 rounded-[7px] border border-line bg-card p-2">
               <span className="text-[12px] font-bold leading-[18px] text-fg">{r.actorName ?? '—'} — {when(r.at)}</span>
-              <span className="text-[11px] leading-[15px] text-fg-subtle">{r.from ?? '—'} → {r.to ?? '—'}</span>
-              <span className="flex items-center justify-between gap-2 text-[11px] font-medium leading-[17px] text-fg-subtle">
+              <span className="text-[12px] leading-[15px] text-fg-subtle">{r.from ?? '—'} → {r.to ?? '—'}</span>
+              <span className="flex items-center justify-between gap-2 text-[12px] font-medium leading-[17px] text-fg-subtle">
                 <span>{r.summary}</span>
                 {r.go ? <Link href={r.go} className="shrink-0 font-bold text-primary hover:underline">회차 열기 ›</Link> : null}
               </span>
@@ -53,15 +53,15 @@ export function ScheduleHistory({ enabled }: { enabled: boolean }) {
         <nav aria-label="변경 이력 페이지" className="mt-2 flex items-center justify-between gap-2">
           <button type="button" disabled={page === 0 || q.isFetching}
             onClick={() => setCursors([undefined])}
-            className="rounded border border-line px-2 py-1 text-[11px] font-bold text-fg disabled:opacity-40">
+            className="rounded border border-line px-2 py-1 text-[12px] font-bold text-fg disabled:opacity-40">
             최신 이력
           </button>
-          <span className="text-[11px] text-fg-subtle">{page + 1}쪽</span>
+          <span className="text-[12px] text-fg-subtle">{page + 1}쪽</span>
           <button type="button" disabled={!data.nextBeforeId || q.isFetching}
             onClick={() => {
               if (data.nextBeforeId) setCursors((value) => [...value, data.nextBeforeId!]);
             }}
-            className="rounded border border-line px-2 py-1 text-[11px] font-bold text-fg disabled:opacity-40">
+            className="rounded border border-line px-2 py-1 text-[12px] font-bold text-fg disabled:opacity-40">
             이전 이력
           </button>
         </nav>

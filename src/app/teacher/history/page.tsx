@@ -95,18 +95,18 @@ function Row({ l, onNote }: { l: TeacherHistoryLesson; onNote: (lesson: TeacherH
   const subject = lessonName(l);
   const canWritePrivateNote = !l.canceled && l.settle !== 'upcoming' && Boolean(l.students) && l.studentCount > 0;
   const money = l.canceled ? (
-    <div className="text-[11px] text-fg-subtle">— · 시수·정산 제외</div>
+    <div className="text-[12px] text-fg-subtle">— · 시수·정산 제외</div>
   ) : l.pay !== null && l.pay !== undefined ? (
     <>
       <div className="text-[13px] font-bold text-fg">{won(l.pay)}</div>
       {/* 가산(N-93) — 규칙이 그 날짜에 붙인 돈. 수업료와 따로 적고 두 값의 합이 그 회차의 돈이다(서버 값 그대로) */}
-      {l.bonus ? <div className="text-[11px] font-bold text-green">+{won(l.bonus)} 가산</div> : null}
-      {l.lateCut ? <div className="text-[11px] font-bold text-red">−{won(l.lateCut)} 지각</div> : null}
+      {l.bonus ? <div className="text-[12px] font-bold text-green">+{won(l.bonus)} 가산</div> : null}
+      {l.lateCut ? <div className="text-[12px] font-bold text-red">−{won(l.lateCut)} 지각</div> : null}
     </>
   ) : l.penaltyIfNow !== null && l.penaltyIfNow !== undefined ? (
     <>
       <div className="text-[13px] font-bold text-fg">보류</div>
-      <div className="text-[11px] font-bold text-red">
+      <div className="text-[12px] font-bold text-red">
         {l.penaltyIfNow > 0 ? `−${won(l.penaltyIfNow)} 지각` : '지금 쓰면 차감 없음'}
       </div>
     </>
@@ -250,7 +250,7 @@ export default function TeacherHistoryPage() {
                           </div>
                         </div>
                       ) : null}
-                      <p className="mt-3 text-[11px] leading-relaxed opacity-70">
+                      <p className="mt-3 text-[12px] leading-relaxed opacity-70">
                         이 정산 내역은 본인만 볼 수 있습니다. 리포트를 쓴 수업만 정산에 들어가며, 승인 여부로 깎이지 않습니다.
                         가산은 오른쪽 가산 규칙대로 붙고 수업료 안에 들어 있습니다. 확정된 달은 바뀌지 않습니다.
                         {s.remainingCount > 0 ? ` 이 달 남은 예정 수업 ${s.remainingCount}건 · ${hours(s.remainingMinutes)}시간 (예상 ${won(s.remainingAmount)}).` : ''}
@@ -311,12 +311,12 @@ export default function TeacherHistoryPage() {
                                   {r.amount === null ? `${r.hint} · 없음` : `${r.hint} +${won(r.amount)}`}
                                 </Chip>
                               </span>
-                              {r.note ? <span className="text-[11px] text-amber">{r.note}</span> : null}
+                              {r.note ? <span className="text-[12px] text-amber">{r.note}</span> : null}
                             </li>
                           ))}
                         </ul>
                       ) : null}
-                      <p className="mt-3 border-t border-line pt-2 text-[11px] text-fg-subtle">
+                      <p className="mt-3 border-t border-line pt-2 text-[12px] text-fg-subtle">
                         차감액은 서버가 최초 제출 시각으로 확정합니다. 가산은 리포트를 쓴 수업에만 붙고, 규칙이 바뀌면 그 날짜의 수업부터입니다.
                       </p>
                     </Panel>

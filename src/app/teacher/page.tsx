@@ -88,9 +88,9 @@ function MySettings({ s, initialOpen = null }: { s: TeacherSettings; initialOpen
             변경 신청
           </Button>
         </dd>
-        {s.wageFrom ? <dd className="mt-1 text-[11px] text-fg-subtle">{s.wageFrom} 적용</dd> : null}
+        {s.wageFrom ? <dd className="mt-1 text-[12px] text-fg-subtle">{s.wageFrom} 적용</dd> : null}
         {!s.canAskWage && s.wageAskableOn ? (
-          <dd className="mt-1 text-[11px] text-fg-subtle">시급은 한 달에 한 번 — {s.wageAskableOn}부터 다시 됩니다</dd>
+          <dd className="mt-1 text-[12px] text-fg-subtle">시급은 한 달에 한 번 — {s.wageAskableOn}부터 다시 됩니다</dd>
         ) : null}
       </dl>
 
@@ -138,7 +138,7 @@ function MySettings({ s, initialOpen = null }: { s: TeacherSettings; initialOpen
             </li>
           ))}
           {s.requests.some((r) => r.state === 'rejected' && r.rejectReason) ? (
-            <li className="text-[11px] text-red">
+            <li className="text-[12px] text-red">
               반려 사유 — {s.requests.find((r) => r.state === 'rejected' && r.rejectReason)?.rejectReason}
             </li>
           ) : null}
@@ -228,7 +228,7 @@ export default function TeacherHomePage() {
                   <div className="min-w-0 grow">
                     <TeacherTodayHero date={d.todayDate} lessons={d.todaySummary.lessons} minutes={d.todaySummary.minutes} />
 
-                    <Panel className="mt-4" title="오늘 전체 스케줄" right={<span className="text-[11px] text-fg-subtle">시간 순</span>}>
+                    <Panel className="mt-4" title="오늘 전체 스케줄" right={<span className="text-[12px] text-fg-subtle">시간 순</span>}>
                       {d.today.length === 0
                         ? <p className="px-1 py-6 text-center text-[13px] text-fg-subtle">오늘 수업이 없습니다.</p>
                         : <ul>{d.today.map((l) => <LessonRow key={`${l.serId}-${l.onDate}`} l={l} />)}</ul>}
@@ -236,10 +236,10 @@ export default function TeacherHomePage() {
 
                     <Panel
                       className="mt-4"
-                      title={<>다가오는 수업 <span className="ml-1 text-[11px] font-medium text-fg-subtle">앞으로 7일 · {d.upcoming.filter((l) => !l.canceled).length}건</span></>}
+                      title={<>다가오는 수업 <span className="ml-1 text-[12px] font-medium text-fg-subtle">앞으로 7일 · {d.upcoming.filter((l) => !l.canceled).length}건</span></>}
                       right={(
                         // 덱 slide 9 주간 요약 칩 「이번 주 9건 · 17.5시간 · 미작성 1」 — 셋 다 서버 week 값
-                        <span data-week-chip="" className="rounded-md border border-line bg-inset px-2 py-1 text-[11px] font-bold text-fg-2">
+                        <span data-week-chip="" className="rounded-md border border-line bg-inset px-2 py-1 text-[12px] font-bold text-fg-2">
                           <span>이번 주 {d.week.lessons}건 · {hours(d.week.minutes)}시간 ·</span>{' '}
                           <span className={d.week.unwritten > 0 ? 'text-red' : undefined}>미작성 {d.week.unwritten}</span>
                         </span>

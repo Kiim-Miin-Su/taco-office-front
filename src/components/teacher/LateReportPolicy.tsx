@@ -44,7 +44,7 @@ export function LateReportPolicy({ className }: { className?: string }) {
       </div>
       {cuts.map((tier) => (
         <div key={tier.fromMinutes} className="flex shrink-0 items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5">
-          <span className="text-[11.5px] font-medium">{tier.when}</span>
+          <span className="text-[12px] font-medium">{tier.when}</span>
           <span className="text-[17px] font-black tabular-nums tracking-tight">{tier.cut}</span>
         </div>
       ))}

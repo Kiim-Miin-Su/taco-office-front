@@ -110,7 +110,7 @@ export default function LoginPage() {
         {/* 시험 계정 단추 — 운영 전환 때 이 줄(칩 블록 전체)을 지운다 · 위 TEST_ACCOUNT_BUTTONS 주석 */}
         {TEST_ACCOUNT_BUTTONS ? (
           <div className="mt-5 border-t border-line pt-4">
-            <p className="text-[11px] font-bold text-fg-subtle">시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다</p>
+            <p className="text-[12px] font-bold text-fg-subtle">시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {LOGIN_ACCOUNTS.map((d) => (
                 <Button
@@ -121,7 +121,7 @@ export default function LoginPage() {
                   }}
                 >
                   <span>{d.loginId}</span>
-                  <span className="ml-1 text-[10px] font-bold text-blue">
+                  <span className="ml-1 text-[12px] font-bold text-blue">
                     · {ROLE_BY_KEY.get(d.role)?.label}
                   </span>
                 </Button>

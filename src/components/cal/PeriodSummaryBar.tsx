@@ -28,7 +28,7 @@ const Dot = () => <span aria-hidden className="text-line-2">·</span>;
 export function PeriodSummaryBar({ summary, month, label, className }: PeriodSummaryBarProps) {
   const { total, onsite, online, hours, waiting, unsubmitted } = summary;
   return (
-    <div className={className ?? 'mb-2 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 px-2 text-[11px] font-bold text-fg-2'}>
+    <div className={className ?? 'mb-2 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 px-2 text-[12px] font-bold text-fg-2'}>
       {label ? <><span className="text-fg">{label}</span><Dot /></> : null}
       <span title={month ? '이 달 1일~말일 기준 — 격자의 흐린 앞뒤 달 칸은 세지 않습니다' : '이 기간 전부 — 취소·휴강도 셉니다'}>
         일정 <span className="text-fg">{total}</span>건

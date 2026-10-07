@@ -55,13 +55,13 @@ function MissingCard({ item, creating, onCreate }: { item: GuideMissing; creatin
     >
       <span className="flex items-center gap-1.5">
         <GuideReasonChip reason={item.reason} />
-        <span className="ml-auto text-[11px] text-fg-subtle">{item.eventOn.slice(5)}</span>
+        <span className="ml-auto text-[12px] text-fg-subtle">{item.eventOn.slice(5)}</span>
       </span>
       <b className="mt-1.5 block truncate text-[13px]" title={item.studentName}>{item.studentName}</b>
-      <span className="mt-0.5 block truncate text-[11px] text-fg-subtle" title={guideLessonLabel(item)}>
+      <span className="mt-0.5 block truncate text-[12px] text-fg-subtle" title={guideLessonLabel(item)}>
         {guideLessonLabel(item)}
       </span>
-      <span className="block truncate text-[11px] text-fg-subtle">{creating ? '초안 만드는 중…' : (item.teacherName ?? '강사 미정')}</span>
+      <span className="block truncate text-[12px] text-fg-subtle">{creating ? '초안 만드는 중…' : (item.teacherName ?? '강사 미정')}</span>
     </button>
   );
 }
@@ -79,10 +79,10 @@ function HistoryRow({ event }: { event: GuideHistoryEvent }) {
       aria-label={`${event.label} · ${guide.studentName ?? '학생 미상'} · ${event.time}`}>
       <GuideStateChip state={state} look="dot" />
       <b className="text-[12.5px]">{guide.studentName ?? '학생 미상'}</b>
-      <span className="text-[11.5px] text-fg-subtle">{guideLessonLabel(guide)}</span>
+      <span className="text-[12px] text-fg-subtle">{guideLessonLabel(guide)}</span>
       {/* 강사 칸 — 강사 교체 안내는 「이전 강사 → 지금 강사」(F-62 확인 위치 「수업 안내 → 이력」 · TEACHER-LINEAGE) */}
-      <span className="text-[11.5px] text-fg-subtle">{guideTeacherLabel(guide)}</span>
-      <time className="ml-auto text-[11px] text-fg-subtle" dateTime={event.at} title={event.byName ? `${event.label} · ${event.byName}` : event.label}>
+      <span className="text-[12px] text-fg-subtle">{guideTeacherLabel(guide)}</span>
+      <time className="ml-auto text-[12px] text-fg-subtle" dateTime={event.at} title={event.byName ? `${event.label} · ${event.byName}` : event.label}>
         {event.time}
       </time>
     </li>

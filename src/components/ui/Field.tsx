@@ -18,15 +18,15 @@ const BAD = 'border-red focus:border-red';
 export function Label({ htmlFor, children, hint }: { htmlFor?: string; children: ReactNode; hint?: ReactNode }) {
   return (
     <div className="mb-1 flex items-baseline justify-between gap-2">
-      <label htmlFor={htmlFor} className="text-[11px] font-bold text-fg-subtle">{children}</label>
-      {hint ? <span className="text-[10px] text-fg-subtle">{hint}</span> : null}
+      <label htmlFor={htmlFor} className="text-[12px] font-bold text-fg-subtle">{children}</label>
+      {hint ? <span className="text-[12px] text-fg-subtle">{hint}</span> : null}
     </div>
   );
 }
 
 export function FieldError({ children }: { children?: ReactNode }) {
   if (!children) return null;
-  return <p className="mt-1 text-[11px] font-bold text-red">{children}</p>;
+  return <p className="mt-1 text-[12px] font-bold text-red">{children}</p>;
 }
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> { error?: boolean }
@@ -73,7 +73,7 @@ export function CountedTextarea({
     <div>
       <Textarea id={id} value={value} placeholder={placeholder} error={short} aria-invalid={short} maxLength={max}
         onChange={(e) => onChange(e.target.value)} />
-      <div className="mt-1 flex justify-between text-[10px]">
+      <div className="mt-1 flex justify-between text-[12px]">
         <span className={cn('font-bold', short ? 'text-red' : 'text-fg-subtle')}>
           {short ? `${min}자 이상 써 주세요` : ''}
         </span>

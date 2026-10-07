@@ -207,7 +207,7 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
               >
                 {p.label}
                 {badge > 0 ? (
-                  <span className={`rounded-full px-1.5 text-[10px] ${
+                  <span className={`rounded-full px-1.5 text-[12px] ${
                     pane === p.key ? 'bg-white/25' : 'bg-red text-white'}`}>{badge}</span>
                 ) : null}
               </button>
@@ -337,7 +337,7 @@ export function DrawerButton({
   return (
     <button
       type="button" onClick={onOpen}
-      className="ml-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-bold text-line-2 hover:bg-white/10"
+      className="ml-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-bold text-line-2 hover:bg-white/10"
       aria-label={`서랍 열기${total > 0 ? ` — ${total}건` : ''}`}
     >
       서랍

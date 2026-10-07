@@ -44,9 +44,9 @@ export function MarketingChannelOverview({
       <header className="mb-2 flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="mkt-30-title" className="text-[14px] font-bold text-fg">최근 30일 채널 한눈에</h2>
-          <p className="mt-0.5 text-[11px] text-fg-subtle">{from} ~ {to} · 날짜가 없는 옛 활동은 아래 기간별 목록에서 확인합니다</p>
+          <p className="mt-0.5 text-[12px] text-fg-subtle">{from} ~ {to} · 날짜가 없는 옛 활동은 아래 기간별 목록에서 확인합니다</p>
         </div>
-        {loading ? <span className="text-[11px] text-fg-subtle">새로 받는 중…</span> : null}
+        {loading ? <span className="text-[12px] text-fg-subtle">새로 받는 중…</span> : null}
       </header>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -74,7 +74,7 @@ export function MarketingChannelOverview({
                         className={cn('min-h-11 w-full rounded-lg border border-line px-2.5 py-2 text-left hover:bg-inset',
                           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg')}>
                         <b className="block truncate text-[12px] text-fg">{row.name}</b>
-                        <span className="mt-0.5 block text-[10.5px] text-fg-subtle">
+                        <span className="mt-0.5 block text-[12px] text-fg-subtle">
                           {row.onDate?.slice(5)} · {row.itemLabel} · {row.byName ?? '담당 없음'}
                         </span>
                       </button>

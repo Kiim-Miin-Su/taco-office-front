@@ -72,7 +72,7 @@ export function MaterialRequestDraft({
         ) : rosterBlocked ? (
           <Banner tone="warning" className="mb-3">전체 담당 학생 선택 기능을 준비 중입니다.</Banner>
         ) : (
-          <p className="mb-3 text-[11px] text-fg-subtle">
+          <p className="mb-3 text-[12px] text-fg-subtle">
             현재 주 담당 학생만 초안 후보입니다. 전체 담당 학생 목록은 저장 기능과 함께 연결합니다.
           </p>
         )}
@@ -107,12 +107,12 @@ export function MaterialRequestDraft({
             </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-[12px] text-fg-subtle">
               {ready ? '초안 입력 완료 · 저장 기능 연결 대기' : '종류·학생·필요일·요청 내용을 입력해 주세요.'}
             </span>
             <Button type="submit" className="ml-auto min-h-11" disabled
               title="자료요청 저장과 처리 흐름이 연결되면 활성화">
-              요청 계약 준비 중
+              요청 기능 준비 중
             </Button>
           </div>
         </form>

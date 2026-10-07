@@ -127,7 +127,7 @@ it('전용 DTO에 학생 ID·회차가 생기기 전에는 특이사항을 기�
   fireEvent.click(await view.findByRole('button', { name: '특이사항 남기기' }));
 
   fireEvent.change(view.getByLabelText('특이사항 내용'), { target: { value: '오늘 유난히 지쳐 보였습니다.' } });
-  const save = view.getByRole('button', { name: '저장 계약 준비 중' }) as HTMLButtonElement;
+  const save = view.getByRole('button', { name: '저장 기능 준비 중' }) as HTMLButtonElement;
   expect(save.disabled).toBe(true);
   expect(view.getByRole('dialog').textContent).toContain('학생 ID와 실제 회차를 구분하는 전용 계약이 필요합니다');
   expect(view.getByRole('dialog').textContent).toContain('관리자만 볼 수 있고 학부모에게 공개되지 않습니다');

@@ -76,7 +76,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     const paths = [...view.container.querySelectorAll<HTMLElement>('[data-field-path]')].map(node => node.dataset.fieldPath);
     expect(paths).toHaveLength(28);
     expect(new Set(paths).size).toBe(paths.length);
-    expect(view.getByRole('button', { name: '학생 등록 계약 연결 대기' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '학생 등록 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
     expect(view.queryByText(/등록되었습니다/)).toBeNull();
   });
 
@@ -129,7 +129,7 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     fireEvent.click(view.getByRole('button', { name: '기존 학생 재활성화' }));
     expect(view.getByText(/같은 STU ID/)).toBeTruthy();
     expect(view.getByText(/신규 학생·수업·청구·교재·안내·첫 수업 할 일은 만들지 않습니다/)).toBeTruthy();
-    expect(view.getByRole('button', { name: '재활성화 계약 연결 대기' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '재활성화 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
     fireEvent.click(view.getByRole('button', { name: '신규 학생' }));
     expect((view.getByLabelText('학생 이름') as HTMLInputElement).value).toBe('김학생');
     expect(requests.filter(request => request.method !== 'get')).toHaveLength(0);

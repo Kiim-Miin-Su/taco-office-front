@@ -120,12 +120,12 @@ export function InvoiceStageBoard({ data, loading, invoices, onIssue, onPay, onO
             <span className="min-w-0 truncate text-[13px] font-bold text-fg">{c.studentName}</span>
             {c.studentTag ? <Chip size="compact" tone="neutral">{c.studentTag}</Chip> : null}
           </div>
-          <div className={cn('truncate rounded px-2 py-0.5 text-[11px] font-bold text-white', BAR.todo)} title={c.title}>{c.title}</div>
+          <div className={cn('truncate rounded px-2 py-0.5 text-[12px] font-bold text-white', BAR.todo)} title={c.title}>{c.title}</div>
           {c.canIssue ? (
             <b className="text-[15px] text-fg">{won(c.amount)}</b>
           ) : (
             // 못 내는 대상도 숨기지 않는다 — 발행 409 와 같은 문장이 까닭이다
-            <p className="text-[11px] leading-snug text-red">{c.issueBlockedReason}</p>
+            <p className="text-[12px] leading-snug text-red">{c.issueBlockedReason}</p>
           )}
           <div className="flex flex-wrap gap-1.5">{nextButton(item)}</div>
         </div>
@@ -138,22 +138,22 @@ export function InvoiceStageBoard({ data, loading, invoices, onIssue, onPay, onO
           <Chip size="compact" styleKind="solid" tone={categoryChip(c.invType)}>{c.invTypeLabel}</Chip>
           <span className="min-w-0 truncate text-[13px] font-bold text-fg">{c.studentName}</span>
           {/* 「D-21」·「11일 지남」 — 낱말도 서버가 만든다 (D-R18). 분납이면 못 채운 가장 이른 회차의 기한이다 */}
-          <span className={cn('ml-auto shrink-0 text-[11px] font-bold', c.overdueDays > 0 ? 'text-red' : 'text-fg-2')}>{c.whenLabel}</span>
+          <span className={cn('ml-auto shrink-0 text-[12px] font-bold', c.overdueDays > 0 ? 'text-red' : 'text-fg-2')}>{c.whenLabel}</span>
         </div>
-        <div className={cn('truncate rounded px-2 py-0.5 text-[11px] font-bold text-white', BAR[item.col.key] ?? 'bg-fg-subtle')} title={c.title}>
+        <div className={cn('truncate rounded px-2 py-0.5 text-[12px] font-bold text-white', BAR[item.col.key] ?? 'bg-fg-subtle')} title={c.title}>
           {c.title}
         </div>
         <div className="flex items-baseline gap-2">
           {/* null 은 권한이 없거나 컨설팅 비공개(N-94)로 가려진 카드다 — 낱말은 한 벌(「비공개」) · 칸 합계는 그대로 */}
           <b className="text-[15px] text-fg">{won(c.amount)}</b>
           {/* 「50% 냄」 — 비율도 서버 값이다. 금액을 못 보는 사람에게는 오지 않는다 */}
-          {c.paidPercent != null ? <span className="text-[11px] font-bold text-green">{c.paidPercent}% 냄</span> : null}
+          {c.paidPercent != null ? <span className="text-[12px] font-bold text-green">{c.paidPercent}% 냄</span> : null}
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" variant="secondary" aria-label={`${c.studentName} 청구서 열기`} onClick={() => onOpen(c.invId)}>열기</Button>
           {nextButton(item)}
         </div>
-        {failed?.invId === c.invId ? <p className="text-[11px] text-red">{failed.message}</p> : null}
+        {failed?.invId === c.invId ? <p className="text-[12px] text-red">{failed.message}</p> : null}
       </div>
     );
   };

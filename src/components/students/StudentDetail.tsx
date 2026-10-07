@@ -70,7 +70,7 @@ function StudentRail({ data, currentId, tab }: { data: Meta; currentId: number; 
           <Link href={`/students/${student.id}?tab=${tab}`} aria-current={active ? 'page' : undefined}
             className={cn('block border-l-[3px] px-3 py-3 transition-colors', active ? 'border-l-primary bg-inset' : 'border-l-transparent hover:bg-inset')}>
             <span className="block truncate text-[13px] font-bold">{student.label}</span>
-            <span className="mt-1 block truncate text-[11px] text-fg-subtle">{[student.school, student.grade].filter(Boolean).join(' · ') || '학교·학년 미상'}</span>
+            <span className="mt-1 block truncate text-[12px] text-fg-subtle">{[student.school, student.grade].filter(Boolean).join(' · ') || '학교·학년 미상'}</span>
           </Link>
         </li>;
       })}
@@ -112,7 +112,7 @@ function GuideSummary({ student, assignment = false }: { student: GuideStudent; 
         {assignment ? <LinkButton href={`/books?tab=tracking&studentId=${student.studentId}&create=issue`} size="sm">교재 배정 업무 열기</LinkButton> : null}
       </div>
     </Panel>
-    {assignment ? <Panel title={`배부 교재 ${student.books.length}종`} sub="안내 학생별 projection의 배부 완료 교재입니다.">
+    {assignment ? <Panel title={`배부 교재 ${student.books.length}종`} sub="학생별 안내에서 확인된 배부 완료 교재입니다.">
       {student.books.length ? <ul className="space-y-2">{student.books.map(book => <li key={book.issueId} className="flex flex-wrap items-center gap-2 rounded-lg border border-line px-3 py-2 text-[12px]"><b>{book.title}</b>{book.edition ? <Chip>{book.edition}</Chip> : null}<span className="text-fg-subtle">{book.code}</span></li>)}</ul> : <p className="text-[12px] text-fg-subtle">배부된 교재가 없습니다.</p>}
     </Panel> : null}
   </div>;
@@ -122,7 +122,7 @@ function GuideTab({ studentId, assignment = false }: { studentId: number; assign
   const query = useGuideStudents(true);
   return <QueryState query={query}>{data => {
     const student = data.items.find(item => item.studentId === studentId);
-    return student ? <GuideSummary student={student} assignment={assignment} /> : <Panel title={assignment ? '안내와 교재 배정' : '안내 한눈에'}><p className="text-[12px] text-fg-subtle">이 학생의 안내 projection이 없습니다. 다른 학생 자료를 대신 표시하지 않습니다.</p></Panel>;
+    return student ? <GuideSummary student={student} assignment={assignment} /> : <Panel title={assignment ? '안내와 교재 배정' : '안내 한눈에'}><p className="text-[12px] text-fg-subtle">이 학생에게 연결된 안내가 없습니다. 다른 학생 자료를 대신 표시하지 않습니다.</p></Panel>;
   }}</QueryState>;
 }
 
@@ -131,7 +131,7 @@ function BooksTab({ studentId }: { studentId: number }) {
   const guides = useGuideStudents(true);
   return <QueryState query={count}>{bookCount => <QueryState query={guides}>{data => {
     const student = data.items.find(item => item.studentId === studentId);
-    return <Panel title={`교재 ${bookCount.bookCount}종`} sub={bookCount.label ?? '배부 완료 교재 수는 서버 projection을 따릅니다.'}>
+    return <Panel title={`교재 ${bookCount.bookCount}종`} sub={bookCount.label ?? '배부 완료 교재 수는 확인된 조회값을 따릅니다.'}>
       {student?.books.length ? <ul className="space-y-2">{student.books.map(book => <li key={book.issueId} className="rounded-lg border border-line px-3 py-2 text-[12px]"><b>{book.title}</b><span className="ml-2 text-fg-subtle">{[book.edition, book.code].filter(Boolean).join(' · ')}</span></li>)}</ul> : <p className="text-[12px] text-fg-subtle">표시할 배부 교재 상세가 없습니다.</p>}
       <div className="mt-3"><LinkButton href={`/books?tab=tracking&studentId=${studentId}`} size="sm">교재 트래킹 열기</LinkButton></div>
     </Panel>;
@@ -139,7 +139,7 @@ function BooksTab({ studentId }: { studentId: number }) {
 }
 
 function ContractPending({ title, children, href, link }: { title: string; children: string; href?: string; link?: string }) {
-  return <Panel title={title}><Banner tone="warning" title="학생별 생성 계약 연결 대기">{children}</Banner>{href && link ? <div className="mt-3"><LinkButton href={href} size="sm">{link}</LinkButton></div> : null}</Panel>;
+  return <Panel title={title}><Banner tone="warning" title="학생별 생성 기능 준비 중">{children}</Banner>{href && link ? <div className="mt-3"><LinkButton href={href} size="sm">{link}</LinkButton></div> : null}</Panel>;
 }
 
 export function StudentDetail({ studentId, initialTab = 'overview' }: { studentId: number | null; initialTab?: StudentHubTab }) {
@@ -166,23 +166,23 @@ export function StudentDetail({ studentId, initialTab = 'overview' }: { studentI
         <div className="overflow-x-auto"><Tabs<StudentHubTab> ariaLabel="학생 허브 보기" className="min-w-max [&>button]:min-h-11" value={tab} onChange={selectTab} options={STUDENT_HUB_TABS} /></div>
         {tab === 'overview' ? <GuideTab studentId={data.id} /> : null}
         {tab === 'assignment' ? <GuideTab studentId={data.id} assignment /> : null}
-        {tab === 'schedule' ? <Panel title="학생 시간표" sub="공용 occurrence 정본의 학생 보기를 엽니다."><LinkButton href={`/schedule?studentId=${data.id}`}>학생 시간표 열기</LinkButton></Panel> : null}
+        {tab === 'schedule' ? <Panel title="학생 시간표" sub="공용 수업 일정의 학생 보기를 엽니다."><LinkButton href={`/schedule?studentId=${data.id}`}>학생 시간표 열기</LinkButton></Panel> : null}
         {tab === 'history' ? <>
-          <Banner tone="warning" title="전체 CRUD 변경 이력은 아직 제공하지 않습니다.">학생·연결 상담·보호자의 기존 감사에서 누가, 언제, 어떤 행위를 했는지만 표시합니다. 변경 전후 값, 기간, 결제·진단 전체 이력은 포함하지 않습니다.</Banner>
-          <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub={`기존 ENR 시작일 내림차순 최대${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
+          <Banner tone="warning" title="전체 변경 이력은 아직 제공하지 않습니다.">학생·연결 상담·보호자의 기존 감사에서 누가, 언제, 어떤 행위를 했는지만 표시합니다. 변경 전후 값, 기간, 결제·진단 전체 이력은 포함하지 않습니다.</Banner>
+          <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub={`기존 수강 시작일 내림차순 최대${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
           <Panel title={`기존 감사 ${data.historyTotal}건`} sub={`기록 시각 내림차순 · 최근${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={historyColumns} rows={data.history} rowKey={row => row.id} className="min-w-[540px]" empty="연결된 감사 기록이 없습니다. 변경이 없었다는 뜻은 아닙니다." /></div></Panel>
         </> : null}
-        {tab === 'reports' ? <ContractPending title="리포트" href="/reports" link="리포트 업무 열기">현행 리포트 목록은 studentId 필터가 없어 다른 학생 자료를 안전하게 분리할 수 없습니다.</ContractPending> : null}
+        {tab === 'reports' ? <ContractPending title="리포트" href="/reports" link="리포트 업무 열기">현재 리포트 목록은 학생별로 자료를 안전하게 분리할 수 없습니다.</ContractPending> : null}
         {tab === 'books' ? <BooksTab studentId={data.id} /> : null}
-        {tab === 'comments' ? <ContractPending title="코멘트">코멘트 공개범위와 학생 aggregate 민감 컬럼 ACL이 확정·생성 계약으로 제공되기 전에는 표시하거나 저장하지 않습니다.</ContractPending> : null}
+        {tab === 'comments' ? <ContractPending title="코멘트">코멘트 공개 범위와 학생별 민감 정보 권한이 확정되기 전에는 표시하거나 저장하지 않습니다.</ContractPending> : null}
         {tab === 'consulting' ? <QueryState query={consulting}>{value => {
           const item = value.items.find(candidate => candidate.studentId === data.id);
           return item ? <ConsultingStudents items={[item]} onOpen={id => router.push(`/consulting?id=${id}&studentId=${data.id}`)} /> : <Panel title="컨설팅"><p className="text-[12px] text-fg-subtle">볼 수 있는 이 학생의 컨설팅이 없습니다.</p></Panel>;
         }}</QueryState> : null}
         {tab === 'profile' ? <Profile data={data} /> : null}
         {tab === 'billing' ? <>
-          <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub="StudentReadDto가 제공하는 기존 ENR 사실입니다."><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
-          <ContractPending title="학생별 청구" href="/accounting" link="회계 업무 열기">현행 회계 계약은 학생 허브용 exact student aggregate와 cursor를 제공하지 않아 금액·납부 상태를 이 화면에서 계산하지 않습니다.</ContractPending>
+          <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub="확인된 기존 수강 기록입니다."><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
+          <ContractPending title="학생별 청구" href="/accounting" link="회계 업무 열기">현재 회계 조회는 학생별 금액·납부 상태를 안전하게 제공하지 않아 이 화면에서 임의로 계산하지 않습니다.</ContractPending>
         </> : null}
       </main>
     </div>

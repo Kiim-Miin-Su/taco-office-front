@@ -79,7 +79,7 @@ describe('T07 불가 시간 Front 계약 대기', () => {
     fireEvent.click(view.getByRole('button', { name: '10월 11일 (일) 08:00 선택' }));
 
     const reason = view.getByLabelText('불가 사유');
-    const submit = view.getByRole('button', { name: '저장 계약 준비 중' });
+    const submit = view.getByRole('button', { name: '저장 기능 준비 중' });
     fireEvent.change(reason, { target: { value: '12345678901234' } });
     expect(view.getByText('14/500자 · 최소 15자')).toBeTruthy();
     expect(submit).toHaveProperty('disabled', true);
@@ -90,7 +90,7 @@ describe('T07 불가 시간 Front 계약 대기', () => {
     expect(view.getByText('14/500자 · 최소 15자')).toBeTruthy();
     fireEvent.click(submit);
     expect(apiState.create).not.toHaveBeenCalled();
-    expect(view.container.textContent).toContain('배정 수업 충돌 계약까지 연결된 뒤 저장할 수 있습니다');
+    expect(view.container.textContent).toContain('충돌 확인 기능이 준비된 뒤 사용할 수 있습니다');
   });
 
   it('키보드 click 선택 뒤 pointer 이동은 눌린 drag로 남지 않는다', () => {
@@ -117,7 +117,7 @@ describe('T07 불가 시간 Front 계약 대기', () => {
   it('기존 목록은 읽되 삭제도 새 10일 계약 전에는 실행하지 않는다', () => {
     const view = render(<TeacherUnavailablePage />);
     expect(view.getByText('기존 등록 사유')).toBeTruthy();
-    const remove = view.getByRole('button', { name: '삭제 계약 준비 중' });
+    const remove = view.getByRole('button', { name: '삭제 기능 준비 중' });
     expect(remove).toHaveProperty('disabled', true);
     fireEvent.click(remove);
     expect(apiState.remove).not.toHaveBeenCalled();

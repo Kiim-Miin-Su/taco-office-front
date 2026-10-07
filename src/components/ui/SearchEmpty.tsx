@@ -13,7 +13,7 @@ export function SearchEmpty({ onClear, title = '검색 결과가 없습니다', 
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl border border-line bg-card p-6 text-center">
       <p className="text-[14px] font-bold leading-5 text-fg">{title}</p>
-      <p className="text-[11px] leading-4 text-fg-2">{hint}</p>
+      <p className="text-[12px] leading-4 text-fg-2">{hint}</p>
       <Button size="sm" className="!h-7" onClick={onClear}>초기화</Button>
     </div>
   );

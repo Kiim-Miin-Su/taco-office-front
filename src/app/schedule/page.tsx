@@ -1463,7 +1463,7 @@ function AdminSchedulePage() {
           <>
             <div className={`mb-2 flex min-h-9 flex-wrap items-center gap-2 rounded-lg px-2 py-1 ${focused ? 'bg-blue/5' : 'bg-inset/50'}`}>
               <span className={`size-2 rounded-full ${focused ? 'bg-blue' : 'bg-line-2'}`} />
-              <span className={`text-[11px] font-bold ${focused ? 'text-blue' : 'text-fg-subtle'}`}>{side} 표</span>
+              <span className={`text-[12px] font-bold ${focused ? 'text-blue' : 'text-fg-subtle'}`}>{side} 표</span>
               <Chip>{SCHEDULE_VIEWS.find((view) => view.value === pane.view)?.label}</Chip>
               <span className="min-w-0 truncate text-[12px] font-bold text-fg">{head}</span>
               <div className="ml-auto flex items-center gap-1">
@@ -1521,7 +1521,7 @@ function AdminSchedulePage() {
               className="self-start overflow-hidden rounded-xl border border-line bg-card">
               <div className="flex items-baseline gap-2 bg-fg px-3 py-2.5 text-white">
                 <span className="text-[13px] font-bold">{pane.view === 'student' ? '학생' : '선생님'} {people.length}명</span>
-                <span className="text-[11px] text-white/60">눌러서 바뀝니다</span>
+                <span className="text-[12px] text-white/60">눌러서 바뀝니다</span>
               </div>
               <div className="max-h-[640px] overflow-y-auto">
                 {people.map((person) => (
@@ -1533,7 +1533,7 @@ function AdminSchedulePage() {
                       {/* 원문 §10 성별 · §11 역할 아바타 — 성별은 PNG 로 나가는 동안 감춘다(외부 출력 제외 · N-83) */}
                       {person.avatar.private && exporting ? null : (
                         <span aria-hidden data-avatar={person.avatar.private ? 'gender' : 'role'}
-                          className={`grid h-6 min-w-6 shrink-0 place-items-center rounded-md px-1 text-[10.5px] font-bold ${person.avatar.look}`}>
+                          className={`grid h-6 min-w-6 shrink-0 place-items-center rounded-md px-1 text-[12px] font-bold ${person.avatar.look}`}>
                           {person.avatar.text}
                         </span>
                       )}
@@ -1544,13 +1544,13 @@ function AdminSchedulePage() {
                       <span className="flex flex-wrap gap-1">
                         {person.kinds.map((k) => (
                           <span key={k.key} style={{ borderLeftColor: kindColor(k.key) }}
-                            className="rounded border border-l-[3px] border-line bg-inset px-1.5 text-[10.5px] font-bold text-fg-2">
+                            className="rounded border border-l-[3px] border-line bg-inset px-1.5 text-[12px] font-bold text-fg-2">
                             {kindLabel(k.key) ?? '종류'} {k.count}
                           </span>
                         ))}
                       </span>
                     ) : null}
-                    <span className={`text-[11px] ${person.held ? 'font-bold text-fg-2' : 'text-line-2'}`}>
+                    <span className={`text-[12px] ${person.held ? 'font-bold text-fg-2' : 'text-line-2'}`}>
                       {person.held}회 · {person.hours.toFixed(1)}h
                     </span>
                     {/* 선생님 줄의 빨간 「리포트 N」 — 끝났는데 아직 제출하지 않은 리포트(기간 집계와 같은 판정) */}
@@ -1616,7 +1616,7 @@ function AdminSchedulePage() {
                           {todo.done ? <s>{todo.title}</s> : todo.title}{todo.dueOn ? ` · ${todo.dueOn.slice(5)}` : ''}
                         </Chip>
                       )) : <span className="text-[12px] text-fg-subtle">이 기간에 받은 일이 없습니다</span>}
-                      {personTodos.length > 6 ? <span className="text-[11px] text-fg-subtle">외 {personTodos.length - 6}건</span> : null}
+                      {personTodos.length > 6 ? <span className="text-[12px] text-fg-subtle">외 {personTodos.length - 6}건</span> : null}
                       {canEdit ? (
                         <Button size="sm" className="ml-auto" onClick={() => setTodoFor(pane.personId)}>+ 주기</Button>
                       ) : null}
@@ -1651,7 +1651,7 @@ function AdminSchedulePage() {
         ) : null}
         {/* 바닥 칩도 **상단 줄과 같은 기간**을 센다 — 한 표 안에서 범위가 갈리면
             「45건인데 리포트 쓴 수업 47」 같은 수가 나온다 (N-19). */}
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-fg-subtle">
+        <div className="mt-3 flex flex-wrap gap-2 text-[12px] text-fg-subtle">
           <Chip>취소·휴강 {summary.canceled}</Chip>
           <Chip>이 회차만 다름 {summary.exceptions}</Chip>
           <Chip>리포트 쓴 수업 {summary.written}</Chip>
@@ -1751,7 +1751,7 @@ function AdminSchedulePage() {
         */}
         <div role="group" aria-label="대상"
           className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-3 py-2">
-          <span className="rounded-md border border-line px-2 py-1 text-[11px] font-bold text-fg-subtle">대상</span>
+          <span className="rounded-md border border-line px-2 py-1 text-[12px] font-bold text-fg-subtle">대상</span>
           <span className="text-[14px] font-bold text-fg">{targetLabel}</span>
           <Chip>{activeFilterCount(s.filters) ? `필터 ${activeFilterCount(s.filters)}개` : '전체 기준'}</Chip>
           {s.panes.length === 2 ? <Chip tone="info">● {s.focused === 0 ? '왼쪽 표 선택됨' : '오른쪽 표 선택됨'}</Chip> : null}
@@ -1875,25 +1875,25 @@ function AdminSchedulePage() {
         {/* 드래그 고스트 — 원본은 흐려지고 이것이 손을 따라간다 (§5.1) */}
         <DragOverlay dropAnimation={null}>
           {creating ? (
-            <div className="rounded-md border border-blue bg-blue/10 px-2 py-1 text-[11px] font-bold text-blue shadow-lg">
+            <div className="rounded-md border border-blue bg-blue/10 px-2 py-1 text-[12px] font-bold text-blue shadow-lg">
               새 일정 · {createPreview ? (
                 <span data-create-preview>{hhmm(createPreview.startMin)}–{hhmm(createPreview.endMin)}</span>
               ) : `${hhmm(creating.startMin)}부터`}
             </div>
           ) : resizePreview ? (
             <output role="status" aria-label="길이 조절 미리보기"
-              className="whitespace-nowrap rounded-md border border-blue bg-card px-2 py-1 text-[11px] font-bold text-fg shadow-lg">
+              className="whitespace-nowrap rounded-md border border-blue bg-card px-2 py-1 text-[12px] font-bold text-fg shadow-lg">
               <span data-resize-preview>{hhmm(resizePreview.startMin)}–{hhmm(resizePreview.endMin)}</span>
             </output>
           ) : dragging ? (
             <div style={eventColorStyle(colorOf(dragging))}
-              className={`w-40 overflow-hidden rounded-md border px-2 py-1 text-[11px] font-bold shadow-lg ${eventStyles.subject} ${
+              className={`w-40 overflow-hidden rounded-md border px-2 py-1 text-[12px] font-bold shadow-lg ${eventStyles.subject} ${
                 dragging.mode === 'online' ? `border-dashed ${eventStyles.online}` : 'border-solid'
               } ${dragCopy ? 'ring-2 ring-violet' : ''}`}>
               {dragCopy ? '복제 · ' : ''}{subName(dragging) ?? dragging.title ?? dragging.kindKey}
               <span className="ml-1 opacity-70">{dragging.students.length ? `· ${dragging.students.length}명` : ''}</span>
               {dropPreview ? (
-                <span className="mt-1 block rounded bg-card/80 px-1 py-0.5 text-[10px] text-fg">
+                <span className="mt-1 block rounded bg-card/80 px-1 py-0.5 text-[12px] text-fg">
                   <span data-drop-preview>{label(dropPreview.date)} · {hhmm(dropPreview.startMin)}–{hhmm(dropPreview.endMin)}</span>
                   {dropPreview.targetLabel ? <span data-target-preview className="block">{dropPreview.targetLabel}</span> : null}
                 </span>
@@ -1929,7 +1929,7 @@ function AdminSchedulePage() {
         <RecurrenceScope
           open={!!pasteAsk}
           mode="paste"
-          warning={pasteAsk?.items.some((o) => o.hasException) ? '원본에 적용된 예외는 복사되지 않고, 현재 보이는 값과 반복 규칙만 새 SER로 복제됩니다.' : undefined}
+          warning={pasteAsk?.items.some((o) => o.hasException) ? '원본에 적용된 예외는 복사되지 않고, 현재 보이는 값과 반복 규칙만 새 수업으로 복제됩니다.' : undefined}
           onPick={(scope) => { if (pasteAsk) submitPaste(pasteAsk, scope); }}
           onClose={() => setPasteAsk(null)}
         />

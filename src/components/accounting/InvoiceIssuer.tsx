@@ -269,7 +269,7 @@ export function InvoiceIssuer({ open: openProp, onOpenChange, heading, preset, b
               )}
             </div>
             {blockedTypes.length ? (
-              <ul className="mt-2 flex flex-col gap-0.5 text-[11px] text-fg-subtle" aria-label="여기서 낼 수 없는 종류">
+              <ul className="mt-2 flex flex-col gap-0.5 text-[12px] text-fg-subtle" aria-label="여기서 낼 수 없는 종류">
                 {blockedTypes.map((t) => <li key={t.key}><b className="text-fg-2">{t.label}</b> — {t.issueBlockedReason}</li>)}
               </ul>
             ) : null}
@@ -339,13 +339,13 @@ export function InvoiceIssuer({ open: openProp, onOpenChange, heading, preset, b
                   <Button size="sm" variant="secondary" disabled={parts.length >= PARTS_MAX}
                     onClick={() => setParts((rows) => [...rows, { dueOn: '', amount: '' }])}>+ 회차</Button>
                 </div>
-                <p className="text-[11px] text-fg-subtle">
+                <p className="text-[12px] text-fg-subtle">
                   회차 번호는 예정일 순으로 매겨지고, 기한은 마지막 회차의 예정일입니다. 「기한 지남」은 들어온 돈이 못 채운 가장 이른 회차의 예정일로 셉니다.
                   합이 청구액과 다르면 서버가 돌려보냅니다.
                 </p>
               </div>
             ) : (
-              <p className="mt-2 text-[11px] text-fg-subtle">
+              <p className="mt-2 text-[12px] text-fg-subtle">
                 기한을 고르면 그 날이 지난 뒤부터 「기한 지남」과 대표 보고의 회계 배지에 듭니다. 미리 채워 두지 않습니다 — 언제까지 받을지는 매번 정하는 일입니다.
               </p>
             )}

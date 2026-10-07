@@ -31,7 +31,7 @@ export function SuggestionsAdmin({ open, rows, onClose }: {
             <li key={row.id} className="rounded-xl border border-line bg-card p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <b className="text-[13px] text-fg">{row.staffName}</b>
-                <span className="text-[11px] text-fg-subtle">{row.createdAt}</span>
+                <span className="text-[12px] text-fg-subtle">{row.createdAt}</span>
                 <Chip className="ml-auto" size="compact" tone={row.state === 'done' ? 'success' : 'warning'}>
                   {row.state === 'done' ? '답변 완료' : '답변 필요'}
                 </Chip>
@@ -59,7 +59,7 @@ export function SuggestionsAdmin({ open, rows, onClose }: {
               ) : row.reply ? (
                 <div className="mt-3 rounded-lg border border-green/30 bg-green/5 px-3 py-2">
                   <p className="whitespace-pre-wrap text-[12.5px] font-bold text-fg">{row.reply}</p>
-                  <p className="mt-1 text-[11px] text-fg-subtle">
+                  <p className="mt-1 text-[12px] text-fg-subtle">
                     {[row.replyBy, row.replyOn].filter(Boolean).join(' · ')}
                   </p>
                   <Button className="mt-2" size="sm" variant="secondary" disabled={write.isPending} onClick={() => start(row)}>답변 수정</Button>

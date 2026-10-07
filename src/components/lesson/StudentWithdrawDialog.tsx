@@ -166,10 +166,10 @@ export function StudentWithdrawDialog({ open, title, student, serId, defaultEnde
             </p>
           </section>
         ) : dateOk && !err ? (
-          <p className="text-[11px] text-fg-subtle">잔여 회차와 환불액을 서버에 묻는 중…</p>
+          <p className="text-[12px] text-fg-subtle">잔여 회차와 환불액을 서버에 묻는 중…</p>
         ) : null}
 
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-[12px] text-fg-subtle">
           그 날까지의 회차·청구는 그대로 남고(이력), 그 뒤 회차에서만 빠집니다. 그룹 수업이면 남은 학생의 단가가 그 뒤부터 다시 잡힙니다.
           환불은 받은 돈에서 돌려줄 만큼을 장부에 음수 줄로 남깁니다. <b>되돌릴 수 없습니다</b> — 다시 다니려면 새 수업으로 등록합니다.
         </p>

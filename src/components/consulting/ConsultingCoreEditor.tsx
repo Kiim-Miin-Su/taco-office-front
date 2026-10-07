@@ -58,7 +58,7 @@ export function ConsultingCoreEditor({ detail, onDone }: { detail: ConsultingDet
     <section className="mb-4 rounded-lg border border-line bg-card p-3" aria-label="계약 핵심정보">
       <div className="flex items-center justify-between gap-2"><b className="text-[12.5px]">계약 핵심정보</b><Button size="sm" onClick={() => setOpen((value) => !value)}>{open ? '취소' : '고치기'}</Button></div>
       {open ? <div className="mt-3 space-y-3">
-        <fieldset><legend className="mb-1 text-[11px] font-bold text-fg-subtle">학생 *</legend><div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-line p-2">
+        <fieldset><legend className="mb-1 text-[12px] font-bold text-fg-subtle">학생 *</legend><div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-line p-2">
           {(meta.data?.students ?? []).map((student) => { const selected = studentIds.includes(student.id); return <button key={student.id} type="button" aria-pressed={selected} onClick={() => setStudentIds((values) => toggleId(values, student.id))} className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-bold ${selected ? 'border-fg bg-fg text-white' : 'border-line bg-card text-fg'}`}>{student.label}</button>; })}
         </div></fieldset>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -71,7 +71,7 @@ export function ConsultingCoreEditor({ detail, onDone }: { detail: ConsultingDet
         </div>
         <Button size="sm" variant="primary" disabled={patch.isPending} onClick={save}>{patch.isPending ? '저장 중…' : '저장'}</Button>
         {issue ? <Banner tone="danger">{issue}</Banner> : null}{patch.isError ? <Banner tone="danger">{apiMessage(patch.error)}</Banner> : null}
-      </div> : <p className="mt-1 text-[11.5px] text-fg-subtle">계약서 작업을 시작하기 전까지만 학생·요청자·담당·금액·회차·기간을 바꿀 수 있습니다.</p>}
+      </div> : <p className="mt-1 text-[12px] text-fg-subtle">계약서 작업을 시작하기 전까지만 학생·요청자·담당·금액·회차·기간을 바꿀 수 있습니다.</p>}
     </section>
   );
 }

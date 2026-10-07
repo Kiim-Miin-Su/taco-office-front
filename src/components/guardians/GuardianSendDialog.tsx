@@ -47,16 +47,16 @@ function Results({ result }: { result: GuardianSendResult }) {
           <li key={`${item.guardianId}-${item.channel}`} className="rounded-lg border border-line px-3 py-2">
             <div className="flex flex-wrap items-center gap-1.5">
               <b className="text-[12.5px] text-fg">{item.guardianName}</b>
-              {item.relation ? <span className="text-[11px] text-fg-subtle">{item.relation}</span> : null}
+              {item.relation ? <span className="text-[12px] text-fg-subtle">{item.relation}</span> : null}
               <Chip>{item.channelLabel}</Chip>
-              <span className="text-[11.5px] text-fg-2">{item.toMasked}</span>
+              <span className="text-[12px] text-fg-2">{item.toMasked}</span>
               <Chip className="ml-auto" tone={STATUS_TONE[item.status]}>{item.statusLabel}</Chip>
             </div>
-            {item.error && item.status !== 'sent' ? <p className="mt-1 text-[11px] text-fg-subtle">{item.error}</p> : null}
+            {item.error && item.status !== 'sent' ? <p className="mt-1 text-[12px] text-fg-subtle">{item.error}</p> : null}
           </li>
         ))}
         {result.skipped.map((s) => (
-          <li key={`${s.guardianId}-${s.channel}-skip`} className="rounded-lg border border-dashed border-line px-3 py-2 text-[11.5px] text-fg-subtle">
+          <li key={`${s.guardianId}-${s.channel}-skip`} className="rounded-lg border border-dashed border-line px-3 py-2 text-[12px] text-fg-subtle">
             {s.guardianName} · {s.channelLabel} — {s.reason}
           </li>
         ))}
@@ -187,7 +187,7 @@ export function GuardianSendDialog({
           {!loading && !loadError ? (
             <>
               <fieldset>
-                <legend className="mb-1 text-[11px] font-bold text-fg-subtle">받는 사람</legend>
+                <legend className="mb-1 text-[12px] font-bold text-fg-subtle">받는 사람</legend>
                 {active.length === 0 ? (
                   <Banner tone="warning">등록한 보호자가 없습니다. 학생 카드의 「보호자」에서 먼저 추가해 주세요.</Banner>
                 ) : (
@@ -209,7 +209,7 @@ export function GuardianSendDialog({
 
               <div>
                 <div role="group" aria-label="보낼 채널" className="flex flex-wrap items-center gap-1.5">
-                  <span className="mr-1 text-[11px] font-bold text-fg-subtle">보낼 채널</span>
+                  <span className="mr-1 text-[12px] font-bold text-fg-subtle">보낼 채널</span>
                   {channelRows.map((c) => (
                     <ChipButton key={c.channel} pressed={channels.has(c.channel)} disabled={!c.ready}
                       title={c.reason ?? undefined} onClick={() => toggleChannel(c.channel)}>
@@ -218,7 +218,7 @@ export function GuardianSendDialog({
                   ))}
                 </div>
                 {channelRows.filter((c) => !c.ready).map((c) => (
-                  <p key={c.channel} className="mt-1 text-[11px] text-fg-subtle">{c.label} · {c.reason}</p>
+                  <p key={c.channel} className="mt-1 text-[12px] text-fg-subtle">{c.label} · {c.reason}</p>
                 ))}
                 {readyChannels.length === 0 && channelRows.length > 0 ? (
                   <Banner tone="warning" className="mt-2">지금은 보낼 수 있는 채널이 없습니다.</Banner>
@@ -239,7 +239,7 @@ export function GuardianSendDialog({
               ) : null}
               {attachments ? (
                 <fieldset>
-                  <legend className="mb-1 text-[11px] font-bold text-fg-subtle">메일에 붙일 파일</legend>
+                  <legend className="mb-1 text-[12px] font-bold text-fg-subtle">메일에 붙일 파일</legend>
                   <ul className="flex flex-col gap-1">
                     {attachments.map((a) => (
                       <li key={a.id}>
@@ -247,7 +247,7 @@ export function GuardianSendDialog({
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-1 text-[11px] text-fg-subtle">파일은 메일에만 붙습니다 — 문자로는 적은 글만 갑니다.</p>
+                  <p className="mt-1 text-[12px] text-fg-subtle">파일은 메일에만 붙습니다 — 문자로는 적은 글만 갑니다.</p>
                   {attachIssue ? <Banner tone="warning" className="mt-2">{attachIssue}</Banner> : null}
                 </fieldset>
               ) : null}

@@ -67,9 +67,9 @@ function StudentRow({ s, active, onPick }: { s: TeacherGuideStudent; active: boo
               </Chip>
             ) : null}
           </span>
-          <span className="mt-0.5 block truncate text-[11.5px] text-fg-subtle">{subjects || '과목 미정'}</span>
+          <span className="mt-0.5 block truncate text-[12px] text-fg-subtle">{subjects || '과목 미정'}</span>
         </span>
-        <span className="shrink-0 text-[11.5px] font-bold text-fg-subtle">주 {s.weekCount}회</span>
+        <span className="shrink-0 text-[12px] font-bold text-fg-subtle">주 {s.weekCount}회</span>
       </button>
     </li>
   );
@@ -109,7 +109,7 @@ function BookCard({
   const to = book.reissuedTo == null ? null : siblings.find((b) => b.issueId === book.reissuedTo) ?? null;
   return (
     <div data-book-card={state} className={`flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 ${done ? 'opacity-60' : ''}`}>
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-fg text-[10px] font-bold text-card">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-fg text-[12px] font-bold text-card">
         {seTe}
       </span>
       <div className="min-w-0 grow">
@@ -117,18 +117,18 @@ function BookCard({
         <div className="flex min-w-0 items-center gap-1.5">
           {shown ? (
             <span data-level-marker title={shown.label}
-              className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-[11px] font-black text-white ${shown.bandClass}`}>
+              className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-[12px] font-black text-white ${shown.bandClass}`}>
               {shown.marker}
             </span>
           ) : null}
           <span className={`truncate text-[13.5px] font-bold text-fg ${done ? 'line-through' : ''}`}>{title}</span>
         </div>
-        <div className="text-[11.5px] text-fg-subtle">
+        <div className="text-[12px] text-fg-subtle">
           {code} · {issuedOn ? `${issuedOn}부터` : '배부 전'}{done && returnedOn ? ` ~ ${returnedOn} 회수` : ''}
         </div>
         {/* 재배부 계보 — 서버 id 둘을 형제 줄과 잇는다 · 없으면 줄 자체가 없다 */}
         {from || to ? (
-          <div className="text-[11px] text-fg-subtle" data-book-lineage>
+          <div className="text-[12px] text-fg-subtle" data-book-lineage>
             {from ? `이전 배부(${from.issuedOn ?? '배부 전'}${from.returnedOn ? ` ~ ${from.returnedOn}` : ''})에서 재배부` : null}
             {to ? `→ ${to.issuedOn ?? '배부 전'} 재배부됨` : null}
           </div>
@@ -272,7 +272,7 @@ export default function TeacherGuidesPage() {
                         <Button size="sm" onClick={() => setWeek(addDays(d.weekFrom, 7))}>
                           ›
                         </Button>
-                        <span className="ml-auto text-[11px] opacity-80">
+                        <span className="ml-auto text-[12px] opacity-80">
                           {d.weekFrom.slice(5).replace('-', '/')}–{d.weekTo.slice(5).replace('-', '/')}
                         </span>
                       </div>
@@ -300,11 +300,11 @@ export default function TeacherGuidesPage() {
                         {picked.grade ? <Chip tone="info">{picked.grade}</Chip> : null}
                         {picked.school ? <span className="text-[12px] text-fg-subtle">{picked.school}</span> : null}
                         <span className="ml-auto flex items-center gap-1.5">
-                          <span className="text-[11px] text-fg-subtle">지도 강도</span>
+                          <span className="text-[12px] text-fg-subtle">지도 강도</span>
                           <Chip size="compact" tone={picked.guidance ? 'info' : 'neutral'}>
                             {picked.guidance ?? '미설정'}
                           </Chip>
-                          <span className="ml-2 text-[11px] text-fg-subtle">수업 언어</span>
+                          <span className="ml-2 text-[12px] text-fg-subtle">수업 언어</span>
                           <Chip size="compact" tone={picked.lang ? 'info' : 'neutral'}>
                             {picked.lang ? (LANG_LABEL[picked.lang] ?? picked.lang) : '미설정'}
                           </Chip>
@@ -334,7 +334,7 @@ export default function TeacherGuidesPage() {
                             ))}
                           </div>
                         )}
-                        <p className="mt-3 text-[11px] text-fg-subtle">교재 변경 요청은 관리자 승인 뒤 처리되고 결과는 알림으로 옵니다.</p>
+                        <p className="mt-3 text-[12px] text-fg-subtle">교재 변경 요청은 관리자 승인 뒤 처리되고 결과는 알림으로 옵니다.</p>
                       </Panel>
 
                       <Panel
@@ -365,7 +365,7 @@ export default function TeacherGuidesPage() {
                           <GuideDiagnosticSummary diagnostic={picked.diag} />
                         )}
                         {writing === picked.studentId ? null : (
-                          <p className="mt-3 border-t border-line pt-2 text-[11px] text-fg-subtle">
+                          <p className="mt-3 border-t border-line pt-2 text-[12px] text-fg-subtle">
                             영역별 스타일 평가는 저장처 확정 전이라 싣지 않습니다 — 진단 기록 원문을 그대로 보여 줍니다.
                           </p>
                         )}

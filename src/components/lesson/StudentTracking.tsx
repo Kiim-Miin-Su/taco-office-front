@@ -40,7 +40,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'da
   return (
     <div className={`rounded-lg border px-2 py-1.5 text-center ${tone === 'danger' ? 'border-red/30 bg-red/5' : 'border-line bg-bg-2'}`}>
       <div className={`text-[13px] font-bold ${tone === 'danger' ? 'text-red' : 'text-fg'}`}>{value}</div>
-      <div className="mt-0.5 text-[10px] text-fg-subtle">{label}</div>
+      <div className="mt-0.5 text-[12px] text-fg-subtle">{label}</div>
     </div>
   );
 }
@@ -49,15 +49,15 @@ function ReportRow({ r }: { r: TrackedReport }) {
   return (
     <li className="rounded-lg border border-line px-2.5 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-bold text-fg">{r.onDate.slice(5)}</span>
-        <span className="text-[11px] text-fg-2">{r.subjectName ?? '—'}</span>
-        <span className="text-[11px] text-fg-subtle">{r.teacherName ?? '—'}</span>
+        <span className="text-[12px] font-bold text-fg">{r.onDate.slice(5)}</span>
+        <span className="text-[12px] text-fg-2">{r.subjectName ?? '—'}</span>
+        <span className="text-[12px] text-fg-subtle">{r.teacherName ?? '—'}</span>
         {/* 낱말도 판정도 서버가 준 것이다 — 화면이 제출 시각을 다시 견주지 않는다 (D-R32).
             원문 §79 #6 — 칩이 아니라 글자색: 「정시」 초록 · 「지연」 호박 */}
-        <span className={`ml-auto text-[11px] font-bold ${r.onTime ? 'text-green' : 'text-amber'}`}>{r.onTimeLabel}</span>
+        <span className={`ml-auto text-[12px] font-bold ${r.onTime ? 'text-green' : 'text-amber'}`}>{r.onTimeLabel}</span>
       </div>
-      {r.excerpt ? <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-fg-2">{r.excerpt}</p> : null}
-      {r.homework ? <p className="mt-1 text-[10.5px] text-fg-subtle">숙제 {r.homework}</p> : null}
+      {r.excerpt ? <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-fg-2">{r.excerpt}</p> : null}
+      {r.homework ? <p className="mt-1 text-[12px] text-fg-subtle">숙제 {r.homework}</p> : null}
     </li>
   );
 }
@@ -155,15 +155,15 @@ function StudentCard({ s, canSeeAmounts, onDate, serId, canEdit, canMoney }: {
         />
       </div>
 
-      <h4 className="mb-1.5 mt-3 text-[11px] font-bold text-fg-2">최신 리포트 {s.reports.length}건</h4>
+      <h4 className="mb-1.5 mt-3 text-[12px] font-bold text-fg-2">최신 리포트 {s.reports.length}건</h4>
       {s.reports.length === 0 ? (
-        <p className="text-[11.5px] text-fg-subtle">쓴 리포트가 없습니다</p>
+        <p className="text-[12px] text-fg-subtle">쓴 리포트가 없습니다</p>
       ) : (
         <ul className="flex flex-col gap-1.5">{s.reports.map((r) => <ReportRow key={r.repId} r={r} />)}</ul>
       )}
 
       {/* 인수인계 메모 (N-36 ②) — 관리자 · 매니저가 한 줄씩 더하고, 그 학생을 맡은 강사가 수업 안내 학생 카드에서 읽는다(학부모 비공개) */}
-      <h4 className="mb-1.5 mt-3 text-[11px] font-bold text-fg-2">
+      <h4 className="mb-1.5 mt-3 text-[12px] font-bold text-fg-2">
         인수인계 메모 {s.noteCount}줄 <span className="font-normal text-fg-subtle">· 맡은 강사가 수업 안내에서 읽습니다 · 학부모에게 나가지 않습니다</span>
       </h4>
       <HandoverNoteList notes={s.notes} total={s.noteCount} />

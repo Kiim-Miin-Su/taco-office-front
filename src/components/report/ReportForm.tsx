@@ -238,8 +238,8 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
           : '제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.'}</Banner>
       ) : null}
       {detail.state === 'wait' ? (
-        <Banner tone="warning" title="승인 대기 수정 계약 연결 전">
-          현재 제출본을 읽기 전용으로 보여 줍니다. expectedVersion과 양식 버전이 포함된 수정 계약이 연결되기 전에는 승인과 경쟁하는 수정을 보내지 않습니다.
+        <Banner tone="warning" title="승인 대기 수정 기능 준비 중">
+          현재 제출본을 읽기 전용으로 보여 줍니다. 동시 수정 확인과 양식 버전을 함께 처리할 수 있기 전에는 승인과 겹칠 수 있는 수정을 보내지 않습니다.
         </Banner>
       ) : null}
       {message ? <Banner tone={message.tone}>{message.text}</Banner> : null}
@@ -311,14 +311,14 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
           {/* 393px 점검 — 이름 칸은 줄어들며 줄을 바꾸고 로고는 줄지 않는다 */}
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <span className="break-words text-[18px] font-bold text-fg">{studentName}</span>
-            {grade ? <span className="text-[11px] text-fg-subtle">{grade}</span> : null}
+            {grade ? <span className="text-[12px] text-fg-subtle">{grade}</span> : null}
           </div>
-          <span className="shrink-0 text-[11px] font-bold tracking-[0.2em] text-fg">TN ACADEMY</span>
+          <span className="shrink-0 text-[12px] font-bold tracking-[0.2em] text-fg">TN ACADEMY</span>
         </header>
         <div className="p-4">
           {/* 수업 한 블록 — 연한 바탕 + 과목색 왼쪽 막대, 수업 줄에 강사 이름, 칸은 2열 (g5 50-04 · 50-05) */}
           <div data-testid="report-lesson-block" className="rounded-lg border-l-4 bg-inset p-3" style={{ borderLeftColor: color }}>
-            <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
+            <div className="flex flex-wrap items-center gap-2 text-[12px]">
               <span className="font-bold text-fg">{longDateLabel(date)}</span>
               <span className="font-bold" style={{ color: readableAccentColor(color) }}>{subject}</span>
               <span className="rounded bg-card px-1.5 py-0.5 text-fg-subtle">{timeLabel}</span>
@@ -327,8 +327,8 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
             <dl className="mt-3 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5">
               {fields.map((field) => (
                 <Fragment key={field.key}>
-                  <dt className="text-[11px] font-bold text-fg-subtle">{field.label.replace(/^[①②③④⑤]\s*/, '')}</dt>
-                  <dd className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-fg">{body[field.key] || '—'}</dd>
+                  <dt className="text-[12px] font-bold text-fg-subtle">{field.label.replace(/^[①②③④⑤]\s*/, '')}</dt>
+                  <dd className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-fg">{body[field.key] || '—'}</dd>
                 </Fragment>
               ))}
             </dl>

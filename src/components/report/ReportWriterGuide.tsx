@@ -32,7 +32,7 @@ export function ReportWriterGuide() {
         {REPORT_WRITER_RULES.map((item) => (
           <li key={item.rule} className="text-[12.5px] font-bold text-fg">
             {item.rule}
-            <span className="mt-0.5 block text-[11.5px] font-normal text-fg-2">{item.detail}</span>
+            <span className="mt-0.5 block text-[12px] font-normal text-fg-2">{item.detail}</span>
           </li>
         ))}
       </ol>

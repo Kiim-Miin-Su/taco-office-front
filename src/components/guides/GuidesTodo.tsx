@@ -53,13 +53,13 @@ function LadderCell({ deadline }: { deadline: GuideDeadline | null }) {
           <span key={step.key}
             aria-label={step.passed ? `${step.label} 지남` : `${step.label} 남음`}
             className={step.passed
-              ? 'inline-flex h-6 w-12 items-center rounded-md border border-red/30 bg-red/10 px-1.5 text-[11px] font-bold text-red'
-              : 'inline-flex h-6 w-12 items-center rounded-md border border-line bg-card px-1.5 text-[11px] font-bold text-fg-2'}>
+              ? 'inline-flex h-6 w-12 items-center rounded-md border border-red/30 bg-red/10 px-1.5 text-[12px] font-bold text-red'
+              : 'inline-flex h-6 w-12 items-center rounded-md border border-line bg-card px-1.5 text-[12px] font-bold text-fg-2'}>
             {step.passed ? '×' : step.label}
           </span>
         ))}
       </div>
-      <span className="text-[11px] font-bold text-fg-subtle">{deadline.leftLabel}</span>
+      <span className="text-[12px] font-bold text-fg-subtle">{deadline.leftLabel}</span>
     </div>
   );
 }
@@ -190,13 +190,13 @@ function PerLessonRow({ lesson, assignmentOpen, onAssign }: {
       <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[78px_minmax(180px,1fr)_180px_290px]">
         <div>
           <b className="block text-[14px]">{hm(lesson.startMin)}</b>
-          <span className="text-[11px] text-fg-subtle">{hm(lesson.endMin)}</span>
+          <span className="text-[12px] text-fg-subtle">{hm(lesson.endMin)}</span>
         </div>
         <div className="min-w-0">
           <b className="block truncate text-[13.5px]">
             {lesson.notices.map((notice) => notice.studentName).join(', ') || '학생 없음'}
           </b>
-          <span className="text-[11.5px] text-fg-subtle">
+          <span className="text-[12px] text-fg-subtle">
             {guideLessonLabel({ serTitle: lesson.serTitle, subName: lesson.subName, kindName: lesson.kindName, roomName: lesson.roomName })} · {lesson.teacherName ?? '강사 미정'}
           </span>
         </div>
@@ -236,7 +236,7 @@ function PerLessonRow({ lesson, assignmentOpen, onAssign }: {
       {send.isError ? <Banner tone="danger" className="mt-2">{apiMessage(send.error)}</Banner> : null}
       {choosing && parentRows.length > 1 ? (
         <div role="group" aria-label="보낼 학생" className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold text-fg-subtle">누구의 보호자에게 보낼까요?</span>
+          <span className="text-[12px] font-bold text-fg-subtle">누구의 보호자에게 보낼까요?</span>
           {parentRows.map((notice) => (
             <Button key={notice.id} size="sm" variant="ghost"
               onClick={() => { setChoosing(false); setParentTarget(notice); }}>{notice.studentName}</Button>
@@ -346,7 +346,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
           <span>
             <b className="block text-fg">{item.studentName ?? '학생 미상'}</b>
             {/* 원문 §43 「Megan 강사」 — 강사 교체 안내는 「이전 → 교체」(서버가 되짚은 이전 강사 · TEACHER-LINEAGE) */}
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-[12px] text-fg-subtle">
               {row.kind === 'guide' && row.guide.previousTeacherName
                 ? `${guideTeacherLabel(row.guide)} 강사`
                 : item.teacherName ? `${item.teacherName} 강사` : '강사 미정'}
@@ -367,7 +367,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
         return (
           <span>
             <b className="block text-fg">{when}</b>
-            <span className="text-[11px] text-fg-subtle">{guideLessonLabel(item, { time: false })}</span>
+            <span className="text-[12px] text-fg-subtle">{guideLessonLabel(item, { time: false })}</span>
           </span>
         );
       },
@@ -414,7 +414,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
               onClick={() => { if (actionLock.current !== 'send') { actionLock.current = 'edit'; setWritingId(guide.id); } }}>안내 작성</Button> : null}
             <Button size="sm" disabled={!guide.canSend || Boolean(writing) || send.isPending}
               onClick={() => sendGuide(guide)}>강사에게 보내기</Button>
-            {guide.sendBlockedReason ? <span className="break-words text-[11px] text-fg-subtle">{guide.sendBlockedReason}</span> : null}
+            {guide.sendBlockedReason ? <span className="break-words text-[12px] text-fg-subtle">{guide.sendBlockedReason}</span> : null}
           </div>
         );
       },
@@ -431,7 +431,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
   const batchAction = (
     <>
       {!zoomBatch.canSend && zoomBatch.blockedReason ? (
-        <span className="max-w-xs text-right text-[11px] text-fg-subtle">{zoomBatch.blockedReason}</span>
+        <span className="max-w-xs text-right text-[12px] text-fg-subtle">{zoomBatch.blockedReason}</span>
       ) : null}
       <Button
         size="sm"
@@ -477,7 +477,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
         {/* 원문 §43 띠 한 줄 — 「한 번 · 신규 학생 · 강사 교체 — [수업 안내와 교재]를 한 번 보냅니다 · N건」 (g4 §43-9) */}
         <Banner tone="neutral">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex rounded-md bg-primary px-2 py-1 text-[11px] font-bold text-white">한 번</span>
+            <span className="inline-flex rounded-md bg-primary px-2 py-1 text-[12px] font-bold text-white">한 번</span>
             <span>
               신규 학생 · 강사 교체 — <b id="guide-once-title" className="rounded-md bg-primary px-1.5 py-0.5 text-white">수업 안내와 교재</b>를 한 번 보냅니다
             </span>
@@ -494,7 +494,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
         <Banner tone="warning">
           <span className="flex flex-wrap items-center gap-2">
             {/* 원문 §43 매번 띠 — 주황 칩 · 「온라인 수업은 [수업마다] 계정을 배정하고 [학부모와 강사 양쪽]에 보냅니다」 · 빨간 「처리할 것 N」 */}
-            <span className="inline-flex rounded-md bg-orange px-2 py-1 text-[11px] font-bold text-white">매번</span>
+            <span className="inline-flex rounded-md bg-orange px-2 py-1 text-[12px] font-bold text-white">매번</span>
             <span>
               온라인 수업은 <b className="rounded-md bg-orange px-1.5 py-0.5 text-white">수업마다</b> 계정을 배정하고{' '}
               <b className="rounded-md bg-orange px-1.5 py-0.5 text-white">학부모와 강사 양쪽</b>에 보냅니다

@@ -37,7 +37,7 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
      「이미 취소된 청구서입니다」를 막힌 이유로도 싣는데, 그 문장이 사유를 가리면 취소할 수 있는 사람만 사유를 못 본다
      (all160 실브라우저 QA 2026-09-29). 사유가 있는 줄에는 다시 누를 단추를 세우지 않는다. */
   if (invoice.voidReason) {
-    return <span className="text-[11px] text-fg-subtle" title={invoice.voidReason}>취소 · {invoice.voidReason}</span>;
+    return <span className="text-[12px] text-fg-subtle" title={invoice.voidReason}>취소 · {invoice.voidReason}</span>;
   }
   if (!invoice.canDeliver && !invoice.canVoid && !voidBlocked && !notice) return null;
   return (
@@ -47,7 +47,7 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
           학부모 안내
         </Button>
       ) : notice ? (
-        <span className="text-[11px] text-fg-subtle" title={notice.body}>안내 보냄 {kstDateTime(notice.sentAt) ?? ''}</span>
+        <span className="text-[12px] text-fg-subtle" title={notice.body}>안내 보냄 {kstDateTime(notice.sentAt) ?? ''}</span>
       ) : null}
       {invoice.canDeliver ? (
         <Button size="sm" variant="ghost" disabled={act.isPending}
@@ -61,7 +61,7 @@ export function InvoiceActions({ invoice }: { invoice: Invoice }) {
       ) : voidBlocked ? (
         <Button size="sm" variant="ghost" disabled title={voidBlocked}>취소</Button>
       ) : null}
-      {err && dialog === null ? <span className="text-[11px] text-red">{err}</span> : null}
+      {err && dialog === null ? <span className="text-[12px] text-red">{err}</span> : null}
       {notice && dialog === 'notice' ? (
         <GuardianSendDialog open student={{ id: invoice.studentId, name: invoice.studentName }} pnotiId={notice.id}
           defaultBody={notice.body} title={`학부모 안내 — ${invoice.studentName} · ${invoice.title}`} onClose={() => setDialog(null)} />

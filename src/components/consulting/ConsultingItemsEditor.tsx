@@ -115,7 +115,7 @@ export function ConsultingItemsEditor({ open, consId, items, onClose }: {
         ))}
       </ul>
       <Button className="mt-3" size="sm" onClick={addRow} disabled={edit.isPending}>+ 항목 더하기</Button>
-      <p className="mt-3 text-[11px] text-fg-subtle">
+      <p className="mt-3 text-[12px] text-fg-subtle">
         필수 항목은 끝내야 종료할 수 있습니다. 끝낸 항목과 기본 항목은 빼지 않고, 파일이 붙은 항목은 파일을 먼저 뺍니다.
         기한을 적으면 진행 화면에 D-day 가 섭니다(비우면 기한 없음 · 끝낸 항목의 기한은 바꾸지 않습니다).
       </p>

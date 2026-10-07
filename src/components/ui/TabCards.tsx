@@ -69,14 +69,14 @@ export function TabCards<T extends string>({ options, value, onChange, className
                  */}
                 {o.badgeSr ? <span className="sr-only"> {o.badgeSr}</span> : null}
               </div>
-              <div className={cn('mt-0.5 text-[11px] leading-tight', on ? 'text-card/70' : 'text-fg-subtle')}>
+              <div className={cn('mt-0.5 text-[12px] leading-tight', on ? 'text-card/70' : 'text-fg-subtle')}>
                 {o.sub ?? ' '}
               </div>
             </button>
             {o.badge ? (
               <span
                 aria-hidden
-                className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-card"
+                className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[12px] font-bold text-card"
               >
                 {o.badge}
               </span>

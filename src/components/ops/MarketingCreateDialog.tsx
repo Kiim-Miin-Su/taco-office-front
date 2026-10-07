@@ -93,7 +93,7 @@ function MarketingEditorDialog({ open, title, submitLabel, channels, items, init
           </Select>
         </div>
       </div>
-      {issue ? <p className="mt-2 text-[11px] text-fg-subtle">{issue}</p> : null}
+      {issue ? <p className="mt-2 text-[12px] text-fg-subtle">{issue}</p> : null}
       {error ? <Banner tone="danger" className="mt-3">{error}</Banner> : null}
     </Dialog>
   );

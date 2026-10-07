@@ -21,10 +21,10 @@ function Swatches({ label, rows }: { label: string; rows: ReadonlyArray<{ key: s
   if (!rows.length) return null;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="text-[11px] font-bold text-fg-subtle">{label}</span>
+      <span className="text-[12px] font-bold text-fg-subtle">{label}</span>
       {rows.map((row) => (
         <span key={row.key} style={eventColorStyle(row.color)}
-          className={`overflow-hidden rounded border py-0.5 pl-2 pr-1.5 text-[10px] font-bold ${styles.subject}`}>
+          className={`overflow-hidden rounded border py-0.5 pl-2 pr-1.5 text-[12px] font-bold ${styles.subject}`}>
           {row.name}
         </span>
       ))}

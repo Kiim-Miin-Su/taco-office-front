@@ -181,7 +181,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     fireEvent.click(view.getByRole('button', { name: '수업 기록' }));
     expect(replace).toHaveBeenLastCalledWith('/students/21?tab=history', { scroll: false });
     expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=history');
-    expect(view.getByText('전체 CRUD 변경 이력은 아직 제공하지 않습니다.')).toBeTruthy();
+    expect(view.getByText('전체 변경 이력은 아직 제공하지 않습니다.')).toBeTruthy();
     expect(view.getByText('담당자B (#8)')).toBeTruthy();
     expect(view.getByText('2026-09-30 10:00')).toBeTruthy();
     expect(view.getByText('퇴원 처리')).toBeTruthy();
@@ -198,9 +198,9 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(requests.some(request => request.url === '/schedule/students/21/books')).toBe(false);
     expect(requests.some(request => request.url === '/consulting/students')).toBe(false);
     fireEvent.click(view.getByRole('button', { name: '리포트' }));
-    expect(view.getByText(/studentId 필터가 없어/)).toBeTruthy();
+    expect(view.getByText(/학생별로 자료를 안전하게 분리할 수 없/)).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '코멘트' }));
-    expect(view.getByText(/코멘트 공개범위/)).toBeTruthy();
+    expect(view.getByText(/코멘트 공개 범위/)).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '교재' }));
     await view.findByText('Writing Book');
     expect(requests.filter(request => request.url === '/schedule/students/21/books')).toHaveLength(1);
@@ -208,7 +208,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     await view.findByText('볼 수 있는 이 학생의 컨설팅이 없습니다.');
     expect(requests.filter(request => request.url === '/consulting/students')).toHaveLength(1);
     fireEvent.click(view.getByRole('button', { name: '수강/청구' }));
-    expect(view.getByText(/exact student aggregate/)).toBeTruthy();
+    expect(view.getByText(/학생별 금액·납부 상태를 안전하게 제공하지 않아/)).toBeTruthy();
     expect(requests.every(request => ['get', undefined].includes(request.method))).toBe(true);
   });
 

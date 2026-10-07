@@ -167,7 +167,7 @@ export function Drawer({ open, onClose, title, sub, width = 520, children, foote
         )}>
           <div className="min-w-0">
             {title ? <h2 id={titleId} className={cn('font-bold', dark ? 'text-[16px] text-white' : 'text-[15px] text-fg')}>{title}</h2> : null}
-            {sub ? <p className={cn('mt-0.5 text-[11px]', dark ? 'text-line-2' : 'text-fg-subtle')}>{sub}</p> : null}
+            {sub ? <p className={cn('mt-0.5 text-[12px]', dark ? 'text-line-2' : 'text-fg-subtle')}>{sub}</p> : null}
           </div>
           <CloseX onClose={onClose} label="닫기" dark={dark} />
         </header>
@@ -267,13 +267,13 @@ export function RecurrenceScope({ open, mode, warning, scopes, onPick, onClose }
       title={`반복 수업입니다 — 어디까지 ${verb}?`}
       footer={<Button type="button" variant="ghost" onClick={onClose}>취소 (Esc)</Button>}
     >
-      {warning ? <div className="mb-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[11px] text-fg-2">{warning}</div> : null}
+      {warning ? <div className="mb-3 rounded-lg border border-amber/35 bg-amber/5 p-3 text-[12px] text-fg-2">{warning}</div> : null}
       <div className="flex flex-col gap-2">
         {choices.map((s, index) => (
           <button key={s} type="button" autoFocus={index === 0} onClick={() => onPick(s)}
             className="rounded-lg border border-line p-3 text-left transition-colors hover:border-blue hover:bg-blue/5">
             <div className="text-[13px] font-bold text-fg">{SCOPE_TEXT[mode][s].label}</div>
-            <div className="mt-0.5 text-[11px] text-fg-subtle">{SCOPE_TEXT[mode][s].help}</div>
+            <div className="mt-0.5 text-[12px] text-fg-subtle">{SCOPE_TEXT[mode][s].help}</div>
           </button>
         ))}
       </div>
@@ -293,12 +293,12 @@ export function ConflictGuard({ result, dates, message }: {
     <div className={cn('rounded-lg border p-3', look)}>
       <p className="text-[12px] font-bold text-fg">{message ?? (result === 'ok' ? '겹치는 것이 없습니다' : '같은 시간에 다른 일정이 있습니다')}</p>
       {dates?.length ? (
-        <p className="mt-1 text-[11px] text-fg-2">
+        <p className="mt-1 text-[12px] text-fg-2">
           {dates.slice(0, 5).join(' · ')}{dates.length > 5 ? ` 외 ${dates.length - 5}일` : ''}
         </p>
       ) : null}
       {result !== 'ok' ? (
-        <p className="mt-2 text-[11px] text-fg-subtle">
+        <p className="mt-2 text-[12px] text-fg-subtle">
           강행할 수 없습니다. 시간이나 자원을 바꿔 주세요 — 마지막에는 DB 가 거부합니다.
         </p>
       ) : null}

@@ -285,7 +285,7 @@ export default function ExecPage() {
                         >
                           <Chip size="compact" styleKind="solid" tone={TYPE_TONE[r.rptType] ?? 'neutral'}>{TYPE[r.rptType] ?? r.rptType}</Chip>
                           <span className="min-w-0 grow truncate text-[13px] font-bold text-fg">{r.label}</span>
-                          <span className="shrink-0 text-[11.5px] text-fg-subtle">{r.filled}/6 적음</span>
+                          <span className="shrink-0 text-[12px] text-fg-subtle">{r.filled}/6 적음</span>
                           {/* 원본 §73 오른쪽의 빨강 숫자 — 그 기간의 살펴볼 것 (73-3) */}
                           {r.reviewCount > 0 ? (
                             <Chip size="compact" tone="danger" styleKind="solid" title={`살펴볼 것 ${r.reviewCount}`}>
@@ -293,7 +293,7 @@ export default function ExecPage() {
                             </Chip>
                           ) : null}
                           {r.state === 'rej' && r.rejectReason ? (
-                            <span className="max-w-[220px] shrink-0 truncate text-[11.5px] text-red">{r.rejectReason}</span>
+                            <span className="max-w-[220px] shrink-0 truncate text-[12px] text-red">{r.rejectReason}</span>
                           ) : null}
                           <span aria-hidden className="shrink-0 text-fg-subtle">›</span>
                         </button>
@@ -398,7 +398,7 @@ export default function ExecPage() {
               */}
               {d?.monthly ? (
                 <div className="mt-2 grid grid-cols-1 gap-2.5 lg:grid-cols-[2fr_1fr]">
-                  <Panel className="!p-3" title={<>상담 퍼널 <span className="ml-1 text-[11px] font-normal text-fg-subtle">유입에서 등록까지</span></>}>
+                  <Panel className="!p-3" title={<>상담 퍼널 <span className="ml-1 text-[12px] font-normal text-fg-subtle">유입에서 등록까지</span></>}>
                     <ol className="flex flex-col gap-1" aria-label="상담 퍼널">
                       {d.monthly.funnel.map((r) => (
                         <li key={r.key} className="flex items-center gap-3">
@@ -409,18 +409,18 @@ export default function ExecPage() {
                           </span>
                           <b className="w-8 shrink-0 text-right text-[13px] text-fg">{r.count}</b>
                           {/* 유입 줄은 수만 — 원본 §71 (자기 자신 대비 100% 는 말할 것이 없다) */}
-                          <span className="w-10 shrink-0 text-right text-[11px] text-fg-subtle">{r.key === 'inflow' ? '' : `${r.pct}%`}</span>
+                          <span className="w-10 shrink-0 text-right text-[12px] text-fg-subtle">{r.key === 'inflow' ? '' : `${r.pct}%`}</span>
                         </li>
                       ))}
                     </ol>
                     {/* 옛 건은 도달 기록이 없다(보정 0) — **언제부터의 값인지** 한 줄로 남긴다 */}
-                    <p className="mt-1.5 text-[10.5px] text-fg-subtle">
+                    <p className="mt-1.5 text-[12px] text-fg-subtle">
                       {d.monthly.funnelSince
                         ? `도달 기록은 ${d.monthly.funnelSince} 부터 — 그 전 건은 지금 단계로만 셉니다`
                         : '도달 기록이 아직 없습니다 — 지금 단계로만 셉니다'}
                     </p>
                   </Panel>
-                  <Panel className="!p-3" title={<>어디서 놓쳤나 <span className="ml-1 text-[11px] font-normal text-fg-subtle">등록 실패 {d.monthly.lost}건</span></>}>
+                  <Panel className="!p-3" title={<>어디서 놓쳤나 <span className="ml-1 text-[12px] font-normal text-fg-subtle">등록 실패 {d.monthly.lost}건</span></>}>
                     {d.monthly.lostRows.length === 0 ? (
                       <p className="px-1 py-2 text-[12px] text-fg-subtle">이번 달 들어온 문의 중 놓친 건이 없습니다</p>
                     ) : (

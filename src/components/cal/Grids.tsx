@@ -304,7 +304,7 @@ export function DayGrid({
     <div data-calendar-grid className="overflow-x-auto rounded-xl border border-line bg-card" onClick={() => setOpenCluster(null)}>
       <div className="min-w-[720px]">
         {/* 헤더와 본문이 같은 컬럼 폭 변수를 쓴다 — 각자 계산하면 1px 씩 어긋난다 (§2.5) */}
-        <div className="grid border-b border-line bg-inset text-[11px] font-bold text-fg-subtle"
+        <div className="grid border-b border-line bg-inset text-[12px] font-bold text-fg-subtle"
              style={{ gridTemplateColumns: `56px repeat(${columns.length}, minmax(120px, 1fr))` }}>
           {/* 원문 §07 「한국 시간」 — 관리자 화면은 언제나 서울 시간이다 (D-R12) */}
           <div className="border-r border-line p-1.5">한국 시간</div>
@@ -319,7 +319,7 @@ export function DayGrid({
           {/* 시간 눈금 — 본문과 같은 HOUR_PX 로 그린다 */}
           <div className="relative border-r border-line" style={{ height: (to - from) / 60 * HOUR_PX }}>
             {slots.filter((m) => m % 60 === 0).map((m) => (
-              <div key={m} className="absolute left-0 right-0 p-1.5 text-[11px] text-fg-subtle" style={{ top: px(m) }}>
+              <div key={m} className="absolute left-0 right-0 p-1.5 text-[12px] text-fg-subtle" style={{ top: px(m) }}>
                 {hhmm(m)}
               </div>
             ))}
@@ -368,7 +368,7 @@ export function DayGrid({
                       {rest > 0 && !expanded ? (
                         <button type="button"
                           onClick={(e) => { e.stopPropagation(); setOpenCluster(key); }}
-                          className="absolute right-1 z-10 rounded bg-fg px-1.5 py-0.5 text-[10px] font-bold text-white shadow"
+                          className="absolute right-1 z-10 rounded bg-fg px-1.5 py-0.5 text-[12px] font-bold text-white shadow"
                           style={{ top: px(head.startMin) + 3 }}>
                           +{rest}
                         </button>
@@ -397,7 +397,7 @@ export function DayGrid({
           {showNow ? (
             <div className="pointer-events-none absolute left-[56px] right-0 z-10 border-t-2 border-red"
                  style={{ top: px(now) }}>
-              <span className="absolute -top-2 left-1 rounded bg-red px-1 text-[10px] font-bold text-white">
+              <span className="absolute -top-2 left-1 rounded bg-red px-1 text-[12px] font-bold text-white">
                 {hhmm(now)}
               </span>
             </div>
@@ -441,7 +441,7 @@ export function WeekGrid({
         {/* 머리 — 개인표(§10·§11)는 어둡고, 전체 주간(§08)은 밝은 머리에 「17일 · 8건」 한 줄이다 */}
         <div className={cn('grid border-b border-line', dark ? 'bg-fg text-white' : 'bg-inset text-fg')}
              style={{ gridTemplateColumns: cols }}>
-          <div className={cn('border-r p-2 text-[11px] font-bold', dark ? 'border-white/10 text-white/65' : 'border-line text-fg-subtle')}>
+          <div className={cn('border-r p-2 text-[12px] font-bold', dark ? 'border-white/10 text-white/65' : 'border-line text-fg-subtle')}>
             한국 시간
           </div>
           {days.map((d) => {
@@ -452,24 +452,24 @@ export function WeekGrid({
               <>
                 {dark ? (
                   <>
-                    <div className={cn('text-[11px] font-bold', !isToday && dow === 0 ? 'text-red-300' : !isToday && dow === 6 ? 'text-blue-300' : 'text-white/75')}>
+                    <div className={cn('text-[12px] font-bold', !isToday && dow === 0 ? 'text-red-300' : !isToday && dow === 6 ? 'text-blue-300' : 'text-white/75')}>
                       {KO_DOW[dow]}
                     </div>
                     <div className="text-[14px] font-bold">{+d.slice(8, 10)}</div>
-                    <div className={cn('text-[10px]', n ? 'font-bold text-amber-300' : 'text-white/70')}>{n ? `${n}건` : '—'}</div>
+                    <div className={cn('text-[12px]', n ? 'font-bold text-amber-300' : 'text-white/70')}>{n ? `${n}건` : '—'}</div>
                   </>
                 ) : single ? (
                   /* 원문 §07 캡처의 일간 머리 두 줄 「26년 8월 21일 금요일 / 일정 21건」 */
                   <>
                     <div className={cn('text-[13px] font-bold', isToday ? 'text-blue' : 'text-fg')}>{longDateLabel(d)}</div>
-                    <div className="text-[11px] text-fg-subtle">일정 {n}건</div>
+                    <div className="text-[12px] text-fg-subtle">일정 {n}건</div>
                   </>
                 ) : (
                   <>
                     <div className={cn('text-[13px] font-bold', dow === 0 ? 'text-red' : dow === 6 ? 'text-blue' : 'text-fg')}>
                       {KO_DOW[dow]}
                     </div>
-                    <div className={cn('text-[11px]', isToday ? 'font-bold text-blue' : 'text-fg-subtle')}>
+                    <div className={cn('text-[12px]', isToday ? 'font-bold text-blue' : 'text-fg-subtle')}>
                       {+d.slice(8, 10)}일 · {n}건
                     </div>
                   </>
@@ -477,7 +477,7 @@ export function WeekGrid({
                 {/* 원문 §10 요일 머리 아래 「광복절 대체」 — 이름은 서버 표 그대로 */}
                 {holidaysOf?.(d)?.map((name) => (
                   <div key={name} data-holiday={name} title={name}
-                    className={cn('truncate text-[10px] font-bold', dark ? 'text-red-300' : 'text-red')}>{name}</div>
+                    className={cn('truncate text-[12px] font-bold', dark ? 'text-red-300' : 'text-red')}>{name}</div>
                 ))}
               </>
             );
@@ -507,10 +507,10 @@ export function WeekGrid({
               <div key={m} data-hour-tick={m} className="absolute inset-x-0 pt-1.5 text-center leading-none"
                    style={{ top: px(m) }}>
                 <div data-hour-start className="text-[15px] font-bold text-fg">{hhmm(m).slice(0, 2)}</div>
-                <div data-hour-end className="mt-0.5 text-[10px] font-bold text-fg-subtle">{hhmm(m + 60).slice(0, 2)}</div>
+                <div data-hour-end className="mt-0.5 text-[12px] font-bold text-fg-subtle">{hhmm(m + 60).slice(0, 2)}</div>
               </div>
             ) : (
-              <div key={m} className="absolute inset-x-0 px-1.5 pt-1 text-[11px] font-bold text-fg-subtle"
+              <div key={m} className="absolute inset-x-0 px-1.5 pt-1 text-[12px] font-bold text-fg-subtle"
                    style={{ top: px(m) }}>
                 {hhmm(m)}
               </div>
@@ -547,7 +547,7 @@ export function WeekGrid({
                           event.stopPropagation();
                           if (single) setOpenCluster(key); else onPickDate?.(d);
                         }}
-                        className="pointer-events-auto absolute right-0.5 z-[2] rounded bg-fg px-1.5 py-0.5 text-[10px] font-bold text-white shadow"
+                        className="pointer-events-auto absolute right-0.5 z-[2] rounded bg-fg px-1.5 py-0.5 text-[12px] font-bold text-white shadow"
                         style={{ top: px(head.startMin) + 3 }}>
                         +{more}
                       </button>
@@ -599,7 +599,7 @@ export function WeekGrid({
           {showNow ? (
             <div className="pointer-events-none absolute left-[56px] right-0 z-10 border-t-2 border-red"
                  style={{ top: px(now) }}>
-              <span className="absolute -top-2 left-1 rounded bg-red px-1 text-[10px] font-bold text-white">{hhmm(now)}</span>
+              <span className="absolute -top-2 left-1 rounded bg-red px-1 text-[12px] font-bold text-white">{hhmm(now)}</span>
             </div>
           ) : null}
         </div>
@@ -610,7 +610,7 @@ export function WeekGrid({
                style={{ gridTemplateColumns: cols }}>
             <div className="flex items-baseline gap-1 border-r border-line bg-fg px-2 py-2 text-white">
               <span className="text-[12px] font-bold">합계</span>
-              <span className="text-[10px] text-white/70">{items.filter((o) => !o.canceled).length}회</span>
+              <span className="text-[12px] text-white/70">{items.filter((o) => !o.canceled).length}회</span>
             </div>
             {days.map((d) => {
               const day = periodSummary(map.get(d) ?? EMPTY);
@@ -620,7 +620,7 @@ export function WeekGrid({
                   {held ? (
                     <>
                       <div className="text-[13px] font-bold text-fg">{held}</div>
-                      <div className="text-[10px] text-fg-subtle">{day.hours.toFixed(1)}h</div>
+                      <div className="text-[12px] text-fg-subtle">{day.hours.toFixed(1)}h</div>
                     </>
                   ) : <div className="text-[12px] text-line-2">—</div>}
                 </div>
@@ -646,7 +646,7 @@ export function MonthGrid({
         {grid.slice(0, 7).map((d) => {
           const dow = dowOf(d);
           return (
-            <div key={d} className={cn('border-r border-line p-1.5 text-[11px] font-bold last:border-r-0',
+            <div key={d} className={cn('border-r border-line p-1.5 text-[12px] font-bold last:border-r-0',
               dow === 0 ? 'text-red' : dow === 6 ? 'text-blue' : 'text-fg-subtle')}>{KO_DOW[dow]}</div>
           );
         })}
