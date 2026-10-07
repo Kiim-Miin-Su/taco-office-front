@@ -503,7 +503,9 @@ describe('C77 — 실제 mutation의 query cache 무효화', () => {
   });
 
   it('안내 작성은 guides와 books를 함께 버린다', async () => {
-    const keys = await run(useWriteGuideBody, { id: 8, body: '안내' });
+    const keys = await run(useWriteGuideBody, {
+      id: 8, body: '안내', expectedVersion: 1, requestKey: '00000000-0000-4000-8000-000000000001',
+    });
     expect(keys).toEqual(expect.arrayContaining([family.guides, family.books]));
   });
 

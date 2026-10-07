@@ -23,6 +23,7 @@ const me: Me = {
 const AUTO_BODY = '[첫 수업 안내]\n학생 고은설\n학년 G9\n강사 Sophia\n과목 Vocabulary\n형태 온라인\n시작일 2026-09-20\n교재 — 교재가 아직 배정되지 않았습니다\n\n';
 
 const guide: Guide = {
+  version: 1,
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   previousTeacherId: null, previousTeacherName: null,
   id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'draft', pending: true, studentName: '고은설',
@@ -96,7 +97,9 @@ it('사람이 지우면 지워진다 — 서버 값을 다시 밀어 넣지 않�
   fireEvent.change(view.getByLabelText('안내 본문'), { target: { value: '직접 쓴 말' } });
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(calls.find((c) => c.method === 'put')).toBeTruthy());
-  expect(calls.find((c) => c.method === 'put')?.body).toEqual({ body: '직접 쓴 말' });
+  expect(calls.find((c) => c.method === 'put')?.body).toEqual({
+    body: '직접 쓴 말', expectedVersion: 1, requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
+  });
 });
 
 /* ── F-61 나머지 학생에게 복사 ────────────────────────────────────────────── */
@@ -215,7 +218,10 @@ it('한 번 안내의 편집 대상을 바꾸면 이전 초안을 새 GUIDE id�
   fireEvent.click(view.getAllByRole('button', { name: '안내 작성' })[1]);
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(calls.filter((c) => c.method === 'put')).toHaveLength(1));
-  expect(calls.find((c) => c.method === 'put')).toMatchObject({ url: '/guides/6/body', body: { body: '둘째 안내' } });
+  expect(calls.find((c) => c.method === 'put')).toMatchObject({
+    url: '/guides/6/body',
+    body: { body: '둘째 안내', expectedVersion: 1, requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+  });
 });
 
 it('한 번 안내의 같은 id refetch는 초안을 보존하며 최신 표시 정보를 사용한다', async () => {

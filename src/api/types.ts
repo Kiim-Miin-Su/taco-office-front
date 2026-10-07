@@ -443,7 +443,8 @@ export type GuideHistoryDay = S['GuideHistoryDayDto'];
 export type GuideDraftCreate = S['GuideDraftCreateDto'];
 export type GuideTemplate = S['GuideTemplateDto'];
 export type GuideTemplateWrite = S['GuideTemplateWriteDto'];
-export type GuideBody = S['GuideBodyDto'];
+/** BOC-04D-03a — GUIDE 작성 HTTP 계약은 읽은 version과 제출 requestKey를 반드시 보낸다. */
+export type GuideBody = S['GuideBodyWriteDto'];
 /** C98 — §43 자동 채움 · 나머지 학생에게 복사 · 줌 안내 (F-60 · F-61 · F-63) */
 export type GuideAutoFill = S['GuideAutoFillDto'];
 export type GuideFact = S['GuideFactDto'];

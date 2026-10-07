@@ -2718,7 +2718,7 @@ export interface paths {
         get?: never;
         /**
          * 안내 작성 — 쓰면 보낼 준비가 된다 (§43)
-         * @description 상태 낱말은 화면이 보내지 않는다. 「썼다」만 주면 어느 상태가 되는지는 서버가 정한다 (D-R18).
+         * @description 상태 낱말은 화면이 보내지 않는다. 「썼다」와 expectedVersion·requestKey만 주며 상태·동시성·멱등은 서버가 정한다 (D-R18 · BOC-04D-03a).
          */
         put: operations["GuidesController_writeBody"];
         post?: never;
@@ -9340,6 +9340,8 @@ export interface components {
         };
         GuideDto: {
             id: number;
+            /** @description 안내 본문·지도 방향·관리자 코멘트의 낙관적 잠금 버전 */
+            version: number;
             serId?: number | null;
             studentId: number;
             teacherId?: number | null;
@@ -9638,13 +9640,20 @@ export interface components {
             /** @description 문구 본문 */
             body: string;
         };
-        GuideBodyDto: {
+        GuideBodyWriteDto: {
             /** @description 안내 본문 */
             body: string;
             /** @description 「지도 방향」 — 안 보내면 그대로, 빈 글자·null 은 비운다 */
             direction?: string | null;
             /** @description 「관리자 코멘트 · 강사만」 — 강사에게만 보인다(학부모 발송 본문·안내문 PNG 에 싣지 않는다). 안 보내면 그대로, 빈 글자·null 은 비운다 */
             adminNote?: string | null;
+            /** @description 화면이 읽은 GuideDto.version. 다르면 409 GUIDE_VERSION_CONFLICT */
+            expectedVersion: number;
+            /**
+             * Format: uuid
+             * @description 같은 제출 재시도는 같은 값. 같은 키와 다른 본문은 409 GUIDE_WRITE_REQUEST_KEY_REUSED
+             */
+            requestKey: string;
         };
         GuideClassDiagDto: {
             guideId: number;
@@ -24601,7 +24610,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GuideBodyDto"];
+                "application/json": components["schemas"]["GuideBodyWriteDto"];
             };
         };
         responses: {
@@ -24647,7 +24656,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code GUIDE_ALREADY_SENT — 이미 보낸 안내는 고치지 않는다 */
+            /** @description code GUIDE_ALREADY_SENT | GUIDE_VERSION_CONFLICT | GUIDE_WRITE_REQUEST_KEY_REUSED | GUIDE_WRITE_REPLAY_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;

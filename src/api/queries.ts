@@ -1480,7 +1480,7 @@ export function usePatchGuideTemplate(): UseMutationResult<GuideTemplate, unknow
   });
 }
 
-/** 안내 작성 — 「썼다」만 보낸다. 어느 상태가 되는지는 서버가 정한다 (D-R18) */
+/** 안내 작성 — 상태 낱말 없이 읽은 version·제출 requestKey를 보낸다. 판정은 서버가 한다 (D-R18 · BOC-04D-03a) */
 export function useWriteGuideBody(): UseMutationResult<Guide, unknown, { id: number } & GuideBody> {
   const invalidate = useGuidesInvalidate({ books: true });
   return useMutation({

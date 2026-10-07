@@ -32,6 +32,7 @@ const me: Me = {
 };
 
 const guide: Guide = {
+  version: 1,
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null, kindLabel: '포괄 안내',
   previousTeacherId: null, previousTeacherName: null,
   id: 12,

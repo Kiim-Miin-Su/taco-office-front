@@ -18,6 +18,7 @@ const me: Me = {
 };
 
 const guide: Guide = {
+  version: 1,
   canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
   previousTeacherId: null, previousTeacherName: null,
   id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'draft', pending: true, studentName: '고은설',
@@ -33,6 +34,7 @@ const templates: GuideTemplate[] = [
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let put: { url?: string; body?: unknown } = {};
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 afterEach(() => {
   cleanup(); clients.splice(0).forEach((c) => c.clear());
   api.defaults.adapter = originalAdapter; useSession.getState().signOut(); put = {};
@@ -57,13 +59,15 @@ function setup(fail?: { status: number; data: unknown }, over: Partial<Guide> = 
   return { view, wasClosed: () => closed };
 }
 
-it('보내는 것은 본문뿐이다 — 상태 낱말을 화면이 정하지 않는다 (D-R18)', async () => {
+it('본문과 읽은 버전·요청 키만 보낸다 — 상태 낱말을 화면이 정하지 않는다 (D-R18 · BOC-04D-03a)', async () => {
   const { view } = setup();
   fireEvent.change(view.getByLabelText('안내 본문'), { target: { value: '9월 10일 첫 수업입니다' } });
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(put.body).toBeTruthy());
-  expect(Object.keys(put.body as object)).toEqual(['body']);
-  expect(put.body).toEqual({ body: '9월 10일 첫 수업입니다' });
+  expect(Object.keys(put.body as object).sort()).toEqual(['body', 'expectedVersion', 'requestKey'].sort());
+  expect(put.body).toEqual({
+    body: '9월 10일 첫 수업입니다', expectedVersion: 1, requestKey: expect.stringMatching(UUID),
+  });
   expect(put.url).toBe('/guides/5/body');
 });
 
@@ -76,7 +80,7 @@ it('문구 틀은 본문만 복사한다 — 어느 틀에서 왔는지는 안 �
   await waitFor(() => expect(put.body).toBeTruthy());
   // 틀 id 는 어디에도 없다
   expect(JSON.stringify(put.body)).not.toContain('tpl');
-  expect(Object.keys(put.body as object)).toEqual(['body']);
+  expect(Object.keys(put.body as object).sort()).toEqual(['body', 'expectedVersion', 'requestKey'].sort());
 });
 
 it('본문이 비면 작성을 누를 수 없다', () => {
@@ -96,6 +100,30 @@ it('거절 이유는 서버 문장을 그대로 보여 주고 창을 닫지 않�
   expect(wasClosed()).toBe(false);
 });
 
+it('응답이 끊긴 제출을 다시 누르면 같은 requestKey로 재시도한다 (BOC-04D-03a)', async () => {
+  useSession.getState().signIn('fixture', me);
+  const attempts: Array<{ requestKey: string; expectedVersion: number }> = [];
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method === 'put') {
+      const sent = JSON.parse(config.data ?? '{}') as { requestKey: string; expectedVersion: number };
+      attempts.push(sent);
+      if (attempts.length === 1) return Promise.reject(new Error('transport disconnected'));
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { ...guide, version: 2, state: 'ready' } };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: templates };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><GuideWriter guide={guide} onClose={() => undefined} /></QueryClientProvider>);
+  fireEvent.change(view.getByLabelText('안내 본문'), { target: { value: '재시도할 안내' } });
+  fireEvent.click(view.getByRole('button', { name: '작성' }));
+  await waitFor(() => expect(attempts).toHaveLength(1));
+  fireEvent.click(view.getByRole('button', { name: '작성' }));
+  await waitFor(() => expect(attempts).toHaveLength(2));
+  expect(attempts[0].requestKey).toMatch(UUID);
+  expect(attempts[1]).toEqual(attempts[0]);
+});
+
 /**
  * g4 §44-3 — 「지도 방향」·「관리자 코멘트 · 강사만」 두 상자. 저장된 값으로 열고 **바꾼 칸만** 보낸다 —
  * 안 보낸 칸은 서버가 그대로 두므로(GuideBodyDto) 본문만 고친 사람이 다른 사람이 적은 메모를 덮지 않는다.
@@ -107,7 +135,9 @@ it('지도 방향·관리자 코멘트는 저장된 값으로 열고 바꾼 칸�
   fireEvent.change(view.getByLabelText('관리자 코멘트 · 강사만'), { target: { value: '숙제 양을 살펴 주세요' } });
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(put.body).toBeTruthy());
-  expect(put.body).toEqual({ body: '본문', adminNote: '숙제 양을 살펴 주세요' });
+  expect(put.body).toEqual({
+    body: '본문', expectedVersion: 1, adminNote: '숙제 양을 살펴 주세요', requestKey: expect.stringMatching(UUID),
+  });
 });
 
 it('지도 방향을 지우면 빈 글자로 보내 서버가 비운다 (§44-3)', async () => {
@@ -115,7 +145,9 @@ it('지도 방향을 지우면 빈 글자로 보내 서버가 비운다 (§44-3)
   fireEvent.change(view.getByLabelText('지도 방향'), { target: { value: '' } });
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(put.body).toBeTruthy());
-  expect(put.body).toEqual({ body: '본문', direction: '' });
+  expect(put.body).toEqual({
+    body: '본문', expectedVersion: 1, direction: '', requestKey: expect.stringMatching(UUID),
+  });
 });
 
 /**

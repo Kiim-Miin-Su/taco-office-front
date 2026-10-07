@@ -27,7 +27,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/teacher/guides', useRou
 const teacher: Me = { id: 2, name: '강사A', role: 'teacher', roleLabel: '강사', title: null,
   canAdminPage: false, canCrudAll: false, canSeeProfit: false, canCrudAttendance: true,
   canMoney: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false };
-const initial: Guide = { id: 5, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'sent', pending: false,
+const initial: Guide = { id: 5, version: 1, serId: 8, studentId: 4, teacherId: 2, reason: 'new', kindLabel: '포괄 안내', state: 'sent', pending: false,
   studentName: '수신 학생', teacherName: '강사A', serTitle: '수신 수업', body: '<img src=x onerror=alert(1)>\nhttps://example.test/'+ 'a'.repeat(400),
   dueOn: null, eventOn: '2026-09-24', sourceOccurrenceId: 55, createdAt: '2026-09-24T09:00:00+09:00',
   sentAt: '2026-09-24T10:00:00+09:00', acknowledgedAt: null, overdueDays: 0, siblingCount: 0, siblings: [], deadline: null,

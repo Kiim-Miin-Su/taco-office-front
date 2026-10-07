@@ -30,6 +30,7 @@ import { apiMessage } from '@/api/client';
 import { useCopyGuide, useGuideClassDiagnostics, useGuideTemplates, useLessonTracking, useWriteGuideBody, useWriteGuideClassDiagnostics } from '@/api/queries';
 import type { Guide, GuideCopyResult } from '@/api/types';
 import { won } from '@/lib/money';
+import { useRequestKey } from '@/lib/request-key';
 
 type DiagDraft = { levelSummary: string; strengths: string; weaknesses: string; curriculum: string };
 const DIAG_FIELDS: Array<[keyof DiagDraft, string]> = [['levelSummary', '현재 수준'], ['strengths', '강점'], ['weaknesses', '약점'], ['curriculum', '권장 커리큘럼']];
@@ -38,6 +39,8 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
   const tpls = useGuideTemplates();
   const write = useWriteGuideBody();
   const copy = useCopyGuide();
+  // BOC-04D-03a 권고안: 화면이 읽은 version과 제출 단위 requestKey를 함께 보내 재시도와 동시 편집을 구분한다.
+  const requestKey = useRequestKey();
   // 쓴 말이 있으면 그것이 정본이고, 없으면 서버가 만든 자동 채움으로 연다 (F-60)
   const [body, setBody] = useState(guide.body ?? guide.autoFill?.body ?? '');
   // §44-3 두 상자 — 저장된 값으로 연다. 바꾼 칸만 보낸다: 안 보낸 칸은 서버가 그대로 두므로 본문만 고친 사람이 남의 메모를 덮지 않는다
@@ -87,10 +90,11 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
     return d.levelSummary.trim() !== '' && JSON.stringify(d) !== JSON.stringify(baseOf(m.studentId));
   });
   const payload = {
-    id: guide.id, body,
+    id: guide.id, body, expectedVersion: guide.version,
     ...(direction !== (guide.direction ?? '') ? { direction } : {}),
     ...(adminNote !== (guide.adminNote ?? '') ? { adminNote } : {}),
   };
+  const writePayload = () => ({ ...payload, requestKey: requestKey.keyFor(payload) });
 
   return (
     <Panel
@@ -244,10 +248,10 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
             disabled={write.isPending || copy.isPending || body.trim() === '' || (siblings.length > 0 && picked.length === 0)}
             title={`같은 수업 같은 날의 다른 학생 ${siblings.length > 0 ? picked.length : guide.siblingCount}명에게 옮깁니다`}
             onClick={() =>
-              write.mutate(payload, {
+              write.mutate(writePayload(), {
                 onSuccess: () => copy.mutate(
                   { id: guide.id, ...(siblings.length > 0 ? { targetIds: picked } : {}) },
-                  { onSuccess: setCopied },
+                  { onSuccess: (result) => { requestKey.reset(); setCopied(result); } },
                 ),
               })
             }
@@ -257,7 +261,7 @@ export function GuideWriter({ guide, onClose }: { guide: Guide; onClose: () => v
         ) : null}
         <Button
           disabled={write.isPending || body.trim() === ''}
-          onClick={() => write.mutate(payload, { onSuccess: onClose })}
+          onClick={() => write.mutate(writePayload(), { onSuccess: () => { requestKey.reset(); onClose(); } })}
         >
           작성
         </Button>

@@ -33,6 +33,7 @@ const me: Me = {
 
 function student(studentId: number, name: string): GuideStudent {
   const latestGuide: Guide = {
+    version: 1,
     canSend: false, canAck: false, sendBlockedReason: null, acknowledgedAfterSeconds: null,
     previousTeacherId: null, previousTeacherName: null,
     id: studentId,
@@ -189,7 +190,9 @@ it('다른 학생을 고르면 편집 세션을 바꾸고 이전 본문을 새 G
   fireEvent.click(view.getByRole('button', { name: '수정' }));
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(writes).toHaveLength(1));
-  expect(writes[0]).toEqual({ url: '/guides/2/body', body: { body: second.latestGuide.body } });
+  expect(writes[0]).toEqual({
+    url: '/guides/2/body', body: { body: second.latestGuide.body, expectedVersion: 1, requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+  });
 });
 
 it('같은 GUIDE id의 정상 refetch는 작성 중 본문을 보존한다', async () => {
@@ -205,7 +208,9 @@ it('같은 GUIDE id의 정상 refetch는 작성 중 본문을 보존한다', asy
   expect((input as HTMLTextAreaElement).value).toBe('보존할 미저장 본문');
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(writes).toHaveLength(1));
-  expect(writes[0]).toEqual({ url: '/guides/1/body', body: { body: '보존할 미저장 본문' } });
+  expect(writes[0]).toEqual({
+    url: '/guides/1/body', body: { body: '보존할 미저장 본문', expectedVersion: 1, requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+  });
 });
 
 it('같은 학생의 최신 GUIDE id가 바뀌면 새 안내의 본문으로 편집 세션을 연다', async () => {
@@ -219,7 +224,9 @@ it('같은 학생의 최신 GUIDE id가 바뀌면 새 안내의 본문으로 편
   fireEvent.click(view.getByRole('button', { name: '수정' }));
   fireEvent.click(view.getByRole('button', { name: '작성' }));
   await waitFor(() => expect(writes).toHaveLength(1));
-  expect(writes[0]).toEqual({ url: '/guides/99/body', body: { body: '새 안내의 저장 본문' } });
+  expect(writes[0]).toEqual({
+    url: '/guides/99/body', body: { body: '새 안내의 저장 본문', expectedVersion: 1, requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+  });
 });
 
 it('본문·교재·세 시각의 순서와 PNG 포함 범위를 보존하고 본문 HTML은 텍스트로 표시한다', async () => {
