@@ -7846,7 +7846,7 @@ export interface components {
             ownerId?: number | null;
             /** @description 첫 접촉 한 줄 — 원하는 것 · 학부모 · 연락처 · 「소개」면 누구 소개인지. 적으면 접촉 원장의 첫 줄이 된다(어떻게 = 유입 경로에서) */
             note?: string | null;
-            /** @description 학년 — 원본 §23 카드의 학년 칩(23-10). 비우면 null */
+            /** @description 학년 — GET /meta.educationGrades의 활성 39개 값 중 하나. 비우면 null */
             grade?: string | null;
             /** @description 학부모 관계 — 「어머니」 */
             parentRelation?: string | null;
@@ -7867,7 +7867,7 @@ export interface components {
             source?: "kakao" | "phone" | "blog" | "instagram" | "referral" | "walkin";
             /** @description 담당 — null이면 미배정 */
             ownerId?: number | null;
-            /** @description 학년 — null 또는 빈 문자열이면 비운다 */
+            /** @description 학년 — GET /meta.educationGrades의 활성 39개 값 중 하나. null/빈 문자열이면 비운다. 기존 legacy 원문은 값이 그대로일 때만 보존한다 */
             grade?: string | null;
             /** @description 학부모 관계 — null 또는 빈 문자열이면 비운다 (A-01) */
             parentRelation?: string | null;
@@ -7921,7 +7921,7 @@ export interface components {
         EnrollStudentDto: {
             /** @description 비우면 상담 카드의 이름 */
             name?: string;
-            /** @description 학년 — 동명이인을 가르는 칸 (N-137) */
+            /** @description 학년 — GET /meta.educationGrades의 활성 39개 값 중 하나이며 동명이인을 가르는 칸 (N-137) */
             grade?: string;
             /** @description 비우면 상담 카드의 학교 */
             school?: string;
