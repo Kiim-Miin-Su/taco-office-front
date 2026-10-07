@@ -154,6 +154,9 @@ describe('§23 상담 입구 (C90 · N-44 · N-45)', () => {
     const dialog = await view.findByRole('dialog', { name: '신규 문의' });
     const submit = within(dialog).getByRole('button', { name: '접수' }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
+    // 권고안 채택(BOC-01D-02c): 좁은 화면에서 완료/취소 동작은 44px hit target을 보장한다.
+    expect(submit.className).toContain('min-h-11');
+    expect(within(dialog).getByRole('button', { name: '취소 (Esc)' }).className).toContain('min-h-11');
     // 「경로 없음」은 고를 수 없다 — 여섯뿐
     expect(within(dialog).getAllByRole('button', { pressed: false }).map((b) => b.textContent)).toEqual(['카카오채널', '전화', '블로그', '인스타그램', '소개', '워크인']);
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: ' 민지수 ' } });

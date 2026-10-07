@@ -82,8 +82,10 @@ export function LeadCreateButton({ sources, onDone }: LeadCreateButtonProps) {
         width={560}
         footer={(
           <>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>취소 (Esc)</Button>
-            <Button type="button" onClick={submit} disabled={!canSubmit} title={!canSubmit && !pending ? '이름과 유입 경로는 있어야 합니다' : undefined}>{pending ? '접수 중…' : '접수'}</Button>
+            {/* 권고안 채택(2026-10-07, BOC-01D-02c): 모바일 입력 완료 동작은 최소 44px다.
+                정책을 바꾸면 BOC-01D2 계약 문서의 브라우저 체크리스트와 함께 고친다. */}
+            <Button className="min-h-11 sm:min-h-10" type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>취소 (Esc)</Button>
+            <Button className="min-h-11 sm:min-h-10" type="button" onClick={submit} disabled={!canSubmit} title={!canSubmit && !pending ? '이름과 유입 경로는 있어야 합니다' : undefined}>{pending ? '접수 중…' : '접수'}</Button>
           </>
         )}
       >
