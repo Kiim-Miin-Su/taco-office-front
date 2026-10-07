@@ -608,9 +608,10 @@ export function StudentRegistrationForm({ source: entrySource = 'students', lead
         {issue ? <Banner tone="danger">{issue}</Banner> : null}
         {saved ? <Banner tone="success"><span role="status">{name.trim()} 학생을 등록했습니다.</span> <LinkButton href={`/students/${saved.studentId}`}>학생 상세 보기</LinkButton></Banner> : null}
         <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-xl border border-line bg-card p-3 shadow-sm">
-          <Button onClick={review}>입력 검토</Button>
-          <Button type="submit" disabled={previewMutation.isPending || saveMutation.isPending}>저장 전 미리보기</Button>
-          <Button variant="primary" disabled={!prepared || previewMutation.isPending || saveMutation.isPending} onClick={() => { void save(); }}>학생 등록</Button>
+          {/* BOC-03D-04c 권고안 채택: 390px 실제 브라우저에서 주요 동작의 44px 터치 높이를 보장한다. */}
+          <Button className="max-sm:min-h-11" onClick={review}>입력 검토</Button>
+          <Button className="max-sm:min-h-11" type="submit" disabled={previewMutation.isPending || saveMutation.isPending}>저장 전 미리보기</Button>
+          <Button className="max-sm:min-h-11" variant="primary" disabled={!prepared || previewMutation.isPending || saveMutation.isPending} onClick={() => { void save(); }}>학생 등록</Button>
         </div>
       </form> : <StudentReactivationSection entrySource={entrySource} leadId={leadId} />}
     </div>

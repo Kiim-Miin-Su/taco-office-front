@@ -157,6 +157,9 @@ describe('BOC-03a 학생 신규 등록 초안', () => {
     expect(paths).toHaveLength(29);
     expect(new Set(paths).size).toBe(paths.length);
     expect(view.getByRole('button', { name: '학생 등록' }).hasAttribute('disabled')).toBe(true);
+    for (const name of ['입력 검토', '저장 전 미리보기', '학생 등록']) {
+      expect(view.getByRole('button', { name }).className).toContain('max-sm:min-h-11');
+    }
     expect(view.queryByText(/등록되었습니다/)).toBeNull();
   });
 
