@@ -181,6 +181,13 @@ export type Marketing = S['MarketingDto'];
 export type MeetingDetail = S['MeetingDetailDto'];
 export type MeetingAttendee = S['MeetingAttendeeDto'];
 export type MeetingTask = S['MeetingTaskDto'];
+/** BO-Q13 — 별도 versioned agenda. 형상은 Backend DTO/OpenAPI 생성물만 소비한다. */
+export type MeetingAgendaSummary = S['MeetingAgendaSummaryDto'];
+export type MeetingMinutesSummary = S['MeetingMinutesSummaryDto'];
+export type MeetingAgenda = S['MeetingAgendaDto'];
+export type MeetingAgendaWrite = S['MeetingAgendaWriteDto'];
+export type MeetingAgendaImport = S['MeetingAgendaImportDto'];
+export type MeetingAgendaImportResult = S['MeetingAgendaImportResultDto'];
 /** W11 · N-32 — 「안내 보내기」 결과 · 본인 참석 응답 */
 export type MeetingNoticeResult = S['MeetingNoticeResultDto'];
 export type MeetingAttend = S['MeetingAttendDto'];

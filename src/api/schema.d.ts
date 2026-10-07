@@ -7374,6 +7374,41 @@ export interface components {
             stage: "draft" | "review" | "rework" | "approved" | "done";
             stageLabel: string;
         };
+        MeetingAgendaSummaryDto: {
+            /** @description 목록 미리보기 — 서버가 본문을 잘라 만든다 */
+            preview: string;
+            /** @description 상세 agenda와 같은 version */
+            version: number;
+            /**
+             * Format: date-time
+             * @description 마지막 수정 시각
+             */
+            updatedAt: string;
+            /** @description 마지막 실제 수정 actor */
+            updatedById: number;
+            /** @description 마지막 수정자 이름 */
+            updatedByName: string;
+            /** @description 실제 회의 시작 시각이 지나 writer가 잠겼는가 */
+            locked: boolean;
+        };
+        MeetingMinutesSummaryDto: {
+            meetingId: number;
+            /** @description 속기록 목록 미리보기 */
+            preview: string;
+            /** @description 속기록 이력 version */
+            version: number;
+            /** Format: date-time */
+            writtenAt: string;
+            /** @description 마지막 실제 저장 actor */
+            writtenById: number;
+            writtenByName: string;
+            /** @description 구조화된 결정 수 */
+            decisionCount: number;
+            /** @description 연결된 할 일 수 */
+            taskCount: number;
+            /** @description 끝낸 할 일 수 */
+            taskDone: number;
+        };
         MeetingAttendeeDto: {
             staffId: number;
             name: string;
@@ -7403,6 +7438,10 @@ export interface components {
             confirmed: number;
             /** @description 속기록을 썼는가 — 안 쓰면 회의가 끝난 것이 아니다 */
             hasMinutes: boolean;
+            /** @description BO-Q13 별도 agenda 목록 projection — Backend 연결 전에는 생략된다 */
+            agenda?: components["schemas"]["MeetingAgendaSummaryDto"] | null;
+            /** @description 작성자·전문·결정·할 일 목록 projection — Backend 연결 전에는 생략된다 */
+            minutesSummary?: components["schemas"]["MeetingMinutesSummaryDto"] | null;
             /** @description 시간표 회차 — 옛 회의는 null (C96) */
             serId?: number | null;
             /** @description 시작 분 — 회차가 있을 때만 */
@@ -8390,6 +8429,33 @@ export interface components {
              */
             dueOn?: string;
         };
+        MeetingAgendaDto: {
+            meetingId: number;
+            /** @description 사전 안건 본문 */
+            content: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            createdById: number;
+            createdByName: string;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedById: number;
+            updatedByName: string;
+            /** @description 실제 회의 시작 시각부터 true */
+            locked: boolean;
+            /**
+             * Format: date-time
+             * @description writer 잠금 기준 시각 — 연결 회차가 없으면 null
+             */
+            lockedAt: string | null;
+            /** @description 현재 actor가 시작 전 agenda를 작성·수정할 수 있는가 */
+            canEdit: boolean;
+            /** @description 수정 불가 이유 — 가능하면 null */
+            editBlockedReason: string | null;
+            /** @description 현재 actor가 명시적 「안건 가져오기」로 속기록 초안을 만들 수 있는가 */
+            canImportToMinutes: boolean;
+        };
         MeetingTaskDto: {
             id: number;
             title: string;
@@ -8430,6 +8496,8 @@ export interface components {
             attendLabel: string;
             /** @description ① 사전 자료 — 파일 주소 */
             preFiles: string[];
+            /** @description BO-Q13 별도 versioned agenda — Backend 연결 전에는 생략된다 */
+            agenda?: components["schemas"]["MeetingAgendaDto"] | null;
             /** @description ② 속기록 본문 */
             minutes?: string | null;
             /** @description 마지막 저장 시각 (KST ISO) — 없으면 아직 저장한 적이 없다 */
@@ -12273,6 +12341,30 @@ export interface components {
             historyTotal: number;
             /** @description 보호자/수강/감사 각 최대50건 */
             historyLimit: number;
+        };
+        MeetingAgendaWriteDto: {
+            /** @description 사전 안건 본문 */
+            content: string;
+            /** @description create=null · update=현재 version. 불일치하면 409 MEETING_AGENDA_VERSION_CONFLICT */
+            expectedVersion: number | null;
+        };
+        MeetingAgendaImportDto: {
+            expectedVersion: number;
+        };
+        MeetingAgendaImportResultDto: {
+            meetingId: number;
+            agendaVersion: number;
+            /** @description 속기록 입력 칸에 놓을 미저장 초안 */
+            minutesDraft: string;
+            /** Format: date-time */
+            sourceUpdatedAt: string;
+            sourceUpdatedById: number;
+            sourceUpdatedByName: string;
+            /**
+             * @description 자동 저장·자동 병합하지 않았음을 고정한다
+             * @enum {boolean}
+             */
+            saved: false;
         };
     };
     responses: never;
