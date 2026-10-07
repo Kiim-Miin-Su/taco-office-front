@@ -222,6 +222,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     await waitFor(() => expect(requests.some(request => request.params?.reportsCursor === 'reports_next')).toBe(true));
     fireEvent.click(view.getByRole('button', { name: '코멘트' }));
     await view.findByText('학생 코멘트');
+    expect(view.getByText('관리자·매니저가 남기고 담당 강사와 공유하는 인수인계 코멘트입니다. 학부모 전달 문서에는 포함되지 않습니다.')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '코멘트 더 보기' }));
     await view.findByText('이전 코멘트');
     expect(requests.some(request => request.params?.commentsCursor === 'comments_next')).toBe(true);

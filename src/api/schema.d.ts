@@ -12900,9 +12900,12 @@ export interface components {
         };
         StudentHubCommentDto: {
             id: number;
+            /** @description 인수인계가 연결된 수업. 학생 공통 인수인계면 null */
             serId: number | null;
+            /** @description 인수인계를 남긴 관리자·매니저 actor */
             authorId: number;
             authorName: string | null;
+            /** @description 담당 강사와 공유하는 인수인계 본문. 학부모 전달·검색·파일·알림에는 사용하지 않는다 */
             body: string;
             createdAt: string;
         };

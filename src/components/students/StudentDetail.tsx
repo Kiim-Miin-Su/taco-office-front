@@ -179,7 +179,7 @@ function CommentsTab({ studentId }: { studentId: number }) {
   if (query.isError) return <Banner tone="warning" title="코멘트를 불러오지 못했습니다"><Button className="mt-2" size="sm" onClick={() => void query.refetch()}>다시 시도</Button></Banner>;
   const items = query.data.pages.flatMap(page => page.comments.items);
   const total = query.data.pages[0]?.comments.total ?? 0;
-  return <Panel title={`코멘트 ${total}건`} sub="관리자 학생 허브 전용 조회입니다. 학부모 전달 문서에는 포함되지 않습니다.">
+  return <Panel title={`코멘트 ${total}건`} sub="관리자·매니저가 남기고 담당 강사와 공유하는 인수인계 코멘트입니다. 학부모 전달 문서에는 포함되지 않습니다.">
     {items.length ? <ul className="space-y-2">{items.map(item => <li key={item.id} className="rounded-lg border border-line px-3 py-3">
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle"><b className="text-fg">{item.authorName ?? `직원 #${item.authorId}`}</b><span>{kstDateTime(item.createdAt) ?? item.createdAt}</span>{item.serId ? <Chip>수업 #{item.serId}</Chip> : null}</div>
       <p className="mt-2 whitespace-pre-wrap text-[13px] leading-6">{item.body}</p>
