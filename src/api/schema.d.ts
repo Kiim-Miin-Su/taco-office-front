@@ -12704,6 +12704,127 @@ export interface components {
             createdAt: string;
             summary: components["schemas"]["StudentRegistrationSummaryDto"];
         };
+        StudentReactivationCandidateQueryDto: {
+            /** @description 이름·영문명 literal 검색. 빈 값은 최신 후보 10명. */
+            q?: string;
+            /** @default 1 */
+            page: number;
+        };
+        StudentReactivationCandidateDto: {
+            studentId: number;
+            name: string;
+            englishName: string | null;
+            gradeLabel: string | null;
+            schoolLabel: string | null;
+            /**
+             * @description 권위 상태 projection. 휴원·수강 종료로 추정하지 않는다.
+             * @enum {string}
+             */
+            status: "withdrawn" | "active" | "unknown";
+            /** @description status=withdrawn이고 별도 차단 사유가 없을 때만 true */
+            reactivatable: boolean;
+            /** @description ACTIVE_STUDENT | STATUS_UNKNOWN. 화면이 상태를 다시 계산하지 않는다. */
+            blockedCode: string | null;
+            /** @description 재활성화 expectedProfileVersion에 그대로 보내는 bigint decimal string */
+            profileVersion: string;
+            /** Format: date-time */
+            lastConsultationAt: string | null;
+            /**
+             * Format: date
+             * @description 명시적으로 저장된 마지막 퇴원일. 수강 종료일 추정값이 아니다.
+             */
+            withdrawnOn: string | null;
+        };
+        StudentReactivationCandidatesDto: {
+            items: components["schemas"]["StudentReactivationCandidateDto"][];
+            total: number;
+            page: number;
+            /** @enum {integer} */
+            pageSize: 10;
+        };
+        StudentReactivationConsultationDto: {
+            /**
+             * @description 수동 상담 정보의 방문·전화·카카오톡·기타
+             * @enum {string}
+             */
+            channel: "visit" | "phone" | "kakao" | "other";
+            content: string;
+            /**
+             * Format: date
+             * @description 다음 일정은 선택. 작성자·작성시각은 서버가 기록한다.
+             */
+            nextOn: string | null;
+        };
+        StudentReactivationDto: {
+            /**
+             * Format: uuid
+             * @description 같은 actor·같은 정규화 body 재시도는 기존 결과, 다른 body는 409
+             */
+            requestKey: string;
+            studentId: number;
+            /** @description 후보 응답의 profileVersion. JS number로 변환하지 않는다. */
+            expectedProfileVersion: string;
+            /** @enum {string} */
+            entrySource: "students" | "schedule" | "intake";
+            /** @description intake 진입의 원천 lead. 재활성화 상담 record 자체의 identity는 아니다. */
+            leadId: number | null;
+            /**
+             * Format: date
+             * @description KST 업무 재활성화일. 과거/미래 허용 범위는 Backend가 검증한다.
+             */
+            reactivateOn: string;
+            /** @description 기존 접촉 원장을 오변환하지 않고 새 수동 상담 정보를 한 transaction에 기록한다. */
+            consultation: components["schemas"]["StudentReactivationConsultationDto"];
+        };
+        StudentReactivationEffectsDto: {
+            /** @enum {boolean} */
+            studentCreated: false;
+            /** @enum {boolean} */
+            enrollmentCreated: false;
+            /** @enum {boolean} */
+            lessonCreated: false;
+            /** @enum {boolean} */
+            invoiceCreated: false;
+            /** @enum {boolean} */
+            bookIssueCreated: false;
+            /** @enum {boolean} */
+            guideCreated: false;
+            /** @enum {boolean} */
+            firstLessonTaskCreated: false;
+        };
+        StudentReactivationPreviewDto: {
+            /** @enum {boolean} */
+            saved: false;
+            /** Format: uuid */
+            requestKey: string;
+            studentId: number;
+            profileVersion: string;
+            /** @enum {number|null} */
+            consultationId: null;
+            effects: components["schemas"]["StudentReactivationEffectsDto"];
+        };
+        StudentReactivationResultDto: {
+            /** @enum {boolean} */
+            saved: true;
+            /** Format: uuid */
+            requestKey: string;
+            studentId: number;
+            profileVersion: string;
+            consultationId: number;
+            replayed: boolean;
+            /** Format: date-time */
+            reactivatedAt: string;
+            effects: components["schemas"]["StudentReactivationEffectsDto"];
+        };
+        StudentRegistrationConflictDto: {
+            /**
+             * @description 공용 오류 코드. HTTP status와 함께 판정한다.
+             * @enum {string}
+             */
+            code: "STUDENT_CREATE_REQUEST_KEY_REUSED" | "STUDENT_REACTIVATION_REQUEST_KEY_REUSED" | "STUDENT_PROFILE_VERSION_CONFLICT" | "STUDENT_DUPLICATE" | "STUDENT_SAME_NAME" | "STUDENT_REGISTRATION_OPTION_INACTIVE" | "STUDENT_REGISTRATION_REFERENCE_NOT_FOUND" | "STUDENT_REGISTRATION_PERIOD_CONFLICT" | "STUDENT_REACTIVATION_ACTIVE" | "STUDENT_REACTIVATION_STATUS_UNKNOWN" | "STUDENT_REACTIVATION_LEAD_CHANGED" | "STUDENT_REACTIVATION_LEAD_LINKED";
+            /** @description 재조회·수정 방법을 설명하는 사용자 안내. PII·현재 row 원문은 포함하지 않는다. */
+            message: string;
+        };
     };
     responses: never;
     parameters: never;

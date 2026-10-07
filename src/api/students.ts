@@ -27,6 +27,23 @@ export type StudentRegistrationOptions = components['schemas']['StudentRegistrat
 export type StudentSchoolOption = components['schemas']['StudentSchoolOptionDto'];
 export type StudentSchoolCreate = components['schemas']['StudentSchoolCreateDto'];
 
+/**
+ * BOC-03D-02 권고안 채택(2026-10-07): 재활성화는 신규 생성의 mode가 아니라 기존
+ * STU identity와 expectedProfileVersion을 쓰는 별도 command다. 휴원·수강 종료로
+ * 퇴원을 추정하지 않고 서버 후보의 권위 상태를 소비한다. runtime path가 아직 없으므로
+ * 타입만 공개하며 mutation·성공 상태를 만들지 않는다. 정책 변경 시 Back
+ * student-registration.dto.ts와 P-REACT/BOC-03 문서를 같은 청크에서 수정한다.
+ */
+export type StudentReactivationCandidateQuery = components['schemas']['StudentReactivationCandidateQueryDto'];
+export type StudentReactivationCandidate = components['schemas']['StudentReactivationCandidateDto'];
+export type StudentReactivationCandidates = components['schemas']['StudentReactivationCandidatesDto'];
+export type StudentReactivationConsultation = components['schemas']['StudentReactivationConsultationDto'];
+export type StudentReactivation = components['schemas']['StudentReactivationDto'];
+export type StudentReactivationEffects = components['schemas']['StudentReactivationEffectsDto'];
+export type StudentReactivationPreview = components['schemas']['StudentReactivationPreviewDto'];
+export type StudentReactivationResult = components['schemas']['StudentReactivationResultDto'];
+export type StudentRegistrationConflict = components['schemas']['StudentRegistrationConflictDto'];
+
 export const studentKeys = {
   all: ['students'] as const,
   list: (params: StudentListQuery) => ['students', 'list', params] as const,
