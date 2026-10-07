@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { ApiError } from '@/api/client';
 import { useConsStudents, useGuideStudents, useMeta, useStudentBooks } from '@/api/queries';
 import type { GuideStudent, Meta } from '@/api/types';
-import { useStudentHub, useStudentHubSection, useStudentRead, useStudentReadAllowed, type StudentHub, type StudentRead } from '@/api/students';
+import { useStudentHub, useStudentHubSection, useStudentPrivateNotes, useStudentRead, useStudentReadAllowed, type StudentHub, type StudentRead } from '@/api/students';
 import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
 import { GuideKindChip, GuideStateChip } from '@/components/guides/GuideStatus';
 import { Banner, Button, Chip, Input, LinkButton, PageHeader, Panel, QueryState, Table, Tabs, cn, type Column } from '@/components/ui';
@@ -188,6 +188,26 @@ function CommentsTab({ studentId }: { studentId: number }) {
   </Panel>;
 }
 
+/** BOC-09D-03: 강사가 쓴 본문은 이 관리자 학생별 projection에서만 읽는다. */
+function PrivateNotesPanel({ studentId }: { studentId: number }) {
+  const query = useStudentPrivateNotes(studentId);
+  return <QueryState query={query}>{data => (
+    <Panel title={`강사 특이사항 ${data.items.length}건`} sub="강사가 완료 수업 뒤 남긴 관리자 전용 기록입니다. 강사 최근 내역·학부모 문서·검색·알림에는 본문이 노출되지 않습니다.">
+      {data.items.length ? <ul className="space-y-2">{data.items.map(item => (
+        <li key={item.id} className="rounded-lg border border-line px-3 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle">
+            <b className="text-fg">{item.authorName}</b>
+            <span>{item.onDate}</span>
+            <Chip>수업 #{item.serId}</Chip>
+            <span className="ml-auto">전달 v{item.version} · {kstDateTime(item.updatedAt) ?? item.updatedAt}</span>
+          </div>
+          <p className="mt-2 whitespace-pre-wrap text-[13px] leading-6">{item.body}</p>
+        </li>
+      ))}</ul> : <p className="text-[12px] text-fg-subtle">강사가 전달한 특이사항이 없습니다.</p>}
+    </Panel>
+  )}</QueryState>;
+}
+
 function InvoicesTab({ studentId, enrollments, enrollmentTotal }: { studentId: number; enrollments: StudentRead['enrollments']; enrollmentTotal: number }) {
   const query = useStudentHubSection(studentId, 'invoices');
   if (query.isPending) return <Panel title="학생별 청구"><p className="text-[12px] text-fg-subtle">불러오는 중…</p></Panel>;
@@ -234,6 +254,7 @@ export function StudentDetail({ studentId, initialTab = 'overview' }: { studentI
         {tab === 'assignment' ? <GuideTab studentId={data.id} assignment /> : null}
         {tab === 'schedule' ? <Panel title="학생 시간표" sub="공용 수업 일정의 학생 보기를 엽니다."><LinkButton href={`/schedule?studentId=${data.id}`}>학생 시간표 열기</LinkButton></Panel> : null}
         {tab === 'history' ? <>
+          <PrivateNotesPanel studentId={data.id} />
           <Banner tone="warning" title="전체 변경 이력은 아직 제공하지 않습니다.">학생·연결 상담·보호자의 기존 감사에서 누가, 언제, 어떤 행위를 했는지만 표시합니다. 변경 전후 값, 기간, 결제·진단 전체 이력은 포함하지 않습니다.</Banner>
           <Panel title={`수강 기록 ${data.enrollmentTotal}건`} sub={`기존 수강 시작일 내림차순 최대${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={enrollmentColumns} rows={data.enrollments} rowKey={row => row.id} empty="수강 기록이 없습니다." className="min-w-[480px]" /></div></Panel>
           <Panel title={`기존 감사 ${data.historyTotal}건`} sub={`기록 시각 내림차순 · 최근${data.historyLimit}건`}><div className="overflow-x-auto"><Table columns={historyColumns} rows={data.history} rowKey={row => row.id} className="min-w-[540px]" empty="연결된 감사 기록이 없습니다. 변경이 없었다는 뜻은 아닙니다." /></div></Panel>

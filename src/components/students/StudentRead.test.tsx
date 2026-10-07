@@ -60,6 +60,9 @@ const hub: StudentHub = {
   comments: { total: 2, nextCursor: 'comments_next', items: [{ id: 61, serId: 4, authorId: 3, authorName: '매니저', body: '학생 코멘트', createdAt: '2026-10-07T01:00:00Z' }] },
   invoices: { total: 2, nextCursor: 'invoices_next', items: [{ id: 71, yearMonth: '2026-10', invType: 'tuition', invTypeLabel: '수업료 청구', title: '10월 수업료', state: 'partial', stateLabel: '일부 납부', dueOn: '2026-10-10', amount: null, paidAmount: null, remainingAmount: null }] },
 };
+const privateNotes = { studentId: 21, items: [{ id: 81, studentId: 21, studentName: '학생A', serId: 4,
+  onDate: '2026-10-07', version: 2, createdAt: '2026-10-07T01:00:00Z', updatedAt: '2026-10-08T01:00:00Z',
+  authorId: 7, authorName: '강사A', body: '관리자가 확인할 학생 특이사항' }] };
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
@@ -79,7 +82,8 @@ beforeEach(() => {
         : config.url === '/guides/students' ? guideStudents
           : config.url === '/schedule/students/21/books' ? { studentId: 21, bookCount: 1, label: null }
             : config.url === '/consulting/students' ? { items: [] }
-              : config.url === '/students/21/hub' ? nextHub : detail;
+              : config.url === '/students/21/hub' ? nextHub
+                : config.url === '/students/21/private-notes' ? privateNotes : detail;
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   };
 });
@@ -198,6 +202,9 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=assignment');
     fireEvent.click(view.getByRole('button', { name: '수업 기록' }));
     expect(replace).toHaveBeenLastCalledWith('/students/21?tab=history', { scroll: false });
+    await view.findByText('관리자가 확인할 학생 특이사항');
+    expect(view.getByText('강사 특이사항 1건')).toBeTruthy();
+    expect(view.getByText(/학부모 문서·검색·알림에는 본문이 노출되지 않습니다/)).toBeTruthy();
     expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=history');
     expect(view.getByText('전체 변경 이력은 아직 제공하지 않습니다.')).toBeTruthy();
     expect(view.getByText('담당자B (#8)')).toBeTruthy();
@@ -206,7 +213,9 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByText('기존 감사 51건')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '시간표' }));
     expect(view.getByRole('link', { name: '학생 시간표 열기' }).getAttribute('href')).toBe('/schedule?studentId=21');
-    expect(requests.map(request => request.url).sort()).toEqual(['/guides/students', '/meta', '/students/21', '/students/21/hub'].sort());
+    expect(requests.map(request => request.url).sort()).toEqual([
+      '/guides/students', '/meta', '/students/21', '/students/21/hub', '/students/21/private-notes',
+    ].sort());
     expect(requests.every(request => request.method === 'get')).toBe(true);
   });
 

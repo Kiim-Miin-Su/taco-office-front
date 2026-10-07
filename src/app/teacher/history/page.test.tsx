@@ -16,26 +16,42 @@
  */
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { TeacherHistory } from '@/api/types';
 import { won } from '@/lib/money';
 import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 import TeacherHistoryPage from './page';
 
-const mocks = vi.hoisted(() => ({ history: vi.fn() }));
+const mocks = vi.hoisted(() => ({ history: vi.fn(), receipts: vi.fn(), write: vi.fn(), mutate: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useTeacherHistory: mocks.history,
+  useTeacherPrivateNoteReceipts: mocks.receipts,
+  useWriteTeacherPrivateNote: mocks.write,
   // 과목 이름도 코드표에서 온다 — 화면이 코드값(ap-chem)을 찍지 않는다 (QA 0925)
   useMeta: () => ({ data: { lateReportTiers: LATE_TIERS_FIXTURE, subs: [{ key: 'ap-chem', name: 'AP Chem' }], kinds: [] } }),
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: { children: ReactNode }) => children }));
 
+beforeEach(() => {
+  mocks.receipts.mockReturnValue({
+    data: { items: [{ id: 90, studentId: 11, studentName: '김민준', serId: 9, onDate: '2026-09-10', version: 1,
+      createdAt: '2026-09-10T08:00:00Z', updatedAt: '2026-09-10T08:00:00Z' }] },
+    isPending: false, isError: false, refetch: vi.fn(),
+  });
+  mocks.mutate.mockImplementation(async (body: { studentId: number; serId: number; onDate: string }) => ({
+    id: 91, studentId: body.studentId, studentName: body.studentId === 11 ? '김민준' : '송지호',
+    serId: body.serId, onDate: body.onDate, version: 1,
+    createdAt: '2026-10-08T08:00:00Z', updatedAt: '2026-10-08T08:00:00Z',
+  }));
+  mocks.write.mockReturnValue({ mutateAsync: mocks.mutate, isPending: false, error: null });
+});
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const lesson = (over: Partial<TeacherHistory['lessons'][number]> = {}): TeacherHistory['lessons'][number] => ({
   serId: 1, onDate: '2026-09-17', date: '2026-09-17', startMin: 960, durMin: 90, kindKey: 'class', subKey: 'ap-chem',
-  mode: 'offline', title: null, students: '김민준, 송지호', studentCount: 2, repState: 'plan',
+  mode: 'offline', title: null, students: '김민준, 송지호', studentItems: [{ id: 11, name: '김민준' }, { id: 12, name: '송지호' }],
+  studentCount: 2, repState: 'plan',
   canceled: false, pay: 67500, lateCut: 5000,
   bonus: 0, settle: 'written', settleLabel: '리포트 씀', correctionOf: null, paidIn: null, frozen: false, ...over,
 });
@@ -118,18 +134,21 @@ it('완료 수업에서 관리자 전용 특이사항 초안을 열면 회차·�
   expect(dialog.textContent).toContain('16:00');
   expect(dialog.textContent).toContain('AP Chem');
   expect(view.getByLabelText('학생')).toBeTruthy();
-  expect((view.getByLabelText('학생') as HTMLSelectElement).value).toBe('김민준');
+  expect((view.getByLabelText('학생') as HTMLSelectElement).value).toBe('11');
 });
 
-it('전용 DTO에 학생 ID·회차가 생기기 전에는 특이사항을 기존 NOTE로 저장하지 않는다', async () => {
+it('구조화 학생 ID·원래 회차일·version·requestKey로 전용 writer를 호출하고 전달 완료를 표시한다', async () => {
   mocks.history.mockReturnValue({ data: data(), isLoading: false, isError: false });
   const view = render(<TeacherHistoryPage />);
   fireEvent.click(await view.findByRole('button', { name: '특이사항 남기기' }));
 
   fireEvent.change(view.getByLabelText('특이사항 내용'), { target: { value: '오늘 유난히 지쳐 보였습니다.' } });
-  const save = view.getByRole('button', { name: '저장 기능 준비 중' }) as HTMLButtonElement;
-  expect(save.disabled).toBe(true);
-  expect(view.getByRole('dialog').textContent).toContain('학생 ID와 실제 회차를 구분하는 전용 계약이 필요합니다');
+  fireEvent.click(view.getByRole('button', { name: '관리자에게 전달' }));
+  await waitFor(() => expect(mocks.mutate).toHaveBeenCalledWith(expect.objectContaining({
+    studentId: 11, serId: 1, onDate: '2026-09-17', body: '오늘 유난히 지쳐 보였습니다.', expectedVersion: 0,
+    requestKey: expect.any(String),
+  })));
+  expect((await view.findByRole('status')).textContent).toBe('관리자에게 전달되었습니다.');
   expect(view.getByRole('dialog').textContent).toContain('관리자만 볼 수 있고 학부모에게 공개되지 않습니다');
 });
 

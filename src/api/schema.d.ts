@@ -4526,6 +4526,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/private-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 완료 회차의 학생 특이사항을 관리자 전용 원장에 저장한다 */
+        post: operations["PrivateNotesController_write"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/private-notes/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 내가 관리자에게 전달한 최근 특이사항 영수증 — 본문 제외 */
+        get: operations["PrivateNotesController_receipts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/{studentId}/private-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 관리자 학생별 강사 특이사항 모음 — 본문을 반환하는 유일한 projection */
+        get: operations["PrivateNotesController_studentNotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10867,6 +10918,10 @@ export interface components {
             unwrittenCount: number;
             unwrittenMinutes: number;
         };
+        TeacherHistoryStudentDto: {
+            id: number;
+            name: string;
+        };
         TeacherHistoryLessonDto: {
             serId: number;
             /** @description 규칙상 원래 날짜 YYYY-MM-DD (KST) — 회차의 키 */
@@ -10884,6 +10939,8 @@ export interface components {
             title?: string | null;
             /** @description 수강 학생 이름 (·, 구분) */
             students?: string | null;
+            /** @description 특이사항 저장 identity. 표시 문자열에서 ID를 추정하지 않는다. */
+            studentItems: components["schemas"]["TeacherHistoryStudentDto"][];
             /** @description 명단 수 — «외 N명» 표기용 */
             studentCount: number;
             /** @enum {string} */
@@ -13192,6 +13249,47 @@ export interface components {
             historyTotal: number;
             /** @description 보호자/수강/감사 각 최대50건 */
             historyLimit: number;
+        };
+        TeacherPrivateNoteWriteDto: {
+            studentId: number;
+            serId: number;
+            /** @description 반복규칙의 원래 회차일 YYYY-MM-DD */
+            onDate: string;
+            body: string;
+            /** @description 0=create, 1 이상=현재 읽은 version */
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
+        };
+        TeacherPrivateNoteReceiptDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            serId: number;
+            onDate: string;
+            version: number;
+            createdAt: string;
+            updatedAt: string;
+        };
+        TeacherPrivateNoteReceiptListDto: {
+            items: components["schemas"]["TeacherPrivateNoteReceiptDto"][];
+        };
+        AdminStudentPrivateNoteDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            serId: number;
+            onDate: string;
+            version: number;
+            createdAt: string;
+            updatedAt: string;
+            authorId: number;
+            authorName: string;
+            body: string;
+        };
+        AdminStudentPrivateNoteListDto: {
+            studentId: number;
+            items: components["schemas"]["AdminStudentPrivateNoteDto"][];
         };
         StudentRegistrationPeriodDto: {
             /**
@@ -32871,6 +32969,228 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description STUDENT_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    PrivateNotesController_write: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherPrivateNoteWriteDto"];
+            };
+        };
+        responses: {
+            /** @description 강사에게 본문 없이 전달 영수증 metadata만 반환 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherPrivateNoteReceiptDto"];
+                };
+            };
+            /** @description TEACHER_PRIVATE_NOTE_EMPTY */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description TEACHER_PRIVATE_NOTE_TARGET_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description VERSION_CONFLICT | REQUEST_KEY_REUSED | REPLAY_STALE | LESSON_NOT_COMPLETED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    PrivateNotesController_receipts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherPrivateNoteReceiptListDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    PrivateNotesController_studentNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStudentPrivateNoteListDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 관리자 페이지·전체 CRUD 권한 필요 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description STUDENT_NOT_FOUND */
             404: {

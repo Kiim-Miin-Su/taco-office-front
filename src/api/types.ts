@@ -50,6 +50,12 @@ export type TeacherGpaService = S['TeacherGpaServiceDto'];
 export type TeacherGpaOccurrence = S['TeacherGpaOccurrenceDto'];
 export type TeacherGpaRequestOptions = S['TeacherGpaRequestOptionsDto'];
 export type TeacherHistoryLesson = S['TeacherHistoryLessonDto'];
+/** BOC-09D-03 — 강사 작성·관리자 전용 학생 특이사항. 강사 projection에는 본문이 없다. */
+export type TeacherPrivateNoteWrite = S['TeacherPrivateNoteWriteDto'];
+export type TeacherPrivateNoteReceipt = S['TeacherPrivateNoteReceiptDto'];
+export type TeacherPrivateNoteReceipts = S['TeacherPrivateNoteReceiptListDto'];
+export type AdminStudentPrivateNote = S['AdminStudentPrivateNoteDto'];
+export type AdminStudentPrivateNotes = S['AdminStudentPrivateNoteListDto'];
 /** 강사 히스토리의 오늘 걸린 가산 규칙 (N-93) · 수업 안내 학생 카드의 인수인계 메모 (N-36 ②) */
 export type TeacherBonusRule = S['TeacherBonusRuleDto'];
 export type TeacherGuideNote = S['TeacherGuideNoteDto'];

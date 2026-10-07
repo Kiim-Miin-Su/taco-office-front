@@ -204,6 +204,9 @@ import type {
   TeacherGuideDiag,
   TeacherGuides,
   TeacherHistory,
+  TeacherPrivateNoteReceipt,
+  TeacherPrivateNoteReceipts,
+  TeacherPrivateNoteWrite,
   TeacherHome,
   TeacherShell,
   TeacherSettingReqCreate,
@@ -301,6 +304,7 @@ export const qk = {
   /* 강사 머리줄(시간대·시급·내 알림) — 강사 전용 · 서버가 본인 고정 */
   teacherShell: ['teacher', 'shell'] as const,
   teacherHistory: (month: string | undefined) => ['teacher', 'history', month ?? 'current'] as const,
+  teacherPrivateNoteReceipts: ['teacher', 'private-notes', 'receipts'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
   receivedGuides: ['teacher', 'received-guides'] as const,
   teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
@@ -1818,6 +1822,34 @@ export function useTeacherHistory(month?: string): UseQueryResult<TeacherHistory
     queryKey: sessionQueryKey(qk.teacherHistory(month), viewerId),
     queryFn: async () => (await api.get<TeacherHistory>('/teacher/history', { params: month ? { month } : {} })).data,
     staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * BOC-09D-03 권고안 채택: 강사는 본문을 다시 받지 않고 최근 전달 영수증 metadata만 읽는다.
+ * 저장 identity는 표시 이름이 아닌 생성 DTO의 studentId+serId+onDate며, requestKey/version 판정은 서버가 한다.
+ * 정책 변경 시 Back private-notes, TeacherPrivateNoteDraft, 관리자 학생 모음, 두 수정사항 대조표와 portfolio를 함께 고친다.
+ */
+export function useTeacherPrivateNoteReceipts(): UseQueryResult<TeacherPrivateNoteReceipts> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherPrivateNoteReceipts, viewerId),
+    queryFn: async () => (await api.get<TeacherPrivateNoteReceipts>('/teacher/private-notes/receipts')).data,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useWriteTeacherPrivateNote(): UseMutationResult<TeacherPrivateNoteReceipt, unknown, TeacherPrivateNoteWrite> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<TeacherPrivateNoteReceipt>('/teacher/private-notes', body)).data,
+    onSettled: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherPrivateNoteReceipts, viewerId) }),
+        qc.invalidateQueries({ queryKey: family.teacherHistory }),
+      ]);
+    },
   });
 }
 

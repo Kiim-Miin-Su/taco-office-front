@@ -10,7 +10,7 @@
  * 가산(N-93 · W11 M2)은 대표의 정리 · 기준 › 가산 규칙을 대표 시트와 **같은 함수**가 더한 값이다 — 화면은 받은 `bonus` 와
  * 오늘 걸린 규칙(`bonusRules`)을 그리기만 한다(Kinder 는 수업을 가를 표시가 없어 0 · 까닭은 서버 문장).
  * 확정된 달은 지급 확정 근거 줄의 굳은 값이고, 확정 뒤에 쓴 회차는 「확정된 달 — 다음 달 보정」 · 다음 달에는 「보정 · M월 회차」다(N-51).
- * 특이사항 저장은 저장처 확정 전 — 배선하지 않는다 (teacherC22 원장 경계).
+ * 특이사항은 구조화 학생 identity·원래 회차일로 전용 관리자 원장에 저장하고 강사에게는 본문 없는 영수증만 보여 준다(BOC-09D-03).
  */
 'use client';
 import { useState } from 'react';
@@ -93,7 +93,7 @@ function Row({ l, onNote }: { l: TeacherHistoryLesson; onNote: (lesson: TeacherH
     ? `${l.students.split(', ')[0]}${l.studentCount > 1 ? ` 외 ${l.studentCount - 1}명` : ''}`
     : '미배정';
   const subject = lessonName(l);
-  const canWritePrivateNote = !l.canceled && l.settle !== 'upcoming' && Boolean(l.students) && l.studentCount > 0;
+  const canWritePrivateNote = !l.canceled && l.settle !== 'upcoming' && l.studentItems.length > 0;
   const money = l.canceled ? (
     <div className="text-[12px] text-fg-subtle">— · 시수·정산 제외</div>
   ) : l.pay !== null && l.pay !== undefined ? (

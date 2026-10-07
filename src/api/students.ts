@@ -14,6 +14,7 @@ export type StudentDirectoryRow = components['schemas']['StudentDirectoryRowDto'
 export type StudentRead = components['schemas']['StudentReadDto'];
 export type StudentListQuery = NonNullable<paths['/students']['get']['parameters']['query']>;
 export type StudentHub = components['schemas']['StudentHubDto'];
+export type AdminStudentPrivateNotes = components['schemas']['AdminStudentPrivateNoteListDto'];
 export type StudentHubSection = 'reports' | 'comments' | 'invoices';
 
 /**
@@ -53,6 +54,7 @@ export const studentKeys = {
   detail: (id: number | null) => ['students', 'detail', id] as const,
   hub: (id: number | null) => ['students', 'hub', id] as const,
   hubSection: (id: number | null, section: StudentHubSection) => ['students', 'hub', id, section] as const,
+  privateNotes: (id: number | null) => ['students', 'private-notes', id] as const,
   registrationOptions: ['students', 'registration-options'] as const,
   schools: (q: string) => ['students', 'schools', q] as const,
   reactivationCandidates: (params: StudentReactivationCandidateQuery) => ['students', 'reactivation-candidates', params] as const,
@@ -145,6 +147,17 @@ export function useStudentHub(id: number | null, enabled = true) {
   return useQuery({
     queryKey: sessionQueryKey(studentKeys.hub(id), viewerId),
     queryFn: async ({ signal }) => (await api.get<StudentHub>(`/students/${id}/hub`, { signal })).data,
+    enabled: allowed && enabled && id !== null && Number.isSafeInteger(id) && id > 0,
+  });
+}
+
+/** 관리자 전용 강사 특이사항 본문의 유일한 Front reader. 다른 학생/강사/검색 캐시에 합치지 않는다. */
+export function useStudentPrivateNotes(id: number | null, enabled = true) {
+  const viewerId = useSession(state => state.me?.id ?? 'anonymous');
+  const allowed = useStudentReadAllowed();
+  return useQuery({
+    queryKey: sessionQueryKey(studentKeys.privateNotes(id), viewerId),
+    queryFn: async ({ signal }) => (await api.get<AdminStudentPrivateNotes>(`/students/${id}/private-notes`, { signal })).data,
     enabled: allowed && enabled && id !== null && Number.isSafeInteger(id) && id > 0,
   });
 }
