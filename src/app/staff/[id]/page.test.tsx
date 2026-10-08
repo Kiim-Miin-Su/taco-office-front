@@ -33,10 +33,16 @@ const detail: Detail = {
   audit: [{ id: 5, action: 'update', actionLabel: '정보 수정', actorName: '관리자', at: '2026-09-20T09:00:00+09:00', changes: [{ field: '직함', before: '수학', after: '영어' }], privateFields: [] }],
   nextCursor: null,
 };
+const unavailable: components['schemas']['ScheduleUnavListDto'] = {
+  from: '2026-10-08', to: '2026-10-21',
+  items: [{ id: 91, teacherId: 7, teacherName: '김강사', date: '2026-10-18', startMin: 600, endMin: 660, reason: '병원 진료로 수업 진행이 어렵습니다' }],
+};
 const clients: QueryClient[] = [];
-function setup() {
+function setup(getImpl?: (url: string) => Promise<unknown>) {
   useSession.setState({ me: { id: 2, name: '관리자 김', roleLabel: '관리자' } as never, ready: true });
-  vi.spyOn(api, 'get').mockResolvedValue({ data: detail } as never);
+  const get = vi.spyOn(api, 'get');
+  if (getImpl) get.mockImplementation(getImpl as never);
+  else get.mockResolvedValue({ data: detail } as never);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
   return render(<QueryClientProvider client={client}><StaffDetailPage /></QueryClientProvider>);
@@ -54,7 +60,7 @@ it('실제 관리자 actor와 대상 강사를 분리하고 8탭을 한 허브�
   const view = setup();
   await view.findByText('조회자 관리자 김 · 대상 강사 김강사');
   expect(view.getAllByRole('tab').map((node) => node.textContent?.trim())).toEqual([
-    '홈기본 정보', '캘린더현재 1개', '불가 시간기능 준비 중', '리포트1건',
+    '홈기본 정보', '캘린더현재 1개', '불가 시간향후 2주', '리포트1건',
     '수업 안내기능 준비 중', '히스토리정산·변경', '건의 사항기능 준비 중', '들어온 것기능 준비 중',
   ]);
   expect(view.getByText('현재 배정 수업·학생')).toBeTruthy();
@@ -80,11 +86,15 @@ it('생성 projection이 있는 리포트와 히스토리만 표시하고 teache
   expect(urls.some((url) => url.startsWith('/teacher/'))).toBe(false);
 });
 
-it('대상 강사 facade가 없는 탭은 가짜 빈 목록이나 성공 action 없이 이유를 표시한다', async () => {
+it('기존 관리자 일정 계약으로 대상 강사의 불가 시간만 읽고 쓰기 action은 제공하지 않는다', async () => {
   tab = 'unavailable';
-  const view = setup();
-  expect(await view.findByText('대상 강사 불가 시간 준비 중')).toBeTruthy();
-  expect(view.getByText(/관리자 권한을 유지한 채 대상 강사의 정보를 조회합니다/)).toBeTruthy();
+  const view = setup(async (url) => ({ data: String(url) === '/schedule/unavailable' ? unavailable : detail }));
+  expect(await view.findByText('2026-10-18 · 10:00–11:00')).toBeTruthy();
+  expect(view.getByText('병원 진료로 수업 진행이 어렵습니다')).toBeTruthy();
+  expect(view.getByText(/등록·삭제는 대상 강사의 본인 화면에서만 수행합니다/)).toBeTruthy();
   expect(view.queryByRole('button', { name: /등록|저장|삭제/ })).toBeNull();
-  await waitFor(() => expect(vi.mocked(api.get)).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(vi.mocked(api.get)).toHaveBeenCalledWith('/schedule/unavailable', {
+    params: expect.objectContaining({ teacherId: 7 }),
+  }));
+  expect(vi.mocked(api.get).mock.calls.some(([url]) => String(url).startsWith('/teacher/'))).toBe(false);
 });

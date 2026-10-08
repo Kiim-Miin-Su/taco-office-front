@@ -5,7 +5,7 @@
  */
 'use client';
 
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import type { components } from '@/api/schema';
 import { api, apiMessage } from '@/api/client';
@@ -13,11 +13,13 @@ import { sessionQueryKey } from '@/api/queries';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, LinkButton, PageHeader, Panel, TabCards } from '@/components/ui';
+import { addDays, hhmm, todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
 import { useSession } from '@/store/useSession';
 
 type Detail = components['schemas']['StaffDirectoryDetailDto'];
+type Unavailable = components['schemas']['ScheduleUnavListDto'];
 const STAFF_TABS = ['home', 'calendar', 'unavailable', 'reports', 'guides', 'history', 'suggestions', 'inbox'] as const;
 type StaffTab = typeof STAFF_TABS[number];
 const at = (value: string) => value.replace('T', ' ').slice(0, 16);
@@ -96,6 +98,23 @@ function ContractPending({ title, reason }: { title: string; reason: string }) {
   </Panel>;
 }
 
+function UnavailablePanel({ data, pending, error, retry }: {
+  data: Unavailable | undefined; pending: boolean; error: Error | null; retry: () => void;
+}) {
+  return <Panel title="대상 강사 불가 시간" sub={data
+    ? `${data.from}~${data.to} · 관리자 읽기 전용`
+    : '향후 2주 · 관리자 읽기 전용'}>
+    {pending ? <p role="status" className="text-[12px] text-fg-subtle">불가 시간을 불러오는 중…</p> : null}
+    {error ? <div className="space-y-2"><Banner tone="danger">{apiMessage(error)}</Banner><Button size="sm" variant="secondary" onClick={retry}>다시 불러오기</Button></div> : null}
+    {data && data.items.length === 0 ? <p className="text-[12px] text-fg-subtle">이 기간에 등록된 불가 시간이 없습니다.</p> : null}
+    {data && data.items.length > 0 ? <ul className="divide-y divide-line">{data.items.map((item) => <li key={item.id} className="py-3 text-[12px]">
+      <div className="font-bold">{item.date} · {hhmm(item.startMin)}–{hhmm(item.endMin)}</div>
+      <p className="mt-1 text-fg-2">{item.reason}</p>
+    </li>)}</ul> : null}
+    <p className="mt-3 text-[12px] text-fg-subtle">등록·삭제는 대상 강사의 본인 화면에서만 수행합니다. 관리자는 시간표 편성 시 같은 불가 시간 원장을 겹쳐 확인합니다.</p>
+  </Panel>;
+}
+
 export default function StaffDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -104,6 +123,8 @@ export default function StaffDetailPage() {
   const tab = queryEnum(searchParams.get('tab'), STAFF_TABS) ?? 'home';
   const me = useSession((s) => s.me);
   const viewerId = me?.id ?? 'anonymous';
+  const unavailableFrom = todayKst();
+  const unavailableTo = addDays(unavailableFrom, 13);
   const detail = useInfiniteQuery<Detail, Error, { pages: Detail[] }, readonly unknown[], string | null>({
     queryKey: sessionQueryKey(['staff-directory', 'detail', id ?? 0] as const, viewerId),
     queryFn: async ({ pageParam }) => (await api.get<Detail>(`/drawer/staff-directory/${id}`, { params: pageParam ? { cursor: pageParam } : {} })).data,
@@ -113,6 +134,18 @@ export default function StaffDetailPage() {
   });
   const data = detail.data?.pages[0];
   const audit = detail.data?.pages.flatMap((page) => page.audit) ?? [];
+  /*
+   * BO-06E 권고안: 관리자 세션을 강사로 가장하지 않고, 일정 화면이 이미 사용하는 관리자 전용
+   * targetStaff 계약을 그대로 읽는다. 이 경계를 바꾸면 schedule unavailable DTO/OpenAPI/generated type,
+   * 강사 상세 8탭, UNAV↔schedule 경합 회귀, 두 수정사항 대조표와 portfolio를 함께 갱신한다.
+   */
+  const unavailable = useQuery<Unavailable, Error>({
+    queryKey: sessionQueryKey(['staff-directory', 'unavailable', id ?? 0, unavailableFrom, unavailableTo] as const, viewerId),
+    queryFn: async () => (await api.get<Unavailable>('/schedule/unavailable', {
+      params: { from: unavailableFrom, to: unavailableTo, teacherId: id },
+    })).data,
+    enabled: tab === 'unavailable' && id !== null && viewerId !== 'anonymous',
+  });
   const selectTab = (next: StaffTab) => { if (id !== null) router.replace(`/staff/${id}?tab=${next}`, { scroll: false }); };
 
   return <RequireAuth><AppShell>
@@ -125,7 +158,7 @@ export default function StaffDetailPage() {
       <TabCards<StaffTab> label="강사 업무" value={tab} onChange={selectTab} options={[
         { value: 'home', label: '홈', sub: '기본 정보' },
         { value: 'calendar', label: '캘린더', sub: `현재 ${data.assignments.length}개` },
-        { value: 'unavailable', label: '불가 시간', sub: '기능 준비 중' },
+        { value: 'unavailable', label: '불가 시간', sub: unavailable.data ? `${unavailable.data.items.length}건` : '향후 2주' },
         { value: 'reports', label: '리포트', sub: `${data.reports.length}건` },
         { value: 'guides', label: '수업 안내', sub: '기능 준비 중' },
         { value: 'history', label: '히스토리', sub: '정산·변경' },
@@ -137,7 +170,7 @@ export default function StaffDetailPage() {
       {tab === 'calendar' ? <Assignments data={data} calendar /> : null}
       {tab === 'reports' ? <Reports data={data} /> : null}
       {tab === 'history' ? <History data={data} audit={audit} hasNextPage={Boolean(detail.hasNextPage)} fetching={detail.isFetchingNextPage} fetchNext={() => void detail.fetchNextPage()} /> : null}
-      {tab === 'unavailable' ? <ContractPending title="대상 강사 불가 시간" reason="현재는 강사 본인 또는 일정 관리 화면에서만 불가 시간을 확인할 수 있습니다. 대상 강사의 10일 기준 조회 기능은 준비 중입니다." /> : null}
+      {tab === 'unavailable' ? <UnavailablePanel data={unavailable.data} pending={unavailable.isPending} error={unavailable.error} retry={() => void unavailable.refetch()} /> : null}
       {tab === 'guides' ? <ContractPending title="대상 강사 수업 안내" reason="관리자용 수업 안내 조회 범위와 읽음 상태 표시를 준비 중입니다." /> : null}
       {tab === 'suggestions' ? <ContractPending title="대상 강사 건의 사항" reason="대상 강사의 건의와 답변을 정확히 연결하는 조회 기능을 준비 중입니다." /> : null}
       {tab === 'inbox' ? <ContractPending title="대상 강사 들어온 것" reason="강사의 개인 알림은 표시하지 않습니다. 관리자에게 필요한 승인·답변·안내 확인 내역만 제공할 예정입니다." /> : null}
