@@ -23,13 +23,15 @@ const me: Me = {
 
 const catalog: Catalog = {
   kinds: [
-    { key: 'class', name: '정규 수업', color: '#7C6A58', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 1, extra: false, serCount: 12 },
-    { key: 'intake', name: '입학 상담', color: '#4A6FA5', cap: 1, grp: 'intake', grpLabel: '상담·진단', rep: false, repForm: null, sort: 2, extra: false, serCount: 0 },
+    { key: 'class', name: '정규 수업', color: '#7C6A58', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 1, extra: false, subjectAssignable: true, serCount: 12 },
+    { key: 'intake', name: '입학 상담', color: '#4A6FA5', cap: 1, grp: 'intake', grpLabel: '상담·진단', rep: false, repForm: null, sort: 2, extra: false, subjectAssignable: true, serCount: 0 },
+    { key: 'gpa', name: 'GPA 관리', color: '#777777', cap: 1, grp: 'lesson', grpLabel: '수업', rep: false, repForm: null, sort: 3, extra: false, subjectAssignable: false, serCount: 0 },
   ],
   subs: [
-    { key: 'ap-chem', name: 'AP Chemistry', color: '#8C5A3C', active: true, sort: 1, serCount: 5 },
-    { key: 'old-sat', name: '구 SAT', color: '#777777', active: false, sort: 2, serCount: 0 },
+    { key: 'ap-chem', name: 'AP Chemistry', color: '#8C5A3C', active: true, sort: 1, kindKey: 'class', serCount: 5 },
+    { key: 'old-sat', name: '구 SAT', color: '#777777', active: false, sort: 2, kindKey: null, serCount: 0 },
   ],
+  subjectColors: ['#A85764', '#B57046', '#4A7FB5', '#3E8E5E', '#7C5CB5', '#C08A2E', '#2F8F8A', '#8B6B5A'],
 };
 
 const originalAdapter = api.defaults.adapter;
@@ -87,27 +89,44 @@ it('과목은 끄고 켠다 — 꺼진 과목도 목록에 남는다', async () 
   expect(view.getByRole('button', { name: '켜기' })).toBeTruthy();
 });
 
-it('최종 수정사항의 과목당 프로그램을 표시하되 DTO 쓰기 계약 전에는 새 과목을 저장하지 않는다', async () => {
-  const linked = {
-    ...catalog,
-    subs: catalog.subs.map((sub, index) => ({ ...sub, kindKey: index === 0 ? 'class' : 'intake' })),
-  } as unknown as Catalog;
-  const view = setup(linked);
+it('최종 수정사항의 과목당 프로그램과 8색을 사용해 새 과목을 저장한다', async () => {
+  useSession.getState().signIn('fixture', me);
+  const posted: Array<{ url?: string; body: unknown }> = [];
+  api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
+    if (config.method === 'post' && config.url === '/catalog/subs') {
+      posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') });
+      return { config, status: 201, statusText: 'Created', headers: {}, data: catalog.subs[0] };
+    }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: catalog };
+  }) as never;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+  clients.push(client);
+  const view = render(<QueryClientProvider client={client}><ProgramsPage /></QueryClientProvider>);
   await waitFor(() => expect(view.getByText('정규 수업')).toBeTruthy());
   fireEvent.click(view.getByRole('button', { name: /과목 2/ }));
   await waitFor(() => expect(view.getByText('AP Chemistry')).toBeTruthy());
 
   const apRow = view.getByText('AP Chemistry').closest('tr')!;
   expect(apRow.textContent).toContain('정규 수업');
-  expect(view.getByLabelText('프로그램')).toBeTruthy();
-  expect(view.getByText(/프로그램별 과목 저장 기능이 준비될 때까지/)).toBeTruthy();
-  expect((view.getByRole('button', { name: '저장 기능 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  const createProgram = view.getByLabelText('프로그램') as HTMLSelectElement;
+  expect(createProgram).toBeTruthy();
+  expect(within(createProgram).queryByRole('option', { name: 'GPA 관리' })).toBeNull();
+  expect(view.getAllByRole('button', { name: /^새 과목 색 #/ })).toHaveLength(8);
+  fireEvent.change(view.getByLabelText('코드'), { target: { value: 'ap-bio' } });
+  fireEvent.change(view.getByLabelText('이름'), { target: { value: 'AP Biology' } });
+  fireEvent.change(view.getByLabelText('프로그램'), { target: { value: 'class' } });
+  fireEvent.click(view.getByRole('button', { name: '새 과목 색 #4A7FB5' }));
+  fireEvent.click(view.getByRole('button', { name: '과목 추가' }));
+  await waitFor(() => expect(posted).toEqual([{
+    url: '/catalog/subs', body: { key: 'ap-bio', name: 'AP Biology', kindKey: 'class', color: '#4A7FB5' },
+  }]));
 
   fireEvent.click(within(apRow).getByRole('button', { name: '고치기' }));
   await waitFor(() => expect(view.container.querySelector('#se-kind')).toBeTruthy());
   const editProgram = view.container.querySelector('#se-kind') as HTMLSelectElement;
   expect(editProgram.value).toBe('class');
-  expect(editProgram.disabled).toBe(true);
+  expect(editProgram.disabled).toBe(false);
+  expect(within(editProgram).queryByRole('option', { name: '기존 미연결' })).toBeNull();
 });
 
 it('과목 이름·색·정렬을 고치면 SubPatchDto 필드만 보낸다 — 코드는 편집하지 않는다', async () => {
@@ -134,14 +153,14 @@ it('과목 이름·색·정렬을 고치면 SubPatchDto 필드만 보낸다 — 
   expect(view.queryByDisplayValue('ap-chem')).toBeNull();
   expect((view.container.textContent ?? '').replace(/\s+/g, ' ')).toContain('코드 ap-chem 는 바꾸지 않습니다');
   fireEvent.change(view.container.querySelector('#se-name')!, { target: { value: 'AP 화학' } });
-  fireEvent.change(view.container.querySelector('#se-color')!, { target: { value: '#123456' } });
+  fireEvent.click(view.getByRole('button', { name: '과목 색 #4A7FB5' }));
   fireEvent.change(view.getByLabelText('순서'), { target: { value: '7' } });
   fireEvent.click(view.getByRole('button', { name: '저장' }));
 
   await waitFor(() => expect(patched).toHaveLength(1));
   expect(patched[0]).toEqual({
     url: '/catalog/subs/ap-chem',
-    body: { name: 'AP 화학', color: '#123456', sort: 7 },
+    body: { name: 'AP 화학', color: '#4A7FB5', kindKey: 'class', sort: 7 },
   });
 });
 
@@ -160,7 +179,7 @@ it('코드와 이름이 비면 만들기를 누를 수 없다', async () => {
 it('「추가 수업」을 켜고 만들면 extra: true 가 함께 간다 — 목록에는 「추가」 칩이 선다', async () => {
   useSession.getState().signIn('fixture', me);
   const posted: Array<{ url?: string; body: unknown }> = [];
-  const data: Catalog = { ...catalog, kinds: [...catalog.kinds, { key: 'extra', name: '추가 수업', color: '#B45309', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 3, extra: true, serCount: 0 }] };
+  const data: Catalog = { ...catalog, kinds: [...catalog.kinds, { key: 'extra', name: '추가 수업', color: '#B45309', cap: 4, grp: 'lesson', grpLabel: '수업', rep: true, repForm: 'dev', sort: 4, extra: true, subjectAssignable: true, serCount: 0 }] };
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') { posted.push({ url: config.url, body: JSON.parse(config.data ?? '{}') }); return { config, status: 201, statusText: 'OK', headers: {}, data: {} }; }
     return { config, status: 200, statusText: 'OK', headers: {}, data };

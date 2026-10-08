@@ -4160,7 +4160,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 과목 추가 */
+        /** 과목 추가 — 프로그램 하나·중복 없는 이름·서버가 주는 8색 */
         post: operations["CatalogController_createSub"];
         delete?: never;
         options?: never;
@@ -4748,6 +4748,8 @@ export interface components {
             key: string;
             name: string;
             color: string;
+            /** @description 과목이 속한 단일 프로그램. 미연결 legacy는 null */
+            kindKey?: string | null;
         };
         EducationGradeOptionDto: {
             /** @description STU.grade에 저장할 원문값. 예: G5, Y6, 초5 */
@@ -12337,6 +12339,8 @@ export interface components {
             sort?: number | null;
             /** @description 추가 수업인가 — 시간표 「추가」 배지 · §54 「추가」 칸 · 청구서 별도 줄 (C94-d · C-38) */
             extra: boolean;
+            /** @description 새 과목의 소유 프로그램으로 선택할 수 있는가. GPA 과거 원장은 false */
+            subjectAssignable: boolean;
             /** @description 이 프로그램으로 돌고 있는 수업 규칙 수 — 0 이 아니면 코드를 바꿀 수 없다 */
             serCount: number;
         };
@@ -12346,12 +12350,16 @@ export interface components {
             color: string;
             active: boolean;
             sort?: number | null;
+            /** @description 과목이 속한 단일 프로그램. 미연결 legacy는 null */
+            kindKey?: string | null;
             /** @description 이 과목으로 돌고 있는 수업 규칙 수 */
             serCount: number;
         };
         CatalogDto: {
             kinds: components["schemas"]["KindRowsDto"][];
             subs: components["schemas"]["SubRowDto"][];
+            /** @description 새 과목·색 변경에서 고르는 최종 8색 */
+            subjectColors: ("#A85764" | "#B57046" | "#4A7FB5" | "#3E8E5E" | "#7C5CB5" | "#C08A2E" | "#2F8F8A" | "#8B6B5A")[];
         };
         KindCreateDto: {
             /** @description 영문 소문자·숫자·밑줄. 한 번 정하면 바꾸지 않는다 */
@@ -12386,12 +12394,20 @@ export interface components {
         SubCreateDto: {
             key: string;
             name: string;
-            /** @description #RRGGBB */
-            color: string;
+            /** @description 과목이 속한 단일 프로그램(kind.key) */
+            kindKey: string;
+            /**
+             * @description 최종 관리자 수정사항 p6의 8색
+             * @enum {string}
+             */
+            color: "#A85764" | "#B57046" | "#4A7FB5" | "#3E8E5E" | "#7C5CB5" | "#C08A2E" | "#2F8F8A" | "#8B6B5A";
             sort?: number;
         };
         SubPatchDto: {
             name?: string;
+            /** @description 새 프로그램. 기존 미연결/불일치 기록은 그대로 읽고 자동 병합하지 않는다 */
+            kindKey?: string;
+            /** @description 바꿀 때는 최종 8색만 허용. 기존 legacy 색을 그대로 보내는 것은 보존 */
             color?: string;
             /** @description 끄면 새 수업에서 고를 수 없다. 이미 도는 수업은 건드리지 않는다 */
             active?: boolean;
@@ -31017,7 +31033,7 @@ export interface operations {
                     "application/json": components["schemas"]["SubRowDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code SUB_PROGRAM_RETIRED | SUB_COLOR_INVALID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -31044,7 +31060,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code KIND_NOT_FOUND */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -31053,12 +31069,14 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code SUB_KEY_TAKEN */
+            /** @description code SUB_KEY_TAKEN | SUB_NAME_TAKEN */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
@@ -31094,7 +31112,7 @@ export interface operations {
                     "application/json": components["schemas"]["SubRowDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code SUB_PROGRAM_RETIRED | SUB_COLOR_INVALID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -31126,9 +31144,11 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description code SUB_NAME_TAKEN */
             409: {
                 headers: {
                     [name: string]: unknown;

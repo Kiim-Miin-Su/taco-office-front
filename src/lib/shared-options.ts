@@ -3,7 +3,9 @@
  * 책임/재사용: 생성된 Meta/Sub 타입을 읽기만 한다. 서버 계약을 수기로 복제하거나 쓰기 DTO를 만들지 않는다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
-type SubjectLike = { key: string; name: string };
+import type { Sub } from '@/api/types';
+
+type SubjectLike = Pick<Sub, 'key' | 'name' | 'kindKey'>;
 type SubjectList = { subs: readonly SubjectLike[] };
 
 export interface SubjectOption {
@@ -14,12 +16,10 @@ export interface SubjectOption {
 }
 
 /**
- * 최종 수정사항의 `meta.subs.kindKey`가 OpenAPI에 들어오기 전까지의 읽기 호환 경계다.
- * 필드가 생성 타입에 생기면 이 좁은 어댑터만 직접 속성 접근으로 바꾼다.
+ * BOC-01D-01 생성 계약을 직접 읽는다. null은 migration이 추정하지 않은 legacy 미연결 과목이다.
  */
 export function subjectProgramKey(subject: SubjectLike): string | null {
-  const value = (subject as unknown as { kindKey?: unknown }).kindKey;
-  return typeof value === 'string' && value.trim() ? value : null;
+  return subject.kindKey?.trim() || null;
 }
 
 export function hasSubjectProgramContract(meta?: SubjectList): boolean {

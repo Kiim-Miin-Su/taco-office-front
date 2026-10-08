@@ -21,7 +21,7 @@ import {
   Banner, Button, Checkbox, Chip, Input, Label, PageHeader, Panel, Segmented, Select, Table, type Column,
 } from '@/components/ui';
 import { apiMessage } from '@/api/client';
-import { useCatalog, useCreateKind, usePatchKind, usePatchSub } from '@/api/queries';
+import { useCatalog, useCreateKind, useCreateSub, usePatchKind, usePatchSub } from '@/api/queries';
 import type { CatalogKind, CatalogSub, KindCreate, SubPatch } from '@/api/types';
 import { subjectProgramKey } from '@/lib/shared-options';
 
@@ -53,15 +53,36 @@ const asForm = (v: string): RepForm | null => (v === 'dev' || v === 'assess' ? v
 const START_COLOR = '#7C6A58';
 
 const NEW_KIND = { key: '', name: '', color: START_COLOR, cap: 4, grp: 'lesson' as Grp, rep: false, repForm: '' as '' | RepForm, extra: false };
-const NEW_SUB = { key: '', name: '', color: START_COLOR, kindKey: '' };
+const NEW_SUB = { key: '', name: '', color: '', kindKey: '' };
 
 function Swatch({ color }: { color: string }) {
   return <span className="inline-block h-3 w-3 rounded-sm align-middle" style={{ backgroundColor: color }} />;
 }
 
+function SubjectColorChoices({ colors, value, onChange, label }: {
+  colors: readonly string[]; value: string; onChange: (color: string) => void; label: string;
+}) {
+  return (
+    <div className="flex min-h-11 flex-wrap items-center gap-2" role="group" aria-label={label}>
+      {colors.map((color) => (
+        <button
+          key={color}
+          type="button"
+          aria-label={`${label} ${color}`}
+          aria-pressed={value.toUpperCase() === color.toUpperCase()}
+          className="h-9 w-9 rounded-full border-2 border-bg shadow-sm outline-offset-2 ring-1 ring-line aria-pressed:ring-2 aria-pressed:ring-fg"
+          style={{ backgroundColor: color }}
+          onClick={() => onChange(color)}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function ProgramsPage() {
   const q = useCatalog();
   const createKind = useCreateKind();
+  const createSub = useCreateSub();
   const patchKind = usePatchKind();
   const patchSub = usePatchSub();
   const [tab, setTab] = useState<'kinds' | 'subs'>('kinds');
@@ -70,12 +91,16 @@ export default function ProgramsPage() {
   const [editKind, setEditKind] = useState<CatalogKind | null>(null);
   const [editSub, setEditSub] = useState<SubEdit | null>(null);
   const kindName = new Map((q.data?.kinds ?? []).map((kind) => [kind.key, kind.name]));
+  const subjectKinds = (q.data?.kinds ?? []).filter((kind) => kind.subjectAssignable);
+  const subjectColors = q.data?.subjectColors ?? [];
+  const createColor = subForm.color || subjectColors[0] || '';
 
   const saveSub = () => {
     if (!editSub) return;
     const patch: SubPatch = {
       name: editSub.name.trim(),
       color: editSub.color,
+      ...(editSub.kindKey ? { kindKey: editSub.kindKey } : {}),
       ...(editSub.sort == null ? {} : { sort: editSub.sort }),
     };
     patchSub.mutate({ key: editSub.key, ...patch }, { onSuccess: () => setEditSub(null) });
@@ -249,14 +274,22 @@ export default function ProgramsPage() {
                   <Label htmlFor="s-kind">프로그램</Label>
                   <Select id="s-kind" value={subForm.kindKey} onChange={(e) => setSubForm({ ...subForm, kindKey: e.target.value })}>
                     <option value="">고르세요</option>
-                    {(q.data?.kinds ?? []).map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
+                    {subjectKinds.map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
                   </Select>
                 </div>
-                <div><Label htmlFor="s-color">색</Label><Input id="s-color" type="color" value={subForm.color} onChange={(e) => setSubForm({ ...subForm, color: e.target.value })} /></div>
+                <div><Label>색</Label><SubjectColorChoices colors={subjectColors} value={createColor} onChange={(color) => setSubForm({ ...subForm, color })} label="새 과목 색" /></div>
               </div>
-              <Banner tone="info" className="mt-3">과목은 프로그램 하나에 속해야 합니다. 프로그램별 과목 저장 기능이 준비될 때까지 새 과목 저장은 잠겨 있습니다.</Banner>
+              {createSub.isError ? <Banner tone="danger" className="mt-3">{apiMessage(createSub.error)}</Banner> : null}
               <div className="mt-3 flex justify-end">
-                <Button disabled>저장 기능 준비 중</Button>
+                <Button
+                  disabled={createSub.isPending || !subForm.key.trim() || !subForm.name.trim() || !subForm.kindKey || !createColor}
+                  onClick={() => createSub.mutate({
+                    key: subForm.key.trim(), name: subForm.name.trim(), kindKey: subForm.kindKey,
+                    color: createColor as (typeof subjectColors)[number],
+                  }, { onSuccess: () => setSubForm({ ...NEW_SUB }) })}
+                >
+                  과목 추가
+                </Button>
               </div>
             </Panel>
 
@@ -265,13 +298,16 @@ export default function ProgramsPage() {
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div><Label htmlFor="se-name">이름</Label><Input id="se-name" maxLength={40} value={editSub.name} onChange={(e) => setEditSub({ ...editSub, name: e.target.value })} /></div>
                   <div>
-                    <Label htmlFor="se-kind" hint="변경 기능 준비 중">프로그램</Label>
-                    <Select id="se-kind" value={editSub.kindKey ?? ''} disabled>
-                      <option value="">변경 기능 준비 중</option>
-                      {(q.data?.kinds ?? []).map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
+                    <Label htmlFor="se-kind">프로그램</Label>
+                    <Select id="se-kind" value={editSub.kindKey ?? ''} onChange={(e) => setEditSub({ ...editSub, kindKey: e.target.value || null })}>
+                      {editSub.kindKey == null ? <option value="">기존 미연결</option> : null}
+                      {editSub.kindKey && !subjectKinds.some((kind) => kind.key === editSub.kindKey)
+                        ? <option value={editSub.kindKey}>{kindName.get(editSub.kindKey) ?? editSub.kindKey} · 기존 연결</option>
+                        : null}
+                      {subjectKinds.map((kind) => <option key={kind.key} value={kind.key}>{kind.name}</option>)}
                     </Select>
                   </div>
-                  <div><Label htmlFor="se-color">색</Label><Input id="se-color" type="color" value={editSub.color} onChange={(e) => setEditSub({ ...editSub, color: e.target.value })} /></div>
+                  <div><Label>색</Label><SubjectColorChoices colors={subjectColors} value={editSub.color} onChange={(color) => setEditSub({ ...editSub, color })} label="과목 색" /></div>
                   <div><Label htmlFor="se-sort">순서</Label><Input id="se-sort" type="number" inputMode="numeric" min={0} step={1} value={editSub.sort ?? ''} onChange={(e) => setEditSub({ ...editSub, sort: e.target.value === '' ? null : Number(e.target.value) })} /></div>
                 </div>
                 {patchSub.isError ? <Banner tone="danger" className="mt-3">{apiMessage(patchSub.error)}</Banner> : null}
