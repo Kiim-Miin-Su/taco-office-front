@@ -1,23 +1,90 @@
 /** @file-guide
- * 목적: 최신 일반 자료요청을 GPAPACK과 분리하고 계약 전 쓰기를 만들지 않는지 검증한다.
- * 책임/재사용: 공용 자료요청 컴포넌트의 입력·상태·잠금만 시험하고 route 조립은 각 page 테스트에 맡긴다.
- * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ * 목적: 일반 자료요청의 강사 등록·수신 확인과 관리자 처리 입력이 생성 계약을 그대로 보내는지 검증한다.
+ * 책임/재사용: 공용 컴포넌트의 사용자 동작과 payload만 시험하고 서버 권한·제약은 Backend DB 회귀에 맡긴다.
+ * 검증/작업 지침: docs/sprint/TBO-55/features/BOC-08D2-MATERIAL-REQUEST-PERSISTENCE-2026-10-09.md
  */
-import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { MaterialRequestItem } from '@/api/types';
+
+const mocks = vi.hoisted(() => ({
+  options: vi.fn(), mine: vi.fn(), create: vi.fn(), acknowledge: vi.fn(),
+  all: vi.fn(), transition: vi.fn(), createAsync: vi.fn(), transitionAsync: vi.fn(),
+}));
+
+vi.mock('@/api/queries', () => ({
+  useMaterialRequestOptions: () => mocks.options(),
+  useMyMaterialRequests: () => mocks.mine(),
+  useCreateMaterialRequest: () => mocks.create(),
+  useAcknowledgeMaterialRequest: () => mocks.acknowledge(),
+  useMaterialRequests: () => mocks.all(),
+  useTransitionMaterialRequest: () => mocks.transition(),
+}));
+
+vi.mock('@/components/files/FileDownloadButton', () => ({
+  FileDownloadButton: ({ label }: { label: string }) => <button type="button">{label} 열기</button>,
+}));
+
 import { MaterialRequestBoard, MaterialRequestDraft } from './MaterialRequests';
 
-afterEach(cleanup);
+const query = <T,>(data: T) => ({ data, isPending: false, isError: false, refetch: vi.fn() }) as never;
 
-const students = [
-  { id: 7, label: '김하늘 · G5' },
-  { id: 9, label: '이도윤 · Kinder' },
-];
+const baseItem: MaterialRequestItem = {
+  id: 31,
+  kind: 'worksheet',
+  kindLabel: '워크시트',
+  studentId: 7,
+  studentName: '김하늘',
+  teacherId: 2,
+  teacherName: '강사A',
+  neededOn: '2026-10-20',
+  body: 'Unit 4 복습용 문제와 정답지를 준비해 주세요.',
+  state: 'received',
+  stateLabel: '접수',
+  version: 1,
+  assignedTo: null,
+  assignedToName: null,
+  deliveredBy: null,
+  deliveredByName: null,
+  rejectReason: null,
+  deliveredAt: null,
+  rejectedAt: null,
+  acknowledgedAt: null,
+  createdAt: '2026-10-09T10:00:00+09:00',
+  updatedAt: '2026-10-09T10:00:00+09:00',
+  overdue: false,
+  files: [],
+  events: [{
+    id: 1, action: 'created', actionLabel: '요청 접수', fromState: null, toState: 'received', reason: null,
+    actorId: 2, actorName: '강사A', resultVersion: 1, at: '2026-10-09T10:00:00+09:00',
+  }],
+};
 
-it('강사 초안은 최신 네 종류·학생·필요일·내용을 한 경로에 두고 제출을 잠근다', () => {
-  const view = render(<MaterialRequestDraft viewerId={2} students={students} />);
+const counts = { received: 1, preparing: 0, delivered: 0, rejected: 0 };
 
-  expect(view.getByRole('heading', { name: '자료 요청' })).toBeTruthy();
+beforeEach(() => {
+  mocks.options.mockReturnValue(query({ students: [
+    { id: 7, name: '김하늘', grade: 'G5', label: '김하늘 · G5' },
+    { id: 9, name: '이도윤', grade: null, label: '이도윤 · Kinder' },
+  ] }));
+  mocks.mine.mockReturnValue(query({ items: [baseItem], counts }));
+  mocks.all.mockReturnValue(query({ items: [baseItem], counts }));
+  mocks.createAsync.mockResolvedValue({ item: baseItem, replayed: false });
+  mocks.create.mockReturnValue({ mutateAsync: mocks.createAsync, isPending: false, isError: false });
+  mocks.acknowledge.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false });
+  mocks.transitionAsync.mockResolvedValue({ item: baseItem, replayed: false });
+  mocks.transition.mockReturnValue({ mutate: vi.fn(), mutateAsync: mocks.transitionAsync, isPending: false, isError: false });
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111');
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
+
+it('강사는 전체 담당 학생과 네 종류를 선택해 생성 계약으로 요청한다', async () => {
+  const view = render(<MaterialRequestDraft viewerId={2} />);
   expect([...view.getByLabelText('자료 종류 *').querySelectorAll('option')].map((option) => option.textContent)).toEqual([
     '선택', '교재 PDF', '워크시트', '시험지', '그 밖의 자료',
   ]);
@@ -28,45 +95,60 @@ it('강사 초안은 최신 네 종류·학생·필요일·내용을 한 경로�
   fireEvent.change(view.getByLabelText('자료 종류 *'), { target: { value: 'worksheet' } });
   fireEvent.change(view.getByLabelText('학생 *'), { target: { value: '7' } });
   fireEvent.change(view.getByLabelText('필요한 날 *'), { target: { value: '2026-10-20' } });
-  fireEvent.change(view.getByLabelText('요청 내용 *'), { target: { value: 'Unit 4 복습용 문제와 정답지를 준비해 주세요.' } });
+  fireEvent.change(view.getByLabelText('요청 내용 *'), { target: { value: ' Unit 4 복습 자료 ' } });
+  fireEvent.click(view.getByRole('button', { name: '자료 요청' }));
 
-  expect(view.getByText('초안 입력 완료 · 저장 기능 연결 대기')).toBeTruthy();
-  const submit = view.getByRole('button', { name: '요청 기능 준비 중' });
-  expect(submit).toHaveProperty('disabled', true);
-  fireEvent.click(submit);
-  expect(view.queryByText(/요청을 접수했습니다/)).toBeNull();
+  await waitFor(() => expect(mocks.createAsync).toHaveBeenCalledWith({
+    kind: 'worksheet', studentId: 7, neededOn: '2026-10-20', body: 'Unit 4 복습 자료', files: [],
+    requestKey: '11111111-1111-4111-8111-111111111111',
+  }));
+  expect(view.getByText('자료 요청을 접수했습니다.')).toBeTruthy();
 });
 
-it('담당 학생 계약이 없으면 임의 명단을 만들지 않고 사유를 표시한다', () => {
-  const view = render(<MaterialRequestDraft viewerId={2} students={[]} studentsUnavailable />);
-  expect(view.getByText('전체 담당 학생 선택 기능을 준비 중입니다.')).toBeTruthy();
-  expect(view.getByLabelText('학생 *')).toHaveProperty('disabled', true);
-  expect(view.getByRole('button', { name: '요청 기능 준비 중' })).toHaveProperty('disabled', true);
+it('전달된 요청은 실제 파일과 수신 확인 동작을 같은 요청에 표시한다', () => {
+  const delivered: MaterialRequestItem = {
+    ...baseItem,
+    state: 'delivered', stateLabel: '전달 완료', version: 3,
+    files: [{
+      id: 77, kind: 'material-request', name: 'unit4.pdf', mime: 'application/pdf', bytes: 120,
+      url: '/files/77', uploaderName: '관리자', uploadedAt: '2026-10-10T09:00:00+09:00',
+      purpose: 'delivery', addedByName: '관리자',
+    }],
+  };
+  const ack = vi.fn();
+  mocks.mine.mockReturnValue(query({ items: [delivered], counts: { ...counts, received: 0, delivered: 1 } }));
+  mocks.acknowledge.mockReturnValue({ mutate: ack, isPending: false, isError: false });
+  const view = render(<MaterialRequestDraft viewerId={2} />);
+
+  expect(view.getByRole('button', { name: '전달 · unit4.pdf 열기' })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '수신 확인' }));
+  expect(ack).toHaveBeenCalledWith(expect.objectContaining({
+    id: 31, expectedVersion: 3, requestKey: '11111111-1111-4111-8111-111111111111',
+  }), expect.objectContaining({ onSuccess: expect.any(Function) }));
 });
 
-it('로그인 사용자나 담당 학생 후보가 바뀌면 이전 강사의 초안을 지운다', () => {
-  const view = render(<MaterialRequestDraft viewerId={2} students={students} />);
-  fireEvent.change(view.getByLabelText('자료 종류 *'), { target: { value: 'book_pdf' } });
-  fireEvent.change(view.getByLabelText('학생 *'), { target: { value: '7' } });
-  fireEvent.change(view.getByLabelText('필요한 날 *'), { target: { value: '2026-10-20' } });
-  fireEvent.change(view.getByLabelText('요청 내용 *'), { target: { value: 'A 강사만 볼 초안' } });
+it('관리자는 상태별 실제 건수를 보고 첫 준비 작업을 version과 함께 보낸다', () => {
+  const transition = vi.fn();
+  mocks.transition.mockReturnValue({ mutate: transition, mutateAsync: mocks.transitionAsync, isPending: false, isError: false });
+  const view = render(<MaterialRequestBoard focusRequestId={31} />);
+  expect(view.getByRole('button', { name: '전체 1' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '접수 1' })).toBeTruthy();
 
-  view.rerender(<MaterialRequestDraft viewerId={3} students={[students[1]]} />);
-  expect(view.getByLabelText('자료 종류 *')).toHaveProperty('value', '');
-  expect(view.getByLabelText('학생 *')).toHaveProperty('value', '');
-  expect(view.getByLabelText('필요한 날 *')).toHaveProperty('value', '');
-  expect(view.getByLabelText('요청 내용 *')).toHaveProperty('value', '');
-  expect(view.queryByDisplayValue('A 강사만 볼 초안')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '준비 시작' }));
+  expect(transition).toHaveBeenCalledWith(expect.objectContaining({
+    id: 31, action: 'preparing', expectedVersion: 1,
+    requestKey: '11111111-1111-4111-8111-111111111111',
+  }), expect.objectContaining({ onSuccess: expect.any(Function) }));
 });
 
-it('관리자 보드는 최신 상태와 후속 action을 보여 주되 가짜 0건·전달 성공을 만들지 않는다', () => {
+it('반려는 사유 두 글자 전까지 확정할 수 없고 입력 뒤 전이 계약을 보낸다', async () => {
   const view = render(<MaterialRequestBoard />);
-  expect(view.getByRole('heading', { name: '강사 자료 요청 보드' })).toBeTruthy();
-  expect([...view.getAllByTestId('material-request-state')].map((node) => node.textContent)).toEqual([
-    '접수', '준비 중', '전달 완료', '반려',
-  ]);
-  expect(view.getByText(/준비 시작 · 반려 사유 · 전달 파일 · 완료 이력/)).toBeTruthy();
-  expect(view.getByText('일반 자료요청 목록 준비 중')).toBeTruthy();
-  expect(view.queryByText(/0건/)).toBeNull();
-  expect(view.queryByRole('button', { name: /전달 완료/ })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '반려' }));
+  const editor = view.getByLabelText('반려 사유 *').closest('form')!;
+  expect(within(editor).getByRole('button', { name: '반려 확정' })).toHaveProperty('disabled', true);
+  fireEvent.change(view.getByLabelText('반려 사유 *'), { target: { value: '범위 확인 필요' } });
+  fireEvent.click(within(editor).getByRole('button', { name: '반려 확정' }));
+  await waitFor(() => expect(mocks.transitionAsync).toHaveBeenCalledWith(expect.objectContaining({
+    id: 31, action: 'rejected', expectedVersion: 1, reason: '범위 확인 필요',
+  })));
 });

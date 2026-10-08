@@ -15,7 +15,7 @@ const kinds = [
   ['plan', '기획 결재', '대표에게', 1],
   ['req', '강사 요청', '실장에게', 2],
   ['chreq', '변경 요청', '실장에게', 0],
-  ['gpapack', '자료 요청', '실장에게', 1],
+  ['matreq', '자료 요청', '실장에게', 1],
 ] as const;
 
 function item(overrides: Partial<ApprovalFlowItem> = {}): ApprovalFlowItem {
@@ -53,8 +53,8 @@ const flow: ApprovalFlow = {
     to: 'head', toName: '실장', toLabel: '실장에게', state: 'waiting', why: null, go: '/ops?tab=todo&request=22',
   })],
   mine: [item({
-    kind: 'gpapack', kindLabel: '자료 요청', id: 23, title: '시험 대비 자료 요청',
-    byName: '김민수', state: 'mine', why: null, go: '/books?tab=requests&pack=23',
+    kind: 'matreq', kindLabel: '자료 요청', id: 23, title: '시험 대비 자료 요청',
+    byName: '김민수', state: 'mine', why: null, go: '/books?tab=requests&request=23',
   })],
   total: 4,
   backCount: 1,
@@ -64,7 +64,8 @@ afterEach(cleanup);
 
 describe('§75 결재 흐름', () => {
   it('§14 fallback 종류 이름도 공유 함수 한 곳에서 유지한다', () => {
-    expect(approvalKindLabel('gpapack')).toBe('자료 요청');
+    expect(approvalKindLabel('matreq')).toBe('자료 요청');
+    expect(approvalKindLabel('gpapack')).toBe('과거 자료 전달');
     expect(approvalKindLabel('future-kind')).toBe('future-kind');
   });
 

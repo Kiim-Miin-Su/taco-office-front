@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  canGpaPack: true, search: '', replace: vi.fn(), packsEnabled: vi.fn(), packFocus: vi.fn(), trackingProps: vi.fn(),
+  canGpaPack: true, search: '', replace: vi.fn(), packsEnabled: vi.fn(), packFocus: vi.fn(), requestFocus: vi.fn(), trackingProps: vi.fn(),
 }));
 
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
@@ -44,7 +44,10 @@ vi.mock('@/components/books/BookPacks', () => ({
   },
 }));
 vi.mock('@/components/materials/MaterialRequests', () => ({
-  MaterialRequestBoard: () => <p>강사 자료 요청 보드</p>,
+  MaterialRequestBoard: ({ focusRequestId }: { focusRequestId?: number | null }) => {
+    state.requestFocus(focusRequestId);
+    return <p>강사 자료 요청 보드 · {focusRequestId ?? '없음'}</p>;
+  },
 }));
 vi.mock('@/components/books/BookVersions', () => ({ BookHistory: () => <p>이력 본문</p> }));
 
@@ -57,6 +60,7 @@ afterEach(() => {
   state.replace.mockReset();
   state.packsEnabled.mockReset();
   state.packFocus.mockReset();
+  state.requestFocus.mockReset();
   state.trackingProps.mockReset();
 });
 
@@ -89,7 +93,7 @@ it('canGpaPack이 없어도 일반 자료 요청은 보이고 기존 GPA 자료 
   state.search = 'tab=requests';
   const view = render(<BooksPage />);
   expect(view.getByRole('tab', { name: /자료 요청/ })).toBeTruthy();
-  expect(view.getByText('강사 자료 요청 보드')).toBeTruthy();
+  expect(view.getByText(/강사 자료 요청 보드/)).toBeTruthy();
   expect(state.packsEnabled).toHaveBeenCalledWith(false);
   expect(view.queryByText('자료 요청 본문')).toBeNull();
 });
@@ -123,6 +127,12 @@ it('자료 요청 deep link의 pack identity를 도메인 컴포넌트에 전달
   state.search = 'tab=requests&pack=7';
   render(<BooksPage />);
   expect(state.packFocus).toHaveBeenLastCalledWith(7);
+});
+
+it('일반 자료 요청 deep link의 identity를 신규 보드에 전달한다', () => {
+  state.search = 'tab=requests&request=11';
+  render(<BooksPage />);
+  expect(state.requestFocus).toHaveBeenLastCalledWith(11);
 });
 
 it('학생 허브 배부 deep link를 exact student target으로 트래킹에 전달한다', () => {

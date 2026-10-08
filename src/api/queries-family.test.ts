@@ -163,6 +163,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   payoutDetail: qk.payoutDetail(7, '2026-08'),
   invoiceDraft: qk.invoiceDraft({ studentId: 3, yearMonth: '2026-09', invType: 'tuition' }),
   scheduleHistory: qk.scheduleHistory(120),
+  materialRequests: qk.materialRequests('received'),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
@@ -186,6 +187,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.bookHistory,
   qk.bookTracking,
   qk.bookPacks,
+  qk.materialRequestOptions,
+  qk.materialRequestsMine,
   // §28 회계 — `consulting` 갈래 안에 산다. 납부 한 줄이 단계 보드까지 흔든다 (C58)
   qk.consulting,
   qk.consAccounting,

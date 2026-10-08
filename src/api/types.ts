@@ -434,6 +434,15 @@ export type BookPacks = S['BookPacksDto'];
 export type BookPackWrite = S['BookPackWriteDto'];
 export type BookPackPatch = S['BookPackPatchDto'];
 
+/** BOC-08D-02 — GPAPACK과 분리된 일반 강사 자료요청·관리자 처리 원장 */
+export type MaterialRequestOptions = S['MaterialRequestOptionsDto'];
+export type MaterialRequests = S['MaterialRequestsDto'];
+export type MaterialRequestItem = S['MaterialRequestItemDto'];
+export type MaterialRequestCreate = S['MaterialRequestCreateDto'];
+export type MaterialRequestTransition = S['MaterialRequestTransitionDto'];
+export type MaterialRequestAcknowledge = S['MaterialRequestAcknowledgeDto'];
+export type MaterialRequestWriteResult = S['MaterialRequestWriteResultDto'];
+
 /** 안내 — 한 번만(GUIDE) 과 회차마다(PNOTI) 는 다른 것이다 */
 export type Guides = S['GuidesDto'];
 export type Guide = S['GuideDto'];

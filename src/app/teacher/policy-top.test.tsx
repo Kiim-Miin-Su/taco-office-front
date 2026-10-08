@@ -24,6 +24,8 @@ vi.mock('@/api/queries', () => ({
   useTeacherHome: () => pending, useCreateSettingRequest: () => idle,
   useTeacherUnav: () => pending, useCreateTeacherUnav: () => idle, useDeleteTeacherUnav: () => idle,
   useTeacherGuides: () => pending, useReceivedGuides: () => pending, useAcknowledgeGuide: () => idle,
+  useMaterialRequestOptions: () => pending, useMyMaterialRequests: () => pending,
+  useCreateMaterialRequest: () => idle, useAcknowledgeMaterialRequest: () => idle,
   useTeacherHistory: () => pending,
   useTeacherSuggestions: () => pending, useCreateTeacherSuggestion: () => idle,
 }));

@@ -72,7 +72,7 @@ beforeEach(() => {
         { kind: 'plan', kindLabel: '기획 결재', to: 'ceo', toLabel: '대표에게', count: 1 },
         { kind: 'req', kindLabel: '강사 요청', to: 'head', toLabel: '실장에게', count: 2 },
         { kind: 'chreq', kindLabel: '변경 요청', to: 'head', toLabel: '실장에게', count: 0 },
-        { kind: 'gpapack', kindLabel: '자료 요청', to: 'head', toLabel: '실장에게', count: 1 },
+        { kind: 'matreq', kindLabel: '자료 요청', to: 'head', toLabel: '실장에게', count: 1 },
       ],
       back: [], waiting: [], mine: [], total: 4, backCount: 0,
     },

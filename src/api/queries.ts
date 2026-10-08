@@ -41,6 +41,12 @@ import type {
   BookHolders, BookVersion,
   BookVersionCreate,
   BookWrite,
+  MaterialRequestAcknowledge,
+  MaterialRequestCreate,
+  MaterialRequestOptions,
+  MaterialRequests,
+  MaterialRequestTransition,
+  MaterialRequestWriteResult,
   CarryRow,
   Catalog,
   CatalogKind,
@@ -289,6 +295,9 @@ export const qk = {
   bookTracking: ['books', 'tracking'] as const,
   bookAssignmentOptions: ['books', 'assignment-options'] as const,
   bookPacks: ['books', 'deliveries'] as const,
+  materialRequestOptions: ['material-requests', 'options'] as const,
+  materialRequestsMine: ['material-requests', 'mine'] as const,
+  materialRequests: (state?: string) => ['material-requests', 'admin', state ?? 'all'] as const,
   guides: ['guides'] as const,
   guideStudents: ['guides', 'students'] as const,
   guideHistoryRoot: ['guides', 'history'] as const,
@@ -390,6 +399,7 @@ export const family = {
   zoom: ['zoom'] as const,
   guides: ['guides'] as const,
   books: ['books'] as const,
+  materialRequests: ['material-requests'] as const,
   consulting: ['consulting'] as const,
   tracking: ['schedule', 'tracking'] as const,
   holidays: ['schedule', 'holidays'] as const,
@@ -1318,6 +1328,79 @@ export function useBookPacks(enabled = true): UseQueryResult<BookPacks> {
     queryFn: async () => (await api.get<BookPacks>('/books/deliveries')).data,
     enabled,
     staleTime: 30_000,
+  });
+}
+
+/** BOC-08D-02 — 주간 화면 명단이 아니라 서버가 계산한 현재·예정 전체 담당 학생이다. */
+export function useMaterialRequestOptions(enabled = true): UseQueryResult<MaterialRequestOptions> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.materialRequestOptions, viewerId),
+    queryFn: async () => (await api.get<MaterialRequestOptions>('/material-requests/options')).data,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useMyMaterialRequests(enabled = true): UseQueryResult<MaterialRequests> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.materialRequestsMine, viewerId),
+    queryFn: async () => (await api.get<MaterialRequests>('/material-requests/mine')).data,
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useMaterialRequests(state?: string, enabled = true): UseQueryResult<MaterialRequests> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.materialRequests(state), viewerId),
+    queryFn: async () => (await api.get<MaterialRequests>('/material-requests', { params: state ? { state } : {} })).data,
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+function useMaterialRequestsInvalidate() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: family.materialRequests });
+    void qc.invalidateQueries({ queryKey: family.drawer });
+  };
+}
+
+export function useCreateMaterialRequest(): UseMutationResult<MaterialRequestWriteResult, unknown, MaterialRequestCreate> {
+  const invalidate = useMaterialRequestsInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<MaterialRequestWriteResult>('/material-requests', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useTransitionMaterialRequest(): UseMutationResult<
+  MaterialRequestWriteResult,
+  unknown,
+  { id: number } & MaterialRequestTransition
+> {
+  const invalidate = useMaterialRequestsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) =>
+      (await api.patch<MaterialRequestWriteResult>(`/material-requests/${id}`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useAcknowledgeMaterialRequest(): UseMutationResult<
+  MaterialRequestWriteResult,
+  unknown,
+  { id: number } & MaterialRequestAcknowledge
+> {
+  const invalidate = useMaterialRequestsInvalidate();
+  return useMutation({
+    mutationFn: async ({ id, ...body }) =>
+      (await api.post<MaterialRequestWriteResult>(`/material-requests/${id}/ack`, body)).data,
+    onSettled: invalidate,
   });
 }
 

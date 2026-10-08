@@ -43,6 +43,7 @@ export default function BooksPage() {
   const hasTrackingTarget = searchParams.get('create') === 'issue' || searchParams.has('studentId');
   const queryTab = tabFromQuery(searchParams.get('tab'), hasTrackingTarget);
   const focusPackId = queryTab === 'requests' ? positiveQueryId(searchParams.get('pack')) : null;
+  const focusRequestId = queryTab === 'requests' ? positiveQueryId(searchParams.get('request')) : null;
   const deepIssueCreate = queryTab === 'tracking' && searchParams.get('create') === 'issue';
   const rawStudentId = searchParams.get('studentId');
   const requestedStudentId = positiveQueryId(rawStudentId);
@@ -140,7 +141,7 @@ export default function BooksPage() {
         {tab === 'history' ? <BookHistory /> : null}
         {tab === 'requests' ? (
           <div className="space-y-4">
-            <MaterialRequestBoard />
+            <MaterialRequestBoard focusRequestId={focusRequestId} />
             {canGpaPack ? (
               <details open={focusPackId !== null} className="rounded-xl border border-line bg-card p-4">
                 <summary className="h-11 cursor-pointer py-2 text-[13px] font-bold text-fg">

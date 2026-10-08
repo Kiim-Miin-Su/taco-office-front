@@ -232,6 +232,7 @@ export default function TeacherGuidesPage() {
   const [writing, setWriting] = useState<number | null>(null);
   const q = useTeacherGuides(week);
   const requestedStudents = search.getAll('studentId');
+  const focusRequestId = positiveQueryId(search.get('request'));
   const requestedStudentId = requestedStudents.length === 1 ? positiveQueryId(requestedStudents[0]) : null;
   return (
     <RequireAuth>
@@ -241,15 +242,7 @@ export default function TeacherGuidesPage() {
         {/* 화면 이름은 셸 머리줄이 말한다 — 강사 표면에서 같은 h1 을 두 번 세우지 않는다 */}
         <ScreenHeader title="수업 안내" />
         <ReceivedGuidesSection />
-        <MaterialRequestDraft
-          viewerId={viewerId}
-          students={(q.data?.students ?? []).map((student) => ({
-            id: student.studentId,
-            label: `${student.name}${student.grade ? ` · ${student.grade}` : ''}`,
-          }))}
-          studentsLoading={q.isPending}
-          studentsUnavailable={q.isError || Boolean(q.data && q.data.students.length === 0)}
-        />
+        <MaterialRequestDraft viewerId={viewerId} focusRequestId={focusRequestId} />
         {/* 빈 주에도 주 내비는 살아 있어야 한다 — QA C28: isEmpty 로 좌측 레일까지 삼키면
             materialization horizon 밖 주에서 과거 주로 돌아갈 길이 없다. 빈 목록은 레일 안에서 말한다. */}
         <QueryState query={q} isEmpty={() => false}>

@@ -4529,6 +4529,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/material-requests/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 강사 자료요청 전체 담당 학생 선택지 — 본인 범위 */
+        get: operations["MaterialRequestsController_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/material-requests/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 강사 본인의 일반 자료요청과 전달 파일·처리 이력 */
+        get: operations["MaterialRequestsController_mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/material-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 관리자 일반 자료요청 보드 — 접수·준비·전달·반려와 이력 */
+        get: operations["MaterialRequestsController_all"];
+        put?: never;
+        /**
+         * 강사 일반 자료요청 접수
+         * @description GPAPACK·교재 변경과 분리된 MATREQ 원장이다. 담당 학생·KST 기한·멱등 키·첨부를 같은 트랜잭션에서 검증한다.
+         */
+        post: operations["MaterialRequestsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/material-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 관리자 자료요청 상태 전이
+         * @description 접수→준비, 접수/준비→반려, 준비→전달만 허용한다. 전달은 실제 내부 첨부가 필수이며 외부 발송을 성공으로 표시하지 않는다.
+         */
+        patch: operations["MaterialRequestsController_transition"];
+        trace?: never;
+    };
+    "/material-requests/{id}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 강사 전달 파일 수신 확인 — 요청자 본인만 */
+        post: operations["MaterialRequestsController_acknowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5987,7 +6079,7 @@ export interface components {
         FileRefDto: {
             id: number;
             /** @enum {string} */
-            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief";
+            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief" | "material-request";
             name: string;
             mime: string;
             /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
@@ -6214,7 +6306,7 @@ export interface components {
              * @description 어디에 쓰이는 파일인가 — 열람 권한이 여기서 갈린다
              * @enum {string}
              */
-            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief";
+            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief" | "material-request";
             /** @description 원래 파일 이름 — 내려받을 때 그대로 쓴다 */
             name: string;
             /** @description base64 본문 (data URL 접두사는 붙여도 되고 안 붙여도 된다) */
@@ -11998,7 +12090,7 @@ export interface components {
         };
         ApRowDto: {
             /** @enum {string} */
-            kind: "rep" | "rpt" | "plan" | "req" | "chreq" | "gpapack" | "suggestion" | "missing";
+            kind: "rep" | "rpt" | "plan" | "req" | "chreq" | "matreq" | "gpapack" | "expense" | "suggestion" | "missing";
             id: number;
             title: string;
             sub?: string | null;
@@ -12025,13 +12117,13 @@ export interface components {
              * @description §14 필터 분류 — 서버 코드표가 정한다
              * @enum {string}
              */
-            category: "schedule_change" | "book_change" | "tz_change" | "wage_change" | "suggestion" | "gpa_request" | "missing" | "other";
+            category: "schedule_change" | "book_change" | "tz_change" | "wage_change" | "suggestion" | "gpa_request" | "material_request" | "missing" | "other";
             /** @description §14 필터 이름 — 화면에 코드표를 복제하지 않는다 */
             categoryLabel: string;
         };
         ApCategoryDto: {
             /** @enum {string} */
-            key: "schedule_change" | "book_change" | "tz_change" | "wage_change" | "suggestion" | "gpa_request" | "missing" | "other";
+            key: "schedule_change" | "book_change" | "tz_change" | "wage_change" | "suggestion" | "gpa_request" | "material_request" | "missing" | "other";
             label: string;
             count: number;
         };
@@ -12055,7 +12147,7 @@ export interface components {
         };
         ApprovalFlowTileDto: {
             /** @enum {string} */
-            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack" | "expense";
+            kind: "rpt" | "plan" | "req" | "chreq" | "matreq" | "expense";
             kindLabel: string;
             /** @enum {string} */
             to: "ceo" | "head";
@@ -12066,7 +12158,7 @@ export interface components {
         };
         ApprovalFlowItemDto: {
             /** @enum {string} */
-            kind: "rpt" | "plan" | "req" | "chreq" | "gpapack" | "expense";
+            kind: "rpt" | "plan" | "req" | "chreq" | "matreq" | "expense";
             /** @description 원문 타일·행의 공통 종류 이름 */
             kindLabel: string;
             id: number;
@@ -13537,6 +13629,124 @@ export interface components {
         AdminStudentPrivateNoteListDto: {
             studentId: number;
             items: components["schemas"]["AdminStudentPrivateNoteDto"][];
+        };
+        MaterialRequestStudentDto: {
+            id: number;
+            name: string;
+            grade?: string | null;
+            label: string;
+        };
+        MaterialRequestOptionsDto: {
+            /** @description 서버 KST 오늘 이후 담당이 남아 있는 전체 학생 */
+            students: components["schemas"]["MaterialRequestStudentDto"][];
+        };
+        MaterialRequestFileDto: {
+            id: number;
+            /** @enum {string} */
+            kind: "cons-contract" | "cons-item" | "lib-se" | "lib-te" | "expense-receipt" | "guide-png" | "report-png" | "meet-brief" | "material-request";
+            name: string;
+            mime: string;
+            /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
+            bytes: number;
+            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
+            url: string;
+            uploaderName?: string | null;
+            uploadedAt: string;
+            /** @enum {string} */
+            purpose: "request" | "delivery";
+            addedByName?: string | null;
+        };
+        MaterialRequestEventDto: {
+            id: number;
+            /** @enum {string} */
+            action: "created" | "preparing" | "delivered" | "rejected" | "acknowledged";
+            actionLabel: string;
+            fromState?: string | null;
+            /** @enum {string} */
+            toState: "received" | "preparing" | "delivered" | "rejected";
+            reason?: string | null;
+            actorId: number;
+            actorName: string;
+            resultVersion: number;
+            at: string;
+        };
+        MaterialRequestItemDto: {
+            id: number;
+            /** @enum {string} */
+            kind: "book_pdf" | "worksheet" | "test_paper" | "other";
+            kindLabel: string;
+            studentId: number;
+            studentName: string;
+            teacherId: number;
+            teacherName: string;
+            /** Format: date */
+            neededOn: string;
+            body: string;
+            /** @enum {string} */
+            state: "received" | "preparing" | "delivered" | "rejected";
+            stateLabel: string;
+            version: number;
+            assignedTo?: number | null;
+            assignedToName?: string | null;
+            deliveredBy?: number | null;
+            deliveredByName?: string | null;
+            rejectReason?: string | null;
+            deliveredAt?: string | null;
+            rejectedAt?: string | null;
+            acknowledgedAt?: string | null;
+            createdAt: string;
+            updatedAt: string;
+            /** @description 기한이 지났고 아직 전달·반려되지 않았는가 */
+            overdue: boolean;
+            files: components["schemas"]["MaterialRequestFileDto"][];
+            events: components["schemas"]["MaterialRequestEventDto"][];
+        };
+        MaterialRequestCountsDto: {
+            received: number;
+            preparing: number;
+            delivered: number;
+            rejected: number;
+        };
+        MaterialRequestsDto: {
+            items: components["schemas"]["MaterialRequestItemDto"][];
+            counts: components["schemas"]["MaterialRequestCountsDto"];
+        };
+        MaterialRequestCreateDto: {
+            /** @enum {string} */
+            kind: "book_pdf" | "worksheet" | "test_paper" | "other";
+            studentId: number;
+            /** Format: date */
+            neededOn: string;
+            body: string;
+            /**
+             * Format: uuid
+             * @description 더블클릭·네트워크 재시도를 같은 요청으로 수렴시키는 키
+             */
+            requestKey: string;
+            /** @description 요청을 설명하는 선택 첨부. kind=material-request */
+            files?: components["schemas"]["FileUploadDto"][];
+        };
+        MaterialRequestWriteResultDto: {
+            item: components["schemas"]["MaterialRequestItemDto"];
+            /** @description 같은 actor·requestKey·payload의 재시도인가 */
+            replayed: boolean;
+        };
+        MaterialRequestTransitionDto: {
+            /** @enum {string} */
+            action: "preparing" | "delivered" | "rejected";
+            /** @description 화면이 읽은 현재 version */
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
+            /** @description 반려일 때 필수인 사유 */
+            reason?: string;
+            /** @description 전달 완료일 때 1개 이상 필수. kind=material-request */
+            files?: components["schemas"]["FileUploadDto"][];
+        };
+        MaterialRequestAcknowledgeDto: {
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
         };
         StudentRegistrationPeriodDto: {
             /**
@@ -33253,6 +33463,457 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    MaterialRequestsController_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialRequestOptionsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    MaterialRequestsController_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialRequestsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    MaterialRequestsController_all: {
+        parameters: {
+            query?: {
+                state?: "received" | "preparing" | "delivered" | "rejected";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialRequestsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    MaterialRequestsController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialRequestCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialRequestWriteResultDto"];
+                };
+            };
+            /** @description MATERIAL_REQUEST_DATE_PAST | MATERIAL_REQUEST_FILE_KIND */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MATERIAL_REQUEST_KEY_REUSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description FILE_TOO_LARGE */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    MaterialRequestsController_transition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialRequestTransitionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialRequestWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MATERIAL_REQUEST_STALE | MATERIAL_REQUEST_INVALID_TRANSITION | MATERIAL_REQUEST_KEY_REUSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    MaterialRequestsController_acknowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialRequestAcknowledgeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialRequestWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MATERIAL_REQUEST_STALE | MATERIAL_REQUEST_NOT_DELIVERED | MATERIAL_REQUEST_ALREADY_ACKNOWLEDGED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
