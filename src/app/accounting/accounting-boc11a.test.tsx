@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Accounting, Me } from '@/api/types';
+import type { Accounting, Me, StudentCumulative } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -29,6 +29,33 @@ const empty: Accounting = {
   summary: { sent: 0, collected: 0, unpaid: 0, overdue: 0, net: 0, todo: 0, canSeeAmounts: true },
   invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 };
+const cumulative: StudentCumulative = {
+  asOf: '2026-10-09',
+  recentMonths: ['2026-08', '2026-09', '2026-10'],
+  canSeeAmounts: true,
+  items: [{
+    studentId: 19,
+    studentName: '누적학생',
+    studentTag: 'G10',
+    registeredOn: '2026-07-01',
+    periodFrom: '2026-07-01',
+    periodTo: '2026-10-09',
+    months: [
+      { month: '2026-08', billed: 200000, collected: 50000 },
+      { month: '2026-09', billed: 30000, collected: 20000 },
+      { month: '2026-10', billed: 0, collected: 0 },
+    ],
+    totalBilled: 330000,
+    totalCollected: 170000,
+    receivable: 180000,
+    monthlyAverageBilled: 76667,
+    categories: [
+      { key: 'tuition', label: '수업료', billed: 300000, collected: 150000, receivable: 150000 },
+      { key: 'exam_fee', label: '시험 응시료', billed: 30000, collected: 0, receivable: 30000 },
+      { key: 'etc', label: '기타', billed: 0, collected: 20000, receivable: 0 },
+    ],
+  }],
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const seen: Array<{ method?: string; url?: string }> = [];
@@ -47,7 +74,10 @@ function mount() {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { method?: string; url?: string }) => {
     seen.push(config);
-    return { config, status: 200, statusText: 'OK', headers: {}, data: empty };
+    return {
+      config, status: 200, statusText: 'OK', headers: {},
+      data: config.url === '/accounting/student-cumulative' ? cumulative : empty,
+    };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(client);
@@ -56,7 +86,6 @@ function mount() {
 
 it.each([
   ['영수증 · 세금계산서', 'receipts', '증빙 발행 원장', '입금 기록 보기'],
-  ['학생별 누적', 'cumulative', '학생별 누적 원장', '못 받은 돈 보기'],
   ['지급 원장', 'ledger', '실제 지급 원장', '강사료 정산 보기'],
 ])('%s 화면은 URL로 이동하고 생성 계약이 없는 읽기·쓰기를 잠근다', async (label, tab, heading, backLabel) => {
   const view = mount();
@@ -71,6 +100,21 @@ it.each([
   expect(view.getByText('저장 기능 준비 중')).toBeTruthy();
   expect(view.getByRole('button', { name: backLabel })).toBeTruthy();
   expect(view.queryByRole('button', { name: /발행 완료|일괄 지급|취소|삭제/ })).toBeNull();
+});
+
+it('학생별 누적은 생성 계약을 읽어 최근 3개월·누적·미수·분류를 표시한다', async () => {
+  const view = mount();
+  await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '들어온 돈' }));
+  fireEvent.click(view.getByRole('button', { name: '학생별 누적' }));
+
+  expect(nav.replace).toHaveBeenLastCalledWith('/accounting?tab=cumulative', { scroll: false });
+  await waitFor(() => expect(seen.some(({ url }) => url === '/accounting/student-cumulative')).toBe(true));
+  expect(view.getByRole('heading', { name: '학생별 누적 원장' })).toBeTruthy();
+  expect(view.getByText('누적학생')).toBeTruthy();
+  expect(view.getByText('월평균 매출 ₩76,667')).toBeTruthy();
+  expect(view.getByText('시험 응시료')).toBeTruthy();
+  expect(view.queryByText('저장 기능 준비 중')).toBeNull();
 });
 
 it.each([

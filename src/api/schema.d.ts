@@ -915,6 +915,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/student-cumulative": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학생별 누적 — 최근 3개월·전체 매출/수납·미수·분류 (TBO-55 BO-11AD-02)
+         * @description 최종 관리자 수정사항 p94·102의 서버 집계다. INV의 유효 청구와 PAY를 학생별로 모으며, 월평균은 최근 3개 달 청구액 합을 거래 없는 달까지 포함한 3으로 나누고 원 단위 반올림한다. 이 권고안은 accounting.service.ts와 TBO-55 기능 문서를 함께 바꿔야 한다.
+         */
+        get: operations["AccountingController_studentCumulative"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/tuition": {
         parameters: {
             query?: never;
@@ -6625,6 +6645,80 @@ export interface components {
             payCategories: components["schemas"]["PayCategoryDto"][];
             /** @description A-13 형제 합산 보기 — 같은 달 · 같은 보호자 연락처(lib/family)로 묶인 둘 이상 학생의 청구서 묶음 · 합계는 서버가 낸다. 없으면 빈 배열 */
             families: components["schemas"]["InvoiceFamilyDto"][];
+        };
+        StudentCumulativeMonthDto: {
+            /**
+             * @description 최근 3개월의 달 — 오래된 달부터 정렬
+             * @example 2026-08
+             */
+            month: string;
+            /** @description 그 달에 발행된 유효 청구액. 초안·취소는 제외한다. */
+            billed: number | null;
+            /** @description 그 달 입금일 기준 수납액. 수기 입금도 포함한다. */
+            collected: number | null;
+        };
+        StudentCumulativeCategoryDto: {
+            /** @description 기존 PAY 분류 정본의 key */
+            key: string;
+            /** @description 기존 PAY 분류 정본의 표시 이름 */
+            label: string;
+            billed: number | null;
+            collected: number | null;
+            /** @description 현재 남은 미수채권. sent/unpaid/partial 청구의 잔액만 센다. */
+            receivable: number | null;
+        };
+        StudentCumulativeRowDto: {
+            studentId: number;
+            studentName: string;
+            /** @description 동명이인 꼬리. 화면은 별도 학년 코드를 조합하지 않는다. */
+            studentTag: string | null;
+            /**
+             * Format: date
+             * @description STU.created_at의 KST 날짜. 첫 수업일로 추정하지 않는다.
+             */
+            registeredOn: string;
+            /**
+             * Format: date
+             * @description 누적 집계 시작. 등록일보다 앞선 레거시 거래가 있으면 그 거래일부터다.
+             */
+            periodFrom: string;
+            /**
+             * Format: date
+             * @description 누적 집계 기준일(KST)
+             */
+            periodTo: string;
+            /** @description 고정된 최근 3개월. 거래가 없는 달도 0으로 반환한다. */
+            months: components["schemas"]["StudentCumulativeMonthDto"][];
+            /** @description 전체 유효 청구 누적. 초안·취소는 제외한다. */
+            totalBilled: number | null;
+            /** @description 전체 PAY 수납 누적. 청구서 없는 수기 입금도 포함한다. */
+            totalCollected: number | null;
+            /** @description 현재 미수채권. 유효 open 청구 잔액의 합이다. */
+            receivable: number | null;
+            /** @description 권고안: 최근 3개 달 청구액 합 ÷ 3을 원 단위 반올림한다. 거래 0원 달도 분모에 포함한다(BO-11AD-02). */
+            monthlyAverageBilled: number | null;
+            /** @description 기존 PAY 분류 여섯의 청구·수납·미수 합계 */
+            categories: components["schemas"]["StudentCumulativeCategoryDto"][];
+        };
+        StudentCumulativeDto: {
+            /**
+             * Format: date
+             * @description 조회 기준일(KST)
+             */
+            asOf: string;
+            /**
+             * @description 최근 3개월, 오래된 달부터
+             * @example [
+             *       "2026-06",
+             *       "2026-07",
+             *       "2026-08"
+             *     ]
+             */
+            recentMonths: string[];
+            /** @description 금액을 볼 수 있는가. false면 모든 금액 projection은 null이다. */
+            canSeeAmounts: boolean;
+            /** @description 유효 청구 또는 입금이 있는 학생. 이름·번호 순. */
+            items: components["schemas"]["StudentCumulativeRowDto"][];
         };
         TuitionRowDto: {
             studentId: number;
@@ -17863,6 +17957,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountingDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_studentCumulative: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentCumulativeDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

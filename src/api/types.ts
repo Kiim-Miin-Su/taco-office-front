@@ -157,6 +157,11 @@ export type ExpenseTotal = S['ExpenseTotalDto'];
 export type ExpenseReview = S['ExpenseReviewDto'];
 export type Payout = S['PayoutDto'];
 export type MoneySummary = S['MoneySummaryDto'];
+/** TBO-55 BO-11AD-02 — 최근 3개월·전체 누적·미수·분류별 서버 집계 */
+export type StudentCumulative = S['StudentCumulativeDto'];
+export type StudentCumulativeRow = S['StudentCumulativeRowDto'];
+export type StudentCumulativeMonth = S['StudentCumulativeMonthDto'];
+export type StudentCumulativeCategory = S['StudentCumulativeCategoryDto'];
 
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];

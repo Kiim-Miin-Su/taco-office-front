@@ -23,7 +23,7 @@ import { positiveQueryId, queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Column, PageHeader, Segmented, StatCard, Table } from '@/components/ui';
-import { useAccounting, useAcctPrivacy, useBooks, useCarryTuition, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useTuition } from '@/api/queries';
+import { useAccounting, useAcctPrivacy, useBooks, useCarryTuition, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useStudentCumulative, useTuition } from '@/api/queries';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer, type InvoiceIssuerPreset } from '@/components/accounting/InvoiceIssuer';
@@ -47,6 +47,7 @@ import { AdjustmentContractBoundary } from '@/components/accounting/AdjustmentCo
 import { DelinquencySuspensionBoundary } from '@/components/accounting/DelinquencySuspensionBoundary';
 import { SensitiveAccountBoundary } from '@/components/accounting/SensitiveAccountBoundary';
 import { BookSalesFeeBoundary } from '@/components/accounting/BookSalesFeeBoundary';
+import { StudentCumulativeLedger } from '@/components/accounting/StudentCumulativeLedger';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -131,6 +132,8 @@ export default function AccountingPage() {
   // §57 의 날짜 눈금은 화면이 고르고 서버가 묶는다 (N-40)
   const [incomeSpan, setIncomeSpan] = useState('month');
   const otherIncome = useOtherIncome(incomeSpan, tab === 'other');
+  // TBO-55 BO-11AD-02 — 학생별 누적은 탭을 열 때만 기존 INV/PAY 서버 집계를 읽는다.
+  const studentCumulative = useStudentCumulative(tab === 'cumulative');
   // §52 · §53 판 — 트래킹 보드와 청구서 탭이 같은 질의를 쓴다(§53 다섯 칸 · N-28 ②). 다른 탭에서는 부르지 않는다 (C69)
   const invBoard = useInvBoard(tab === 'board' || tab === 'inv');
   // §57 강사료 시트도 다른 질의다 — 그 탭을 열 때만 부른다. 달은 화면이 고르고 서버가 센다 (C94-b)
@@ -402,13 +405,7 @@ export default function AccountingPage() {
         ) : tab === 'unpaid' ? (
           <UnpaidList />
         ) : tab === 'cumulative' ? (
-          <AccountingContractBoundary
-            title="학생별 누적 원장"
-            description="최근 3개월 월별 값, 월평균, 전체 누적 매출·수납·미수채권과 분류별 내역을 서버 집계로 읽습니다."
-            fields={['학생 · 등록일 · 집계 기간', '최근 3개월 월별 매출', '누적 매출 · 수납', '미수채권', '월평균 · 분류별']}
-            nextLabel="못 받은 돈 보기"
-            onNext={() => selectTab('unpaid')}
-          />
+          <StudentCumulativeLedger query={studentCumulative} />
         ) : tab === 'sales' ? (
           <BookSalesFeeBoundary
             books={books.data}

@@ -238,6 +238,7 @@ import type {
   // 옛 로컬 훅 파일 셋(intake · ops · accounting)에서 옮긴 훅이 쓰는 별칭 (W11 D)
   AcctPrivacy, AcctPrivacyWrite, Cashflow, InvoiceDraft, LeadAppt, LeadApptBook, LeadApptScheduleResult, LeadApptWrite, LeadPlanWrite,
   Marketing, MarketingCreate, PayoutBonusBook, PayoutBonusRule, PayoutBonusRuleWrite, PayoutDetail, PlanTaskCreate, Suggestion,
+  StudentCumulative,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -253,6 +254,8 @@ export const qk = {
   /** §47 주간 트래킹(N-54) — 리포트 갈래 안이라 리포트가 바뀌면 함께 버려진다. 주가 키에 든다 */
   reportWeekly: (weekOf?: string) => ['reports', 'weekly', weekOf ?? 'default'] as const,
   accounting: ['accounting'] as const,
+  /** TBO-55 BO-11AD-02 학생별 누적 — 최근 3개월은 서버 기준일로 고정한다. */
+  studentCumulative: ['accounting', 'student-cumulative'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
@@ -711,6 +714,17 @@ export function useAccounting(): UseQueryResult<Accounting> {
   return useQuery({
     queryKey: sessionQueryKey(qk.accounting, viewerId),
     queryFn: async () => (await api.get<Accounting>('/accounting')).data,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** TBO-55 BO-11AD-02 학생별 누적 — 해당 탭을 열 때만 기존 INV/PAY 서버 집계를 읽는다. */
+export function useStudentCumulative(enabled = true): UseQueryResult<StudentCumulative> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.studentCumulative, viewerId),
+    queryFn: async () => (await api.get<StudentCumulative>('/accounting/student-cumulative')).data,
+    enabled,
     staleTime: 60 * 1000,
   });
 }
