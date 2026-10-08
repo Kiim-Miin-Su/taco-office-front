@@ -653,6 +653,18 @@ export function BookTracking({
                                         </Button>
                                       </>
                                     ) : null}
+                                    {issue.progressHistory.length ? (
+                                      <div className="basis-full rounded-lg bg-card-subtle px-3 py-2" aria-label={`${s.name} ${bookTitle} 진행 이력`}>
+                                        <b className="mr-2">수업별 진도·숙제</b>
+                                        {issue.progressHistory.slice(0, 4).map((event) => (
+                                          <p key={event.id} className="mt-1 text-fg-subtle">
+                                            {event.lessonOn} · 진도 {event.progressFromPage == null ? '—' : `p.${event.progressFromPage}–${event.progressToPage}`}
+                                            {' · '}숙제 {event.homeworkFromPage == null ? '—' : `p.${event.homeworkFromPage}–${event.homeworkToPage}`}
+                                            {event.homeworkAmount ? ` · ${event.homeworkAmount}` : ''}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ) : null}
                                   </div>
                                 );
                               })
@@ -699,10 +711,10 @@ export function BookTracking({
             </Panel> : null}
             {showProgress ? <section aria-label="교재 진행도">
               <h3 className="mb-2 text-[13px] font-bold">
-                교재별 진행도 <span className="font-normal text-fg-subtle">{d.books.length}종 · 현재 ISSUE 진행 쪽 기준</span>
+                교재별 진행도 <span className="font-normal text-fg-subtle">{d.books.length}종 · 리포트 진도·숙제 원장 기준</span>
               </h3>
               <Banner tone="info" className="mb-3">
-                현재 계약은 교재별 현재 쪽과 평균 진도만 제공합니다. 리포트의 수업별 진도·숙제 원장이 연결되기 전에는 2주 멈춤, 최근 4주 숙제, 완료 예상일을 계산하지 않습니다.
+                진도는 구조화 리포트의 끝 쪽과 연결되고, 숙제는 최근 28일의 쪽 범위를 합산합니다. 완료 예상일은 계산 기준 확정 후 표시합니다.
               </Banner>
               {/*
                 원본 §38 「교재별 진도율」 카드(g4 §38-7) — 제목줄 = 레벨 배지 + 제목 + 오른쪽 「N명」, 막대 오른쪽 큰 %,
@@ -745,18 +757,25 @@ export function BookTracking({
                         </span>
                         <span>{book.pages ?? '—'}쪽</span>
                       </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[12px]">
+                        <Chip size="compact" tone={book.stalledCount ? 'danger' : 'success'}>2주 멈춤 {book.stalledCount}명</Chip>
+                        <Chip size="compact">최근 28일 숙제 {book.homeworkPages28d}쪽</Chip>
+                      </div>
                       <div className="mt-2 space-y-1 border-t border-line pt-2">
                         {book.students.map((student) => (
                           <div
                             key={student.studentId}
-                            className="grid grid-cols-[1fr_2fr_44px_36px] items-center gap-2 text-[12px]"
+                            className="grid grid-cols-[minmax(80px,1fr)_minmax(80px,1.5fr)_52px_minmax(84px,auto)_minmax(90px,auto)] items-center gap-2 text-[12px]"
                           >
                             <b>{student.name}</b>
                             <div className="h-1.5 rounded bg-inset">
                               <div className="h-full rounded bg-green" style={{ width: `${student.percent ?? 0}%` }} />
                             </div>
-                            <b>{student.percent == null ? '—' : `${student.percent}%`}</b>
-                            <span>{student.elapsedDays == null ? '—' : `${student.elapsedDays}일`}</span>
+                            <b>{student.progressPage == null ? '—' : `p.${student.progressPage}`}</b>
+                            <span className={student.stalled ? 'font-bold text-danger' : 'text-fg-subtle'}>
+                              {student.stalled ? `${student.stalledDays}일 멈춤` : student.lastProgressOn ?? '진도 기록 없음'}
+                            </span>
+                            <span className="text-fg-subtle">숙제 {student.homeworkPages28d}쪽</span>
                           </div>
                         ))}
                       </div>

@@ -94,6 +94,10 @@ function setup({
                     stateLabel: '배부 완료',
                     progressPage: 20,
                     progressPercent: 20,
+                    progressHistory: [{
+                      id: 90, repId: 77, lessonOn: '2026-09-13', progressFromPage: 16, progressToPage: 20,
+                      homeworkFromPage: 21, homeworkToPage: 24, homeworkAmount: '짝수 문제', repVersion: 1,
+                    }],
                   },
                   {
                     id: 12,
@@ -104,12 +108,14 @@ function setup({
                     stateLabel: '배부 완료',
                     progressPage: 60,
                     progressPercent: 75,
+                    progressHistory: [],
                   },
-                  { id: 11, version: 1, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1', form: 'print', formLabel: '실물 책' },
+                  { id: 11, version: 1, libId: 4, studentId: 3, state: 'wait', stateLabel: '승인 대기', edition: 'v1', form: 'print', formLabel: '실물 책', progressHistory: [] },
                 ],
                 reissueCandidates: withReissueCandidate ? [{
                   id: 30, version: 1, libId: 6, studentId: 3, state: 'canceled', stateLabel: '취소',
                   endedReason: '학부모 요청', endedBy: 2, endedByName: '김민수', endedAt: '2026-09-27T01:00:00.000Z',
+                  progressHistory: [],
                 }] : [],
               },
             ],
@@ -123,7 +129,12 @@ function setup({
                 maxPercent: 20,
                 averagePercent: 20,
                 pages: 100,
-                students: [{ studentId: 3, name: '고은성', percent: 20, elapsedDays: 1 }],
+                stalledCount: 1,
+                homeworkPages28d: 4,
+                students: [{
+                  studentId: 3, name: '고은성', progressPage: 20, percent: 20, elapsedDays: 1,
+                  lastProgressOn: '2026-09-13', stalledDays: 15, stalled: true, homeworkPages28d: 4,
+                }],
               },
             ],
             states: ['학생', '승인 대기', '전달 대기', '수업 임박', '강사 요청', '정상'].map((label, index) => ({
@@ -232,13 +243,23 @@ it('학생은 있지만 배부 교재가 0종이면 빈 진도율 격자 대신 
   expect(view.queryByTestId('book-progress-card')).toBeNull();
 });
 
-it('진행도 보기는 현재 ISSUE 평균만 표시하고 리포트 기반 지표를 만들어내지 않는다', async () => {
+it('진행도 보기는 리포트 원장의 진도·14일 정체·최근 28일 숙제를 같은 값으로 표시한다', async () => {
   const view = setup({ componentProps: { view: 'progress' } });
   expect(await view.findByRole('heading', { name: /교재별 진행도/ })).toBeTruthy();
-  expect(view.getByText(/2주 멈춤, 최근 4주 숙제, 완료 예상일을 계산하지 않습니다/)).toBeTruthy();
+  expect(view.getByText(/숙제는 최근 28일의 쪽 범위를 합산합니다/)).toBeTruthy();
   expect(view.getByTestId('book-progress-card')).toBeTruthy();
+  expect(view.getByText('2주 멈춤 1명')).toBeTruthy();
+  expect(view.getByText('최근 28일 숙제 4쪽')).toBeTruthy();
+  expect(view.getByText('15일 멈춤')).toBeTruthy();
   expect(view.queryByRole('button', { name: '고은성 펼치기' })).toBeNull();
   expect(view.queryByText('강사 교재 변경 요청 1건')).toBeNull();
+});
+
+it('트래킹 상세는 리포트에 저장한 진도·숙제 쪽 범위와 분량을 그대로 표시한다', async () => {
+  const view = setup({ componentProps: { view: 'tracking' } });
+  fireEvent.click(await view.findByRole('button', { name: '고은성 펼치기' }));
+  expect(view.getByLabelText('고은성 SAT Reading 진행 이력')).toBeTruthy();
+  expect(view.getByText(/2026-09-13 · 진도 p.16–20 · 숙제 p.21–24 · 짝수 문제/)).toBeTruthy();
 });
 
 it('트래킹 보기는 학생·배부 업무만 표시하고 진행도 카드를 중복하지 않는다', async () => {

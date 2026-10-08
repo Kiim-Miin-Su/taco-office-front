@@ -8377,6 +8377,18 @@ export interface components {
             code: string;
             message: string;
         };
+        BookProgressEventDto: {
+            id: number;
+            repId: number;
+            /** Format: date */
+            lessonOn: string;
+            progressFromPage?: number | null;
+            progressToPage?: number | null;
+            homeworkFromPage?: number | null;
+            homeworkToPage?: number | null;
+            homeworkAmount?: string | null;
+            repVersion: number;
+        };
         BookIssueDto: {
             id: number;
             /** @description 상태·진도·회수 쓰기의 optimistic version */
@@ -8415,6 +8427,8 @@ export interface components {
             form?: "pdf" | "print" | null;
             /** @description 형태 칩 낱말 — 원문 「PDF」 · 「실물 책」(서버가 만든다 · D-R18) */
             formLabel?: string | null;
+            /** @description 구조화 리포트에서 저장한 수업별 진도·숙제 원장, 최신 수업 순 */
+            progressHistory: components["schemas"]["BookProgressEventDto"][];
         };
         EnrollMissingBookDto: {
             kindKey: string;
@@ -9295,8 +9309,14 @@ export interface components {
         BookProgressStudentDto: {
             studentId: number;
             name: string;
+            progressPage?: number | null;
             percent?: number | null;
             elapsedDays?: number | null;
+            /** Format: date */
+            lastProgressOn?: string | null;
+            stalledDays?: number | null;
+            stalled: boolean;
+            homeworkPages28d: number;
         };
         BookProgressDto: {
             libId: number;
@@ -9308,6 +9328,8 @@ export interface components {
             maxPercent?: number | null;
             averagePercent?: number | null;
             pages?: number | null;
+            stalledCount: number;
+            homeworkPages28d: number;
             students: components["schemas"]["BookProgressStudentDto"][];
         };
         BookChangeRequestDto: {
