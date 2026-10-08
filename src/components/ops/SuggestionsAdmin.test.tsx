@@ -5,6 +5,7 @@
  */
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import type { Suggestion } from '@/api/types';
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
 vi.mock('@/api/queries', () => ({
@@ -14,15 +15,19 @@ const { SuggestionsAdmin } = await import('./SuggestionsAdmin');
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-const rows = [
-  { id: 1, staffName: '강사 A', category: 'schedule', body: '목요일 시간을 옮기고 싶습니다', state: 'open', reply: null, createdAt: '2026-09-28', replyBy: null, replyOn: null },
+const rows: Suggestion[] = [
+  { id: 1, staffName: '강사 A', category: 'schedule', body: '목요일 시간을 옮기고 싶습니다', state: 'open', reply: null, createdAt: '2026-09-28', replyBy: null, replyOn: null,
+    lesson: { serId: 7, onDate: '2026-09-25', date: '2026-09-28', startMin: 960, endMin: 1020, subject: 'Writing', title: 'Essay', students: ['학생 A'] } },
   { id: 2, staffName: '강사 B', category: 'lesson', body: '교재를 확인해 주세요', state: 'done', reply: '새 교재로 배정했습니다', createdAt: '2026-09-27', replyBy: '대표', replyOn: '2026-09-28' },
-] as const;
+];
 
 it('답변 필요 수와 기존 수신 사실을 보이고 새 답변을 id와 함께 보낸다', async () => {
   const view = render(<SuggestionsAdmin open rows={rows} onClose={() => {}} />);
   expect(view.getByText('답변 필요 1건 · 전체 2건')).toBeTruthy();
   expect(view.getByText('대표 · 2026-09-28')).toBeTruthy();
+  expect(view.getByText('학생 A · 원래 회차일 2026-09-25')).toBeTruthy();
+  expect(view.getByRole('link', { name: '일정에서 보기' }).getAttribute('href'))
+    .toBe('/schedule?view=day&anchor=2026-09-28&serId=7&onDate=2026-09-25&date=2026-09-28&source=calendar');
   const card = view.getByText('목요일 시간을 옮기고 싶습니다').closest('li')!;
   fireEvent.click(within(card).getByRole('button', { name: '답변하기' }));
   fireEvent.change(within(card).getByLabelText('강사 A 건의 답변'), { target: { value: '목요일 4시로 옮겼습니다' } });

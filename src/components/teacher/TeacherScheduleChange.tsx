@@ -8,8 +8,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, apiMessage } from '@/api/client';
-import { useDrawerWrite } from '@/api/queries';
-import type { ChangeReqCreate, ChangeReqResult, Occurrence } from '@/api/types';
+import { useCreateTeacherSuggestion, useDrawerWrite } from '@/api/queries';
+import type { ChangeReqCreate, ChangeReqResult, Occurrence, TeacherSuggestionCreate } from '@/api/types';
 import { conflictLines, hhmm, lessonTimeIssue, parseHm } from '@/lib/calendar';
 import { useRequestKey } from '@/lib/request-key';
 import { Banner, Button, Dialog, Input, Label, Select } from '@/components/ui';
@@ -47,6 +47,7 @@ export function TeacherScheduleChange({ open, occ, today, readVersion, onRefresh
   onBack: () => void;
 }) {
   const write = useDrawerWrite();
+  const suggestionWrite = useCreateTeacherSuggestion();
   const requestKey = useRequestKey();
   const mode = teacherScheduleChangeMode(today, occ.date);
   const identity = `${occ.serId}|${occ.onDate}|${occ.date}`;
@@ -121,11 +122,42 @@ export function TeacherScheduleChange({ open, occ, today, readVersion, onRefresh
     }
   };
 
+  /**
+   * BO-06D-03 권고안: 10일 미만·지난 수업도 일반 건의 원장을 재사용하되 exact 회차 identity와
+   * requestKey만 보낸다. 날짜·시간·과목·학생 표시 스냅숏과 10일 경계는 서버가 다시 계산한다.
+   * 계약 변경 시 DTO/OpenAPI/generated type·migration/DBML·양쪽 건의 이력·두 수정사항 대조표와
+   * portfolio를 같은 청크에서 갱신한다.
+   */
+  const submitSuggestion = async () => {
+    if (!suggestionReady || suggestionWrite.isPending || savedId !== null) return;
+    setError(null);
+    const command: TeacherSuggestionCreate = {
+      category,
+      body: body.trim(),
+      lesson: { serId: occ.serId, onDate: occ.onDate, sourceDate: occ.date, readVersion },
+    };
+    try {
+      const result = await suggestionWrite.mutateAsync({
+        ...command,
+        requestKey: requestKey.keyFor(command),
+      });
+      setSavedId(result.id);
+      requestKey.reset();
+      await onRefresh();
+    } catch (cause) {
+      if (cause instanceof ApiError && ['SUGGESTION_LESSON_STALE', 'SUGGESTION_LESSON_CHANGED', 'SUGGESTION_CHANGE_REQUEST_REQUIRED'].includes(cause.code)) {
+        setError(`${cause.message} 현재 일정을 새로고침한 뒤 다시 요청해 주세요.`);
+      } else {
+        setError(apiMessage(cause));
+      }
+    }
+  };
+
   return (
     <Dialog
       open={open}
       onClose={onBack}
-      title={mode === 'request' ? '일정 변경 요청' : '수업 건의 초안'}
+      title={mode === 'request' ? '일정 변경 요청' : '수업 건의'}
       sub={mode === 'request'
         ? `수업까지 ${days}일 · 정확히 10일 이상은 승인 요청`
         : days < 0 ? '이미 지난 수업 · 건의로만 요청' : `수업까지 ${days}일 · 10일 미만은 건의로 요청`}
@@ -186,11 +218,12 @@ export function TeacherScheduleChange({ open, occ, today, readVersion, onRefresh
         ) : (
           <>
             <Banner tone="warning" title={days < 0 ? '지난 수업은 건의만 가능합니다' : '10일 미만은 건의로 요청합니다'}>
-              이 회차의 원래 날짜와 실제 수업일을 건의에 함께 연결해야 합니다. 관리자가 답변해도 일정은 자동으로 바뀌지 않습니다.
+              원래 회차일과 실제 수업일을 함께 보냅니다. 관리자가 답변해도 일정은 자동으로 바뀌지 않습니다.
             </Banner>
-            <Banner tone="warning" title="수업 연결 기능 준비 중">
-              현재 건의 기능은 원래 회차와 실제 수업일을 함께 저장할 수 없습니다. 지금은 초안만 보존합니다.
-            </Banner>
+            {savedId !== null ? <Banner tone="success" title={`수업 건의 #${savedId} 접수`}>
+              이 수업 정보와 함께 접수했습니다. 답변은 건의 사항에서 확인할 수 있습니다.
+            </Banner> : null}
+            {error ? <Banner tone="danger" title="수업 건의를 접수하지 못했습니다">{error}</Banner> : null}
             <div>
               <Label htmlFor="teacher-lesson-suggestion-category">분류</Label>
               <Select id="teacher-lesson-suggestion-category" value={category}
@@ -217,9 +250,12 @@ export function TeacherScheduleChange({ open, occ, today, readVersion, onRefresh
                 className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-card px-3 text-[13px] font-bold text-fg hover:bg-inset focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">
                 건의 사항 전체 보기
               </Link>
-              <span className="text-[12px] text-fg-subtle">{suggestionReady ? '초안 입력 완료 · 수업 연결 기능 준비 중' : '분류와 내용을 입력해 주세요.'}</span>
-              <Button className="ml-auto min-h-11" variant="primary" disabled title="수업 회차 연결 기능이 준비된 뒤 사용할 수 있습니다">
-                건의 기능 준비 중
+              <span className="text-[12px] text-fg-subtle">{savedId !== null ? '접수한 건의는 건의 사항에서 다시 확인할 수 있습니다.'
+                : suggestionReady ? '입력 완료 · 수업 정보를 서버에서 다시 확인합니다.' : '분류와 내용을 입력해 주세요.'}</span>
+              <Button className="ml-auto min-h-11" variant="primary"
+                disabled={!suggestionReady || suggestionWrite.isPending || savedId !== null}
+                onClick={() => void submitSuggestion()}>
+                {suggestionWrite.isPending ? '접수 중…' : savedId !== null ? '접수 완료' : '건의 보내기'}
               </Button>
             </div>
           </>

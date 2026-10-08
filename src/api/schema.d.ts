@@ -3545,7 +3545,10 @@ export interface paths {
         /** 건의 사항 — 내가 보낸 것 + 이달 쿼터 (덱 §33~34 · D-11·D-12) */
         get: operations["TeacherController_suggestions"];
         put?: never;
-        /** 건의 등록 — 월 3회는 서버가 센다 (초과: SUGGESTION_QUOTA_EXCEEDED) */
+        /**
+         * 건의 등록 — 월 3회는 서버가 센다 (초과: SUGGESTION_QUOTA_EXCEEDED)
+         * @description 수업 팝업 건의는 exact 회차 identity와 requestKey를 보내며 서버가 담당·실제 날짜·읽은 version을 다시 검사하고 제출 당시 수업 정보를 저장한다.
+         */
         post: operations["TeacherController_createSuggestion"];
         delete?: never;
         options?: never;
@@ -7787,6 +7790,23 @@ export interface components {
             /** @description 가장 나중 코멘트에 담당이 「보류」로 답했는가(아직 고친 것은 알리지 않음) — 「보류」 단추는 한 번뿐이다 */
             held?: boolean;
         };
+        TeacherSuggestionLessonDto: {
+            serId: number;
+            /** Format: date */
+            onDate: string;
+            /**
+             * Format: date
+             * @description 건의를 보낼 때의 실제 수업일
+             */
+            date: string;
+            startMin: number;
+            endMin: number;
+            /** @description 제출 당시 과목 표시 */
+            subject: string;
+            title?: string | null;
+            /** @description 제출 당시 수강 학생 이름 */
+            students: string[];
+        };
         SuggestionDto: {
             id: number;
             staffName: string;
@@ -7801,6 +7821,8 @@ export interface components {
             /** @description 답변일 YYYY-MM-DD (KST) */
             replyOn?: string | null;
             createdAt: string;
+            /** @description 수업 팝업에서 보낸 건의의 제출 당시 수업 정보 */
+            lesson?: components["schemas"]["TeacherSuggestionLessonDto"] | null;
         };
         IntakeFunnelStepDto: {
             /** @description first | wait2nd | second | hold | enrolled | failed */
@@ -11194,6 +11216,8 @@ export interface components {
             replyBy?: string | null;
             /** @description 답변일 YYYY-MM-DD (KST) */
             replyOn?: string | null;
+            /** @description 수업 팝업에서 보낸 건의의 제출 당시 수업 정보 */
+            lesson?: components["schemas"]["TeacherSuggestionLessonDto"] | null;
         };
         TeacherSuggestionsDto: {
             /** @description 쿼터 기준 달 YYYY-MM (KST) */
@@ -11209,6 +11233,18 @@ export interface components {
             /** @description 최근 순 */
             items: components["schemas"]["TeacherSuggestionDto"][];
         };
+        TeacherSuggestionLessonCreateDto: {
+            serId: number;
+            /** Format: date */
+            onDate: string;
+            /**
+             * Format: date
+             * @description 화면에서 본 실제 수업일
+             */
+            sourceDate: string;
+            /** @description 수업 목록을 읽기 직전의 LOG version */
+            readVersion: number;
+        };
         TeacherSuggestionCreateDto: {
             /**
              * @description D-11 분류 4종
@@ -11217,6 +11253,13 @@ export interface components {
             category: "lesson" | "pay" | "schedule" | "etc";
             /** @description 건의 내용 — 1~2000자 */
             body: string;
+            /** @description 수업 팝업에서 보낼 때의 exact 회차 identity */
+            lesson?: components["schemas"]["TeacherSuggestionLessonCreateDto"];
+            /**
+             * Format: uuid
+             * @description 재시도 멱등 키. 수업 연결 건의에는 필수
+             */
+            requestKey?: string;
         };
         TeacherDiagCreateDto: {
             /** @description 누구의 진단인가 — 서버가 내 담당 학생인지 다시 본다 */
@@ -28592,7 +28635,7 @@ export interface operations {
                     "application/json": components["schemas"]["TeacherSuggestionDto"];
                 };
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description SUGGESTION_REQUEST_KEY_REQUIRED */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -28617,7 +28660,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            /** @description SUGGESTION_LESSON_NOT_FOUND — 없음 또는 다른 강사의 회차 */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -28626,12 +28669,14 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description 이달 한도 소진 — code SUGGESTION_QUOTA_EXCEEDED */
+            /** @description SUGGESTION_QUOTA_EXCEEDED | SUGGESTION_REQUEST_KEY_REUSED | SUGGESTION_LESSON_CHANGED | SUGGESTION_LESSON_STALE | SUGGESTION_CHANGE_REQUEST_REQUIRED */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

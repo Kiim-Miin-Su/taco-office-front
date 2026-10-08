@@ -5,11 +5,12 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { Banner, Button, Chip, Textarea } from '../ui';
+import { Banner, Button, Chip, LinkButton, Textarea } from '../ui';
 import { WideDialog } from '../ui/WideDialog';
 import { useReplySuggestion } from '@/api/queries';
 import { apiMessage } from '@/api/client';
 import type { Suggestion } from '@/api/types';
+import { hhmm } from '@/lib/calendar';
 
 type SuggestionRow = Suggestion & { replyBy?: string | null; replyOn?: string | null };
 
@@ -36,6 +37,19 @@ export function SuggestionsAdmin({ open, rows, onClose }: {
                   {row.state === 'done' ? '답변 완료' : '답변 필요'}
                 </Chip>
               </div>
+              {row.lesson ? (
+                <div className="mt-2 rounded-lg border border-line bg-inset px-3 py-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <b className="text-[12.5px] text-fg">{row.lesson.date} · {hhmm(row.lesson.startMin)}–{hhmm(row.lesson.endMin)}</b>
+                    <span className="text-[12px] text-fg-2">{row.lesson.subject}{row.lesson.title ? ` · ${row.lesson.title}` : ''}</span>
+                    <LinkButton className="ml-auto" size="sm" variant="secondary"
+                      href={`/schedule?view=day&anchor=${row.lesson.date}&serId=${row.lesson.serId}&onDate=${row.lesson.onDate}&date=${row.lesson.date}&source=calendar`}>
+                      일정에서 보기
+                    </LinkButton>
+                  </div>
+                  <p className="mt-1 text-[12px] text-fg-subtle">{row.lesson.students.join(' · ') || '학생 미정'} · 원래 회차일 {row.lesson.onDate}</p>
+                </div>
+              ) : null}
               <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-fg">{row.body}</p>
               {editing === row.id ? (
                 <div className="mt-3 border-t border-line pt-3">

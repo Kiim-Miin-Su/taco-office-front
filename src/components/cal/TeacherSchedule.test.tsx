@@ -14,7 +14,7 @@ import SchedulePage from '@/app/schedule/page';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), meta: vi.fn(), unwritten: vi.fn(), drawer: vi.fn(),
-  horizon: vi.fn(), scheduleWrite: vi.fn(), drawerWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(), lessonHub: vi.fn(),
+  horizon: vi.fn(), scheduleWrite: vi.fn(), drawerWrite: vi.fn(), suggestionWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(), lessonHub: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -28,6 +28,7 @@ vi.mock('@/api/queries', () => ({
   // 공휴일 이름표(GET /schedule/holidays)·머리줄 서버 값(GET /teacher/shell) — 둘 다 서버 표에서 온다
   useScheduleHolidays: mocks.holidays, useTeacherShell: mocks.shell,
   useTeacherLessonHub: mocks.lessonHub,
+  useCreateTeacherSuggestion: mocks.suggestionWrite,
   useCreateSettingRequest: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false }),
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -89,6 +90,7 @@ beforeEach(() => {
   mocks.unwritten.mockReturnValue({ data: { total: 2 }, isLoading: false, isError: false, refetch: vi.fn() });
   mocks.drawer.mockReturnValue({ data: { approvals: { mine: [] }, changeReqs: [] }, isLoading: false, isError: false });
   mocks.drawerWrite.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+  mocks.suggestionWrite.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
   mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [] } });
   mocks.shell.mockReturnValue({ data: { timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 45000, notis: [], unread: 0, notiWindowDays: 30 } });
   mocks.lessonHub.mockImplementation((serId: number | null, onDate: string | null, date: string | null, enabled: boolean) => (
@@ -223,7 +225,7 @@ describe('BOC-05b 강사 오늘·주간·월간 캘린더', () => {
   });
 });
 
-describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () => {
+describe('BOC-06D 강사 일정 변경·근접 건의 Front 계약', () => {
   function exactLesson(date: string) {
     nav.search = `serId=7&onDate=${date}&date=${date}&source=calendar`;
     mocks.occurrences.mockImplementation(({ from }: { from: string }) => ({
@@ -249,15 +251,28 @@ describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () =
     }
   });
 
-  it('9일 이내와 지난 회차는 exact identity가 붙은 건의 초안을 열고 일반 건의 writer로 우회하지 않는다', () => {
+  it('9일 이내와 지난 회차는 exact identity·version·requestKey로 같은 건의 writer에 접수한다', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({ id: 82, category: 'schedule', body: '시간 조정 확인 부탁드립니다.', state: 'open', createdOn: '2026-09-07' });
+    mocks.suggestionWrite.mockReturnValue({ mutateAsync, isPending: false });
     for (const date of ['2026-09-16', '2026-09-06']) {
       exactLesson(date);
       const view = render(<TeacherSchedule />);
 
       fireEvent.click(view.getByRole('button', { name: '이 수업으로 건의 열기' }));
-      const dialog = within(view.getByRole('dialog', { name: '수업 건의 초안' }));
+      const dialog = within(view.getByRole('dialog', { name: '수업 건의' }));
       expect(dialog.getByText(/회차 #/).textContent).toContain(`회차 #7 · 원래 회차일 ${date}`);
-      expect(dialog.getByRole('button', { name: '건의 기능 준비 중' })).toHaveProperty('disabled', true);
+      fireEvent.change(dialog.getByLabelText('내용'), { target: { value: '시간 조정 확인 부탁드립니다.' } });
+      await act(async () => {
+        fireEvent.click(dialog.getByRole('button', { name: '건의 보내기' }));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        category: 'schedule', body: '시간 조정 확인 부탁드립니다.',
+        lesson: { serId: 7, onDate: date, sourceDate: date, readVersion: 42 },
+        requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      });
+      expect(dialog.getByText(/수업 건의 #82 접수/)).toBeTruthy();
       expect(dialog.getByRole('link', { name: '건의 사항 전체 보기' }).getAttribute('href')).toBe('/teacher/suggestions');
       expect(mocks.scheduleWrite).not.toHaveBeenCalled();
       cleanup();

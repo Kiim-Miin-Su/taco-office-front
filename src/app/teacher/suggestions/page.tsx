@@ -14,13 +14,14 @@ import { useState } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { ApiError } from '@/api/client';
-import { Button, Chip, Panel, QueryState, type Tone } from '@/components/ui';
+import { Button, Chip, LinkButton, Panel, QueryState, type Tone } from '@/components/ui';
 import { useCreateTeacherSuggestion, useTeacherSuggestions } from '@/api/queries';
 import type { TeacherSuggestion, TeacherSuggestionCreate } from '@/api/types';
 import { md } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { TEACHER_SUGGESTION_CATEGORIES } from '@/components/teacher/suggestion-categories';
+import { hhmm } from '@/lib/calendar';
 
 /** D-11 분류 4종 — 라벨·부제는 덱 §33 그대로 */
 const CATS = TEACHER_SUGGESTION_CATEGORIES;
@@ -42,6 +43,19 @@ function SuggestionCard({ s }: { s: TeacherSuggestion }) {
         <span className="text-[12px] text-fg-subtle">{md(s.createdOn)}</span>
         {st ? <span className="ml-auto"><Chip size="compact" tone={st.tone}>{st.label}</Chip></span> : null}
       </div>
+      {s.lesson ? (
+        <div className="mt-2 rounded-lg border border-line bg-inset px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <b className="text-[12.5px] text-fg">{md(s.lesson.date)} · {hhmm(s.lesson.startMin)}–{hhmm(s.lesson.endMin)}</b>
+            <span className="text-[12px] text-fg-2">{s.lesson.subject}{s.lesson.title ? ` · ${s.lesson.title}` : ''}</span>
+            <LinkButton className="ml-auto" size="sm" variant="secondary"
+              href={`/schedule?view=day&anchor=${s.lesson.date}&serId=${s.lesson.serId}&onDate=${s.lesson.onDate}&date=${s.lesson.date}&source=calendar`}>
+              이 수업 보기
+            </LinkButton>
+          </div>
+          <p className="mt-1 text-[12px] text-fg-subtle">{s.lesson.students.join(' · ') || '학생 미정'} · 원래 회차일 {md(s.lesson.onDate)}</p>
+        </div>
+      ) : null}
       <p className="mt-2 text-[13.5px] leading-relaxed text-fg">{s.body}</p>
       {s.reply ? (
         <div className="mt-3 rounded-lg border border-green/40 bg-green/5 px-3 py-2.5">
