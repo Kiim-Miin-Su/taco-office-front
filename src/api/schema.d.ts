@@ -10978,6 +10978,17 @@ export interface components {
             history: components["schemas"]["TeacherLessonHubHistoryItemDto"][];
             capabilities: components["schemas"]["TeacherLessonHubCapabilitiesDto"];
         };
+        TeacherLessonMovedErrorDto: {
+            /** @description 공용 오류 코드. HTTP status와 함께 판정한다. */
+            code: string;
+            /** @description 공용 필터에서 정규화한 사용자 안내 문구. */
+            message: string;
+            /**
+             * @description 서버가 확인한 최신 실제 수업일
+             * @example 2026-10-05
+             */
+            actualDate: string;
+        };
         TeacherHistoryStatsDto: {
             /** @description 종료된 수업 (취소 제외) */
             doneCount: number;
@@ -28103,13 +28114,13 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description TEACHER_LESSON_MOVED — 실제 수업일이 요청 URL과 다름 */
+            /** @description TEACHER_LESSON_MOVED — actualDate가 요청 URL과 다름 */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
+                    "application/json": components["schemas"]["TeacherLessonMovedErrorDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
