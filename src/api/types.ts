@@ -169,6 +169,14 @@ export type PaymentEvidenceIssue = S['PaymentEvidenceIssueDto'];
 export type PaymentEvidenceCancel = S['PaymentEvidenceCancelDto'];
 export type PaymentEvidenceBatchIssue = S['PaymentEvidenceBatchIssueDto'];
 export type PaymentEvidenceBatchResult = S['PaymentEvidenceBatchResultDto'];
+/** TBO-55 BO-11AD-03 — 확정 정산과 분리된 실제 계좌이체 current/event 원장 */
+export type PayoutDisbursement = S['PayoutDisbursementDto'];
+export type PayoutDisbursementMonth = S['PayoutDisbursementMonthDto'];
+export type PayoutDisbursementLedger = S['PayoutDisbursementLedgerDto'];
+export type PayoutDisbursementPay = S['PayoutDisbursementPayDto'];
+export type PayoutDisbursementCancel = S['PayoutDisbursementCancelDto'];
+export type PayoutDisbursementBatchPay = S['PayoutDisbursementBatchPayDto'];
+export type PayoutDisbursementBatchResult = S['PayoutDisbursementBatchResultDto'];
 
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];

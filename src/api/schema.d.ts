@@ -1043,6 +1043,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/payout-ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 실제 강사료 지급 원장 — 확정 정산이 있는 최근 두 달 (TBO-55 BO-11AD-03)
+         * @description 관리자 수정사항 p104의 지급 인원·시수·총액·차감·원천징수·차인지급액·지급일·처리자다. `payout`/`payout_line`의 확정 계산을 바꾸지 않고 별도 실제 송금 current/event 원장을 읽는다. 계좌번호·뒤 4자리는 BO-Q9 계좌 보호 계약 전까지 추정하지 않는다. 이 권고안은 service/migration/기능 문서와 함께 바꿔야 한다.
+         */
+        get: operations["AccountingController_payoutDisbursementLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payout-ledger/pay-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 한 달 미지급 확정 정산 일괄 계좌이체 기록 — actual actor·snapshot·event 원자 저장 */
+        post: operations["AccountingController_payPayoutDisbursementBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payout-ledger/{payoutId}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 확정 정산 한 건의 실제 계좌이체 기록 — 계산 확정 snapshot은 불변 */
+        post: operations["AccountingController_payPayoutDisbursement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/payout-ledger/{payoutId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 실제 지급 취소 — 사유와 actor를 보존하고 같은 확정 정산의 재지급을 연다 */
+        post: operations["AccountingController_cancelPayoutDisbursement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/payouts": {
         parameters: {
             query?: never;
@@ -6956,6 +7027,113 @@ export interface components {
             canClose: boolean;
             /** @description 「마감 해제」 단추가 서는가 — 대표 · 마감 중 */
             canReopen: boolean;
+        };
+        PayoutDisbursementEventDto: {
+            /** @enum {string} */
+            action: "paid" | "canceled";
+            /** @enum {string|null} */
+            fromState: "paid" | "canceled" | null;
+            /** @enum {string} */
+            toState: "paid" | "canceled";
+            version: number;
+            actor: string;
+            /** Format: date */
+            paidOn: string | null;
+            /** @enum {string|null} */
+            method: "bank_transfer" | null;
+            reason: string | null;
+            createdAt: string;
+        };
+        PayoutDisbursementDto: {
+            payoutId: number;
+            staffId: number;
+            staffName: string;
+            /** @example 2026-09 */
+            yearMonth: string;
+            /** @description 확정 정산의 시수 snapshot */
+            hours: string;
+            gross: number;
+            /** @description 리포트·수업 지각 차감 합 */
+            deduction: number;
+            incomeTax: number;
+            localTax: number;
+            /** @description 소득세 + 지방소득세 */
+            withholding: number;
+            net: number;
+            /** @enum {string} */
+            status: "unpaid" | "paid";
+            /** @description 미지급은 0, 지급·취소 때마다 1 증가 */
+            version: number;
+            /** Format: date */
+            paidOn: string | null;
+            paidAt: string | null;
+            paidBy: string | null;
+            /** @enum {string|null} */
+            method: "bank_transfer" | null;
+            canceledAt: string | null;
+            canceledBy: string | null;
+            cancelReason: string | null;
+            /** @description 확정 정산이면 true. 실제 권한은 endpoint에서 다시 검증한다 */
+            canPay: boolean;
+            /** @description 현재 지급 상태이면 true. 실제 권한은 endpoint에서 다시 검증한다 */
+            canCancel: boolean;
+            /** @description 지급·취소·재지급 전체 불변 이력 */
+            events: components["schemas"]["PayoutDisbursementEventDto"][];
+        };
+        PayoutDisbursementMonthDto: {
+            /** @example 2026-09 */
+            month: string;
+            totalCount: number;
+            paidCount: number;
+            totalAmount: number;
+            paidAmount: number;
+            unpaidAmount: number;
+            items: components["schemas"]["PayoutDisbursementDto"][];
+        };
+        PayoutDisbursementLedgerDto: {
+            /** @description 확정 정산이 있는 최근 두 달 */
+            months: components["schemas"]["PayoutDisbursementMonthDto"][];
+        };
+        PayoutDisbursementBatchPayDto: {
+            /** @example 2026-09 */
+            month: string;
+            /**
+             * Format: date
+             * @description 미지급 전원의 실제 이체일
+             */
+            paidOn: string;
+            /** @enum {string} */
+            method: "bank_transfer";
+            /** Format: uuid */
+            requestKey: string;
+        };
+        PayoutDisbursementBatchResultDto: {
+            /** @example 2026-09 */
+            month: string;
+            paidCount: number;
+            skippedCount: number;
+            items: components["schemas"]["PayoutDisbursementDto"][];
+        };
+        PayoutDisbursementPayDto: {
+            expectedVersion: number;
+            /**
+             * Format: date
+             * @description 실제 이체일. 미래 날짜는 서버가 거절한다
+             */
+            paidOn: string;
+            /**
+             * @description 최신 수정사항 p104의 계좌이체. 계좌 참조는 BO-Q9에서 연결한다
+             * @enum {string}
+             */
+            method: "bank_transfer";
+            /** Format: uuid */
+            requestKey: string;
+        };
+        PayoutDisbursementCancelDto: {
+            expectedVersion: number;
+            reason: string;
+            /** Format: uuid */
+            requestKey: string;
         };
         PayoutSheetRowDto: {
             staffId: number;
@@ -18673,6 +18851,314 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_payoutDisbursementLedger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDisbursementLedgerDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_payPayoutDisbursementBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutDisbursementBatchPayDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDisbursementBatchResultDto"];
+                };
+            };
+            /** @description PAYOUT_PAYMENT_FUTURE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PAYOUT_BATCH_EMPTY | REQUEST_KEY_REUSED | PAYOUT_DISBURSEMENT_REPLAY_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_payPayoutDisbursement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutDisbursementPayDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDisbursementDto"];
+                };
+            };
+            /** @description PAYOUT_PAYMENT_FUTURE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PAYOUT_NOT_CONFIRMED */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PAYOUT_ALREADY_PAID | PAYOUT_DISBURSEMENT_STALE | REQUEST_KEY_REUSED | PAYOUT_DISBURSEMENT_REPLAY_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_cancelPayoutDisbursement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutDisbursementCancelDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDisbursementDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PAYOUT_NOT_CONFIRMED */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description PAYOUT_NOT_PAID | PAYOUT_DISBURSEMENT_STALE | REQUEST_KEY_REUSED | PAYOUT_DISBURSEMENT_REPLAY_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;

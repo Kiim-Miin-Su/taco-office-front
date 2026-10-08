@@ -149,6 +149,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   otherIncome: qk.otherIncome('month'),
   // §57 강사료 시트 — 달이 키에 든다. 확정이 회계 갈래를 버리면 시트도 함께 다시 온다 (C94-b)
   payoutSheet: qk.payoutSheet('2026-08'),
+  // 실제 지급 증빙 원장 — 달이 키에 든다. 입금 증빙 저장·취소가 회계 갈래를 함께 갱신한다 (BO-11AD-01)
+  paymentEvidence: qk.paymentEvidence('2026-10'),
   // 강사 시급 이력 — 회계 갈래 안에 산다. 새 줄이 정산 시트를 함께 바꾼다 (C97 · D-48)
   wageHistory: qk.wageHistory(7),
   consultingDetail: qk.consultingDetail(7),
@@ -170,6 +172,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
 const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.horizon,
   qk.accounting,
+  // 실제 강사 지급 원장 — 최신 확정 2개월을 서버가 정하므로 기간 인자가 없는 회계 상수 키다 (BO-11AD-03)
+  qk.payoutDisbursement,
   // 단가표 — 회계 갈래 안에 산다. 단가 한 줄이 §54·청구서를 함께 바꾼다 (C94-d)
   qk.rateBook,
   qk.ops,

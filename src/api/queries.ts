@@ -241,6 +241,8 @@ import type {
   StudentCumulative,
   PaymentEvidence, PaymentEvidenceLedger, PaymentEvidenceIssue, PaymentEvidenceCancel,
   PaymentEvidenceBatchIssue, PaymentEvidenceBatchResult,
+  PayoutDisbursement, PayoutDisbursementLedger, PayoutDisbursementPay, PayoutDisbursementCancel,
+  PayoutDisbursementBatchPay, PayoutDisbursementBatchResult,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -260,6 +262,8 @@ export const qk = {
   studentCumulative: ['accounting', 'student-cumulative'] as const,
   /** TBO-55 BO-11AD-01 PAY 증빙 원장 — 달별 current 상태. */
   paymentEvidence: (month: string) => ['accounting', 'payment-evidence', month] as const,
+  /** TBO-55 BO-11AD-03 확정 정산과 분리된 실제 송금 current 상태. */
+  payoutDisbursement: ['accounting', 'payout-ledger'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
@@ -763,6 +767,52 @@ export function useIssuePaymentEvidenceBatch(): UseMutationResult<PaymentEvidenc
   const invalidate = useAccountingInvalidate();
   return useMutation({
     mutationFn: async (body) => (await api.post<PaymentEvidenceBatchResult>('/accounting/payment-evidence/issue-batch', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** BO-11AD-03 실제 지급 원장 — 서버가 확정 정산이 있는 최근 두 달을 고른다. */
+export function usePayoutDisbursementLedger(enabled = true): UseQueryResult<PayoutDisbursementLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.payoutDisbursement, viewerId),
+    queryFn: async () => (await api.get<PayoutDisbursementLedger>('/accounting/payout-ledger')).data,
+    enabled,
+  });
+}
+
+export function usePayPayoutDisbursement(): UseMutationResult<
+  PayoutDisbursement, unknown, { payoutId: number; body: PayoutDisbursementPay }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ payoutId, body }) => (
+      await api.post<PayoutDisbursement>(`/accounting/payout-ledger/${payoutId}/pay`, body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCancelPayoutDisbursement(): UseMutationResult<
+  PayoutDisbursement, unknown, { payoutId: number; body: PayoutDisbursementCancel }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ payoutId, body }) => (
+      await api.post<PayoutDisbursement>(`/accounting/payout-ledger/${payoutId}/cancel`, body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+export function usePayPayoutDisbursementBatch(): UseMutationResult<
+  PayoutDisbursementBatchResult, unknown, PayoutDisbursementBatchPay
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (
+      await api.post<PayoutDisbursementBatchResult>('/accounting/payout-ledger/pay-batch', body)
+    ).data,
     onSettled: invalidate,
   });
 }

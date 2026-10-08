@@ -42,13 +42,13 @@ import { WageList } from '@/components/accounting/WageList';
 import { BonusRules, BonusSummary } from '@/components/accounting/BonusRules';
 import { AcctPrivacySwitches } from '@/components/accounting/AcctPrivacySwitches';
 import { categoryChip } from '@/components/accounting/category-tone';
-import { AccountingContractBoundary } from '@/components/accounting/AccountingContractBoundary';
 import { AdjustmentContractBoundary } from '@/components/accounting/AdjustmentContractBoundary';
 import { DelinquencySuspensionBoundary } from '@/components/accounting/DelinquencySuspensionBoundary';
 import { SensitiveAccountBoundary } from '@/components/accounting/SensitiveAccountBoundary';
 import { BookSalesFeeBoundary } from '@/components/accounting/BookSalesFeeBoundary';
 import { StudentCumulativeLedger } from '@/components/accounting/StudentCumulativeLedger';
 import { PaymentEvidenceLedger } from '@/components/accounting/PaymentEvidenceLedger';
+import { PayoutDisbursementLedger } from '@/components/accounting/PayoutDisbursementLedger';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -414,13 +414,7 @@ export default function AccountingPage() {
           <PayoutSheet data={payoutSheet.data} loading={payoutSheet.isLoading} month={payoutMonth} onMonthChange={setPayoutMonth}
             below={<BonusSummary onEdit={() => selectTab('bonus')} />} />
         ) : tab === 'ledger' ? (
-          <AccountingContractBoundary
-            title="실제 지급 원장"
-            description="강사료 정산 확정과 실제 송금을 구분합니다. 최근 2개월의 지급일·수단·처리자·계좌 참조·취소 이력이 생성 계약으로 제공될 때만 표시합니다."
-            fields={['월 · 지급 인원', '시수 · 총액 · 차감', '소득세 · 지방소득세 · 차인지급액', '지급일 · 수단 · 처리자', '계좌 뒤 4자리 · 취소 이력']}
-            nextLabel="강사료 정산 보기"
-            onNext={() => selectTab('payout')}
-          />
+          <PayoutDisbursementLedger />
         ) : tab === 'adjustments' ? (
           <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
         ) : tab === 'suspensions' ? (

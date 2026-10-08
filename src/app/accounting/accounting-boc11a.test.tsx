@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Accounting, Me, PaymentEvidenceLedger, StudentCumulative } from '@/api/types';
+import type { Accounting, Me, PaymentEvidenceLedger, PayoutDisbursementLedger, StudentCumulative } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -63,6 +63,26 @@ const evidence: PaymentEvidenceLedger = {
     { payId: 32, evidenceId: 7, paidOn: '2026-10-07', studentId: 20, studentName: '발행학생', content: '교재비', amount: 30000, status: 'issued', version: 1, issuedAt: '2026-10-08T00:00:00.000Z', issuedBy: '대표', canceledAt: null, canceledBy: null, cancelReason: null, printRef: '/accounting/payment-evidence/32' },
   ],
 };
+const payoutLedger: PayoutDisbursementLedger = {
+  months: [{
+    month: '2026-09', totalCount: 2, paidCount: 1, totalAmount: 693823, paidAmount: 381965, unpaidAmount: 311858,
+    items: [
+      {
+        payoutId: 81, staffId: 11, staffName: '지급강사A', yearMonth: '2026-09', hours: '8.00', gross: 400000,
+        deduction: 5000, incomeTax: 11850, localTax: 1185, withholding: 13035, net: 381965,
+        status: 'paid', version: 1, paidOn: '2026-10-09', paidAt: '2026-10-09T01:00:00.000Z', paidBy: '대표',
+        method: 'bank_transfer', canceledAt: null, canceledBy: null, cancelReason: null, canPay: false, canCancel: true,
+        events: [{ action: 'paid', fromState: null, toState: 'paid', version: 1, actor: '대표', paidOn: '2026-10-09', method: 'bank_transfer', reason: null, createdAt: '2026-10-09T01:00:00.000Z' }],
+      },
+      {
+        payoutId: 82, staffId: 12, staffName: '지급강사B', yearMonth: '2026-09', hours: '6.50', gross: 325000,
+        deduction: 2500, incomeTax: 9675, localTax: 967, withholding: 10642, net: 311858,
+        status: 'unpaid', version: 0, paidOn: null, paidAt: null, paidBy: null, method: null,
+        canceledAt: null, canceledBy: null, cancelReason: null, canPay: true, canCancel: false, events: [],
+      },
+    ],
+  }],
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const seen: Array<{ method?: string; url?: string }> = [];
@@ -84,7 +104,8 @@ function mount() {
     return {
       config, status: 200, statusText: 'OK', headers: {},
       data: config.url === '/accounting/student-cumulative' ? cumulative
-        : config.url === '/accounting/payment-evidence' ? evidence : empty,
+        : config.url === '/accounting/payment-evidence' ? evidence
+          : config.url === '/accounting/payout-ledger' ? payoutLedger : empty,
     };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -92,21 +113,31 @@ function mount() {
   return render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
 }
 
-it.each([
-  ['지급 원장', 'ledger', '실제 지급 원장', '강사료 정산 보기'],
-])('%s 화면은 URL로 이동하고 생성 계약이 없는 읽기·쓰기를 잠근다', async (label, tab, heading, backLabel) => {
+it('지급 원장은 확정 snapshot과 실제 지급을 분리해 읽고 개별·취소·일괄 writer를 호출한다', async () => {
   const view = mount();
   await waitFor(() => expect(view.getByRole('button', { name: '들어온 돈' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: tab === 'ledger' ? '나간 돈' : '들어온 돈' }));
-  const button = view.getByRole('button', { name: label }) as HTMLButtonElement;
-  expect(button.disabled).toBe(false);
-  fireEvent.click(button);
+  fireEvent.click(view.getByRole('button', { name: '나간 돈' }));
+  fireEvent.click(view.getByRole('button', { name: '지급 원장' }));
+  expect(nav.replace).toHaveBeenLastCalledWith('/accounting?tab=ledger', { scroll: false });
+  expect(await view.findByRole('heading', { name: '실제 지급 원장' })).toBeTruthy();
+  expect(await view.findByText('지급강사A')).toBeTruthy();
+  expect(view.getByText('지급강사B')).toBeTruthy();
+  expect(view.getByText('1/2명')).toBeTruthy();
+  expect(view.getByText(/지급 계좌와 뒤 4자리는 계좌 보호 계약에서 연결/)).toBeTruthy();
+  expect(view.queryByText('저장 기능 준비 중')).toBeNull();
 
-  expect(nav.replace).toHaveBeenLastCalledWith(`/accounting?tab=${tab}`, { scroll: false });
-  expect(view.getByRole('heading', { name: heading })).toBeTruthy();
-  expect(view.getByText('저장 기능 준비 중')).toBeTruthy();
-  expect(view.getByRole('button', { name: backLabel })).toBeTruthy();
-  expect(view.queryByRole('button', { name: /발행 완료|일괄 지급|취소|삭제/ })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '지급' }));
+  fireEvent.click(view.getByRole('button', { name: '계좌이체 기록' }));
+  await waitFor(() => expect(seen.some(({ method, url }) => method === 'post' && url === '/accounting/payout-ledger/82/pay')).toBe(true));
+
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  fireEvent.change(view.getByLabelText('취소 사유'), { target: { value: '이체 오류' } });
+  fireEvent.click(view.getByRole('button', { name: '취소 확정' }));
+  await waitFor(() => expect(seen.some(({ method, url }) => method === 'post' && url === '/accounting/payout-ledger/81/cancel')).toBe(true));
+
+  fireEvent.click(view.getByRole('button', { name: '미지급 1명 일괄 지급' }));
+  fireEvent.click(view.getByRole('button', { name: '미지급 전원 기록' }));
+  await waitFor(() => expect(seen.some(({ method, url }) => method === 'post' && url === '/accounting/payout-ledger/pay-batch')).toBe(true));
 });
 
 it('증빙 원장은 PAY 상태·월 마감 경고를 읽고 개별 발행 writer를 실제 호출한다', async () => {
