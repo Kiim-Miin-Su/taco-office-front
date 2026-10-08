@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Accounting, Me, StudentCumulative } from '@/api/types';
+import type { Accounting, Me, PaymentEvidenceLedger, StudentCumulative } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -56,6 +56,13 @@ const cumulative: StudentCumulative = {
     ],
   }],
 };
+const evidence: PaymentEvidenceLedger = {
+  month: '2026-10', unissuedCount: 1, issuedCount: 1, monthCloseBlockedCount: 1,
+  items: [
+    { payId: 31, evidenceId: null, paidOn: '2026-10-08', studentId: 19, studentName: '미발행학생', content: '10월 수업료', amount: 120000, status: 'unissued', version: 0, issuedAt: null, issuedBy: null, canceledAt: null, canceledBy: null, cancelReason: null, printRef: null },
+    { payId: 32, evidenceId: 7, paidOn: '2026-10-07', studentId: 20, studentName: '발행학생', content: '교재비', amount: 30000, status: 'issued', version: 1, issuedAt: '2026-10-08T00:00:00.000Z', issuedBy: '대표', canceledAt: null, canceledBy: null, cancelReason: null, printRef: '/accounting/payment-evidence/32' },
+  ],
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const seen: Array<{ method?: string; url?: string }> = [];
@@ -76,7 +83,8 @@ function mount() {
     seen.push(config);
     return {
       config, status: 200, statusText: 'OK', headers: {},
-      data: config.url === '/accounting/student-cumulative' ? cumulative : empty,
+      data: config.url === '/accounting/student-cumulative' ? cumulative
+        : config.url === '/accounting/payment-evidence' ? evidence : empty,
     };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -85,7 +93,6 @@ function mount() {
 }
 
 it.each([
-  ['영수증 · 세금계산서', 'receipts', '증빙 발행 원장', '입금 기록 보기'],
   ['지급 원장', 'ledger', '실제 지급 원장', '강사료 정산 보기'],
 ])('%s 화면은 URL로 이동하고 생성 계약이 없는 읽기·쓰기를 잠근다', async (label, tab, heading, backLabel) => {
   const view = mount();
@@ -100,6 +107,31 @@ it.each([
   expect(view.getByText('저장 기능 준비 중')).toBeTruthy();
   expect(view.getByRole('button', { name: backLabel })).toBeTruthy();
   expect(view.queryByRole('button', { name: /발행 완료|일괄 지급|취소|삭제/ })).toBeNull();
+});
+
+it('증빙 원장은 PAY 상태·월 마감 경고를 읽고 개별 발행 writer를 실제 호출한다', async () => {
+  const view = mount();
+  fireEvent.click(await view.findByRole('button', { name: '들어온 돈' }));
+  fireEvent.click(view.getByRole('button', { name: '영수증 · 세금계산서' }));
+
+  expect(nav.replace).toHaveBeenLastCalledWith('/accounting?tab=receipts', { scroll: false });
+  expect(await view.findByText('⚠ 1건 남았습니다 · 월 마감 전에 끊어야 합니다.')).toBeTruthy();
+  expect(view.getByText('미발행학생')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '끊음으로' }));
+  await waitFor(() => expect(seen.some(({ method, url }) => method === 'post' && url === '/accounting/payment-evidence/31/issue')).toBe(true));
+
+  fireEvent.click(view.getByRole('button', { name: '끊었음 1' }));
+  fireEvent.click(view.getByRole('button', { name: '열기' }));
+  expect(view.getByRole('dialog', { name: '입금 증빙' })).toBeTruthy();
+  expect(view.getByText('2026-10-08 09:00 · 대표')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '창 닫기' }));
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  fireEvent.change(view.getByLabelText('취소 사유'), { target: { value: '중복 발행' } });
+  fireEvent.click(view.getByRole('button', { name: '취소 확정' }));
+  await waitFor(() => expect(seen.some(({ method, url }) => method === 'post' && url === '/accounting/payment-evidence/32/cancel')).toBe(true));
+
+  fireEvent.click(view.getByRole('button', { name: '전부 끊음으로' }));
+  await waitFor(() => expect(seen.some(({ method, url }) => method === 'post' && url === '/accounting/payment-evidence/issue-batch')).toBe(true));
 });
 
 it('학생별 누적은 생성 계약을 읽어 최근 3개월·누적·미수·분류를 표시한다', async () => {

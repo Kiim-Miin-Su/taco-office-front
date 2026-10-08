@@ -239,6 +239,8 @@ import type {
   AcctPrivacy, AcctPrivacyWrite, Cashflow, InvoiceDraft, LeadAppt, LeadApptBook, LeadApptScheduleResult, LeadApptWrite, LeadPlanWrite,
   Marketing, MarketingCreate, PayoutBonusBook, PayoutBonusRule, PayoutBonusRuleWrite, PayoutDetail, PlanTaskCreate, Suggestion,
   StudentCumulative,
+  PaymentEvidence, PaymentEvidenceLedger, PaymentEvidenceIssue, PaymentEvidenceCancel,
+  PaymentEvidenceBatchIssue, PaymentEvidenceBatchResult,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -256,6 +258,8 @@ export const qk = {
   accounting: ['accounting'] as const,
   /** TBO-55 BO-11AD-02 학생별 누적 — 최근 3개월은 서버 기준일로 고정한다. */
   studentCumulative: ['accounting', 'student-cumulative'] as const,
+  /** TBO-55 BO-11AD-01 PAY 증빙 원장 — 달별 current 상태. */
+  paymentEvidence: (month: string) => ['accounting', 'payment-evidence', month] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
@@ -726,6 +730,40 @@ export function useStudentCumulative(enabled = true): UseQueryResult<StudentCumu
     queryFn: async () => (await api.get<StudentCumulative>('/accounting/student-cumulative')).data,
     enabled,
     staleTime: 60 * 1000,
+  });
+}
+
+/** BO-11AD-01 증빙 원장 — 선택한 달의 PAY와 발행 current 상태를 함께 읽는다. */
+export function usePaymentEvidence(month: string, enabled = true): UseQueryResult<PaymentEvidenceLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.paymentEvidence(month), viewerId),
+    queryFn: async () => (await api.get<PaymentEvidenceLedger>('/accounting/payment-evidence', { params: { month } })).data,
+    enabled,
+  });
+}
+
+export function useIssuePaymentEvidence(): UseMutationResult<PaymentEvidence, unknown, { payId: number; body: PaymentEvidenceIssue }> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ payId, body }) => (await api.post<PaymentEvidence>(`/accounting/payment-evidence/${payId}/issue`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCancelPaymentEvidence(): UseMutationResult<PaymentEvidence, unknown, { payId: number; body: PaymentEvidenceCancel }> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ payId, body }) => (await api.post<PaymentEvidence>(`/accounting/payment-evidence/${payId}/cancel`, body)).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useIssuePaymentEvidenceBatch(): UseMutationResult<PaymentEvidenceBatchResult, unknown, PaymentEvidenceBatchIssue> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<PaymentEvidenceBatchResult>('/accounting/payment-evidence/issue-batch', body)).data,
+    onSettled: invalidate,
   });
 }
 

@@ -162,6 +162,13 @@ export type StudentCumulative = S['StudentCumulativeDto'];
 export type StudentCumulativeRow = S['StudentCumulativeRowDto'];
 export type StudentCumulativeMonth = S['StudentCumulativeMonthDto'];
 export type StudentCumulativeCategory = S['StudentCumulativeCategoryDto'];
+/** TBO-55 BO-11AD-01 — PAY별 외부 발행 확인 상태·보존 snapshot·version */
+export type PaymentEvidence = S['PaymentEvidenceDto'];
+export type PaymentEvidenceLedger = S['PaymentEvidenceLedgerDto'];
+export type PaymentEvidenceIssue = S['PaymentEvidenceIssueDto'];
+export type PaymentEvidenceCancel = S['PaymentEvidenceCancelDto'];
+export type PaymentEvidenceBatchIssue = S['PaymentEvidenceBatchIssueDto'];
+export type PaymentEvidenceBatchResult = S['PaymentEvidenceBatchResultDto'];
 
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];

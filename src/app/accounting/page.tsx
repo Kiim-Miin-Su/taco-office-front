@@ -48,6 +48,7 @@ import { DelinquencySuspensionBoundary } from '@/components/accounting/Delinquen
 import { SensitiveAccountBoundary } from '@/components/accounting/SensitiveAccountBoundary';
 import { BookSalesFeeBoundary } from '@/components/accounting/BookSalesFeeBoundary';
 import { StudentCumulativeLedger } from '@/components/accounting/StudentCumulativeLedger';
+import { PaymentEvidenceLedger } from '@/components/accounting/PaymentEvidenceLedger';
 import { useSession } from '@/store/useSession';
 import type { Invoice, Payment } from '@/api/types';
 import { todayKst } from '@/lib/calendar';
@@ -395,13 +396,7 @@ export default function AccountingPage() {
             <Table columns={payCols} rows={q.data?.payments ?? []} rowKey={(r) => r.id} />
           </>
         ) : tab === 'receipts' ? (
-          <AccountingContractBoundary
-            title="증빙 발행 원장"
-            description="아직 안 끊음·끊었음, 개별 열기, 전부 끊음, 월 마감 전 미발행 경고를 한 원장에서 다룹니다."
-            fields={['증빙 종류 · 원거래', '발행 상태 · 발행일', '발행자 · 취소 이력', '첨부·출력 참조', '월 마감 미발행 수']}
-            nextLabel="입금 기록 보기"
-            onNext={() => selectTab('record')}
-          />
+          <PaymentEvidenceLedger />
         ) : tab === 'unpaid' ? (
           <UnpaidList />
         ) : tab === 'cumulative' ? (
