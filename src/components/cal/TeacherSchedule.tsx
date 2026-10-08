@@ -505,6 +505,8 @@ export function TeacherSchedule() {
       ) : null}
       {open ? (
         <TeacherScheduleChange open={hubView === 'schedule-change'} occ={open} today={today}
+          readVersion={requested.data?.version ?? q.data?.version ?? 0}
+          onRefresh={async () => { await Promise.all([requested.refetch(), q.refetch(), lessonHub.refetch()]); }}
           onBack={() => { setFocusScheduleChange(true); setHubView('hub'); }} />
       ) : null}
       <ReportDetailDrawer selection={open && hubView === 'report' ? { serId: open.serId, onDate: open.onDate } : null}

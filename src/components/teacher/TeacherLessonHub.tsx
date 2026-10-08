@@ -8,7 +8,7 @@ import { useEffect, useId } from 'react';
 import Link from 'next/link';
 import type { Occurrence, TeacherLessonHub as TeacherLessonHubData } from '@/api/types';
 import { hhmm, label } from '@/lib/calendar';
-import { Button, Chip, Dialog } from '@/components/ui';
+import { Banner, Button, Chip, Dialog } from '@/components/ui';
 import { teacherScheduleChangeMode } from './TeacherScheduleChange';
 
 export function TeacherLessonHub({ occ, hub, loading, errorMessage, today, kindName, subName, focusScheduleChange = false,
@@ -61,6 +61,9 @@ export function TeacherLessonHub({ occ, hub, loading, errorMessage, today, kindN
         </div>
         {loading ? <p role="status" className="text-[12px] text-fg-subtle">회차 권한과 안내를 확인하는 중…</p> : null}
         {errorMessage ? <p role="alert" className="text-[12px] text-red">{errorMessage}</p> : null}
+        {hub?.scheduleChangeRequest ? <Banner tone="info" title={`일정 변경 요청 #${hub.scheduleChangeRequest.id} 승인 대기`}>
+          {hub.scheduleChangeRequest.asked} · 승인 전 현재 일정 유지
+        </Banner> : null}
         <Button className="min-h-11" variant="primary"
           id={scheduleChangeId}
           disabled={!capabilities?.scheduleChange.enabled}

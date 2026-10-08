@@ -4091,7 +4091,7 @@ export interface paths {
         put?: never;
         /**
          * §19 변경 요청 넣기 — 겹치면 **누구와** 겹치는지 돌려주고 넣지 않는다
-         * @description requestKey를 보낸 새 화면은 같은 작성자·정규화된 본문의 재시도에 기존 id를 받는다. 다른 작성자·본문에 같은 키를 쓰면 409다. 기존 무키 화면은 배포 호환을 위해 받는다.
+         * @description requestKey를 보낸 새 화면은 같은 작성자·정규화된 본문의 재시도에 기존 id를 받는다. 강사 요청은 sourceDate·readVersion을 보내며 서버 KST 기준 실제 수업일까지 정확히 10일 이상이어야 한다. 다른 작성자·본문에 같은 키를 쓰면 409다.
          */
         post: operations["DrawerController_createChangeReq"];
         delete?: never;
@@ -10988,11 +10988,25 @@ export interface components {
             history: components["schemas"]["TeacherLessonHubCapabilityDto"];
             scheduleChange: components["schemas"]["TeacherLessonHubCapabilityDto"];
         };
+        TeacherLessonHubChangeRequestDto: {
+            id: number;
+            /** @enum {string} */
+            state: "pending";
+            /** @description 날짜·시각을 포함한 요청 요약 — 서버가 만든다 */
+            asked: string;
+            /**
+             * Format: date-time
+             * @description 접수 시각 KST
+             */
+            createdAt: string;
+        };
         TeacherLessonHubDto: {
             lesson: components["schemas"]["TeacherLessonDto"];
             guideStudents: components["schemas"]["TeacherGuideStudentDto"][];
             history: components["schemas"]["TeacherLessonHubHistoryItemDto"][];
             capabilities: components["schemas"]["TeacherLessonHubCapabilitiesDto"];
+            /** @description 이 강사가 이 회차에 올린 최신 승인 대기 일정 변경 요청 */
+            scheduleChangeRequest?: components["schemas"]["TeacherLessonHubChangeRequestDto"] | null;
         };
         TeacherLessonMovedErrorDto: {
             /** @description 공용 오류 코드. HTTP status와 함께 판정한다. */
@@ -11634,6 +11648,13 @@ export interface components {
              * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
              */
             requestKey?: string;
+            /**
+             * Format: date
+             * @description 화면이 읽은 실제 수업일. 강사 요청은 필수이며 서버가 현재 회차와 대조한다
+             */
+            sourceDate?: string;
+            /** @description 회차 목록을 읽기 직전 LOG version. 강사 요청은 필수 */
+            readVersion?: number;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11647,6 +11668,11 @@ export interface components {
             applyAll?: boolean;
             /** @enum {string} */
             reqType: "time_move";
+            /**
+             * Format: date
+             * @description 옮길 실제 날짜. 생략하면 현재 실제 날짜에서 시각만 변경한다
+             */
+            requestedDate?: string;
             startMin: number;
             endMin: number;
         };
@@ -11656,6 +11682,13 @@ export interface components {
              * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
              */
             requestKey?: string;
+            /**
+             * Format: date
+             * @description 화면이 읽은 실제 수업일. 강사 요청은 필수이며 서버가 현재 회차와 대조한다
+             */
+            sourceDate?: string;
+            /** @description 회차 목록을 읽기 직전 LOG version. 강사 요청은 필수 */
+            readVersion?: number;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11677,6 +11710,13 @@ export interface components {
              * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
              */
             requestKey?: string;
+            /**
+             * Format: date
+             * @description 화면이 읽은 실제 수업일. 강사 요청은 필수이며 서버가 현재 회차와 대조한다
+             */
+            sourceDate?: string;
+            /** @description 회차 목록을 읽기 직전 LOG version. 강사 요청은 필수 */
+            readVersion?: number;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11698,6 +11738,13 @@ export interface components {
              * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
              */
             requestKey?: string;
+            /**
+             * Format: date
+             * @description 화면이 읽은 실제 수업일. 강사 요청은 필수이며 서버가 현재 회차와 대조한다
+             */
+            sourceDate?: string;
+            /** @description 회차 목록을 읽기 직전 LOG version. 강사 요청은 필수 */
+            readVersion?: number;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -11722,6 +11769,13 @@ export interface components {
              * @description 같은 변경 요청의 HTTP 재시도 키. 기존 클라이언트 호환으로 선택 입력이며 새 화면은 항상 보낸다
              */
             requestKey?: string;
+            /**
+             * Format: date
+             * @description 화면이 읽은 실제 수업일. 강사 요청은 필수이며 서버가 현재 회차와 대조한다
+             */
+            sourceDate?: string;
+            /** @description 회차 목록을 읽기 직전 LOG version. 강사 요청은 필수 */
+            readVersion?: number;
             /** @description 변경할 수업 규칙 id */
             serId: number;
             /**
@@ -30857,7 +30911,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description CHREQ_REQUEST_KEY_REUSED — 같은 요청키의 작성자 또는 내용이 다르다 */
+            /** @description CHREQ_REQUEST_KEY_REUSED | CHREQ_ALREADY_PENDING | CHREQ_NOTICE_TOO_SHORT | CHREQ_SOURCE_STALE | CHREQ_OCCURRENCE_CHANGED */
             409: {
                 headers: {
                     [name: string]: unknown;

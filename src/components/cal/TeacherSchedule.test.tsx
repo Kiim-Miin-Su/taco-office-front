@@ -14,7 +14,7 @@ import SchedulePage from '@/app/schedule/page';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), meta: vi.fn(), unwritten: vi.fn(), drawer: vi.fn(),
-  horizon: vi.fn(), scheduleWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(), lessonHub: vi.fn(),
+  horizon: vi.fn(), scheduleWrite: vi.fn(), drawerWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(), lessonHub: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -24,6 +24,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences, useMeta: mocks.meta, useUnwritten: mocks.unwritten, useDrawer: mocks.drawer,
   useHorizon: mocks.horizon, useScheduleWrite: mocks.scheduleWrite,
+  useDrawerWrite: mocks.drawerWrite,
   // 공휴일 이름표(GET /schedule/holidays)·머리줄 서버 값(GET /teacher/shell) — 둘 다 서버 표에서 온다
   useScheduleHolidays: mocks.holidays, useTeacherShell: mocks.shell,
   useTeacherLessonHub: mocks.lessonHub,
@@ -68,11 +69,12 @@ function hubResult(serId = 1, onDate = '2026-09-07', date = '2026-09-07', report
       { serId, onDate, date, startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline', title: '선택 수업', studentItems: [{ id: 1, name: '담당 학생' }], repState: 'none', canceled: false },
       { serId: 8, onDate: '2026-08-20', date: '2026-08-20', startMin: 720, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline', title: '지난 수업', studentItems: [{ id: 1, name: '담당 학생' }], repState: 'ok', canceled: false },
     ],
+    scheduleChangeRequest: null,
     capabilities: {
       report: { enabled: reportEnabled, reason: reportEnabled ? null : '수업 종료 후 리포트를 열 수 있습니다.' },
       guide: { enabled: true, reason: null }, history: { enabled: true, reason: null }, scheduleChange: { enabled: true, reason: null },
     },
-  }, isLoading: false, isError: false, error: null };
+  }, isLoading: false, isError: false, error: null, refetch: vi.fn() };
 }
 
 beforeEach(() => {
@@ -86,6 +88,7 @@ beforeEach(() => {
   } });
   mocks.unwritten.mockReturnValue({ data: { total: 2 }, isLoading: false, isError: false, refetch: vi.fn() });
   mocks.drawer.mockReturnValue({ data: { approvals: { mine: [] }, changeReqs: [] }, isLoading: false, isError: false });
+  mocks.drawerWrite.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
   mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [] } });
   mocks.shell.mockReturnValue({ data: { timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 45000, notis: [], unread: 0, notiWindowDays: 30 } });
   mocks.lessonHub.mockImplementation((serId: number | null, onDate: string | null, date: string | null, enabled: boolean) => (
@@ -224,7 +227,7 @@ describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () =
   function exactLesson(date: string) {
     nav.search = `serId=7&onDate=${date}&date=${date}&source=calendar`;
     mocks.occurrences.mockImplementation(({ from }: { from: string }) => ({
-      data: { items: from === date ? [occurrence(7, date, 600, { repState: 'none' })] : [] },
+      data: { version: 42, items: from === date ? [occurrence(7, date, 600, { repState: 'none' })] : [] },
       isLoading: false, isError: false, refetch: vi.fn(),
     }));
   }
@@ -240,7 +243,7 @@ describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () =
       expect(dialog.getByText(/승인 전에는 원래 일정/)).toBeTruthy();
       expect((dialog.getByLabelText('변경 날짜') as HTMLInputElement).value).toBe(date);
       expect((dialog.getByLabelText('새 시작') as HTMLInputElement).value).toBe('10:00');
-      expect(dialog.getByRole('button', { name: '변경 요청 기능 준비 중' })).toHaveProperty('disabled', true);
+      expect(dialog.getByRole('button', { name: '변경 요청 보내기' })).toHaveProperty('disabled', true);
       expect(mocks.scheduleWrite).not.toHaveBeenCalled();
       cleanup();
     }
@@ -278,6 +281,58 @@ describe('BOC-06b 강사 일정 변경·근접 건의 Front 계약 대기', () =
     expect((dialog.getByLabelText('변경 날짜') as HTMLInputElement).value).toBe('2026-09-19');
     expect((dialog.getByLabelText('변경 사유') as HTMLTextAreaElement).value).toBe('학생 일정과 협의한 변경 요청입니다.');
     expect(dialog.getByText(/현재 일정 · 2026-09-17 · 10:00–11:00/)).toBeTruthy();
+  });
+
+  it('요청 날짜·source identity·version·requestKey를 CHREQ로 보내고 승인 전 일정 writer는 호출하지 않는다', async () => {
+    exactLesson('2026-09-17');
+    const mutateAsync = vi.fn().mockResolvedValue({ id: 81, conflicts: [] });
+    mocks.drawerWrite.mockReturnValue({ mutateAsync, isPending: false });
+    const view = render(<TeacherSchedule />);
+
+    fireEvent.click(view.getByRole('button', { name: '일정 변경 요청 열기' }));
+    const dialog = within(view.getByRole('dialog', { name: '일정 변경 요청' }));
+    fireEvent.change(dialog.getByLabelText('변경 날짜'), { target: { value: '2026-09-19' } });
+    fireEvent.change(dialog.getByLabelText('변경 사유'), { target: { value: '학생과 보호자에게 확인한 일정 변경 요청입니다.' } });
+    await act(async () => {
+      fireEvent.click(dialog.getByRole('button', { name: '변경 요청 보내기' }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutateAsync).toHaveBeenCalledWith({
+      kind: 'changeReq',
+      body: expect.objectContaining({
+        reqType: 'time_move', serId: 7, onDate: '2026-09-17', sourceDate: '2026-09-17',
+        readVersion: 42, requestedDate: '2026-09-19', startMin: 600, endMin: 660,
+        requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      }),
+    });
+    expect(dialog.getByText(/변경 요청 #81 접수/)).toBeTruthy();
+    expect(mocks.scheduleWrite).not.toHaveBeenCalled();
+  });
+
+  it('hard reload 후 lesson hub의 pending 요청을 표시하고 중복 요청 진입을 막는다', () => {
+    exactLesson('2026-09-17');
+    const pending = hubResult(7, '2026-09-17', '2026-09-17');
+    mocks.lessonHub.mockReturnValue({
+      ...pending,
+      data: {
+        ...pending.data,
+        scheduleChangeRequest: {
+          id: 81, state: 'pending', asked: '2026-09-19 10:00–11:00 로 이동', createdAt: '2026-09-07T09:00:00+09:00',
+        },
+        capabilities: {
+          ...pending.data.capabilities,
+          scheduleChange: { enabled: false, reason: '이 수업의 일정 변경 요청이 관리자 승인 대기 중입니다.' },
+        },
+      },
+    });
+    const view = render(<TeacherSchedule />);
+
+    expect(view.getByText(/일정 변경 요청 #81 승인 대기/)).toBeTruthy();
+    expect(view.getByText(/2026-09-19 10:00–11:00 로 이동/)).toBeTruthy();
+    expect(view.getByRole('button', { name: '일정 변경 요청 열기' })).toHaveProperty('disabled', true);
   });
 });
 

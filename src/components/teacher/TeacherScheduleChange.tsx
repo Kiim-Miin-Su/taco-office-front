@@ -1,14 +1,17 @@
 /** @file-guide
  * 목적: 정확한 강사 회차에서 10일 이상 변경 요청과 10일 미만·과거 건의 초안을 분기한다.
- * 책임/재사용: 회차 identity·입력 초안만 소유한다. 생성 DTO에 없는 날짜·revision·exact 건의 저장은 성공으로 만들지 않는다.
+ * 책임/재사용: 회차 identity·입력 초안과 승인 요청 receipt만 소유한다. 생성 DTO·공용 requestKey·drawer writer를 재사용한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { Occurrence } from '@/api/types';
-import { hhmm, lessonTimeIssue, parseHm } from '@/lib/calendar';
+import { ApiError, apiMessage } from '@/api/client';
+import { useDrawerWrite } from '@/api/queries';
+import type { ChangeReqCreate, ChangeReqResult, Occurrence } from '@/api/types';
+import { conflictLines, hhmm, lessonTimeIssue, parseHm } from '@/lib/calendar';
+import { useRequestKey } from '@/lib/request-key';
 import { Banner, Button, Dialog, Input, Label, Select } from '@/components/ui';
 import { TEACHER_SUGGESTION_CATEGORIES, type TeacherSuggestionCategory } from './suggestion-categories';
 
@@ -35,12 +38,16 @@ function LessonIdentity({ occ }: { occ: Occurrence }) {
   );
 }
 
-export function TeacherScheduleChange({ open, occ, today, onBack }: {
+export function TeacherScheduleChange({ open, occ, today, readVersion, onRefresh, onBack }: {
   open: boolean;
   occ: Occurrence;
   today: string;
+  readVersion: number;
+  onRefresh: () => Promise<unknown>;
   onBack: () => void;
 }) {
+  const write = useDrawerWrite();
+  const requestKey = useRequestKey();
   const mode = teacherScheduleChangeMode(today, occ.date);
   const identity = `${occ.serId}|${occ.onDate}|${occ.date}`;
   const [requestedDate, setRequestedDate] = useState(occ.date);
@@ -49,6 +56,9 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
   const [reason, setReason] = useState('');
   const [category, setCategory] = useState<TeacherSuggestionCategory>('schedule');
   const [body, setBody] = useState('');
+  const [savedId, setSavedId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<string[]>([]);
 
   useEffect(() => {
     setRequestedDate(occ.date);
@@ -57,7 +67,11 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
     setReason('');
     setCategory('schedule');
     setBody('');
-  }, [identity, occ.date, occ.endMin, occ.startMin]);
+    setSavedId(null);
+    setError(null);
+    setConflicts([]);
+    requestKey.reset();
+  }, [identity, occ.date, occ.endMin, occ.startMin, requestKey]);
 
   const startMin = parseHm(start);
   const endMin = parseHm(end);
@@ -66,6 +80,46 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
   const requestReady = Boolean(requestedDate && !timeIssue && changed && reason.trim());
   const suggestionReady = Boolean(category && body.trim());
   const days = dayDistance(today, occ.date);
+  const command = useMemo(() => {
+    if (startMin === null || endMin === null) return null;
+    return {
+      reqType: 'time_move', serId: occ.serId, onDate: occ.onDate, sourceDate: occ.date, readVersion,
+      requestedDate, startMin, endMin, reason: reason.trim(),
+    } satisfies ChangeReqCreate;
+  }, [endMin, occ.date, occ.onDate, occ.serId, readVersion, reason, requestedDate, startMin]);
+
+  /**
+   * BO-06D-02 권고안: 화면은 기존 일정 writer를 호출하지 않고 CHREQ만 접수한다. 서버가 KST 10일·source version을
+   * 다시 판정하고 승인 transaction에서 월마감·충돌·취소를 재검사한다. 계약 변경 시 DTO/OpenAPI/generated type,
+   * 두 수정사항 대조표·시나리오·portfolio를 같은 청크에서 갱신한다.
+   */
+  const submit = async () => {
+    if (!requestReady || !command || write.isPending || savedId !== null) return;
+    setError(null);
+    setConflicts([]);
+    try {
+      const result = await write.mutateAsync({
+        kind: 'changeReq', body: { ...command, requestKey: requestKey.keyFor(command) },
+      }) as ChangeReqResult;
+      if (result.conflicts.length > 0) {
+        setConflicts(conflictLines(result.conflicts));
+        return;
+      }
+      if (typeof result.id !== 'number') {
+        setError('요청 번호를 받지 못했습니다. 현재 일정을 새로고침한 뒤 다시 요청해 주세요.');
+        return;
+      }
+      setSavedId(result.id);
+      requestKey.reset();
+      await onRefresh();
+    } catch (cause) {
+      if (cause instanceof ApiError && ['CHREQ_SOURCE_STALE', 'CHREQ_OCCURRENCE_CHANGED'].includes(cause.code)) {
+        setError(`${cause.message} 현재 일정을 새로고침한 뒤 다시 요청해 주세요.`);
+      } else {
+        setError(apiMessage(cause));
+      }
+    }
+  };
 
   return (
     <Dialog
@@ -86,10 +140,13 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
             <Banner tone="info" title="관리자 승인 후 반영">
               변경 요청을 보내도 승인 전에는 원래 일정이 유지됩니다. 관리자가 승인할 때 충돌과 월 마감을 다시 검사합니다.
             </Banner>
-            <Banner tone="warning" title="저장 기능 준비 중">
-              날짜 이동·한국 시간 10일 기준·중복 제출·동시 수정을 함께 처리하는 기능을 준비 중입니다.
-              지금은 초안만 제공하며 다른 요청 경로로 대신 저장하지 않습니다.
-            </Banner>
+            {savedId !== null ? <Banner tone="success" title={`변경 요청 #${savedId} 접수`}>
+              관리자 승인 대기 중입니다. 승인 전까지 현재 일정은 바뀌지 않습니다.
+            </Banner> : null}
+            {error ? <Banner tone="danger" title="변경 요청을 접수하지 못했습니다">{error}</Banner> : null}
+            {conflicts.length > 0 ? <Banner tone="warning" title="요청한 일정이 겹칩니다">
+              <ul className="list-disc pl-5">{conflicts.map((line) => <li key={line}>{line}</li>)}</ul>
+            </Banner> : null}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="min-w-0">
                 <Label htmlFor="teacher-change-date">변경 날짜</Label>
@@ -118,9 +175,11 @@ export function TeacherScheduleChange({ open, occ, today, onBack }: {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12px] text-fg-subtle">{requestReady ? '초안 입력 완료 · 저장 기능 준비 중' : '날짜 또는 시각을 바꾸고 사유를 입력해 주세요.'}</span>
-              <Button className="ml-auto min-h-11" variant="primary" disabled title="승인 요청 저장 기능이 준비된 뒤 사용할 수 있습니다">
-                변경 요청 기능 준비 중
+              <span className="text-[12px] text-fg-subtle">{savedId !== null ? '접수된 요청은 수업 허브에서 다시 확인할 수 있습니다.'
+                : requestReady ? '입력 완료 · 관리자가 승인할 때 다시 검증합니다.' : '날짜 또는 시각을 바꾸고 사유를 입력해 주세요.'}</span>
+              <Button className="ml-auto min-h-11" variant="primary"
+                disabled={!requestReady || write.isPending || savedId !== null} onClick={() => void submit()}>
+                {write.isPending ? '접수 중…' : savedId !== null ? '승인 대기 중' : '변경 요청 보내기'}
               </Button>
             </div>
           </>
