@@ -1944,7 +1944,7 @@ export interface paths {
         head?: never;
         /**
          * 건의 관리자 답변 — 강사 화면에 답변자·날짜와 함께 전달
-         * @description 답변·답변자·답변 시각·done 상태, 강사 알림과 감사 줄을 한 트랜잭션에 남긴다. 다시 답하면 같은 건의 답변을 고친다.
+         * @description 15자 이상 답변·답변자·답변 시각·done 상태, 강사 알림과 감사 줄을 한 트랜잭션에 남긴다. 이미 답변된 건의와 동시 답변은 409 후 재조회한다.
          */
         patch: operations["OpsController_replySuggestion"];
         trace?: never;
@@ -3993,7 +3993,7 @@ export interface paths {
         head?: never;
         /**
          * §15·§64 할 일 완료·기한 변경
-         * @description done만 바꾸면 기존 주고받은 범위. dueOn(null 삭제 포함)은 canAdminPage와 canCrudAll이 모두 필요하다. 생략한 필드·제목·담당·출처는 보존한다.
+         * @description BOC-02 권고안: done은 받은 사람만 멱등 변경한다. dueOn(null 삭제 포함)은 canAdminPage와 canCrudAll이 모두 필요하다. 생략한 필드·제목·담당·출처는 보존한다.
          */
         patch: operations["DrawerController_todoDone"];
         trace?: never;
@@ -8798,7 +8798,7 @@ export interface components {
             dueOn?: string | null;
             /** @description 지난 날 수 — 끝난 할 일은 0 */
             overdueDays: number;
-            /** @description 보는 사람이 이 할 일의 완료를 체크할 수 있는가 — `PATCH /drawer/todos/:id` 와 같은 판정(운영 권한 · 받은 사람 · 준 사람). 참석자로만 여는 강사는 자기에게 온 할 일만 (W11 A' 후속 · P) */
+            /** @description 보는 사람이 이 할 일의 완료를 체크할 수 있는가 — BOC-02 권고안과 `PATCH /drawer/todos/:id`가 공유하는 받은 사람 판정. */
             canToggle: boolean;
         };
         MeetingMyAttendDto: {
@@ -21603,7 +21603,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code SUGGESTION_REPLY_REQUIRED */
+            /** @description code SUGGESTION_ALREADY_REPLIED */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -30595,7 +30595,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description NOT_FOUND: 없는 행 또는 기존 완료 범위 밖 */
+            /** @description NOT_FOUND: 없는 행 또는 받은 사람이 아닌 done 변경 */
             404: {
                 headers: {
                     [name: string]: unknown;
