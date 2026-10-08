@@ -243,6 +243,8 @@ import type {
   PaymentEvidenceBatchIssue, PaymentEvidenceBatchResult,
   PayoutDisbursement, PayoutDisbursementLedger, PayoutDisbursementPay, PayoutDisbursementCancel,
   PayoutDisbursementBatchPay, PayoutDisbursementBatchResult,
+  InvoiceAdjustmentLedger, InvoiceAdjustmentCreate, InvoiceAdjustmentAction,
+  InvoiceAdjustmentReasonAction, InvoiceAdjustmentWriteResult,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -264,6 +266,8 @@ export const qk = {
   paymentEvidence: (month: string) => ['accounting', 'payment-evidence', month] as const,
   /** TBO-55 BO-11AD-03 확정 정산과 분리된 실제 송금 current 상태. */
   payoutDisbursement: ['accounting', 'payout-ledger'] as const,
+  /** TBO-55 BO-11BD-01 월별 청구 조정 current/event 원장. */
+  invoiceAdjustments: (month: string) => ['accounting', 'adjustments', month] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
@@ -812,6 +816,44 @@ export function usePayPayoutDisbursementBatch(): UseMutationResult<
   return useMutation({
     mutationFn: async (body) => (
       await api.post<PayoutDisbursementBatchResult>('/accounting/payout-ledger/pay-batch', body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+/** BO-11BD-01 청구 조정 원장 — 승인 전 INV 불변, 승인 뒤 환불 예정액을 서버 값으로 읽는다. */
+export function useInvoiceAdjustments(month: string, enabled = true): UseQueryResult<InvoiceAdjustmentLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.invoiceAdjustments(month), viewerId),
+    queryFn: async () => (await api.get<InvoiceAdjustmentLedger>('/accounting/adjustments', { params: { month } })).data,
+    enabled,
+  });
+}
+
+export function useCreateInvoiceAdjustment(): UseMutationResult<
+  InvoiceAdjustmentWriteResult, unknown, InvoiceAdjustmentCreate
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<InvoiceAdjustmentWriteResult>('/accounting/adjustments', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+type InvoiceAdjustmentTransition = {
+  adjustmentId: number;
+  action: 'approve' | 'reject' | 'cancel' | 'undo';
+  body: InvoiceAdjustmentAction | InvoiceAdjustmentReasonAction;
+};
+
+export function useTransitionInvoiceAdjustment(): UseMutationResult<
+  InvoiceAdjustmentWriteResult, unknown, InvoiceAdjustmentTransition
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ adjustmentId, action, body }) => (
+      await api.post<InvoiceAdjustmentWriteResult>(`/accounting/adjustments/${adjustmentId}/${action}`, body)
     ).data,
     onSettled: invalidate,
   });

@@ -177,6 +177,14 @@ export type PayoutDisbursementPay = S['PayoutDisbursementPayDto'];
 export type PayoutDisbursementCancel = S['PayoutDisbursementCancelDto'];
 export type PayoutDisbursementBatchPay = S['PayoutDisbursementBatchPayDto'];
 export type PayoutDisbursementBatchResult = S['PayoutDisbursementBatchResultDto'];
+/** TBO-55 BO-11BD-01 — 청구 조정 current/event·승인 전이·환불 예정액 */
+export type InvoiceAdjustmentEvent = S['InvoiceAdjustmentEventDto'];
+export type InvoiceAdjustment = S['InvoiceAdjustmentDto'];
+export type InvoiceAdjustmentLedger = S['InvoiceAdjustmentLedgerDto'];
+export type InvoiceAdjustmentCreate = S['InvoiceAdjustmentCreateDto'];
+export type InvoiceAdjustmentAction = S['InvoiceAdjustmentActionDto'];
+export type InvoiceAdjustmentReasonAction = S['InvoiceAdjustmentReasonActionDto'];
+export type InvoiceAdjustmentWriteResult = S['InvoiceAdjustmentWriteResultDto'];
 
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];
