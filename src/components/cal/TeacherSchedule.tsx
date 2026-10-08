@@ -265,6 +265,33 @@ function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPic
   );
 }
 
+/**
+ * BOC-10 관리자 targetStaff 달력도 강사 주·월 격자와 상태 낱말을 그대로 쓴다.
+ * 관리자 화면은 실제 관리자 세션을 유지하고 occurrence의 teacherId만 서버에서 좁힌다.
+ * 이 공용 경계를 바꾸면 관리자 강사 8탭, 생성 DTO/OpenAPI, 두 수정사항 대조표와 portfolio를 함께 갱신한다.
+ */
+export function TeacherCalendarGrid({
+  view, anchor, items, meta, holidays, onOpen, onPickDay,
+}: {
+  view: 'week' | 'month';
+  anchor: string;
+  items: readonly Occurrence[];
+  meta?: Meta;
+  holidays: readonly { date: string; name: string }[];
+  onOpen: (occ: Occurrence) => void;
+  onPickDay: (date: string) => void;
+}) {
+  const lookup = useMemo(() => lookups(meta), [meta]);
+  const holidaysOn = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const holiday of holidays) map.set(holiday.date, [...(map.get(holiday.date) ?? []), holiday.name]);
+    return map;
+  }, [holidays]);
+  return view === 'week'
+    ? <TeacherWeekCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup} onOpen={onOpen} onPickDay={onPickDay} />
+    : <TeacherMonthCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup} onOpen={onOpen} onPickDay={onPickDay} />;
+}
+
 export function TeacherSchedule() {
   const router = useRouter();
   const searchParams = useSearchParams();
