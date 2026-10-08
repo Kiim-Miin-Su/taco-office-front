@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
-import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
+import type { ReportDetail, ReportStructuredBody } from '@/api/types';
 import { hhmm } from './calendar';
 import { downloadElementPng, renderElementPng, type PngRenderer } from './png-export';
 
@@ -14,8 +14,8 @@ export interface ReportExportContent {
   date: string;
   subject: string;
   timeLabel: string;
-  fields: ReportField[];
-  body: ReportBody;
+  fields: Array<{ key: string; label: string }>;
+  body: Record<string, string>;
 }
 
 type ClipboardWriter = Pick<Clipboard, 'writeText'>;
@@ -25,12 +25,63 @@ export function reportTimeLabel(report: Pick<ReportDetail, 'startMin' | 'endMin'
     ? '시간 미정' : `${hhmm(report.startMin)}–${hhmm(report.endMin)}`;
 }
 
+const DEVELOPMENT_LABELS = {
+  language: '언어 발달', math: '수학 발달', emotional: '정서적 발달', physical: '신체 발달',
+} as const;
+const DEVELOPMENT_LEVELS = { needs: '보완 필요', usual: '보통', excellent: '우수' } as const;
+
+function materialText(material: Extract<ReportStructuredBody, { kind: 'individual' }>['progress'], includeAmount: boolean): string {
+  if (!material) return '—';
+  const book = `${material.title ?? material.code ?? `교재 #${material.issueId}`}${material.edition ? ` · ${material.edition}` : ''}`;
+  return `${book} · p.${material.fromPage}–${material.toPage}${includeAmount && material.amount ? ` · ${material.amount}` : ''}`;
+}
+
+/** 저장된 구조화 snapshot을 학부모 PNG 칸으로 바꾼다. 복사·발송 본문은 계속 서버 descriptor가 정본이다. */
+function structuredPreview(body: ReportStructuredBody, studentId: number): Pick<ReportExportContent, 'fields' | 'body'> {
+  if (body.kind === 'individual' || body.kind === 'group') {
+    const rows = [
+      { key: 'content', label: body.kind === 'group' ? '③ 공통 수업 사항' : '③ 수업 내용', value: body.content },
+      { key: 'progress', label: '④ 진도 페이지', value: materialText(body.progress, false) },
+      { key: 'homework', label: '⑤ 숙제 페이지', value: materialText(body.homework, true) },
+    ];
+    if (body.kind === 'group') rows.push({
+      key: 'studentComment', label: '⑥ 학생별 의견',
+      value: body.students.find((student) => student.studentId === studentId)?.comment ?? '—',
+    });
+    return { fields: rows.map(({ key, label }) => ({ key, label })), body: Object.fromEntries(rows.map(({ key, value }) => [key, value])) };
+  }
+  if (body.kind === 'kinder' || body.kind === 'mock') {
+    const rows = Object.entries(DEVELOPMENT_LABELS).map(([key, label], index) => {
+      const value = body.development[key as keyof typeof DEVELOPMENT_LABELS];
+      const level = value.level ? DEVELOPMENT_LEVELS[value.level] : '미평가';
+      return { key, label: `${index + 3}. ${label} · ${level}`, value: value.observation };
+    });
+    rows.push({ key: 'overall', label: '⑦ 종합 소견', value: body.overall });
+    return { fields: rows.map(({ key, label }) => ({ key, label })), body: Object.fromEntries(rows.map(({ key, value }) => [key, value])) };
+  }
+  const student = body.students.find((row) => row.studentId === studentId);
+  const interview = student
+    ? `유창성 ${student.interview.fluency ?? '—'} · 단어 다양성 ${student.interview.vocabulary ?? '—'} · 어법 ${student.interview.grammar ?? '—'} · 평균 ${student.interview.average ?? '—'}`
+    : '—';
+  const rows = [
+    { key: 'math', label: '③ Math', value: student ? `${student.mathScore ?? '—'}점 · ${student.mathMistakes || '—'}` : '—' },
+    { key: 'english', label: '④ English', value: student ? `${student.englishScore ?? '—'}점 · ${student.englishMistakes || '—'}` : '—' },
+    { key: 'interview', label: '⑤ Interview', value: interview },
+    { key: 'totalAverage', label: '⑥ 전체 평균', value: student?.totalAverage === null || student?.totalAverage === undefined ? '—' : String(student.totalAverage) },
+    { key: 'overall', label: '⑦ 종합 소견', value: student?.overall ?? '—' },
+  ];
+  return { fields: rows.map(({ key, label }) => ({ key, label })), body: Object.fromEntries(rows.map(({ key, value }) => [key, value])) };
+}
+
 /** 상세·큐·PNG·복사가 같은 학생 선택 어댑터를 쓴다. 본문 문자열은 서버 descriptor가 소유한다. */
 export function reportExportContent(detail: ReportDetail, studentId: number):
   (Pick<ReportDetail['exportFiles'][number], 'fileName' | 'plainText' | 'revision'> & { content: ReportExportContent }) | null {
   const file = detail.exportFiles.find((item) => item.studentId === studentId);
   const student = detail.students.find((item) => item.id === studentId);
   if (!file || !student) return null;
+  const preview = detail.structuredBody
+    ? structuredPreview(detail.structuredBody, studentId)
+    : { fields: detail.fields, body: detail.body };
   return {
     fileName: file.fileName,
     plainText: file.plainText,
@@ -41,8 +92,8 @@ export function reportExportContent(detail: ReportDetail, studentId: number):
       date: detail.date,
       subject: detail.subjectName,
       timeLabel: reportTimeLabel(detail),
-      fields: detail.fields,
-      body: detail.body,
+      fields: preview.fields,
+      body: preview.body,
     },
   };
 }

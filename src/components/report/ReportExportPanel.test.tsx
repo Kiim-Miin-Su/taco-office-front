@@ -83,6 +83,31 @@ describe('ReportExportPanel — 학생별 동일 전문', () => {
     expect(view.getAllByText('학생B').length).toBeGreaterThan(0);
   });
 
+  it('구조화 Kinder 승인본은 legacy 3칸 대신 4영역 평가·관찰과 종합 소견을 출력한다', () => {
+    const structured: ReportDetail = {
+      ...detail,
+      formatVersion: 1,
+      formKind: 'kinder',
+      structuredBody: {
+        kind: 'kinder',
+        development: {
+          language: { level: 'excellent', observation: '언어 관찰 기록' },
+          math: { level: 'usual', observation: '수학 관찰 기록' },
+          emotional: { level: 'excellent', observation: '정서 관찰 기록' },
+          physical: { level: 'needs', observation: '신체 관찰 기록' },
+        },
+        overall: 'Kinder 종합 소견',
+      },
+    };
+    const view = render(<ReportExportPanel detail={structured} />);
+    const block = view.getByTestId('report-lesson-block');
+    const terms = [...block.querySelectorAll('dt')].map((node) => node.textContent);
+    expect(terms).toEqual(['언어 발달 · 우수', '수학 발달 · 보통', '정서적 발달 · 우수', '신체 발달 · 보완 필요', '종합 소견']);
+    expect(block.textContent).toContain('언어 관찰 기록');
+    expect(block.textContent).toContain('Kinder 종합 소견');
+    expect(block.textContent).not.toContain('진도 페이지');
+  });
+
   /**
    * g5 §50-03 · §50-04 · §50-05 — 문서 머리는 흰 바탕 · 이름(크게) + 학년 · 오른쪽 「TN ACADEMY」 · 아래 굵은 선,
    * 수업 줄에 **강사 이름**과 과목색, 칸은 2열(왼쪽 라벨 · 오른쪽 본문)의 한 블록(과목색 왼쪽 막대).

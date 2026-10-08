@@ -326,7 +326,7 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
             <dl className="mt-3 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5">
               {fields.map((field) => (
                 <Fragment key={field.key}>
-                  <dt className="text-[12px] font-bold text-fg-subtle">{field.label.replace(/^[①②③④⑤]\s*/, '')}</dt>
+                  <dt className="text-[12px] font-bold text-fg-subtle">{field.label.replace(/^(?:[①②③④⑤⑥⑦]|\d+\.)\s*/, '')}</dt>
                   <dd className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-fg">{body[field.key] || '—'}</dd>
                 </Fragment>
               ))}
