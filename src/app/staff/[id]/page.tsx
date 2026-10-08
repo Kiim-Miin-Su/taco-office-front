@@ -25,6 +25,8 @@ type Unavailable = components['schemas']['ScheduleUnavListDto'];
 type TeacherHome = components['schemas']['TeacherHomeDto'];
 type TeacherGuides = components['schemas']['TeacherGuidesDto'];
 type TeacherSuggestions = components['schemas']['TeacherSuggestionsDto'];
+type StaffTeacherHistory = components['schemas']['StaffTeacherHistoryDto'];
+type StaffTeacherInbox = components['schemas']['StaffTeacherInboxDto'];
 const STAFF_TABS = ['home', 'calendar', 'unavailable', 'reports', 'guides', 'history', 'suggestions', 'inbox'] as const;
 type StaffTab = typeof STAFF_TABS[number];
 const at = (value: string) => value.replace('T', ' ').slice(0, 16);
@@ -96,13 +98,6 @@ function History({ data, audit, hasNextPage, fetching, fetchNext }: {
   </div>;
 }
 
-function ContractPending({ title, reason }: { title: string; reason: string }) {
-  return <Panel title={`${title} 준비 중`} sub="필요한 조회 기능이 준비되기 전까지 임의의 빈 목록을 표시하지 않습니다.">
-    <p className="text-[12px] leading-6 text-fg-2">{reason}</p>
-    <p className="mt-2 text-[12px] text-fg-subtle">관리자 권한을 유지한 채 대상 강사의 정보를 조회합니다. 조회·작성·승인은 각 기능이 준비된 뒤 제공합니다.</p>
-  </Panel>;
-}
-
 function TargetHome({ data }: { data: TeacherHome }) {
   const lessons = [...data.today, ...data.upcoming];
   return <div className="space-y-4">
@@ -127,6 +122,63 @@ function TargetHome({ data }: { data: TeacherHome }) {
       </li>)}</ul> : <p className="mt-2 text-[12px] text-fg-subtle">보낸 신청 이력이 없습니다.</p>}
     </Panel>
   </div>;
+}
+
+function TargetMonthlyHistory({ data }: { data: StaffTeacherHistory }) {
+  return <div className="space-y-4">
+    <div className="grid gap-3 sm:grid-cols-3">
+      <Panel title="진행 완료"><b className="text-[20px]">{data.stats.doneCount}건 · {(data.stats.doneMinutes / 60).toFixed(1)}시간</b></Panel>
+      <Panel title="리포트 제출"><b className="text-[20px]">{data.stats.writtenCount}건</b></Panel>
+      <Panel title="리포트 미작성"><b className="text-[20px]">{data.stats.unwrittenCount}건</b></Panel>
+    </div>
+    {!data.wageAccess ? <Banner tone="neutral">수업 기록은 표시하고 시급·수업별 금액·차감·가산·세금·실지급액은 서버 권한과 회계 비공개 설정에 따라 가립니다.</Banner> : null}
+    <Panel title={`${data.month} 수업 기록`} sub="실제 수업일 순 · 정산 분류는 강사 화면과 같은 서버 계산을 사용합니다.">
+      {data.lessons.length === 0 ? <p className="text-[12px] text-fg-subtle">이 달 수업 기록이 없습니다.</p>
+        : <ul className="divide-y divide-line">{data.lessons.map((lesson) => <li key={`${lesson.serId}:${lesson.onDate}`} className="py-3 text-[12px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <b>{lesson.date} · {hhmm(lesson.startMin)}–{hhmm(lesson.startMin + lesson.durMin)}</b>
+            <Chip tone={lesson.canceled ? 'neutral' : lesson.settle === 'unwritten' ? 'danger' : 'success'}>{lesson.settleLabel}</Chip>
+          </div>
+          <p className="mt-1 text-fg-2">{lesson.title ?? lesson.subKey ?? lesson.kindKey} · {lesson.students ?? '학생 없음'}</p>
+          {data.wageAccess ? <p className="mt-1 text-fg-subtle">수업료 {won(lesson.pay)} · 가산 {won(lesson.bonus)} · 차감 {won(lesson.lateCut ?? lesson.penaltyIfNow)}</p> : null}
+        </li>)}</ul>}
+    </Panel>
+    {data.settlement ? <Panel title={`${data.settlement.yearMonth} 월 정산`} sub={data.settlement.confirmed ? '확정된 정산' : data.settlement.saved ? '저장된 정산 초안' : '현재 기준 예상 정산'}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="text-[12px]"><span className="text-fg-subtle">총액</span><strong className="mt-1 block text-[18px]">{won(data.settlement.gross)}</strong></div>
+        <div className="text-[12px]"><span className="text-fg-subtle">지각 차감</span><strong className="mt-1 block text-[18px]">{won(data.settlement.lateCut)}</strong></div>
+        <div className="text-[12px]"><span className="text-fg-subtle">원천징수</span><strong className="mt-1 block text-[18px]">{won(data.settlement.incomeTax + data.settlement.localTax)}</strong></div>
+        <div className="text-[12px]"><span className="text-fg-subtle">실지급</span><strong className="mt-1 block text-[18px]">{won(data.settlement.net)}</strong></div>
+      </div>
+      <ul className="mt-4 divide-y divide-line border-t border-line">{data.settlement.breakdown.map((row) => <li key={row.key} className="flex flex-wrap justify-between gap-2 py-2 text-[12px]">
+        <span>{row.label} · {row.lessonCount}건 · {(row.minutes / 60).toFixed(1)}시간</span><b>{won(row.amount)}</b>
+      </li>)}</ul>
+      {data.settlement.breakdownUnallocatedAmount !== 0 ? <div className="flex flex-wrap justify-between gap-2 border-t border-line py-2 text-[12px]">
+        <span>저장값과 현재 근거 차이 · 종류별 근거가 없는 옛 저장 정산</span>
+        <b>{data.settlement.breakdownUnallocatedAmount > 0 ? '+' : '−'}{won(Math.abs(data.settlement.breakdownUnallocatedAmount))}</b>
+      </div> : null}
+      {data.settlement.note ? <p className="mt-2 text-[12px] text-fg-subtle">{data.settlement.note}</p> : null}
+    </Panel> : null}
+  </div>;
+}
+
+function TargetInbox({ data, onGo }: { data: StaffTeacherInbox; onGo: (go: string) => void }) {
+  return <Panel title="대상 강사 들어온 것" sub={`열린 업무 ${data.count}건 · 실제 관리자 actor 권한으로 처리 가능 여부를 판정합니다.`}>
+    <div className="flex flex-wrap gap-2" aria-label="들어온 것 8종">
+      {data.categories.map((category) => <Chip key={category.key}>{category.label} {category.count}</Chip>)}
+    </div>
+    {data.items.length === 0 ? <p className="mt-4 text-[12px] text-fg-subtle">현재 열린 업무가 없습니다.</p>
+      : <ul className="mt-4 divide-y divide-line border-t border-line">{data.items.map((item) => <li key={`${item.sourceKind}:${item.id}`} className="py-4 text-[12px]">
+        <div className="flex flex-wrap items-center gap-2"><Chip>{item.categoryLabel}</Chip><b>{item.title}</b><span className="text-fg-subtle">{at(item.at)}</span></div>
+        {item.sub ? <p className="mt-2 text-fg-2">{item.sub}</p> : null}
+        {item.asked && item.asked !== item.sub ? <p className="mt-1 text-fg-2">요청 · {item.asked}</p> : null}
+        {item.reason ? <p className="mt-1 whitespace-pre-wrap text-fg-subtle">사유 · {item.reason}</p> : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={item.canAct ? 'primary' : 'secondary'} onClick={() => onGo(item.go)}>처리 화면 열기</Button>
+          {item.actBlockedReason ? <span className="text-fg-subtle">{item.actBlockedReason}</span> : null}
+        </div>
+      </li>)}</ul>}
+  </Panel>;
 }
 
 function TargetGuides({ data }: { data: TeacherGuides }) {
@@ -231,6 +283,16 @@ export default function StaffDetailPage() {
     queryFn: async () => (await api.get<TeacherSuggestions>(`/drawer/staff-directory/${id}/suggestions`)).data,
     enabled: tab === 'suggestions' && id !== null && viewerId !== 'anonymous',
   });
+  const history = useQuery<StaffTeacherHistory, Error>({
+    queryKey: sessionQueryKey(['staff-directory', 'target-history', id ?? 0] as const, viewerId),
+    queryFn: async () => (await api.get<StaffTeacherHistory>(`/drawer/staff-directory/${id}/history`)).data,
+    enabled: tab === 'history' && id !== null && viewerId !== 'anonymous',
+  });
+  const inbox = useQuery<StaffTeacherInbox, Error>({
+    queryKey: sessionQueryKey(['staff-directory', 'target-inbox', id ?? 0] as const, viewerId),
+    queryFn: async () => (await api.get<StaffTeacherInbox>(`/drawer/staff-directory/${id}/inbox`)).data,
+    enabled: tab === 'inbox' && id !== null && viewerId !== 'anonymous',
+  });
   const occurrences = useOccurrences({ ...calendarRange, teacherId: id ?? 0 }, tab === 'calendar' && id !== null && viewerId !== 'anonymous');
   const meta = useMeta(tab === 'calendar');
   const holidays = useScheduleHolidays(calendarRange, tab === 'calendar');
@@ -252,9 +314,9 @@ export default function StaffDetailPage() {
         { value: 'unavailable', label: '불가 시간', sub: unavailable.data ? `${unavailable.data.items.length}건` : '향후 2주' },
         { value: 'reports', label: '리포트', sub: `${data.reports.length}건` },
         { value: 'guides', label: '수업 안내', sub: guides.data ? `${guides.data.students.length}명` : '주간 학생' },
-        { value: 'history', label: '히스토리', sub: '정산·변경' },
+        { value: 'history', label: '히스토리', sub: history.data ? history.data.month : '정산·변경' },
         { value: 'suggestions', label: '건의 사항', sub: suggestions.data ? `${suggestions.data.used}/${suggestions.data.limit}` : '답변' },
-        { value: 'inbox', label: '들어온 것', sub: '기능 준비 중' },
+        { value: 'inbox', label: '들어온 것', sub: inbox.data ? `${inbox.data.count}건` : '8종 모음' },
       ]} />
       <Banner tone="warning">현재 관리자에게 제공되는 값만 표시합니다. 아직 수집하지 않은 과거 이력은 추정해 표시하지 않습니다.</Banner>
       {tab === 'home' ? <div className="space-y-4"><Profile data={data} /><Assignments data={data} /><QueryState query={home} isEmpty={() => false}>{(value) => <TargetHome data={value} />}</QueryState></div> : null}
@@ -273,11 +335,14 @@ export default function StaffDetailPage() {
         </QueryState>
       </div> : null}
       {tab === 'reports' ? <Reports data={data} /> : null}
-      {tab === 'history' ? <History data={data} audit={audit} hasNextPage={Boolean(detail.hasNextPage)} fetching={detail.isFetchingNextPage} fetchNext={() => void detail.fetchNextPage()} /> : null}
+      {tab === 'history' ? <div className="space-y-4">
+        <QueryState query={history} isEmpty={() => false}>{(value) => <TargetMonthlyHistory data={value} />}</QueryState>
+        <History data={data} audit={audit} hasNextPage={Boolean(detail.hasNextPage)} fetching={detail.isFetchingNextPage} fetchNext={() => void detail.fetchNextPage()} />
+      </div> : null}
       {tab === 'unavailable' ? <UnavailablePanel data={unavailable.data} pending={unavailable.isPending} error={unavailable.error} retry={() => void unavailable.refetch()} /> : null}
       {tab === 'guides' ? <QueryState query={guides} isEmpty={() => false}>{(value) => <TargetGuides data={value} />}</QueryState> : null}
       {tab === 'suggestions' ? <QueryState query={suggestions} isEmpty={() => false}>{(value) => <TargetSuggestions data={value} refresh={() => suggestions.refetch()} />}</QueryState> : null}
-      {tab === 'inbox' ? <ContractPending title="대상 강사 들어온 것" reason="강사의 개인 알림은 표시하지 않습니다. 관리자에게 필요한 승인·답변·안내 확인 내역만 제공할 예정입니다." /> : null}
+      {tab === 'inbox' ? <QueryState query={inbox} isEmpty={() => false}>{(value) => <TargetInbox data={value} onGo={(go) => router.push(go)} />}</QueryState> : null}
     </div> : null}
   </AppShell></RequireAuth>;
 }

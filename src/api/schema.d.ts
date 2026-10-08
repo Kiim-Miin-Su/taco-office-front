@@ -3882,6 +3882,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/drawer/staff-directory/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 관리자 강사 수업 히스토리 — targetStaff의 서버 KST 직전 달 수업·정산
+         * @description 수업 사실은 대상 강사 기준으로 읽고 금액은 실제 관리자 actor의 canWage·회계 비공개·canHide 판정으로 서버에서 가린다.
+         */
+        get: operations["DrawerController_staffTeacherHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drawer/staff-directory/{id}/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 관리자 강사 들어온 것 — 선택 강사가 보낸 원문 8종 열린 업무
+         * @description 리포트·스케줄 변경·교재 변경·불가 시간·자료 요청·시간대 변경·시급 변경·건의만 반환한다. 처리 가능 여부와 시급 값은 실제 로그인 관리자 권한으로 판정한다.
+         */
+        get: operations["DrawerController_staffTeacherInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/drawer/staff": {
         parameters: {
             query?: never;
@@ -12574,6 +12614,56 @@ export interface components {
             reports: components["schemas"]["StaffDirectoryReportDto"][];
             audit: components["schemas"]["StaffDirectoryAuditDto"][];
             nextCursor: string | null;
+        };
+        StaffTeacherHistoryDto: {
+            /** @description 서버 KST 직전 달 YYYY-MM */
+            month: string;
+            stats: components["schemas"]["TeacherHistoryStatsDto"];
+            /** @description 시급·수업별 금액·정산 상세를 볼 수 있는가 */
+            wageAccess: boolean;
+            wageRate?: number | null;
+            wageFrom?: string | null;
+            /** @description 금액 권한이 없으면 pay/lateCut/penaltyIfNow/bonus는 null */
+            lessons: components["schemas"]["TeacherHistoryLessonDto"][];
+            /** @description 금액 권한이 없으면 null */
+            settlement: components["schemas"]["TeacherSettlementDto"] | null;
+            /** @description 금액 권한이 없으면 규칙 이름은 유지하고 amount는 null */
+            bonusRules: components["schemas"]["TeacherBonusRuleDto"][];
+        };
+        StaffTeacherInboxItemDto: {
+            /** @enum {string} */
+            sourceKind: "rep" | "req" | "chreq" | "matreq" | "suggestion" | "unav";
+            id: number;
+            /** @enum {string} */
+            category: "report" | "schedule_change" | "book_change" | "unavailable" | "material_request" | "tz_change" | "wage_change" | "suggestion";
+            categoryLabel: string;
+            title: string;
+            sub?: string | null;
+            byId: number;
+            byName?: string | null;
+            at: string;
+            /** @enum {string} */
+            state: "waiting";
+            go: string;
+            reqType?: string | null;
+            asked?: string | null;
+            reason?: string | null;
+            /** @description 실제 로그인 관리자 actor가 기존 writer에서 지금 처리할 수 있는가 */
+            canAct: boolean;
+            actBlockedReason?: string | null;
+        };
+        StaffTeacherInboxCategoryDto: {
+            /** @enum {string} */
+            key: "report" | "schedule_change" | "book_change" | "unavailable" | "material_request" | "tz_change" | "wage_change" | "suggestion";
+            label: string;
+            count: number;
+        };
+        StaffTeacherInboxDto: {
+            items: components["schemas"]["StaffTeacherInboxItemDto"][];
+            /** @description 관리자 수정사항 p60의 8종 고정 순서 */
+            categories: components["schemas"]["StaffTeacherInboxCategoryDto"][];
+            /** @description items.length와 같은 값 */
+            count: number;
         };
         StaffCreateDto: {
             name: string;
@@ -30422,6 +30512,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeacherSuggestionsDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_staffTeacherHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffTeacherHistoryDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STAFF_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    DrawerController_staffTeacherInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffTeacherInboxDto"];
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */

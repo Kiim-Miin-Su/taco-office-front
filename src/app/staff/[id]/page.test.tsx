@@ -27,6 +27,8 @@ type Detail = components['schemas']['StaffDirectoryDetailDto'];
 type TeacherHome = components['schemas']['TeacherHomeDto'];
 type TeacherGuides = components['schemas']['TeacherGuidesDto'];
 type TeacherSuggestions = components['schemas']['TeacherSuggestionsDto'];
+type StaffTeacherHistory = components['schemas']['StaffTeacherHistoryDto'];
+type StaffTeacherInbox = components['schemas']['StaffTeacherInboxDto'];
 type OccurrenceList = components['schemas']['OccurrenceListDto'];
 type Meta = components['schemas']['MetaDto'];
 
@@ -65,6 +67,45 @@ const suggestions: TeacherSuggestions = {
     lesson: { serId: 3, onDate: '2026-10-09', date: '2026-10-09', startMin: 600, endMin: 660, subject: 'Writing', title: 'Writing', students: ['학생A'] },
   }],
 };
+const history: StaffTeacherHistory = {
+  month: '2026-09', wageAccess: true, wageRate: 45000, wageFrom: '2026-01-01',
+  stats: { doneCount: 2, doneMinutes: 120, writtenCount: 1, writtenMinutes: 60, unwrittenCount: 1, unwrittenMinutes: 60 },
+  lessons: [{
+    serId: 3, onDate: '2026-09-30', date: '2026-09-30', startMin: 600, durMin: 60,
+    kindKey: 'class', subKey: 'writing', mode: 'offline', title: 'Writing', students: '학생A',
+    studentItems: [{ id: 31, name: '학생A' }], studentCount: 1, repState: 'ok', canceled: false,
+    submittedAt: '2026-09-30 11:10', pay: 45000, lateCut: 0, penaltyIfNow: null, bonus: 10000,
+    settle: 'written', settleLabel: '리포트 씀', correctionOf: null, paidIn: null, frozen: true,
+  }],
+  settlement: {
+    yearMonth: '2026-09', confirmed: true, saved: true, writtenMinutes: 60,
+    gross: 55000, lateCut: 0, incomeTax: 1650, localTax: 160, net: 53190,
+    unwrittenCount: 1, unwrittenMinutes: 60, unwrittenAmount: 45000,
+    remainingCount: 0, remainingMinutes: 0, remainingAmount: 0, bonus: 10000,
+    correctionCount: 0, lateCount: 0, note: null,
+    breakdown: [{ key: 'general', label: '일반', lessonCount: 1, minutes: 60, amount: 45000, note: null }, { key: 'kinder', label: 'Kinder', lessonCount: 1, minutes: 60, amount: 10000, note: null }],
+    breakdownTotal: 65000, breakdownUnallocatedAmount: -10000,
+  },
+  bonusRules: [{ label: 'Kinder 수업', hint: '시급에 더함', amount: 10000, applied: true, note: null }],
+};
+const inbox: StaffTeacherInbox = {
+  count: 2,
+  categories: [
+    ['report', '리포트', 1], ['schedule_change', '스케줄 변경', 0], ['book_change', '교재 변경', 0],
+    ['unavailable', '불가 시간', 1], ['material_request', '자료 요청', 0], ['tz_change', '시간대 변경', 0],
+    ['wage_change', '시급 변경', 0], ['suggestion', '건의 사항', 0],
+  ].map(([key, label, count]) => ({ key, label, count })) as StaffTeacherInbox['categories'],
+  items: [{
+    sourceKind: 'rep', id: 101, category: 'report', categoryLabel: '리포트', title: '리포트 · 학생A 2026-09-30',
+    sub: null, byId: 7, byName: '김강사', at: '2026-10-01T09:00:00+09:00', state: 'waiting', go: '/reports?review=approval',
+    reqType: null, asked: null, reason: null, canAct: false, actBlockedReason: null,
+  }, {
+    sourceKind: 'unav', id: 91, category: 'unavailable', categoryLabel: '불가 시간', title: '불가 시간 · 10:00–11:00',
+    sub: '2026-10-18 · 병원 진료', byId: 7, byName: null, at: '2026-10-08T09:00:00+09:00', state: 'waiting',
+    go: '/staff/7?tab=unavailable', reqType: null, asked: null, reason: null, canAct: false,
+    actBlockedReason: '편성 참고 정보이며 승인 대상이 아닙니다',
+  }],
+};
 const unavailable: components['schemas']['ScheduleUnavListDto'] = {
   from: '2026-10-08', to: '2026-10-21',
   items: [{ id: 91, teacherId: 7, teacherName: '김강사', date: '2026-10-18', startMin: 600, endMin: 660, reason: '병원 진료로 수업 진행이 어렵습니다' }],
@@ -79,7 +120,8 @@ const occurrences: OccurrenceList = {
   }],
 };
 const meta: Meta = {
-  kinds: [{ key: 'class', name: '수업', rep: true }], subs: [{ key: 'writing', name: 'Writing' }],
+  kinds: [{ key: 'class', name: '수업', color: '#4f46e5', cap: 1, grp: 'lesson', rep: true, extra: false }],
+  subs: [{ key: 'writing', name: 'Writing', color: '#4f46e5' }],
   educationGrades: [], rooms: [], zaccs: [], staff: [], students: [], invTypes: [], cancelReasons: [], cancelTreats: [], lateReportTiers: [], teacherPolicies: [], genders: [],
 };
 
@@ -89,6 +131,8 @@ function responseFor(url: string): unknown {
   if (url === '/drawer/staff-directory/7/home') return home;
   if (url === '/drawer/staff-directory/7/guides') return guides;
   if (url === '/drawer/staff-directory/7/suggestions') return suggestions;
+  if (url === '/drawer/staff-directory/7/history') return history;
+  if (url === '/drawer/staff-directory/7/inbox') return inbox;
   if (url === '/schedule/unavailable') return unavailable;
   if (url === '/schedule/occurrences') return occurrences;
   if (url === '/schedule/holidays') return { from: occurrences.from, to: occurrences.to, items: [] };
@@ -120,7 +164,7 @@ it('실제 관리자 actor와 대상 강사를 분리하고 8탭을 한 허브�
   await view.findByText('오늘·다가오는 7일 수업');
   expect(view.getAllByRole('tab').map((node) => node.textContent?.trim())).toEqual([
     '홈오늘 0건', '캘린더주·월', '불가 시간향후 2주', '리포트1건', '수업 안내주간 학생',
-    '히스토리정산·변경', '건의 사항답변', '들어온 것기능 준비 중',
+    '히스토리정산·변경', '건의 사항답변', '들어온 것8종 모음',
   ]);
   expect(view.getByText('현재 배정 수업·학생')).toBeTruthy();
   expect(view.getByText('현재 설정·보낸 신청 이력')).toBeTruthy();
@@ -138,8 +182,34 @@ it('리포트와 히스토리는 생성 projection만 표시하고 teacher 본�
   view.rerender(<QueryClientProvider client={clients[0]}><StaffDetailPage /></QueryClientProvider>);
   expect(await view.findByText('정보 변경 감사 이력')).toBeTruthy();
   const urls = vi.mocked(api.get).mock.calls.map(([url]) => String(url));
-  expect(urls).toEqual(['/drawer/staff-directory/7', '/drawer/staff-directory/7/home']);
+  expect(urls).toEqual(['/drawer/staff-directory/7', '/drawer/staff-directory/7/home', '/drawer/staff-directory/7/history']);
   expect(urls.some((url) => url.startsWith('/teacher/'))).toBe(false);
+});
+
+it('히스토리는 대상 강사의 서버 KST 전월 수업·정산 projection을 표시한다', async () => {
+  nav.tab = 'history';
+  const view = setup();
+  expect(await view.findByText('2026-09 수업 기록')).toBeTruthy();
+  expect(view.getByText('Writing · 학생A')).toBeTruthy();
+  expect(view.getByText(/일반 · 1건/)).toBeTruthy();
+  expect(view.getByText(/Kinder · 1건/)).toBeTruthy();
+  expect(view.getByText(/저장값과 현재 근거 차이/)).toBeTruthy();
+  expect(view.getByText('−₩10,000')).toBeTruthy();
+  expect(view.getByText('₩53,190')).toBeTruthy();
+  expect(vi.mocked(api.get)).toHaveBeenCalledWith('/drawer/staff-directory/7/history');
+  expect(vi.mocked(api.get).mock.calls.some(([url]) => String(url).startsWith('/teacher/'))).toBe(false);
+});
+
+it('들어온 것은 원문 8종 칩과 선택 강사의 열린 업무만 표시하고 원본 화면으로 이동한다', async () => {
+  nav.tab = 'inbox';
+  const view = setup();
+  expect(await view.findByText('대상 강사 들어온 것')).toBeTruthy();
+  expect(view.getByText('리포트 1')).toBeTruthy();
+  expect(view.getByText('불가 시간 1')).toBeTruthy();
+  expect(view.queryByText('GPA 요청', { exact: true })).toBeNull();
+  fireEvent.click(view.getAllByRole('button', { name: '처리 화면 열기' })[0]);
+  expect(push).toHaveBeenLastCalledWith('/reports?review=approval');
+  expect(vi.mocked(api.get)).toHaveBeenCalledWith('/drawer/staff-directory/7/inbox');
 });
 
 it('대상 강사의 불가 시간은 기존 관리자 일정 계약으로만 읽는다', async () => {
