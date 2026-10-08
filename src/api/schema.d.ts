@@ -3588,26 +3588,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/teacher/gpa-request-options": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 「GPA 회차 요청」 창 — 서비스 규정 · 고를 수 있는 내 GPA 회차 (N-99)
-         * @description 회차는 요청 쓰기와 같은 판정(내 GPA 수업 · 휴강 아님 · 열린 사이클 안)으로 서버가 고른다. 명단은 그날 명단.
-         */
-        get: operations["TeacherController_gpaRequestOptions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/teacher/requests": {
         parameters: {
             query?: never;
@@ -3618,8 +3598,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 강사 요청 — 시급·시간대(덱 §8) · 교재 변경(수업 안내 교재 행) · GPA 회차 요청(캘린더 GPA 회차) — N-99
-         * @description 올리기만 한다. **관리자 승인 후 적용**이며 시급은 한 달에 한 번이다 — 판정은 서버. 교재 변경은 새 교재를 정하지 않는다(승인 = 상태 + 알림 · 배부 변경은 관리자가 §38 에서). GPA 회차 요청은 승인하면 그 내용으로 GPA 기록 한 줄이 선다. 학생은 내 담당 학생만.
+         * 강사 요청 — 시급·시간대(덱 §8) · 교재 변경(수업 안내 교재 행)
+         * @description 올리기만 한다. **관리자 승인 후 적용**이며 시급은 한 달에 한 번이다 — 판정은 서버. 교재 변경은 새 교재를 정하지 않는다(승인 = 상태 + 알림 · 배부 변경은 관리자가 §38 에서). 학생은 내 담당 학생만.
          */
         post: operations["TeacherController_createSettingRequest"];
         delete?: never;
@@ -3636,84 +3616,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * GPA 관리 보드 — 사이클·규정·학생별 잔여·타임라인 (v2 §4.5·§82 · N-13 채택)
-         * @description 배정 − 사용(ok) − 대기(wait) = 잔여는 서버 한 곳이 계산한다. 학부모 비공개(D-R30) — 발송 경로에 싣지 않는다.
+         * GPA 과거 원장 — 사이클·규정·학생별 잔여·타임라인 (읽기 전용)
+         * @description 최신 수정사항으로 신규 GPA 기능은 퇴역했다. 기존 확정 원장만 관리자에게 읽기 전용으로 제공하며 발송 경로에 싣지 않는다.
          */
         get: operations["GpaController_board"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/gpa/uses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 회차 소비 기록 — wait 로 등록, 포인트는 규정 스냅샷. 초과는 막지 않고 화면이 붉게 안내한다 */
-        post: operations["GpaController_createUse"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/gpa/uses/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** 대기(wait) 기록 삭제 — 승인분은 USE_APPROVED 로 거절 */
-        delete: operations["GpaController_deleteUse"];
-        options?: never;
-        head?: never;
-        /** 기록 승인(ok)·되돌림(wait) — 기록한 사람은 승인하지 못한다 · 닫힌 사이클은 잠긴다 */
-        patch: operations["GpaController_setUseState"];
-        trace?: never;
-    };
-    "/gpa/allocs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 배정 upsert — (사이클, 학생) 하나. 0 은 배정 회수. 담당 코디는 마지막 저장자 */
-        put: operations["GpaController_putAlloc"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/gpa/cycles/{id}/close": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 사이클 마감 — O-150 「4주마다 — GPA 사이클 마감」 (C95)
-         * @description 열려 있고 끝날이 지났고 승인 대기가 0 일 때만. closed_at/by 도장 · 잔여는 소멸(D-R29 · 이월 없음) · 다음 사이클이 없으면 끝날 다음 날부터 4주를 연다 · LOG.
-         */
-        post: operations["GpaController_closeCycle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11274,61 +11182,22 @@ export interface components {
             /** @description 사유 1~500자 — 필수. 관리자가 조정 가능성을 판단한다 (v26) */
             reason: string;
         };
-        TeacherGpaServiceDto: {
-            key: string;
-            name: string;
-            /** @description 규정 포인트 — 승인 때 GPA 기록에 스냅숏된다 */
-            point: number;
-        };
-        TeacherGpaOccurrenceStudentDto: {
-            id: number;
-            name: string;
-        };
-        TeacherGpaOccurrenceDto: {
-            serId: number;
-            /** Format: date */
-            onDate: string;
-            /** @description 시작 분(KST) — 그날 놓인 자리 */
-            startMin: number;
-            /** @description 끝 분(KST) */
-            endMin: number;
-            /** @description 규칙 제목 — 없으면 과목 · 종류 이름(화면은 코드표로 적는다) */
-            title: string | null;
-            subKey: string | null;
-            kindKey: string;
-            /** @description 그날 명단 */
-            students: components["schemas"]["TeacherGpaOccurrenceStudentDto"][];
-        };
-        TeacherGpaRequestOptionsDto: {
-            services: components["schemas"]["TeacherGpaServiceDto"][];
-            /** @description 내 GPA 수업 회차 중 휴강이 아니고 날짜를 품는 열린 사이클이 있는 것 — 요청 쓰기와 같은 판정 */
-            occurrences: components["schemas"]["TeacherGpaOccurrenceDto"][];
-        };
         TeacherSettingReqCreateDto: {
             /**
-             * @description 시급 · 시간대(덱 §8) · 교재 변경(수업 안내의 교재 행) · GPA 회차 요청(캘린더의 GPA 회차) — N-99
+             * @description 시급 · 시간대(덱 §8) · 교재 변경(수업 안내의 교재 행)
              * @enum {string}
              */
-            reqType: "wage_change" | "tz_change" | "book_change" | "gpa_request";
+            reqType: "wage_change" | "tz_change" | "book_change";
             /** @description 시급 변경일 때 바라는 시급(원/시간). 정수 */
             rate?: number;
             /** @description 시간대 변경일 때 바라는 IANA 시간대 — TZG 에 있는 값만 */
             timezone?: string;
             /** @description 사유 — 교재 변경은 필수(400 REASON_REQUIRED) · 나머지는 선택 */
             reason?: string;
-            /** @description 교재 변경 · GPA 회차 요청의 학생 id */
+            /** @description 교재 변경의 학생 id */
             studentId?: number;
             /** @description 교재 변경 — 바꿔 달라는 배부(issue) id. 그 학생의 사용 중인 교재여야 한다 */
             issueId?: number;
-            /** @description GPA 회차 요청 — 내 GPA 수업 회차의 규칙 id(SER) */
-            serId?: number;
-            /**
-             * Format: date
-             * @description GPA 회차 요청 — 그 회차의 날짜 YYYY-MM-DD(시각은 회차에서 서버가 읽는다)
-             */
-            onDate?: string;
-            /** @description GPA 회차 요청 — 서비스 키(GET /teacher/gpa-request-options). 포인트는 승인 때 규정에서 스냅숏 */
-            svcKey?: string;
         };
         GpaCycleDto: {
             id: number;
@@ -11344,9 +11213,9 @@ export interface components {
             closedAt: string | null;
             /** @description 마감한 사람 */
             closedByName: string | null;
-            /** @description 지금 마감할 수 있는가 — 열려 있고 · 끝날이 지났고 · 승인 대기가 0 이어야 한다 */
+            /** @description GPA 기능 퇴역 후에는 항상 false — 과거 원장은 읽기 전용 */
             canClose: boolean;
-            /** @description 마감이 막힌 이유 문장 — 화면이 그대로 띄운다. 열려 있으면 null */
+            /** @description 읽기 전용 사유 — GPA 기능 퇴역 이후 고정 문장 */
             closeBlockedReason: string | null;
         };
         GpaServiceDto: {
@@ -11411,7 +11280,7 @@ export interface components {
             approvedByName?: string | null;
             /** @description 승인한 날 YYYY-MM-DD (KST) */
             approvedOn?: string | null;
-            /** @description 이 기록에 승인 단추가 열리는가 — 대기 상태이고 **기록한 사람이 내가 아닐 때**. 사이클 잠금은 cycle.closed 가 따로 말한다 (D-R39 · 화면이 다시 조합하지 않는다) */
+            /** @description GPA 기능 퇴역 후에는 항상 false — 과거 기록을 승인·되돌리지 않는다. */
             canApprove: boolean;
         };
         GpaLessonDto: {
@@ -11450,51 +11319,8 @@ export interface components {
             students: components["schemas"]["GpaStudentDto"][];
             /** @description 사이클 내 소비 — 날짜·시간 순 (gpTimeline 입력) */
             uses: components["schemas"]["GpaUseDto"][];
-            /** @description 이 사이클 창 안의 GPA 회차 — 기록 창 「수업 연결」 줄(날짜·시간 순 · 휴강 제외). 사이클이 없으면 빈 배열 */
+            /** @description 호환용 과거 필드. 신규 GPA 입력 경로가 퇴역했으므로 항상 빈 배열 */
             lessons: components["schemas"]["GpaLessonDto"][];
-        };
-        GpaUseCreateDto: {
-            cycleId: number;
-            studentId: number;
-            /** @description 서비스 키 — 포인트는 서버가 규정에서 스냅샷 */
-            svcKey: string;
-            /** @description YYYY-MM-DD — 사이클 창 안이어야 한다 */
-            onDate: string;
-            /** @description KST 분 (0~1439) */
-            startMin?: number;
-            /** @description kind='gpa' 회차 SER id — 없는 회차는 404 SER_NOT_FOUND · GPA 가 아닌 수업은 409 GPA_SER_NOT_GPA */
-            serId?: number;
-            /** @description 선택 기록지 HTTP(S) URL — 원문 500자 이내. 생략/null/공백은 비움 */
-            noteUrl?: string | null;
-        };
-        GpaUseStateDto: {
-            /**
-             * @description ok = 승인 · wait = 되돌림
-             * @enum {string}
-             */
-            state: "wait" | "ok";
-        };
-        GpaAllocPutDto: {
-            cycleId: number;
-            studentId: number;
-            /** @description 이 사이클 배정량 — 0 이상 (0 은 배정 회수) */
-            points: number;
-        };
-        GpaExpiredRowDto: {
-            studentId: number;
-            name: string;
-            /** @description 소멸한 잔여 (배정 − 승인 사용) — 음수면 초과였다 */
-            remain: number;
-        };
-        GpaCycleCloseResultDto: {
-            /** @description 닫힌 사이클 (도장 찍힘) */
-            cycle: components["schemas"]["GpaCycleDto"];
-            /** @description 이번에 새로 연 다음 사이클 — 이미 있었으면 null */
-            opened?: components["schemas"]["GpaCycleDto"] | null;
-            /** @description 소멸한 포인트 합 (잔여가 양수인 학생만) */
-            expiredPoints: number;
-            /** @description 학생별 잔여 — 잔여 적은 순 */
-            students: components["schemas"]["GpaExpiredRowDto"][];
         };
         ExecStatDto: {
             key: string;
@@ -28878,77 +28704,6 @@ export interface operations {
             };
         };
     };
-    TeacherController_gpaRequestOptions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TeacherGpaRequestOptionsDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 강사 전용 */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
     TeacherController_createSettingRequest: {
         parameters: {
             query?: never;
@@ -28970,7 +28725,7 @@ export interface operations {
                     "application/json": components["schemas"]["TeacherSettingRequestDto"];
                 };
             };
-            /** @description code RATE_REQUIRED | TZ_REQUIRED | TZ_UNKNOWN | BOOK_REQUIRED | REASON_REQUIRED | GPA_REQUEST_REQUIRED */
+            /** @description code RATE_REQUIRED | TZ_REQUIRED | TZ_UNKNOWN | BOOK_REQUIRED | REASON_REQUIRED */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -28993,14 +28748,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 내 담당 학생이 아님 · 그 학생의 교재 없음 · 내 회차 없음 · 명단에 없는 학생 · 서비스 없음 */
+            /** @description 내 담당 학생이 아님 · 그 학생의 교재 없음 */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description code WAGE_REQ_MONTHLY_QUOTA | REQ_PENDING | TZ_SAME | BOOK_NOT_IN_USE | GPA_SER_NOT_GPA | OCC_CANCELED | GPA_CYCLE_NONE */
+            /** @description code WAGE_REQ_MONTHLY_QUOTA | REQ_PENDING | TZ_SAME | BOOK_NOT_IN_USE */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -29082,375 +28837,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    GpaController_createUse: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GpaUseCreateDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GpaUseDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description code CYCLE_CLOSED(닫힌 사이클) | OUT_OF_CYCLE(창 밖 날짜) */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    GpaController_deleteUse: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OkDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description code CYCLE_CLOSED | USE_APPROVED */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    GpaController_setUseState: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GpaUseStateDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GpaUseDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 기록 없음 */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description code CYCLE_CLOSED | USE_STATE_UNCHANGED(이미 그 상태 — 승인 도장을 덮지 않는다) | SELF_APPROVAL_FORBIDDEN */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    GpaController_putAlloc: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GpaAllocPutDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GpaStudentDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description code CYCLE_CLOSED */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-        };
-    };
-    GpaController_closeCycle: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GpaCycleCloseResultDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorDto"];
-                };
-            };
-            /** @description 사이클 없음 */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description code CYCLE_CLOSED(이미 마감) · CYCLE_NOT_ENDED(끝날 전) · CYCLE_HAS_WAIT(승인 대기 남음) */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
