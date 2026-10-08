@@ -13,8 +13,8 @@
 'use client';
 import { Fragment, forwardRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
-import { useReportReview, useReportWrite, useTeacherGuides } from '@/api/queries';
-import type { ReportBody, ReportDetail, ReportField, TeacherGuides } from '@/api/types';
+import { useReportReview, useReportWrite } from '@/api/queries';
+import type { ReportBody, ReportDetail, ReportField } from '@/api/types';
 import { autosaveStampLabel, draftKey, useDraftAutosave } from '@/lib/autosave';
 import { longDateLabel } from '@/lib/calendar';
 import { reportTimeLabel, type ReportExportContent } from '@/lib/report-export';
@@ -40,20 +40,26 @@ const WRITE_WORDS = {
 /** 회차 예외까지 반영해 서버가 내린 실제 방식만 읽는다. */
 const reportModeLabel = (detail: ReportDetail): string => detail.mode === 'online' ? '온라인' : '대면';
 
-/** 강사에게 배부된 사용 중 교재만 리포트 후보로 바꾼다. 현재 reader에는 판·버전 identity가 없어 서버 저장은 열지 않는다. */
-function reportBookOptions(guides: TeacherGuides | undefined, studentIds: readonly number[]): StructuredBookOption[] {
-  if (!guides) return [];
-  const targets = new Set(studentIds);
-  const seen = new Set<string>();
-  const options: StructuredBookOption[] = [];
-  for (const student of guides.students) {
-    if (!targets.has(student.studentId)) continue;
-    for (const book of student.books) {
-      if (book.state !== 'ok') continue;
-      const identity = `${book.code}\u0000${book.title}`;
-      if (seen.has(identity)) continue;
-      seen.add(identity);
-      options.push({ id: `issue:${book.issueId}`, code: book.code, title: book.title, edition: null });
+/** 현재 배부 reader와 저장 snapshot을 같은 issue identity로 그린다. 저장 시 서버가 다시 유효성을 확인한다. */
+function reportBookOptions(detail: ReportDetail): StructuredBookOption[] {
+  const options: StructuredBookOption[] = detail.bookOptions.map((book) => ({
+    id: `issue:${book.issueId}`,
+    issueId: book.issueId,
+    code: book.code,
+    title: book.title,
+    edition: book.edition,
+  }));
+  const body = detail.structuredBody;
+  if (body?.kind === 'individual' || body?.kind === 'group') {
+    for (const material of [body.progress, body.homework]) {
+      if (!material || options.some((book) => book.issueId === material.issueId)) continue;
+      options.push({
+        id: `issue:${material.issueId}`,
+        issueId: material.issueId,
+        code: material.code,
+        title: material.title ?? material.code ?? `교재 #${material.issueId}`,
+        edition: material.edition,
+      });
     }
   }
   return options;
@@ -104,11 +110,7 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
   const teacherSurface = useTeacherSurface();
   const words = WRITE_WORDS[teacherSurface ? 'teacher' : 'admin'];
   const structuredKind = structuredReportKind(detail);
-  const guides = useTeacherGuides(detail.date, Boolean(structuredKind && teacherSurface && detail.canEdit));
-  const bookOptions = reportBookOptions(
-    teacherSurface ? guides.data : undefined,
-    detail.students.map((student) => student.id),
-  );
+  const bookOptions = reportBookOptions(detail);
   const complete = detail.fields.every((field) => body[field.key].trim().length >= field.min);
   const dirty = detail.fields.some((field) => body[field.key] !== detail.body[field.key]);
 
@@ -151,7 +153,9 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
       {
         serId: detail.serId,
         onDate: detail.onDate,
-        body: decision === 'reject' ? { decision, reason: rejectReason } : { decision },
+        body: decision === 'reject'
+          ? { decision, reason: rejectReason, expectedVersion: detail.version }
+          : { decision, expectedVersion: detail.version },
       },
       {
         onSuccess: () => setMessage({
@@ -209,14 +213,9 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
         </Banner>
       ) : null}
 
-      {detail.canEdit && detail.kindKey === 'class' && detail.students.length === 1 ? (
-        <Banner tone="info" title="일반 1대1 양식">
-          현재 응답에는 학생의 Kinder 표시가 없습니다. 과목명이나 학년으로 추정하지 않고 일반 1대1 양식을 사용합니다.
-        </Banner>
-      ) : null}
-
       {structuredKind ? (
         <StructuredReportDraft
+          key={`${detail.id}:${detail.version}`}
           detail={detail}
           kind={structuredKind}
           bookOptions={bookOptions}
@@ -238,8 +237,8 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
           : '제출 대기·승인 상태이거나 현재 사용자에게 수정 권한이 없습니다.'}</Banner>
       ) : null}
       {detail.state === 'wait' ? (
-        <Banner tone="warning" title="승인 대기 수정 기능 준비 중">
-          현재 제출본을 읽기 전용으로 보여 줍니다. 동시 수정 확인과 양식 버전을 함께 처리할 수 있기 전에는 승인과 겹칠 수 있는 수정을 보내지 않습니다.
+        <Banner tone="warning" title="승인 대기">
+          현재 제출본을 읽기 전용으로 보여 줍니다. 승인 또는 반려 뒤 최신 version으로 다시 작성할 수 있습니다.
         </Banner>
       ) : null}
       {message ? <Banner tone={message.tone}>{message.text}</Banner> : null}

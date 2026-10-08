@@ -12,6 +12,11 @@ import {
   type StructuredBookOption,
 } from './StructuredReportDraft';
 
+const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
+vi.mock('@/api/queries', () => ({
+  useReportWrite: () => ({ isPending: false, mutate }),
+}));
+
 const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
   id: 1, serId: 12, date: '2026-10-06', onDate: '2026-10-06', startMin: 600, endMin: 660,
   mode: 'offline', subKey: 'diag', kindKey: 'diagx', teacherId: 7, teacherName: '강사', state: 'none',
@@ -22,6 +27,7 @@ const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
   ],
   minutesSinceEnd: 30, penalty: 0,
   body: { content: '', progress: '', homework: '' },
+  formatVersion: 1, version: 0, formKind: 'diagnostic', structuredBody: null, bookOptions: [],
   fields: [
     { key: 'content', label: '③ 수업 내용', hint: '', min: 1, max: 2000 },
     { key: 'progress', label: '④ 진도', hint: '', min: 1, max: 2000 },
@@ -33,11 +39,12 @@ const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
 });
 
 const books: StructuredBookOption[] = [
-  { id: 'issue:31', code: 'MATH-G10', title: 'Algebra Practice', edition: '2026판' },
+  { id: 'issue:31', issueId: 31, code: 'MATH-G10', title: 'Algebra Practice', edition: '2026판' },
 ];
 
 afterEach(() => {
   cleanup();
+  mutate.mockReset();
   useSession.setState({ me: null, ready: false });
   window.localStorage.clear();
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
@@ -46,15 +53,15 @@ afterEach(() => {
 describe('structuredReportKind — 추정 없는 최신 양식 분기', () => {
   it('명시 kind와 일반 수업 인원만 분기하고 class 1명을 Kinder로 추정하지 않는다', () => {
     expect(structuredReportKind(detail())).toBe('diagnostic');
-    expect(structuredReportKind(detail({ kindKey: 'mock' }))).toBe('mock');
-    expect(structuredReportKind(detail({ kindKey: 'class' }))).toBe('group');
-    expect(structuredReportKind(detail({ kindKey: 'class', students: [detail().students[0]] }))).toBe('individual');
+    expect(structuredReportKind(detail({ kindKey: 'mock', formKind: 'mock' }))).toBe('mock');
+    expect(structuredReportKind(detail({ kindKey: 'class', formKind: 'group' }))).toBe('group');
+    expect(structuredReportKind(detail({ kindKey: 'class', formKind: 'individual', students: [detail().students[0]] }))).toBe('individual');
   });
 
   it('양식 버전이 없는 기존 draft·제출본은 새 양식으로 소급 전환하지 않는다', () => {
-    expect(structuredReportKind(detail({ state: 'draft' }))).toBeNull();
-    expect(structuredReportKind(detail({ state: 'wait' }))).toBeNull();
-    expect(structuredReportKind(detail({ state: 'ok' }))).toBeNull();
+    expect(structuredReportKind(detail({ state: 'draft', formatVersion: 0, formKind: null }))).toBeNull();
+    expect(structuredReportKind(detail({ state: 'wait', formatVersion: 0, formKind: null }))).toBeNull();
+    expect(structuredReportKind(detail({ state: 'ok', formatVersion: 0, formKind: null }))).toBeNull();
   });
 });
 
@@ -67,7 +74,7 @@ it('Kinder는 4영역 3단계·관찰·종합 소견만 있고 그룹 의견은 
   }
   expect(view.getByLabelText('종합 소견')).toBeTruthy();
   expect(view.queryByText(/개별 의견/)).toBeNull();
-  expect(view.getByRole('button', { name: '승인 요청 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
+  expect(view.getByRole('button', { name: '승인 요청하기' }).hasAttribute('disabled')).toBe(false);
 });
 
 it('Kinder에 학생이 둘이면 양식을 열지 않고 1대1 제한을 표시한다', () => {
@@ -139,7 +146,7 @@ it('clipboard 권한 실패를 저장 성공으로 오인하지 않고 직접 �
   await waitFor(() => expect(view.getByRole('status').textContent).toContain('복사하지 못했습니다'));
 });
 
-it('진단 그룹은 학생별 점수·오답·인터뷰 3영역을 분리하고 인터뷰 평균만 확정 산식으로 표시한다', () => {
+it('진단 그룹은 학생별 점수·오답·인터뷰 3영역과 확정된 세 영역 평균을 표시한다', () => {
   const view = render(<StructuredReportDraft detail={detail()} kind="diagnostic" />);
   expect(view.getByRole('region', { name: '첫 학생 진단' })).toBeTruthy();
   expect(view.getByRole('region', { name: '둘째 학생 진단' })).toBeTruthy();
@@ -148,9 +155,27 @@ it('진단 그룹은 학생별 점수·오답·인터뷰 3영역을 분리하고
   fireEvent.change(view.getAllByLabelText('인터뷰 · 유창성')[0], { target: { value: '70' } });
   fireEvent.change(view.getAllByLabelText('인터뷰 · 단어 다양성')[0], { target: { value: '80' } });
   fireEvent.change(view.getAllByLabelText('인터뷰 · 어법')[0], { target: { value: '90' } });
-  expect(view.getByText('인터뷰 평균 80.0 · 전체 평균은 산식 결정 대기')).toBeTruthy();
+  expect(view.getByText('인터뷰 평균 80.0 · 전체 평균 —')).toBeTruthy();
+  fireEvent.change(view.getAllByLabelText('수학 점수')[0], { target: { value: '90' } });
+  fireEvent.change(view.getAllByLabelText('영어 점수')[0], { target: { value: '80' } });
+  expect(view.getByText('인터뷰 평균 80.0 · 전체 평균 83.3')).toBeTruthy();
 
   fireEvent.change(view.getAllByLabelText('수학 점수')[0], { target: { value: '101' } });
   expect(view.getByRole('alert').textContent).toContain('0부터 100 사이');
   expect(view.queryByLabelText(/레벨/)).toBeNull();
+});
+
+it('임시 저장은 서버 formKind·version과 생성 DTO 구조를 그대로 mutation에 전달한다', () => {
+  const one = detail({
+    kindKey: 'class', formKind: 'kinder', version: 3, students: [detail().students[0]],
+  });
+  const view = render(<StructuredReportDraft detail={one} kind="kinder" />);
+  fireEvent.click(view.getByRole('button', { name: '임시 저장' }));
+  expect(mutate).toHaveBeenCalledWith(expect.objectContaining({
+    action: 'draft', serId: 12, onDate: '2026-10-06',
+    body: expect.objectContaining({
+      formatVersion: 1, expectedVersion: 3, language: 'ko',
+      structuredBody: expect.objectContaining({ kind: 'kinder' }),
+    }),
+  }), expect.any(Object));
 });

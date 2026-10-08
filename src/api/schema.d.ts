@@ -811,7 +811,7 @@ export interface paths {
         get?: never;
         /**
          * 리포트 임시저장 — 빈 칸을 허용한다
-         * @description 입력은 content/progress/homework 3칸이다. 부모 SER 잠금 후 최신 일정·출결·담당자와 REP 상태를 검증한다. 상태/권한 오류는 저장하지 않으며 최신 상세·목록을 다시 조회해야 한다.
+         * @description 기존 formatVersion=0은 content/progress/homework 3칸을 유지한다. 새 formatVersion=1은 상세의 formKind·version·bookOptions로 구조화 본문을 보내며 서버가 학생 명단, Kinder 표시, 교재 snapshot, 진단 평균을 확정한다. 부모 SER 잠금 후 최신 일정·출결·담당자와 REP 상태를 검증한다. 오류 시 저장하지 않고 최신 상세를 다시 조회한다.
          */
         put: operations["ReportsController_saveDraft"];
         post?: never;
@@ -831,8 +831,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 리포트 제출 — 3개 입력을 모두 채워야 하며 정산 기준 시각을 최초 1회만 저장한다
-         * @description 입력은 content/progress/homework 3칸이다. 부모 SER 잠금 후 최신 일정·출결·담당자와 REP 상태를 검증한다. 상태/권한 오류는 저장하지 않으며 최신 상세·목록을 다시 조회해야 한다.
+         * 리포트 제출 — 양식별 필수값을 검증하고 최초 제출시각을 한 번만 저장한다
+         * @description 기존 formatVersion=0은 content/progress/homework 3칸을 유지한다. 새 formatVersion=1은 상세의 formKind·version·bookOptions로 구조화 본문을 보내며 서버가 학생 명단, Kinder 표시, 교재 snapshot, 진단 평균을 확정한다. 부모 SER 잠금 후 최신 일정·출결·담당자와 REP 상태를 검증한다. 오류 시 저장하지 않고 최신 상세를 다시 조회한다.
          */
         post: operations["ReportsController_submit"];
         delete?: never;
@@ -852,7 +852,7 @@ export interface paths {
         put?: never;
         /**
          * 제출된 리포트 승인/반려 — 반려 사유 필수, 승인 여부는 정산과 독립
-         * @description 부모 SER → REP 잠금으로 최신 상태·담당자를 읽는다. wait와 canApprove를 검증하며 취소 여부를 추가 승인 조건으로 삼지 않는다. 오류 시 저장하지 않고 최신 상세·목록을 조회한다.
+         * @description 화면이 읽은 expectedVersion과 부모 SER → REP 잠금 뒤 최신 version·상태·담당자를 비교한다. wait와 canApprove를 검증하며 취소 여부를 추가 승인 조건으로 삼지 않는다. 오류 시 저장하지 않고 최신 상세·목록을 조회한다.
          */
         post: operations["ReportsController_review"];
         delete?: never;
@@ -5764,10 +5764,113 @@ export interface components {
             /** @description 전체 요청의 현재 대상이 0명이면 빈 배열. 원장이 없으므로 같은 키 재시도도 최신 대상을 다시 계산한다 */
             items: components["schemas"]["ReportReminderRecipientDto"][];
         };
+        ReportMaterialDto: {
+            issueId: number;
+            fromPage: number;
+            toPage: number;
+            amount?: string | null;
+            readonly libId?: number | null;
+            readonly versId?: number | null;
+            readonly issueVersion?: number | null;
+            readonly code?: string | null;
+            readonly title?: string | null;
+            readonly edition?: string | null;
+        };
+        ReportIndividualBodyDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "individual";
+            content: string;
+            progress: components["schemas"]["ReportMaterialDto"] | null;
+            homework: components["schemas"]["ReportMaterialDto"] | null;
+        };
+        ReportGroupStudentDto: {
+            studentId: number;
+            comment: string;
+        };
+        ReportGroupBodyDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "group";
+            content: string;
+            progress: components["schemas"]["ReportMaterialDto"] | null;
+            homework: components["schemas"]["ReportMaterialDto"] | null;
+            students: components["schemas"]["ReportGroupStudentDto"][];
+        };
+        ReportDevelopmentValueDto: {
+            /** @enum {string|null} */
+            level: "needs" | "usual" | "excellent" | null;
+            observation: string;
+        };
+        ReportDevelopmentDto: {
+            language: components["schemas"]["ReportDevelopmentValueDto"];
+            math: components["schemas"]["ReportDevelopmentValueDto"];
+            emotional: components["schemas"]["ReportDevelopmentValueDto"];
+            physical: components["schemas"]["ReportDevelopmentValueDto"];
+        };
+        ReportKinderBodyDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "kinder";
+            development: components["schemas"]["ReportDevelopmentDto"];
+            overall: string;
+        };
+        ReportMockBodyDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "mock";
+            development: components["schemas"]["ReportDevelopmentDto"];
+            overall: string;
+        };
+        ReportInterviewDto: {
+            fluency: number | null;
+            vocabulary: number | null;
+            grammar: number | null;
+            /** @description 세 점수 평균, 소수 첫째 자리 */
+            readonly average?: number | null;
+        };
+        ReportDiagnosticStudentDto: {
+            studentId: number;
+            mathScore: number | null;
+            englishScore: number | null;
+            mathMistakes: string;
+            englishMistakes: string;
+            interview: components["schemas"]["ReportInterviewDto"];
+            /** @description Math·English·Interview 세 영역 평균, 소수 첫째 자리 */
+            readonly totalAverage?: number | null;
+            overall: string;
+        };
+        ReportDiagnosticBodyDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "diagnostic";
+            students: components["schemas"]["ReportDiagnosticStudentDto"][];
+        };
         ReportBodyDto: {
             content: string;
             progress: string;
             homework: string;
+        };
+        ReportBookOptionDto: {
+            issueId: number;
+            issueVersion: number;
+            libId: number;
+            versId?: number | null;
+            code: string;
+            title: string;
+            edition?: string | null;
+            /** @description 현재 리포트 명단 중 이 배부 교재를 가진 학생 ID */
+            studentIds: number[];
         };
         ReportFieldDto: {
             /** @enum {string} */
@@ -5822,6 +5925,24 @@ export interface components {
             /** @description 지금 확정하면 깎이는 금액 (D-R32) */
             penalty: number;
             body: components["schemas"]["ReportBodyDto"];
+            /**
+             * @description 0=기존 3문자열, 1=구조화 양식
+             * @enum {number}
+             */
+            formatVersion: 0 | 1;
+            /** @description 저장·제출·승인/반려마다 증가하는 optimistic version */
+            version: number;
+            /**
+             * @description 서버가 종류·명단·실제 시작 시각 Kinder marker로 판정한 양식
+             * @enum {string|null}
+             */
+            formKind?: "individual" | "group" | "kinder" | "mock" | "diagnostic" | null;
+            /** @description Kinder 양식 판정에 사용한 marker version */
+            kinderMarkerVersion?: number | null;
+            /** @description formatVersion=1일 때 저장된 양식 snapshot */
+            structuredBody?: (components["schemas"]["ReportIndividualBodyDto"] | components["schemas"]["ReportGroupBodyDto"] | components["schemas"]["ReportKinderBodyDto"] | components["schemas"]["ReportMockBodyDto"] | components["schemas"]["ReportDiagnosticBodyDto"]) | null;
+            /** @description 현재 명단의 사용 중 배부 교재. 저장 시 서버가 identity·표시 snapshot을 확정한다 */
+            bookOptions: components["schemas"]["ReportBookOptionDto"][];
             /** @description 화면이 순서·문구·제한을 재정의하지 않고 그대로 그린다 */
             fields: components["schemas"]["ReportFieldDto"][];
             /** @description 현재 사용자·회차·상태 기준 저장 가능 여부 */
@@ -5839,8 +5960,13 @@ export interface components {
             lang: string;
             writtenAt?: string | null;
             submittedAt?: string | null;
+            /** @description 최초 제출 시각. 재제출해도 바뀌지 않는다 */
+            firstSubmittedAt?: string | null;
             reviewedAt?: string | null;
             rejectReason?: string | null;
+            /** @description 마지막 본문 저장 actor. 대상 강사와 다를 수 있다 */
+            lastWriterId?: number | null;
+            lastWriterName?: string | null;
         };
         ReportDeliveryStudentDto: {
             student: components["schemas"]["ReportStudentDto"];
@@ -6058,15 +6184,30 @@ export interface components {
             summary: string;
         };
         ReportUpsertDto: {
-            content: string;
-            progress: string;
-            homework: string;
+            /**
+             * @description 구조화 양식은 1. 없으면 기존 3문자열 입력
+             * @enum {number}
+             */
+            formatVersion?: 1;
+            /** @description 화면이 읽은 ReportDetailDto.version. 구조화 쓰기는 필수 */
+            expectedVersion?: number;
+            /**
+             * @description 구조화 리포트 언어. formatVersion=1일 때 필수
+             * @enum {string}
+             */
+            language?: "ko" | "en";
+            structuredBody?: components["schemas"]["ReportIndividualBodyDto"] | components["schemas"]["ReportGroupBodyDto"] | components["schemas"]["ReportKinderBodyDto"] | components["schemas"]["ReportMockBodyDto"] | components["schemas"]["ReportDiagnosticBodyDto"];
+            content?: string;
+            progress?: string;
+            homework?: string;
         };
         ReportReviewDto: {
             /** @enum {string} */
             decision: "approve" | "reject";
             /** @description 반려 시 필수 (D-R13) */
             reason?: string;
+            /** @description 화면이 읽은 ReportDetailDto.version */
+            expectedVersion: number;
         };
         FileUploadDto: {
             /**
@@ -16947,7 +17088,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
-            /** @description 입력 검증 오류, REPORT_FIELD_REQUIRED(제출 필수), REPORT_NOT_ALLOWED, REPORT_CANCELED, REPORT_NOT_ENDED. */
+            /** @description 입력 검증 오류, REPORT_FIELD_REQUIRED/REPORT_STRUCTURED_INPUT_REQUIRED/REPORT_VERSION_REQUIRED 및 양식별 제출 필수값, REPORT_NOT_ALLOWED, REPORT_CANCELED, REPORT_NOT_ENDED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16983,7 +17124,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description REPORT_LOCKED: 제출 대기/승인 상태는 수정할 수 없음. */
+            /** @description REPORT_LOCKED/REPORT_VERSION_CONFLICT/REPORT_FORMAT_CONFLICT/REPORT_FORM_CHANGED/REPORT_STUDENTS_CHANGED/REPORT_MATERIAL_CHANGED: 최신 상태·양식·명단·교재가 화면 snapshot과 다름. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17028,7 +17169,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReportDetailDto"];
                 };
             };
-            /** @description 입력 검증 오류, REPORT_FIELD_REQUIRED(제출 필수), REPORT_NOT_ALLOWED, REPORT_CANCELED, REPORT_NOT_ENDED. */
+            /** @description 입력 검증 오류, REPORT_FIELD_REQUIRED/REPORT_STRUCTURED_INPUT_REQUIRED/REPORT_VERSION_REQUIRED 및 양식별 제출 필수값, REPORT_NOT_ALLOWED, REPORT_CANCELED, REPORT_NOT_ENDED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -17064,7 +17205,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description REPORT_LOCKED: 제출 대기/승인 상태는 수정할 수 없음. */
+            /** @description REPORT_LOCKED/REPORT_VERSION_CONFLICT/REPORT_FORMAT_CONFLICT/REPORT_FORM_CHANGED/REPORT_STUDENTS_CHANGED/REPORT_MATERIAL_CHANGED: 최신 상태·양식·명단·교재가 화면 snapshot과 다름. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17145,7 +17286,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description REPORT_NOT_WAITING: 현재 승인 대기 상태가 아님. */
+            /** @description REPORT_VERSION_CONFLICT/REPORT_NOT_WAITING: 화면 version이 오래됐거나 현재 승인 대기 상태가 아님. */
             409: {
                 headers: {
                     [name: string]: unknown;

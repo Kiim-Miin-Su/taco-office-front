@@ -2026,7 +2026,10 @@ function reconcileReportError(qc: ReturnType<typeof useQueryClient>, viewerId: V
     (error.status === 400 && ['REPORT_NOT_ALLOWED', 'REPORT_CANCELED', 'REPORT_NOT_ENDED'].includes(error.code)) ||
     (error.status === 403 && ['REPORT_FORBIDDEN', 'REPORT_REVIEW_FORBIDDEN'].includes(error.code)) ||
     (error.status === 404 && error.code === 'REPORT_NOT_FOUND') ||
-    (error.status === 409 && ['REPORT_LOCKED', 'REPORT_NOT_WAITING'].includes(error.code));
+    (error.status === 409 && [
+      'REPORT_LOCKED', 'REPORT_NOT_WAITING', 'REPORT_VERSION_CONFLICT', 'REPORT_FORMAT_CONFLICT',
+      'REPORT_FORM_CHANGED', 'REPORT_STUDENTS_CHANGED', 'REPORT_MATERIAL_CHANGED',
+    ].includes(error.code));
   if (stale) refreshReportConsumers(qc, viewerId);
 }
 

@@ -81,6 +81,7 @@ describe('ReportForm — OpenAPI 리포트 입력 계약', () => {
       subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'wait',
       written: true, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
       body: { content: '수업', progress: '42p', homework: '43p' }, fields,
+      formatVersion: 0, version: 1, structuredBody: null, bookOptions: [],
       canEdit: false, canReview: true, lang: 'ko', writtenAt: '2026-09-03T08:00:00Z',
       canExport: true, canDeliver: false,
       exportFiles: [{ studentId: 4, fileName: '20260903_학생_고2_AP Chemistry_16-00.png', plainText: '학생 본문', revision: 'a'.repeat(64) }],
@@ -134,6 +135,7 @@ describe('ReportEditor — 지각 차감 안내는 쓰는 강사에게만 최상
     subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: canEdit ? 'none' : 'wait',
     written: !canEdit, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
     body: { content: '', progress: '', homework: '' }, fields,
+    formatVersion: 0, version: 0, structuredBody: null, bookOptions: [],
     canEdit, canReview: false, lang: 'ko', writtenAt: null,
     canExport: false, canDeliver: false, exportFiles: [], subjectName: 'AP Chemistry',
     submittedAt: null, reviewedAt: null, rejectReason: null,
@@ -186,6 +188,11 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     subKey: 'ap-chem', kindKey: 'class', teacherId: 3, teacherName: '강사', state: 'none',
     written: false, students: [{ id: 4, name: '학생', grade: '고2', deliver: true, late: false }], minutesSinceEnd: 30, penalty: 0,
     body: { content: '', progress: '', homework: '' }, fields,
+    formatVersion: 1, version: 0, formKind: 'individual', structuredBody: null,
+    bookOptions: [{
+      issueId: 31, issueVersion: 1, libId: 20, versId: null, code: 'AP-CHEM-01',
+      title: 'AP Chemistry Practice', edition: null, studentIds: [4],
+    }],
     canEdit: true, canReview: false, lang: 'ko', writtenAt: null,
     canExport: false, canDeliver: false, exportFiles: [], subjectName: 'AP Chemistry',
     submittedAt: null, reviewedAt: null, rejectReason: null, ...over,
@@ -210,8 +217,8 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     expect(view.container.querySelector('#rep-content')).toBeNull();
     expect(view.getByLabelText('수업 내용')).toBeTruthy();
     expect(view.getAllByRole('button', { name: 'AP Chemistry Practice' })).toHaveLength(2);
-    expect(view.getByRole('button', { name: '임시 저장 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
-    expect(view.getByRole('button', { name: '승인 요청 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '임시 저장' }).hasAttribute('disabled')).toBe(false);
+    expect(view.getByRole('button', { name: '승인 요청하기' }).hasAttribute('disabled')).toBe(false);
     const guide = view.getByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' });
     expect(guide.querySelectorAll('ol > li')).toHaveLength(4);
     expect(guide.textContent).toContain('그래도 사실은 빠뜨리지 마세요.');
@@ -219,7 +226,6 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     expect(view.getByText('작성 언어')).toBeTruthy();
     expect(view.queryByText(/언어 발달/)).toBeNull();
     expect(view.getByText('리포트 작성용 AI 프롬프트')).toBeTruthy();
-    expect(view.getByText(/과목명이나 학년으로 추정하지 않고 일반 1대1 양식을 사용합니다/)).toBeTruthy();
     const hub = view.getByRole('link', { name: '수업 변경·건의' });
     expect(hub.getAttribute('href')).toBe('/schedule?serId=2&onDate=2026-09-03&date=2026-09-03&source=report');
     expect(hub.className).toContain('min-h-11');
@@ -228,7 +234,7 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
   it('신규 진단 그룹은 legacy 3문자열 writer를 숨기고 구조화 계약 대기 초안을 연다', () => {
     as(false);
     const view = mount(detail({
-      kindKey: 'diagx', subKey: 'diag', subjectName: '진단고사',
+      kindKey: 'diagx', formKind: 'diagnostic', subKey: 'diag', subjectName: '진단고사',
       students: [
         { id: 4, name: '첫 학생', grade: 'G10', deliver: true, late: false },
         { id: 5, name: '둘째 학생', grade: 'G11', deliver: true, late: false },
@@ -236,15 +242,16 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     }));
     expect(view.container.querySelector('#rep-content')).toBeNull();
     expect(view.getByRole('region', { name: '첫 학생 진단' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '임시 저장 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
-    expect(view.queryByRole('button', { name: '승인 요청하기' })).toBeNull();
+    expect(view.getByRole('button', { name: '임시 저장' }).hasAttribute('disabled')).toBe(false);
+    expect(view.getByRole('button', { name: '승인 요청하기' }).hasAttribute('disabled')).toBe(false);
   });
 
-  it('승인 대기 강사 화면은 expectedVersion 계약 전 읽기 전용 경계를 말한다', () => {
+  it('승인 대기 강사 화면은 저장된 구조화 본문을 읽기 전용으로 보여 준다', () => {
     as(false);
     const view = mount(detail({ canEdit: false, state: 'wait', body: { content: '제출본', progress: '12쪽', homework: '13쪽' } }));
-    expect(view.getByText('승인 대기 수정 기능 준비 중')).toBeTruthy();
-    expect(view.container.querySelectorAll('textarea')).toHaveLength(0);
+    expect(view.getByText('승인 대기')).toBeTruthy();
+    expect(view.queryByRole('button', { name: '승인 요청하기' })).toBeNull();
+    expect(view.container.querySelector('fieldset')?.hasAttribute('disabled')).toBe(true);
   });
 
   it('관리자 대리 작성은 실제 actor와 대상 강사를 표시하고 구조화 저장을 잠근다', () => {
@@ -252,7 +259,7 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     const view = mount(detail());
     expect(view.getByText('관리자 대리 작성')).toBeTruthy();
     expect(view.getByText('실제 작성자 관리자 · 대상 강사 강사')).toBeTruthy();
-    expect(view.getByRole('button', { name: '임시 저장 기능 준비 중' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '임시 저장' }).hasAttribute('disabled')).toBe(false);
     expect(view.queryByRole('button', { name: '임시저장' })).toBeNull();
     expect(view.queryByRole('button', { name: '제출' })).toBeNull();
     expect(view.queryByRole('region', { name: '학부모님이 직접 읽는 리포트입니다' })).toBeNull();
@@ -263,7 +270,7 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
 
   it('N-69 — 같은 서버 글에서 쓰던 초안을 되살리고 「불러온 글 버리기」로 서버 글에 돌아간다', () => {
     as(false);
-    const d = detail({ state: 'draft' });
+    const d = detail({ state: 'draft', formatVersion: 0, formKind: null });
     window.localStorage.setItem(`taco:draft:v1:3:report:${d.serId}:${d.onDate}`, JSON.stringify({
       value: { content: '어제 쓰던 수업 내용', progress: '12쪽', homework: 7 },
       base: `${d.state}|${JSON.stringify(d.body)}`,
@@ -285,13 +292,19 @@ describe('ReportEditor — 최종 강사·관리자 수정사항의 구조화 �
     const key = 'taco:draft:v1:3:report:2:2026-09-03';
     const stale = JSON.stringify({ value: { content: '옛 초안', progress: '', homework: '' }, base: 'none|{}', savedAt: 1 });
     window.localStorage.setItem(key, stale);
-    const waiting = mount(detail({ state: 'wait', canEdit: false, body: { content: '제출본', progress: 'p', homework: 'h' } }));
+    const waiting = mount(detail({
+      state: 'wait', canEdit: false, formatVersion: 0, formKind: null,
+      body: { content: '제출본', progress: 'p', homework: 'h' },
+    }));
     expect(waiting.container.textContent).toContain('제출본');
     expect(waiting.container.textContent).not.toContain('옛 초안');
     expect(window.localStorage.getItem(key)).toBeNull();
     cleanup();
     window.localStorage.setItem(key, stale);
-    const changed = mount(detail({ state: 'draft', body: { content: '다른 사람이 저장', progress: '', homework: '' } }));
+    const changed = mount(detail({
+      state: 'draft', formatVersion: 0, formKind: null,
+      body: { content: '다른 사람이 저장', progress: '', homework: '' },
+    }));
     expect((changed.container.querySelector('#rep-content') as HTMLTextAreaElement).value).toBe('다른 사람이 저장');
     expect(window.localStorage.getItem(key)).toBeNull();
   });

@@ -27,6 +27,7 @@ const detail: ReportDetail = {
   ],
   minutesSinceEnd: 30, penalty: 0,
   body: { content: '수업', progress: '42p', homework: '43p' }, fields,
+  formatVersion: 0, version: 1, structuredBody: null, bookOptions: [],
   canEdit: false, canReview: false, canExport: true, canDeliver: false,
   exportFiles: [
     { studentId: 4, fileName: '20260903_학생A_고2_AP Chemistry_16-00.png', plainText: '학생A 본문', revision: 'a'.repeat(64) },

@@ -24,6 +24,7 @@ const lesson = (id: number, subjectName: string, startMin: number, patch: Partia
   students: [{ id: 21, name: '이담흔', grade: 'G10', deliver: true, late: false }],
   minutesSinceEnd: 30, penalty: 0,
   body: { content: `${subjectName} 수업 내용`, progress: '42p', homework: '43p' },
+  formatVersion: 0, version: 0, structuredBody: null, bookOptions: [],
   fields: [
     { key: 'content', label: '③ 수업 내용', hint: '', min: 1, max: 2000 },
     { key: 'progress', label: '④ 진도 페이지', hint: '', min: 1, max: 2000 },

@@ -127,6 +127,8 @@ it.each([
   ['write', 'REPORT_CANCELED', 400], ['write', 'REPORT_NOT_ENDED', 400],
   ['write', 'REPORT_NOT_ALLOWED', 400], ['write', 'REPORT_FORBIDDEN', 403],
   ['write', 'REPORT_NOT_FOUND', 404], ['write', 'REPORT_LOCKED', 409],
+  ['write', 'REPORT_VERSION_CONFLICT', 409], ['write', 'REPORT_FORM_CHANGED', 409],
+  ['write', 'REPORT_STUDENTS_CHANGED', 409], ['write', 'REPORT_MATERIAL_CHANGED', 409],
   ['review', 'REPORT_NOT_WAITING', 409], ['review', 'REPORT_REVIEW_FORBIDDEN', 403],
 ] as const)('%s의 %s/%i는 상세를 재조회하여 최신 서버 가능 여부를 소비한다', async (kind, code, status) => {
   const error = new ApiError(code, '변경된 상태', status);
@@ -141,7 +143,7 @@ it.each([
     const target = { serId: 50, onDate: '2026-09-07' };
     await expect(kind === 'write'
       ? view.result.current.write.mutateAsync({ ...target, action: 'draft', body: { content: '내용', progress: '진도', homework: '숙제' } })
-      : view.result.current.review.mutateAsync({ ...target, body: { decision: 'approve' } })).rejects.toBe(error);
+      : view.result.current.review.mutateAsync({ ...target, body: { decision: 'approve', expectedVersion: 1 } })).rejects.toBe(error);
     await vi.advanceTimersByTimeAsync(1);
   });
   expect(view.result.current.detail.data).toMatchObject({ canEdit: false, canReview: false });
@@ -159,7 +161,7 @@ it.each(['REPORT_FIELD_REQUIRED', 'REJECT_REASON_REQUIRED', 'NETWORK'])('%s는 �
   await act(async () => {
     const target = { serId: 50, onDate: '2026-09-07' };
     await expect(code === 'REJECT_REASON_REQUIRED'
-      ? view.result.current.review.mutateAsync({ ...target, body: { decision: 'reject', reason: '' } })
+      ? view.result.current.review.mutateAsync({ ...target, body: { decision: 'reject', reason: '', expectedVersion: 1 } })
       : view.result.current.write.mutateAsync({ ...target, action: 'draft', body: { content: '', progress: '', homework: '' } })).rejects.toBe(error);
   });
   expect(invalidate).not.toHaveBeenCalled();

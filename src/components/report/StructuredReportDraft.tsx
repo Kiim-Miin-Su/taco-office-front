@@ -1,12 +1,14 @@
 /** @file-guide
- * 목적: 최신 수정사항의 일반1대1·그룹·Kinder/모의·진단 리포트 입력을 서버 계약 전 구조화 로컬 초안으로 제공한다.
- * 책임/재사용: 종류별 입력·검사·프롬프트 복사만 소유한다. 확정 kind/marker와 배부 교재 reader를 소비하고 현 3문자열 writer로 우회 저장하지 않는다.
+ * 목적: 최신 수정사항의 일반1대1·그룹·Kinder/모의·진단 리포트 구조화 입력과 저장을 제공한다.
+ * 책임/재사용: 서버가 확정한 formKind/version/bookOptions와 생성 DTO를 사용해 입력·검사·저장·프롬프트 복사를 연결한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { ReportDetail } from '@/api/types';
+import { apiMessage } from '@/api/client';
+import { useReportWrite } from '@/api/queries';
+import type { ReportDetail, ReportStructuredBody, ReportUpsert } from '@/api/types';
 import { autosaveStampLabel, draftKey, useDraftAutosave } from '@/lib/autosave';
 import { reportTimeLabel } from '@/lib/report-export';
 import { useSession } from '@/store/useSession';
@@ -39,6 +41,7 @@ export type StructuredReportKind = 'individual' | 'group' | 'kinder' | 'mock' | 
 
 export type StructuredBookOption = {
   id: string;
+  issueId: number;
   title: string;
   code?: string | null;
   edition?: string | null;
@@ -76,7 +79,7 @@ const emptyStudent = (): StudentDraft => ({
   interview: { fluency: '', vocabulary: '', grammar: '' }, overall: '',
 });
 
-const initialDraft = (kind: StructuredReportKind, detail: Pick<ReportDetail, 'students'>): StructuredDraft => ({
+const emptyDraft = (kind: StructuredReportKind, detail: Pick<ReportDetail, 'students'>): StructuredDraft => ({
   kind,
   language: 'ko',
   common: { content: '', progress: emptyMaterial(), homework: emptyMaterial() },
@@ -87,6 +90,59 @@ const initialDraft = (kind: StructuredReportKind, detail: Pick<ReportDetail, 'st
   overall: '',
   students: Object.fromEntries(detail.students.map((student) => [String(student.id), emptyStudent()])),
 });
+
+const materialDraft = (value: { issueId: number; fromPage: number; toPage: number; amount?: string | null } | null): MaterialDraft =>
+  value ? {
+    bookId: `issue:${value.issueId}`,
+    fromPage: String(value.fromPage),
+    toPage: String(value.toPage),
+    amount: value.amount ?? '',
+  } : emptyMaterial();
+
+/** 저장 snapshot은 현재 reader가 바뀌어도 같은 입력으로 복원한다. */
+const initialDraft = (kind: StructuredReportKind, detail: ReportDetail): StructuredDraft => {
+  const initial = emptyDraft(kind, detail);
+  const body = detail.structuredBody;
+  if (!body || body.kind !== kind) return initial;
+  initial.language = detail.lang === 'en' ? 'en' : 'ko';
+  if (body.kind === 'individual' || body.kind === 'group') {
+    initial.common = {
+      content: body.content,
+      progress: materialDraft(body.progress),
+      homework: materialDraft(body.homework),
+    };
+    if (body.kind === 'group') {
+      for (const student of body.students) {
+        const id = String(student.studentId);
+        if (initial.students[id]) initial.students[id] = { ...initial.students[id], comment: student.comment };
+      }
+    }
+  } else if (body.kind === 'kinder' || body.kind === 'mock') {
+    initial.development = Object.fromEntries(DEVELOPMENT_AREAS.map(({ key }) => [key, {
+      level: body.development[key].level ?? '', observation: body.development[key].observation,
+    }])) as StructuredDraft['development'];
+    initial.overall = body.overall;
+  } else {
+    for (const student of body.students) {
+      const id = String(student.studentId);
+      if (!initial.students[id]) continue;
+      initial.students[id] = {
+        ...initial.students[id],
+        mathScore: student.mathScore === null ? '' : String(student.mathScore),
+        englishScore: student.englishScore === null ? '' : String(student.englishScore),
+        mathMistakes: student.mathMistakes,
+        englishMistakes: student.englishMistakes,
+        interview: {
+          fluency: student.interview.fluency === null ? '' : String(student.interview.fluency),
+          vocabulary: student.interview.vocabulary === null ? '' : String(student.interview.vocabulary),
+          grammar: student.interview.grammar === null ? '' : String(student.interview.grammar),
+        },
+        overall: student.overall,
+      };
+    }
+  }
+  return initial;
+};
 
 const textValue = (value: unknown, max = 2000): string => typeof value === 'string' ? value.slice(0, max) : '';
 const objectValue = (value: unknown): Record<string, unknown> => value && typeof value === 'object'
@@ -150,8 +206,11 @@ function restoreDraft(stored: unknown, initial: StructuredDraft, bookOptions: re
 }
 
 /** 과목명·학년으로 Kinder를 추정하지 않는다. marker 전 `class` 한 명은 일반 1대1이다. */
-export function structuredReportKind(detail: Pick<ReportDetail, 'kindKey' | 'state' | 'students'>): StructuredReportKind | null {
-  if (detail.state !== 'none') return null;
+export function structuredReportKind(
+  detail: Pick<ReportDetail, 'formKind' | 'formatVersion' | 'kindKey' | 'state' | 'students'>,
+): StructuredReportKind | null {
+  if (detail.formKind !== undefined) return detail.formKind;
+  if (detail.state !== 'none' || detail.formatVersion === 0) return null;
   if (detail.kindKey === 'diagx') return 'diagnostic';
   if (detail.kindKey === 'mock') return 'mock';
   if (detail.kindKey === 'class' && detail.students.length > 1) return 'group';
@@ -180,6 +239,16 @@ export function interviewAverage(student: StudentDraft): string | null {
   const scores = INTERVIEW_AREAS.map(({ key }) => student.interview[key]);
   if (scores.some((score) => scoreIssue(score))) return null;
   return (scores.reduce((sum, score) => sum + Number(score), 0) / scores.length).toFixed(1);
+}
+
+/**
+ * 최종 강사 수정사항 p21·p79 권고안: Interview 3점수 평균 뒤 Math·English·Interview 세 영역을 같은 비중으로 계산한다.
+ * 서버가 저장값을 다시 계산하며 이 함수는 입력 중 미리보기만 담당한다. 정책 변경 시 Back/OpenAPI/문서/portfolio와 함께 고친다.
+ */
+export function diagnosticTotalAverage(student: StudentDraft): string | null {
+  const interview = interviewAverage(student);
+  if (scoreIssue(student.mathScore) || scoreIssue(student.englishScore) || interview === null) return null;
+  return ((Number(student.mathScore) + Number(student.englishScore) + Number(interview)) / 3).toFixed(1);
 }
 
 function selectedBook(value: MaterialDraft, books: readonly StructuredBookOption[]): StructuredBookOption | undefined {
@@ -440,6 +509,7 @@ function DiagnosticDraft({ detail, value, inspected, onChange }: {
         const row = value.students[id] ?? emptyStudent();
         const set = (next: StudentDraft) => onChange({ ...value, students: { ...value.students, [id]: next } });
         const average = interviewAverage(row);
+        const totalAverage = diagnosticTotalAverage(row);
         return (
           <section key={id} aria-labelledby={`diagnostic-student-${id}`} className="rounded-xl border border-line bg-card p-4">
             <h3 id={`diagnostic-student-${id}`} className="text-[14px] font-bold text-fg">{student.name} 진단</h3>
@@ -469,7 +539,7 @@ function DiagnosticDraft({ detail, value, inspected, onChange }: {
               ))}
             </div>
             <p aria-live="polite" className="mt-2 text-[12px] font-bold text-fg-2">
-              인터뷰 평균 {average ?? '—'} · 전체 평균은 산식 결정 대기
+              인터뷰 평균 {average ?? '—'} · 전체 평균 {totalAverage ?? '—'}
             </p>
             <div className="mt-3">
               <Label htmlFor={`diagnostic-${id}-overall`}>종합 소견</Label>
@@ -510,6 +580,75 @@ function draftIssues(kind: StructuredReportKind, detail: Pick<ReportDetail, 'stu
     }
   }
   return issues;
+}
+
+function writeMaterial(value: MaterialDraft, books: readonly StructuredBookOption[]): {
+  issueId: number; fromPage: number; toPage: number; amount?: string | null;
+} | null {
+  const book = selectedBook(value, books);
+  if (!book || materialIssue(value, books, false)) return null;
+  return {
+    issueId: book.issueId,
+    fromPage: Number(value.fromPage),
+    toPage: Number(value.toPage),
+    amount: value.amount.trim() || null,
+  };
+}
+
+const nullableScore = (value: string): number | null => scoreIssue(value) ? null : Number(value);
+
+/** 생성된 ReportUpsert 계약으로만 변환한다. 평균·교재 identity는 서버가 다시 계산하고 확정한다. */
+function structuredWriteBody(
+  detail: ReportDetail,
+  kind: StructuredReportKind,
+  draft: StructuredDraft,
+  books: readonly StructuredBookOption[],
+): ReportUpsert {
+  let structuredBody: ReportStructuredBody;
+  if (kind === 'individual' || kind === 'group') {
+    const common = {
+      content: draft.common.content,
+      progress: writeMaterial(draft.common.progress, books),
+      homework: writeMaterial(draft.common.homework, books),
+    };
+    structuredBody = kind === 'individual' ? { kind, ...common } : {
+      kind,
+      ...common,
+      students: detail.students.map((student) => ({
+        studentId: student.id,
+        comment: draft.students[String(student.id)]?.comment ?? '',
+      })),
+    };
+  } else if (kind === 'kinder' || kind === 'mock') {
+    const development = Object.fromEntries(DEVELOPMENT_AREAS.map(({ key }) => [key, {
+        level: draft.development[key].level || null,
+        observation: draft.development[key].observation,
+      }])) as Extract<ReportStructuredBody, { kind: 'kinder' }>['development'];
+    structuredBody = kind === 'kinder'
+      ? { kind, development, overall: draft.overall }
+      : { kind, development, overall: draft.overall };
+  } else {
+    structuredBody = {
+      kind,
+      students: detail.students.map((student) => {
+        const row = draft.students[String(student.id)] ?? emptyStudent();
+        return {
+          studentId: student.id,
+          mathScore: nullableScore(row.mathScore),
+          englishScore: nullableScore(row.englishScore),
+          mathMistakes: row.mathMistakes,
+          englishMistakes: row.englishMistakes,
+          interview: {
+            fluency: nullableScore(row.interview.fluency),
+            vocabulary: nullableScore(row.interview.vocabulary),
+            grammar: nullableScore(row.interview.grammar),
+          },
+          overall: row.overall,
+        };
+      }),
+    };
+  }
+  return { formatVersion: 1, expectedVersion: detail.version, language: draft.language, structuredBody };
 }
 
 function ReportPromptPanel({ detail, kind, draft, books }: {
@@ -583,6 +722,8 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
   const [draft, setDraft] = useState(initial);
   const [inspected, setInspected] = useState(false);
   const [inspectionMessage, setInspectionMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const write = useReportWrite();
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const bookIds = bookOptions.map((book) => book.id).join(',');
   const autosave = useDraftAutosave<StructuredDraft>({
@@ -598,11 +739,40 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
   const inspect = () => {
     setInspected(true);
     const issues = draftIssues(kind, detail, draft, bookOptions);
-    setInspectionMessage(issues.length ? `확인할 항목: ${issues.join(' · ')}` : '현재 화면의 필수 입력 검사를 통과했습니다. 저장 기능이 준비된 뒤 승인 요청할 수 있습니다.');
+    setInspectionMessage(issues.length ? `확인할 항목: ${issues.join(' · ')}` : '현재 화면의 필수 입력 검사를 통과했습니다.');
+  };
+  const save = (action: 'draft' | 'submit') => {
+    if (!detail.canEdit || write.isPending || invalidKinderCount) return;
+    const issues = draftIssues(kind, detail, draft, bookOptions);
+    if (action === 'submit' && issues.length) {
+      setInspected(true);
+      setInspectionMessage(`확인할 항목: ${issues.join(' · ')}`);
+      return;
+    }
+    setSaveMessage(null);
+    write.mutate(
+      {
+        action,
+        serId: detail.serId,
+        onDate: detail.onDate,
+        body: structuredWriteBody(detail, kind, draft, bookOptions),
+      },
+      {
+        onSuccess: () => {
+          autosave.discard();
+          setSaveMessage({
+            tone: 'success',
+            text: action === 'draft' ? '구조화 리포트를 임시 저장했습니다.' : '구조화 리포트의 승인을 요청했습니다.',
+          });
+        },
+        onError: (error) => setSaveMessage({ tone: 'danger', text: apiMessage(error) }),
+      },
+    );
   };
 
   return (
     <div className="flex flex-col gap-4">
+      <fieldset disabled={!detail.canEdit || write.isPending} className="contents">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <Label>작성 언어</Label>
@@ -630,19 +800,21 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
         <DiagnosticDraft detail={detail} value={draft} inspected={inspected} onChange={setDraft} />
       ) : null}
 
-      {!invalidKinderCount && showWriterGuide ? <ReportWriterGuide /> : null}
+      {!invalidKinderCount && showWriterGuide && detail.canEdit ? <ReportWriterGuide /> : null}
       {!invalidKinderCount ? <ReportPromptPanel detail={detail} kind={kind} draft={draft} books={bookOptions} /> : null}
 
+      </fieldset>
+
       {inspectionMessage ? <Banner tone={inspectionMessage.startsWith('확인할') ? 'danger' : 'success'}>{inspectionMessage}</Banner> : null}
-      <Banner tone="warning" title="구조화 저장 기능 준비 중">
-        이 초안은 현재 브라우저에만 보존됩니다. 학생·교재, 양식 버전, 언어, 동시 수정 여부와 구조화 본문을 함께 저장하는 기능이 준비되기 전에는 저장 성공으로 표시하지 않습니다.
-      </Banner>
-      <div className="flex flex-wrap justify-end gap-2">
-        {dirty ? <Button className="min-h-11" onClick={() => { autosave.discard(); setDraft(initial); setInspected(false); setInspectionMessage(null); }}>초안 비우기</Button> : null}
-        <Button className="min-h-11" onClick={inspect}>입력 검사</Button>
-        <Button className="min-h-11" disabled title="구조화 저장 기능이 준비된 뒤 사용할 수 있습니다">임시 저장 기능 준비 중</Button>
-        <Button className="min-h-11" variant="success" disabled title="양식 버전·동시 수정 확인 기능이 준비된 뒤 사용할 수 있습니다">승인 요청 기능 준비 중</Button>
-      </div>
+      {saveMessage ? <Banner tone={saveMessage.tone}>{saveMessage.text}</Banner> : null}
+      {detail.canEdit ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          {dirty ? <Button className="min-h-11" disabled={write.isPending} onClick={() => { autosave.discard(); setDraft(initial); setInspected(false); setInspectionMessage(null); }}>초안 비우기</Button> : null}
+          <Button className="min-h-11" disabled={write.isPending} onClick={inspect}>입력 검사</Button>
+          <Button className="min-h-11" disabled={write.isPending} onClick={() => save('draft')}>임시 저장</Button>
+          <Button className="min-h-11" variant="success" disabled={write.isPending} onClick={() => save('submit')}>승인 요청하기</Button>
+        </div>
+      ) : null}
     </div>
   );
 }

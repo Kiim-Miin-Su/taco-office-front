@@ -23,6 +23,7 @@ const report = (id: number, studentId: number, studentName: string): ReportDetai
   students: [{ id: studentId, name: studentName, grade: '고2', deliver: true, late: false }],
   minutesSinceEnd: 30, penalty: 0,
   body: { content: '수업', progress: '42p', homework: '43p' },
+  formatVersion: 0, version: 0, structuredBody: null, bookOptions: [],
   fields: [
     { key: 'content', label: '③ 수업 내용', hint: '', min: 1, max: 2000 },
     { key: 'progress', label: '④ 진도', hint: '', min: 1, max: 2000 },
