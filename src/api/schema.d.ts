@@ -1779,7 +1779,7 @@ export interface paths {
         put?: never;
         /**
          * 강사 교체 — 여섯 단계를 한 트랜잭션에 (C93 · 테스트 시나리오 J-97 · D-46 · N-132 · D-45 · F-62)
-         * @description 스케줄(규칙마다 기존 patch · day=이번만 · from=그 날부터 규칙을 가른다) → 안내 초안(GUIDE teacher_change) → 학부모 안내(PNOTI · 보낼 것) → 교재 확인(읽기) → 정산 시수(회차가 옮겨 가므로 시트가 따라온다 · 확정된 달은 알린다) → 새 강사·원래 강사·관리자 알림 → 컴플레인이면 teacher_changed + 대응. 겹치면 전부 되돌린다.
+         * @description 스케줄(규칙마다 기존 patch · day=이번만 · from=그 날부터 규칙을 가른다) → 안내 초안(GUIDE teacher_change) → 학부모 안내(PNOTI · 보낼 것) → 교재 담당(from은 이전 강사 소유 ISSUE만 이관 · day는 유지) → 정산 시수(회차가 옮겨 가므로 시트가 따라온다 · 확정된 달은 알린다) → 새 강사·원래 강사·관리자 알림 → 컴플레인이면 teacher_changed + 대응. 겹치거나 교재 담당을 유일하게 정할 수 없으면 전부 되돌린다.
          */
         post: operations["OpsController_teacherChange"];
         delete?: never;
@@ -8785,7 +8785,10 @@ export interface components {
             firstOn: string;
         };
         TcBookDto: {
-            /** @description 이 교재를 이어받을 새 강사 (STAFF) */
+            /** @description 이관 전 교재 담당 강사 (STAFF) */
+            previousTeacherId: number;
+            previousTeacherName: string;
+            /** @description 작업 뒤 교재 담당 강사 — from이면 새 강사, day면 이전 강사 유지 (STAFF) */
             teacherId: number;
             teacherName: string;
             /** @description 교체 시작일에 실제 명단에 있는 학생 (STU) */
@@ -8798,6 +8801,8 @@ export interface components {
             title: string;
             /** @description ISSUE 활성 상태 — wait | auto | ok */
             state: string;
+            /** @description from 영구 교체로 담당을 이관하는가 — day 하루 대강은 false */
+            transferred: boolean;
         };
         TcPayoutMonthDto: {
             month: string;
@@ -8837,7 +8842,7 @@ export interface components {
             guideDrafts: number;
             /** @description 학부모 안내 행 (PNOTI · 보낼 것 · 발송처는 N-42) */
             parentNotices: number;
-            /** @description 이관 학생의 배부 교재 — 확인만 (ISSUE 에 강사 칸이 없다) */
+            /** @description 이전 강사 소유 교재 배정 — from은 새 강사에게 이관, day는 소유자 유지 */
             books: components["schemas"]["TcBookDto"][];
             /** @description 달마다 옮겨 간 회차 — 정산은 회차를 읽으므로 저절로 따라온다 (lib/payout-sheet) */
             payout: components["schemas"]["TcPayoutMonthDto"][];
@@ -21392,7 +21397,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 시간표 겹침 RESOURCE_CONFLICT | MONTH_CLOSED */
+            /** @description RESOURCE_CONFLICT | MONTH_CLOSED | BOOK_ASSIGNMENT_TRANSFER_AMBIGUOUS | BOOK_ASSIGNMENT_TRANSFER_CONFLICT */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -21465,7 +21470,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 시간표 겹침 RESOURCE_CONFLICT | MONTH_CLOSED */
+            /** @description RESOURCE_CONFLICT | MONTH_CLOSED | BOOK_ASSIGNMENT_TRANSFER_AMBIGUOUS | BOOK_ASSIGNMENT_TRANSFER_CONFLICT */
             409: {
                 headers: {
                     [name: string]: unknown;

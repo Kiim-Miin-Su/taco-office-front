@@ -8,7 +8,7 @@
  * 강사 교체 마법사 — 6단계 (C93 · 테스트 시나리오 J-97 「강사 교체 요구」 · D-46 「강사 퇴사 — 담당 전체 이관」 · N-132 「강사가 당일 아침 못 나옴」 · D-45 「하루만 대강」).
  *
  * 화면이 보내는 것은 **원래 강사 · 새 강사 · 범위(하루만 / 이 날부터) · 날짜 · (고른 수업 · 학생 · 컴플레인 · 메모)**뿐이다.
- * 여섯 단계(스케줄 · 안내 초안 · 학부모 안내 · 교재 확인 · 정산 시수 · 선생님 전달)는 서버가 **같은 트랜잭션을 돌리고 되돌린 미리보기**로 준다(D-R37) —
+ * 여섯 단계(스케줄 · 안내 초안 · 학부모 안내 · 교재 담당 · 정산 시수 · 선생님 전달)는 서버가 **같은 트랜잭션을 돌리고 되돌린 미리보기**로 준다(D-R37) —
  * 화면은 체크를 세지 않고 `steps` 를 그대로 그린다. 겹치면 서버가 409 로 거절하고(아무것도 남지 않는다) 「누구와」는 `fetchConflicts` 로 한 번 묻는다(C84-b).
  * 「교체 확정」은 **지금 입력 그대로** 미리 본 뒤에만 선다 — 수업을 빼거나 날짜를 고치면 다시 본다. 강사 후보는 구성원 전부다(C74 · D-R39).
  */
@@ -218,8 +218,8 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
             ) : null}
             {preview.books.length ? (
               <div className="mt-2 border-t border-line pt-2 text-fg-2">
-                <p className="font-bold text-fg">교재는 확인만 하며 자동으로 담당을 바꾸지 않습니다</p>
-                <p>{preview.books.map((b) => `${b.studentName} · ${b.title}`).join(' / ')}</p>
+                <p className="font-bold text-fg">{preview.mode === 'from' ? '교재 담당 이관' : '하루 대강 — 교재 담당 유지'}</p>
+                <p>{preview.books.map((b) => `${b.studentName} · ${b.title} · ${b.previousTeacherName} → ${b.teacherName}${b.transferred ? '' : ' (유지)'}`).join(' / ')}</p>
               </div>
             ) : null}
             {preview.payout.length ? (
@@ -247,7 +247,7 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
         ) : null}
 
         <p className="text-[12px] text-fg-subtle">
-          스케줄 · 안내 초안 · 학부모 안내 · 교재 확인 · 정산 시수 · 선생님 전달 여섯을 <b>한 번에</b> 합니다. 새 강사가 그 시각에 바쁘면 서버가 막고 아무것도 남지 않습니다.
+          스케줄 · 안내 초안 · 학부모 안내 · 교재 담당 · 정산 시수 · 선생님 전달 여섯을 <b>한 번에</b> 합니다. 새 강사가 그 시각에 바쁘면 서버가 막고 아무것도 남지 않습니다.
           미리 본 값 그대로 교체됩니다.
         </p>
         {err ? (

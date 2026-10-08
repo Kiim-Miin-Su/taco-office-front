@@ -27,8 +27,8 @@ const result: TeacherChangeResult = {
     { serId: 15, newSerId: 41, title: '', kindName: '수업', subName: 'SAT Math', ruleLabel: '매주 금', startMin: 1080, endMin: 1140, students: ['차서윤'], occurrences: 4, firstOn: '2026-10-09' },
   ],
   occurrences: 12, guideDrafts: 2, parentNotices: 2, books: [{
-    teacherId: 3, teacherName: '김범준', studentId: 21, studentName: '진예람', issueId: 31, libId: 8,
-    title: 'Writing Builder 2', state: 'wait',
+    previousTeacherId: 7, previousTeacherName: '김재훈', teacherId: 3, teacherName: '김범준', studentId: 21, studentName: '진예람', issueId: 31, libId: 8,
+    title: 'Writing Builder 2', state: 'wait', transferred: true,
   }],
   payout: [{ month: '2026-10', occurrences: 12, fromConfirmed: false, toConfirmed: false }], notifiedTeachers: 2, notifiedStaff: 3,
   unavailable: [{ serId: 40, date: '2026-10-07', teacherId: 3, teacherName: '김범준', startMin: 960, endMin: 1020, reason: '병원' }],
@@ -37,7 +37,7 @@ const result: TeacherChangeResult = {
     { key: 'schedule', label: '스케줄', count: 12, note: '규칙 2개 · 회차 12회 — 10/5부터 계속(규칙을 가른다)' },
     { key: 'guide', label: '안내 초안', count: 2, note: '학생마다 강사 교체 안내 초안' },
     { key: 'parent', label: '학부모 안내', count: 2, note: '보낼 안내로 남겼습니다 — 학부모 수신처는 아직 없습니다' },
-    { key: 'book', label: '교재 확인', count: 1, note: '이관 학생의 배부 교재' },
+    { key: 'book', label: '교재 이관', count: 1, note: '이전 강사 소유 배정 1권 — 확정 시 새 강사에게 이관합니다' },
     { key: 'payout', label: '정산 시수', count: 12, note: '10월 12회 → 김범준' },
     { key: 'notify', label: '선생님 전달', count: 2, note: '새 강사 김범준 · 원래 강사 김재훈 · 관리자 3명' },
   ],
@@ -95,11 +95,10 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
   const box = await view.findByLabelText('교체 미리보기');
   const text = (box.textContent ?? '').replace(/\s+/g, ' ');
   expect(text).toContain('김재훈 → 김범준 · 2026-10-05부터 · 회차 12회');
-  for (const w of ['1. 스케줄 12회', '2. 안내 초안 2건', '3. 학부모 안내 2건', '4. 교재 확인 1권', '5. 정산 시수 12회', '6. 선생님 전달 2명']) expect(text).toContain(w);
+  for (const w of ['1. 스케줄 12회', '2. 안내 초안 2건', '3. 학부모 안내 2건', '4. 교재 이관 1권', '5. 정산 시수 12회', '6. 선생님 전달 2명']) expect(text).toContain(w);
   expect(text).toContain('학부모 수신처는 아직 없습니다');
-  expect(text).toContain('교재는 확인만 하며 자동으로 담당을 바꾸지 않습니다');
-  expect(text).toContain('진예람 · Writing Builder 2');
-  expect(text).not.toContain('Writing Builder 2 → 김범준');
+  expect(text).toContain('교재 담당 이관');
+  expect(text).toContain('진예람 · Writing Builder 2 · 김재훈 → 김범준');
   expect(text).toContain('2026-10 · 12회');
   expect(text).toContain('정산 미확정');
   expect(text).toContain('2026-10-07 16:00–17:00 · 김범준 — 병원');
@@ -123,7 +122,11 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
 it('하루만 대강은 날짜 하나로 보내고, 겹치면 서버 문장을 그대로 띄운 뒤 아는 수업으로 「누구와」를 한 번 묻는다 (N-132 · A-06)', async () => {
   const day = todayKst();
   const { view } = setup((_url, n) => (n === 1
-    ? { status: 201, data: { ...result, mode: 'day', series: [result.series[0]!] } }
+    ? { status: 201, data: {
+      ...result, mode: 'day', series: [result.series[0]!],
+      books: [{ ...result.books[0]!, teacherId: 7, teacherName: '김재훈', transferred: false }],
+      steps: result.steps.map((step) => step.key === 'book' ? { ...step, label: '교재 유지' } : step),
+    } }
     : { status: 409, data: { code: 'RESOURCE_CONFLICT', message: '같은 시간에 강사·강의실·줌이 이미 잡혀 있습니다 — Writing · 10/5 16:00–17:00 · 김범준' } }));
   const dialog = await fill(view);
   fireEvent.click(within(dialog).getByRole('button', { name: '하루만 대강' }));
@@ -131,7 +134,9 @@ it('하루만 대강은 날짜 하나로 보내고, 겹치면 서버 문장을 �
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(posted).toHaveLength(1));
   expect(posted[0]!.body).toMatchObject({ mode: 'day', date: day });
-  await view.findByLabelText('교체 미리보기');
+  const preview = await view.findByLabelText('교체 미리보기');
+  expect(preview.textContent).toContain('하루 대강 — 교재 담당 유지');
+  expect(preview.textContent).toContain('Writing Builder 2 · 김재훈 → 김재훈 (유지)');
   // 두 번째 미리보기(예: 다른 새 강사)는 겹친다 → 문장 + 누구와
   fireEvent.change(within(dialog).getByLabelText('메모'), { target: { value: '아침에 연락' } });
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
