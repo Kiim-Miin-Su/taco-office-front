@@ -3580,10 +3580,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 불가 시간 — 2주 격자 메타 + 내 등록 (원본 §15/16 · N-20 날짜별 7일 전 마감) */
+        /** 불가 시간 — 2주 격자 메타 + 내 등록 (최신 강사 수정사항 T07 · 날짜별 10일 전 마감) */
         get: operations["TeacherController_unavailable"];
         put?: never;
-        /** 불가 시간 등록 — 마감·겹침은 서버가 판정 (UNAV_DEADLINE · UNAV_OVERLAP) */
+        /** 불가 시간 등록 — 10일·trim 사유 15자·실제 배정 수업 및 본인 겹침을 서버가 판정 */
         post: operations["TeacherController_createUnavailable"];
         delete?: never;
         options?: never;
@@ -3601,7 +3601,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 불가 시간 삭제 — 열린 날짜(오늘+7 이후)의 본인 등록만 (UNAV_LOCKED) */
+        /** 불가 시간 삭제 — 열린 날짜(오늘+10 이후)의 본인 등록만 (UNAV_LOCKED) */
         delete: operations["TeacherController_deleteUnavailable"];
         options?: never;
         head?: never;
@@ -10718,6 +10718,22 @@ export interface components {
             /** @description 저장하지 않는다는 사실을 화면이 그대로 적을 수 있게 (D-R4) */
             computedAt: string;
         };
+        TeacherUnavailableConflictErrorDto: {
+            /** @description 공용 오류 코드. HTTP status와 함께 판정한다. */
+            code: string;
+            /** @description 공용 필터에서 정규화한 사용자 안내 문구. */
+            message: string;
+            serId: number;
+            /** @description 규칙상 원래 회차일 YYYY-MM-DD */
+            onDate: string;
+            /** @description 실제 수업일 YYYY-MM-DD */
+            actualDate: string;
+            /** @description 실제 수업 시작 KST 분 */
+            startMin: number;
+            /** @description 실제 수업 종료 KST 분 */
+            endMin: number;
+            title?: string | null;
+        };
         TeacherNotiDto: {
             id: number;
             /** @description 굵은 제목 한 줄 — 옛 행은 null(화면은 본문을 한 줄로 그린다) */
@@ -11224,14 +11240,14 @@ export interface components {
             endMin: number;
             /** @description 사유 — 관리자가 조정 가능성을 판단한다 (v26 필수) */
             reason: string;
-            /** @description 마감 전(onDate ≥ 오늘+7)이면 삭제 가능 — 서버 판정 */
+            /** @description 마감 전(onDate ≥ 오늘+10)이면 삭제 가능 — 서버 판정 */
             canDelete: boolean;
         };
         TeacherUnavDto: {
             cycle: components["schemas"]["TeacherUnavCycleDto"];
             /** @description 오늘 (KST) */
             today: string;
-            /** @description 등록이 열리는 첫 날짜 = max(회차 시작, 오늘+7). 회차 끝을 넘으면 이 회차 전체가 마감 */
+            /** @description 등록이 열리는 첫 날짜 = max(회차 시작, 오늘+10). 회차 끝을 넘으면 이 회차 전체가 마감 */
             openFrom: string;
             /** @description 회차 14일 중 잠긴 날짜 수 */
             lockedDays: number;
@@ -11241,13 +11257,13 @@ export interface components {
             blocks: components["schemas"]["TeacherUnavBlockDto"][];
         };
         TeacherUnavCreateDto: {
-            /** @description 등록 날짜 YYYY-MM-DD — 오늘(KST)+7일 이후만 (N-20 날짜별 마감) */
+            /** @description 등록 날짜 YYYY-MM-DD — 오늘(KST)+10일 이후만 (T07 날짜별 마감) */
             onDate: string;
             /** @description 시작 분 — 격자 08:00(480)~22:50 */
             startMin: number;
             /** @description 끝 분 — 08:10(490)~23:00(1380), 시작보다 커야 한다 */
             endMin: number;
-            /** @description 사유 1~500자 — 필수. 관리자가 조정 가능성을 판단한다 (v26) */
+            /** @description 사유 15~500자 — 앞뒤 공백 제외. 관리자가 조정 가능성을 판단한다 (T07) */
             reason: string;
         };
         TeacherSettingReqCreateDto: {
@@ -28774,12 +28790,14 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code UNAV_DEADLINE(7일 전 마감) | UNAV_OVERLAP(본인 겹침) | TIME_RANGE | INVALID_DATE */
+            /** @description UNAV_LESSON_CONFLICT(본인 실제 배정 수업 상세) | UNAV_DEADLINE(10일 전 마감) | UNAV_REASON_TOO_SHORT | UNAV_OVERLAP | TIME_RANGE | INVALID_DATE */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"] | components["schemas"]["TeacherUnavailableConflictErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {

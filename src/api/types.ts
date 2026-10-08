@@ -35,6 +35,8 @@ export type TeacherLessonHubHistoryItem = S['TeacherLessonHubHistoryItemDto'];
 export type TeacherUnav = S['TeacherUnavDto'];
 export type TeacherUnavBlock = S['TeacherUnavBlockDto'];
 export type TeacherUnavCreate = S['TeacherUnavCreateDto'];
+/** BOC-06D-01 — 실제 배정 수업과 겹친 불가시간 409의 안전한 본인 회차 상세 */
+export type TeacherUnavailableConflictError = S['TeacherUnavailableConflictErrorDto'];
 export type TeacherGuideStudent = S['TeacherGuideStudentDto'];
 
 /* 진단 리포트 (C61) — 강사 원문 슬라이드 20 「04 진단 리포트」. 쓰는 사람은 강사뿐이다(슬라이드 47) */

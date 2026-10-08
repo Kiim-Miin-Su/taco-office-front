@@ -2532,21 +2532,35 @@ export function useTeacherUnav(anchor?: string): UseQueryResult<TeacherUnav> {
   });
 }
 
-/** 불가 시간 등록 — 마감·겹침 판정은 서버(UNAV_DEADLINE·UNAV_OVERLAP). 성공/실패 모두 재조회. */
+/** 불가 시간 등록 — 서버가 확정해 돌려준 행만 해당 2주 캐시에 반영한다. */
 export function useCreateTeacherUnav(): UseMutationResult<TeacherUnavBlock, unknown, TeacherUnavCreate> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (w) => (await api.post<TeacherUnavBlock>('/teacher/unavailable', w)).data,
-    onSettled: () => qc.invalidateQueries({ queryKey: family.teacherUnav }),
+    // 권고안 채택: 전체 invalidation으로 route 하위 입력/완료 영수증을 교체하지 않는다.
+    // 낙관 값이 아니라 201 서버 응답을 반영하고, 다음 조회·hard reload가 DB를 다시 읽는다.
+    onSuccess: (created) => {
+      qc.setQueriesData<TeacherUnav>({ queryKey: family.teacherUnav }, (current) => {
+        if (!current || created.onDate < current.cycle.from || created.onDate > current.cycle.to) return current;
+        if (current.blocks.some((block) => block.id === created.id)) return current;
+        return { ...current, blocks: [...current.blocks, created].sort((a, b) => a.onDate.localeCompare(b.onDate) || a.startMin - b.startMin) };
+      });
+      void qc.invalidateQueries({ queryKey: family.teacherUnav });
+    },
   });
 }
 
-/** 불가 시간 삭제 — 열린 날짜의 본인 등록만 (UNAV_LOCKED 는 서버 판정). */
+/** 불가 시간 삭제 — 200을 받은 뒤 해당 서버 ID만 캐시에서 제거한다. */
 export function useDeleteTeacherUnav(): UseMutationResult<{ ok: true }, unknown, number> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id) => (await api.delete<{ ok: true }>(`/teacher/unavailable/${id}`)).data,
-    onSettled: () => qc.invalidateQueries({ queryKey: family.teacherUnav }),
+    onSuccess: (_result, id) => {
+      qc.setQueriesData<TeacherUnav>({ queryKey: family.teacherUnav }, (current) => current
+        ? { ...current, blocks: current.blocks.filter((block) => block.id !== id) }
+        : current);
+      void qc.invalidateQueries({ queryKey: family.teacherUnav });
+    },
   });
 }
 

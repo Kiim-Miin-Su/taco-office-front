@@ -5,9 +5,8 @@
  */
 
 /**
- * 불가 시간 — 강사 수정사항 T07의 10일·사유15자·배정 수업 충돌 계약을 준비한다.
- * 2주 회차와 기존 등록 읽기는 생성 DTO를 사용한다. 서버가 아직 7일·사유1자·본인 UNAV 겹침만
- * 검증하므로 새 등록·삭제는 성공으로 가장하지 않고 잠근다. DTO/OpenAPI 단계에서 writer를 다시 연결한다.
+ * 불가 시간 — 강사 수정사항 T07의 10일·사유15자·실제 배정 수업 충돌 계약.
+ * 서버 DTO/OpenAPI에서 생성한 타입과 writer를 쓰며, 성공 뒤 낙관 반영하지 않고 같은 query를 재조회한다.
  */
 'use client';
 import { useMemo, useRef, useState } from 'react';
@@ -15,9 +14,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { ApiError } from '@/api/client';
-import { Banner, Button, Panel, QueryState } from '@/components/ui';
-import { useTeacherUnav } from '@/api/queries';
-import type { TeacherUnav, TeacherUnavBlock } from '@/api/types';
+import { Banner, Button, Panel, QueryState, type Tone } from '@/components/ui';
+import { useCreateTeacherUnav, useDeleteTeacherUnav, useTeacherUnav } from '@/api/queries';
+import type { TeacherUnav, TeacherUnavBlock, TeacherUnavailableConflictError } from '@/api/types';
 import { dowOf, hm } from '@/components/teacher/format';
 import { TeacherPolicyBar } from '@/components/teacher/TeacherPolicyBar';
 import { ScreenHeader } from '@/components/teacher/ScreenHeader';
@@ -92,19 +91,25 @@ function DayColumn({ date, open, blocks, sel, onDown, onEnter, onActivate }: {
   );
 }
 
-function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undefined; setAnchor: (a: string | undefined) => void }) {
+type Notice = { tone: Tone; text: string } | null;
+
+function Body({ d, anchor, setAnchor, notice, setNotice }: {
+  d: TeacherUnav;
+  anchor: string | undefined;
+  setAnchor: (a: string | undefined) => void;
+  notice: Notice;
+  setNotice: (notice: Notice) => void;
+}) {
+  const create = useCreateTeacherUnav();
+  const remove = useDeleteTeacherUnav();
   const [sel, setSel] = useState<Sel>(null);
   const [reason, setReason] = useState('');
   const dragging = useRef(false);
 
   const days = useMemo(() => Array.from({ length: 14 }, (_, i) => addD(d.cycle.from, i)), [d.cycle.from]);
-  const requiredOpenFromRaw = addD(d.today, REQUIRED_NOTICE_DAYS);
-  const requiredOpenFrom = requiredOpenFromRaw < d.cycle.from ? d.cycle.from : requiredOpenFromRaw;
-  const lockedDays = Math.min(14, Math.max(0,
-    Math.round((Date.parse(`${requiredOpenFrom}T00:00:00Z`) - Date.parse(`${d.cycle.from}T00:00:00Z`)) / 86400000),
-  ));
-  const openDays = 14 - lockedDays;
-  const allLocked = requiredOpenFrom > d.cycle.to;
+  const requiredOpenFrom = d.openFrom;
+  const openDays = d.openDays;
+  const allLocked = d.lockedDays === 14 || requiredOpenFrom > d.cycle.to;
   const cutoffEnd = addD(d.today, REQUIRED_NOTICE_DAYS - 1);
 
   const onDown = (date: string, h: number) => { dragging.current = true; setSel({ date, a: h, b: h }); };
@@ -114,6 +119,38 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
   const range = sel ? { start: Math.min(sel.a, sel.b) * 60, end: (Math.max(sel.a, sel.b) + 1) * 60 } : null;
 
   const reasonLength = reason.trim().length;
+  const submit = async () => {
+    if (!sel || !range || reasonLength < REQUIRED_REASON_LENGTH || create.isPending) return;
+    setNotice(null);
+    try {
+      // 권고안 채택: invalidate 중 mutation observer가 교체되어도 성공/실패 피드백을 잃지 않도록
+      // per-call callback 대신 이 화면이 소유한 mutateAsync 완료를 기다린다.
+      await create.mutateAsync({ onDate: sel.date, startMin: range.start, endMin: range.end, reason: reason.trim() });
+      setSel(null); setReason('');
+      setNotice({ tone: 'success', text: '불가 시간을 등록했습니다.' });
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'UNAV_LESSON_CONFLICT') {
+        const detail = error.details as Partial<TeacherUnavailableConflictError> | undefined;
+        const when = detail?.actualDate && detail.startMin !== undefined && detail.endMin !== undefined
+          ? ` (${mdDow(detail.actualDate)} ${hm(detail.startMin)}–${hm(detail.endMin)}${detail.title ? ` · ${detail.title}` : ''})`
+          : '';
+        setNotice({ tone: 'danger', text: `${error.message}${when}` });
+      } else {
+        setNotice({ tone: 'danger', text: errText(error) });
+      }
+    }
+  };
+
+  const removeBlock = async (id: number) => {
+    if (remove.isPending) return;
+    setNotice(null);
+    try {
+      await remove.mutateAsync(id);
+      setNotice({ tone: 'success', text: '불가 시간을 삭제했습니다.' });
+    } catch (error) {
+      setNotice({ tone: 'danger', text: errText(error) });
+    }
+  };
 
   return (
     <div onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onUp}>
@@ -133,8 +170,8 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
 
       <Banner className="mt-3" tone={allLocked ? 'warning' : 'info'}>
         {allLocked
-          ? '이 2주는 10일 전 입력 기준을 모두 지났습니다 — 「다음 2주」에서 초안을 작성해 주세요.'
-          : `${mdDow(requiredOpenFrom)}부터 초안을 작성할 수 있습니다. 칸을 누르거나 끌어 시간대를 선택해 주세요.`}
+          ? '이 2주는 10일 전 입력 기준을 모두 지났습니다 — 「다음 2주」에서 등록해 주세요.'
+          : `${mdDow(requiredOpenFrom)}부터 등록할 수 있습니다. 칸을 누르거나 끌어 시간대를 선택해 주세요.`}
       </Banner>
 
       <div className="mt-2 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-[12px] leading-relaxed text-fg">
@@ -142,12 +179,9 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
         TN Academy 강사 단톡방에 바로 올려 주세요. 관리자가 확인하고 직접 조정합니다.
       </div>
 
-      <Banner className="mt-2" tone="warning" title="저장 기능 준비 중">
-        10일 기준·사유 15자·실제 배정 수업 충돌을 함께 확인하는 기능을 준비 중입니다.
-        입력 초안과 기존 내역 조회만 제공하며, 등록·삭제는 충돌 확인 기능이 준비된 뒤 사용할 수 있습니다.
-      </Banner>
+      {notice ? <Banner className="mt-2" tone={notice.tone} title={notice.tone === 'success' ? '처리 완료' : '처리하지 못했습니다'}>{notice.text}</Banner> : null}
 
-      <Panel className="mt-4" title="2주 격자 · 08:00 – 23:00" sub="날짜별 10일 전부터 초안 입력 · 저장 기능 준비 중">
+      <Panel className="mt-4" title="2주 격자 · 08:00 – 23:00" sub="날짜별 10일 전부터 등록 · 실제 배정 수업과 겹치면 서버가 거절">
         <div className="overflow-x-auto">
           <div className="flex min-w-[1400px] select-none">
             <div className="w-12 shrink-0">
@@ -193,8 +227,13 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
               <span className={`text-[12px] ${reasonLength >= REQUIRED_REASON_LENGTH ? 'text-green' : 'text-fg-subtle'}`}>
                 {reasonLength}/500자 · {reasonLength >= REQUIRED_REASON_LENGTH ? '입력 완료' : `최소 ${REQUIRED_REASON_LENGTH}자`}
               </span>
-              <Button className="ml-auto min-h-11" variant="primary" disabled title="10일 기준·사유 길이·배정 수업 충돌 확인 기능이 준비된 뒤 사용할 수 있습니다">
-                저장 기능 준비 중
+              <Button
+                className="ml-auto min-h-11"
+                variant="primary"
+                disabled={reasonLength < REQUIRED_REASON_LENGTH || create.isPending}
+                onClick={submit}
+              >
+                {create.isPending ? '등록 중…' : '불가 시간 등록'}
               </Button>
             </div>
           </div>
@@ -215,10 +254,14 @@ function Body({ d, anchor, setAnchor }: { d: TeacherUnav; anchor: string | undef
                   <div className="w-32 shrink-0 text-[13px] font-bold text-fg">{mdDow(b.onDate)}</div>
                   <div className="w-28 shrink-0 text-[13px] text-fg">{hm(b.startMin)} – {hm(b.endMin)}</div>
                   <div className="min-w-0 grow truncate text-[12.5px] text-fg-subtle" title={b.reason}>{b.reason}</div>
-                  <Button size="sm" className="min-h-11" disabled title={b.canDelete
-                    ? '10일 삭제 기준이 준비된 뒤 사용할 수 있습니다'
-                    : '서버가 마감된 기존 등록으로 판정했습니다'}>
-                    {b.canDelete ? '삭제 기능 준비 중' : '삭제 불가'}
+                  <Button
+                    size="sm"
+                    className="min-h-11"
+                    disabled={!b.canDelete || remove.isPending}
+                    title={b.canDelete ? '이 불가 시간을 삭제합니다' : '서버가 마감된 기존 등록으로 판정했습니다'}
+                    onClick={() => removeBlock(b.id)}
+                  >
+                    {b.canDelete ? (remove.isPending ? '삭제 중…' : '삭제') : '삭제 불가'}
                   </Button>
                 </li>
               ))}
@@ -234,6 +277,8 @@ export default function TeacherUnavailablePage() {
   const search = useSearchParams();
   const anchor = queryIsoDate(search.get('anchor')) ?? undefined;
   const q = useTeacherUnav(anchor);
+  // query readback이 Body를 교체해도 완료/오류 영수증은 화면 route가 보존한다.
+  const [notice, setNotice] = useState<Notice>(null);
   const setAnchor = (next: string | undefined) => {
     router.replace(next ? `/teacher/unavailable?anchor=${encodeURIComponent(next)}` : '/teacher/unavailable', { scroll: false });
   };
@@ -247,9 +292,9 @@ export default function TeacherUnavailablePage() {
           override={{
             title: '불가 시간 등록 규칙',
             lines: [
-              '대상 날짜 10일 전까지 초안을 등록합니다.',
+              '대상 날짜 10일 전까지 불가 시간을 등록합니다.',
               '사유는 앞뒤 공백을 제외하고 15자 이상 적습니다.',
-              '실제 배정 수업 충돌을 서버가 검사하는 동안 등록과 삭제는 준비 중입니다.',
+              '실제 배정 수업과 겹치면 등록되지 않습니다. 10일 안의 변경은 강사 단톡방에 알려 주세요.',
             ],
           }}
         />
@@ -261,7 +306,7 @@ export default function TeacherUnavailablePage() {
           </div>
         ) : (
           <QueryState query={q} isEmpty={() => false}>
-            {(d) => <Body d={d} anchor={anchor} setAnchor={setAnchor} />}
+            {(d) => <Body d={d} anchor={anchor} setAnchor={setAnchor} notice={notice} setNotice={setNotice} />}
           </QueryState>
         )}
       </AppShell>
