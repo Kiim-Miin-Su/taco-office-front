@@ -13,8 +13,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMeta, useOccurrences, useScheduleHolidays, useUnwritten } from '@/api/queries';
-import type { Meta, Occurrence } from '@/api/types';
+import { useMeta, useOccurrences, useScheduleHolidays, useTeacherLessonHub, useUnwritten } from '@/api/queries';
+import type { Meta, Occurrence, TeacherLessonHubHistoryItem } from '@/api/types';
+import { apiMessage } from '@/api/client';
 import {
   addDays, boundsOf, dayHeadLabel, hhmm, label, monthGrid, occurrenceKey, step, teacherSchedule, todayKst, weekDays,
 } from '@/lib/calendar';
@@ -29,6 +30,7 @@ import { ScreenHeader } from '@/components/teacher/ScreenHeader';
 import { TeacherTodayHero } from '@/components/teacher/TeacherTodayHero';
 import { useTeacherSurface } from '@/components/teacher/teacher-surface';
 import { TeacherLessonHub } from '@/components/teacher/TeacherLessonHub';
+import { TeacherLessonGuidePanel, TeacherLessonHistoryPanel } from '@/components/teacher/TeacherLessonHubPanels';
 import { TeacherScheduleChange } from '@/components/teacher/TeacherScheduleChange';
 import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
 
@@ -38,7 +40,7 @@ type Lookup = {
   kinds: Map<string, string>;
   zoom: Map<number, string>;
 };
-type HubView = 'hub' | 'report' | 'lesson' | 'schedule-change';
+type HubView = 'hub' | 'report' | 'lesson' | 'guide' | 'history' | 'schedule-change';
 type TeacherCalendarView = 'day' | 'week' | 'month';
 
 const TEACHER_CALENDAR_VIEWS: Array<{ value: TeacherCalendarView; label: string }> = [
@@ -143,7 +145,7 @@ function teacherCalendarLabel(view: TeacherCalendarView, anchor: string): string
   return dayHeadLabel(anchor);
 }
 
-function scheduleHref(view: TeacherCalendarView, anchor: string, occ?: Occurrence): string {
+function scheduleHref(view: TeacherCalendarView, anchor: string, occ?: Pick<Occurrence, 'serId' | 'onDate' | 'date'>): string {
   const params = new URLSearchParams({ view, anchor });
   if (occ) {
     params.set('serId', String(occ.serId));
@@ -320,6 +322,10 @@ export function TeacherSchedule() {
   const [hubView, setHubView] = useState<HubView>('hub');
   const [focusScheduleChange, setFocusScheduleChange] = useState(false);
   const open = localOccurrence ?? requestedOccurrence;
+  const hubSerId = open?.serId ?? requestedSerId;
+  const hubOnDate = open?.onDate ?? requestedOnDate;
+  const hubDate = open?.date ?? requestedDate;
+  const lessonHub = useTeacherLessonHub(hubSerId, hubOnDate, hubDate, Boolean(open || validRequestedLesson));
   const requestedIdentity = validRequestedLesson ? `${requestedSerId}|${requestedOnDate}|${requestedDate}` : null;
   useEffect(() => {
     setLocalOccurrence(null);
@@ -347,6 +353,13 @@ export function TeacherSchedule() {
     setHubView('hub');
     setFocusScheduleChange(false);
     router.replace(scheduleHref(view, nextAnchor));
+  };
+  const openHistoryLesson = (item: TeacherLessonHubHistoryItem) => {
+    setLocalOccurrence(null);
+    setLocalSource('calendar');
+    setHubView('hub');
+    setFocusScheduleChange(false);
+    router.replace(scheduleHref(calendarView, item.date, item));
   };
   const ready = q.data !== undefined && !q.isError;
   // 공휴일은 현재 보기와 같은 범위만 — 날짜의 사실이라 로그인한 누구나 읽는다(서버 표 한 곳)
@@ -473,16 +486,21 @@ export function TeacherSchedule() {
         <div role="alert" className="mt-4"><Banner tone="danger">수업 주소가 올바르지 않습니다. 캘린더에서 수업을 다시 선택해 주세요.</Banner></div>
       ) : validRequestedLesson && requested.isLoading && !localOccurrence ? (
         <div role="status" className="mt-4"><Banner tone="neutral">선택한 수업을 불러오는 중…</Banner></div>
+      ) : validRequestedLesson && lessonHub.isError && !localOccurrence ? (
+        <div role="alert" className="mt-4"><Banner tone="warning">{apiMessage(lessonHub.error)}</Banner></div>
       ) : validRequestedLesson && !requested.isLoading && !requested.isError && !open ? (
         <div role="alert" className="mt-4"><Banner tone="warning">해당 수업을 찾을 수 없습니다. 캘린더에서 다시 선택해 주세요.</Banner></div>
       ) : validRequestedLesson && requested.isError && !localOccurrence ? (
         <div role="alert" className="mt-4"><Banner tone="danger">선택한 수업을 불러오지 못했습니다.</Banner></div>
       ) : null}
       {open && hubView === 'hub' ? (
-        <TeacherLessonHub occ={open} today={today} kindName={lookup.kinds.get(open.kindKey)}
+        <TeacherLessonHub occ={open} hub={lessonHub.data} loading={lessonHub.isLoading}
+          errorMessage={lessonHub.isError ? apiMessage(lessonHub.error) : undefined}
+          today={today} kindName={lookup.kinds.get(open.kindKey)}
           focusScheduleChange={focusScheduleChange}
           subName={open.subKey ? lookup.subjects.get(open.subKey) : undefined}
           onReport={() => setHubView('report')} onLesson={() => setHubView('lesson')}
+          onGuide={() => setHubView('guide')} onHistory={() => setHubView('history')}
           onScheduleChange={() => { setFocusScheduleChange(false); setHubView('schedule-change'); }} onClose={closeHub} />
       ) : null}
       {open ? (
@@ -494,6 +512,14 @@ export function TeacherSchedule() {
       {open && hubView === 'lesson' ? (
         <LessonDetail occ={open} kindName={lookup.kinds.get(open.kindKey)}
           subName={open.subKey ? lookup.subjects.get(open.subKey) : undefined} onClose={() => setHubView('hub')} />
+      ) : null}
+      {lessonHub.data && hubView === 'guide' ? (
+        <TeacherLessonGuidePanel hub={lessonHub.data} onClose={() => setHubView('hub')} />
+      ) : null}
+      {lessonHub.data && hubView === 'history' ? (
+        <TeacherLessonHistoryPanel hub={lessonHub.data}
+          subjectName={(key) => key ? lookup.subjects.get(key) ?? lookup.kinds.get(key) ?? key : '과목 미정'}
+          onOpenLesson={openHistoryLesson} onClose={() => setHubView('hub')} />
       ) : null}
     </AppShell>
   );

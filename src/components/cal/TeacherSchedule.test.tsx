@@ -7,13 +7,14 @@
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Occurrence } from '@/api/types';
+import { ApiError } from '@/api/client';
 import { LATE_TIERS_FIXTURE } from '@/components/teacher/late-tiers.fixture';
 import { TeacherSchedule } from './TeacherSchedule';
 import SchedulePage from '@/app/schedule/page';
 
 const mocks = vi.hoisted(() => ({
   occurrences: vi.fn(), meta: vi.fn(), unwritten: vi.fn(), drawer: vi.fn(),
-  horizon: vi.fn(), scheduleWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(),
+  horizon: vi.fn(), scheduleWrite: vi.fn(), holidays: vi.fn(), shell: vi.fn(), lessonHub: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -25,6 +26,7 @@ vi.mock('@/api/queries', () => ({
   useHorizon: mocks.horizon, useScheduleWrite: mocks.scheduleWrite,
   // 공휴일 이름표(GET /schedule/holidays)·머리줄 서버 값(GET /teacher/shell) — 둘 다 서버 표에서 온다
   useScheduleHolidays: mocks.holidays, useTeacherShell: mocks.shell,
+  useTeacherLessonHub: mocks.lessonHub,
   useCreateSettingRequest: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false }),
 }));
 vi.mock('@/components/shell/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -51,6 +53,28 @@ function occurrence(serId: number, date: string, startMin: number, extra: Partia
   };
 }
 
+function hubResult(serId = 1, onDate = '2026-09-07', date = '2026-09-07', reportEnabled = true) {
+  const student = { studentId: 1, name: '담당 학생', grade: 'G9', school: '검증중', targetExam: null,
+    guidance: '꼼꼼하게', lang: 'ko', weekCount: 1,
+    lessons: [{ serId, onDate, date, startMin: 600, durMin: 60, subKey: 'writing', title: '선택 수업' }],
+    books: [{ issueId: 3, code: 'WR-01', title: 'Writing Basic', subKey: 'writing', level: 'G9', seTe: 'SE', state: 'ok', stateLabel: '사용 중', issuedOn: date, returnedOn: null, reissuedFrom: null, reissuedTo: null }],
+    diag: { onDate: date, levelSummary: '중급', strengths: '구성', weaknesses: '문법', curriculum: '문법 보강', byName: '관리자' },
+    notes: [{ id: 4, body: '이전 진도를 먼저 확인', authorName: '관리자', createdAt: `${date}T09:00:00+09:00` }] };
+  return { data: {
+    lesson: { serId, onDate, date, startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline',
+      title: '선택 수업', roomName: '2층 강의실', roomBranch: '강남', zaccLabel: null, students: '담당 학생', canceled: false, cancelKindLabel: null, repState: reportEnabled ? 'none' : 'plan' },
+    guideStudents: [student],
+    history: [
+      { serId, onDate, date, startMin: 600, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline', title: '선택 수업', studentItems: [{ id: 1, name: '담당 학생' }], repState: 'none', canceled: false },
+      { serId: 8, onDate: '2026-08-20', date: '2026-08-20', startMin: 720, durMin: 60, kindKey: 'class', subKey: 'writing', mode: 'offline', title: '지난 수업', studentItems: [{ id: 1, name: '담당 학생' }], repState: 'ok', canceled: false },
+    ],
+    capabilities: {
+      report: { enabled: reportEnabled, reason: reportEnabled ? null : '수업 종료 후 리포트를 열 수 있습니다.' },
+      guide: { enabled: true, reason: null }, history: { enabled: true, reason: null }, scheduleChange: { enabled: true, reason: null },
+    },
+  }, isLoading: false, isError: false, error: null };
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-07T00:00:00Z'));
@@ -64,6 +88,9 @@ beforeEach(() => {
   mocks.drawer.mockReturnValue({ data: { approvals: { mine: [] }, changeReqs: [] }, isLoading: false, isError: false });
   mocks.holidays.mockReturnValue({ data: { from: '2026-09-07', to: '2026-09-14', items: [] } });
   mocks.shell.mockReturnValue({ data: { timezone: 'Asia/Seoul', tzLabel: 'Seoul · UTC+9', wageRate: 45000, notis: [], unread: 0, notiWindowDays: 30 } });
+  mocks.lessonHub.mockImplementation((serId: number | null, onDate: string | null, date: string | null, enabled: boolean) => (
+    enabled && serId && onDate && date ? hubResult(serId, onDate, date) : { data: undefined, isLoading: false, isError: false, error: null }
+  ));
   nav.search = '';
   nav.replace.mockClear();
 });
@@ -320,6 +347,9 @@ describe('강사 캘린더 기본 오늘 목록', () => {
       occurrence(2, '2026-09-07', 720, { canceled: true }),
       occurrence(3, '2026-09-07', 780, { kindKey: 'meeting', repState: 'na' }),
     ] }, isLoading: false, isError: false });
+    mocks.lessonHub.mockImplementation((serId: number | null, onDate: string | null, date: string | null, enabled: boolean) => (
+      enabled && serId && onDate && date ? hubResult(serId, onDate, date, serId === 1) : { data: undefined, isLoading: false, isError: false, error: null }
+    ));
     const view = render(<TeacherSchedule />);
     const rows = within(view.getByRole('region', { name: '오늘 전체 스케줄' })).getAllByRole('button');
     fireEvent.click(rows[0]);
@@ -349,6 +379,16 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(view.getByRole('dialog', { name: '리포트 상세' }).textContent).toContain('7|2026-09-01');
   });
 
+  it('이동된 회차의 stale 직접 URL은 exact 서버 409 문구를 표시하고 다른 수업을 열지 않는다', () => {
+    nav.search = 'serId=7&onDate=2026-09-01&date=2026-09-07';
+    mocks.occurrences.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    mocks.lessonHub.mockReturnValue({ data: undefined, isLoading: false, isError: true,
+      error: new ApiError('TEACHER_LESSON_MOVED', '수업일이 변경되었습니다. 최신 일정에서 다시 열어 주세요.', 409, { actualDate: '2026-09-19' }) });
+    const view = render(<TeacherSchedule />);
+    expect(view.getByRole('alert').textContent).toContain('수업일이 변경되었습니다');
+    expect(view.queryByRole('dialog', { name: '수업 허브' })).toBeNull();
+  });
+
   it('잘못된 identity와 없는 회차는 다른 수업으로 대체하지 않고 복구 경로를 표시한다', () => {
     nav.search = 'serId=abc&onDate=2026-09-07&date=2026-09-07';
     const view = render(<TeacherSchedule />);
@@ -361,16 +401,23 @@ describe('강사 캘린더 기본 오늘 목록', () => {
     expect(view.queryByRole('dialog', { name: '수업 허브' })).toBeNull();
   });
 
-  it('허브는 계약 없는 회차별 안내·히스토리를 잠그고 건의와 닫기 이동을 제공한다', () => {
+  it('허브는 exact 안내·히스토리를 열고 이력의 다른 회차로 이동한다', () => {
     nav.search = 'serId=1&onDate=2026-09-07&date=2026-09-07&source=home';
     mocks.occurrences.mockReturnValue({ data: { items: [occurrence(1, '2026-09-07', 600)] }, isLoading: false, isError: false, refetch: vi.fn() });
     const view = render(<TeacherSchedule />);
-    expect(view.getByRole('button', { name: '수업 안내 열기' }).hasAttribute('disabled')).toBe(true);
-    expect(view.getByRole('button', { name: '학생 이력 열기' }).hasAttribute('disabled')).toBe(true);
-    expect(view.getByText(/회차를 정확히 여는 계약이 아직 없습니다/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '수업 안내 열기' }));
+    const guide = within(view.getByRole('dialog', { name: '수업 안내' }));
+    expect(guide.getByText('꼼꼼하게')).toBeTruthy();
+    expect(guide.getByText(/강남 · 2층 강의실/)).toBeTruthy();
+    expect(guide.getByText('Writing Basic')).toBeTruthy();
+    fireEvent.click(guide.getByRole('button', { name: '창 닫기' }));
+    fireEvent.click(view.getByRole('button', { name: '학생 이력 열기' }));
+    const history = within(view.getByRole('dialog', { name: '학생 수업 이력' }));
+    expect(history.getByRole('combobox', { name: '학생 필터' })).toBeTruthy();
+    expect(history.getByRole('region', { name: '2026-08 수업 이력' })).toBeTruthy();
+    fireEvent.click(history.getByRole('button', { name: /8\/20.*Writing/ }));
+    expect(nav.replace).toHaveBeenCalledWith('/schedule?view=day&anchor=2026-08-20&serId=8&onDate=2026-08-20&date=2026-08-20&source=calendar');
     expect(view.getByRole('link', { name: '건의 사항 열기' }).getAttribute('href')).toBe('/teacher/suggestions');
-    fireEvent.click(view.getByRole('button', { name: '창 닫기' }));
-    expect(nav.replace).toHaveBeenCalledWith('/teacher');
   });
 
   it('로딩·오류를 수업 0건으로 표시하지 않고 정상 빈 상태를 구별한다', () => {

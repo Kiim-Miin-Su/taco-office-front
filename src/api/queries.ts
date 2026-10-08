@@ -203,6 +203,7 @@ import type {
   TeacherDiagCreate,
   TeacherGuideDiag,
   TeacherGuides,
+  TeacherLessonHub,
   TeacherHistory,
   TeacherPrivateNoteReceipt,
   TeacherPrivateNoteReceipts,
@@ -308,6 +309,7 @@ export const qk = {
   teacherSuggestions: ['teacher', 'suggestions'] as const,
   receivedGuides: ['teacher', 'received-guides'] as const,
   teacherGuides: (week: string | undefined) => ['teacher', 'guides', week ?? 'current'] as const,
+  teacherLessonHub: (serId: number, onDate: string, date: string) => ['teacher', 'lesson-hub', serId, onDate, date] as const,
   teacherUnav: (anchor: string | undefined) => ['teacher', 'unavailable', anchor ?? 'current'] as const,
   gpa: (anchor: string | undefined) => ['gpa', anchor ?? 'current'] as const,
   zoom: (onDate: string | undefined) => ['zoom', onDate ?? 'today'] as const,
@@ -381,6 +383,7 @@ export const family = {
   teacherShell: ['teacher', 'shell'] as const,
   teacherHistory: ['teacher', 'history'] as const,
   teacherGuides: ['teacher', 'guides'] as const,
+  teacherLessonHub: ['teacher', 'lesson-hub'] as const,
   receivedGuides: ['teacher', 'received-guides'] as const,
   teacherUnav: ['teacher', 'unavailable'] as const,
   gpa: ['gpa'] as const,
@@ -912,6 +915,7 @@ export function useStudentPause() {
   const settle = () => {
     void qc.invalidateQueries({ queryKey: family.tracking });
     void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
     void qc.invalidateQueries({ queryKey: family.accounting });
   };
   return useMutation({
@@ -938,6 +942,7 @@ export function useAddTrackingNote(): UseMutationResult<TrackedNote, unknown, No
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.tracking });
       void qc.invalidateQueries({ queryKey: family.teacherGuides });
+      void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
     },
   });
 }
@@ -1754,6 +1759,7 @@ export function useCreateSettingRequest(): UseMutationResult<TeacherSettingReque
       void qc.invalidateQueries({ queryKey: family.drawer });
       // 교재 변경은 수업 안내 교재 행의 「변경 요청 중」을 바꾼다 (N-99) — 주가 키에 들어 있어 갈래째 버린다
       void qc.invalidateQueries({ queryKey: family.teacherGuides });
+      void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
     },
   });
 }
@@ -1800,6 +1806,28 @@ export function useTeacherGuides(week?: string, enabled = true): UseQueryResult<
 }
 
 /**
+ * BOC-05D-01 권고안 — 홈·일/주/월·리포트가 같은 exact 회차 허브를 읽는다.
+ * 계약 변경 시 Backend DTO/OpenAPI/generated schema, TeacherSchedule/TeacherLessonHub와
+ * BOC-05 scenario·문서·portfolio를 함께 갱신한다.
+ */
+export function useTeacherLessonHub(
+  serId: number | null, onDate: string | null, date: string | null, enabled = true,
+): UseQueryResult<TeacherLessonHub> {
+  const viewerId = useViewerId();
+  const safeSerId = serId ?? 0;
+  const safeOnDate = onDate ?? '';
+  const safeDate = date ?? '';
+  return useQuery({
+    queryKey: sessionQueryKey(qk.teacherLessonHub(safeSerId, safeOnDate, safeDate), viewerId),
+    queryFn: async () => (await api.get<TeacherLessonHub>(
+      `/teacher/lessons/${safeSerId}/${safeOnDate}/hub`, { params: { date: safeDate } },
+    )).data,
+    enabled: enabled && serId !== null && onDate !== null && date !== null,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
  * 진단 리포트 쓰기 — 강사만 (강사 원문 슬라이드 20 · 47).
  *
  * 쓰고 나면 수업 안내 갈래를 통째로 버린다 — 「아직 진단 기록이 없습니다」가 그 자리에서
@@ -1811,6 +1839,7 @@ export function useCreateDiagnostic(): UseMutationResult<TeacherGuideDiag, unkno
     mutationFn: async (body) => (await api.post<TeacherGuideDiag>('/teacher/diagnostics', body)).data,
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: family.teacherGuides });
+      void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
     },
   });
 }
@@ -1983,6 +2012,7 @@ function refreshReportConsumers(qc: ReturnType<typeof useQueryClient>, viewerId:
   if (detail) qc.setQueryData(sessionQueryKey(qk.reportDetail(detail.serId, detail.onDate), viewerId), detail);
   void qc.invalidateQueries({ queryKey: family.reports });
   void qc.invalidateQueries({ queryKey: family.occurrences });
+  void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
   void qc.invalidateQueries({ queryKey: family.accounting });
   void qc.invalidateQueries({ queryKey: family.board });
   void qc.invalidateQueries({ queryKey: family.exec });
@@ -2108,6 +2138,7 @@ export function useScheduleWrite(): UseMutationResult<
   // 성공과 오래된 회차 거절이 같은 서버 정본을 다시 읽는다. 전체 캐시 무효화는 하지 않는다.
   const reconcile = (w?: ScheduleWrite) => {
     void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
     void qc.invalidateQueries({ queryKey: family.board });
     void qc.invalidateQueries({ queryKey: family.horizon });
     void qc.invalidateQueries({ queryKey: family.scheduleHistory });
@@ -2175,6 +2206,7 @@ export function useAttendanceWrite(): UseMutationResult<AttendanceMutationResult
   const qc = useQueryClient();
   const reconcile = () => {
     void qc.invalidateQueries({ queryKey: family.occurrences });
+    void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
     // 학생별 지각은 리포트 목록·상세의 ReportStudentDto에도 투영된다.
     void qc.invalidateQueries({ queryKey: family.reports });
     void qc.invalidateQueries({ queryKey: family.board });
@@ -2374,6 +2406,7 @@ export function useApprovalUndo(): UseMutationResult<ApprovalUndoResult, unknown
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: family.drawer });
       void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
       void qc.invalidateQueries({ queryKey: family.occurrences });
       void qc.invalidateQueries({ queryKey: family.seriesCounts });
       void qc.invalidateQueries({ queryKey: family.board });
@@ -2931,6 +2964,7 @@ export function useTeacherChange(): UseMutationResult<TeacherChangeResult, unkno
       void qc.invalidateQueries({ queryKey: family.drawer });
       void qc.invalidateQueries({ queryKey: family.reports });
       void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
       void qc.invalidateQueries({ queryKey: family.accounting });
     },
   });

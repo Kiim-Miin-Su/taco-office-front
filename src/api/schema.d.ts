@@ -3447,6 +3447,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/lessons/{serId}/{onDate}/hub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 강사 수업 허브 — 본인 회차의 리포트·안내·학생 이력·일정 변경 진입점
+         * @description serId+원래 회차일+실제 수업일을 함께 검증한다. 없는 회차와 다른 강사 회차는 같은 404이며, 이동된 stale URL은 실제 날짜를 포함한 409다.
+         */
+        get: operations["TeacherController_lessonHub"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teacher/history": {
         parameters: {
             query?: never;
@@ -10838,6 +10858,126 @@ export interface components {
             todo: components["schemas"]["TeacherTodoDto"];
             settings: components["schemas"]["TeacherSettingsDto"];
         };
+        TeacherGuideLessonDto: {
+            /** @description 이 회차의 시리즈 id */
+            serId: number;
+            /** @description 규칙상 원래 날짜 YYYY-MM-DD (KST) — 회차의 키 */
+            onDate: string;
+            /** @description 실제 수업일 YYYY-MM-DD (KST) — 옮긴 회차는 옮긴 날. 이번 주 판정과 표시는 이 값 (MEETING-MOVE) */
+            date: string;
+            startMin: number;
+            durMin: number;
+            subKey?: string | null;
+            title?: string | null;
+        };
+        TeacherGuideBookDto: {
+            issueId: number;
+            code: string;
+            title: string;
+            subKey?: string | null;
+            /** @description 교재 레벨 — 코드표 레벨(N-47) 낱말이 있으면 그것, 아직이면 옛 원문(lib.level) · 서가와 같은 함수(W11 A 후속) */
+            level?: string | null;
+            /** @description SE | TE */
+            seTe: string;
+            /**
+             * @description 배부 상태 — wait 승인 대기 · auto 전달 대기 · ok 사용 중 · returned 회수(교재 완료)
+             * @enum {string}
+             */
+            state: "wait" | "auto" | "ok" | "returned";
+            /** @description 상태 낱말 — 서가·§38 과 같은 표(ISSUE_STATE_LABEL) */
+            stateLabel: string;
+            /** @description 배부일 YYYY-MM-DD — 배부 전(wait · auto)이면 null */
+            issuedOn: string | null;
+            /** @description 반환일 — null 이면 사용 중 */
+            returnedOn?: string | null;
+            /** @description 이 배부가 이어받은 이전 배부(회수·취소·반려)의 issueId — 없으면 null */
+            reissuedFrom: number | null;
+            /** @description 이 배부를 이어받은 새 배부의 issueId — 없으면 null(아직 재배부하지 않음) */
+            reissuedTo: number | null;
+            /** @description 이 교재에 진행 중인 변경 요청이 있는가 — 「변경 요청」이 「변경 요청 중」으로 선다(N-99) */
+            changePending?: boolean;
+            /** @description 「변경 요청」이 눌리는가 — 쓰는 중(사용 중)이고 열린 요청이 없을 때만. 쓰기와 같은 판정(N-99) */
+            changeRequestable?: boolean;
+        };
+        TeacherGuideDiagDto: {
+            /** @description 응시일 YYYY-MM-DD */
+            onDate?: string | null;
+            levelSummary: string;
+            strengths?: string | null;
+            weaknesses?: string | null;
+            /** @description 권장 커리큘럼 — 원문 04 진단 리포트의 둘째 줄 */
+            curriculum?: string | null;
+            /** @description 쓴 사람 — 조회하는 쪽이 누구 글인지 알아야 한다 */
+            byName?: string | null;
+        };
+        TeacherGuideNoteDto: {
+            id: number;
+            body: string;
+            /** @description 적은 사람 */
+            authorName: string | null;
+            /** @description 적은 시각 — KST ISO(…+09:00) */
+            createdAt: string;
+        };
+        TeacherGuideStudentDto: {
+            studentId: number;
+            name: string;
+            grade?: string | null;
+            school?: string | null;
+            targetExam?: string | null;
+            /** @description 지도 강도 — stu.guidance 원문 (미설정 null) */
+            guidance?: string | null;
+            /** @description 수업 언어 — stu.lang 원문 (ko·en 등) */
+            lang?: string | null;
+            /** @description 이번 주 내 수업 횟수 (취소 제외) */
+            weekCount: number;
+            /** @description 이번 주 내 수업 회차 (시각 순) */
+            lessons: components["schemas"]["TeacherGuideLessonDto"][];
+            /** @description 교재 — 사용 중 먼저, 반환분은 이력 */
+            books: components["schemas"]["TeacherGuideBookDto"][];
+            /** @description 최신 진단 — 없으면 null */
+            diag?: components["schemas"]["TeacherGuideDiagDto"] | null;
+            /** @description 인수인계 메모 — 관리자 · 매니저가 적은 줄, 최근 것부터 (N-36 ② · 강사 원문 27 · 44 「이전 강사 인수인계」 · 학부모에게 나가지 않는다) */
+            notes: components["schemas"]["TeacherGuideNoteDto"][];
+        };
+        TeacherHistoryStudentDto: {
+            id: number;
+            name: string;
+        };
+        TeacherLessonHubHistoryItemDto: {
+            serId: number;
+            /** Format: date */
+            onDate: string;
+            /** Format: date */
+            date: string;
+            startMin: number;
+            durMin: number;
+            kindKey: string;
+            subKey?: string | null;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            title?: string | null;
+            studentItems: components["schemas"]["TeacherHistoryStudentDto"][];
+            /** @enum {string} */
+            repState: "na" | "plan" | "none" | "draft" | "wait" | "ok" | "rej";
+            canceled: boolean;
+        };
+        TeacherLessonHubCapabilityDto: {
+            enabled: boolean;
+            /** @description 열 수 없을 때 화면에 그대로 보여 줄 서버 사유 */
+            reason?: string | null;
+        };
+        TeacherLessonHubCapabilitiesDto: {
+            report: components["schemas"]["TeacherLessonHubCapabilityDto"];
+            guide: components["schemas"]["TeacherLessonHubCapabilityDto"];
+            history: components["schemas"]["TeacherLessonHubCapabilityDto"];
+            scheduleChange: components["schemas"]["TeacherLessonHubCapabilityDto"];
+        };
+        TeacherLessonHubDto: {
+            lesson: components["schemas"]["TeacherLessonDto"];
+            guideStudents: components["schemas"]["TeacherGuideStudentDto"][];
+            history: components["schemas"]["TeacherLessonHubHistoryItemDto"][];
+            capabilities: components["schemas"]["TeacherLessonHubCapabilitiesDto"];
+        };
         TeacherHistoryStatsDto: {
             /** @description 종료된 수업 (취소 제외) */
             doneCount: number;
@@ -10848,10 +10988,6 @@ export interface components {
             /** @description 종료 후 미작성 */
             unwrittenCount: number;
             unwrittenMinutes: number;
-        };
-        TeacherHistoryStudentDto: {
-            id: number;
-            name: string;
         };
         TeacherHistoryLessonDto: {
             serId: number;
@@ -10984,87 +11120,6 @@ export interface components {
             settlement: components["schemas"]["TeacherSettlementDto"];
             /** @description 오늘 걸린 가산 규칙 — 대표 정리 · 기준 탭의 칸 그대로 (N-93) */
             bonusRules: components["schemas"]["TeacherBonusRuleDto"][];
-        };
-        TeacherGuideLessonDto: {
-            /** @description 이 회차의 시리즈 id */
-            serId: number;
-            /** @description 규칙상 원래 날짜 YYYY-MM-DD (KST) — 회차의 키 */
-            onDate: string;
-            /** @description 실제 수업일 YYYY-MM-DD (KST) — 옮긴 회차는 옮긴 날. 이번 주 판정과 표시는 이 값 (MEETING-MOVE) */
-            date: string;
-            startMin: number;
-            durMin: number;
-            subKey?: string | null;
-            title?: string | null;
-        };
-        TeacherGuideBookDto: {
-            issueId: number;
-            code: string;
-            title: string;
-            subKey?: string | null;
-            /** @description 교재 레벨 — 코드표 레벨(N-47) 낱말이 있으면 그것, 아직이면 옛 원문(lib.level) · 서가와 같은 함수(W11 A 후속) */
-            level?: string | null;
-            /** @description SE | TE */
-            seTe: string;
-            /**
-             * @description 배부 상태 — wait 승인 대기 · auto 전달 대기 · ok 사용 중 · returned 회수(교재 완료)
-             * @enum {string}
-             */
-            state: "wait" | "auto" | "ok" | "returned";
-            /** @description 상태 낱말 — 서가·§38 과 같은 표(ISSUE_STATE_LABEL) */
-            stateLabel: string;
-            /** @description 배부일 YYYY-MM-DD — 배부 전(wait · auto)이면 null */
-            issuedOn: string | null;
-            /** @description 반환일 — null 이면 사용 중 */
-            returnedOn?: string | null;
-            /** @description 이 배부가 이어받은 이전 배부(회수·취소·반려)의 issueId — 없으면 null */
-            reissuedFrom: number | null;
-            /** @description 이 배부를 이어받은 새 배부의 issueId — 없으면 null(아직 재배부하지 않음) */
-            reissuedTo: number | null;
-            /** @description 이 교재에 진행 중인 변경 요청이 있는가 — 「변경 요청」이 「변경 요청 중」으로 선다(N-99) */
-            changePending?: boolean;
-            /** @description 「변경 요청」이 눌리는가 — 쓰는 중(사용 중)이고 열린 요청이 없을 때만. 쓰기와 같은 판정(N-99) */
-            changeRequestable?: boolean;
-        };
-        TeacherGuideDiagDto: {
-            /** @description 응시일 YYYY-MM-DD */
-            onDate?: string | null;
-            levelSummary: string;
-            strengths?: string | null;
-            weaknesses?: string | null;
-            /** @description 권장 커리큘럼 — 원문 04 진단 리포트의 둘째 줄 */
-            curriculum?: string | null;
-            /** @description 쓴 사람 — 조회하는 쪽이 누구 글인지 알아야 한다 */
-            byName?: string | null;
-        };
-        TeacherGuideNoteDto: {
-            id: number;
-            body: string;
-            /** @description 적은 사람 */
-            authorName: string | null;
-            /** @description 적은 시각 — KST ISO(…+09:00) */
-            createdAt: string;
-        };
-        TeacherGuideStudentDto: {
-            studentId: number;
-            name: string;
-            grade?: string | null;
-            school?: string | null;
-            targetExam?: string | null;
-            /** @description 지도 강도 — stu.guidance 원문 (미설정 null) */
-            guidance?: string | null;
-            /** @description 수업 언어 — stu.lang 원문 (ko·en 등) */
-            lang?: string | null;
-            /** @description 이번 주 내 수업 횟수 (취소 제외) */
-            weekCount: number;
-            /** @description 이번 주 내 수업 회차 (시각 순) */
-            lessons: components["schemas"]["TeacherGuideLessonDto"][];
-            /** @description 교재 — 사용 중 먼저, 반환분은 이력 */
-            books: components["schemas"]["TeacherGuideBookDto"][];
-            /** @description 최신 진단 — 없으면 null */
-            diag?: components["schemas"]["TeacherGuideDiagDto"] | null;
-            /** @description 인수인계 메모 — 관리자 · 매니저가 적은 줄, 최근 것부터 (N-36 ② · 강사 원문 27 · 44 「이전 강사 인수인계」 · 학부모에게 나가지 않는다) */
-            notes: components["schemas"]["TeacherGuideNoteDto"][];
         };
         TeacherGuidesDto: {
             /** @description 이번 주 월요일 YYYY-MM-DD (KST) */
@@ -27972,6 +28027,83 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    TeacherController_lessonHub: {
+        parameters: {
+            query: {
+                /** @description 현재 화면이 연 실제 수업일. 옮긴 회차의 stale URL을 409로 검출한다. */
+                date: string;
+            };
+            header?: never;
+            path: {
+                serId: number;
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherLessonHubDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 강사 전용 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description TEACHER_LESSON_NOT_FOUND — 없음 또는 다른 강사의 회차 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description TEACHER_LESSON_MOVED — 실제 수업일이 요청 URL과 다름 */
             409: {
                 headers: {
                     [name: string]: unknown;

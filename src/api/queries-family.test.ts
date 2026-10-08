@@ -126,6 +126,7 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   board: qk.board({ ...RANGE }),
   exec: qk.exec({ ...RANGE }),
   teacherGuides: qk.teacherGuides(undefined),
+  teacherLessonHub: qk.teacherLessonHub(7, '2026-09-01', '2026-09-19'),
   teacherUnav: qk.teacherUnav(undefined),
   gpa: qk.gpa('2026-09-01'),
   zoom: qk.zoom(undefined),

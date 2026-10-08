@@ -29,6 +29,9 @@ export type TeacherShell = S['TeacherShellDto'];
 export type TeacherNoti = S['TeacherNotiDto'];
 export type TeacherHistory = S['TeacherHistoryDto'];
 export type TeacherGuides = S['TeacherGuidesDto'];
+/** BOC-05D-01 — 본인 exact 회차의 허브 read model */
+export type TeacherLessonHub = S['TeacherLessonHubDto'];
+export type TeacherLessonHubHistoryItem = S['TeacherLessonHubHistoryItemDto'];
 export type TeacherUnav = S['TeacherUnavDto'];
 export type TeacherUnavBlock = S['TeacherUnavBlockDto'];
 export type TeacherUnavCreate = S['TeacherUnavCreateDto'];

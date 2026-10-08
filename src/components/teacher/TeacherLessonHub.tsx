@@ -6,27 +6,30 @@
 'use client';
 import { useEffect, useId } from 'react';
 import Link from 'next/link';
-import type { Occurrence } from '@/api/types';
+import type { Occurrence, TeacherLessonHub as TeacherLessonHubData } from '@/api/types';
 import { hhmm, label } from '@/lib/calendar';
 import { Button, Chip, Dialog } from '@/components/ui';
 import { teacherScheduleChangeMode } from './TeacherScheduleChange';
 
-const REPORT_OPENABLE = new Set(['none', 'draft', 'wait', 'ok', 'rej']);
-
-export function TeacherLessonHub({ occ, today, kindName, subName, focusScheduleChange = false, onReport, onLesson, onScheduleChange, onClose }: {
+export function TeacherLessonHub({ occ, hub, loading, errorMessage, today, kindName, subName, focusScheduleChange = false,
+  onReport, onLesson, onGuide, onHistory, onScheduleChange, onClose }: {
   occ: Occurrence;
+  hub?: TeacherLessonHubData;
+  loading: boolean;
+  errorMessage?: string;
   today: string;
   kindName?: string;
   subName?: string;
   focusScheduleChange?: boolean;
   onReport: () => void;
   onLesson: () => void;
+  onGuide: () => void;
+  onHistory: () => void;
   onScheduleChange: () => void;
   onClose: () => void;
 }) {
-  const canReport = !occ.canceled && occ.attendance?.countsForPay !== false && REPORT_OPENABLE.has(occ.repState);
   const students = occ.students.filter((student) => !student.droppedOnce).map((student) => student.name).join(' · ');
-  const exactContractMissing = '회차를 정확히 여는 계약이 아직 없습니다. 전체 화면에서 확인해 주세요.';
+  const capabilities = hub?.capabilities;
   const changeMode = teacherScheduleChangeMode(today, occ.date);
   const scheduleChangeId = useId();
   useEffect(() => {
@@ -46,17 +49,22 @@ export function TeacherLessonHub({ occ, today, kindName, subName, focusScheduleC
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <Button variant="primary" className="min-h-11" aria-label="리포트 열기" disabled={!canReport}
-            title={canReport ? '이 회차의 리포트를 엽니다' : '예정·취소·비대상 수업은 리포트를 열 수 없습니다'} onClick={onReport}>
+          <Button variant="primary" className="min-h-11" aria-label="리포트 열기" disabled={!capabilities?.report.enabled}
+            title={capabilities?.report.enabled ? '이 회차의 리포트를 엽니다' : capabilities?.report.reason ?? '회차 권한을 확인하는 중입니다'} onClick={onReport}>
             리포트
           </Button>
           <Button className="min-h-11" aria-label="수업 정보 열기" onClick={onLesson}>수업 정보</Button>
-          <Button className="min-h-11" aria-label="수업 안내 열기" disabled title={exactContractMissing}>수업 안내</Button>
-          <Button className="min-h-11" aria-label="학생 이력 열기" disabled title={exactContractMissing}>학생 이력</Button>
+          <Button className="min-h-11" aria-label="수업 안내 열기" disabled={!capabilities?.guide.enabled}
+            title={capabilities?.guide.enabled ? '이 회차의 학생 안내를 엽니다' : capabilities?.guide.reason ?? '회차 권한을 확인하는 중입니다'} onClick={onGuide}>수업 안내</Button>
+          <Button className="min-h-11" aria-label="학생 이력 열기" disabled={!capabilities?.history.enabled}
+            title={capabilities?.history.enabled ? '이 회차 학생의 수업 이력을 엽니다' : capabilities?.history.reason ?? '회차 권한을 확인하는 중입니다'} onClick={onHistory}>학생 이력</Button>
         </div>
-        <p className="text-[12px] text-fg-subtle">수업 안내·학생 이력은 {exactContractMissing}</p>
+        {loading ? <p role="status" className="text-[12px] text-fg-subtle">회차 권한과 안내를 확인하는 중…</p> : null}
+        {errorMessage ? <p role="alert" className="text-[12px] text-red">{errorMessage}</p> : null}
         <Button className="min-h-11" variant="primary"
           id={scheduleChangeId}
+          disabled={!capabilities?.scheduleChange.enabled}
+          title={capabilities?.scheduleChange.reason ?? undefined}
           aria-label={changeMode === 'request' ? '일정 변경 요청 열기' : '이 수업으로 건의 열기'}
           onClick={onScheduleChange}>
           {changeMode === 'request' ? '일정 변경 요청' : '이 수업으로 건의'}

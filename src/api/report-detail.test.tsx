@@ -147,7 +147,7 @@ it.each([
   expect(view.result.current.detail.data).toMatchObject({ canEdit: false, canReview: false });
   expect(get).toHaveBeenCalledTimes(2);
   expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-    ['reports'], ['schedule', 'occurrences'], ['accounting'], ['board'], ['exec'], ['drawer'],
+    ['reports'], ['schedule', 'occurrences'], ['teacher', 'lesson-hub'], ['accounting'], ['board'], ['exec'], ['drawer'],
   ]);
 });
 
