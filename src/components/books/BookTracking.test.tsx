@@ -134,6 +134,8 @@ function setup({
                 students: [{
                   studentId: 3, name: '고은성', progressPage: 20, percent: 20, elapsedDays: 1,
                   lastProgressOn: '2026-09-13', stalledDays: 15, stalled: true, homeworkPages28d: 4,
+                  completionEstimateStatus: 'ready', estimatedCompletionOn: '2026-11-20',
+                  estimatedRemainingLessons: 6, estimatedPagesPerLesson: 10, completionEstimateSampleCount: 3,
                 }],
               },
             ],
@@ -251,6 +253,8 @@ it('진행도 보기는 리포트 원장의 진도·14일 정체·최근 28일 �
   expect(view.getByText('2주 멈춤 1명')).toBeTruthy();
   expect(view.getByText('최근 28일 숙제 4쪽')).toBeTruthy();
   expect(view.getByText('15일 멈춤')).toBeTruthy();
+  expect(view.getByLabelText('고은성 완료 예상').textContent).toBe('2026-11-20 완료 예상 · 6회');
+  expect(view.queryByText(/계산 기준 확정 후/)).toBeNull();
   expect(view.queryByRole('button', { name: '고은성 펼치기' })).toBeNull();
   expect(view.queryByText('강사 교재 변경 요청 1건')).toBeNull();
 });

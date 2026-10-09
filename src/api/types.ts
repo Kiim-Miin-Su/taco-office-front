@@ -489,6 +489,7 @@ export type BookIssue = S['BookIssueDto'];
 export type BookAssignmentCreate = S['BookAssignmentCreateDto'];
 export type BookAssignmentOptions = S['BookAssignmentOptionsDto'];
 export type BookTrackingStudent = S['BookTrackingStudentDto'];
+export type BookProgressStudent = S['BookProgressStudentDto'];
 export type BookTracking = S['BookTrackingDto'];
 export type BookIssueCreate = S['BookIssueCreateDto'];
 export type BookIssueTransition = S['BookIssueTransitionDto'];

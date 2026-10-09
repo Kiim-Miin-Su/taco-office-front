@@ -10919,6 +10919,16 @@ export interface components {
             stalledDays?: number | null;
             stalled: boolean;
             homeworkPages28d: number;
+            /**
+             * @description BO-Q08-ETA 서버 판정. 화면은 이 상태를 다시 계산하지 않는다.
+             * @enum {string}
+             */
+            completionEstimateStatus: "ready" | "complete" | "missing_input" | "insufficient_history" | "schedule_unavailable";
+            /** Format: date */
+            estimatedCompletionOn?: string | null;
+            estimatedRemainingLessons?: number | null;
+            estimatedPagesPerLesson?: number | null;
+            completionEstimateSampleCount: number;
         };
         BookProgressDto: {
             libId: number;

@@ -18,7 +18,7 @@ import {
   useUpdateBookProgress,
 } from '@/api/queries';
 import { Banner, Button, Chip, Input, Label, LinkButton, Panel, QueryState, Select, StatCard, Textarea, cn, type StatTone } from '@/components/ui';
-import type { Book, BookTrackingStudent, LeadDiag } from '@/api/types';
+import type { Book, BookProgressStudent, BookTrackingStudent, LeadDiag } from '@/api/types';
 import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { bookLevelPresentation, bookLevelUiLabel, issueFormTone } from '@/lib/book-presentation';
 import { todayKst } from '@/lib/calendar';
@@ -74,6 +74,22 @@ function assignmentBooks(books: readonly Book[], source: EducationGradeSource | 
 
 function guideMissing(student: BookTrackingStudent): boolean {
   return student.todos.some((todo) => todo.key === 'guide_missing');
+}
+
+/** BO-Q08-ETA 서버 상태를 문구로만 투영한다. 평균·필요 회차·완료일을 화면에서 다시 계산하지 않는다. */
+function completionEstimateText(student: BookProgressStudent): string {
+  if (student.completionEstimateStatus === 'ready'
+    && student.estimatedCompletionOn && student.estimatedRemainingLessons != null) {
+    return `${student.estimatedCompletionOn} 완료 예상 · ${student.estimatedRemainingLessons}회`;
+  }
+  if (student.completionEstimateStatus === 'complete') return '완료';
+  if (student.completionEstimateStatus === 'schedule_unavailable') {
+    return `${student.estimatedRemainingLessons ?? '—'}회 필요 · 예정 수업 부족`;
+  }
+  if (student.completionEstimateStatus === 'insufficient_history') {
+    return `예상 표본 ${student.completionEstimateSampleCount}/3`;
+  }
+  return '예상 자료 부족';
 }
 
 /** 서버가 준 학년과 안내 상태를 표시 순서에만 사용한다. 학년 대응이나 안내 상태를 화면에서 새로 판정하지 않는다. */
@@ -714,7 +730,7 @@ export function BookTracking({
                 교재별 진행도 <span className="font-normal text-fg-subtle">{d.books.length}종 · 리포트 진도·숙제 원장 기준</span>
               </h3>
               <Banner tone="info" className="mb-3">
-                진도는 구조화 리포트의 끝 쪽과 연결되고, 숙제는 최근 28일의 쪽 범위를 합산합니다. 완료 예상일은 계산 기준 확정 후 표시합니다.
+                진도는 구조화 리포트의 끝 쪽과 연결되고, 숙제는 최근 28일의 쪽 범위를 합산합니다. 완료 예상은 최근 56일·최근 8회 중 양수 진도 3회 이상과 실제 예정 수업으로 계산합니다.
               </Banner>
               {/*
                 원본 §38 「교재별 진도율」 카드(g4 §38-7) — 제목줄 = 레벨 배지 + 제목 + 오른쪽 「N명」, 막대 오른쪽 큰 %,
@@ -765,17 +781,20 @@ export function BookTracking({
                         {book.students.map((student) => (
                           <div
                             key={student.studentId}
-                            className="grid grid-cols-[minmax(80px,1fr)_minmax(80px,1.5fr)_52px_minmax(84px,auto)_minmax(90px,auto)] items-center gap-2 text-[12px]"
+                            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-[12px]"
                           >
                             <b>{student.name}</b>
-                            <div className="h-1.5 rounded bg-inset">
+                            <b className="text-right">{student.progressPage == null ? '—' : `p.${student.progressPage}`}</b>
+                            <div className="col-span-2 h-1.5 rounded bg-inset">
                               <div className="h-full rounded bg-green" style={{ width: `${student.percent ?? 0}%` }} />
                             </div>
-                            <b>{student.progressPage == null ? '—' : `p.${student.progressPage}`}</b>
                             <span className={student.stalled ? 'font-bold text-danger' : 'text-fg-subtle'}>
                               {student.stalled ? `${student.stalledDays}일 멈춤` : student.lastProgressOn ?? '진도 기록 없음'}
                             </span>
-                            <span className="text-fg-subtle">숙제 {student.homeworkPages28d}쪽</span>
+                            <span className="text-right text-fg-subtle">숙제 {student.homeworkPages28d}쪽</span>
+                            <span className="col-span-2 font-medium text-fg" aria-label={`${student.name} 완료 예상`}>
+                              {completionEstimateText(student)}
+                            </span>
                           </div>
                         ))}
                       </div>
