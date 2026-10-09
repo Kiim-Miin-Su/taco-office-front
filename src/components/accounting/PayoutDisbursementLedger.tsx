@@ -22,10 +22,10 @@ const methodLabel = (method: PayoutDisbursement['method']) => method === 'bank_t
 function Summary({ month }: { month: PayoutDisbursementMonth }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[11px] text-fg-subtle">지급 인원</span><b className="block text-[14px] text-fg">{month.paidCount}/{month.totalCount}명</b></div>
-      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[11px] text-fg-subtle">전체 지급액</span><b className="block text-[14px] text-fg">{won(month.totalAmount)}</b></div>
-      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[11px] text-fg-subtle">지급 완료</span><b className="block text-[14px] text-green">{won(month.paidAmount)}</b></div>
-      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[11px] text-fg-subtle">미지급</span><b className="block text-[14px] text-orange">{won(month.unpaidAmount)}</b></div>
+      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[12px] text-fg-subtle">지급 인원</span><b className="block text-[14px] text-fg">{month.paidCount}/{month.totalCount}명</b></div>
+      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[12px] text-fg-subtle">전체 지급액</span><b className="block text-[14px] text-fg">{won(month.totalAmount)}</b></div>
+      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[12px] text-fg-subtle">지급 완료</span><b className="block text-[14px] text-green">{won(month.paidAmount)}</b></div>
+      <div className="rounded-lg bg-inset px-3 py-2"><span className="text-[12px] text-fg-subtle">미지급</span><b className="block text-[14px] text-orange">{won(month.unpaidAmount)}</b></div>
     </div>
   );
 }
@@ -54,7 +54,7 @@ export function PayoutDisbursementLedger() {
         <Chip tone="info">처리 수단 · 계좌이체</Chip>
       </div>
       <Banner tone="neutral" className="mb-3">
-        금액과 시수는 「강사료 정산」에서 확정한 snapshot을 그대로 읽습니다. 지급 계좌와 뒤 4자리는 계좌 보호 계약에서 연결하며 여기서 기존 값으로 추정하지 않습니다.
+        금액과 시수는 「강사료 정산」에서 확정한 값을 그대로 읽습니다. 지급 계좌와 뒤 4자리는 계좌 보호 계약에서 연결하며 여기서 기존 값으로 추정하지 않습니다.
       </Banner>
       {error ? <Banner tone="danger" className="mb-3">{error}</Banner> : null}
 

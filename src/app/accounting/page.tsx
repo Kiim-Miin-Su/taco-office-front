@@ -418,7 +418,7 @@ export default function AccountingPage() {
         ) : tab === 'adjustments' ? (
           <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
         ) : tab === 'suspensions' ? (
-          <DelinquencySuspensionBoundary invoices={q.data?.invoices ?? []} />
+          <DelinquencySuspensionBoundary />
         ) : tab === 'accounts' ? (
           <SensitiveAccountBoundary
             invoices={q.data?.invoices ?? []}

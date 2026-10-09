@@ -245,6 +245,9 @@ import type {
   PayoutDisbursementBatchPay, PayoutDisbursementBatchResult,
   InvoiceAdjustmentLedger, InvoiceAdjustmentCreate, InvoiceAdjustmentAction,
   InvoiceAdjustmentReasonAction, InvoiceAdjustmentWriteResult,
+  DelinquencySuspensionLedger, DelinquencyPolicy, DelinquencyPolicyWrite,
+  DelinquencySuspensionActionWrite, DelinquencySuspensionWriteResult,
+  DelinquencyReminderBatch, DelinquencyReminderBatchResult,
 } from './types';
 
 /** 쿼리 키는 여기서만 만든다 — 화면마다 문자열을 적으면 캐시가 갈라진다 */
@@ -268,6 +271,8 @@ export const qk = {
   payoutDisbursement: ['accounting', 'payout-ledger'] as const,
   /** TBO-55 BO-11BD-01 월별 청구 조정 current/event 원장. */
   invoiceAdjustments: (month: string) => ['accounting', 'adjustments', month] as const,
+  /** TBO-55 BOC-11C 연체 aging·정지 current/event 원장. */
+  delinquencySuspensions: ['accounting', 'delinquency-suspensions'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
@@ -854,6 +859,61 @@ export function useTransitionInvoiceAdjustment(): UseMutationResult<
   return useMutation({
     mutationFn: async ({ adjustmentId, action, body }) => (
       await api.post<InvoiceAdjustmentWriteResult>(`/accounting/adjustments/${adjustmentId}/${action}`, body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+/** BOC-11C 연체 원장 — 후보·정지·해제 가능 여부는 서버가 매 조회 때 다시 계산한다. */
+export function useDelinquencySuspensions(enabled = true): UseQueryResult<DelinquencySuspensionLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.delinquencySuspensions, viewerId),
+    queryFn: async () => (await api.get<DelinquencySuspensionLedger>('/accounting/delinquency-suspensions')).data,
+    enabled,
+  });
+}
+
+export function useWriteDelinquencyPolicy(): UseMutationResult<
+  DelinquencyPolicy, unknown, DelinquencyPolicyWrite
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (
+      await api.post<DelinquencyPolicy>('/accounting/delinquency-suspensions/policy', body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+type DelinquencyTransition = {
+  studentId: number;
+  action: 'remind' | 'suspend' | 'release';
+  body: DelinquencySuspensionActionWrite;
+};
+
+export function useTransitionDelinquencySuspension(): UseMutationResult<
+  DelinquencySuspensionWriteResult, unknown, DelinquencyTransition
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ studentId, action, body }) => (
+      await api.post<DelinquencySuspensionWriteResult>(
+        `/accounting/delinquency-suspensions/${studentId}/${action}`,
+        body,
+      )
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useRemindDelinquencyBatch(): UseMutationResult<
+  DelinquencyReminderBatchResult, unknown, DelinquencyReminderBatch
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (
+      await api.post<DelinquencyReminderBatchResult>('/accounting/delinquency-suspensions/remind-batch', body)
     ).data,
     onSettled: invalidate,
   });

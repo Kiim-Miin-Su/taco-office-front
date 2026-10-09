@@ -1,14 +1,16 @@
 /** @file-guide
- * 목적: TBO-55 BOC-11c 연체 수강 정지·해제의 Front 계약 경계를 회귀한다. (test)
- * 책임/재사용: 실제 AccountingPage로 A25 후보 검토·URL·임계일 초안과 생성 계약 부재 시 업무 write 0을 검증한다.
- * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
+ * 목적: TBO-55 BOC-11C 연체 aging·독촉·수강 정지·해제의 생성 계약 화면을 회귀한다. (test)
+ * 책임/재사용: 실제 AccountingPage로 A25 요약·정책 version·서버 capability·409 입력 보존을 검증한다.
+ * 검증/작업 지침: docs/sprint/TBO-55/features/BOC-11C-DELINQUENCY-SUSPENSION-2026-10-09.md · docs/AGENT.md
  */
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
-import { api } from '@/api/client';
-import type { Accounting, Invoice, Me } from '@/api/types';
+import { api, ApiError } from '@/api/client';
+import type {
+  Accounting, DelinquencySuspensionItem, DelinquencySuspensionLedger, Me,
+} from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -24,27 +26,43 @@ const me: Me = {
   canAdminPage: true, canCrudAll: true, canSeeProfit: true, canCrudAttendance: true,
   canMoney: true, canWage: true, canApprove: true, canHide: true, canGpaPack: true,
 };
-const invoice = (over: Partial<Invoice> = {}): Invoice => ({
-  id: 42, studentId: 7, studentName: '양찬욱', grade: 'G10', studentTag: 'G10', yearMonth: '2026-10',
-  title: '2026년 10월 수업료 청구', amount: 250000, paidAmount: 0, state: 'sent', stateLabel: '보냄',
-  invType: 'tuition', invTypeLabel: '수업료 청구', issuedOn: '2026-10-01', dueOn: '2026-09-21', paidAt: null,
-  remaining: 250000, overdueDays: 16, lines: [], installments: [], nextDueOn: '2026-09-21', nextInstallmentSeq: null,
-  sentAt: '2026-10-01T01:00:00.000Z', canDeliver: false, canVoid: false, voidBlockedReason: null,
-  voidReason: null, notice: null, ...over,
-});
 const accounting: Accounting = {
   families: [],
   summary: { sent: 350000, collected: 0, unpaid: 350000, overdue: 350000, net: 350000, todo: 2, canSeeAmounts: true },
-  invoices: [
-    invoice(),
-    invoice({ id: 43, amount: 100000, remaining: 100000, overdueDays: 15, title: '2026년 9월 교재비' }),
-    invoice({ id: 44, studentId: 8, studentName: '이하린', studentTag: 'G9', overdueDays: 13, remaining: 180000 }),
-  ],
-  payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
+  invoices: [], payments: [], expenses: [], expenseTotals: [], payCategories: [], payouts: [], expenseCategories: [],
 };
+const candidate: DelinquencySuspensionItem = {
+  studentId: 7, studentName: '양찬욱', studentTag: 'G10', contact: '보호자 010-****-5678',
+  overdueDays: 16, outstanding: 350000, overdueInvoiceCount: 2,
+  affectedSeriesCount: 2, affectedSeries: ['수학 1:1', '영어 1:1'], state: 'candidate', stateLabel: '보류 대상',
+  version: 0, suspendedAt: null, suspendedBy: null,
+  canRemind: true, canSuspend: true, canRelease: false, releaseBlockedReason: null,
+  events: [],
+};
+const suspended: DelinquencySuspensionItem = {
+  ...candidate, studentId: 8, studentName: '이하린', studentTag: 'G9', outstanding: 180000,
+  affectedSeriesCount: 1, affectedSeries: ['과학 1:1'], state: 'suspended', stateLabel: '수강 정지',
+  version: 2, suspendedAt: '2026-10-08T01:00:00.000Z', suspendedBy: '대표',
+  canSuspend: false, canRelease: false, releaseBlockedReason: '기한이 지난 미수 잔액을 모두 확인한 뒤 해제할 수 있습니다',
+  events: [{ action: 'suspended', fromState: 'candidate', toState: 'suspended', version: 2, actorId: 1, actor: '대표',
+    reason: '연체 확인', overdueDays: 16, outstanding: 180000, affectedSeriesCount: 1, createdAt: '2026-10-08T01:00:00.000Z' }],
+};
+const ledger: DelinquencySuspensionLedger = {
+  asOf: '2026-10-09',
+  policy: { thresholdDays: 14, version: 1, updatedAt: null, updatedBy: null, canChange: true },
+  totalReceivable: 530000, totalOverdue: 530000,
+  aging: [
+    { key: '1_30', label: '1~30일', studentCount: 2, outstanding: 530000 },
+    { key: '31_60', label: '31~60일', studentCount: 0, outstanding: 0 },
+    { key: '61_90', label: '61~90일', studentCount: 0, outstanding: 0 },
+    { key: '91_plus', label: '90일 초과', studentCount: 0, outstanding: 0 },
+  ],
+  items: [candidate, suspended],
+};
+
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
-const seen: Array<{ method?: string; url?: string }> = [];
+const seen: Array<{ method?: string; url?: string; data?: unknown }> = [];
 
 afterEach(() => {
   cleanup();
@@ -56,10 +74,29 @@ afterEach(() => {
   seen.splice(0);
 });
 
-function mount() {
+function mount(transitionError?: ApiError, ledgerData: DelinquencySuspensionLedger = ledger) {
   useSession.getState().signIn('fixture', me);
-  api.defaults.adapter = (async (config: { method?: string; url?: string }) => {
+  api.defaults.adapter = (async (config: { method?: string; url?: string; data?: unknown }) => {
     seen.push(config);
+    const method = config.method?.toLowerCase();
+    const url = config.url ?? '';
+    if (method === 'get' && url === '/accounting/delinquency-suspensions') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: ledgerData };
+    }
+    if (method === 'post' && url === '/accounting/delinquency-suspensions/policy') {
+      return { config, status: 201, statusText: 'Created', headers: {}, data: { ...ledger.policy, thresholdDays: 21, version: 2 } };
+    }
+    if (method === 'post' && url === '/accounting/delinquency-suspensions/remind-batch') {
+      return { config, status: 201, statusText: 'Created', headers: {}, data: {
+        remindedCount: 2, replayedCount: 0,
+        items: [{ item: candidate, replayed: false }, { item: suspended, replayed: false }],
+      } };
+    }
+    if (method === 'post' && url.includes('/delinquency-suspensions/')) {
+      if (transitionError && url.endsWith('/suspend')) throw transitionError;
+      const item = url.includes('/8/') ? suspended : candidate;
+      return { config, status: 201, statusText: 'Created', headers: {}, data: { item, replayed: false } };
+    }
     return { config, status: 200, statusText: 'OK', headers: {}, data: accounting };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -67,44 +104,90 @@ function mount() {
   return render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
 }
 
-it('A25 수강 정지는 최종 PPTX의 14일 후보와 효력을 보여 주되 독촉·정지·해제 쓰기를 잠근다', async () => {
-  const view = mount();
-  await waitFor(() => expect(view.getByRole('button', { name: '정리 · 기준' })).toBeTruthy());
-  fireEvent.click(view.getByRole('button', { name: '정리 · 기준' }));
-  const tabs = view.getByRole('group', { name: '회계 탭' });
-  fireEvent.click(within(tabs).getByRole('button', { name: '수강 정지' }));
-
-  expect(nav.replace).toHaveBeenLastCalledWith('/accounting?tab=suspensions', { scroll: false });
-  expect(view.getByRole('heading', { name: '연체 수강 정지 · 해제' })).toBeTruthy();
-  const table = view.getByRole('table');
-  const row = within(table).getByText('양찬욱').closest('tr')!;
-  expect(row.textContent).toContain('16일 연체');
-  expect(row.textContent).toContain('₩350,000');
-  expect(row.textContent).toContain('2건');
-  expect(row.textContent).toContain('보류 대상');
-  expect(within(table).queryByText('이하린')).toBeNull();
-  for (const name of ['납입 독촉 기능 준비 중', '수강 정지 기능 준비 중']) {
-    expect((within(row).getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
-  }
-  expect(view.getByText(/기존 일정은 유지하고 새 일정 저장만 차단/)).toBeTruthy();
-  expect(view.getByText(/입금 확인 뒤 해제하면 즉시 원복/)).toBeTruthy();
-  expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);
-});
-
-it('?tab=suspensions는 임계일을 화면 초안으로만 바꾸고 정책 저장과 서버 성공을 만들지 않는다', async () => {
+it('A25 원장은 네 aging 구간·서버 연락처·영향 수업·capability를 표시하고 독촉 이력을 기록한다', async () => {
   nav.search = 'tab=suspensions';
   const view = mount();
-  await waitFor(() => expect(view.getByRole('heading', { name: '연체 수강 정지 · 해제' })).toBeTruthy());
+  expect(await view.findByRole('heading', { name: '연체 수강 정지 · 해제' })).toBeTruthy();
+  expect((await view.findByText('전체 미수')).parentElement?.textContent).toContain('₩530,000');
+  expect(view.getByText(/1~30일 · 2명/).parentElement?.textContent).toContain('₩530,000');
+  const table = view.getByRole('table', { name: '연체 수강 정지 원장' });
+  const candidateRow = within(table).getByText('양찬욱').closest('tr')!;
+  expect(candidateRow.textContent).toContain('16일');
+  expect(candidateRow.textContent).toContain('₩350,000');
+  expect(candidateRow.textContent).toContain('보호자 010-****-5678');
+  expect(candidateRow.textContent).toContain('수학 1:1, 영어 1:1');
+  fireEvent.click(within(candidateRow).getByRole('button', { name: '독촉 기록' }));
+  await waitFor(() => expect(seen.some(({ method, url, data }) => {
+    if (method?.toLowerCase() !== 'post' || url !== '/accounting/delinquency-suspensions/7/remind') return false;
+    const body = JSON.parse(String(data)) as { expectedVersion?: number; requestKey?: string };
+    return body.expectedVersion === 0 && typeof body.requestKey === 'string';
+  })).toBe(true));
+  expect(await view.findByText(/납입 독촉 이력을 기록했습니다/)).toBeTruthy();
+  expect((within(table).getByRole('button', { name: '정지 해제' }) as HTMLButtonElement).disabled).toBe(true);
+  const suspendedRow = within(table).getByText('이하린').closest('tr')!;
+  fireEvent.click(within(suspendedRow).getByRole('button', { name: '이력 1' }));
+  expect(await view.findByText('수강 정지 · v2')).toBeTruthy();
+  fireEvent.click(within(view.getByRole('dialog')).getByRole('button', { name: '닫기' }));
+  const cards = view.getByLabelText('연체 수강 정지 카드');
+  expect(within(cards).getByText('양찬욱').closest('article')?.textContent).toContain('보호자 010-****-5678');
+});
 
-  expect((view.getByLabelText('보류 기준 일') as HTMLInputElement).value).toBe('14');
-  expect(within(view.getByRole('table')).getByText('양찬욱')).toBeTruthy();
-  fireEvent.change(view.getByLabelText('보류 기준 일'), { target: { value: '17' } });
-  expect(view.queryByText('양찬욱')).toBeNull();
-  expect(view.getByText('현재 조회값에서 기준을 넘은 학생이 없습니다')).toBeTruthy();
-  expect((view.getByRole('button', { name: '기준 저장 기능 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+it('후보가 없어도 aging 요약과 기준 변경 경로를 유지한다', async () => {
+  nav.search = 'tab=suspensions';
+  const view = mount(undefined, {
+    ...ledger,
+    totalReceivable: 0,
+    totalOverdue: 0,
+    aging: ledger.aging.map((bucket) => ({ ...bucket, studentCount: 0, outstanding: 0 })),
+    items: [],
+  });
+  expect(await view.findByText('표시할 항목이 없습니다')).toBeTruthy();
+  expect(view.getByText('전체 미수').parentElement?.textContent).toContain('₩0');
+  expect(view.getByLabelText('보류 기준 일')).toBeTruthy();
+  expect((view.getByRole('button', { name: '전부 독촉 기록' }) as HTMLButtonElement).disabled).toBe(true);
+});
 
-  for (const field of ['후보 기준 · 적용 버전', '영향 수업 · 신규 배정 차단', '정지 · 해제 변경 이력', '실제 처리자 · 이력 · 알림']) {
-    expect(view.getByText(field)).toBeTruthy();
-  }
-  expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);
+it('대표 기준 저장과 전부 독촉은 current version·멱등키를 사용하고 외부 발송 완료를 주장하지 않는다', async () => {
+  nav.search = 'tab=suspensions';
+  const view = mount();
+  const threshold = await view.findByLabelText('보류 기준 일');
+  fireEvent.change(threshold, { target: { value: '21' } });
+  fireEvent.click(view.getByRole('button', { name: '기준 저장' }));
+  await waitFor(() => expect(seen.some(({ method, url, data }) => {
+    if (method?.toLowerCase() !== 'post' || url !== '/accounting/delinquency-suspensions/policy') return false;
+    const body = JSON.parse(String(data)) as { thresholdDays?: number; expectedVersion?: number; requestKey?: string };
+    return body.thresholdDays === 21 && body.expectedVersion === 1 && typeof body.requestKey === 'string';
+  })).toBe(true));
+
+  fireEvent.click(view.getByRole('button', { name: '전부 독촉 기록' }));
+  const dialog = await view.findByRole('dialog');
+  expect(within(dialog).getByText(/외부 문자나 전화 발송 완료로 표시하지 않습니다/)).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole('button', { name: '전체 기록' }));
+  await waitFor(() => expect(seen.some(({ method, url, data }) => {
+    if (method?.toLowerCase() !== 'post' || url !== '/accounting/delinquency-suspensions/remind-batch') return false;
+    const body = JSON.parse(String(data)) as { items?: Array<{ studentId?: number; expectedVersion?: number; requestKey?: string }> };
+    return body.items?.length === 2 && body.items.every((item) => (
+      typeof item.studentId === 'number' && typeof item.expectedVersion === 'number' && typeof item.requestKey === 'string'
+    ));
+  })).toBe(true));
+  expect(await view.findByText('2명의 납입 독촉 이력을 기록했습니다.')).toBeTruthy();
+});
+
+it('409 version 충돌은 정지 사유를 보존하고 최신 원장을 다시 읽게 한다', async () => {
+  nav.search = 'tab=suspensions';
+  const view = mount(new ApiError('DELINQUENCY_STALE', '다른 담당자가 먼저 처리했습니다.', 409));
+  const table = await view.findByRole('table', { name: '연체 수강 정지 원장' });
+  const row = within(table).getByText('양찬욱').closest('tr')!;
+  fireEvent.click(within(row).getByRole('button', { name: '수강 정지' }));
+  const dialog = await view.findByRole('dialog');
+  const reason = within(dialog).getByLabelText('처리 사유') as HTMLTextAreaElement;
+  fireEvent.change(reason, { target: { value: '장기 연체 확인' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '수강 정지' }));
+  expect(await within(dialog).findByText('다른 담당자가 먼저 처리했습니다.')).toBeTruthy();
+  expect(reason.value).toBe('장기 연체 확인');
+
+  const readsBefore = seen.filter(({ method, url }) => method?.toLowerCase() === 'get' && url === '/accounting/delinquency-suspensions').length;
+  fireEvent.click(within(dialog).getByRole('button', { name: '최신 원장 다시 불러오기' }));
+  await waitFor(() => expect(seen.filter(({ method, url }) => method?.toLowerCase() === 'get' && url === '/accounting/delinquency-suspensions').length).toBeGreaterThan(readsBefore));
+  expect(reason.value).toBe('장기 연체 확인');
 });

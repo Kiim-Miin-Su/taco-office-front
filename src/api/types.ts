@@ -185,6 +185,18 @@ export type InvoiceAdjustmentCreate = S['InvoiceAdjustmentCreateDto'];
 export type InvoiceAdjustmentAction = S['InvoiceAdjustmentActionDto'];
 export type InvoiceAdjustmentReasonAction = S['InvoiceAdjustmentReasonActionDto'];
 export type InvoiceAdjustmentWriteResult = S['InvoiceAdjustmentWriteResultDto'];
+/** TBO-55 BOC-11C — 연체 aging·정지 current/event와 정책 version */
+export type DelinquencyPolicy = S['DelinquencyPolicyDto'];
+export type DelinquencyAgingBucket = S['DelinquencyAgingBucketDto'];
+export type DelinquencySuspensionEvent = S['DelinquencySuspensionEventDto'];
+export type DelinquencySuspensionItem = S['DelinquencySuspensionItemDto'];
+export type DelinquencySuspensionLedger = S['DelinquencySuspensionLedgerDto'];
+export type DelinquencyPolicyWrite = S['DelinquencyPolicyWriteDto'];
+export type DelinquencySuspensionActionWrite = S['DelinquencySuspensionActionDto'];
+export type DelinquencySuspensionWriteResult = S['DelinquencySuspensionWriteResultDto'];
+export type DelinquencyReminderBatchItem = S['DelinquencyReminderBatchItemDto'];
+export type DelinquencyReminderBatch = S['DelinquencyReminderBatchDto'];
+export type DelinquencyReminderBatchResult = S['DelinquencyReminderBatchResultDto'];
 
 /** 운영 — 상담 · 컴플레인 · 할 일 · 기획 · 회의 · 마케팅 · 건의 */
 export type Ops = S['OpsDto'];
