@@ -15181,6 +15181,111 @@ export interface components {
             /** @default 1 */
             page: number;
         };
+        BookSaleFeePolicySnapshotDto: {
+            id: number;
+            version: number;
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            /**
+             * @description fixed=건당 원, rate_bps=1/10000 비율
+             * @enum {string}
+             */
+            calculation: "fixed" | "rate_bps";
+            value: number;
+            /** Format: date */
+            effectiveFrom: string;
+            /** Format: date */
+            effectiveTo: string | null;
+        };
+        BookSaleDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            studentTag: string | null;
+            bookId: number;
+            bookCode: string;
+            bookTitle: string;
+            bookEdition: string | null;
+            /** @description 판매 당시 표시 스냅숏 */
+            bookLabel: string;
+            /** Format: date */
+            soldOn: string;
+            quantity: number;
+            unitPrice: number;
+            totalAmount: number;
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            feeAmount: number;
+            netAmount: number;
+            feePolicy: components["schemas"]["BookSaleFeePolicySnapshotDto"];
+            payId: number;
+            /** @description 취소 보정 PAY id */
+            correctionPayId: number | null;
+            /** @enum {string} */
+            status: "completed" | "canceled";
+            version: number;
+            memo: string | null;
+            createdBy: string;
+            createdAt: string;
+            canceledBy: string | null;
+            canceledAt: string | null;
+            canceledReason: string | null;
+            /** @description 서버가 상태·월마감·증빙을 반영해 판정 */
+            canCancel: boolean;
+        };
+        BookSaleMethodSummaryDto: {
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            count: number;
+            amount: number;
+            /** @description 금액 비중, 소수 첫째 자리 */
+            ratio: number;
+            feeAmount: number;
+            netAmount: number;
+        };
+        BookSaleLedgerDto: {
+            /** @description 현재 actor가 저장할 수 있는지 */
+            canCreate: boolean;
+            items: components["schemas"]["BookSaleDto"][];
+            totalCount: number;
+            totalAmount: number;
+            totalFeeAmount: number;
+            totalNetAmount: number;
+            methods: components["schemas"]["BookSaleMethodSummaryDto"][];
+        };
+        BookSaleCreateDto: {
+            studentId: number;
+            bookId: number;
+            /**
+             * Format: date
+             * @description 실제 판매·입금일. 미래는 거절
+             */
+            soldOn: string;
+            quantity: number;
+            unitPrice: number;
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            memo?: string;
+            /**
+             * Format: uuid
+             * @description 판매·PAY를 하나로 수렴시키는 멱등 키
+             */
+            requestKey: string;
+        };
+        BookSaleCancelDto: {
+            expectedVersion: number;
+            reason: string;
+            /**
+             * Format: uuid
+             * @description 취소·보정 PAY를 하나로 수렴시키는 멱등 키
+             */
+            requestKey: string;
+        };
+        BookSaleWriteResultDto: {
+            item: components["schemas"]["BookSaleDto"];
+            /** @description 같은 actor/action/payload/requestKey의 정확한 재시도면 true */
+            replayed: boolean;
+        };
     };
     responses: never;
     parameters: never;

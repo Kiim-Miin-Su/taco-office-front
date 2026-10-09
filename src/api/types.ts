@@ -192,6 +192,14 @@ export type StudentRefund = S['StudentRefundDto'];
 export type StudentRefundLedger = S['StudentRefundLedgerDto'];
 export type StudentRefundPay = S['StudentRefundPayDto'];
 export type StudentRefundCancel = S['StudentRefundCancelDto'];
+/** TBO-55 BOC-11F — 교재 판매·PAY·수단별 수수료 snapshot 계약 */
+export type BookSaleFeePolicySnapshot = S['BookSaleFeePolicySnapshotDto'];
+export type BookSale = S['BookSaleDto'];
+export type BookSaleMethodSummary = S['BookSaleMethodSummaryDto'];
+export type BookSaleLedger = S['BookSaleLedgerDto'];
+export type BookSaleCreate = S['BookSaleCreateDto'];
+export type BookSaleCancel = S['BookSaleCancelDto'];
+export type BookSaleWriteResult = S['BookSaleWriteResultDto'];
 /** TBO-55 BO-11BD-01 — 청구 조정 current/event·승인 전이·환불 예정액 */
 export type InvoiceAdjustmentEvent = S['InvoiceAdjustmentEventDto'];
 export type InvoiceAdjustment = S['InvoiceAdjustmentDto'];
