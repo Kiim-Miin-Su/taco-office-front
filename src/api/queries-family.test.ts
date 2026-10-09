@@ -539,7 +539,7 @@ describe('C77 — 실제 mutation의 query cache 무효화', () => {
 
   it('대표 지시 · 오늘 한 것은 family.ops 만 버린다', async () => {
     expect(await run(useAddPlanTask, { id: 3, title: '지시', toId: 4 })).toEqual([family.ops]);
-    expect(await run(useCreateMarketing, { title: '활동', channel: 'kakao', item: 'reply' })).toEqual([family.ops]);
+    expect(await run(useCreateMarketing, { requestKey: '00000000-0000-4000-8000-000000000059', title: '활동', channel: 'kakao', item: 'reply' })).toEqual([family.ops]);
   });
 
   it('가산 규칙은 회계 · 강사 히스토리를, 비공개 스위치는 회계 · 컨설팅 · 서랍을 버린다', async () => {

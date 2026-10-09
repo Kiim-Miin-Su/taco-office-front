@@ -6,20 +6,13 @@
 
 import { fireEvent, render, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Marketing, OpsCount } from '@/api/types';
+import type { Marketing, MarketingOverview } from '@/api/types';
 import { MarketingChannelOverview } from './MarketingChannelOverview';
-
-const channels: OpsCount[] = [
-  { key: 'kakao', label: '카카오채널', count: 1 },
-  { key: 'naver_ad', label: '네이버 광고', count: 1 },
-  { key: 'instagram', label: '인스타그램', count: 1 },
-  { key: 'naver_blog', label: '네이버 블로그', count: 5 },
-];
 
 const row = (id: number, channel: string, channelLabel: string, onDate: string | null, byId = 2): Marketing => ({
   id, channel, channelLabel, item: 'post', itemLabel: '글 발행', title: `활동 ${id}`, name: `활동 ${id}`,
   onDate, byId, byName: byId === 2 ? '김관리' : '박운영', url: null, impressions: null, clicks: null,
-  inquiries: null, enrolled: 0, cost: null, costPerEnroll: null, memo: null,
+  inquiries: null, enrolled: 0, cost: null, costPerEnroll: null, memo: null, version: 1,
 });
 
 const rows: Marketing[] = [
@@ -34,11 +27,22 @@ const rows: Marketing[] = [
   row(9, 'naver', '네이버', null),
 ];
 
+const overview: MarketingOverview = {
+  from: '2026-09-08', to: '2026-10-07', activityCount: 8, activeChannelCount: 4, channelCount: 4, actorCount: 2,
+  latest: rows[1]!, canSeeAmounts: false,
+  channels: [
+    { key: 'naver_blog', label: '네이버 블로그', latest: [rows[1]!, rows[3]!, rows[2]!, rows[4]!] },
+    { key: 'instagram', label: '인스타그램', latest: [rows[5]!] },
+    { key: 'naver_ad', label: '네이버 광고', latest: [rows[6]!] },
+    { key: 'kakao', label: '카카오채널', latest: [rows[7]!] },
+  ],
+};
+
 describe('MarketingChannelOverview — 최종 관리자 수정사항 p117', () => {
   it('최근 30일 사실 네 칸과 최신 수정 진입을 표시하고 날짜 없는 옛 행은 최근 집계에서 제외한다', () => {
     const onEdit = vi.fn();
     const view = render(<MarketingChannelOverview
-      rows={rows} channels={channels} from="2026-09-08" to="2026-10-07" onEdit={onEdit}
+      overview={overview} onEdit={onEdit}
     />);
 
     expect(view.getByText('최근 30일 한 것').parentElement?.textContent).toContain('8건');
@@ -53,7 +57,7 @@ describe('MarketingChannelOverview — 최종 관리자 수정사항 p117', () =
 
   it('채널 보드는 PPT 순서이며 채널마다 날짜 최신순 네 건만 표시한다', () => {
     const view = render(<MarketingChannelOverview
-      rows={rows} channels={channels} from="2026-09-08" to="2026-10-07" onEdit={() => undefined}
+      overview={overview} onEdit={() => undefined}
     />);
     expect(view.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent))
       .toEqual(['네이버 블로그', '인스타그램', '네이버 광고', '카카오채널']);
@@ -66,18 +70,16 @@ describe('MarketingChannelOverview — 최종 관리자 수정사항 p117', () =
   });
 
   it('로딩·오류·빈 채널을 별도로 말하고 기존 기간별 목록을 막지 않는다', () => {
-    const loading = render(<MarketingChannelOverview rows={undefined} channels={channels}
-      from="2026-09-08" to="2026-10-07" loading onEdit={() => undefined} />);
+    const loading = render(<MarketingChannelOverview overview={undefined} loading onEdit={() => undefined} />);
     expect(loading.getByText('최근 30일 요약을 불러오는 중…')).toBeTruthy();
     loading.unmount();
 
-    const failed = render(<MarketingChannelOverview rows={undefined} channels={channels}
-      from="2026-09-08" to="2026-10-07" failed onEdit={() => undefined} />);
+    const failed = render(<MarketingChannelOverview overview={undefined} failed onEdit={() => undefined} />);
     expect(failed.getByText(/아래 기간별 목록은 계속 사용할 수 있습니다/)).toBeTruthy();
     failed.unmount();
 
-    const empty = render(<MarketingChannelOverview rows={[]} channels={channels}
-      from="2026-09-08" to="2026-10-07" onEdit={() => undefined} />);
+    const empty = render(<MarketingChannelOverview overview={{ ...overview, activityCount: 0, activeChannelCount: 0, actorCount: 0, latest: null,
+      channels: overview.channels.map((channel) => ({ ...channel, latest: [] })) }} onEdit={() => undefined} />);
     expect(empty.getAllByText('최근 30일 활동 없음')).toHaveLength(4);
   });
 });

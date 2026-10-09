@@ -16,7 +16,7 @@
 import { useEffect, useId, useState } from 'react';
 import { Banner, Button, Checkbox, Chip, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { ApiError, apiMessage } from '@/api/client';
-import { fetchConflicts, useMeta, useTeacherChange } from '@/api/queries';
+import { fetchConflicts, useMeta, useTeacherChange, useUndoTeacherChange } from '@/api/queries';
 import type { TcSeries, TeacherChange, TeacherChangeResult } from '@/api/types';
 import { conflictLines, hhmm, todayKst, unavailableLines } from '@/lib/calendar';
 
@@ -34,12 +34,14 @@ export interface TeacherChangeWizardProps {
   preset?: TeacherChangePreset | null;
   onClose: () => void;
   onDone?: (result: TeacherChangeResult) => void;
+  onUndone?: () => void;
 }
 
-export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherChangeWizardProps) {
+export function TeacherChangeWizard({ open, preset, onClose, onDone, onUndone }: TeacherChangeWizardProps) {
   const id = useId();
   const meta = useMeta(open);
   const write = useTeacherChange();
+  const undo = useUndoTeacherChange();
   const [fromId, setFromId] = useState('');
   const [toId, setToId] = useState('');
   const [mode, setMode] = useState<'day' | 'from'>('from');
@@ -53,11 +55,14 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
   const [previewOf, setPreviewOf] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<string[]>([]);
+  const [wholeClassConfirmed, setWholeClassConfirmed] = useState(false);
+  const [applied, setApplied] = useState<TeacherChangeResult | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setFromId(preset?.fromTeacherId ? String(preset.fromTeacherId) : ''); setToId(''); setMode('from'); setDate(todayKst()); setMemo('');
     setOnlyStudent(true); setKnown([]); setExcluded([]); setPreview(null); setPreviewOf(''); setErr(null); setConflicts([]);
+    setWholeClassConfirmed(false); setApplied(null); undo.reset();
   }, [open, preset?.cplId, preset?.studentId, preset?.fromTeacherId]);
 
   const staff = meta.data?.staff ?? [];
@@ -83,14 +88,15 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
   };
   const built = build();
   const bodyKey = 'body' in built ? JSON.stringify(built.body) : '';
-  const pending = write.isPending;
+  const pending = write.isPending || undo.isPending;
   const canPreview = 'body' in built && !pending;
   // 학생 한 명으로 시작한 요청에 그룹 수업이 섞이면 현재 계약은 그 학생으로 다시 좁힌다.
   // 관리자 수정사항은 반 전체 이동을 요구하므로 명시적 group-scope 계약 전에는 부분 교체를 확정하지 않는다.
-  const groupScopeBlocked = Boolean(preset?.studentId && preview?.series.some((s) => s.students.length > 1));
-  const canApply = canPreview && preview !== null && previewOf === bodyKey && !groupScopeBlocked;
+  const groupScopeRequired = preview?.requiresWholeClass === true;
+  const groupScopeBlocked = groupScopeRequired && !wholeClassConfirmed;
+  const canApply = canPreview && preview !== null && previewOf === bodyKey && !groupScopeBlocked && !applied;
   const applyIssue = groupScopeBlocked
-    ? '그룹 수업은 반 전체 교체 계약이 연결된 뒤 확정할 수 있습니다'
+    ? '미리 본 동일 명단의 반 전체 교체를 확인해 주세요'
     : !canApply ? '지금 입력 그대로 먼저 미리 봅니다' : undefined;
 
   /** 409 겹침이면 누구와 부딪혔는지 한 번 묻는다 — 막는 것은 서버이고 이것은 설명이다 (C84-b) */
@@ -109,19 +115,26 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
 
   const run = (kind: 'preview' | 'apply') => {
     if (!('body' in built)) return;
-    const body = built.body;
+    const body: TeacherChange = kind === 'apply' && preview
+      ? {
+        ...built.body,
+        scope: groupScopeRequired ? 'whole_class' : (built.body.scope ?? 'student_classes'),
+        requestKey: globalThis.crypto.randomUUID(),
+        expectedVersion: preview.version,
+      }
+      : { ...built.body, scope: 'student_classes' };
     setErr(null); setConflicts([]);
     write.mutate({ kind, body }, {
       onSuccess: (r) => {
         if (kind === 'preview') {
-          setPreview(r); setPreviewOf(JSON.stringify(body));
+          setPreview(r); setPreviewOf(JSON.stringify(built.body)); setWholeClassConfirmed(false);
           // 처음 본 목록을 기억한다 — 이미 아는 수업은 값만 갱신
           setKnown((k) => {
             const merged = [...k];
             for (const s of r.series) { const i = merged.findIndex((x) => x.serId === s.serId); if (i >= 0) merged[i] = s; else merged.push(s); }
             return merged;
           });
-        } else { onDone?.(r); onClose(); }
+        } else { setApplied(r); onDone?.(r); }
       },
       onError: (e) => { setPreview(null); setErr(apiMessage(e)); void explainConflict(body, e); },
     });
@@ -139,9 +152,21 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
       width={720}
       footer={(
         <>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>취소 (Esc)</Button>
-          <Button type="button" variant="secondary" onClick={() => run('preview')} disabled={!canPreview}>{pending ? '서버에 묻는 중…' : '미리 보기'}</Button>
-          <Button type="button" onClick={() => run('apply')} disabled={!canApply} title={applyIssue}>교체 확정</Button>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>{applied ? '닫기' : '취소 (Esc)'}</Button>
+          {applied?.undoAvailable && applied.requestKey && applied.rowVersion ? (
+            <Button type="button" variant="danger" disabled={pending} onClick={() => {
+              setErr(null);
+              undo.mutate({ requestKey: applied.requestKey!, expectedVersion: applied.rowVersion! }, {
+                onSuccess: () => { setApplied(null); setPreview(null); onUndone?.(); onClose(); },
+                onError: (e) => setErr(apiMessage(e)),
+              });
+            }}>{undo.isPending ? '실행 취소 중…' : '교체 실행 취소'}</Button>
+          ) : (
+            <>
+              <Button type="button" variant="secondary" onClick={() => run('preview')} disabled={!canPreview}>{pending ? '서버에 묻는 중…' : '미리 보기'}</Button>
+              <Button type="button" onClick={() => run('apply')} disabled={!canApply} title={applyIssue}>교체 확정</Button>
+            </>
+          )}
         </>
       )}
     >
@@ -181,6 +206,20 @@ export function TeacherChangeWizard({ open, preset, onClose, onDone }: TeacherCh
             <Input aria-label="메모" value={memo} maxLength={300} onChange={(e) => setMemo(e.target.value)} disabled={pending} placeholder="안내·알림에 실을 한 줄 (선택)" />
           </div>
         </div>
+
+        {groupScopeRequired && !applied ? (
+          <Banner tone="warning">
+            <Checkbox
+              label="미리 본 그룹 수업의 현재 명단 전체를 함께 교체합니다"
+              checked={wholeClassConfirmed}
+              onChange={(event) => setWholeClassConfirmed(event.target.checked)}
+              disabled={pending}
+            />
+            <p className="mt-1 text-[12px]">학생 한 명만 분리하지 않으며, 명단이나 교재가 바뀌면 서버가 409로 막고 다시 미리보기를 요구합니다.</p>
+          </Banner>
+        ) : null}
+
+        {applied ? <Banner tone="success">강사 교체를 적용했습니다. 같은 작업을 안전하게 실행 취소하려면 아래 단추를 사용하세요.</Banner> : null}
 
         {known.length ? (
           <section aria-label="대상 수업" className="rounded-lg border border-line p-3">

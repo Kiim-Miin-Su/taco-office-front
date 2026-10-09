@@ -30,7 +30,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Board, BoardColumn, Button, Chip, ChipRow, Column, PageHeader, Segmented, TabCards, Table } from '@/components/ui';
-import { useMeta, useOps } from '@/api/queries';
+import { useMarketingOverview, useMeta, useOps } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { MarketingFeedback } from '@/components/ops/MarketingFeedback';
 import { PlanReport } from '@/components/ops/PlanReport';
@@ -49,7 +49,7 @@ import { StudentWithdrawDialog } from '@/components/lesson/StudentWithdrawDialog
 import type { Complaint, Marketing, Meeting, Plan, PlanDueRow as PlanDue } from '@/api/types';
 import { MASKED, won } from '@/lib/money';
 import { positiveQueryId, queryEnum } from '@/lib/url-state';
-import { addDays, hhmm, longDateLabel, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
+import { hhmm, longDateLabel, step, summaryBoundsOf, todayKst, unavailableLines } from '@/lib/calendar';
 import type { ChipColor, ChipTone, Tone } from '@/components/ui';
 import { cn } from '@/components/ui/cn';
 
@@ -204,11 +204,8 @@ export default function OpsPage() {
   const bounds = periodTab && period !== 'all' ? summaryBoundsOf(period, anchor) : null;
   // 갈래 칩(§67)은 컴플레인 갈래에서만 서버로 간다 — 다른 갈래의 목록을 조용히 좁히지 않는다
   const q = useOps({ ...(bounds ?? {}), ...(tab === 'complaint' && area ? { area } : {}) });
-  /* 최종 관리자 수정사항 p117 — 기간별 표와 별도로 최근 30일 네 칸·채널 보드를 읽는다.
-     기존 GET /ops의 기간 투영과 생성 DTO를 재사용하고, 다른 운영 탭에서는 추가 조회하지 않는다. */
-  const mkt30To = todayKst();
-  const mkt30From = addDays(mkt30To, -29);
-  const mkt30 = useOps({ from: mkt30From, to: mkt30To }, tab === 'mkt' && mktTab === 'track');
+  /* 최종 관리자 수정사항 p117 — 기간·정렬·최신 4건을 서버 projection 한 곳에서 판정한다. */
+  const mkt30 = useMarketingOverview(tab === 'mkt' && mktTab === 'track');
   /*
    * 기간·갈래를 옮기면 캐시 키가 바뀌어 새로 받는다 — 그 사이 갈래 몸통(속 갈래 카드 · 기간 띠)이 「불러오는 중」으로
    * 통째로 사라지면 방금 누른 띠가 손 밑에서 없어진다(x5 · C-5 로 띠가 갈래 안에 들어왔다).
@@ -503,10 +500,7 @@ export default function OpsPage() {
             ) : (
               <>
                 <MarketingChannelOverview
-                  rows={mkt30.data?.marketing}
-                  channels={mkt30.data?.mktChannels ?? d?.mktChannels ?? []}
-                  from={mkt30From}
-                  to={mkt30To}
+                  overview={mkt30.data}
                   loading={mkt30.isLoading || mkt30.isFetching}
                   failed={mkt30.isError}
                   onEdit={setEditingMarketing}
@@ -722,6 +716,7 @@ export default function OpsPage() {
         preset={wizard}
         onClose={() => setWizard(null)}
         onDone={(r) => setNotice(`강사 교체 — ${r.fromTeacher.name} → ${r.toTeacher.name} · ${r.mode === 'day' ? `${r.date} 하루 대강` : `${r.date}부터`} · 회차 ${r.occurrences}회 · 안내 초안 ${r.guideDrafts}건 · 학부모 안내 ${r.parentNotices}건 · 알림 ${r.notifiedTeachers + r.notifiedStaff}명`)}
+        onUndone={() => setNotice('강사 교체를 실행 취소했습니다 — 일정·미발송 안내·교재 담당·컴플레인을 다시 불러왔습니다')}
       />
     </AppShell></RequireAuth>
   );

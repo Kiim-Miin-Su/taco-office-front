@@ -11,7 +11,7 @@ import type { Marketing, MfbThread } from '@/api/types';
 import { MarketingFeedback } from './MarketingFeedback';
 
 const marketing: Marketing[] = [
-  { id: 1, channel: 'naver', item: 'blog', channelLabel: '네이버', itemLabel: '블로그 글',
+  { id: 1, version: 1, channel: 'naver', item: 'blog', channelLabel: '네이버', itemLabel: '블로그 글',
     title: '로드맵 글', name: '로드맵 글', byId: 2, byName: '담당', enrolled: 0 },
 ];
 

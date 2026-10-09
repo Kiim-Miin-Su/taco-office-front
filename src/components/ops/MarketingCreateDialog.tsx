@@ -114,6 +114,7 @@ export function MarketingCreateButton({ channels, items, can, onDone }: Marketin
       channels={channels} items={items} pending={write.isPending} error={err}
       onSubmit={(draft) => {
         const body: MarketingCreate = {
+          requestKey: crypto.randomUUID(),
           title: draft.title.trim(), channel: draft.channel as MarketingCreate['channel'], item: draft.item as MarketingCreate['item'],
           ...(draft.memo.trim() ? { memo: draft.memo.trim() } : {}), ...(draft.url.trim() ? { url: draft.url.trim() } : {}),
           ...(draft.onDate ? { onDate: draft.onDate } : {}), ...(draft.byId ? { byId: Number(draft.byId) } : {}),
@@ -129,8 +130,8 @@ export function MarketingEditDialog({ row, channels, items, onClose, onDone }: {
 }) {
   const [err, setErr] = useState<string | null>(null);
   const write = usePatchMarketing();
-  // 같은 편집 세션에서 목록이 재조회돼도 비교 기준을 바꾸지 않는다. 기준만 새 행으로 바뀌면
-  // 사용자가 건드리지 않은 옛 초안이 다른 사람의 최신 수정을 되돌려 보내게 된다.
+  // BO-12D 권고안: 같은 편집 세션은 처음 연 version을 기준으로 보낸다. 서버가 stale을 409로 거절하고
+  // Query 재조회가 최신 행을 가져온다. 이 계약을 바꾸면 DTO·OpenAPI·문서·PPTX 대조표도 함께 바꾼다.
   const [original, setOriginal] = useState<Draft>(() => draftOf(row));
   useEffect(() => { setOriginal(draftOf(row)); }, [row?.id]);
   useEffect(() => { setErr(null); }, [row?.id]);
@@ -138,15 +139,16 @@ export function MarketingEditDialog({ row, channels, items, onClose, onDone }: {
     channels={channels} items={items} initial={row} pending={write.isPending} error={err}
     onSubmit={(draft) => {
       if (!row) return;
-      const body: MarketingPatch = {};
-      if (draft.title.trim() !== original.title) body.title = draft.title.trim();
-      if (draft.channel !== original.channel) body.channel = draft.channel as MarketingCreate['channel'];
-      if (draft.item !== original.item) body.item = draft.item as MarketingCreate['item'];
-      if (draft.url.trim() !== original.url) body.url = draft.url.trim() || null;
-      if (draft.onDate !== original.onDate) body.onDate = draft.onDate || null;
-      if (draft.byId !== original.byId) body.byId = draft.byId ? Number(draft.byId) : null;
-      if (draft.memo.trim() !== original.memo) body.memo = draft.memo.trim() || null;
-      if (!Object.keys(body).length) { onClose(); return; }
+      const changes: Omit<MarketingPatch, 'requestKey' | 'expectedVersion'> = {};
+      if (draft.title.trim() !== original.title) changes.title = draft.title.trim();
+      if (draft.channel !== original.channel) changes.channel = draft.channel as MarketingCreate['channel'];
+      if (draft.item !== original.item) changes.item = draft.item as MarketingCreate['item'];
+      if (draft.url.trim() !== original.url) changes.url = draft.url.trim() || null;
+      if (draft.onDate !== original.onDate) changes.onDate = draft.onDate || null;
+      if (draft.byId !== original.byId) changes.byId = draft.byId ? Number(draft.byId) : null;
+      if (draft.memo.trim() !== original.memo) changes.memo = draft.memo.trim() || null;
+      if (!Object.keys(changes).length) { onClose(); return; }
+      const body: MarketingPatch = { ...changes, requestKey: crypto.randomUUID(), expectedVersion: row.version };
       setErr(null);
       write.mutate({ id: row.id, ...body }, { onSuccess: (saved) => { onClose(); onDone?.(saved); }, onError: (e) => setErr(apiMessage(e)) });
     }} />;

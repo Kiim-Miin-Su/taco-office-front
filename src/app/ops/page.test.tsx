@@ -38,7 +38,7 @@ const response: Ops = {
   feedback: [], feedbackNeedsFix: 0, canComment: true, planDues: [], planOverdue: 0, planStages: [], cplStages: [], cplAreas: [], cplSeverities: [],
   ...OPS_HEAD_FIXTURE,
   intakeHead: INTAKE_HEAD_FIXTURE,
-  marketing: [{ id: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
+  marketing: [{ id: 1, version: 1, channel: 'check', item: 'ad', channelLabel: '검수 채널', itemLabel: '광고',
     title: null, name: '검수 채널 · 광고', byId: null, byName: null,
     impressions: 3000, inquiries: 12, enrolled: 2, cost: 246800, costPerEnroll: 123400 }],
 };
@@ -116,19 +116,21 @@ describe('운영 금액 — 현재 Me와 서버 공개 범위의 교집합', () 
   });
 
   it('역할명이 아니라 최종 canMoney=true인 매니저에게 허용된 값을 표시한다', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: response });
+    const get = vi.spyOn(api, 'get').mockImplementation(async (url) => ({ data: url === '/ops/marketing-overview' ? {
+      from: addDays(todayKst(), -29), to: todayKst(), activityCount: 1, activeChannelCount: 0, channelCount: 4,
+      actorCount: 0, latest: response.marketing[0], channels: [], canSeeAmounts: true,
+    } : response }));
     const view = setup({ ...me, role: 'manager', canSeeProfit: false });
     await waitFor(() => expect(view.getByText('₩246,800')).toBeTruthy());
     expect(view.getByText('₩123,400')).toBeTruthy();
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^회의 속기록/ }));
     await waitFor(() => expect(get).toHaveBeenCalledTimes(3));
     fireEvent.click(within(view.getByRole('tablist', { name: '운영 보기' })).getByRole('tab', { name: /^마케팅/ }));
-    // §59 기간별 표는 주간, p117 채널 보드는 최근 30일, 회의 속기록은 전체를 한 번씩 받고 돌아오면 캐시가 답한다.
-    const params = get.mock.calls.map((c) => (c[1] as { params: Record<string, string> }).params);
-    expect(params).toHaveLength(3);
-    expect(params.filter((p) => p.from && p.to)).toHaveLength(2);
-    expect(params).toContainEqual({ from: addDays(todayKst(), -29), to: todayKst() });
-    expect(params).toContainEqual({});
+    // §59 기간별 표·회의 속기록은 기존 /ops 캐시를 쓰고, p117 최근 30일만 전용 서버 projection을 한 번 받는다.
+    const calls = get.mock.calls.map((c) => ({ url: c[0], params: (c[1] as { params?: Record<string, string> } | undefined)?.params }));
+    expect(calls).toHaveLength(3);
+    expect(calls.filter((call) => call.url === '/ops/marketing-overview')).toHaveLength(1);
+    expect(calls.filter((call) => call.url === '/ops').map((call) => call.params)).toContainEqual({});
   });
 
   /**

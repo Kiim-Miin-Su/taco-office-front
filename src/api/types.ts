@@ -251,6 +251,7 @@ export type Todo = S['TodoDto'];
 export type Plan = S['PlanDto'];
 export type Meeting = S['MeetingDto'];
 export type Marketing = S['MarketingDto'];
+export type MarketingOverview = S['MarketingOverviewDto'];
 /** §66 회의 상세 */
 export type MeetingDetail = S['MeetingDetailDto'];
 export type MeetingAttendee = S['MeetingAttendeeDto'];
@@ -374,6 +375,8 @@ export type OpsRange = S['OpsRangeDto'];
 export type OpsCount = S['OpsCountDto'];
 export type TeacherChange = S['TeacherChangeDto'];
 export type TeacherChangeResult = S['TeacherChangeResultDto'];
+export type TeacherChangeUndo = S['TeacherChangeUndoDto'];
+export type TeacherChangeUndoResult = S['TeacherChangeUndoResultDto'];
 export type TcSeries = S['TcSeriesDto'];
 export type TcStep = S['TcStepDto'];
 export type WriteResult = S['WriteResultDto'];

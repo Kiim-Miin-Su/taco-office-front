@@ -57,7 +57,7 @@ it('수정은 등록과 같은 입력을 쓰고 달라진 칸만 PATCH한 뒤 �
   const row: Marketing = {
     id: 7, title: '수정 전', name: '수정 전', channel: 'kakao', channelLabel: '카카오채널', item: 'reply', itemLabel: '댓글·응대',
     memo: '전 메모', url: null, onDate: '2026-09-20', byId: 3, byName: '김범준',
-    impressions: null, clicks: null, inquiries: null, enrolled: 0, cost: null, costPerEnroll: null,
+    impressions: null, clicks: null, inquiries: null, enrolled: 0, cost: null, costPerEnroll: null, version: 3,
   };
   cleanup();
   const onClose = vi.fn();
@@ -70,7 +70,7 @@ it('수정은 등록과 같은 입력을 쓰고 달라진 칸만 PATCH한 뒤 �
   fireEvent.change(within(dialog).getByLabelText('어디에'), { target: { value: 'naver_blog' } });
   fireEvent.click(within(dialog).getByRole('button', { name: '저장' }));
   await waitFor(() => expect(posted[0]).toEqual({
-    url: '/ops/marketing/7', body: { title: '수정 후', channel: 'naver_blog', memo: null },
+    url: '/ops/marketing/7', body: { title: '수정 후', channel: 'naver_blog', memo: null, requestKey: expect.any(String), expectedVersion: 3 },
   }));
   await waitFor(() => expect(onClose).toHaveBeenCalled());
 });
@@ -81,7 +81,7 @@ it('편집 중 같은 행이 재조회돼도 기준값을 바꾸지 않아 다�
   const row: Marketing = {
     id: 8, title: '원래 제목', name: '원래 제목', channel: 'kakao', channelLabel: '카카오채널', item: 'reply', itemLabel: '댓글·응대',
     memo: '원래 메모', url: null, onDate: '2026-09-20', byId: 3, byName: '김범준',
-    impressions: null, clicks: null, inquiries: null, enrolled: 0, cost: null, costPerEnroll: null,
+    impressions: null, clicks: null, inquiries: null, enrolled: 0, cost: null, costPerEnroll: null, version: 4,
   };
   cleanup();
   const onClose = vi.fn();
@@ -93,7 +93,7 @@ it('편집 중 같은 행이 재조회돼도 기준값을 바꾸지 않아 다�
   view.rerender(ui({ ...row, memo: '다른 사람이 고친 메모' }));
   fireEvent.click(view.getByRole('button', { name: '저장' }));
   await waitFor(() => expect(posted[0]).toEqual({
-    url: '/ops/marketing/8', body: { title: '내가 고친 제목' },
+    url: '/ops/marketing/8', body: { title: '내가 고친 제목', requestKey: expect.any(String), expectedVersion: 4 },
   }));
 });
 
@@ -117,7 +117,7 @@ it('무엇을·어디에·항목이 있어야 「적기」가 서고, 비운 날
   expect(submit.disabled).toBe(false);
   fireEvent.click(submit);
   await waitFor(() => expect(posted).toHaveLength(1));
-  expect(posted[0]).toEqual({ url: '/ops/marketing', body: { title: '학습실 하루', channel: 'instagram', item: 'video', memo: '조회 1.2천', url: 'https://instagram.com/p/x5' } });
+  expect(posted[0]).toEqual({ url: '/ops/marketing', body: { requestKey: expect.any(String), title: '학습실 하루', channel: 'instagram', item: 'video', memo: '조회 1.2천', url: 'https://instagram.com/p/x5' } });
   await waitFor(() => expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ id: 99 })));
   await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
 });
@@ -135,7 +135,7 @@ it('날짜·담당을 고르면 그대로 보내고, 서버가 거절한 문장�
   fireEvent.click(within(dialog).getByRole('button', { name: '적기' }));
   await waitFor(() => expect(within(dialog).getByText('그 담당자를 찾을 수 없습니다')).toBeTruthy());
   // 비운 메모는 보내지 않는다
-  expect(posted[0]).toEqual({ url: '/ops/marketing', body: { title: '블로그 후기', channel: 'naver_blog', item: 'post', onDate: '2026-09-20', byId: 3 } });
+  expect(posted[0]).toEqual({ url: '/ops/marketing', body: { requestKey: expect.any(String), title: '블로그 후기', channel: 'naver_blog', item: 'post', onDate: '2026-09-20', byId: 3 } });
   expect(onDone).not.toHaveBeenCalled();
   expect(view.getByRole('dialog')).toBeTruthy();
 });

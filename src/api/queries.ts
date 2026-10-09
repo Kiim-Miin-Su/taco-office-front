@@ -127,7 +127,7 @@ import type {
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
   HourlyRateCreate, HourlyRateReplace, HourlyRateRetire, HourlyRateWriteResult,
   Member, StaffCreate, StaffPasswordReset, StaffPatch, WageHistory, WageRow, WageWrite,
-  LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult,
+  LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult, TeacherChangeUndoResult,
   KindCreate,
   KindPatch,
   Lead,
@@ -169,6 +169,7 @@ import type {
   OccurrenceQuery,
   OkResult,
   Ops,
+  MarketingOverview,
   OtherIncome,
   ManualPaymentCreate,
   Payment,
@@ -312,6 +313,8 @@ export const qk = {
   /** 탭 줄 두 비공개 스위치 (N-94) */
   acctPrivacy: ['accounting', 'privacy'] as const,
   ops: ['ops'] as const,
+  /** BO-12D 관리자 수정사항 p117 — KST 최근 30일 서버 projection. */
+  marketingOverview: ['ops', 'marketing-overview'] as const,
   consulting: ['consulting'] as const,
   consultingTemplates: ['consulting', 'templates'] as const,
   /** §30 계약 5단계 상세 — 건별 서버 projection. */
@@ -1554,6 +1557,30 @@ export function useOps(query: OpsQuery = {}, enabled = true): UseQueryResult<Ops
         ...data,
         canSeeAmounts: false,
         marketing: data.marketing.map((row) => ({ ...row, cost: null, costPerEnroll: null })),
+      };
+    },
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** BO-12D 최근 30일 네 채널 요약 — 기간·정렬·최신 4건은 서버 계약을 그대로 쓴다. */
+export function useMarketingOverview(enabled = true): UseQueryResult<MarketingOverview> {
+  const viewerId = useViewerId();
+  const canMoney = useSession((s) => s.me?.canMoney === true);
+  return useQuery({
+    queryKey: [...sessionQueryKey(qk.marketingOverview, viewerId), { canMoney }],
+    queryFn: async () => {
+      const data = (await api.get<MarketingOverview>('/ops/marketing-overview')).data;
+      if (canMoney && data.canSeeAmounts) return data;
+      return {
+        ...data,
+        canSeeAmounts: false,
+        latest: data.latest ? { ...data.latest, cost: null, costPerEnroll: null } : null,
+        channels: data.channels.map((channel) => ({
+          ...channel,
+          latest: channel.latest.map((row) => ({ ...row, cost: null, costPerEnroll: null })),
+        })),
       };
     },
     enabled,
@@ -3426,6 +3453,28 @@ export function useTeacherChange(): UseMutationResult<TeacherChangeResult, unkno
       void qc.invalidateQueries({ queryKey: family.occurrences });
       void qc.invalidateQueries({ queryKey: family.horizon });
       // 「그 날 이후」 교체는 규칙을 가른다(D-R16) — §07 사이드바의 일정 원본 수도
+      void qc.invalidateQueries({ queryKey: family.seriesCounts });
+      void qc.invalidateQueries({ queryKey: family.guides });
+      void qc.invalidateQueries({ queryKey: family.board });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: family.reports });
+      void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.teacherLessonHub });
+      void qc.invalidateQueries({ queryKey: family.accounting });
+    },
+  });
+}
+
+export function useUndoTeacherChange(): UseMutationResult<TeacherChangeUndoResult, unknown, { requestKey: string; expectedVersion: number }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ requestKey, expectedVersion }) => (
+      await api.post<TeacherChangeUndoResult>(`/ops/teacher-change/${requestKey}/undo`, { expectedVersion })
+    ).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: family.ops });
+      void qc.invalidateQueries({ queryKey: family.occurrences });
+      void qc.invalidateQueries({ queryKey: family.horizon });
       void qc.invalidateQueries({ queryKey: family.seriesCounts });
       void qc.invalidateQueries({ queryKey: family.guides });
       void qc.invalidateQueries({ queryKey: family.board });

@@ -21,6 +21,9 @@ const meta = {
 };
 const result: TeacherChangeResult = {
   preview: true, mode: 'from', date: '2026-10-05',
+  scope: 'student_classes', requiresWholeClass: false, version: 'a'.repeat(64), actor: { id: 2, name: '관리자' },
+  assets: { series: 2, occurrences: 12, guideDrafts: 2, parentNotices: 2, books: 1, notifications: 5, complaints: 1 },
+  requestKey: null, rowVersion: null, undoAvailable: false,
   fromTeacher: { id: 7, name: '김재훈', active: true }, toTeacher: { id: 3, name: '김범준', active: true },
   series: [
     { serId: 12, newSerId: 40, title: '', kindName: '수업', subName: 'Writing', ruleLabel: '매주 월·수', startMin: 960, endMin: 1020, students: ['진예람'], occurrences: 8, firstOn: '2026-10-05' },
@@ -49,7 +52,12 @@ const posted: Array<{ url?: string; body: unknown }> = [];
 const got: string[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((c) => c.clear()); api.defaults.adapter = originalAdapter; posted.length = 0; got.length = 0; });
 
-function setup(onPost: (url: string, n: number) => { status: number; data: unknown } = (url) => ({ status: 201, data: url.endsWith('/preview') ? result : { ...result, preview: false } })) {
+function setup(onPost: (url: string, n: number) => { status: number; data: unknown } = (url) => ({
+  status: 201,
+  data: url.endsWith('/preview') ? result : {
+    ...result, preview: false, requestKey: '11111111-1111-4111-8111-111111111111', rowVersion: 1, undoAvailable: true,
+  },
+})) {
   let n = 0;
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') {
@@ -91,7 +99,7 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
   expect(apply.disabled).toBe(true);
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await waitFor(() => expect(posted).toHaveLength(1));
-  expect(posted[0]).toEqual({ url: '/ops/teacher-change/preview', body: { fromTeacherId: 7, toTeacherId: 3, mode: 'from', date: '2026-10-05', studentId: 21, cplId: 2 } });
+  expect(posted[0]).toEqual({ url: '/ops/teacher-change/preview', body: { fromTeacherId: 7, toTeacherId: 3, mode: 'from', date: '2026-10-05', studentId: 21, cplId: 2, scope: 'student_classes' } });
   const box = await view.findByLabelText('교체 미리보기');
   const text = (box.textContent ?? '').replace(/\s+/g, ' ');
   expect(text).toContain('김재훈 → 김범준 · 2026-10-05부터 · 회차 12회');
@@ -114,9 +122,19 @@ it('보내는 몸통은 강사 둘·범위·날짜·학생·컴플레인뿐이�
   await waitFor(() => expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(within(dialog).getByRole('button', { name: '교체 확정' }));
   await waitFor(() => expect(posted).toHaveLength(3));
-  expect(posted[2]).toEqual({ url: '/ops/teacher-change', body: { fromTeacherId: 7, toTeacherId: 3, mode: 'from', date: '2026-10-05', serIds: [12], studentId: 21, cplId: 2 } });
-  await waitFor(() => expect(onClose).toHaveBeenCalled());
+  expect(posted[2]!.url).toBe('/ops/teacher-change');
+  expect(posted[2]!.body).toMatchObject({
+    fromTeacherId: 7, toTeacherId: 3, mode: 'from', date: '2026-10-05', serIds: [12], studentId: 21, cplId: 2,
+    scope: 'student_classes', expectedVersion: 'a'.repeat(64), requestKey: expect.any(String),
+  });
+  expect(onClose).not.toHaveBeenCalled();
   expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ preview: false }));
+  fireEvent.click(within(dialog).getByRole('button', { name: '교체 실행 취소' }));
+  await waitFor(() => expect(posted).toHaveLength(4));
+  expect(posted[3]).toEqual({
+    url: '/ops/teacher-change/11111111-1111-4111-8111-111111111111/undo', body: { expectedVersion: 1 },
+  });
+  await waitFor(() => expect(onClose).toHaveBeenCalled());
 });
 
 it('하루만 대강은 날짜 하나로 보내고, 겹치면 서버 문장을 그대로 띄운 뒤 아는 수업으로 「누구와」를 한 번 묻는다 (N-132 · A-06)', async () => {
@@ -161,6 +179,7 @@ it('과거 날짜의 하루 대강은 미리보기 전부터 막는다 (관리�
 it('학생 한 명으로 좁힌 preview에 그룹 수업이 있으면 반 전체 교체 계약 전에는 확정을 잠근다 (§121~124)', async () => {
   const grouped: TeacherChangeResult = {
     ...result,
+    requiresWholeClass: true,
     series: [{ ...result.series[0]!, students: ['진예람', '차서윤'] }],
     occurrences: result.series[0]!.occurrences,
   };
@@ -170,8 +189,11 @@ it('학생 한 명으로 좁힌 preview에 그룹 수업이 있으면 반 전체
   fireEvent.click(within(dialog).getByRole('button', { name: '미리 보기' }));
   await view.findByLabelText('교체 미리보기');
 
-  expect(within(dialog).getByText(/그룹 수업은 학생 한 명만 떼어 교체할 수 없습니다/)).toBeTruthy();
-  expect(within(dialog).getByText(/반 전체 교체 계약이 연결될 때까지 확정할 수 없습니다/)).toBeTruthy();
+  expect(within(dialog).getByText(/학생 한 명만 분리하지 않으며/)).toBeTruthy();
   expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(true);
-  expect(posted).toHaveLength(1);
+  fireEvent.click(within(dialog).getByLabelText('미리 본 그룹 수업의 현재 명단 전체를 함께 교체합니다'));
+  expect((within(dialog).getByRole('button', { name: '교체 확정' }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(within(dialog).getByRole('button', { name: '교체 확정' }));
+  await waitFor(() => expect(posted).toHaveLength(2));
+  expect(posted[1]!.body).toMatchObject({ scope: 'whole_class', expectedVersion: 'a'.repeat(64), requestKey: expect.any(String) });
 });

@@ -2369,6 +2369,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/teacher-change/{requestKey}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 강사 교체 전체 실행 취소 — 일정·안내 초안·미발송 학부모 안내·교재 담당·컴플레인을 한 transaction으로 복원
+         * @description 원 실행 actor만 가능하다. 이후 일정/교재/컴플레인/안내가 바뀌거나 학부모 안내가 발송됐으면 409로 전부 보존한다.
+         */
+        post: operations["OpsController_teacherChangeUndo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/marketing-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * BO-12D 최근 30일 마케팅 네 채널 projection
+         * @description KST 오늘 포함 30일을 서버에서 고정하고 관리자 수정사항 p117 순서로 채널별 최신 4건과 요약을 반환한다. 날짜 없는 옛 행은 최근 집계에서 제외한다.
+         */
+        get: operations["OpsController_marketingOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/marketing": {
         parameters: {
             query?: never;
@@ -2380,7 +2420,7 @@ export interface paths {
         put?: never;
         /**
          * §59 「+ 오늘 한 것」 — 마케팅 활동 한 줄 · URL 첨부
-         * @description 날짜를 안 주면 오늘, 담당을 안 주면 나다. 채널·항목은 지금 코드 일곱·일곱이다(원문 어휘 맞춤은 열린 결정 N-29 ①). 그만둔 사람은 담당이 될 수 없다. 응답은 GET /ops 의 marketing 줄과 같은 모양이다. 감사 줄(LOG MKT create)이 같은 트랜잭션이다.
+         * @description 날짜를 안 주면 오늘, 담당을 안 주면 나다. 채널·항목은 지금 코드 일곱·일곱이다(원문 어휘 맞춤은 열린 결정 N-29 ①). 그만둔 사람은 담당이 될 수 없다. requestKey 재시도는 한 행으로 수렴한다. 응답은 GET /ops 의 marketing 줄과 같은 모양이다. 감사 줄(LOG MKT create)이 같은 트랜잭션이다.
          */
         post: operations["OpsController_createMarketing"];
         delete?: never;
@@ -2404,7 +2444,7 @@ export interface paths {
         head?: never;
         /**
          * §59 마케팅 활동 수정 — 보낸 칸만
-         * @description 활동 이름·채널·항목·URL·날짜·담당·메모만 고친다. 성과 숫자는 받지 않으며 앞뒤 값과 감사 줄이 같은 트랜잭션에 남는다.
+         * @description 활동 이름·채널·항목·URL·날짜·담당·메모만 고친다. expectedVersion으로 동시 편집을 막고 requestKey 재시도는 한 번만 쓴다. 성과 숫자는 받지 않으며 앞뒤 값과 감사 줄이 같은 트랜잭션에 남는다.
          */
         patch: operations["OpsController_patchMarketing"];
         trace?: never;
@@ -9486,6 +9526,8 @@ export interface components {
             costPerEnroll?: number | null;
             /** @description 메모 한 줄 — 적은 적이 없으면 null */
             memo?: string | null;
+            /** @description 동시 수정 방지 version */
+            version: number;
         };
         MfbPostDto: {
             id: number;
@@ -10167,6 +10209,18 @@ export interface components {
             cplId?: number;
             /** @description 알림·안내에 실을 한 줄 */
             memo?: string;
+            /**
+             * @description 그룹 수업 apply는 preview와 같은 명단을 확인한 whole_class가 필수다.
+             * @enum {string}
+             */
+            scope?: "student_classes" | "whole_class";
+            /**
+             * Format: uuid
+             * @description apply 멱등 키. preview에는 보내지 않는다.
+             */
+            requestKey?: string;
+            /** @description preview가 돌려준 대상·명단·자산 상태 버전 */
+            expectedVersion?: string;
         };
         TcStaffDto: {
             id: number;
@@ -10235,6 +10289,19 @@ export interface components {
             /** @description 한 줄 — 낱말은 서버 (D-R18) */
             note: string;
         };
+        TcActorDto: {
+            id: number;
+            name: string;
+        };
+        TcAssetCountsDto: {
+            series: number;
+            occurrences: number;
+            guideDrafts: number;
+            parentNotices: number;
+            books: number;
+            notifications: number;
+            complaints: number;
+        };
         TeacherChangeResultDto: {
             /** @description true 면 되돌린 미리보기 */
             preview: boolean;
@@ -10261,8 +10328,65 @@ export interface components {
             cpl?: components["schemas"]["TcComplaintDto"] | null;
             /** @description 여섯 단계의 결과 — 화면은 이 목록을 체크로 그린다 */
             steps: components["schemas"]["TcStepDto"][];
+            /** @enum {string} */
+            scope: "student_classes" | "whole_class";
+            /** @description 학생 기준 대상 중 그룹 수업이 있어 apply에 whole_class가 필요한가 */
+            requiresWholeClass: boolean;
+            /** @description apply의 expectedVersion으로 그대로 보내는 불투명 상태 버전 */
+            version: string;
+            /** @description 실제 HTTP actor */
+            actor: components["schemas"]["TcActorDto"];
+            assets: components["schemas"]["TcAssetCountsDto"];
+            /**
+             * Format: uuid
+             * @description apply 멱등 키. preview는 null
+             */
+            requestKey?: string | null;
+            /** @description 적용 작업 원장의 version. preview는 null */
+            rowVersion?: number | null;
+            /** @description 현재 결과를 실행 취소할 수 있는가 */
+            undoAvailable: boolean;
+        };
+        TeacherChangeUndoDto: {
+            /** @description 적용 결과의 rowVersion */
+            expectedVersion: number;
+        };
+        TeacherChangeUndoResultDto: {
+            /** Format: uuid */
+            requestKey: string;
+            rowVersion: number;
+            /** @enum {string} */
+            state: "undone";
+            actor: components["schemas"]["TcActorDto"];
+            /** Format: date-time */
+            undoneAt: string;
+        };
+        MarketingChannelBoardDto: {
+            key: string;
+            label: string;
+            /** @description 해당 채널 최신 4건 */
+            latest: components["schemas"]["MarketingDto"][];
+        };
+        MarketingOverviewDto: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            activityCount: number;
+            activeChannelCount: number;
+            channelCount: number;
+            actorCount: number;
+            latest?: components["schemas"]["MarketingDto"] | null;
+            channels: components["schemas"]["MarketingChannelBoardDto"][];
+            /** @description 집행 비용을 볼 수 있는가 */
+            canSeeAmounts: boolean;
         };
         MarketingCreateDto: {
+            /**
+             * Format: uuid
+             * @description same-key retry는 같은 활동으로 수렴한다
+             */
+            requestKey: string;
             /** @description 활동 이름 — 카드 제목 */
             title: string;
             /**
@@ -10288,6 +10412,13 @@ export interface components {
             memo?: string | null;
         };
         MarketingPatchDto: {
+            /**
+             * Format: uuid
+             * @description same-key retry는 같은 수정 결과로 수렴한다
+             */
+            requestKey: string;
+            /** @description 화면이 읽은 MarketingDto.version */
+            expectedVersion: number;
             /** @description 활동 이름 — 빈 문자열은 허용하지 않는다 */
             title?: string;
             /**
@@ -25670,6 +25801,156 @@ export interface operations {
             };
         };
     };
+    OpsController_teacherChangeUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherChangeUndoDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeacherChangeUndoResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description TEACHER_CHANGE_UNDO_VERSION_CONFLICT | TEACHER_CHANGE_ALREADY_UNDONE | TEACHER_CHANGE_UNDO_*_CHANGED | UNDO_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OpsController_marketingOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketingOverviewDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     OpsController_createMarketing: {
         parameters: {
             query?: never;
@@ -25725,7 +26006,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code MKT_TITLE_REQUIRED | MKT_WORD_UNKNOWN */
+            /** @description code MKT_TITLE_REQUIRED | MKT_WORD_UNKNOWN | MKT_REQUEST_REUSED | MKT_REQUEST_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -25802,7 +26083,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description code EMPTY_PATCH | MKT_TITLE_REQUIRED | MKT_WORD_UNKNOWN */
+            /** @description code EMPTY_PATCH | MKT_TITLE_REQUIRED | MKT_WORD_UNKNOWN | MKT_VERSION_CONFLICT | MKT_REQUEST_REUSED | MKT_REQUEST_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;

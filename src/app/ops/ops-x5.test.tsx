@@ -38,9 +38,9 @@ const ops = (over: Partial<Ops> = {}): Ops => ({
   ...OPS_HEAD_FIXTURE,
   intakeHead: INTAKE_HEAD_FIXTURE,
   marketing: [
-    { id: 1, channel: 'kakao', item: 'channel', channelLabel: '카카오', itemLabel: '채널 응대', title: '카카오채널 문의 12건 응대',
+    { id: 1, version: 1, channel: 'kakao', item: 'channel', channelLabel: '카카오', itemLabel: '채널 응대', title: '카카오채널 문의 12건 응대',
       name: '카카오채널 문의 12건 응대', onDate: '2026-08-18', byId: 7, byName: 'Grace', impressions: null, inquiries: 12, enrolled: 4, cost: 0, costPerEnroll: 0 },
-    { id: 2, channel: 'naver', item: 'ad', channelLabel: '네이버', itemLabel: '광고', title: '검색광고 · 대치 국제학교 키워드',
+    { id: 2, version: 1, channel: 'naver', item: 'ad', channelLabel: '네이버', itemLabel: '광고', title: '검색광고 · 대치 국제학교 키워드',
       name: '검색광고 · 대치 국제학교 키워드', onDate: '2026-08-19', byId: 8, byName: '김성재', impressions: 5000, inquiries: 3, enrolled: 1, cost: 50000, costPerEnroll: 50000 },
   ],
   mktChannels: [{ key: 'kakao', label: '카카오' }, { key: 'naver', label: '네이버' }],
