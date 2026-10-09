@@ -121,6 +121,7 @@ import type {
   StudentWithdraw,
   WithdrawResult,
   RateBook, RateRow, StudentRateRow, RateWrite, StudentRateWrite, ExpenseCreate,
+  HourlyRateCreate, HourlyRateReplace, HourlyRateRetire, HourlyRateWriteResult,
   Member, StaffCreate, StaffPasswordReset, StaffPatch, WageHistory, WageRow, WageWrite,
   LeadEnroll, EnrollResult, Complaint, ComplaintCreate, ComplaintPatch, TeacherChange, TeacherChangeResult,
   KindCreate,
@@ -1409,6 +1410,42 @@ export function useWriteStudentRate(): UseMutationResult<StudentRateRow, unknown
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body) => (await api.post<StudentRateRow>('/accounting/sturates', body)).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
+  });
+}
+
+/**
+ * BOC-11E 시간당 단가 current/request/event writer. 서버가 identity·기간·version을 판정하고
+ * 화면은 생성 계약과 받은 projection만 사용한다. 기존 RATE/STURATE writer와 섞지 않는다.
+ */
+export function useCreateHourlyRate(): UseMutationResult<HourlyRateWriteResult, unknown, HourlyRateCreate> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<HourlyRateWriteResult>('/accounting/hourly-rates', body)).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
+  });
+}
+
+export function useReplaceHourlyRate(): UseMutationResult<
+  HourlyRateWriteResult, unknown, { policyId: number; body: HourlyRateReplace }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ policyId, body }) => (
+      await api.patch<HourlyRateWriteResult>(`/accounting/hourly-rates/${policyId}`, body)
+    ).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
+  });
+}
+
+export function useRetireHourlyRate(): UseMutationResult<
+  HourlyRateWriteResult, unknown, { policyId: number; body: HourlyRateRetire }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ policyId, body }) => (
+      await api.delete<HourlyRateWriteResult>(`/accounting/hourly-rates/${policyId}`, { data: body })
+    ).data,
     onSuccess: () => { void qc.invalidateQueries({ queryKey: family.accounting }); },
   });
 }

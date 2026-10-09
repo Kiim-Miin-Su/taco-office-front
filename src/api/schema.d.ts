@@ -1886,6 +1886,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/hourly-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 시간당 기준 단가 생성 — 일반·Kinder·그룹·학생 예외
+         * @description 기존 회당 RATE/STURATE를 바꾸지 않는다. 오늘 이후 실제 수업에만 적용하며 같은 identity 기간 중복은 거절한다.
+         */
+        post: operations["AccountingController_createHourlyRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/hourly-rates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 시간당 기준 단가 종료 — 과거 이력 보존
+         * @description 미래 정책은 void, 진행 중 정책은 오늘까지 유효하게 종료한다. 실제 행과 감사 event는 삭제하지 않는다.
+         */
+        delete: operations["AccountingController_retireHourlyRate"];
+        options?: never;
+        head?: never;
+        /**
+         * 시간당 기준 단가 교체 — 과거 기간은 보존하고 미래 적용 줄을 생성
+         * @description 진행 중 정책은 내일 이후부터만 교체한다. 기존 행은 기간 종료 또는 future void 처리하고 새 행과 두 event를 한 transaction에 남긴다.
+         */
+        patch: operations["AccountingController_replaceHourlyRate"];
+        trace?: never;
+    };
     "/accounting/wages": {
         parameters: {
             query?: never;
@@ -8560,11 +8604,112 @@ export interface components {
             /** @description 오늘 기준으로 그 학생·종류에 살아 있는 줄인가 */
             current: boolean;
         };
+        HourlyRatePolicyEventDto: {
+            /** @enum {string} */
+            action: "created" | "superseded" | "retired";
+            version: number;
+            hourlyAmount: number;
+            /** Format: date */
+            effectiveFrom: string;
+            /** Format: date */
+            effectiveTo: string | null;
+            reason: string | null;
+            voided: boolean;
+            actor: string;
+            createdAt: string;
+        };
+        HourlyRatePolicyDto: {
+            id: number;
+            /** @enum {string} */
+            scope: "general" | "kinder" | "group" | "student";
+            studentId: number | null;
+            studentName: string | null;
+            studentTag: string | null;
+            /** @description 조회 시점의 명시 Kinder 표시. 학생 정책이 아니면 null */
+            studentKinderMarked: boolean | null;
+            kindKey: string | null;
+            kindName: string | null;
+            /** @description 그룹 정원. 다른 scope는 null */
+            capacity: number | null;
+            /** @description 학생 1명 기준 시간당 원 단위 금액 */
+            hourlyAmount: number;
+            /** @description 그룹이면 hourlyAmount × capacity, 다른 scope는 null */
+            totalHourlyAmount: number | null;
+            /** @description 학생 예외의 현재 일반/Kinder 기준 시간당 금액 */
+            basisHourlyAmount: number | null;
+            /** @description 학생 예외 ÷ 기준 단가 × 100, 소수 첫째 자리 */
+            basisPercent: number | null;
+            /** Format: date */
+            effectiveFrom: string;
+            /** Format: date */
+            effectiveTo: string | null;
+            reason: string | null;
+            version: number;
+            /** @enum {string} */
+            state: "scheduled" | "current" | "ended" | "voided";
+            createdBy: string;
+            updatedBy: string;
+            createdAt: string;
+            updatedAt: string;
+            canEdit: boolean;
+            canRetire: boolean;
+            events: components["schemas"]["HourlyRatePolicyEventDto"][];
+        };
         RateBookDto: {
             /** @description 종류 → 과목 → 인원 → 최근순 */
             rates: components["schemas"]["RateRowDto"][];
             /** @description 학생 이름 → 최근순 */
             studentRates: components["schemas"]["StudentRateRowDto"][];
+            /** @description 시간당 일반·Kinder·그룹·학생 예외 정책과 전체 변경 이력 */
+            hourlyRates: components["schemas"]["HourlyRatePolicyDto"][];
+        };
+        HourlyRateCreateDto: {
+            /** @enum {string} */
+            scope: "general" | "kinder" | "group" | "student";
+            /** @description student scope에서만 필수 */
+            studentId?: number;
+            /** @description 학생 예외를 특정 수업 종류에만 적용. 비우면 전체 */
+            kindKey?: string;
+            /** @description group scope에서만 필수 */
+            capacity?: number;
+            /** @description 학생 1명 기준 원/시간 */
+            hourlyAmount: number;
+            /**
+             * Format: date
+             * @description 오늘 이후 실제 수업일부터 적용
+             */
+            effectiveFrom: string;
+            /** Format: date */
+            effectiveTo?: string;
+            /** @description 학생 예외는 필수 */
+            reason?: string;
+            /** Format: uuid */
+            requestKey: string;
+        };
+        HourlyRateWriteResultDto: {
+            item: components["schemas"]["HourlyRatePolicyDto"];
+            /** @description 같은 actor/action/payload/requestKey의 정확한 재시도면 true */
+            replayed: boolean;
+        };
+        HourlyRateReplaceDto: {
+            expectedVersion: number;
+            hourlyAmount: number;
+            /**
+             * Format: date
+             * @description 진행 중 정책은 내일부터만 교체한다
+             */
+            effectiveFrom: string;
+            /** Format: date */
+            effectiveTo?: string;
+            reason: string;
+            /** Format: uuid */
+            requestKey: string;
+        };
+        HourlyRateRetireDto: {
+            expectedVersion: number;
+            reason: string;
+            /** Format: uuid */
+            requestKey: string;
         };
         RateWriteDto: {
             /** @description 종류 코드 — §18 프로그램의 KIND */
@@ -23285,6 +23430,241 @@ export interface operations {
                 };
             };
             /** @description RATE_DUPLICATE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_createHourlyRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HourlyRateCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HourlyRateWriteResultDto"];
+                };
+            };
+            /** @description HOURLY_RATE_SCOPE_SHAPE | HOURLY_RATE_REASON_REQUIRED | HOURLY_RATE_BAD_PERIOD */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND | KIND_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description HOURLY_RATE_RETROACTIVE | HOURLY_RATE_OVERLAP | HOURLY_RATE_KEY_REUSED | HOURLY_RATE_REPLAY_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_retireHourlyRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HourlyRateRetireDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HourlyRateWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description HOURLY_RATE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description HOURLY_RATE_STALE | HOURLY_RATE_NOT_ACTIVE | HOURLY_RATE_KEY_REUSED | HOURLY_RATE_REPLAY_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_replaceHourlyRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HourlyRateReplaceDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HourlyRateWriteResultDto"];
+                };
+            };
+            /** @description HOURLY_RATE_BAD_PERIOD */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description HOURLY_RATE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description HOURLY_RATE_STALE | HOURLY_RATE_NOT_ACTIVE | HOURLY_RATE_REPLACE_FUTURE_ONLY | HOURLY_RATE_OVERLAP | HOURLY_RATE_KEY_REUSED | HOURLY_RATE_REPLAY_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;
