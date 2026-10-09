@@ -954,9 +954,16 @@ export function useTransitionInvoiceAdjustment(): UseMutationResult<
 > {
   const invalidate = useAccountingInvalidate();
   return useMutation({
-    mutationFn: async ({ adjustmentId, action, body }) => (
-      await api.post<InvoiceAdjustmentWriteResult>(`/accounting/adjustments/${adjustmentId}/${action}`, body)
-    ).data,
+    mutationFn: async ({ adjustmentId, action, body }) => {
+      const path = action === 'approve'
+        ? `/accounting/adjustments/${adjustmentId}/approve`
+        : action === 'reject'
+          ? `/accounting/adjustments/${adjustmentId}/reject`
+          : action === 'cancel'
+            ? `/accounting/adjustments/${adjustmentId}/cancel`
+            : `/accounting/adjustments/${adjustmentId}/undo`;
+      return (await api.post<InvoiceAdjustmentWriteResult>(path, body)).data;
+    },
     onSettled: invalidate,
   });
 }
@@ -994,12 +1001,14 @@ export function useTransitionDelinquencySuspension(): UseMutationResult<
 > {
   const invalidate = useAccountingInvalidate();
   return useMutation({
-    mutationFn: async ({ studentId, action, body }) => (
-      await api.post<DelinquencySuspensionWriteResult>(
-        `/accounting/delinquency-suspensions/${studentId}/${action}`,
-        body,
-      )
-    ).data,
+    mutationFn: async ({ studentId, action, body }) => {
+      const path = action === 'remind'
+        ? `/accounting/delinquency-suspensions/${studentId}/remind`
+        : action === 'suspend'
+          ? `/accounting/delinquency-suspensions/${studentId}/suspend`
+          : `/accounting/delinquency-suspensions/${studentId}/release`;
+      return (await api.post<DelinquencySuspensionWriteResult>(path, body)).data;
+    },
     onSettled: invalidate,
   });
 }
