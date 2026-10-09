@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api, ApiError } from '@/api/client';
-import type { Accounting, Invoice, InvoiceAdjustment, InvoiceAdjustmentLedger, Me } from '@/api/types';
+import type { Accounting, Invoice, InvoiceAdjustment, InvoiceAdjustmentLedger, Me, StudentRefundLedger } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import AccountingPage from './page';
 
@@ -50,6 +50,17 @@ const pendingAdjustment: InvoiceAdjustment = {
 const emptyLedger: InvoiceAdjustmentLedger = {
   month: '2026-10', pendingCount: 0, approvedAmount: 0, refundDue: 0, canRequest: true, canApprove: true, items: [],
 };
+const refundItem: StudentRefundLedger['items'][number] = {
+  adjustmentId: 91, invoiceId: 42, studentId: 7, studentName: '양찬욱', studentTag: 'G10', yearMonth: '2026-10',
+  effectiveOn: '2026-10-07', adjustmentKindLabel: '환불', adjustmentReason: '중도 종료 환불', amount: 50000,
+  sourceAdjustmentVersion: 2, status: 'unpaid', version: 0, accountReady: true, activeAccountLast4: '3333',
+  accountId: null, accountVersion: null, accountLast4: null, paidOn: null, method: null, paidBy: null,
+  canceledAt: null, cancelReason: null, canPay: true, canCancel: false, events: [],
+};
+const emptyRefundLedger: StudentRefundLedger = {
+  month: '2026-10', totalCount: 0, totalAmount: 0, paidCount: 0, paidAmount: 0, unpaidAmount: 0,
+  canWrite: true, items: [],
+};
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 const seen: Array<{ method?: string; url?: string; data?: unknown }> = [];
@@ -64,7 +75,11 @@ afterEach(() => {
   seen.splice(0);
 });
 
-function mount(ledger: InvoiceAdjustmentLedger = emptyLedger, transitionError?: ApiError) {
+function mount(
+  ledger: InvoiceAdjustmentLedger = emptyLedger,
+  transitionError?: ApiError,
+  refundLedger: StudentRefundLedger = emptyRefundLedger,
+) {
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { method?: string; url?: string; data?: unknown }) => {
     seen.push(config);
@@ -72,6 +87,9 @@ function mount(ledger: InvoiceAdjustmentLedger = emptyLedger, transitionError?: 
     const url = config.url ?? '';
     if (method === 'get' && url === '/accounting/adjustments') {
       return { config, status: 200, statusText: 'OK', headers: {}, data: ledger };
+    }
+    if (method === 'get' && url === '/accounting/student-refunds') {
+      return { config, status: 200, statusText: 'OK', headers: {}, data: refundLedger };
     }
     if (method === 'post' && url === '/accounting/adjustments') {
       return { config, status: 201, statusText: 'Created', headers: {}, data: { item: pendingAdjustment, replayed: false } };
@@ -81,6 +99,12 @@ function mount(ledger: InvoiceAdjustmentLedger = emptyLedger, transitionError?: 
       const item = { ...pendingAdjustment, state: 'approved', stateLabel: '승인·반영', version: 2, invoiceAmount: 200000, refundDue: 50000,
         canApprove: false, canReject: false, canCancel: true } satisfies InvoiceAdjustment;
       return { config, status: 201, statusText: 'Created', headers: {}, data: { item, replayed: false } };
+    }
+    if (method === 'post' && url === '/accounting/student-refunds/91/pay') {
+      return { config, status: 201, statusText: 'Created', headers: {}, data: {
+        ...refundItem, status: 'paid', version: 1, accountId: 5, accountVersion: 1, accountLast4: '3333',
+        paidOn: '2026-10-09', method: 'bank_transfer', paidBy: '대표', canPay: false, canCancel: true,
+      } };
     }
     return { config, status: 200, statusText: 'OK', headers: {}, data: accounting };
   }) as never;
@@ -149,4 +173,23 @@ it('409 version 충돌은 처리 사유를 보존하고 최신 원장을 다시 
   fireEvent.click(within(dialog).getByRole('button', { name: '최신 원장 다시 불러오기' }));
   await waitFor(() => expect(seen.filter(({ method, url }) => method?.toLowerCase() === 'get' && url === '/accounting/adjustments').length).toBeGreaterThan(readsBefore));
   expect(reason.value).toBe('증빙 보완 필요');
+});
+
+it('승인 환불 증가분은 활성 보호 계좌와 source version으로 실제 지급한다', async () => {
+  nav.search = 'tab=adjustments';
+  const refunds: StudentRefundLedger = {
+    ...emptyRefundLedger, totalCount: 1, totalAmount: 50000, unpaidAmount: 50000, items: [refundItem],
+  };
+  const view = mount(emptyLedger, undefined, refunds);
+  expect(await view.findByRole('heading', { name: '학생 실제 환불 원장' })).toBeTruthy();
+  expect(await view.findByText('**** 3333 · 지급 가능')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '지급' }));
+  const dialog = await view.findByRole('dialog');
+  expect(within(dialog).getByText(/원천 조정 v2의 환불 증가분/)).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole('button', { name: '계좌이체 기록' }));
+  await waitFor(() => expect(seen.some(({ method, url, data }) => {
+    if (method?.toLowerCase() !== 'post' || url !== '/accounting/student-refunds/91/pay') return false;
+    const body = JSON.parse(String(data)) as { expectedVersion?: number; method?: string; requestKey?: string };
+    return body.expectedVersion === 0 && body.method === 'bank_transfer' && typeof body.requestKey === 'string';
+  })).toBe(true));
 });

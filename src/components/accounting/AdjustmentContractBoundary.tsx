@@ -11,6 +11,7 @@ import type { Invoice, InvoiceAdjustment, InvoiceAdjustmentCreate } from '@/api/
 import { Banner, Button, Chip, Dialog, FieldError, Input, Label, Panel, QueryState, Select, Textarea } from '@/components/ui';
 import { kstDateTime, todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
+import { StudentRefundLedger } from './StudentRefundLedger';
 
 type AdjustmentKind = '' | InvoiceAdjustmentCreate['kind'];
 type AdjustmentAction = 'approve' | 'reject' | 'cancel' | 'undo';
@@ -24,9 +25,10 @@ const stateTone = (state: InvoiceAdjustment['state']): 'warning' | 'success' | '
   state === 'pending' ? 'warning' : state === 'approved' ? 'success' : state === 'rejected' ? 'danger' : 'neutral'
 );
 
-export function AdjustmentContractBoundary({ invoices, onOpenInvoices }: {
+export function AdjustmentContractBoundary({ invoices, onOpenInvoices, onOpenAccounts }: {
   invoices: readonly Invoice[];
   onOpenInvoices: () => void;
+  onOpenAccounts: () => void;
 }) {
   const id = useId();
   const today = todayKst();
@@ -151,6 +153,8 @@ export function AdjustmentContractBoundary({ invoices, onOpenInvoices }: {
           </table></div>}
         </QueryState>
       </Panel>
+
+      <StudentRefundLedger month={month} onOpenAccounts={onOpenAccounts} />
 
       {action ? <Dialog open closeX onClose={() => setAction(null)} title={`청구 조정 ${actionLabel[action.action]}`}
         sub={`${action.item.studentName} · ${action.item.kindLabel} ${won(action.item.amount)} · v${action.item.version}`}

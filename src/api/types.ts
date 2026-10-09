@@ -186,6 +186,12 @@ export type ProtectedAccountWrite = S['ProtectedAccountWriteDto'];
 export type ProtectedAccountAction = S['ProtectedAccountActionDto'];
 export type ProtectedAccountWriteResult = S['ProtectedAccountWriteResultDto'];
 export type ProtectedAccountSecret = S['ProtectedAccountSecretDto'];
+/** TBO-55 BOC-11D-02 — 승인 조정의 환불 증가분과 실제 계좌이체 current/event 원장 */
+export type StudentRefundEvent = S['StudentRefundEventDto'];
+export type StudentRefund = S['StudentRefundDto'];
+export type StudentRefundLedger = S['StudentRefundLedgerDto'];
+export type StudentRefundPay = S['StudentRefundPayDto'];
+export type StudentRefundCancel = S['StudentRefundCancelDto'];
 /** TBO-55 BO-11BD-01 — 청구 조정 current/event·승인 전이·환불 예정액 */
 export type InvoiceAdjustmentEvent = S['InvoiceAdjustmentEventDto'];
 export type InvoiceAdjustment = S['InvoiceAdjustmentDto'];

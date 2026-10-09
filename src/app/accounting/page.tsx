@@ -416,7 +416,8 @@ export default function AccountingPage() {
         ) : tab === 'ledger' ? (
           <PayoutDisbursementLedger onOpenAccounts={() => selectTab('accounts')} />
         ) : tab === 'adjustments' ? (
-          <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
+          <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')}
+            onOpenAccounts={() => selectTab('accounts')} />
         ) : tab === 'suspensions' ? (
           <DelinquencySuspensionBoundary />
         ) : tab === 'accounts' ? (

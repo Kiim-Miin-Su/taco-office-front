@@ -245,6 +245,7 @@ import type {
   PayoutDisbursementBatchPay, PayoutDisbursementBatchResult,
   ProtectedAccountLedger, ProtectedAccountWrite, ProtectedAccountAction,
   ProtectedAccountWriteResult, ProtectedAccountSecret,
+  StudentRefund, StudentRefundLedger, StudentRefundPay, StudentRefundCancel,
   InvoiceAdjustmentLedger, InvoiceAdjustmentCreate, InvoiceAdjustmentAction,
   InvoiceAdjustmentReasonAction, InvoiceAdjustmentWriteResult,
   DelinquencySuspensionLedger, DelinquencyPolicy, DelinquencyPolicyWrite,
@@ -273,6 +274,8 @@ export const qk = {
   payoutDisbursement: ['accounting', 'payout-ledger'] as const,
   /** TBO-55 BOC-11D-01 학생 환불·강사 지급 보호 계좌 masked current/event. */
   protectedAccounts: ['accounting', 'protected-accounts'] as const,
+  /** TBO-55 BOC-11D-02 승인 조정의 실제 학생 환불 current/event. */
+  studentRefunds: (month: string) => ['accounting', 'student-refunds', month] as const,
   /** TBO-55 BO-11BD-01 월별 청구 조정 current/event 원장. */
   invoiceAdjustments: (month: string) => ['accounting', 'adjustments', month] as const,
   /** TBO-55 BOC-11C 연체 aging·정지 current/event 원장. */
@@ -871,6 +874,40 @@ export function useRevealProtectedAccount(): UseMutationResult<
   return useMutation({
     mutationFn: async ({ accountId, body }) => (
       await api.post<ProtectedAccountSecret>(`/accounting/protected-accounts/${accountId}/reveal`, body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+/** BOC-11D-02 학생 실제 환불 — 금액·계좌·source version은 서버 snapshot만 소비한다. */
+export function useStudentRefunds(month: string, enabled = true): UseQueryResult<StudentRefundLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.studentRefunds(month), viewerId),
+    queryFn: async () => (await api.get<StudentRefundLedger>('/accounting/student-refunds', { params: { month } })).data,
+    enabled,
+  });
+}
+
+export function usePayStudentRefund(): UseMutationResult<
+  StudentRefund, unknown, { adjustmentId: number; body: StudentRefundPay }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ adjustmentId, body }) => (
+      await api.post<StudentRefund>(`/accounting/student-refunds/${adjustmentId}/pay`, body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCancelStudentRefund(): UseMutationResult<
+  StudentRefund, unknown, { adjustmentId: number; body: StudentRefundCancel }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ adjustmentId, body }) => (
+      await api.post<StudentRefund>(`/accounting/student-refunds/${adjustmentId}/cancel`, body)
     ).data,
     onSettled: invalidate,
   });

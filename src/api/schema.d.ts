@@ -1272,6 +1272,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/student-refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학생 실제 환불 지급 원장 — 승인 조정의 환불 증가분 (TBO-55 BOC-11D-02)
+         * @description 승인 전후 환불 예정액 증가분을 서버가 계산하고 실제 계좌이체 current/event와 분리한다. 수납 PAY를 음수 환불로 바꾸지 않으며 지급 시점의 조정 version·금액·보호 계좌 version/뒤4자리를 보존한다. 권고안 변경 시 조정 전이·보호 계좌·migration/Front A24·A27/두 수정사항 대조표/portfolio를 함께 바꾼다.
+         */
+        get: operations["AccountingController_studentRefundLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/student-refunds/{adjustmentId}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 학생 환불 계좌이체 기록 — source/account snapshot·expectedVersion·requestKey */
+        post: operations["AccountingController_payStudentRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/student-refunds/{adjustmentId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 학생 실제 환불 취소 — 사유·actor·이력 보존 뒤 재지급 허용 */
+        post: operations["AccountingController_cancelStudentRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/tuition": {
         parameters: {
             query?: never;
@@ -7471,6 +7525,90 @@ export interface components {
             holder: string;
             /** @description 같은 원문 확인 요청의 정확한 재시도면 true */
             replayed: boolean;
+        };
+        StudentRefundEventDto: {
+            /** @enum {string} */
+            action: "paid" | "canceled";
+            /** @enum {string|null} */
+            fromState: "paid" | "canceled" | null;
+            /** @enum {string} */
+            toState: "paid" | "canceled";
+            version: number;
+            amount: number;
+            sourceAdjustmentVersion: number;
+            actor: string;
+            paidOn: string | null;
+            /** @enum {string|null} */
+            method: "bank_transfer" | null;
+            reason: string | null;
+            accountId: number | null;
+            accountVersion: number | null;
+            /** @description 지급 당시 보호 계좌 뒤 4자리 snapshot */
+            accountLast4: string | null;
+            createdAt: string;
+        };
+        StudentRefundDto: {
+            adjustmentId: number;
+            invoiceId: number;
+            studentId: number;
+            studentName: string;
+            studentTag: string | null;
+            /** @example 2026-10 */
+            yearMonth: string;
+            /** Format: date */
+            effectiveOn: string;
+            adjustmentKindLabel: string;
+            adjustmentReason: string;
+            /** @description 현재 승인 전이가 새로 만든 환불 예정액 증가분 */
+            amount: number;
+            sourceAdjustmentVersion: number;
+            /** @enum {string} */
+            status: "unpaid" | "paid" | "canceled";
+            /** @description 아직 지급 전이면 0 */
+            version: number;
+            accountReady: boolean;
+            /** @description 현재 지급 가능한 활성 계좌 뒤 4자리 */
+            activeAccountLast4: string | null;
+            /** @description 지급 당시 보호 계좌 id snapshot */
+            accountId: number | null;
+            accountVersion: number | null;
+            accountLast4: string | null;
+            paidOn: string | null;
+            /** @enum {string|null} */
+            method: "bank_transfer" | null;
+            paidBy: string | null;
+            canceledAt: string | null;
+            cancelReason: string | null;
+            canPay: boolean;
+            canCancel: boolean;
+            events: components["schemas"]["StudentRefundEventDto"][];
+        };
+        StudentRefundLedgerDto: {
+            /** @example 2026-10 */
+            month: string;
+            totalCount: number;
+            totalAmount: number;
+            paidCount: number;
+            paidAmount: number;
+            unpaidAmount: number;
+            canWrite: boolean;
+            items: components["schemas"]["StudentRefundDto"][];
+        };
+        StudentRefundPayDto: {
+            /** @description 아직 지급 전 0, 지급 취소 뒤 재지급은 현재 version */
+            expectedVersion: number;
+            /** Format: date */
+            paidOn: string;
+            /** @enum {string} */
+            method: "bank_transfer";
+            /** Format: uuid */
+            requestKey: string;
+        };
+        StudentRefundCancelDto: {
+            expectedVersion: number;
+            reason: string;
+            /** Format: uuid */
+            requestKey: string;
         };
         TuitionRowDto: {
             studentId: number;
@@ -20544,6 +20682,240 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_studentRefundLedger: {
+        parameters: {
+            query?: {
+                /** @description 비우면 서버 KST 현재 달 */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentRefundLedgerDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_payStudentRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                adjustmentId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentRefundPayDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentRefundDto"];
+                };
+            };
+            /** @description STUDENT_REFUND_PAYMENT_FUTURE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_REFUND_NOT_DUE | STUDENT_REFUND_ACCOUNT_REQUIRED | STUDENT_REFUND_STALE | STUDENT_REFUND_ALREADY_PAID | STUDENT_REFUND_KEY_REUSED | STUDENT_REFUND_REPLAY_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_cancelStudentRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                adjustmentId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentRefundCancelDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentRefundDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_REFUND_NOT_PAID | STUDENT_REFUND_STALE | STUDENT_REFUND_KEY_REUSED | STUDENT_REFUND_REPLAY_STALE */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -153,6 +153,8 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   paymentEvidence: qk.paymentEvidence('2026-10'),
   // 청구 조정 원장은 선택 달과 session viewer를 분리한다 (BO-11BD-01).
   invoiceAdjustments: qk.invoiceAdjustments('2026-10'),
+  // 학생 실제 환불도 달별 회계 갈래에서 조회하고 지급·취소 뒤 같은 갈래를 버린다 (BOC-11D-02).
+  studentRefunds: qk.studentRefunds('2026-10'),
   // 강사 시급 이력 — 회계 갈래 안에 산다. 새 줄이 정산 시트를 함께 바꾼다 (C97 · D-48)
   wageHistory: qk.wageHistory(7),
   consultingDetail: qk.consultingDetail(7),
