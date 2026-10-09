@@ -30,7 +30,7 @@ function Summary({ month }: { month: PayoutDisbursementMonth }) {
   );
 }
 
-export function PayoutDisbursementLedger() {
+export function PayoutDisbursementLedger({ onOpenAccounts }: { onOpenAccounts: () => void }) {
   const [paidOn, setPaidOn] = useState(todayKst());
   const [paying, setPaying] = useState<PayoutDisbursement | null>(null);
   const [batching, setBatching] = useState<PayoutDisbursementMonth | null>(null);
@@ -61,28 +61,35 @@ export function PayoutDisbursementLedger() {
       <QueryState query={query} isEmpty={(data) => data.months.length === 0} empty="확정된 강사료가 없습니다. 강사료 정산에서 먼저 지급 확정해 주세요.">
         {(data) => <div className="space-y-5">{data.months.map((month) => {
           const unpaid = month.totalCount - month.paidCount;
+          const missingAccounts = month.items.filter((item) => item.status !== 'paid' && !item.accountReady).length;
           return (
             <section key={month.month} aria-label={`${monthLabel(month.month)} 지급 원장`} className="space-y-3 rounded-xl border border-line p-3">
               <header className="flex flex-wrap items-center justify-between gap-2">
                 <div><h3 className="text-[15px] font-bold text-fg">{monthLabel(month.month)}</h3><p className="text-[12px] text-fg-subtle">{month.paidCount}/{month.totalCount}명 지급</p></div>
-                <Button disabled={pending || unpaid === 0 || !paidOn} onClick={() => { setBatching(month); setError(null); }}>
+                <Button disabled={pending || unpaid === 0 || missingAccounts > 0 || !paidOn}
+                  title={missingAccounts > 0 ? '미지급 강사의 보호 계좌를 먼저 등록해 주세요' : undefined}
+                  onClick={() => { setBatching(month); setError(null); }}>
                   미지급 {unpaid}명 일괄 지급
                 </Button>
               </header>
               <Summary month={month} />
+              {missingAccounts > 0 ? <Banner tone="warning">
+                미지급 강사 {missingAccounts}명의 지급 계좌가 없습니다. <Button size="sm" variant="ghost" onClick={onOpenAccounts}>계좌 등록</Button>
+              </Banner> : null}
               <div className="overflow-x-auto rounded-xl border border-line">
-                <table className="w-full min-w-[1120px] border-collapse text-[12px]">
+                <table className="w-full min-w-[1220px] border-collapse text-[12px]">
                   <thead className="bg-inset text-fg-subtle"><tr>
                     <th className="border-b border-line px-3 py-2 text-left">강사</th><th className="border-b border-line px-3 py-2 text-right">시수</th>
                     <th className="border-b border-line px-3 py-2 text-right">총액</th><th className="border-b border-line px-3 py-2 text-right">차감</th>
                     <th className="border-b border-line px-3 py-2 text-right">원천징수 3.3%</th><th className="border-b border-line px-3 py-2 text-right">차인지급액</th>
-                    <th className="border-b border-line px-3 py-2 text-left">지급일</th><th className="border-b border-line px-3 py-2 text-left">처리</th>
+                    <th className="border-b border-line px-3 py-2 text-left">지급 계좌</th><th className="border-b border-line px-3 py-2 text-left">지급일</th><th className="border-b border-line px-3 py-2 text-left">처리</th>
                     <th className="border-b border-line px-3 py-2 text-left">상태</th><th className="border-b border-line px-3 py-2 text-right">작업</th>
                   </tr></thead>
                   <tbody>{month.items.map((item) => <tr key={item.payoutId} className="border-b border-line last:border-0">
                     <td className="px-3 py-2 font-bold text-fg">{item.staffName}</td><td className="px-3 py-2 text-right text-fg">{Number(item.hours).toFixed(1)}h</td>
                     <td className="px-3 py-2 text-right text-fg">{won(item.gross)}</td><td className="px-3 py-2 text-right text-red">{item.deduction ? won(-item.deduction) : '—'}</td>
                     <td className="px-3 py-2 text-right text-red">{item.withholding ? won(-item.withholding) : '—'}</td><td className="px-3 py-2 text-right font-bold text-fg">{won(item.net)}</td>
+                    <td className="px-3 py-2 text-fg">{item.accountLast4 ? `**** ${item.accountLast4}` : <Button size="sm" variant="ghost" onClick={onOpenAccounts}>등록 필요</Button>}</td>
                     <td className="px-3 py-2 text-fg">{item.paidOn ?? '—'}</td><td className="px-3 py-2 text-fg">{item.paidBy ? `${item.paidBy} · ${methodLabel(item.method)}` : '—'}</td>
                     <td className="px-3 py-2"><Chip tone={item.status === 'paid' ? 'success' : item.canceledAt ? 'danger' : 'warning'}>
                       {item.status === 'paid' ? '지급 완료' : item.canceledAt ? '지급 취소' : '미지급'}
@@ -107,7 +114,7 @@ export function PayoutDisbursementLedger() {
             onSuccess: () => setPaying(null), onError: (cause) => setError(apiMessage(cause)),
           });
         }}>계좌이체 기록</Button></div>}>
-        <p className="text-[13px] text-fg-2">확정한 시수와 금액은 바꾸지 않습니다. 실제 이체일과 처리자만 별도 원장에 남깁니다.</p>
+        <p className="text-[13px] text-fg-2">확정한 시수와 금액은 바꾸지 않습니다. 활성 지급 계좌 **** {paying.accountLast4}와 실제 이체일·처리자를 별도 원장에 남깁니다.</p>
       </Dialog> : null}
 
       {batching ? <Dialog open onClose={() => setBatching(null)} title="미지급 일괄 지급" sub={`${monthLabel(batching.month)} · ${batching.totalCount - batching.paidCount}명 · ${paidOn}`} closeX
@@ -135,7 +142,7 @@ export function PayoutDisbursementLedger() {
         footer={<div className="flex justify-end"><Button variant="ghost" onClick={() => setHistory(null)}>닫기</Button></div>}>
         <ol className="space-y-2">{history.events.map((event) => <li key={event.version} className="rounded-lg border border-line px-3 py-2 text-[12px] text-fg-2">
           <div className="flex items-center justify-between gap-2"><b className="text-fg">v{event.version} · {event.action === 'paid' ? '지급 완료' : '지급 취소'}</b><span>{kstDateTime(event.createdAt) ?? '시각 미상'}</span></div>
-          <p className="mt-1">{event.actor}{event.paidOn ? ` · ${event.paidOn} · ${methodLabel(event.method)}` : ''}{event.reason ? ` · ${event.reason}` : ''}</p>
+          <p className="mt-1">{event.actor}{event.accountLast4 ? ` · **** ${event.accountLast4}` : ''}{event.paidOn ? ` · ${event.paidOn} · ${methodLabel(event.method)}` : ''}{event.reason ? ` · ${event.reason}` : ''}</p>
         </li>)}</ol>
       </Dialog> : null}
     </Panel>

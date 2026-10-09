@@ -177,6 +177,15 @@ export type PayoutDisbursementPay = S['PayoutDisbursementPayDto'];
 export type PayoutDisbursementCancel = S['PayoutDisbursementCancelDto'];
 export type PayoutDisbursementBatchPay = S['PayoutDisbursementBatchPayDto'];
 export type PayoutDisbursementBatchResult = S['PayoutDisbursementBatchResultDto'];
+/** TBO-55 BOC-11D-01 — 학생 환불·강사 지급 보호 계좌 masked current/event와 사유 있는 원문 확인 */
+export type ProtectedAccountTarget = S['ProtectedAccountTargetDto'];
+export type ProtectedAccountEvent = S['ProtectedAccountEventDto'];
+export type ProtectedAccount = S['ProtectedAccountDto'];
+export type ProtectedAccountLedger = S['ProtectedAccountLedgerDto'];
+export type ProtectedAccountWrite = S['ProtectedAccountWriteDto'];
+export type ProtectedAccountAction = S['ProtectedAccountActionDto'];
+export type ProtectedAccountWriteResult = S['ProtectedAccountWriteResultDto'];
+export type ProtectedAccountSecret = S['ProtectedAccountSecretDto'];
 /** TBO-55 BO-11BD-01 — 청구 조정 current/event·승인 전이·환불 예정액 */
 export type InvoiceAdjustmentEvent = S['InvoiceAdjustmentEventDto'];
 export type InvoiceAdjustment = S['InvoiceAdjustmentDto'];

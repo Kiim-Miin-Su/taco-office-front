@@ -243,6 +243,8 @@ import type {
   PaymentEvidenceBatchIssue, PaymentEvidenceBatchResult,
   PayoutDisbursement, PayoutDisbursementLedger, PayoutDisbursementPay, PayoutDisbursementCancel,
   PayoutDisbursementBatchPay, PayoutDisbursementBatchResult,
+  ProtectedAccountLedger, ProtectedAccountWrite, ProtectedAccountAction,
+  ProtectedAccountWriteResult, ProtectedAccountSecret,
   InvoiceAdjustmentLedger, InvoiceAdjustmentCreate, InvoiceAdjustmentAction,
   InvoiceAdjustmentReasonAction, InvoiceAdjustmentWriteResult,
   DelinquencySuspensionLedger, DelinquencyPolicy, DelinquencyPolicyWrite,
@@ -269,6 +271,8 @@ export const qk = {
   paymentEvidence: (month: string) => ['accounting', 'payment-evidence', month] as const,
   /** TBO-55 BO-11AD-03 확정 정산과 분리된 실제 송금 current 상태. */
   payoutDisbursement: ['accounting', 'payout-ledger'] as const,
+  /** TBO-55 BOC-11D-01 학생 환불·강사 지급 보호 계좌 masked current/event. */
+  protectedAccounts: ['accounting', 'protected-accounts'] as const,
   /** TBO-55 BO-11BD-01 월별 청구 조정 current/event 원장. */
   invoiceAdjustments: (month: string) => ['accounting', 'adjustments', month] as const,
   /** TBO-55 BOC-11C 연체 aging·정지 current/event 원장. */
@@ -821,6 +825,52 @@ export function usePayPayoutDisbursementBatch(): UseMutationResult<
   return useMutation({
     mutationFn: async (body) => (
       await api.post<PayoutDisbursementBatchResult>('/accounting/payout-ledger/pay-batch', body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+/** BOC-11D-01 보호 계좌 — 일반 조회는 뒤 4자리만 받고 원문은 별도 mutation으로 제한한다. */
+export function useProtectedAccounts(enabled = true): UseQueryResult<ProtectedAccountLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.protectedAccounts, viewerId),
+    queryFn: async () => (await api.get<ProtectedAccountLedger>('/accounting/protected-accounts')).data,
+    enabled,
+  });
+}
+
+export function useWriteProtectedAccount(): UseMutationResult<
+  ProtectedAccountWriteResult, unknown, ProtectedAccountWrite
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (
+      await api.post<ProtectedAccountWriteResult>('/accounting/protected-accounts', body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useDeleteProtectedAccount(): UseMutationResult<
+  ProtectedAccountWriteResult, unknown, { accountId: number; body: ProtectedAccountAction }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ accountId, body }) => (
+      await api.post<ProtectedAccountWriteResult>(`/accounting/protected-accounts/${accountId}/delete`, body)
+    ).data,
+    onSettled: invalidate,
+  });
+}
+
+export function useRevealProtectedAccount(): UseMutationResult<
+  ProtectedAccountSecret, unknown, { accountId: number; body: ProtectedAccountAction }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ accountId, body }) => (
+      await api.post<ProtectedAccountSecret>(`/accounting/protected-accounts/${accountId}/reveal`, body)
     ).data,
     onSettled: invalidate,
   });

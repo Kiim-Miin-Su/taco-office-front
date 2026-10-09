@@ -140,8 +140,8 @@ export default function AccountingPage() {
   // §57 강사료 시트도 다른 질의다 — 그 탭을 열 때만 부른다. 달은 화면이 고르고 서버가 센다 (C94-b)
   const [payoutMonth, setPayoutMonth] = useState(thisMonth);
   const payoutMonthOk = /^\d{4}-(0[1-9]|1[0-2])$/.test(payoutMonth);
-  // A27 계좌 화면은 기존 지급 시트의 강사 식별자만 재사용한다. 계좌 권한·값은 별도 DTO 전까지 요청하지 않는다.
-  const payoutSheet = usePayoutSheet(payoutMonth, (tab === 'payout' || tab === 'accounts') && payoutMonthOk);
+  // A27 계좌 대상과 capability는 보호 계좌 DTO가 소유한다. 지급 시트는 강사료 정산 탭에서만 읽는다.
+  const payoutSheet = usePayoutSheet(payoutMonth, tab === 'payout' && payoutMonthOk);
   // 단가표도 다른 질의다 — 그 탭을 열 때만 부른다 (C94-d)
   const rateBook = useRateBook(tab === 'rates');
   // 관리자 수정사항 p94·101·115 — 판매 화면은 기존 서가 정본만 읽고 판매·재고·수수료는 신규 계약 전까지 잠근다.
@@ -414,16 +414,13 @@ export default function AccountingPage() {
           <PayoutSheet data={payoutSheet.data} loading={payoutSheet.isLoading} month={payoutMonth} onMonthChange={setPayoutMonth}
             below={<BonusSummary onEdit={() => selectTab('bonus')} />} />
         ) : tab === 'ledger' ? (
-          <PayoutDisbursementLedger />
+          <PayoutDisbursementLedger onOpenAccounts={() => selectTab('accounts')} />
         ) : tab === 'adjustments' ? (
           <AdjustmentContractBoundary invoices={q.data?.invoices ?? []} onOpenInvoices={() => selectTab('inv')} />
         ) : tab === 'suspensions' ? (
           <DelinquencySuspensionBoundary />
         ) : tab === 'accounts' ? (
           <SensitiveAccountBoundary
-            invoices={q.data?.invoices ?? []}
-            payoutRows={payoutSheet.data?.rows ?? []}
-            payoutLoading={payoutSheet.isLoading}
             onOpenInvoices={() => selectTab('inv')}
             onOpenLedger={() => selectTab('ledger')}
           />

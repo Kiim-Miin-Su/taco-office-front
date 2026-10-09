@@ -1049,7 +1049,7 @@ export interface paths {
         };
         /**
          * 청구 조정 원장 — 할인·환불·형제 할인·이월 (TBO-55 BO-11BD-01)
-         * @description 최종 관리자 수정사항 p106·112의 전용 원장이다. pending/rejected는 INV 금액을 바꾸지 않고, 대표 승인 뒤 approved 합계만 적용 월 tuition 청구액에서 차감한다. 실제 환불 송금 완료는 BO-Q9 전까지 기록하지 않는다. 이 권고안은 invoice-adjustments.service/migration/Front/기능 문서를 함께 바꿔야 한다.
+         * @description 최종 관리자 수정사항 p106·112의 전용 원장이다. pending/rejected는 INV 금액을 바꾸지 않고, 대표 승인 뒤 approved 합계만 적용 월 tuition 청구액에서 차감한다. 실제 환불 송금 완료는 BOC-11D-02에서 기록한다. 이 권고안은 invoice-adjustments.service/migration/Front/기능 문서를 함께 바꿔야 한다.
          */
         get: operations["AccountingController_adjustmentLedger"];
         put?: never;
@@ -1217,6 +1217,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/protected-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학생 환불·강사 지급 보호 계좌 — masked 목록·대상·capability (TBO-55 BOC-11D-01)
+         * @description 최종 관리자 수정사항 p95·p110·p115의 계좌 화면이다. 일반 응답은 대상·version·뒤 4자리만 반환하고 은행·계좌번호·예금주 원문은 별도 사유 있는 reveal에서만 반환한다. ACCT_PRIVACY/canHide와 섞지 않는다. 권고안 변경 시 perm/crypto/service/migration/Front A27/지급 원장/기능 문서를 함께 바꾼다.
+         */
+        get: operations["AccountingController_protectedAccountLedger"];
+        put?: never;
+        /** 보호 계좌 생성·수정·삭제 뒤 재등록 — AES-GCM·version·requestKey */
+        post: operations["AccountingController_writeProtectedAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/protected-accounts/{accountId}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 보호 계좌 삭제 — secret purge·immutable event·expectedVersion */
+        post: operations["AccountingController_deleteProtectedAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/protected-accounts/{accountId}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 보호 계좌 원문 확인 — 별도 capability·사유·value-less 감사 */
+        post: operations["AccountingController_revealProtectedAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting/tuition": {
         parameters: {
             query?: never;
@@ -1246,7 +1301,7 @@ export interface paths {
         };
         /**
          * 실제 강사료 지급 원장 — 확정 정산이 있는 최근 두 달 (TBO-55 BO-11AD-03)
-         * @description 관리자 수정사항 p104의 지급 인원·시수·총액·차감·원천징수·차인지급액·지급일·처리자다. `payout`/`payout_line`의 확정 계산을 바꾸지 않고 별도 실제 송금 current/event 원장을 읽는다. 계좌번호·뒤 4자리는 BO-Q9 계좌 보호 계약 전까지 추정하지 않는다. 이 권고안은 service/migration/기능 문서와 함께 바꿔야 한다.
+         * @description 관리자 수정사항 p104의 지급 인원·시수·총액·차감·원천징수·차인지급액·지급일·처리자다. `payout`/`payout_line`의 확정 계산을 바꾸지 않고 별도 실제 송금 current/event 원장을 읽는다. BOC-11D-01부터 활성 강사 지급 보호 계좌를 요구하고 처리 당시 id·version·뒤 4자리만 snapshot한다. 이 권고안은 service/migration/계좌 Front/기능 문서와 함께 바꿔야 한다.
          */
         get: operations["AccountingController_payoutDisbursementLedger"];
         put?: never;
@@ -1266,7 +1321,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 한 달 미지급 확정 정산 일괄 계좌이체 기록 — actual actor·snapshot·event 원자 저장 */
+        /** 한 달 미지급 확정 정산 일괄 계좌이체 — 전원 활성 보호 계좌·actual actor·snapshot */
         post: operations["AccountingController_payPayoutDisbursementBatch"];
         delete?: never;
         options?: never;
@@ -1283,7 +1338,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 확정 정산 한 건의 실제 계좌이체 기록 — 계산 확정 snapshot은 불변 */
+        /** 확정 정산 한 건의 실제 계좌이체 — 활성 보호 계좌 snapshot·계산 확정 불변 */
         post: operations["AccountingController_payPayoutDisbursement"];
         delete?: never;
         options?: never;
@@ -7218,7 +7273,7 @@ export interface components {
             /** @description 현재 INV.amount. pending/rejected는 바꾸지 않는다 */
             invoiceAmount: number;
             paidAmount: number;
-            /** @description 현재 납부액이 조정 뒤 청구액을 넘는 금액. BO-Q9 전에는 송금 완료를 뜻하지 않는다 */
+            /** @description 현재 납부액이 조정 뒤 청구액을 넘는 금액. BOC-11D-02 전에는 송금 완료를 뜻하지 않는다 */
             refundDue: number;
             requestedById: number;
             requestedBy: string;
@@ -7333,6 +7388,90 @@ export interface components {
             requestKey: string;
             reason: string;
         };
+        ProtectedAccountTargetDto: {
+            /** @enum {string} */
+            purpose: "student_refund" | "teacher_payout";
+            targetId: number;
+            targetName: string;
+            targetTag: string | null;
+        };
+        ProtectedAccountEventDto: {
+            /** @enum {string} */
+            action: "created" | "updated" | "deleted" | "revealed";
+            /** @enum {string|null} */
+            fromState: "active" | "deleted" | null;
+            /** @enum {string} */
+            toState: "active" | "deleted";
+            version: number;
+            actor: string;
+            reason: string | null;
+            createdAt: string;
+        };
+        ProtectedAccountDto: {
+            id: number;
+            /** @enum {string} */
+            purpose: "student_refund" | "teacher_payout";
+            targetId: number;
+            targetName: string;
+            targetTag: string | null;
+            /** @enum {string} */
+            state: "active" | "deleted";
+            version: number;
+            /** @description 활성 계좌의 뒤 4자리. 삭제 상태는 null */
+            last4: string | null;
+            /** @description 일반 응답은 뒤 4자리만 표시한다 */
+            maskedAccountNumber: string | null;
+            updatedBy: string;
+            updatedAt: string;
+            canUpdate: boolean;
+            canDelete: boolean;
+            canReveal: boolean;
+            events: components["schemas"]["ProtectedAccountEventDto"][];
+        };
+        ProtectedAccountLedgerDto: {
+            canRead: boolean;
+            canWrite: boolean;
+            canReveal: boolean;
+            targets: components["schemas"]["ProtectedAccountTargetDto"][];
+            items: components["schemas"]["ProtectedAccountDto"][];
+        };
+        ProtectedAccountWriteDto: {
+            /** @enum {string} */
+            purpose: "student_refund" | "teacher_payout";
+            targetId: number;
+            bank: string;
+            /** @description 숫자·공백·하이픈 입력. 서버가 숫자만 정규화해 암호화한다 */
+            accountNumber: string;
+            holder: string;
+            /** @description 새 계좌 0, 수정·삭제 후 재등록은 현재 version */
+            expectedVersion: number;
+            /** Format: uuid */
+            requestKey: string;
+        };
+        ProtectedAccountWriteResultDto: {
+            item: components["schemas"]["ProtectedAccountDto"];
+            /** @description 같은 actor/action/payload/requestKey 재시도면 true */
+            replayed: boolean;
+        };
+        ProtectedAccountActionDto: {
+            expectedVersion: number;
+            reason: string;
+            /** Format: uuid */
+            requestKey: string;
+        };
+        ProtectedAccountSecretDto: {
+            accountId: number;
+            /** @enum {string} */
+            purpose: "student_refund" | "teacher_payout";
+            targetId: number;
+            targetName: string;
+            version: number;
+            bank: string;
+            accountNumber: string;
+            holder: string;
+            /** @description 같은 원문 확인 요청의 정확한 재시도면 true */
+            replayed: boolean;
+        };
         TuitionRowDto: {
             studentId: number;
             name: string;
@@ -7441,6 +7580,11 @@ export interface components {
             /** @enum {string|null} */
             method: "bank_transfer" | null;
             reason: string | null;
+            /** @description 지급 당시 보호 계좌 id. BOC-11D-01 이전 이력은 null */
+            accountId: number | null;
+            accountVersion: number | null;
+            /** @description 지급 당시 계좌 뒤 4자리 snapshot */
+            accountLast4: string | null;
             createdAt: string;
         };
         PayoutDisbursementDto: {
@@ -7472,7 +7616,14 @@ export interface components {
             canceledAt: string | null;
             canceledBy: string | null;
             cancelReason: string | null;
-            /** @description 확정 정산이면 true. 실제 권한은 endpoint에서 다시 검증한다 */
+            /** @description 미지급은 현재 활성 지급 계좌, 지급 이력은 처리 당시 계좌 id */
+            accountId: number | null;
+            accountVersion: number | null;
+            /** @description 현재 또는 처리 당시 계좌 뒤 4자리 */
+            accountLast4: string | null;
+            /** @description 활성 강사 지급 계좌가 있거나 이미 지급 snapshot이 있으면 true */
+            accountReady: boolean;
+            /** @description 확정 정산이고 활성 지급 계좌가 있으면 true. endpoint가 계좌를 다시 잠그고 검증한다 */
             canPay: boolean;
             /** @description 현재 지급 상태이면 true. 실제 권한은 endpoint에서 다시 검증한다 */
             canCancel: boolean;
@@ -7521,7 +7672,7 @@ export interface components {
              */
             paidOn: string;
             /**
-             * @description 최신 수정사항 p104의 계좌이체. 계좌 참조는 BO-Q9에서 연결한다
+             * @description 최신 수정사항 p104의 계좌이체. 활성 강사 지급 보호 계좌를 서버가 확인한다
              * @enum {string}
              */
             method: "bank_transfer";
@@ -20091,6 +20242,308 @@ export interface operations {
                 };
             };
             /** @description MONTH_CLOSED | PAYMENT_EVIDENCE_STALE | PAYMENT_EVIDENCE_NOT_ISSUED | PAYMENT_EVIDENCE_REPLAY_STALE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_protectedAccountLedger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtectedAccountLedgerDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_writeProtectedAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProtectedAccountWriteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtectedAccountWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_deleteProtectedAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProtectedAccountActionDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtectedAccountWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_revealProtectedAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProtectedAccountActionDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtectedAccountSecretDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
             409: {
                 headers: {
                     [name: string]: unknown;
