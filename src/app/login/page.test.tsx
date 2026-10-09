@@ -49,12 +49,6 @@ const result: LoginResult = {
   },
 };
 
-const ACCOUNTS = [
-  ['ceo@tnacademy.kr', '대표'], ['admin@tnacademy.kr', '관리자'],
-  ['head@tnacademy.kr', '매니저'], ['coord@tnacademy.kr', '매니저'],
-  ['t02@tnacademy.kr', '강사'],
-] as const;
-
 /** 빌드 환경을 바꾼 새 모듈 — Next 는 NODE_ENV · NEXT_PUBLIC_* 를 빌드 때 접는다(여기서는 모듈을 새로 읽어 흉내 낸다) */
 async function pageBuiltWith(env: Record<string, string>) {
   for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
@@ -63,59 +57,28 @@ async function pageBuiltWith(env: Record<string, string>) {
 }
 
 describe('LoginPage — 생성 로그인 계약', () => {
-  // 대표 지시 2026-09-27 — 시험 계정 단추는 환경 값 없이 운영 빌드에도 선다(운영 전환 때 블록을 지운다). 09-26 W8 의 「운영에서는 숨김」을 대신한다.
-  it('운영 빌드에도 시험 계정 단추 다섯이 서고 두 칸은 비어서 열린다 — 누르면 그 권한의 아이디와 비밀번호를 함께 채운다', async () => {
+  it('운영 전환 뒤에는 시험 계정과 시드 비밀번호를 개발·운영 어느 번들에도 넣지 않는다', async () => {
     const ProductionLoginPage = await pageBuiltWith({ NODE_ENV: 'production' });
-    const onRender = vi.fn();
-    const view = render(<Profiler id="login-production" onRender={onRender}><ProductionLoginPage /></Profiler>);
+    const view = render(<ProductionLoginPage />);
     const idInput = view.getByLabelText('아이디') as HTMLInputElement;
     const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
     expect(idInput.value).toBe('');
     expect(passwordInput.value).toBe('');
     expect(view.container.querySelectorAll('input, select, textarea')).toHaveLength(2);
-    expect(view.getByText('시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다')).toBeTruthy();
-    for (const [loginId, role] of ACCOUNTS) {
-      onRender.mockClear();
-      fireEvent.click(view.getByRole('button', { name: `${loginId} · ${role}` }));
-      expect(idInput.value).toBe(loginId);
-      expect(passwordInput.value).toBe('taco1234!');
-      // 두 칸을 한 번에 — 폼 update 1회
-      expect(onRender).toHaveBeenCalledOnce();
-      expect(onRender.mock.calls[0][1]).toBe('update');
-    }
+    expect(view.queryByText(/시험용 계정/)).toBeNull();
+    expect(view.queryByText(/ceo@tnacademy\.kr|admin@tnacademy\.kr|t02@tnacademy\.kr/)).toBeNull();
     expect(get).not.toHaveBeenCalled();
     expect(post).not.toHaveBeenCalled();
     expect(signIn).not.toHaveBeenCalled();
+    cleanup();
+    const DevelopmentLoginPage = await pageBuiltWith({ NODE_ENV: 'development', NEXT_PUBLIC_TEST_LOGIN: 'on' });
+    const development = render(<DevelopmentLoginPage />);
+    expect((development.getByLabelText('아이디') as HTMLInputElement).value).toBe('');
+    expect((development.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('');
+    expect(development.queryByText(/시험용 계정/)).toBeNull();
   });
 
-  // 옛 환경 값 스위치(W8 · NEXT_PUBLIC_TEST_LOGIN · NEXT_PUBLIC_TEST_LOGIN_PASSWORD)는 더 읽지 않는다 — 어떤 값이 있어도 단추는 그대로다
-  it('옛 환경 값(NEXT_PUBLIC_TEST_LOGIN=off · NEXT_PUBLIC_TEST_LOGIN_PASSWORD)은 더 읽지 않는다 — 단추는 서고 시드 비밀번호를 채운다', async () => {
-    const Page = await pageBuiltWith({ NODE_ENV: 'production', NEXT_PUBLIC_TEST_LOGIN: 'off', NEXT_PUBLIC_TEST_LOGIN_PASSWORD: 'other-pass-1' });
-    const view = render(<Page />);
-    const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
-    fireEvent.change(passwordInput, { target: { value: 'typed-by-user' } });
-    fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr · 매니저' }));
-    expect((view.getByLabelText('아이디') as HTMLInputElement).value).toBe('coord@tnacademy.kr');
-    expect(passwordInput.value).toBe('taco1234!');
-  });
-
-  // 번들의 시드 비밀번호는 build 뒤 bundle-secret-check 가 본다 — 운영 전환 전(TEST_ACCOUNT_BUTTONS 표식이 있는 동안)은 경고, 뒤에는 실패.
-  it('개발 빌드에서는 기존 두 칸 자동 채움을 유지하고 단추가 아이디와 비밀번호를 함께 채운다', () => {
-    const view = render(<LoginPage />);
-    const idInput = view.getByLabelText('아이디') as HTMLInputElement;
-    const passwordInput = view.getByLabelText('비밀번호') as HTMLInputElement;
-    expect(idInput.value).toBe('ceo@tnacademy.kr');
-    expect(passwordInput.value).toBe('taco1234!');
-    expect(view.getByText('시험용 계정 — 누르면 아이디와 비밀번호를 채웁니다')).toBeTruthy();
-    fireEvent.change(passwordInput, { target: { value: '' } });
-    fireEvent.click(view.getByRole('button', { name: 't02@tnacademy.kr · 강사' }));
-    expect(idInput.value).toBe('t02@tnacademy.kr');
-    expect(passwordInput.value).toBe('taco1234!');
-    // 개발 빌드의 자동 채움 분기는 빌드 때 접히는 형태다(운영 빌드는 두 칸이 비어서 열린다)
-    expect(process.env.NODE_ENV).not.toBe('production');
-  });
-
-  it('5개 아이디 바로 채우기는 공용 역할 이름을 보이고 실제 권한은 서버가 반환한 사용자를 그대로 저장한다', async () => {
+  it('사용자가 입력한 자격증명을 보내고 실제 권한은 서버가 반환한 사용자를 그대로 저장한다', async () => {
     const serverResult: LoginResult = {
       ...result,
       user: { ...result.user, id: 4, name: '강민지', role: 'manager', roleLabel: '매니저', title: '매니저',
@@ -123,15 +86,13 @@ describe('LoginPage — 생성 로그인 계약', () => {
     };
     post.mockResolvedValueOnce({ data: serverResult });
     const view = render(<LoginPage />);
-    for (const [loginId, role] of ACCOUNTS) {
-      expect(view.getByRole('button', { name: `${loginId} · ${role}` })).toBeTruthy();
-    }
     expect(view.queryByText(/이다현|김민선|김민수|김범준|강민지|김재훈/)).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: 'coord@tnacademy.kr · 매니저' }));
+    fireEvent.change(view.getByLabelText('아이디'), { target: { value: 'coord@tnacademy.kr' } });
+    fireEvent.change(view.getByLabelText('비밀번호'), { target: { value: 'private-password' } });
     expect(signIn).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
     await waitFor(() => expect(signIn).toHaveBeenCalledWith(serverResult.accessToken, serverResult.user));
-    expect(post).toHaveBeenCalledWith('/auth/login', { loginId: 'coord@tnacademy.kr', password: 'taco1234!' });
+    expect(post).toHaveBeenCalledWith('/auth/login', { loginId: 'coord@tnacademy.kr', password: 'private-password' });
   });
 
   it('입력은 2개를 유지하고 아이디 한 타는 폼 update 1회·요청 0회다', () => {
@@ -153,6 +114,8 @@ describe('LoginPage — 생성 로그인 계약', () => {
     post.mockRejectedValueOnce(new ApiError('TIMEOUT', message, 0));
     post.mockResolvedValueOnce({ data: result });
     const view = render(<LoginPage />);
+    fireEvent.change(view.getByLabelText('아이디'), { target: { value: 'ceo@tnacademy.kr' } });
+    fireEvent.change(view.getByLabelText('비밀번호'), { target: { value: 'private-password' } });
 
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
 
@@ -172,6 +135,8 @@ describe('LoginPage — 생성 로그인 계약', () => {
   it('LoginResult의 user로 세션을 만들고 /auth/me를 다시 부르지 않는다', async () => {
     post.mockResolvedValueOnce({ data: result });
     const view = render(<LoginPage />);
+    fireEvent.change(view.getByLabelText('아이디'), { target: { value: 'ceo@tnacademy.kr' } });
+    fireEvent.change(view.getByLabelText('비밀번호'), { target: { value: 'private-password' } });
 
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
 
@@ -180,7 +145,7 @@ describe('LoginPage — 생성 로그인 계약', () => {
     expect(clear.mock.invocationCallOrder[0]).toBeLessThan(signIn.mock.invocationCallOrder[0]);
     expect(post).toHaveBeenCalledWith('/auth/login', {
       loginId: 'ceo@tnacademy.kr',
-      password: 'taco1234!',
+      password: 'private-password',
     });
     expect(get).not.toHaveBeenCalled();
     expect(replace).toHaveBeenCalledWith('/schedule');
@@ -194,8 +159,9 @@ describe('LoginPage — 생성 로그인 계약', () => {
     expect(idInput.type).toBe('text');
     expect(idInput.getAttribute('autocomplete')).toBe('username');
     fireEvent.change(idInput, { target: { value: '김선생.Kim#1' } });
+    fireEvent.change(view.getByLabelText('비밀번호'), { target: { value: 'typed-password' } });
     fireEvent.click(view.getByRole('button', { name: '들어가기' }));
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/auth/login', { loginId: '김선생.Kim#1', password: 'taco1234!' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/auth/login', { loginId: '김선생.Kim#1', password: 'typed-password' }));
   });
 
   // N-101 (대표 결정 2026-09-26) — 운영 빌드에도 늘 선다
