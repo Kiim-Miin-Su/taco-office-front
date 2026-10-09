@@ -1,67 +1,21 @@
 /** @file-guide
  * 목적: 최종 관리자 수정사항 p94·101·115와 Figma A22의 교재 판매·결제 수단 수수료 Front 화면을 제공한다. (component)
- * 책임/재사용: 기존 학생·교재 reader와 공용 UI를 재사용하고 생성 DTO 전에는 쓰기를 잠근다. 금액·권한·취소 가능 여부는 서버 결과만 표시한다.
+ * 책임/재사용: 기존 학생·교재 reader와 생성 DTO·공용 UI를 재사용한다. 금액·권한·취소 가능 여부는 서버 결과만 표시한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
 import { useId, useState } from 'react';
 import { useMeta } from '@/api/queries';
-import type { Books } from '@/api/types';
+import type { BookSale, BookSaleCreate, BookSaleLedger, Books } from '@/api/types';
 import { Banner, Button, Chip, Dialog, Drawer, FieldError, Input, Label, Panel, Select, Textarea } from '@/components/ui';
 import { todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
 
 const SUMMARY_FIELDS = ['건수', '금액 · 비중', '지급수수료', '순수납'] as const;
-export type BookSalePaymentMethod = 'transfer' | 'cash';
-
-/** 생성 DTO 전 Figma 상태를 시험하는 표시 projection. API 계층은 생성 DTO를 이 화면형으로 좁혀 넘긴다. */
-export interface BookSaleListItemView {
-  id: number;
-  soldOn: string;
-  studentName: string;
-  studentTag: string | null;
-  bookLabel: string;
-  quantity: number;
-  unitPrice: number;
-  totalAmount: number;
-  feeAmount: number;
-  netAmount: number;
-  paymentMethod: BookSalePaymentMethod;
-  status: 'completed' | 'canceled';
-  version: number;
-  canCancel: boolean;
-  createdBy: string;
-  canceledBy: string | null;
-  canceledReason: string | null;
-}
-
-export interface BookSaleMethodSummaryView {
-  paymentMethod: BookSalePaymentMethod;
-  count: number;
-  amount: number;
-  ratio: number;
-  feeAmount: number;
-  netAmount: number;
-}
-
-export interface BookSalesLedgerView {
-  items: BookSaleListItemView[];
-  totalCount: number;
-  totalAmount: number;
-  totalFeeAmount: number;
-  totalNetAmount: number;
-  methods: BookSaleMethodSummaryView[];
-}
-
-export interface BookSaleDraft {
-  studentId: number;
-  bookId: number;
-  soldOn: string;
-  quantity: number;
-  unitPrice: number;
-  paymentMethod: BookSalePaymentMethod;
-  memo: string | null;
-}
+export type BookSalePaymentMethod = BookSale['paymentMethod'];
+export type BookSaleListItemView = BookSale;
+export type BookSalesLedgerView = BookSaleLedger;
+export type BookSaleDraft = Omit<BookSaleCreate, 'requestKey'>;
 
 const PAYMENT_METHOD_LABEL: Record<BookSalePaymentMethod, string> = { transfer: '계좌이체', cash: '현금' };
 const emptyTouched = () => ({ student: false, book: false, date: false, quantity: false, price: false, payment: false });
@@ -92,8 +46,8 @@ export function BookSalesFeeBoundary({
   onOpenPayments: () => void;
   onOpenBooks: () => void;
   onRetry?: () => void;
-  onCreate?: (draft: BookSaleDraft) => void;
-  onCancel?: (sale: BookSaleListItemView, reason: string) => void;
+  onCreate?: (draft: BookSaleDraft) => Promise<void> | void;
+  onCancel?: (sale: BookSaleListItemView, reason: string) => Promise<void> | void;
 }) {
   const id = useId();
   const meta = useMeta();
@@ -145,15 +99,18 @@ export function BookSalesFeeBoundary({
     if (invalid || !onCreate) {
       return;
     }
-    onCreate({
+    const result = onCreate({
       studentId: Number(studentId),
       bookId: Number(bookId),
       soldOn,
       quantity: quantityNumber,
       unitPrice: priceNumber,
       paymentMethod,
-      memo: memo.trim() || null,
+      memo: memo.trim() || undefined,
     });
+    if (result) {
+      void result.then(reset, () => undefined);
+    }
   };
 
   return (
@@ -559,7 +516,13 @@ export function BookSalesFeeBoundary({
               disabled={!cancelTarget || !onCancel || canceling || cancelReason.trim().length < 2}
               onClick={() => {
                 if (cancelTarget && onCancel) {
-                  onCancel(cancelTarget, cancelReason.trim());
+                  const result = onCancel(cancelTarget, cancelReason.trim());
+                  if (result) {
+                    void result.then(() => {
+                      setCancelTargetId(null);
+                      setCancelReason('');
+                    }, () => undefined);
+                  }
                 }
               }}
             >

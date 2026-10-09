@@ -23,7 +23,11 @@ import { positiveQueryId, queryEnum, queryYearMonth } from '@/lib/url-state';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Column, PageHeader, Segmented, StatCard, Table } from '@/components/ui';
-import { useAccounting, useAcctPrivacy, useBooks, useCarryTuition, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useStudentCumulative, useTuition } from '@/api/queries';
+import {
+  useAccounting, useAcctPrivacy, useBooks, useBookSales, useCancelBookSale, useCarryTuition,
+  useCreateBookSale, useInvBoard, useOtherIncome, usePayoutSheet, useRateBook, useStudentCumulative, useTuition,
+} from '@/api/queries';
+import { apiMessage } from '@/api/client';
 import { PaymentRecorder } from '@/components/accounting/PaymentRecorder';
 import { ExpenseReview } from '@/components/accounting/ExpenseReview';
 import { InvoiceIssuer, type InvoiceIssuerPreset } from '@/components/accounting/InvoiceIssuer';
@@ -144,8 +148,11 @@ export default function AccountingPage() {
   const payoutSheet = usePayoutSheet(payoutMonth, tab === 'payout' && payoutMonthOk);
   // 단가표도 다른 질의다 — 그 탭을 열 때만 부른다 (C94-d)
   const rateBook = useRateBook(tab === 'rates');
-  // 관리자 수정사항 p94·101·115 — 판매 화면은 기존 서가 정본만 읽고 판매·재고·수수료는 신규 계약 전까지 잠근다.
+  // 관리자 수정사항 p94·101·115 — 기존 서가 정본과 서버 판매 원장·수수료 snapshot을 같은 탭에서 연결한다.
   const books = useBooks(tab === 'sales');
+  const bookSales = useBookSales(tab === 'sales');
+  const createBookSale = useCreateBookSale();
+  const cancelBookSale = useCancelBookSale();
   const me = useSession((s) => s.me);
   const s = q.data?.summary;
   /*
@@ -405,6 +412,23 @@ export default function AccountingPage() {
           <BookSalesFeeBoundary
             books={books.data}
             booksLoading={books.isLoading}
+            ledger={bookSales.data}
+            ledgerLoading={bookSales.isLoading}
+            ledgerError={bookSales.error ? apiMessage(bookSales.error) : null}
+            writeError={createBookSale.error ? apiMessage(createBookSale.error)
+              : cancelBookSale.error ? apiMessage(cancelBookSale.error) : null}
+            saving={createBookSale.isPending}
+            canceling={cancelBookSale.isPending}
+            onRetry={() => { void bookSales.refetch(); }}
+            onCreate={async (draft) => {
+              await createBookSale.mutateAsync({ ...draft, requestKey: crypto.randomUUID() });
+            }}
+            onCancel={async (sale, reason) => {
+              await cancelBookSale.mutateAsync({
+                saleId: sale.id,
+                body: { expectedVersion: sale.version, reason, requestKey: crypto.randomUUID() },
+              });
+            }}
             onOpenPayments={() => selectTab('record')}
             onOpenBooks={() => router.push('/books')}
           />

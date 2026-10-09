@@ -898,6 +898,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounting/book-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 교재 판매·결제 수단별 수수료 원장 (TBO-55 BOC-11F)
+         * @description 관리자 p94·99·101·115의 계좌·현금 판매와 지급수수료·순수납을 서버 snapshot으로 반환한다.
+         */
+        get: operations["AccountingController_bookSaleLedger"];
+        put?: never;
+        /** 교재 판매·invoice 없는 PAY 원자적 생성 */
+        post: operations["AccountingController_createBookSale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/book-sales/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 교재 판매 상세·policy/PAY snapshot */
+        get: operations["AccountingController_bookSaleDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounting/book-sales/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 교재 판매 취소·원본 PAY 보존·음수 보정 PAY 생성 */
+        post: operations["AccountingController_cancelBookSale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/accounting": {
         parameters: {
             query?: never;
@@ -6934,6 +6989,111 @@ export interface components {
             name: string;
             /** @description base64 본문 (data URL 접두사는 붙여도 되고 안 붙여도 된다) */
             base64: string;
+        };
+        BookSaleFeePolicySnapshotDto: {
+            id: number;
+            version: number;
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            /**
+             * @description fixed=건당 원, rate_bps=1/10000 비율
+             * @enum {string}
+             */
+            calculation: "fixed" | "rate_bps";
+            value: number;
+            /** Format: date */
+            effectiveFrom: string;
+            /** Format: date */
+            effectiveTo: string | null;
+        };
+        BookSaleDto: {
+            id: number;
+            studentId: number;
+            studentName: string;
+            studentTag: string | null;
+            bookId: number;
+            bookCode: string;
+            bookTitle: string;
+            bookEdition: string | null;
+            /** @description 판매 당시 표시 스냅숏 */
+            bookLabel: string;
+            /** Format: date */
+            soldOn: string;
+            quantity: number;
+            unitPrice: number;
+            totalAmount: number;
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            feeAmount: number;
+            netAmount: number;
+            feePolicy: components["schemas"]["BookSaleFeePolicySnapshotDto"];
+            payId: number;
+            /** @description 취소 보정 PAY id */
+            correctionPayId: number | null;
+            /** @enum {string} */
+            status: "completed" | "canceled";
+            version: number;
+            memo: string | null;
+            createdBy: string;
+            createdAt: string;
+            canceledBy: string | null;
+            canceledAt: string | null;
+            canceledReason: string | null;
+            /** @description 서버가 상태·월마감·증빙을 반영해 판정 */
+            canCancel: boolean;
+        };
+        BookSaleMethodSummaryDto: {
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            count: number;
+            amount: number;
+            /** @description 금액 비중, 소수 첫째 자리 */
+            ratio: number;
+            feeAmount: number;
+            netAmount: number;
+        };
+        BookSaleLedgerDto: {
+            /** @description 현재 actor가 저장할 수 있는지 */
+            canCreate: boolean;
+            items: components["schemas"]["BookSaleDto"][];
+            totalCount: number;
+            totalAmount: number;
+            totalFeeAmount: number;
+            totalNetAmount: number;
+            methods: components["schemas"]["BookSaleMethodSummaryDto"][];
+        };
+        BookSaleCreateDto: {
+            studentId: number;
+            bookId: number;
+            /**
+             * Format: date
+             * @description 실제 판매·입금일. 미래는 거절
+             */
+            soldOn: string;
+            quantity: number;
+            unitPrice: number;
+            /** @enum {string} */
+            paymentMethod: "transfer" | "cash";
+            memo?: string;
+            /**
+             * Format: uuid
+             * @description 판매·PAY를 하나로 수렴시키는 멱등 키
+             */
+            requestKey: string;
+        };
+        BookSaleWriteResultDto: {
+            item: components["schemas"]["BookSaleDto"];
+            /** @description 같은 actor/action/payload/requestKey의 정확한 재시도면 true */
+            replayed: boolean;
+        };
+        BookSaleCancelDto: {
+            expectedVersion: number;
+            reason: string;
+            /**
+             * Format: uuid
+             * @description 취소·보정 PAY를 하나로 수렴시키는 멱등 키
+             */
+            requestKey: string;
         };
         MoneySummaryDto: {
             /** @description 보낸 청구서 — 초안·취소를 뺀 청구액 합 */
@@ -15181,111 +15341,6 @@ export interface components {
             /** @default 1 */
             page: number;
         };
-        BookSaleFeePolicySnapshotDto: {
-            id: number;
-            version: number;
-            /** @enum {string} */
-            paymentMethod: "transfer" | "cash";
-            /**
-             * @description fixed=건당 원, rate_bps=1/10000 비율
-             * @enum {string}
-             */
-            calculation: "fixed" | "rate_bps";
-            value: number;
-            /** Format: date */
-            effectiveFrom: string;
-            /** Format: date */
-            effectiveTo: string | null;
-        };
-        BookSaleDto: {
-            id: number;
-            studentId: number;
-            studentName: string;
-            studentTag: string | null;
-            bookId: number;
-            bookCode: string;
-            bookTitle: string;
-            bookEdition: string | null;
-            /** @description 판매 당시 표시 스냅숏 */
-            bookLabel: string;
-            /** Format: date */
-            soldOn: string;
-            quantity: number;
-            unitPrice: number;
-            totalAmount: number;
-            /** @enum {string} */
-            paymentMethod: "transfer" | "cash";
-            feeAmount: number;
-            netAmount: number;
-            feePolicy: components["schemas"]["BookSaleFeePolicySnapshotDto"];
-            payId: number;
-            /** @description 취소 보정 PAY id */
-            correctionPayId: number | null;
-            /** @enum {string} */
-            status: "completed" | "canceled";
-            version: number;
-            memo: string | null;
-            createdBy: string;
-            createdAt: string;
-            canceledBy: string | null;
-            canceledAt: string | null;
-            canceledReason: string | null;
-            /** @description 서버가 상태·월마감·증빙을 반영해 판정 */
-            canCancel: boolean;
-        };
-        BookSaleMethodSummaryDto: {
-            /** @enum {string} */
-            paymentMethod: "transfer" | "cash";
-            count: number;
-            amount: number;
-            /** @description 금액 비중, 소수 첫째 자리 */
-            ratio: number;
-            feeAmount: number;
-            netAmount: number;
-        };
-        BookSaleLedgerDto: {
-            /** @description 현재 actor가 저장할 수 있는지 */
-            canCreate: boolean;
-            items: components["schemas"]["BookSaleDto"][];
-            totalCount: number;
-            totalAmount: number;
-            totalFeeAmount: number;
-            totalNetAmount: number;
-            methods: components["schemas"]["BookSaleMethodSummaryDto"][];
-        };
-        BookSaleCreateDto: {
-            studentId: number;
-            bookId: number;
-            /**
-             * Format: date
-             * @description 실제 판매·입금일. 미래는 거절
-             */
-            soldOn: string;
-            quantity: number;
-            unitPrice: number;
-            /** @enum {string} */
-            paymentMethod: "transfer" | "cash";
-            memo?: string;
-            /**
-             * Format: uuid
-             * @description 판매·PAY를 하나로 수렴시키는 멱등 키
-             */
-            requestKey: string;
-        };
-        BookSaleCancelDto: {
-            expectedVersion: number;
-            reason: string;
-            /**
-             * Format: uuid
-             * @description 취소·보정 PAY를 하나로 수렴시키는 멱등 키
-             */
-            requestKey: string;
-        };
-        BookSaleWriteResultDto: {
-            item: components["schemas"]["BookSaleDto"];
-            /** @description 같은 actor/action/payload/requestKey의 정확한 재시도면 true */
-            replayed: boolean;
-        };
     };
     responses: never;
     parameters: never;
@@ -19182,6 +19237,316 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_bookSaleLedger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookSaleLedgerDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_createBookSale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookSaleCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookSaleWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description STUDENT_NOT_FOUND | BOOK_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MONTH_CLOSED | BOOK_SALE_FEE_POLICY_REQUIRED | BOOK_SALE_KEY_REUSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_bookSaleDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookSaleDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description BOOK_SALE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AccountingController_cancelBookSale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookSaleCancelDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookSaleWriteResultDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description BOOK_SALE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description MONTH_CLOSED | BOOK_SALE_STALE | BOOK_SALE_KEY_REUSED | BOOK_SALE_EVIDENCE_ISSUED */
             409: {
                 headers: {
                     [name: string]: unknown;

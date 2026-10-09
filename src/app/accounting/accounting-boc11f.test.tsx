@@ -1,6 +1,6 @@
 /** @file-guide
  * 목적: TBO-55 BOC-11f 최종 관리자 수정사항 p94·101·115와 Figma A22의 교재 판매·수단별 수수료 Front 경계를 회귀한다. (test)
- * 책임/재사용: 실제 AccountingPage와 기존 /meta·/books reader를 사용하고 신규 판매·수수료 계약 전 write 0과 업무 이동을 검증한다.
+ * 책임/재사용: 실제 AccountingPage와 생성 계약·기존 /meta·/books reader를 사용하고 판매·취소 input 경로와 업무 이동을 검증한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ComponentProps, ReactNode } from 'react';
@@ -53,7 +53,7 @@ const books = {
 
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
-const seen: Array<{ method?: string; url?: string }> = [];
+const seen: Array<{ method?: string; url?: string; data?: unknown }> = [];
 
 afterEach(() => {
   cleanup();
@@ -68,9 +68,15 @@ afterEach(() => {
 
 function mount() {
   useSession.getState().signIn('fixture', me);
-  api.defaults.adapter = (async (config: { method?: string; url?: string }) => {
+  api.defaults.adapter = (async (config: { method?: string; url?: string; data?: unknown }) => {
     seen.push(config);
-    const data = config.url === '/meta' ? meta : config.url === '/books' ? books : accounting;
+    const data = config.url === '/meta' ? meta
+      : config.url === '/books' ? books
+        : config.url === '/accounting/book-sales/401/cancel' && config.method === 'post'
+          ? { item: { ...ledger.items[0], status: 'canceled', version: 2, canCancel: false }, replayed: false }
+        : config.url === '/accounting/book-sales' && config.method === 'post'
+          ? { item: ledger.items[0], replayed: false }
+          : config.url === '/accounting/book-sales' ? ledger : accounting;
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   }) as never;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -78,7 +84,7 @@ function mount() {
   return render(<QueryClientProvider client={client}><AccountingPage /></QueryClientProvider>);
 }
 
-it('A22 교재 판매는 학생·기존 카탈로그를 연결하되 판매·재고·청구/PAY 계약 전 저장 성공을 만들지 않는다', async () => {
+it('A22 교재 판매는 학생·기존 카탈로그·생성 DTO를 연결하고 서버 결과로 원장을 갱신한다', async () => {
   const view = mount();
   await waitFor(() => expect(view.getByRole('heading', { name: '교재 판매 · 결제 수수료' })).toBeTruthy());
   await waitFor(() => expect(view.getByRole('option', { name: '정하람 · 10' })).toBeTruthy());
@@ -100,22 +106,27 @@ it('A22 교재 판매는 학생·기존 카탈로그를 연결하되 판매·재
   expect(view.getByRole('option', { name: '계좌이체' })).toBeTruthy();
   expect(view.getByRole('option', { name: '현금' })).toBeTruthy();
   fireEvent.change(view.getByLabelText('결제 수단'), { target: { value: 'transfer' } });
-  expect((view.getByRole('button', { name: '교재 판매 저장 준비 중' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '교재 판매 저장' }));
+  await waitFor(() => expect(seen.some((entry) => entry.method === 'post' && entry.url === '/accounting/book-sales')).toBe(true));
+  const write = seen.find((entry) => entry.method === 'post' && entry.url === '/accounting/book-sales');
+  expect(JSON.parse(String(write?.data))).toMatchObject({
+    studentId: 7, bookId: 31, quantity: 2, unitPrice: 25_000, paymentMethod: 'transfer',
+  });
+  expect(JSON.parse(String(write?.data)).requestKey).toMatch(/^[0-9a-f-]{36}$/);
   expect(view.getByText('교재 판매 원장을 대신하지 않습니다.')).toBeTruthy();
-  fireEvent.click(view.getByRole('button', { name: '초기화' }));
+  await waitFor(() => expect((view.getByLabelText('대상 학생') as HTMLSelectElement).value).toBe(''));
   expect((view.getByLabelText('대상 학생') as HTMLSelectElement).value).toBe('');
   expect((view.getByLabelText('판매 교재') as HTMLSelectElement).value).toBe('');
   expect((view.getByLabelText('수량') as HTMLInputElement).value).toBe('1');
   expect((view.getByLabelText('개당 판매가') as HTMLInputElement).value).toBe('');
   expect((view.getByLabelText('결제 수단') as HTMLSelectElement).value).toBe('');
-  expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);
 });
 
-it('수단별 수수료는 서버 집계·정책 snapshot 전 값을 추정하지 않고 교재·입금 화면으로 이동한다', async () => {
+it('수단별 수수료는 서버 집계·정책 snapshot을 표시하고 교재·입금 화면으로 이동한다', async () => {
   const view = mount();
   await waitFor(() => expect(view.getByRole('heading', { name: '판매 목록 · 결제 수단별 정산' })).toBeTruthy());
-  expect(view.getByText('판매 원장 계약 연결 전입니다')).toBeTruthy();
-  expect(view.queryByRole('region', { name: '결제 수단별 집계' })).toBeNull();
+  expect(view.getByRole('region', { name: '결제 수단별 집계' })).toBeTruthy();
+  expect(view.getByText('판매 원장 연결됨')).toBeTruthy();
   expect(view.getByText(/수수료와 취소 가능 여부를 화면에서 다시 판정하지 않습니다/)).toBeTruthy();
 
   fireEvent.click(view.getByRole('button', { name: '교재 목록 관리' }));
@@ -125,13 +136,34 @@ it('수단별 수수료는 서버 집계·정책 snapshot 전 값을 추정하�
   expect(seen.every(({ method }) => !method || method.toLowerCase() === 'get')).toBe(true);
 });
 
+it('판매 취소는 목록의 서버 version과 사유·새 요청 키를 전용 경로로 보낸다', async () => {
+  const view = mount();
+  await waitFor(() => expect(view.getByRole('button', { name: '상세' })).toBeTruthy());
+  fireEvent.click(view.getByRole('button', { name: '상세' }));
+  fireEvent.click(within(view.getByRole('dialog', { name: '교재 판매 상세' })).getByRole('button', { name: '판매 취소' }));
+  const cancel = view.getByRole('dialog', { name: '교재 판매 취소' });
+  fireEvent.change(within(cancel).getByLabelText('취소 사유'), { target: { value: '중복 판매 정정' } });
+  fireEvent.click(within(cancel).getByRole('button', { name: '취소 확정' }));
+  await waitFor(() => expect(seen.some((entry) => entry.url === '/accounting/book-sales/401/cancel'
+    && entry.method === 'post')).toBe(true));
+  const write = seen.find((entry) => entry.url === '/accounting/book-sales/401/cancel' && entry.method === 'post');
+  expect(JSON.parse(String(write?.data))).toMatchObject({ expectedVersion: 1, reason: '중복 판매 정정' });
+  expect(JSON.parse(String(write?.data)).requestKey).toMatch(/^[0-9a-f-]{36}$/);
+  await waitFor(() => expect(view.queryByRole('dialog', { name: '교재 판매 취소' })).toBeNull());
+});
+
 const ledger: BookSalesLedgerView = {
   items: [
     {
       id: 401,
+      studentId: 7,
       soldOn: '2026-10-09',
       studentName: '정하람',
       studentTag: '10',
+      bookId: 31,
+      bookCode: 'WR-G10-01',
+      bookTitle: 'Writing Basics',
+      bookEdition: 'v2026.03',
       bookLabel: 'WR-G10-01 · Writing Basics · v2026.03',
       quantity: 2,
       unitPrice: 25_000,
@@ -139,14 +171,24 @@ const ledger: BookSalesLedgerView = {
       feeAmount: 0,
       netAmount: 50_000,
       paymentMethod: 'transfer',
+      feePolicy: {
+        id: 1, version: 1, paymentMethod: 'transfer', calculation: 'fixed', value: 0,
+        effectiveFrom: '2026-10-09', effectiveTo: null,
+      },
+      payId: 501,
+      correctionPayId: null,
       status: 'completed',
       version: 1,
       canCancel: true,
+      memo: null,
       createdBy: '대표',
+      createdAt: '2026-10-09T00:00:00.000Z',
       canceledBy: null,
+      canceledAt: null,
       canceledReason: null,
     },
   ],
+  canCreate: true,
   totalCount: 1,
   totalAmount: 50_000,
   totalFeeAmount: 0,
@@ -159,7 +201,7 @@ const ledger: BookSalesLedgerView = {
 
 function mountBoundary(overrides: Partial<ComponentProps<typeof BookSalesFeeBoundary>> = {}) {
   useSession.getState().signIn('fixture', me);
-  api.defaults.adapter = (async (config: { method?: string; url?: string }) => {
+  api.defaults.adapter = (async (config: { method?: string; url?: string; data?: unknown }) => {
     seen.push(config);
     return { config, status: 200, statusText: 'OK', headers: {}, data: meta };
   }) as never;

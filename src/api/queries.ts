@@ -41,6 +41,10 @@ import type {
   BookHolders, BookVersion,
   BookVersionCreate,
   BookWrite,
+  BookSaleCancel,
+  BookSaleCreate,
+  BookSaleLedger,
+  BookSaleWriteResult,
   MaterialRequestAcknowledge,
   MaterialRequestCreate,
   MaterialRequestOptions,
@@ -281,6 +285,8 @@ export const qk = {
   invoiceAdjustments: (month: string) => ['accounting', 'adjustments', month] as const,
   /** TBO-55 BOC-11C 연체 aging·정지 current/event 원장. */
   delinquencySuspensions: ['accounting', 'delinquency-suspensions'] as const,
+  /** TBO-55 BOC-11F 교재 판매·수수료 snapshot 원장. */
+  bookSales: ['accounting', 'book-sales'] as const,
   /** §54 수업료 계산 — 회계 갈래 안의 다른 질의다. 달이 키에 든다 (C65) */
   tuition: (month: string | undefined) => ['accounting', 'tuition', month ?? 'current'] as const,
   /** §57 그 밖의 수입 — 같은 회계 갈래의 다른 질의다 (C66). 눈금이 키에 든다 (C70) */
@@ -1278,6 +1284,40 @@ export function useMonthClose() {
 function useAccountingInvalidate() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries({ queryKey: family.accounting });
+}
+
+/** TBO-55 BOC-11F — 판매 합계·수수료·취소 가능 여부는 서버 projection만 읽는다. */
+export function useBookSales(enabled = true): UseQueryResult<BookSaleLedger> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.bookSales, viewerId),
+    queryFn: async () => (await api.get<BookSaleLedger>('/accounting/book-sales')).data,
+    enabled,
+  });
+}
+
+/** 청구서 없는 PAY와 판매 원장을 서버 transaction 한 번으로 만든다. */
+export function useCreateBookSale(): UseMutationResult<BookSaleWriteResult, unknown, BookSaleCreate> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<BookSaleWriteResult>('/accounting/book-sales', body)).data,
+    onSettled: invalidate,
+  });
+}
+
+/** 원 PAY는 보존하고 현재 열린 월의 음수 보정 PAY로 취소한다. */
+export function useCancelBookSale(): UseMutationResult<
+  BookSaleWriteResult,
+  unknown,
+  { saleId: number; body: BookSaleCancel }
+> {
+  const invalidate = useAccountingInvalidate();
+  return useMutation({
+    mutationFn: async ({ saleId, body }) => (
+      await api.post<BookSaleWriteResult>(`/accounting/book-sales/${saleId}/cancel`, body)
+    ).data,
+    onSettled: invalidate,
+  });
 }
 
 /**
