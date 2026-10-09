@@ -801,6 +801,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/{serId}/{onDate}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * T11 리포트 작성 중 교재·자료 등록
+         * @description 일반 교재·보충 자료·개인 자료의 이름만 받는다. 서버가 코드·생성자·실제 리포트 회차·학생별 배부를 한 트랜잭션으로 확정하며 일반 교재는 관리자 카탈로그에도 즉시 보인다.
+         */
+        post: operations["ReportsController_createMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/{serId}/{onDate}/draft": {
         parameters: {
             query?: never;
@@ -4553,8 +4573,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 「+ 구성원」 — 강사·매니저 계정을 만든다 (C97 · D-41 · W8 · W10)
-         * @description 이름 · 아이디(형식 자유 · 띄어쓰기 없음 · 대소문자 무시 유일) · 임시 비밀번호 · 이메일(선택 · 유일) · 역할 둘 · 직함 · 시간대(tzg) · 휴대폰 · 입사일 · 기본 시급(적으면 같은 트랜잭션에 WAGE 한 줄 · 소급 없음). **아이디와 임시 비밀번호는 매니저가 정한다**(W10) — 비밀번호는 해시로만 저장하고 응답 · 기록에 싣지 않는다. 첫 설정(휴대폰 · 이메일 확인 · 새 비밀번호)을 건다. 대표·관리자 계정은 이 길로 만들지 않는다.
+         * 「+ 구성원」 — 강사·매니저·관리자 계정을 만든다 (C97 · D-41 · W8 · W10)
+         * @description 이름 · 아이디(형식 자유 · 띄어쓰기 없음 · 대소문자 무시 유일) · 임시 비밀번호 · 이메일(선택 · 유일) · 역할 둘 · 직함 · 시간대(tzg) · 휴대폰 · 입사일 · 기본 시급(적으면 같은 트랜잭션에 WAGE 한 줄 · 소급 없음). **아이디와 임시 비밀번호는 매니저가 정한다**(W10) — 비밀번호는 해시로만 저장하고 응답 · 기록에 싣지 않는다. 첫 설정(휴대폰 · 이메일 확인 · 새 비밀번호)을 건다. manager/admin/ceo가 같은 길을 쓰며 대표 계정은 만들지 않는다.
          */
         post: operations["DrawerController_createStaff"];
         delete?: never;
@@ -6992,6 +7012,22 @@ export interface components {
             weekOf: string;
             /** @description 매니저가 쓴 총평 — 학부모에게 그대로 나간다. 앞뒤 공백은 서버가 걷는다 */
             summary: string;
+        };
+        ReportMaterialCreateDto: {
+            /** @enum {string} */
+            kind: "regular" | "supplementary" | "personal";
+            title: string;
+            /** @description 화면이 읽은 ReportDetailDto.version */
+            expectedVersion: number;
+            /**
+             * Format: uuid
+             * @description 재시도·동시 클릭을 한 건으로 묶는 요청 키
+             */
+            requestKey: string;
+        };
+        ReportMaterialCreateResultDto: {
+            detail: components["schemas"]["ReportDetailDto"];
+            selectedIssueId: number;
         };
         ReportUpsertDto: {
             /**
@@ -10847,6 +10883,13 @@ export interface components {
             code: string;
             id: number;
             title: string;
+            /**
+             * @description 일반 교재 · 보충 자료 · 개인 자료
+             * @enum {string}
+             */
+            materialKind: "regular" | "supplementary" | "personal";
+            createdBy?: number | null;
+            createdByName?: string | null;
             subKey?: string | null;
             subName?: string | null;
             level?: string | null;
@@ -14237,10 +14280,10 @@ export interface components {
              */
             email?: string | null;
             /**
-             * @description 강사 · 매니저 — 대표·관리자는 만들지 않는다
+             * @description 강사 · 매니저 · 관리자 — 대표 계정은 만들지 않는다
              * @enum {string}
              */
-            role: "teacher" | "manager";
+            role: "teacher" | "manager" | "admin";
             /** @description 직함 — 권한과 무관 (D-R39) */
             title?: string | null;
             /** @description 시간대 — 시간대 그룹(tzg)에 있는 값만. 비우면 Asia/Seoul */
@@ -18977,6 +19020,87 @@ export interface operations {
                 };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ReportsController_createMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serId: number;
+                /** @description REP 복합 유니크 키의 원래 날짜. 옮긴 실제 날짜와 다를 수 있다 */
+                onDate: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportMaterialCreateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportMaterialCreateResultDto"];
+                };
+            };
+            /** @description REPORT_MATERIAL_FORM_UNSUPPORTED 또는 입력 검증 오류. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description REPORT_FORBIDDEN: 현재 담당 강사 또는 전체 관리 권한이 필요함. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description REPORT_NOT_FOUND: 리포트가 없음. 최신 목록에서 다시 선택한다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description REPORT_VERSION_CONFLICT, REPORT_MATERIAL_DUPLICATE, REPORT_MATERIAL_REQUEST_KEY_REUSED 또는 리포트 문맥 변경. */
             409: {
                 headers: {
                     [name: string]: unknown;

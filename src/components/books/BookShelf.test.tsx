@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 const book = (over: Partial<Book>): Book => ({
-  id: 0, code: '', title: '', hasNewer: false, hasFile: true, issueCount: 0,
+  id: 0, code: '', title: '', materialKind: 'regular', hasNewer: false, hasFile: true, issueCount: 0,
   subKey: null, subName: null, level: null, grade: null, pages: null,
   bookSubjectKey: null, bookSubjectName: null, bookSubjectColor: null, bookCategoryKey: null, bookCategoryName: null,
   bookLevel: null, levelLabel: null, gradeFrom: null, gradeTo: null, gradeLabel: null, examTag: null, examTagLabel: null,

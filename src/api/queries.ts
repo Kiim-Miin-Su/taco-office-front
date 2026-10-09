@@ -185,6 +185,8 @@ import type {
   ReportDetail,
   ReportHistoryQuery,
   ReportList,
+  ReportMaterialCreate,
+  ReportMaterialCreateResult,
   ReportQuery,
   ReportReminderCreate,
   ReportReminderResult,
@@ -2532,6 +2534,25 @@ export function useReportWrite(): UseMutationResult<ReportDetail, unknown, Repor
         : (await api.post<ReportDetail>(path, w.body)).data;
     },
     onSuccess: (detail) => refreshReportConsumers(qc, viewerId, detail),
+    onError: (error) => reconcileReportError(qc, viewerId, error),
+  });
+}
+
+export type ReportMaterialWrite = {
+  serId: number;
+  onDate: string;
+  body: ReportMaterialCreate;
+};
+
+/** T11 자료 생성은 성공 응답의 상세을 같은 캐시에 넣어 새 ISSUE를 즉시 선택할 수 있게 한다. */
+export function useReportMaterialCreate(): UseMutationResult<ReportMaterialCreateResult, unknown, ReportMaterialWrite> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (w) => (
+      await api.post<ReportMaterialCreateResult>(`/reports/${w.serId}/${w.onDate}/materials`, w.body)
+    ).data,
+    onSuccess: (result) => refreshReportConsumers(qc, viewerId, result.detail),
     onError: (error) => reconcileReportError(qc, viewerId, error),
   });
 }

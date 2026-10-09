@@ -12,9 +12,10 @@ import {
   type StructuredBookOption,
 } from './StructuredReportDraft';
 
-const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
+const { mutate, materialMutate } = vi.hoisted(() => ({ mutate: vi.fn(), materialMutate: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useReportWrite: () => ({ isPending: false, mutate }),
+  useReportMaterialCreate: () => ({ isPending: false, mutate: materialMutate }),
 }));
 
 const detail = (over: Partial<ReportDetail> = {}): ReportDetail => ({
@@ -45,6 +46,7 @@ const books: StructuredBookOption[] = [
 afterEach(() => {
   cleanup();
   mutate.mockReset();
+  materialMutate.mockReset();
   useSession.setState({ me: null, ready: false });
   window.localStorage.clear();
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
@@ -108,6 +110,31 @@ it('일반 그룹은 공통 사항과 학생별 40자 의견 및 학생별 프�
   expect(view.getByText('40자 이상 써 주세요')).toBeTruthy();
   expect(view.getByRole('button', { name: '첫 학생 복사하기' })).toBeTruthy();
   expect(view.getByRole('button', { name: '둘째 학생 복사하기' })).toBeTruthy();
+});
+
+it('T11 새 자료는 종류·이름·리포트 version을 보내고 성공한 ISSUE를 즉시 선택한다', () => {
+  const one = detail({ kindKey: 'class', formKind: 'individual', subjectName: 'Algebra', students: [detail().students[0]] });
+  materialMutate.mockImplementation((_input, options) => options.onSuccess({ detail: one, selectedIssueId: 77 }));
+  const view = render(<StructuredReportDraft detail={one} kind="individual" bookOptions={books} />);
+
+  fireEvent.click(view.getAllByRole('button', { name: '＋ 새 교재·자료 추가' })[0]);
+  expect(view.getByRole('dialog', { name: '새 교재·자료 추가' })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '보충 자료' }));
+  fireEvent.change(view.getByLabelText('교재·자료 이름'), { target: { value: ' 단원 보충지 ' } });
+  fireEvent.click(view.getByRole('button', { name: '저장하고 선택' }));
+
+  expect(materialMutate).toHaveBeenCalledWith(expect.objectContaining({
+    serId: 12,
+    onDate: '2026-10-06',
+    body: expect.objectContaining({ kind: 'supplementary', title: '단원 보충지', expectedVersion: 0 }),
+  }), expect.any(Object));
+  expect(view.queryByRole('dialog', { name: '새 교재·자료 추가' })).toBeNull();
+
+  view.rerender(<StructuredReportDraft detail={one} kind="individual" bookOptions={[
+    ...books, { id: 'issue:77', issueId: 77, code: 'T11-S-77', title: '단원 보충지', edition: null },
+  ]} />);
+  expect(within(view.getByRole('group', { name: '진도 페이지 교재' }))
+    .getByRole('button', { name: '단원 보충지' }).getAttribute('aria-pressed')).toBe('true');
 });
 
 it('입력값을 자동 채운 프롬프트만 clipboard로 복사하고 성공 문구를 정확히 표시한다', async () => {

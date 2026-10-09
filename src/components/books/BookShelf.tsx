@@ -32,6 +32,11 @@ const EMPTY: Form = {
   bookSubjectKey: '', bookCategoryKey: '', bookLevel: '', gradeFrom: '', gradeTo: '', examTag: '',
   edition: '', fromDate: '',
 };
+const MATERIAL_KIND_LABEL: Record<Book['materialKind'], string> = {
+  regular: '일반 교재',
+  supplementary: '보충 자료',
+  personal: '개인 자료',
+};
 /** 레벨 칩 점 — 카드 띠(bookLevelPresentation.bandClass)와 같은 토큰 */
 const LEVEL_DOT: Readonly<Record<string, string>> = { 'bg-red': 'var(--red)', 'bg-amber': 'var(--amber)', 'bg-green': 'var(--green)' };
 const UNCLASSIFIED_GROUP = '__unclassified__';
@@ -543,6 +548,11 @@ export function BookShelf({
                             ) : null}
                             <h4 className="mt-1 min-h-10 text-[14px] font-bold">{b.title}</h4>
                             <div className="mt-2 flex flex-wrap gap-1">
+                              {b.createdBy !== null && b.createdBy !== undefined ? (
+                                <Chip size="compact" tone={b.materialKind === 'regular' ? 'info' : 'purple'}>
+                                  {MATERIAL_KIND_LABEL[b.materialKind]}{b.createdByName ? ` · ${b.createdByName}` : ''}
+                                </Chip>
+                              ) : null}
                               <Chip size="compact">{b.gradeLabel ?? '—'}</Chip>
                               {b.examTagLabel ? (
                                 <Chip size="compact" styleKind="solid" tone={bookExamTagTone(b.examTag)}>{b.examTagLabel}</Chip>

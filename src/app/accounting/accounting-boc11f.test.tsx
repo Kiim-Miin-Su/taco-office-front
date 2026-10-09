@@ -40,7 +40,7 @@ const meta = {
 const books = {
   items: [
     {
-      id: 31, code: 'WR-G10-01', title: 'Writing Basics', subKey: 'writing', subName: 'Writing',
+      id: 31, code: 'WR-G10-01', title: 'Writing Basics', materialKind: 'regular', subKey: 'writing', subName: 'Writing',
       edition: 'v2026.03', latestEdition: 'v2026.03', hasNewer: false, versId: 51, latestVersId: 51,
       hasFile: true, issueCount: 3,
     },

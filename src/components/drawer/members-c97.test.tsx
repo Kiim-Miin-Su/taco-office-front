@@ -60,17 +60,19 @@ describe('§17 구성원 (C97)', () => {
     expect(view.queryByRole('button', { name: '+ 구성원' })).toBeNull();
   });
 
-  it('「+ 구성원」은 강사·매니저만 고를 수 있고, 이름·아이디·임시 비밀번호가 있어야 서며(이메일은 선택 · W10), 시간대는 서랍의 그룹 낱말 그대로 보내고, 만들면 넘겨줄 정보를 보인다 (D-41)', async () => {
+  it('「+ 구성원」은 CEO를 제외한 강사·매니저·관리자를 고르고, 이름·아이디·임시 비밀번호가 있어야 서며, 만들면 넘겨줄 정보를 보인다 (D-41 · 2026-10-10)', async () => {
     const { view, client } = paint({ canAddMember: true, canWage: true });
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     // 응답은 만든 줄뿐이다 — 비밀번호는 없다(W10). 넘겨줄 비밀번호는 창이 적은 값이다
     const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {
-      ...who(9, '박수진', 'teacher', { wageRate: 42000, wageFrom: '2026-09-19', wageable: true }), email: 'park@t.kr', loginId: '박수진.T',
+      ...who(9, '박수진', 'admin', { wageRate: 42000, wageFrom: '2026-09-19', wageable: true }), email: 'park@t.kr', loginId: '박수진.T',
     } } as never);
     fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
     const dialog = view.getByRole('dialog');
     const roles = within(dialog).getByRole('group', { name: '역할' });
-    expect([...roles.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['강사', '매니저']);
+    expect([...roles.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['강사', '매니저', '관리자']);
+    expect(within(roles).queryByRole('button', { name: '대표' })).toBeNull();
+    fireEvent.click(within(roles).getByRole('button', { name: '관리자' }));
     const make = within(dialog).getByRole('button', { name: '만들기' }) as HTMLButtonElement;
     expect(make.disabled).toBe(true);
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: ' 박수진 ' } });
@@ -87,7 +89,7 @@ describe('§17 구성원 (C97)', () => {
     fireEvent.change(within(dialog).getByLabelText('기본 시급 (선택)'), { target: { value: '42000' } });
     fireEvent.click(make);
     await waitFor(() => expect(post).toHaveBeenCalledWith('/drawer/staff', {
-      name: '박수진', loginId: '박수진.T', password: 'Temp-pass-9', email: 'Park@t.kr', role: 'teacher', hiredOn: '2026-08-20',
+      name: '박수진', loginId: '박수진.T', password: 'Temp-pass-9', email: 'Park@t.kr', role: 'admin', hiredOn: '2026-08-20',
       title: '영어', tz: 'America/New_York', wageRate: 42000,
     }));
     // 창은 닫히지 않고 넘겨줄 정보를 보인다 — 아이디는 서버가 저장한 모양 · 비밀번호는 적은 값 · 닫으면 다시 볼 수 없다

@@ -7,12 +7,12 @@
 
 import { useMemo, useState } from 'react';
 import { apiMessage } from '@/api/client';
-import { useReportWrite } from '@/api/queries';
-import type { ReportDetail, ReportStructuredBody, ReportUpsert } from '@/api/types';
+import { useReportMaterialCreate, useReportWrite } from '@/api/queries';
+import type { ReportDetail, ReportMaterialCreate, ReportStructuredBody, ReportUpsert } from '@/api/types';
 import { autosaveStampLabel, draftKey, useDraftAutosave } from '@/lib/autosave';
 import { reportTimeLabel } from '@/lib/report-export';
 import { useSession } from '@/store/useSession';
-import { Banner, Button, CountedTextarea, Input, Label, Segmented } from '@/components/ui';
+import { Banner, Button, CountedTextarea, Dialog, Input, Label, Segmented } from '@/components/ui';
 import { ReportWriterGuide } from './ReportWriterGuide';
 
 export const DEVELOPMENT_AREAS = [
@@ -343,7 +343,7 @@ export function buildStructuredReportPrompt(
   return lines.join('\n');
 }
 
-function MaterialFields({ id, label, value, books, requireAmount, inspected, onChange }: {
+function MaterialFields({ id, label, value, books, requireAmount, inspected, onChange, onAdd }: {
   id: string;
   label: string;
   value: MaterialDraft;
@@ -351,6 +351,7 @@ function MaterialFields({ id, label, value, books, requireAmount, inspected, onC
   requireAmount: boolean;
   inspected: boolean;
   onChange: (value: MaterialDraft) => void;
+  onAdd: () => void;
 }) {
   const issue = materialIssue(value, books, requireAmount);
   const from = Number(value.fromPage);
@@ -373,10 +374,13 @@ function MaterialFields({ id, label, value, books, requireAmount, inspected, onC
               {book.title}{book.edition ? ` · ${book.edition}` : ''}
             </Button>
           ))}
-          <Button size="sm" className="min-h-11" disabled title="교재·자료 등록 기능이 준비된 뒤 사용할 수 있습니다">＋ 새 교재·자료 추가 준비 중</Button>
+          <Button size="sm" className="min-h-11" onClick={onAdd}>＋ 새 교재·자료 추가</Button>
         </div>
       ) : (
-        <p className="mt-2 text-[12px] font-bold text-amber">배부 교재를 찾지 못했습니다. 교재를 정확히 연결하는 기능이 준비되기 전에는 쪽 범위를 저장할 수 없습니다.</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-[12px] font-bold text-amber">배부 교재를 찾지 못했습니다. 새 교재·자료를 등록해 연결해 주세요.</p>
+          <Button size="sm" className="min-h-11" onClick={onAdd}>＋ 새 교재·자료 추가</Button>
+        </div>
       )}
       <div className={`mt-3 grid grid-cols-1 gap-3 ${requireAmount ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
@@ -404,13 +408,14 @@ function MaterialFields({ id, label, value, books, requireAmount, inspected, onC
   );
 }
 
-function LessonContentDraft({ kind, detail, value, books, inspected, onChange }: {
+function LessonContentDraft({ kind, detail, value, books, inspected, onChange, onAddMaterial }: {
   kind: 'individual' | 'group';
   detail: Pick<ReportDetail, 'students'>;
   value: StructuredDraft;
   books: readonly StructuredBookOption[];
   inspected: boolean;
   onChange: (value: StructuredDraft) => void;
+  onAddMaterial: (target: 'progress' | 'homework') => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -423,9 +428,11 @@ function LessonContentDraft({ kind, detail, value, books, inspected, onChange }:
           onChange={(content) => onChange({ ...value, common: { ...value.common, content } })} />
       </div>
       <MaterialFields id="structured-progress" label="진도 페이지" value={value.common.progress} books={books} inspected={inspected}
-        requireAmount={false} onChange={(progress) => onChange({ ...value, common: { ...value.common, progress } })} />
+        requireAmount={false} onAdd={() => onAddMaterial('progress')}
+        onChange={(progress) => onChange({ ...value, common: { ...value.common, progress } })} />
       <MaterialFields id="structured-homework" label="숙제 페이지" value={value.common.homework} books={books} inspected={inspected}
-        requireAmount onChange={(homework) => onChange({ ...value, common: { ...value.common, homework } })} />
+        requireAmount onAdd={() => onAddMaterial('homework')}
+        onChange={(homework) => onChange({ ...value, common: { ...value.common, homework } })} />
       {kind === 'group' ? detail.students.map((student) => {
         const id = String(student.id);
         return (
@@ -724,6 +731,12 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
   const [inspectionMessage, setInspectionMessage] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
   const write = useReportWrite();
+  const createMaterial = useReportMaterialCreate();
+  const [materialTarget, setMaterialTarget] = useState<'progress' | 'homework' | null>(null);
+  const [materialKind, setMaterialKind] = useState<ReportMaterialCreate['kind']>('regular');
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialRequestKey, setMaterialRequestKey] = useState('');
+  const [materialError, setMaterialError] = useState<string | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const bookIds = bookOptions.map((book) => book.id).join(',');
   const autosave = useDraftAutosave<StructuredDraft>({
@@ -736,6 +749,45 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
   });
 
   const invalidKinderCount = kind === 'kinder' && detail.students.length !== 1;
+  const openMaterial = (target: 'progress' | 'homework') => {
+    setMaterialTarget(target);
+    setMaterialKind('regular');
+    setMaterialTitle('');
+    setMaterialRequestKey(globalThis.crypto.randomUUID());
+    setMaterialError(null);
+  };
+  const closeMaterial = () => {
+    if (createMaterial.isPending) return;
+    setMaterialTarget(null);
+    setMaterialError(null);
+  };
+  const saveMaterial = () => {
+    const title = materialTitle.trim();
+    if (!materialTarget || !title || createMaterial.isPending) return;
+    setMaterialError(null);
+    createMaterial.mutate(
+      {
+        serId: detail.serId,
+        onDate: detail.onDate,
+        body: { kind: materialKind, title, expectedVersion: detail.version, requestKey: materialRequestKey },
+      },
+      {
+        onSuccess: (result) => {
+          const selected = `issue:${result.selectedIssueId}`;
+          setDraft((current) => ({
+            ...current,
+            common: {
+              ...current.common,
+              [materialTarget]: { ...current.common[materialTarget], bookId: selected },
+            },
+          }));
+          setMaterialTarget(null);
+          setSaveMessage({ tone: 'success', text: `${title} 자료를 등록하고 선택했습니다.` });
+        },
+        onError: (error) => setMaterialError(apiMessage(error)),
+      },
+    );
+  };
   const inspect = () => {
     setInspected(true);
     const issues = draftIssues(kind, detail, draft, bookOptions);
@@ -772,7 +824,7 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
 
   return (
     <div className="flex flex-col gap-4">
-      <fieldset disabled={!detail.canEdit || write.isPending} className="contents">
+      <fieldset disabled={!detail.canEdit || write.isPending || createMaterial.isPending} className="contents">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <Label>작성 언어</Label>
@@ -791,7 +843,8 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
         </Banner>
       ) : null}
       {!invalidKinderCount && (kind === 'individual' || kind === 'group') ? (
-        <LessonContentDraft kind={kind} detail={detail} value={draft} books={bookOptions} inspected={inspected} onChange={setDraft} />
+        <LessonContentDraft kind={kind} detail={detail} value={draft} books={bookOptions} inspected={inspected}
+          onChange={setDraft} onAddMaterial={openMaterial} />
       ) : null}
       {!invalidKinderCount && (kind === 'kinder' || kind === 'mock') ? (
         <DevelopmentDraft kind={kind} value={draft} inspected={inspected} onChange={setDraft} />
@@ -804,6 +857,54 @@ export function StructuredReportDraft({ detail, kind, bookOptions = [], showWrit
       {!invalidKinderCount ? <ReportPromptPanel detail={detail} kind={kind} draft={draft} books={bookOptions} /> : null}
 
       </fieldset>
+
+      <Dialog
+        open={materialTarget !== null}
+        onClose={closeMaterial}
+        title="새 교재·자료 추가"
+        sub="이름과 종류를 저장하면 현재 리포트의 진도·숙제 교재로 바로 선택됩니다."
+        closeX
+        footer={(
+          <>
+            <Button variant="secondary" disabled={createMaterial.isPending} onClick={closeMaterial}>취소</Button>
+            <Button disabled={!materialTitle.trim() || createMaterial.isPending} onClick={saveMaterial}>
+              {createMaterial.isPending ? '저장 중…' : '저장하고 선택'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <Label>자료 종류</Label>
+            <Segmented
+              ariaLabel="자료 종류"
+              className="[&>button]:min-h-11"
+              options={[
+                { value: 'regular', label: '일반 교재' },
+                { value: 'supplementary', label: '보충 자료' },
+                { value: 'personal', label: '개인 자료' },
+              ]}
+              value={materialKind}
+              onChange={setMaterialKind}
+            />
+          </div>
+          <div>
+            <Label htmlFor="report-material-title">교재·자료 이름</Label>
+            <Input
+              id="report-material-title"
+              autoFocus
+              maxLength={120}
+              value={materialTitle}
+              onChange={(event) => setMaterialTitle(event.currentTarget.value)}
+              placeholder="정식 이름을 입력해 주세요"
+            />
+          </div>
+          {materialKind === 'regular' ? (
+            <Banner tone="info">일반 교재는 저장 즉시 관리자 교재 카탈로그에도 표시됩니다.</Banner>
+          ) : null}
+          {materialError ? <Banner tone="danger">{materialError}</Banner> : null}
+        </div>
+      </Dialog>
 
       {inspectionMessage ? <Banner tone={inspectionMessage.startsWith('확인할') ? 'danger' : 'success'}>{inspectionMessage}</Banner> : null}
       {saveMessage ? <Banner tone={saveMessage.tone}>{saveMessage.text}</Banner> : null}

@@ -32,6 +32,7 @@ const base: Book = {
   id: 3,
   code: 'ENG-RD-G9-P-001',
   title: 'Between the Lines',
+  materialKind: 'regular',
   subKey: 'reading',
   subName: 'Reading',
   level: 'P',

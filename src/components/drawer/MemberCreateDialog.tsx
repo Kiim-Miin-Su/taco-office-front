@@ -7,11 +7,11 @@
 /**
  * §17 「+ 구성원」 (C97 · 테스트 시나리오 D-41 「강사 계정 생성」 · D-R39 · W8 · W10).
  *
- * 화면이 보내는 것은 **이름 · 아이디 · 임시 비밀번호 · 이메일(선택) · 역할(강사·매니저) · 직함 · 시간대 · 휴대폰 · 입사일 · 기본 시급**이다.
+ * 화면이 보내는 것은 **이름 · 아이디 · 임시 비밀번호 · 이메일(선택) · 역할(강사·매니저·관리자) · 직함 · 시간대 · 휴대폰 · 입사일 · 기본 시급**이다.
  * **아이디와 임시 비밀번호는 매니저가 정한다**(W10 · 대표 지시 2026-09-26 「매니저가 아이디 비번 만들면 db 에 저장 → 초기 설정 시
  * 주요 인증 및 비번 재설정」) — 아이디는 형식 자유(띄어쓰기만 없음)이고 규칙 문장은 서버가 준다. 첫 로그인 때 본인이 바꾼다.
  * 만들어지면 창이 닫히지 않고 **넘겨줄 정보**(아이디는 서버 응답 · 비밀번호는 적은 값 — 응답에는 비밀번호가 없다)를 보인다.
- * 대표·관리자는 고를 수 없다 — 권한을 올리는 길을 화면에 두지 않는다(서버 DTO 도 같은 둘만 받는다).
+ * manager/admin/ceo는 대표를 제외한 역할을 만든다(2026-10-10 대표 결정). 서버가 actor 권한 한도와 CEO 제외를 최종 검사한다.
  * 단추가 서는지는 서버의 `canAddMember` 가 정한다 — 이 파일은 role 을 보지 않는다.
  * 시간대 낱말은 서랍의 「시간대 그룹」(D-R18) 그대로이고, 시급을 적으면 입사일(지났으면 오늘)부터의 WAGE 한 줄이 같이 선다(소급 없음).
  */
@@ -27,8 +27,8 @@ import { todayKst } from '@/lib/calendar';
 import { MemberHandoverBox, type MemberHandover } from './MemberRowActions';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-/** 서버 `STAFF_CREATE_ROLES` 와 같은 둘 — 이름은 `ROLES` 표에서 꺼낸다(비교가 아니라 표시 · D-R39). 「수정」 창도 같은 둘을 쓴다 */
-export const STAFF_PICKABLE_ROLES: ReadonlyArray<StaffCreate['role']> = ['teacher', 'manager'];
+/** 서버 `STAFF_CREATE_ROLES`과 같은 역할 — CEO만 제외한다. 이름은 `ROLES` 표에서 재사용한다. */
+export const STAFF_PICKABLE_ROLES: ReadonlyArray<StaffCreate['role']> = ['teacher', 'manager', 'admin'];
 const PICKABLE = STAFF_PICKABLE_ROLES;
 
 export interface MemberCreateButtonProps {
@@ -133,7 +133,7 @@ export function MemberCreateButton({
         <div className="flex flex-col gap-3">
           <div>
             <Label>역할</Label>
-            {/* 대표·관리자는 없다 — 이 창은 권한을 올리는 길이 아니다 */}
+            {/* 2026-10-10 대표 결정: manager 이상은 CEO를 제외한 역할을 만든다. */}
             <Segmented<StaffCreate['role']> ariaLabel="역할" value={role} disabled={pending} onChange={setRole}
               options={PICKABLE.map((key) => ({ value: key, label: ROLES.find((r) => r.key === key)?.label ?? key }))} />
           </div>
