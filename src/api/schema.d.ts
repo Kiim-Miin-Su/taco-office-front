@@ -4602,7 +4602,7 @@ export interface paths {
         head?: never;
         /**
          * §17 「수정」 — 강사·매니저 줄의 이름 · 아이디 · 이메일 · 휴대폰 · 직함 · 시간대 · 역할 · 입사일 (W8 · W10)
-         * @description 보낸 칸만 바꾼다. 대표·관리자 줄은 403 STAFF_PROTECTED, 자기 역할은 403 SELF_ROLE. 이메일을 바꾸거나 비우면 이메일 확인이, 휴대폰을 바꾸면 휴대폰 확인이 풀리고 첫 설정을 다시 건다(N-104). 아이디는 연락처가 아니라서 바꿔도 첫 설정은 그대로다(W10). 시급은 「시급 수정」에서만.
+         * @description 보낸 칸만 바꾼다. 대표·관리자 줄은 403 STAFF_PROTECTED, 자기 역할은 403 SELF_ROLE. 이메일을 바꾸거나 비우면 이메일 확인이, 휴대폰을 바꾸면 휴대폰 확인이 풀리고 첫 설정을 다시 건다(N-104). 아이디는 연락처가 아니라서 바꿔도 첫 설정은 그대로다(W10). 대상이 actor에게 없는 권한을 가지면 아이디·이메일·휴대폰 변경은 403 PERM_GRANT_FORBIDDEN이다. 이름·직함 등 프로필 수정은 유지한다. 시급은 「시급 수정」에서만.
          */
         patch: operations["DrawerController_updateStaff"];
         trace?: never;
@@ -4618,7 +4618,7 @@ export interface paths {
         put?: never;
         /**
          * §17 「비밀번호 초기화」 — 매니저가 적은 임시 비밀번호로 바꾸고 첫 설정을 다시 건다 (W8 · W10)
-         * @description 자기 것은 403 SELF_RESET(첫 설정 흐름으로 바꾼다), 대표·관리자 줄은 403 STAFF_PROTECTED. 그 계정의 이전 로그인은 끊긴다(credentials_changed_at). 응답은 그 줄(MemberDto) — 비밀번호는 응답 · 기록(log) 어디에도 없다.
+         * @description 자기 것은 403 SELF_RESET(첫 설정 흐름으로 바꾼다), 대표·관리자 줄은 403 STAFF_PROTECTED. 그 계정의 이전 로그인은 끊긴다(credentials_changed_at). 대상이 actor에게 없는 권한을 가지면 403 PERM_GRANT_FORBIDDEN이다(임시 비밀번호를 이용한 권한 제한 우회 차단). 응답은 그 줄(MemberDto) — 비밀번호는 응답 · 기록(log) 어디에도 없다.
          */
         post: operations["DrawerController_resetStaffPassword"];
         delete?: never;
@@ -4642,7 +4642,7 @@ export interface paths {
         head?: never;
         /**
          * §17 「사용 중지」·「다시 사용」 (W8)
-         * @description 사용 중지된 계정은 다음 요청부터 인증이 막히고 로그인도 안 된다(기존 활성 검사). 자기 것은 403 SELF_ACTIVE, 대표·관리자 줄은 403 STAFF_PROTECTED. 같은 값이면 그대로 돌려준다.
+         * @description 사용 중지되면 인증·로그인이 막히며 기존 Access·Refresh를 폐기한다. 재활성화해도 옛 세션은 살아나지 않고 새 로그인이 필요하다. 자기 것은 403 SELF_ACTIVE, 대표·관리자 줄은 403 STAFF_PROTECTED. 같은 값이면 그대로 돌려준다.
          */
         patch: operations["DrawerController_setStaffActive"];
         trace?: never;
@@ -13988,7 +13988,7 @@ export interface components {
             canEdit?: boolean;
             /** @description 수정 창에서 역할을 바꿀 수 있는가 — canEdit 이고 **자기 줄이 아닐 때만** (자기 역할은 못 바꾼다) */
             canChangeRole?: boolean;
-            /** @description 「비밀번호 초기화」 — canEdit 이고 자기 줄이 아닐 때만 (자기 것은 첫 설정 흐름으로 바꾼다) */
+            /** @description 「비밀번호 초기화」 — canEdit이고 자기 줄이 아니며 대상의 모든 현재 권한을 actor도 가질 때만. 자격 writer와 같은 한도를 쓴다. */
             canResetPassword?: boolean;
             /** @description 「사용 중지」·「다시 사용」 — canEdit 이고 자기 줄이 아닐 때만 */
             canToggleActive?: boolean;
@@ -16154,7 +16154,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description AUTH_CODE_SECRET_MISSING — 운영에 코드 비밀 값이 없어 코드를 확인할 수 없다(N-105) */
+            /** @description AUTH_CODE_SECRET_MISSING — 운영 코드 비밀 값 없음(N-105) | INITIAL_PASSWORD_REQUIRED — 서버 비밀번호 정책 설정 누락/불완전, 기존 자격 유지 */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -16398,7 +16398,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description SENDER_NOT_CONFIGURED(발송 설정 없음) · AUTH_CODE_SECRET_MISSING(운영에 코드 비밀 값 없음 · N-105) — 계정과 무관한 서버 상태 */
+            /** @description SENDER_NOT_CONFIGURED(발송 설정 없음) · AUTH_CODE_SECRET_MISSING(운영에 코드 비밀 값 없음 · N-105) — 계정과 무관한 서버 상태 | INITIAL_PASSWORD_REQUIRED — 서버 비밀번호 정책 설정 누락/불완전, 기존 자격 유지 */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -35383,6 +35383,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
+            /** @description INITIAL_PASSWORD_REQUIRED — 서버 비밀번호 정책 설정 누락/불완전. 계정 생성 없이 거절한다. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
         };
     };
     DrawerController_deleteStaff: {
@@ -35580,7 +35589,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description STAFF_PROTECTED | SELF_RESET */
+            /** @description STAFF_PROTECTED | SELF_RESET | PERM_GRANT_FORBIDDEN */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -35609,6 +35618,15 @@ export interface operations {
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description INITIAL_PASSWORD_REQUIRED — 서버 비밀번호 정책 설정 누락/불완전. 기존 자격은 유지한다. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
