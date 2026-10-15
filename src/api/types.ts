@@ -601,6 +601,16 @@ export type PasswordResetInfo = S['PasswordResetInfoDto'];
 export type PasswordResetCodeRequest = S['PasswordResetCodeRequestDto'];
 export type PasswordResetCodeResult = S['PasswordResetCodeResultDto'];
 export type PasswordResetComplete = S['PasswordResetCompleteDto'];
+/**
+ * AUTH-SELF-01 본인 마이페이지(2026-10-16) — 대상은 늘 세션의 본인이다(경로 · 본문에 사람 id 없음).
+ * 조회(Profile) · 이름/영어 이름 고치기(ProfileUpdate) · 새 수신처 코드 받기(ProfileContactCodeRequest → OnboardingCodeResult) ·
+ * 연락처 저장(ProfileContactChange → LoginResult · 새 세션). 코드 채널 · 나라 목록은 Profile.contactCodes 에 서버가 싣는다.
+ */
+export type Profile = S['ProfileDto'];
+export type ProfileContactCodes = S['ProfileContactCodesDto'];
+export type ProfileUpdate = S['ProfileUpdateDto'];
+export type ProfileContactCodeRequest = S['ProfileContactCodeRequestDto'];
+export type ProfileContactChange = S['ProfileContactChangeDto'];
 
 /**
  * 권한 플래그 이름 — 화면이 조건을 적을 때 오타가 나지 않게.

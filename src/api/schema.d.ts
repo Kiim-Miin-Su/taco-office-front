@@ -212,6 +212,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 내 프로필 — 아이디 · 이름 · 영어 이름 · 역할 이름 · 직함 · 이메일/휴대폰과 인증 여부 · 입사일 · 연락처 변경 코드 안내
+         * @description 본인 화면에 필요한 최소 정보만 싣는다(비밀번호 해시 · 권한 예외 · 세션 시각 없음). 권한 판정은 MeDto 플래그다.
+         */
+        get: operations["ProfileController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 이름 · 영어 이름 고치기 — 생략하면 그대로 · 영어 이름 null/빈 글자는 비운다
+         * @description 이름은 비울 수 없고 1~40자(앞뒤 공백 제외)다. role · id · 인증 여부 · 이메일 · 휴대폰 같은 칸을 실으면 400 이다 (연락처는 contact-change 로만 바뀐다). 바뀐 칸이 있을 때만 감사 줄을 남긴다.
+         */
+        patch: operations["ProfileController_update"];
+        trace?: never;
+    };
+    "/auth/profile/contact-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 새 이메일 · 휴대폰으로 확인 코드 받기 — 6자리 · 10분
+         * @description 코드와 받는 곳 원문은 저장하지 않는다(HMAC · 가린 모양만). 같은 채널 60초 간격 · 한 시간 5번 · 하루 10번(계정 · 채널마다 · 첫 설정 · 비밀번호 찾기와 같은 예산). 지금 값과 같은 수신처는 409 CONTACT_UNCHANGED.
+         */
+        post: operations["ProfileController_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/profile/contact-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 새 이메일 · 휴대폰 저장 — 그 수신처로 받은 코드와 지금 비밀번호를 한 번에
+         * @description 둘 다 맞으면 한 transaction 으로 그 채널의 값과 인증을 저장하고 남은 코드를 닫고 세션 시각을 바꾼다 — 그 전에 발급된 이 계정의 토큰은 모두 401 이 되고, 응답이 새 세션이다(Access 는 본문 · Refresh 는 httpOnly 쿠키). 실패하면 지금 값 · 인증 상태는 그대로다. 비밀번호 틀림은 그 코드의 틀린 횟수에 센다.
+         */
+        post: operations["ProfileController_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meta": {
         parameters: {
             query?: never;
@@ -881,6 +945,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/files/book-pdf-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 신규 교재 PDF의 비공개 Blob 직접 업로드 URL 발급 */
+        post: operations["FilesController_bookPdfUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files": {
         parameters: {
             query?: never;
@@ -895,6 +976,23 @@ export interface paths {
          * @description 원본 파일 3MB까지. base64 JSON·Vercel 요청 한도 안에서 실제로 통과하는 값이며, 더 크면 FILE_TOO_LARGE로 거절한다.
          */
         post: operations["FilesController_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/{id}/download-target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 현재 권한을 확인해 DB 파일 또는 짧게 유효한 비공개 PDF URL을 돌려준다 */
+        get: operations["FilesController_downloadTarget"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3225,7 +3323,7 @@ export interface paths {
         put?: never;
         /**
          * 새 판 올리기 (§39)
-         * @description SE/TE 파일 본문, 판, 이력(교재 업로드)이 한 트랜잭션에서 함께 저장된다. SE+TE 원본 합계는 3MB까지다.
+         * @description 기존 base64 본문은 SE+TE 합계 3MB, 신규 비공개 Blob PDF는 업로드 의도 ID와 판을 같은 DB 트랜잭션에 연결한다.
          */
         post: operations["BooksController_addVersion"];
         delete?: never;
@@ -5584,6 +5682,80 @@ export interface components {
              */
             password: string;
         };
+        ProfileContactCodesDto: {
+            /** @description 코드를 받을 채널 — 낱말 · 못 보내는 까닭은 서버가 준다 */
+            channels: components["schemas"]["OnboardingChannelDto"][];
+            /** @description 휴대폰 국가번호 목록 — 첫 줄이 대한민국(기본값) */
+            phoneCountries: components["schemas"]["PhoneCountryDto"][];
+            /** @description 코드 유효 시간(분) */
+            codeTtlMinutes: number;
+            /** @description 같은 채널로 다시 받기까지 기다릴 초 */
+            resendAfterSeconds: number;
+        };
+        ProfileDto: {
+            id: number;
+            /** @description 로그인 아이디 — 매니저가 정한 그대로(본인 화면에서 바꾸지 않는다) */
+            loginId: string;
+            /** @description 이름 — 셸 · 구성원 목록과 같은 칸(STAFF.name) */
+            name: string;
+            /** @description 영어 이름 — 비어 있으면 null */
+            englishName: string | null;
+            /** @description 역할의 이름 — 표시용(판정은 MeDto 플래그) */
+            roleLabel: string;
+            /** @description 직함 — 권한과 무관 */
+            title: string | null;
+            /** @description 본인 이메일(연락 · 인증용 · 아이디가 아니다) */
+            email: string | null;
+            /** @description 이메일 인증 완료 여부 */
+            emailVerified: boolean;
+            /** @description 본인 휴대폰 — 한국은 숫자만 · 해외는 +국가번호… */
+            phone: string | null;
+            /** @description 휴대폰 인증 완료 여부 */
+            phoneVerified: boolean;
+            /** @description 입사일 YYYY-MM-DD — 옛 계정은 null 일 수 있다 */
+            hiredOn: string | null;
+            contactCodes: components["schemas"]["ProfileContactCodesDto"];
+        };
+        ProfileUpdateDto: {
+            /** @description 이름 — 생략하면 그대로 · null/빈 글자는 400 */
+            name?: string;
+            /** @description 영어 이름 — 생략하면 그대로 · null 또는 빈 글자면 비운다 */
+            englishName?: string | null;
+        };
+        ProfileContactCodeRequestDto: {
+            /**
+             * @description email = 확인할 이메일로 · sms = 확인할 휴대폰으로
+             * @enum {string}
+             */
+            channel: "email" | "sms";
+            /**
+             * @description 받을 이메일 주소 또는 휴대폰 번호
+             * @example kim@tnacademy.kr
+             */
+            target: string;
+        };
+        ProfileContactChangeDto: {
+            /**
+             * @description email = 이메일 바꾸기 · sms = 휴대폰 바꾸기
+             * @enum {string}
+             */
+            channel: "email" | "sms";
+            /**
+             * @description 새 이메일 주소 또는 휴대폰 번호 — 코드를 받은 그 수신처
+             * @example kim@tnacademy.kr
+             */
+            target: string;
+            /**
+             * @description 새 수신처로 받은 코드
+             * @example 123456
+             */
+            code: string;
+            /**
+             * @description 지금 비밀번호 — 다시 확인한다. 응답 · 기록에는 싣지 않는다
+             * @example ********
+             */
+            currentPassword: string;
+        };
         KindDto: {
             key: string;
             name: string;
@@ -6822,7 +6994,7 @@ export interface components {
             mime: string;
             /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
             bytes: number;
-            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
+            /** @description 인증과 권한 확인을 거치는 파일 API 주소. 실제 다운로드 방식은 파일 저장소에 따라 다르다 */
             url: string;
             uploaderName?: string | null;
             uploadedAt: string;
@@ -7055,6 +7227,17 @@ export interface components {
             /** @description 화면이 읽은 ReportDetailDto.version */
             expectedVersion: number;
         };
+        BookPdfUploadIntentDto: {
+            /** @enum {string} */
+            kind: "lib-se" | "lib-te";
+            name: string;
+            bytes: number;
+        };
+        BookPdfUploadUrlDto: {
+            uploadId: string;
+            /** @description 10분 안에 application/pdf로 PUT 할 비공개 Blob 서명 URL */
+            uploadUrl: string;
+        };
         FileUploadDto: {
             /**
              * @description 어디에 쓰이는 파일인가 — 열람 권한이 여기서 갈린다
@@ -7065,6 +7248,12 @@ export interface components {
             name: string;
             /** @description base64 본문 (data URL 접두사는 붙여도 되고 안 붙여도 된다) */
             base64: string;
+        };
+        FileDownloadTargetDto: {
+            /** @enum {string} */
+            storage: "database" | "blob";
+            url?: string;
+            name: string;
         };
         BookSaleFeePolicySnapshotDto: {
             id: number;
@@ -11004,7 +11193,7 @@ export interface components {
             newerBooks: components["schemas"]["BookNoticeDto"][];
             /** @description TE 파일이 없는 교재 — 머리 띠의 이름들(서가 전체 기준 · noFileCount 와 같은 줄) */
             noTeBooks: components["schemas"]["BookNoticeDto"][];
-            /** @description 새 판 SE+TE 원본 파일 합계 상한. 화면은 이 서버 값을 그대로 쓴다 */
+            /** @description 새 판 SE+TE 비공개 PDF 합계 상한. 각 PDF는 50MB 이하 */
             versionUploadMaxBytes: number;
         };
         BookVersionCreateDto: {
@@ -11017,6 +11206,10 @@ export interface components {
             seFile?: components["schemas"]["FileUploadDto"];
             /** @description 이 판과 같은 트랜잭션에 저장할 TE 파일 */
             teFile?: components["schemas"]["FileUploadDto"];
+            /** @description 서버가 발급한 비공개 SE PDF 업로드 ID */
+            seUploadId?: string;
+            /** @description 서버가 발급한 비공개 TE PDF 업로드 ID */
+            teUploadId?: string;
             /**
              * Format: date
              * @description 이 판을 언제부터 쓰는가 — 비우면 오늘부터
@@ -12821,6 +13014,12 @@ export interface components {
             wageRate?: number | null;
             /** @description 그 시급 적용 시작일 */
             wageFrom?: string | null;
+            /** @description Kinder 1:1 시급(원/시간) = 기본 시급 + Kinder 가산. 기본 시급 · 정책 줄이 없거나 가려지면 null — 서버는 늘 채운다 */
+            kinderHourlyRate?: number | null;
+            /** @description 진단고사 한 회차 급여(원/건) — 정책 줄이 없거나 가려지면 null · 서버는 늘 채운다 */
+            diagPerSession?: number | null;
+            /** @description 모의수업 한 회차 급여(원/건) — 정책 줄이 없거나 가려지면 null · 서버는 늘 채운다 */
+            mockPerSession?: number | null;
             /** @description 고를 수 있는 시간대 — TZG 표가 코드표다 */
             timezones: components["schemas"]["TeacherTimezoneDto"][];
             /** @description 최근 내 설정 요청 (새것 먼저) */
@@ -12859,6 +13058,10 @@ export interface components {
         };
         TeacherGuideBookDto: {
             issueId: number;
+            /** @description 현재 내게 배정·배부 완료된 판의 SE 파일 */
+            seFileId?: number | null;
+            /** @description 현재 내게 배정·배부 완료된 판의 TE 파일 */
+            teFileId?: number | null;
             code: string;
             title: string;
             subKey?: string | null;
@@ -13978,7 +14181,7 @@ export interface components {
             wageFrom?: string | null;
             /** @description 시급 줄을 둘 수 있는 사람인가 — 활성 강사 · canWage 아니면 false (C97 · D-R39) */
             wageable?: boolean;
-            /** @description 첫 설정(휴대폰 · 이메일 확인 · 새 비밀번호)을 아직 안 끝낸 계정 — 화면의 「첫 설정 전」 칩 */
+            /** @description 필수 초기설정(휴대폰 · 이메일 인증 · 새 비밀번호)이 남은 계정 — 화면의 「첫 설정 전」 칩. 판정은 로그인 · 가드와 같은 AuthService.credentialSetupRequired(AUTH-INIT-02) */
             mustChangeCredentials?: boolean;
             /** @description 휴대폰(한국은 숫자만 · 해외는 +국가번호…) — 전체를 다루는 사람(canCrudAll)에게만 싣는다. 그 밖에는 null */
             phone?: string | null;
@@ -14123,7 +14326,7 @@ export interface components {
         StaffDirectoryRowDto: {
             id: number;
             name: string;
-            /** @description STAFF 영문명 컬럼 이관 전까지 null */
+            /** @description 영어 이름 — 본인이 마이페이지에서 적는 STAFF.english_name(AUTH-SELF-01) · 없으면 null */
             englishName: string | null;
             title: string | null;
             active: boolean;
@@ -14140,7 +14343,7 @@ export interface components {
         StaffDirectoryProfileDto: {
             id: number;
             name: string;
-            /** @description STAFF 영문명 컬럼 이관 전까지 null */
+            /** @description 영어 이름 — 본인이 마이페이지에서 적는 STAFF.english_name(AUTH-SELF-01) · 없으면 null */
             englishName: string | null;
             title: string | null;
             active: boolean;
@@ -15392,7 +15595,7 @@ export interface components {
             mime: string;
             /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
             bytes: number;
-            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
+            /** @description 인증과 권한 확인을 거치는 파일 API 주소. 실제 다운로드 방식은 파일 저장소에 따라 다르다 */
             url: string;
             uploaderName?: string | null;
             uploadedAt: string;
@@ -16399,6 +16602,346 @@ export interface operations {
                 };
             };
             /** @description SENDER_NOT_CONFIGURED(발송 설정 없음) · AUTH_CODE_SECRET_MISSING(운영에 코드 비밀 값 없음 · N-105) — 계정과 무관한 서버 상태 | INITIAL_PASSWORD_REQUIRED — 서버 비밀번호 정책 설정 누락/불완전, 기존 자격 유지 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ProfileController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description UNAUTHORIZED: 로그인이 필요하다 · 비활성 계정. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CREDENTIALS_CHANGE_REQUIRED — 필수 초기설정(휴대폰 · 이메일 인증 · 비밀번호 교체)이 남은 계정은 이 경로를 쓸 수 없다(AUTH-INIT-02). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ProfileController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdateDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDto"];
+                };
+            };
+            /** @description BAD_REQUEST — 이름 비움 · 40자 초과 · 허용하지 않은 칸 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description UNAUTHORIZED: 로그인이 필요하다 · 비활성 계정. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CREDENTIALS_CHANGE_REQUIRED — 필수 초기설정(휴대폰 · 이메일 인증 · 비밀번호 교체)이 남은 계정은 이 경로를 쓸 수 없다(AUTH-INIT-02). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ProfileController_codes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileContactCodeRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingCodeResultDto"];
+                };
+            };
+            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL · INVALID_PHONE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description UNAUTHORIZED: 로그인이 필요하다 · 비활성 계정. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CREDENTIALS_CHANGE_REQUIRED — 필수 초기설정(휴대폰 · 이메일 인증 · 비밀번호 교체)이 남은 계정은 이 경로를 쓸 수 없다(AUTH-INIT-02). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CONTACT_UNCHANGED · EMAIL_TAKEN(다른 계정의 이메일 · 대소문자 무관) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CODE_TOO_SOON · CODE_DAILY_LIMIT · CODE_LIMIT */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description SEND_FAILED — 공급자가 거절 · 그 코드는 쓸 수 없게 닫는다 */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description SENDER_NOT_CONFIGURED · AUTH_CODE_SECRET_MISSING — 코드 줄을 만들지 않는다 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    ProfileController_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileContactChangeDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResultDto"];
+                };
+            };
+            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL · INVALID_PHONE */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description UNAUTHORIZED: 로그인이 필요하다 · 비활성 계정. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CREDENTIALS_CHANGE_REQUIRED — 필수 초기설정(휴대폰 · 이메일 인증 · 비밀번호 교체)이 남은 계정은 이 경로를 쓸 수 없다(AUTH-INIT-02). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description CONTACT_UNCHANGED · EMAIL_TAKEN · CODE_NOT_REQUESTED · CODE_EXPIRED · CODE_LOCKED · CODE_MISMATCH · CURRENT_PASSWORD_MISMATCH */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description AUTH_CODE_SECRET_MISSING — 운영 코드 비밀 값 없음 */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -19363,6 +19906,83 @@ export interface operations {
             };
         };
     };
+    FilesController_bookPdfUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPdfUploadIntentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPdfUploadUrlDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     FilesController_upload: {
         parameters: {
             query?: never;
@@ -19435,6 +20055,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    FilesController_downloadTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadTargetDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code FILE_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
@@ -28307,7 +29000,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code FILE_TOO_LARGE | BOOK_FILES_TOO_LARGE — 첫 판 SE+TE 합계 3MB */
+            /** @description 기존 base64 파일 합계 3MB, 비공개 PDF는 각각 50MB */
             413: {
                 headers: {
                     [name: string]: unknown;
