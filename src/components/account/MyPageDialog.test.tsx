@@ -14,6 +14,7 @@ import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { LoginResult, Me, OnboardingCodeResult, Profile, TeacherHome } from '@/api/types';
+import { draftKey, readDraft, writeDraft } from '@/lib/autosave';
 import { useSession } from '@/store/useSession';
 import { MyPageDialog } from './MyPageDialog';
 
@@ -248,6 +249,9 @@ describe('계정 절 — 휴대폰 · 이메일 새 수신처 인증 (D6)', () =
   const session: LoginResult = { accessToken: 'fresh-access', user: newMe };
 
   it('새 번호 → 코드 받기 → 코드 · 지금 비밀번호 → 인증하고 저장 → 새 세션', async () => {
+    // AUTH-D2(2026-10-16 사용자 결정 「초안 유지」) — 같은 사람의 토큰 교체라 이 브라우저의 쓰던 글(N-69)은 남는다
+    const draft = draftKey(teacher.id, 'report', '21:2026-10-16');
+    writeDraft(draft, { content: '쓰던 리포트' }, 'none|{}');
     const { dialog } = mount(teacher, profileOf(), {
       'POST /auth/profile/contact-codes': sentTo('sms', '010-****-5678'),
       'POST /auth/profile/contact-change': () => ({ status: 201, data: session }),
@@ -278,8 +282,9 @@ describe('계정 절 — 휴대폰 · 이메일 새 수신처 인증 (D6)', () =
     expect(bodyOf('POST /auth/profile/contact-change')).toEqual({
       channel: 'sms', target: '010-1234-5678', code: '482913', currentPassword: 'taco1234!',
     });
-    // 옛 토큰은 서버가 끊었다 — 캐시를 버리고 응답의 새 세션으로 연다(첫 설정 · 로그인과 같은 순서)
-    expect(h.clear).toHaveBeenCalledTimes(1);
+    // 옛 토큰은 서버가 끊었다 — 서버 조회 캐시만 버리고 응답의 새 세션으로 연다. 사용자 경계 비우기(초안 포함)는 부르지 않는다
+    expect(h.clear).not.toHaveBeenCalled();
+    expect(readDraft<{ content: string }>(draft)?.value.content).toBe('쓰던 리포트');
     expect(useSession.getState().me).toEqual(newMe);
     expect(within(d).queryByRole('group', { name: '휴대폰 번호 바꾸기' })).toBeNull();
   });

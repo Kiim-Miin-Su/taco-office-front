@@ -9,7 +9,8 @@
  * - 이름 · 영어 이름: PATCH /auth/profile(바뀐 칸만 · 영어 이름 빈 칸 = 비움). 셸 이름은 서버 Me 를 다시 읽어 바꾼다.
  * - 휴대폰 · 이메일: 새 수신처 → 코드 받기(POST /auth/profile/contact-codes) → 코드 · 지금 비밀번호 →
  *   인증하고 저장(POST /auth/profile/contact-change). 응답은 **새 세션**이다 — 옛 토큰은 서버가 끊었으므로 첫 설정 · 로그인과 같은
- *   순서(캐시 비우기 → 새 토큰 · 새 Me)로 이어 간다. 성공 전에는 지금 값이 그대로다(서버가 한 transaction 으로 저장한다).
+ *   순서(캐시 비우기 → 새 토큰 · 새 Me)로 이어 간다. 같은 사람이라 서버 조회 캐시만 비우고 쓰던 글(N-69)은 남긴다(AUTH-D2).
+ *   성공 전에는 지금 값이 그대로다(서버가 한 transaction 으로 저장한다).
  * - 거절 문장은 **누른 자리 옆**: 코드 받기 거절은 그 단추 아래, 코드 거절은 코드 칸 아래, 비밀번호 거절은 비밀번호 칸 아래,
  *   나머지는 [인증하고 저장] 아래 (QA 0926 UX-1 · D6). 어느 칸인지는 서버 오류 코드로만 고른다(문장을 읽어 판정하지 않는다).
  */
@@ -18,7 +19,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, apiMessage, ApiError } from '@/api/client';
 import { useUpdateProfile } from '@/api/queries';
-import { clearSessionQueries, revalidateSession } from '@/api/session-cache';
+import { clearServerQueries, revalidateSession } from '@/api/session-cache';
 import type {
   LoginResult, OnboardingCodeResult, Profile, ProfileContactChange, ProfileContactCodeRequest, ProfileUpdate,
 } from '@/api/types';
@@ -170,8 +171,9 @@ function ContactPanel({ channel, profile, resend, onCancel, onSaved }: {
     try {
       const body: ProfileContactChange = { channel, target, code, currentPassword: password };
       const { data } = await api.post<LoginResult>('/auth/profile/contact-change', body);
-      // 첫 설정 · 로그인과 같은 순서 — 옛 세션의 캐시를 버리고 새 토큰 · 새 Me 로 연다(옛 토큰은 서버가 이미 끊었다)
-      clearSessionQueries(queryClient);
+      // 첫 설정 · 로그인과 같은 순서 — 옛 세션의 캐시를 버리고 새 토큰 · 새 Me 로 연다(옛 토큰은 서버가 이미 끊었다).
+      // 같은 사용자의 토큰 교체라 서버 조회 캐시만 버린다 — 이 브라우저의 쓰던 글은 남긴다(AUTH-D2 · 사용자 결정 2026-10-16)
+      clearServerQueries(queryClient);
       signIn(data.accessToken, data.user);
       onSaved(sms ? '휴대폰 번호를 바꿨습니다 — 다른 기기의 로그인은 끊겼습니다' : '이메일을 바꿨습니다 — 다른 기기의 로그인은 끊겼습니다');
     } catch (e) {

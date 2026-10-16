@@ -1,5 +1,5 @@
 /** @file-guide
- * 목적: session-cache.ts — clearSessionQueries, sessionAccessKey, revalidateSession (auth)
+ * 목적: session-cache.ts — clearSessionQueries, clearServerQueries, sessionAccessKey, revalidateSession (auth)
  * 책임/재사용: 공용 인증/권한 경계만 소유한다. 토큰·쿠키 원문을 노출하지 않고 만료/익명/권한 회수 경계를 회귀로 검증한다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
@@ -22,9 +22,18 @@ import { useWorkspace } from '@/store/useWorkspace';
  */
 export function clearSessionQueries(queryClient: Pick<QueryClient, 'clear'>): void {
   useWorkspace.getState().clearDrawer();
+  clearServerQueries(queryClient);
+  clearAllDrafts();
+}
+
+/**
+ * 같은 사용자의 토큰만 바뀔 때(연락처 변경 성공 → 새 세션) 서버 응답 캐시만 버린다.
+ * AUTH-D2(2026-10-16 사용자 결정 「초안 유지」): 사람은 그대로이므로 이 브라우저의 쓰던 글(N-69)과 서랍은 남긴다.
+ * 사용자가 바뀌는 경계(로그인 · 로그아웃 · 만료 · 다른 계정 감지)는 반드시 clearSessionQueries 를 쓴다 — 초안 비우기는 그쪽만 한다.
+ */
+export function clearServerQueries(queryClient: Pick<QueryClient, 'clear'>): void {
   resetScheduleOptimistic(queryClient);
   queryClient.clear();
-  clearAllDrafts();
 }
 
 /**
