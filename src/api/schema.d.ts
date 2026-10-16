@@ -13036,7 +13036,7 @@ export interface components {
             books: components["schemas"]["TeacherGuideBookDto"][];
             /** @description 최신 진단 — 없으면 null */
             diag?: components["schemas"]["TeacherGuideDiagDto"] | null;
-            /** @description 인수인계 메모 — 관리자 · 매니저가 적은 줄, 최근 것부터 (N-36 ② · 강사 원문 27 · 44 「이전 강사 인수인계」 · 학부모에게 나가지 않는다) */
+            /** @description 인수인계 메모 — 조회 시점에 현재·향후 유효 회차를 맡은 학생만 최근 것부터 제공한다. 과거 주 수업만 맡았던 강사에게는 주지 않는다. 학부모에게 나가지 않는다. */
             notes: components["schemas"]["TeacherGuideNoteDto"][];
         };
         TeacherHistoryStudentDto: {
@@ -13251,7 +13251,7 @@ export interface components {
             weekFrom: string;
             /** @description 이번 주 일요일 YYYY-MM-DD (KST) */
             weekTo: string;
-            /** @description 첫 수업 시각 순 */
+            /** @description 첫 수업 시각 순. 과거 주 회차는 유지하되 현재 학생 프로필·교재·진단·NOTE는 조회 시점의 유효 담당 학생에게만 제공한다. */
             students: components["schemas"]["TeacherGuideStudentDto"][];
         };
         ReceivedGuidesDto: {
@@ -14060,6 +14060,17 @@ export interface components {
             label: string;
             count: number;
         };
+        StaffTeachingKindDto: {
+            /** @enum {string} */
+            key: "class" | "mock" | "study";
+            name: string;
+        };
+        StaffEducationSummaryDto: {
+            school: string;
+            major: string | null;
+            degree: string | null;
+            status: string | null;
+        };
         MemberPermDto: {
             /** @enum {string} */
             key: "canMoney" | "canWage" | "canApprove" | "canHide" | "canGpaPack";
@@ -14097,6 +14108,14 @@ export interface components {
             phone?: string | null;
             /** @description 입사일 YYYY-MM-DD — 「수정」 창의 처음 값. 옛 계정은 null 일 수 있다 */
             hiredOn?: string | null;
+            /** @description 생년월일·수업 프로필을 관리자로 볼 수 있는가. canAdminPage + canCrudAll */
+            canViewStaffProfile?: boolean;
+            /** @description 생년월일 YYYY-MM-DD. 등록·수정 시 오늘과 입사일 이전이어야 한다 */
+            birthOn?: string | null;
+            /** @description 영어 전용 수업 가능: true/false/null(미확인) */
+            englishOnly?: boolean | null;
+            teachingKinds?: components["schemas"]["StaffTeachingKindDto"][];
+            education?: components["schemas"]["StaffEducationSummaryDto"][];
             /** @description 「수정」 — 보는 이가 매니저 이상이고 이 줄이 강사·매니저일 때만 (대표·관리자 줄은 이 길로 못 고친다) */
             canEdit?: boolean;
             /** @description 수정 창에서 역할을 바꿀 수 있는가 — canEdit 이고 **자기 줄이 아닐 때만** (자기 역할은 못 바꾼다) */
@@ -14241,6 +14260,9 @@ export interface components {
             title: string | null;
             active: boolean;
             hiredOn: string | null;
+            englishOnly: boolean | null;
+            /** @description 가능 수업 유형 수. SUBJECT 과목과 별개이며 GPA는 제외한다 */
+            teachingKindCount: number;
             /** @description KST ISO timestamp. 최신 등록 순 정렬 기준은 DB created_at DESC, id DESC */
             createdAt: string;
         };
@@ -14258,11 +14280,17 @@ export interface components {
             title: string | null;
             active: boolean;
             hiredOn: string | null;
+            englishOnly: boolean | null;
+            /** @description 가능 수업 유형 수. SUBJECT 과목과 별개이며 GPA는 제외한다 */
+            teachingKindCount: number;
             /** @description KST ISO timestamp. 최신 등록 순 정렬 기준은 DB created_at DESC, id DESC */
             createdAt: string;
             email: string | null;
             phone: string | null;
             timezone: string | null;
+            birthOn: string | null;
+            teachingKinds: components["schemas"]["StaffTeachingKindDto"][];
+            education: components["schemas"]["StaffEducationSummaryDto"][];
         };
         StaffDirectoryWageDto: {
             id: number;
@@ -14282,12 +14310,18 @@ export interface components {
             confirmedByName: string | null;
             confirmedAt: string | null;
         };
+        StaffDirectoryStudentDto: {
+            id: number;
+            name: string;
+        };
         StaffDirectoryAssignmentDto: {
             id: number;
             kindName: string;
             subjectName: string | null;
             /** @description 현재 수업 규칙 명단. 과거 교체 전 명단을 뜻하지 않는다 */
             studentNames: string[];
+            /** @description 학생 상세 링크용 실제 학생 ID와 이름 */
+            students: components["schemas"]["StaffDirectoryStudentDto"][];
             fromDate: string;
             toDate: string | null;
         };
@@ -14297,6 +14331,7 @@ export interface components {
             kindName: string;
             subjectName: string | null;
             studentNames: string[];
+            students: components["schemas"]["StaffDirectoryStudentDto"][];
         };
         StaffDirectoryAuditChangeDto: {
             field: string;
@@ -14375,6 +14410,12 @@ export interface components {
             /** @description items.length와 같은 값 */
             count: number;
         };
+        StaffEducationSummaryInputDto: {
+            school: string;
+            major?: string | null;
+            degree?: string | null;
+            status?: string | null;
+        };
         StaffCreateDto: {
             name: string;
             /**
@@ -14403,8 +14444,22 @@ export interface components {
             tz?: string | null;
             /** @description 휴대폰 — 한국 번호는 숫자만 남겨 저장, 해외 번호는 `+국가번호 번호`(N-103 · 나라는 phoneCountries). 모양이 아니면 400 */
             phone?: string | null;
-            /** @description 입사일 YYYY-MM-DD — 비우면 오늘. 불가 시간 2주 회차의 기산점 */
-            hiredOn?: string | null;
+            /**
+             * Format: date
+             * @description 입사일 YYYY-MM-DD — 비우면 오늘. 불가 시간 2주 회차의 기산점
+             */
+            hiredOn?: string;
+            /**
+             * Format: date
+             * @description 생년월일. 오늘 또는 입사일과 같거나 늦으면 400
+             */
+            birthOn?: string;
+            /** @description 영어 전용 수업 가능: true/false/null(미확인) */
+            englishOnly?: boolean | null;
+            /** @description 가능 수업 유형. KIND의 class/mock/study만 허용, GPA와 SUBJECT는 제외 */
+            teachingKindKeys?: ("class" | "mock" | "study")[];
+            /** @description 학력 요약 최대 5행. 보낸 배열 전체가 저장된다 */
+            education?: components["schemas"]["StaffEducationSummaryInputDto"][];
             /** @description 기본 시급(원/시간) — 적으면 입사일(또는 오늘)부터의 WAGE 한 줄이 같은 트랜잭션에 선다 · 소급 없음 */
             wageRate?: number | null;
         };
@@ -14445,6 +14500,17 @@ export interface components {
              * @description 입사일 YYYY-MM-DD
              */
             hiredOn?: string;
+            /**
+             * Format: date
+             * @description 생년월일. null이면 비운다. 오늘 또는 입사일과 같거나 늦으면 400
+             */
+            birthOn?: string | null;
+            /** @description 영어 전용 수업 가능: true/false/null(미확인) */
+            englishOnly?: boolean | null;
+            /** @description 가능 수업 유형 전체 대체. class/mock/study만 허용 */
+            teachingKindKeys?: ("class" | "mock" | "study")[];
+            /** @description 학력 요약 전체 대체. 최대 5행 */
+            education?: components["schemas"]["StaffEducationSummaryInputDto"][];
             /** @description 권한 예외 다섯 칸(N-68) — 대표 판정으로만(403 PERM_OVERRIDE_FORBIDDEN) · 자기 줄은 403 SELF_ROLE · 대표·관리자 줄은 403 STAFF_PROTECTED · 보는 사람이 없는 권한은 켤 수 없다(403 PERM_GRANT_FORBIDDEN). 바뀐 값은 다음 요청부터 그 사람의 판정에 쓰인다 */
             perms?: components["schemas"]["StaffPermsPatchDto"];
         };
@@ -15261,6 +15327,37 @@ export interface components {
             reactivatedAt: string;
             effects: components["schemas"]["StudentReactivationEffectsDto"];
         };
+        StudentHubTeacherLessonDto: {
+            serId: number;
+            kindName: string;
+            subjectName: string | null;
+            /** @description 반복 규칙 또는 대강 회차의 실제 수업일 */
+            ruleLabel: string;
+            startMin: number;
+            endMin: number;
+            /** @enum {string} */
+            mode: "offline" | "online";
+            /** @description 반복 기본 강사는 수업·명단의 시작일, 단발·대강은 실제 회차일 */
+            fromDate: string;
+            /** @description 반복 기본 강사는 수업·명단 종료일, 단발·대강은 실제 회차일 */
+            toDate: string | null;
+        };
+        StudentHubTeacherDto: {
+            staffId: number;
+            name: string;
+            /** @description 강사는 생략하고, 실제 수업 담당자가 다른 역할이면 서버 공용 역할 낱말을 표시한다. */
+            roleLabel: string | null;
+            lessons: components["schemas"]["StudentHubTeacherLessonDto"][];
+        };
+        StudentHubCommentLessonDto: {
+            serId: number;
+            teacherName: string;
+            kindName: string;
+            subjectName: string | null;
+            fromDate: string;
+            toDate: string | null;
+            ended: boolean;
+        };
         StudentHubNextActionDto: {
             /** @enum {string} */
             key: "schedule" | "billing" | "consulting" | "books" | "guides" | "lead";
@@ -15300,9 +15397,19 @@ export interface components {
             body: string;
             createdAt: string;
         };
+        StudentHubCommentMonthDto: {
+            /** @example 2026-10 */
+            month: string;
+            total: number;
+        };
         StudentHubCommentPageDto: {
             items: components["schemas"]["StudentHubCommentDto"][];
+            /** @description 선택한 KST 월의 NOTE 수. 월을 생략하면 전체 NOTE 수 */
             total: number;
+            /** @description 월 선택과 무관한 전체 NOTE 수 */
+            allTotal: number;
+            /** @description 전체 NOTE의 KST 작성 월별 건수 */
+            months: components["schemas"]["StudentHubCommentMonthDto"][];
             nextCursor: string | null;
         };
         StudentHubInvoiceDto: {
@@ -15333,6 +15440,12 @@ export interface components {
             studentId: number;
             /** @description 청구 금액 projection 권한 */
             canSeeAmounts: boolean;
+            /** @description 현재·향후 유효 회차의 실제 담당 강사(대강 포함). 이 관리자 학생 조회에서만 공개한다. */
+            teachers: components["schemas"]["StudentHubTeacherDto"][];
+            /** @description NOTE 작성용 학생 수업 명단 전체. 종료된 수강도 포함한다. */
+            commentLessons: components["schemas"]["StudentHubCommentLessonDto"][];
+            /** @description 관리자 전용 비공개 특이사항의 본문 없는 전체 건수 */
+            privateNoteCount: number;
             nextActions: components["schemas"]["StudentHubNextActionDto"][];
             reports: components["schemas"]["StudentHubReportPageDto"];
             comments: components["schemas"]["StudentHubCommentPageDto"];
@@ -38428,6 +38541,8 @@ export interface operations {
                 reportsCursor?: string;
                 /** @description 코멘트 다음 페이지 불투명 커서 */
                 commentsCursor?: string;
+                /** @description 코멘트의 KST 작성 월. 생략하면 전체를 읽는다. */
+                commentsMonth?: string;
                 /** @description 청구 다음 페이지 불투명 커서 */
                 invoicesCursor?: string;
             };
