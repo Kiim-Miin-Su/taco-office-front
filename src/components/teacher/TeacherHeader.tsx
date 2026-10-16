@@ -8,6 +8,7 @@
  * 강사 표면의 머리줄 — Figma 「현재 · 강사 웹」(7676:21759)·「현재 · 모바일」(7615:1605)의 모든 화면이 이 한 줄이다.
  * 관리자 머리줄(오늘 전체·뒤로·되돌리기·업무 탭·전체 화면·권한)은 강사 덱·Figma 에 없으므로 그리지 않는다.
  * 강사 덱 머리줄 오른쪽 차례 그대로: 「◷ Seoul · UTC+9」 · 「₩45,000/시간」(덱 「₩ 45,000원/시간」 · 금액 표기는 `lib/money`) · 「김범준 · 강사」 · 「로그아웃」 · 🔔.
+ * 시간대 · 시급 · 이름은 **한 단추 묶음**이고 마이 페이지 대화상자를 연다(강사 PPTX p98 · p103 · AUTH-SELF-01 D3) — 좁은 화면에서는 이름만 남는다.
  * 덱의 「관리자 화면 미리보기」는 강사에게 남기지 않는다(AGENT.md §B). 시간대·시급·역할 낱말은 서버 값이다.
  * 좁은 화면(모바일 393)에서는 시간대·시급·역할을 메뉴 패널 사용자 칸으로 미루고 🔔 는 남긴다.
  * 누름 칸은 44px 높이다 — Figma 설명 「44px actions」(모바일 손가락 칸). UI/Button 두 크기(32/40)에 44 가 없어
@@ -20,7 +21,7 @@ import { won } from '@/lib/money';
 
 export function TeacherHeader({
   title, name, roleLabel, tzLabel, wageRate, unread = 0, notiOpen = false,
-  menuOpen, menuId, toggleId, onToggleMenu, onLogout, onOpenNotis,
+  menuOpen, menuId, toggleId, onToggleMenu, onLogout, onOpenNotis, onOpenMyPage,
 }: {
   /** 지금 켜진 메뉴의 강사 표시 이름(navigation.ts) — 맞는 메뉴가 없으면 비운다 */
   title: string;
@@ -42,7 +43,10 @@ export function TeacherHeader({
   onLogout: () => void;
   /** 없으면 🔔 를 그리지 않는다(알림을 읽을 수 없는 자리에서 빈 단추를 세우지 않는다) */
   onOpenNotis?: () => void;
+  /** 시간대 · 시급 · 이름 묶음을 누르면 — 마이 페이지 대화상자(`?mypage=1`)를 연다 */
+  onOpenMyPage: () => void;
 }) {
+  const hasWage = wageRate !== null && wageRate !== undefined;
   const pill = 'hidden h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-header-tool-line bg-header-tool px-2 text-[12px] font-bold text-line-2 md:flex';
   return (
     <header data-print="chrome" className="flex h-14 shrink-0 items-center gap-2 bg-header px-2">
@@ -57,17 +61,25 @@ export function TeacherHeader({
       {title
         ? <h1 className="min-w-0 flex-1 truncate text-[16px] font-bold leading-6 text-white">{title}</h1>
         : <span aria-hidden className="min-w-0 flex-1" />}
-      {tzLabel ? (
-        <span data-teacher-tz="" className={pill}><Clock3 size={13} aria-hidden />{tzLabel}</span>
-      ) : null}
-      {wageRate !== null && wageRate !== undefined ? (
-        // 덱은 「₩ 45,000원/시간」(₩ 글리프 + 뒤 「원」)이었다 — 금액 표기가 「₩45,000」 한 모양이 되어(N-92) ₩ 가 두 번 서지 않게 금액만 적는다
-        <span data-teacher-wage="" className={pill}>{won(wageRate)}/시간</span>
-      ) : null}
-      {name ? (
-        <span className="shrink-0 whitespace-nowrap text-[12px] font-medium text-white">
-          {name}{roleLabel ? <span className="hidden sm:inline"> · {roleLabel}</span> : null}
-        </span>
+      {tzLabel || hasWage || name ? (
+        <button
+          type="button" onClick={onOpenMyPage} aria-haspopup="dialog" title="마이 페이지"
+          className="flex h-11 min-w-0 shrink-0 items-center gap-2 rounded-md px-1 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <span className="sr-only">마이 페이지 — </span>
+          {tzLabel ? (
+            <span data-teacher-tz="" className={pill}><Clock3 size={13} aria-hidden />{tzLabel}</span>
+          ) : null}
+          {hasWage ? (
+            // 덱은 「₩ 45,000원/시간」(₩ 글리프 + 뒤 「원」)이었다 — 금액 표기가 「₩45,000」 한 모양이 되어(N-92) ₩ 가 두 번 서지 않게 금액만 적는다
+            <span data-teacher-wage="" className={pill}>{won(wageRate)}/시간</span>
+          ) : null}
+          {name ? (
+            <span className="shrink-0 whitespace-nowrap text-[12px] font-medium text-white">
+              {name}{roleLabel ? <span className="hidden sm:inline"> · {roleLabel}</span> : null}
+            </span>
+          ) : null}
+        </button>
       ) : null}
       <Button variant="ghost" size="sm" onClick={onLogout} className="!h-11 shrink-0">로그아웃</Button>
       {onOpenNotis ? (

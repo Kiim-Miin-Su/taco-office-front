@@ -16,6 +16,8 @@ import { WorkspaceRail } from './WorkspaceRail';
 
 const mocks = vi.hoisted(() => ({
   pathname: '/board',
+  /** 지금 주소의 질의 — `?mypage=1` 이면 셸이 마이 페이지를 연다 (AUTH-SELF-01) */
+  search: '',
   back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn(),
   /** 상단바 되돌리기가 쓰는 쓰기 훅 (N-138 · C99) — 실제 요청은 useUndoLast 회귀가 본다 */
   scheduleWrite: vi.fn(),
@@ -25,7 +27,14 @@ const mocks = vi.hoisted(() => ({
     rows: [], roleNotes: ['대표 · 14가지 가능 / 0가지 잠김'],
   },
 }));
-vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useRouter: () => mocks }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => mocks.pathname, useRouter: () => mocks, useSearchParams: () => new URLSearchParams(mocks.search),
+}));
+// 마이 페이지 대화상자 안(프로필 조회 · 저장)은 MyPageDialog.test 가 본다 — 이 파일은 셸이 `?mypage=1` 로 여닫는지만 본다
+vi.mock('@/components/account/MyPageDialog', () => ({
+  MyPageDialog: ({ open, onClose }: { open: boolean; onClose: () => void }) => open
+    ? <div role="dialog" aria-label="마이 페이지"><button type="button" onClick={onClose}>마이 페이지 닫기</button></div> : null,
+}));
 vi.mock('@/api/client', () => ({ api: { post: mocks.post }, setAccessToken: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useDrawer: mocks.drawer,
@@ -63,6 +72,7 @@ function shell(extra: { sidePanel?: ReactNode; rightPanel?: ReactNode; onToday?:
 
 beforeEach(() => {
   mocks.pathname = '/board';
+  mocks.search = '';
   useSession.setState({ me, ready: true });
   mocks.drawer.mockReturnValue({ data: {
     approvalFlow: {
@@ -150,6 +160,36 @@ describe('원본 관리자 공용 셸', () => {
     fireEvent.click(within(view.getByRole('banner')).getByRole('button', { name: '로그아웃' }));
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/login'));
     expect(mocks.post).toHaveBeenCalledWith('/auth/logout');
+  });
+
+  it('계정 메뉴의 「마이 페이지」는 로그아웃 위에 서고, 메뉴를 닫은 뒤 지금 화면에 `?mypage=1` 을 더한다 (D3)', () => {
+    mocks.search = 'tab=weekly';
+    const view = shell();
+    const banner = within(view.getByRole('banner'));
+    const account = banner.getByText((_, node) => node?.tagName === 'SUMMARY' && node.getAttribute('aria-label') === '내 계정');
+    fireEvent.click(account);
+    const items = within(account.parentElement as HTMLElement).getAllByRole('button').map((button) => button.textContent);
+    expect(items).toEqual(['마이 페이지', '로그아웃']);
+    fireEvent.click(banner.getByRole('button', { name: '마이 페이지' }));
+    expect(mocks.replace).toHaveBeenCalledWith('/board?tab=weekly&mypage=1', { scroll: false });
+    // 메뉴는 닫히고 초점은 「내 계정」으로 — 대화상자를 닫으면 그 자리로 돌아온다(Figma 6.3 근사의 제품 동작)
+    expect((account.parentElement as HTMLDetailsElement).open).toBe(false);
+    expect(document.activeElement).toBe(account);
+  });
+
+  it('`?mypage=1` 이면 새로고침 · 딥링크로도 대화상자가 서고, 닫으면 그 질의만 걷는다 — 관리자 · 강사 같은 셸', () => {
+    mocks.search = 'tab=weekly&mypage=1';
+    const view = shell();
+    fireEvent.click(view.getByRole('button', { name: '마이 페이지 닫기' }));
+    expect(mocks.replace).toHaveBeenCalledWith('/board?tab=weekly', { scroll: false });
+    view.unmount();
+
+    useSession.setState({ me: { ...me, canAdminPage: false, role: 'teacher', roleLabel: '강사', title: null } });
+    mocks.search = '';
+    const teacherView = shell();
+    expect(teacherView.queryByRole('dialog', { name: '마이 페이지' })).toBeNull();
+    fireEvent.click(within(teacherView.getByRole('banner')).getByRole('button', { name: /^마이 페이지/ }));
+    expect(mocks.replace).toHaveBeenLastCalledWith('/board?mypage=1', { scroll: false });
   });
 
   it('관리자에게 지정된 좌우 도구를 하나씩 렌더한다', () => {

@@ -10,7 +10,7 @@
  * 강사(canAdminPage 아님): components/teacher/TeacherShell — ☰ 머리줄 + 메뉴 패널 (강사 덱 · Figma).
  */
 'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, CircleHelp, Home, Maximize, Minimize, Palette, PanelRightClose, PanelRightOpen, Search, ShieldCheck } from 'lucide-react';
 import { DesignSystemDialog } from '@/components/design/DesignSystemDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,6 +23,8 @@ import { clearSessionQueries, sessionAccessKey } from '@/api/session-cache';
 import { useDrawer, usePermissionTable, useUnwritten } from '@/api/queries';
 import { AppDrawer, type DrawerPane } from '@/components/drawer/AppDrawer';
 import { ApprovalFlowDialog } from '@/components/approval/ApprovalFlowDialog';
+import { MyPageDialog } from '@/components/account/MyPageDialog';
+import { useMyPageUrl } from '@/components/account/my-page-url';
 import { autosaveTimeLabel, useLastAutosave } from '@/lib/autosave';
 import { receivedOpenTodos } from '@/lib/todo';
 
@@ -87,6 +89,13 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
   const [guide, setGuide] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
+  /*
+   * 마이 페이지(AUTH-SELF-01) — 라우트가 아니라 지금 화면 위 대화상자이고 열림은 `?mypage=1` 하나다(새로고침 · 딥링크 유지).
+   * 관리자는 계정 메뉴 「마이 페이지」, 강사는 머리줄 · 메뉴 사용자 칸 · 「오늘」 띠 시각이 같은 주소를 연다(강사 PPTX p31 · p98 · p103).
+   */
+  const myPage = useMyPageUrl();
+  const accountMenu = useRef<HTMLDetailsElement>(null);
+  const accountSummary = useRef<HTMLElement>(null);
   const openDrawer = (pane: DrawerPane) => { if (drawerOwnerKey) openWorkspaceDrawer(drawerOwnerKey, pane); };
   const panelApi: WorkspacePanelApi = { openDrawer, activePane: drawer ? drawerPane : null };
   const side = typeof sidePanel === 'function' ? sidePanel(panelApi) : sidePanel;
@@ -156,6 +165,15 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
     approvals: approvalCount,
   };
 
+  /** 계정 메뉴를 닫고 초점을 「내 계정」에 둔 뒤 연다 — 대화상자를 닫으면 공용 Dialog 가 그 자리로 초점을 돌려준다 */
+  function openMyPage() {
+    if (accountMenu.current) {
+      accountMenu.current.open = false;
+    }
+    accountSummary.current?.focus();
+    myPage.show();
+  }
+
   async function out() {
     try { await api.post('/auth/logout'); } catch { /* 쿠키가 이미 없을 수 있다 */ }
     signOut();
@@ -221,8 +239,8 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
                 1536 미만에서는 「● N」만 — 업무 탭 자리를 먼저 준다(QA 0926 B-1 · 스케줄은 머리 양끝에 패널 단추 둘이 더 선다 B-1r) */}
             <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber ring-1 ring-white/60" /><span aria-hidden className="hidden min-[1536px]:inline">승인 대기 </span><span aria-hidden className="rounded bg-white/15 px-1.5">{approvalCount}</span>
           </button> : null}
-          <details className="relative shrink-0 text-[12px] text-line-2 sm:ml-2">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정"
+          <details ref={accountMenu} className="relative shrink-0 text-[12px] text-line-2 sm:ml-2">
+            <summary ref={accountSummary} className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1" aria-label="내 계정"
               title={me ? `${me.name} · ${me.title || me.roleLabel}` : undefined}>
               <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-white">{me?.name.slice(0, 2)}</span>
               {/* 1680 미만은 이름 대신 동그라미 첫 두 글자 · 1440 미만은 역할 칩도 접는다(마우스를 올리면 title 로 둘 다) —
@@ -232,6 +250,9 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
               {me ? <span className="hidden rounded bg-header-tool px-1.5 py-0.5 text-[12px] min-[1440px]:inline">{me.title || me.roleLabel}</span> : null}
             </summary>
             <div className="absolute right-0 top-full z-30 mt-1 min-w-28 rounded-md border border-line bg-card p-1 text-fg shadow-lg">
+              {/* 「마이 페이지」는 「로그아웃」 위 (Figma Auth/Account Menu 9540:127405 · D3) */}
+              <button type="button" onClick={openMyPage} aria-haspopup="dialog"
+                className="w-full whitespace-nowrap rounded px-3 py-2 text-left font-bold hover:bg-inset">마이 페이지</button>
               <button type="button" onClick={out} className="w-full rounded px-3 py-2 text-left font-bold hover:bg-inset">로그아웃</button>
             </div>
           </details>
@@ -265,7 +286,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
           본문은 전폭이고 여백은 모바일 8 · 웹 16 (Figma Content viewport — 캘린더·홈 모바일 8, 웹 대부분 16).
           되돌리기·전체 화면이 없으니 셸 오류 띠(screenError)도 강사에게는 생기지 않는다.
         */
-        <TeacherShell pathname={path} me={me} onLogout={out}>
+        <TeacherShell pathname={path} me={me} onLogout={out} myPageHref={myPage.href} onOpenMyPage={myPage.show}>
           <main data-print="surface" className={cn(styles.main, !flush && 'p-2 sm:p-4')}>{children}</main>
         </TeacherShell>
       )}
@@ -273,6 +294,7 @@ export function AppShell({ children, sidePanel, rightPanel, leftTool, rightTool,
         <ApprovalFlowDialog open={approvalFlow} flow={drawerData.approvalFlow} onClose={() => setApprovalFlow(false)} />
       ) : null}
       <DesignSystemDialog open={design} onClose={() => setDesign(false)} />
+      {me ? <MyPageDialog open={myPage.open} onClose={myPage.close} /> : null}
       {isAdmin ? <ShellSearch open={search} onClose={() => setSearch(false)} me={me} /> : null}
       {isAdmin ? <ShellGuide open={guide} onClose={() => setGuide(false)} /> : null}
       {/* 원문 §76 창 = 폭 640(§75 와 같다) · 머리 오른쪽 × (76-3) · 부제는 창 머리에(「지금 ○○ 화면입니다 · …」 — 서버 문장 · W11 7-3) */}

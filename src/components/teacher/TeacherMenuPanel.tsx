@@ -33,7 +33,7 @@ const ICON: Record<PersonalNavIcon, LucideIcon> = {
 const FOCUSABLE = 'a[href], button:not([disabled])';
 
 export function TeacherMenuPanel({
-  id, items, activeHref, badges, me, tzLabel, wageRate, onClose, onNavigate,
+  id, items, activeHref, badges, me, tzLabel, wageRate, myPageHref, onClose, onNavigate,
 }: {
   id: string;
   items: readonly AdminNavItem[];
@@ -45,6 +45,8 @@ export function TeacherMenuPanel({
   tzLabel?: string | null;
   /** 사용자 칸 「시급」 — 오늘 적용 본인 시급. null 이면 줄을 그리지 않는다 */
   wageRate?: number | null;
+  /** 사용자 칸 「마이 페이지 ›」 — 지금 화면 위 대화상자 주소(`?mypage=1` · AppShell 이 URL 에서 만든다) */
+  myPageHref: string;
   /** 닫고 포커스를 ☰ 로 돌려준다 (Escape · 「메뉴 닫기」 · 스크림) */
   onClose: () => void;
   /** 메뉴를 눌러 이동할 때 — 같은 경로를 다시 눌러도 닫힌다 */
@@ -121,7 +123,8 @@ export function TeacherMenuPanel({
         {/*
           사용자 칸 — 강사 덱 메뉴 맨 아래 「범준 김범준 / 강사 · 마이 페이지 › / 시간대 Seoul UTC+9 / 시급 45,000원」(금액 표기는 `lib/money` 「₩45,000」 · N-92).
           역할 낱말도 서버가 만든다 — 화면이 제 표를 들면 관리자 서랍과 여기가 갈린다.
-          「마이 페이지」 화면은 강사 화면 7개에 없다 — 내 설정(시간대·시급 변경 요청)이 있는 홈 「내 설정」으로 간다 (D-R44).
+          「마이 페이지」는 라우트가 아니라 지금 화면 위 대화상자다(강사 PPTX p5 · p103 · AUTH-SELF-01) — 강사 메뉴 7개는 그대로 둔다.
+          누르면 패널을 닫고 초점을 ☰ 로 돌린다(onClose) — 대화상자를 닫으면 그 자리로 초점이 돌아온다.
         */}
         {me ? (
           <div data-teacher-user="" className="mt-auto flex flex-col gap-2 border-t border-line px-3 py-3 text-[12px]">
@@ -133,7 +136,8 @@ export function TeacherMenuPanel({
                 <p className="truncate text-[13px] font-bold leading-5 text-fg">{me.name}</p>
                 <p className="leading-4 text-fg-subtle">
                   {me.title || me.roleLabel} ·{' '}
-                  <Link href="/teacher#my-settings" onClick={onNavigate} className="font-medium text-fg-subtle underline-offset-2 hover:underline">
+                  <Link href={myPageHref} replace scroll={false} onClick={onClose} aria-haspopup="dialog"
+                    className="font-medium text-fg-subtle underline-offset-2 hover:underline">
                     마이 페이지 <span aria-hidden>›</span>
                   </Link>
                 </p>

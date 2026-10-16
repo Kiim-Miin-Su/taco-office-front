@@ -83,7 +83,8 @@ describe('비밀번호 찾기 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     await waitFor(() => expect(view.getByText(SENT_EMAIL)).toBeTruthy());
     expect(h.post).toHaveBeenCalledWith('/auth/password-reset/codes', { loginId: 'Kim@tnacademy.kr', channel: 'email' });
-    expect(view.getByRole('button', { name: /다시 받기 \(\d+초\)/ }).hasAttribute('disabled')).toBe(true);
+    // 초읽기 동안은 aria-disabled 로 잠근다 — disabled 면 누른 단추의 초점이 body 로 빠진다(S4)
+    expect(view.getByRole('button', { name: /다시 받기 \(\d+초\)/ }).getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(view.getByRole('button', { name: '문자로 코드 받기' }));
     await waitFor(() => expect(h.post).toHaveBeenCalledWith('/auth/password-reset/codes', { loginId: 'Kim@tnacademy.kr', channel: 'sms' }));
     expect(view.queryByText(/개발용 코드/)).toBeNull();

@@ -11,7 +11,8 @@ import { useWorkspace } from '@/store/useWorkspace';
 import { api, ApiError, getSessionGeneration } from './client';
 import type { Me } from './types';
 import { opsQueryKey, qk, sessionQueryKey, type OccParams } from './queries';
-import { clearSessionQueries, revalidateSession } from './session-cache';
+import { draftKey, readDraft, writeDraft } from '@/lib/autosave';
+import { clearServerQueries, clearSessionQueries, revalidateSession } from './session-cache';
 
 const me: Me = { id: 5, name: '강사', role: 'teacher', roleLabel: '강사', title: null, canAdminPage: false, canCrudAll: false,
   canSeeProfit: false, canCrudAttendance: false, canMoney: false, canWage: false, canApprove: false, canHide: false, canGpaPack: false };
@@ -116,6 +117,23 @@ describe('session query cache boundary', () => {
     expect(useWorkspace.getState().drawer.draft).toBeNull();
     expect(useWorkspace.getState().drawer.submission).toBeNull();
     expect(useWorkspace.getState().drawer.requestKeys).toEqual([]);
+  });
+
+  it('같은 사용자의 토큰 교체(AUTH-D2 · 연락처 변경)는 서버 조회 캐시만 버리고 쓰던 글 · 서랍은 남긴다', () => {
+    const clear = vi.fn();
+    const draft = draftKey(5, 'report', '21:2026-10-16');
+    writeDraft(draft, { content: '쓰던 글' }, 'none|{}');
+    useWorkspace.getState().openDrawer('admin-5', 'chreqs');
+
+    clearServerQueries({ clear });
+
+    expect(clear).toHaveBeenCalledOnce();
+    expect(readDraft<{ content: string }>(draft)?.value.content).toBe('쓰던 글');
+    expect(useWorkspace.getState().drawer.open).toBe(true);
+    // 다른 사용자 경계(로그인 · 로그아웃 · 만료)는 그대로 초안까지 비운다
+    clearSessionQueries({ clear });
+    expect(readDraft(draft)).toBeNull();
+    expect(useWorkspace.getState().drawer.open).toBe(false);
   });
 
   it('운영 캐시는 사용자와 비용 권한과 **기간·갈래**를 모두 구분하고 기존 무효화 prefix를 유지한다', () => {

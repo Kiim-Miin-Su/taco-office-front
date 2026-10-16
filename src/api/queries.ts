@@ -163,6 +163,8 @@ import type {
   OccurrenceList,
   OnboardingInfo,
   PasswordResetInfo,
+  Profile,
+  ProfileUpdate,
   OccurrenceMove,
   OccurrencePaste,
   OccurrencePatch,
@@ -352,6 +354,8 @@ export const qk = {
   teacherHome: ['teacher', 'home'] as const,
   /* 강사 머리줄(시간대·시급·내 알림) — 강사 전용 · 서버가 본인 고정 */
   teacherShell: ['teacher', 'shell'] as const,
+  /** 본인 마이 페이지 프로필(AUTH-SELF-01) — 모든 역할 · 서버가 본인 고정. 대화상자를 열 때만 읽는다 */
+  authProfile: ['auth', 'profile'] as const,
   teacherHistory: ['teacher', 'history', 'server-previous-month'] as const,
   teacherPrivateNoteReceipts: ['teacher', 'private-notes', 'receipts'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
@@ -436,6 +440,7 @@ export const family = {
   drawer: ['drawer'] as const,
   teacherHome: ['teacher', 'home'] as const,
   teacherShell: ['teacher', 'shell'] as const,
+  authProfile: ['auth', 'profile'] as const,
   teacherHistory: ['teacher', 'history'] as const,
   teacherGuides: ['teacher', 'guides'] as const,
   teacherLessonHub: ['teacher', 'lesson-hub'] as const,
@@ -2203,11 +2208,13 @@ export function useCreateGuideDraft(): UseMutationResult<Guide, unknown, GuideDr
  * 교재를 방금 배부했는데 마크가 그대로면 화면을 아무도 안 믿는다.
  */
 /** 강사 홈 — 서버가 본인으로 고정한다. 다른 역할은 403(강사 전용 화면). */
-export function useTeacherHome(): UseQueryResult<TeacherHome> {
+export function useTeacherHome(enabled = true): UseQueryResult<TeacherHome> {
   const viewerId = useViewerId();
   return useQuery({
     queryKey: sessionQueryKey(qk.teacherHome, viewerId),
     queryFn: async () => (await api.get<TeacherHome>('/teacher/home')).data,
+    // 마이 페이지 대화상자는 강사 표면에서 열렸을 때만 같은 키를 읽는다(관리 화면 사용자는 서버도 403)
+    enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -2253,6 +2260,8 @@ export function useCreateSettingRequest(): UseMutationResult<TeacherSettingReque
     mutationFn: async (w) => (await api.post<TeacherSettingRequest>('/teacher/requests', w)).data,
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.teacherHome, viewerId) });
+      // 머리줄 · 메뉴 사용자 칸 · 마이 페이지 진입 칸의 시간대 · 시급도 같은 서버 값을 다시 본다(AUTH-SELF-01 갭 수정)
+      void qc.invalidateQueries({ queryKey: family.teacherShell });
       // 올린 요청은 서랍 §14 승인 대기함에도 같은 행으로 보인다 (D-R26)
       void qc.invalidateQueries({ queryKey: family.drawer });
       // 교재 변경은 수업 안내 교재 행의 「변경 요청 중」을 바꾼다 (N-99) — 주가 키에 들어 있어 갈래째 버린다
@@ -4114,6 +4123,38 @@ export function useOnboardingInfo(enabled = true): UseQueryResult<OnboardingInfo
     queryKey: sessionQueryKey(['auth', 'onboarding'] as const, viewerId),
     queryFn: async () => (await api.get<OnboardingInfo>('/auth/onboarding')).data,
     enabled,
+  });
+}
+
+/* ══ 본인 마이 페이지 (AUTH-SELF-01 · 사용자 결정 2026-10-16) ═══════════════════════════
+   대상은 늘 세션의 본인이다(경로 · 본문에 사람 id 없음). 연락처 저장은 새 세션을 돌려주므로 첫 설정처럼 화면이 직접 부르고
+   세션 경계(session-cache)를 거친다 — 여기에는 조회와 이름 · 영어 이름 저장만 둔다. */
+
+export function useProfile(enabled = true): UseQueryResult<Profile> {
+  const viewerId = useViewerId();
+  return useQuery({
+    queryKey: sessionQueryKey(qk.authProfile, viewerId),
+    queryFn: async () => (await api.get<Profile>('/auth/profile')).data,
+    enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * 이름 · 영어 이름 저장 — 응답이 저장된 프로필이라 그 값으로 바로 바꾼다(낙관 갱신 없음 · 서버가 trim · 비움을 정한다).
+ * 이름은 셸 · 강사 홈 · 구성원 표(서랍) · 담당자 고르기(/meta)에도 보이므로 그 갈래만 버린다. Me(셸 이름)는 화면이 세션 경계로 다시 읽는다.
+ */
+export function useUpdateProfile(): UseMutationResult<Profile, unknown, ProfileUpdate> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (body) => (await api.patch<Profile>('/auth/profile', body)).data,
+    onSuccess: (saved) => {
+      qc.setQueryData(sessionQueryKey(qk.authProfile, viewerId), saved);
+      void qc.invalidateQueries({ queryKey: family.teacherHome });
+      void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
+    },
   });
 }
 

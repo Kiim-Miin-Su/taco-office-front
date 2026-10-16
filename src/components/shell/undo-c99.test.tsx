@@ -23,7 +23,7 @@ import { AppShell } from './AppShell';
 import { LessonDetail } from '@/components/lesson/LessonDetail';
 
 const mocks = vi.hoisted(() => ({ back: vi.fn(), replace: vi.fn(), post: vi.fn(), drawer: vi.fn(), unwritten: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/schedule', useRouter: () => mocks }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/schedule', useRouter: () => mocks }));
 
 const me: Me = {
   id: 1, name: '김민수', role: 'admin', roleLabel: '관리자', title: null, canAdminPage: true, canCrudAll: true,

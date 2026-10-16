@@ -20,6 +20,8 @@ const nav = vi.hoisted(() => ({ search: '', replace: vi.fn() }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace }),
   useSearchParams: () => new URLSearchParams(nav.search),
+  // 「오늘」 띠의 시각 단추가 마이 페이지 주소(`?mypage=1`)를 지금 경로에 붙인다 (AUTH-SELF-01)
+  usePathname: () => '/schedule',
 }));
 vi.mock('@/api/queries', () => ({
   useOccurrences: mocks.occurrences, useMeta: mocks.meta, useUnwritten: mocks.unwritten, useDrawer: mocks.drawer,

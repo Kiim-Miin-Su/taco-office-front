@@ -34,6 +34,7 @@ vi.mock('@/store/useSession', () => {
 });
 
 import OnboardingPage from './page';
+import { fallbackRouteFor } from '@/components/shell/navigation';
 import { ApiError } from '@/api/client';
 
 const RULE = '비밀번호는 8자 이상 · 영문과 숫자를 함께 · 초기 비밀번호와 지금 비밀번호는 쓸 수 없습니다';
@@ -124,7 +125,44 @@ describe('첫 설정 화면', () => {
     });
     expect(h.clear).toHaveBeenCalledOnce();
     expect(h.clear.mock.invocationCallOrder[0]).toBeLessThan(h.signIn.mock.invocationCallOrder[0]);
-    expect(h.replace).toHaveBeenCalledWith('/schedule');
+    // 착지는 로그인과 같은 한 규칙(navigation.fallbackRouteFor)이다 — 화면이 역할 낱말로 갈래를 따로 두지 않는다
+    expect(h.replace).toHaveBeenCalledWith(fallbackRouteFor(user));
+  });
+
+  it('세 가지 모두 필요 · 건너뛰기 없음 — 1·2·3 단계 상태가 진행을 따라 바뀐다 (AUTH-INIT-02 · D7)', async () => {
+    h.post.mockImplementation(async (url: string, body: { channel?: string }) => {
+      if (url === '/auth/onboarding/codes' && body.channel === 'sms') {
+        throw new ApiError('SEND_FAILED', '문자로 코드를 보내지 못했습니다 — 잠시 뒤 다시 받아 주세요', 502);
+      }
+      if (url === '/auth/onboarding/codes') return sent('email');
+      throw new ApiError('PASSWORD_RULE', RULE, 400);
+    });
+    const view = mount();
+    await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
+    expect(view.getByText('세 가지를 모두 마쳐야 업무 화면이 열립니다 · 건너뛸 수 없습니다')).toBeTruthy();
+    const steps = () => within(view.getByRole('list', { name: '필수 단계' })).getAllByRole('listitem').map((li) => li.textContent);
+    expect(steps()).toEqual(['1이메일 인증코드 받기 전', '2휴대폰 인증코드 받기 전', '3새 비밀번호입력 전']);
+    // 건너뛰기 · 나중에 하기 단추는 없다
+    expect(view.queryByRole('button', { name: /건너|나중/ })).toBeNull();
+
+    type(view, '이메일', 'kim@tnacademy.kr');
+    fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
+    await waitFor(() => expect(steps()[0]).toMatch(/^1이메일 인증코드 보냄 · \d+초$/));
+    type(view, '이메일 인증 코드', '111111');
+    expect(steps()[0]).toBe('1이메일 인증코드 적음');
+
+    type(view, '휴대폰', '01012345678');
+    fireEvent.click(view.getByRole('button', { name: '문자로 코드 받기' }));
+    await waitFor(() => expect(steps()[1]).toBe('2휴대폰 인증발송 실패'));
+
+    type(view, '새 비밀번호', 'short');
+    type(view, '새 비밀번호 확인', 'short');
+    expect(steps()[2]).toBe('3새 비밀번호입력됨');
+    fireEvent.click(view.getByRole('button', { name: '설정 마치기' }));
+    await waitFor(() => expect(steps()[2]).toBe('3새 비밀번호규칙 확인'));
+    // 거절은 저장 0 — 카드 아래 띠가 그렇게 말하고, 세션은 그대로다
+    expect(view.getByText('설정을 마치지 못했습니다 — 저장된 것은 없습니다')).toBeTruthy();
+    expect(h.signIn).not.toHaveBeenCalled();
   });
 
   it('해외 번호는 국가번호를 골라 「+국가번호 번호」로 보낸다 — 나라 이름은 서버 목록 그대로 · 기본은 첫 줄(국내) (N-103)', async () => {
@@ -177,6 +215,33 @@ describe('첫 설정 화면', () => {
     expect(view.getByRole('button', { name: '설정 마치기' }).hasAttribute('disabled')).toBe(false);
   });
 
+  it('마치기 거절 띠는 role=alert 로 알리고, 보내는 동안 빠진 초점은 마치기 단추로 돌아온다 — 키보드 · 화면 낭독기 (S4)', async () => {
+    let reject: (e: unknown) => void = () => undefined;
+    h.post.mockImplementation((url: string) => {
+      if (url === '/auth/onboarding/complete') return new Promise((_, r) => { reject = r; });
+      return Promise.reject(new Error(url));
+    });
+    const view = mount();
+    await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
+    type(view, '이메일', 'kim@tnacademy.kr');
+    type(view, '휴대폰', '01012345678');
+    type(view, '이메일 인증 코드', '111111');
+    type(view, '휴대폰 인증 코드', '000000');
+    type(view, '새 비밀번호', 'Brand-new-77');
+    type(view, '새 비밀번호 확인', 'Brand-new-77');
+    const submit = view.getByRole('button', { name: '설정 마치기' });
+    submit.focus();
+    fireEvent.click(submit);
+    await waitFor(() => expect(h.post).toHaveBeenCalledWith('/auth/onboarding/complete', expect.anything()));
+    // 실제 브라우저는 보내는 동안 disabled 가 된 단추의 초점을 body 로 버린다 — jsdom 은 버리지 않으므로 그 상태를 만든다
+    (document.activeElement as HTMLElement | null)?.blur();
+    reject(new ApiError('CODE_MISMATCH', '휴대폰 코드가 맞지 않습니다 — 4번 더 시도할 수 있습니다', 409));
+    const alert = await view.findByRole('alert');
+    expect(alert.textContent).toContain('설정을 마치지 못했습니다 — 저장된 것은 없습니다');
+    expect(alert.textContent).toContain('휴대폰 코드가 맞지 않습니다 — 4번 더 시도할 수 있습니다');
+    await waitFor(() => expect(document.activeElement).toBe(view.getByRole('button', { name: '설정 마치기' })));
+  });
+
   it('코드 받기 거절은 누른 단추 바로 아래에 선다 — 휴대폰 화면에서 맨 아래 띠만 두면 보이지 않는다 (QA 0926 UX-1)', async () => {
     h.post.mockImplementation(async () => {
       throw new ApiError('CODE_TOO_SOON', '코드를 방금 보냈습니다 — 42초 뒤에 다시 받을 수 있습니다', 429);
@@ -223,7 +288,8 @@ describe('첫 설정 화면', () => {
     type(view, '이메일', 'kim@tnacademy.kr');
     fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
     const waiting = await view.findByRole('button', { name: /다시 받기 \(\d초\)/ });
-    expect(waiting.hasAttribute('disabled')).toBe(true);
+    // 초읽기 동안은 aria-disabled 로 잠근다 — disabled 면 누른 단추의 초점이 body 로 빠진다(S4)
+    expect(waiting.getAttribute('aria-disabled')).toBe('true');
     await waitFor(() => {
       const again = view.getByRole('button', { name: '메일로 코드 받기' });
       expect(again.hasAttribute('disabled')).toBe(false);
