@@ -15,7 +15,7 @@ import { studentKeys, useStudentHub, useStudentHubSection, useStudentPrivateNote
 import { ConsultingStudents } from '@/components/consulting/ConsultingStudents';
 import { TeacherCalendarGrid } from '@/components/cal/TeacherSchedule';
 import { GuideKindChip, GuideStateChip } from '@/components/guides/GuideStatus';
-import { Banner, Button, Chip, Input, Label, LinkButton, PageHeader, Panel, QueryState, Segmented, Select, TabCards, Table, Tabs, Textarea, cn, type Column } from '@/components/ui';
+import { Banner, Button, Chip, ChipRow, Input, LinkButton, PageHeader, Panel, QueryState, Segmented, Select, TabCards, Table, Textarea, cn, type Column } from '@/components/ui';
 import { boundsOf, hhmm, kstDateTime, label, step, todayKst, weekDays } from '@/lib/calendar';
 import { KinderMarkerPanel } from './KinderMarkerPanel';
 
@@ -157,31 +157,46 @@ function HubNextActions({ studentId }: { studentId: number }) {
 
 type HubTeacher = StudentHub['teachers'][number];
 
+/**
+ * 10/14 PPTX p3 ① 「담당 강사 줄」 — 이름 · 역할(강사가 아니면 서버 낱말) · 과목을 칩 하나로 묶고 `/staff/{id}`로 잇는다.
+ * 수정본처럼 제목 없이 「담당 강사」 한 낱말 + 칩 줄이다. 강사 수는 개요 탭의 패널 제목이 소유한다(S5a 2026-10-16).
+ */
 function TeacherLinks({ teachers }: { teachers: readonly HubTeacher[] }) {
-  return <Panel title={`담당 강사 ${teachers.length}명`}>
+  return <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-card px-4 py-3">
+    <b className="text-[13px]">담당 강사</b>
     {teachers.length ? <div className="flex flex-wrap gap-2">{teachers.map(teacher => {
       const subjects = [...new Set(teacher.lessons.map(lesson => lesson.subjectName ?? lesson.kindName).filter(Boolean))];
-      return <LinkButton key={teacher.staffId} href={`/staff/${teacher.staffId}`} size="sm">
-        {teacher.name}{teacher.roleLabel ? ` ${teacher.roleLabel}` : ''}{subjects.length ? ` · ${subjects.join(' · ')}` : ''} ›
-      </LinkButton>;
+      return <Link key={teacher.staffId} href={`/staff/${teacher.staffId}`}
+        className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-inset px-4 text-[12px] transition-colors hover:border-fg-subtle">
+        <b className="text-[13px] text-fg">{teacher.name}</b>
+        {/* 공백 글자는 flex 배치에 영향이 없고 접근 이름(「이름 역할 과목 ›」)만 띄운다 */}
+        {teacher.roleLabel ? <>{' '}<span className="text-fg-subtle">{teacher.roleLabel}</span></> : null}
+        {subjects.length ? <>{' '}<span className="text-fg-subtle">{subjects.join(' · ')}</span></> : null}
+        {' '}<span className="text-fg-subtle">›</span>
+      </Link>;
     })}</div> : <p className="text-[12px] text-fg-subtle">현재 또는 예정된 담당 강사가 없습니다.</p>}
-  </Panel>;
+  </section>;
 }
 
+/** 10/14 PPTX p4 ③ 「담당 강사 N명」 패널 — 수업마다 요일·시간·대면/비대면·시작일과 강사 화면 바로가기 셋. */
 function TeacherPanel({ teachers }: { teachers: readonly HubTeacher[] }) {
-  return <Panel title="담당 강사와 수업" sub="현재·예정 수업 명단의 연결입니다. 종료된 배정은 포함하지 않습니다.">
-    {teachers.length ? <ul className="space-y-3">{teachers.map(teacher => <li key={teacher.staffId} className="rounded-lg border border-line p-3">
-      <Link href={`/staff/${teacher.staffId}`} className="text-[13px] font-bold text-blue hover:underline">
-        {teacher.name}{teacher.roleLabel ? ` ${teacher.roleLabel}` : ''}
-      </Link>
-      <ul className="mt-2 space-y-2">{teacher.lessons.map((lesson, index) => <li key={`${lesson.serId}:${lesson.fromDate}:${index}`} className="text-[12px] leading-5">
-        <b>{[lesson.kindName, lesson.subjectName].filter(Boolean).join(' · ')}</b>
-        <span className="ml-2 text-fg-subtle">{lesson.ruleLabel} · {hhmm(lesson.startMin)}–{hhmm(lesson.endMin)} · {lesson.mode === 'online' ? '비대면' : '대면'} · {lesson.fromDate} 시작{lesson.toDate ? ` · ${lesson.toDate} 종료` : ''}</span>
+  return <Panel title={`담당 강사 ${teachers.length}명`} sub="지금 이 학생이 듣는 수업과 담당 강사입니다. 이름을 누르면 강사 화면으로 갑니다.">
+    {teachers.length ? <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">{teachers.map(teacher => <li key={teacher.staffId} className="rounded-xl border border-line p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href={`/staff/${teacher.staffId}`} className="text-[14px] font-bold text-blue hover:underline">{teacher.name}</Link>
+        {teacher.roleLabel ? <Chip size="compact">{teacher.roleLabel}</Chip> : null}
+        <span className="ml-auto text-[12px] text-fg-subtle">수업 {teacher.lessons.length}개</span>
+      </div>
+      <ul className="mt-3 space-y-2">{teacher.lessons.map((lesson, index) => <li key={`${lesson.serId}:${lesson.fromDate}:${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5">
+        <b className="text-[13px]">{lesson.subjectName ?? lesson.kindName}</b>
+        <span className="text-fg-subtle">{lesson.ruleLabel} {hhmm(lesson.startMin)}–{hhmm(lesson.endMin)}</span>
+        <Chip size="compact" tone={lesson.mode === 'online' ? 'info' : 'neutral'}>{lesson.mode === 'online' ? '비대면' : '대면'}</Chip>
+        <span className="text-fg-subtle">{lesson.fromDate}부터{lesson.toDate ? ` ~ ${lesson.toDate}` : ''}</span>
       </li>)}</ul>
       <div className="mt-3 flex flex-wrap gap-2">
-        <LinkButton href={`/staff/${teacher.staffId}`} size="sm">선생님 홈</LinkButton>
-        <LinkButton href={`/staff/${teacher.staffId}?tab=calendar`} size="sm">시간표</LinkButton>
-        <LinkButton href={`/staff/${teacher.staffId}?tab=guides`} size="sm">수업 안내</LinkButton>
+        <LinkButton href={`/staff/${teacher.staffId}`} size="sm">강사 홈</LinkButton>
+        <LinkButton href={`/staff/${teacher.staffId}?tab=calendar`} size="sm">강사 캘린더</LinkButton>
+        <LinkButton href={`/staff/${teacher.staffId}?tab=guides`} size="sm">강사 수업 안내</LinkButton>
       </div>
     </li>)}</ul> : <p className="text-[12px] text-fg-subtle">연결된 현재·예정 수업이 없습니다.</p>}
   </Panel>;
@@ -207,18 +222,19 @@ function StudentScheduleTab({ studentId, meta, initialView, initialAnchor }: {
     router.push(`/schedule?${params.toString()}`);
   };
   const periodLabel = view === 'month' ? `${anchor.slice(0, 4)}년 ${Number(anchor.slice(5, 7))}월`
-    : `${label(weekDays(anchor)[0])} – ${label(weekDays(anchor)[6])}`;
-  return <Panel title="학생 시간표" sub="이 학생이 포함된 회차만 표시합니다. 수업을 선택하면 전체 일정에서 엽니다."
-    right={<LinkButton href={`/schedule?studentId=${studentId}&date=${anchor}`} size="sm">전체 시간표</LinkButton>}>
+    : `${label(weekDays(anchor)[0])}–${label(weekDays(anchor)[6])}`;
+  // 10/14 PPTX p6 수정본: 주간·월간 → 이전·오늘·다음 → 기간 글자, 오른쪽 끝에 「전체 스케줄에서 보기」(S5a 2026-10-16)
+  return <Panel title="학생 시간표" sub="이 학생이 포함된 회차만 표시합니다. 수업을 선택하면 전체 일정에서 엽니다.">
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <Segmented<StudentCalendarView> ariaLabel="학생 시간표 보기" value={view} onChange={next => move(next, anchor)}
         options={[{ value: 'week', label: '주간' }, { value: 'month', label: '월간' }]} />
-      <div role="group" aria-label="기간 이동" className="ml-auto flex flex-wrap items-center gap-1">
+      <div role="group" aria-label="기간 이동" className="flex flex-wrap items-center gap-1">
         <Button size="sm" aria-label="이전 기간" onClick={() => move(view, step(view, anchor, -1))}>이전</Button>
-        <span className="min-w-32 text-center text-[12px] font-bold">{periodLabel}</span>
-        <Button size="sm" aria-label="다음 기간" onClick={() => move(view, step(view, anchor, 1))}>다음</Button>
         <Button size="sm" onClick={() => move(view, todayKst())}>오늘</Button>
+        <Button size="sm" aria-label="다음 기간" onClick={() => move(view, step(view, anchor, 1))}>다음</Button>
       </div>
+      <span className="text-[13px] font-bold">{periodLabel}</span>
+      <LinkButton href={`/schedule?studentId=${studentId}&date=${anchor}`} size="sm" className="ml-auto">전체 스케줄에서 보기</LinkButton>
     </div>
     <QueryState query={occurrences}>{data => <>
       {holidays.isError ? <Banner tone="warning" title="공휴일을 불러오지 못했습니다"><Button size="sm" onClick={() => void holidays.refetch()}>다시 시도</Button></Banner> : null}
@@ -264,13 +280,17 @@ type CommentTimelineItem = {
 type CommentLesson = StudentHub['commentLessons'][number];
 const commentLessonLabel = (lesson?: CommentLesson): string =>
   [lesson?.kindName, lesson?.subjectName].filter(Boolean).join(' · ') || '수업';
+/** 10/14 PPTX p7 ③: 코멘트 카드의 칩은 과목 이름 하나다(과목이 없는 수업만 종류 이름). */
+const commentSubjectLabel = (lesson?: CommentLesson): string => lesson?.subjectName ?? lesson?.kindName ?? '수업';
 const COMMENT_WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-const commentDayLabel = (day: string, count: number): string => {
+/** 날짜 묶음 머리 — 수정본처럼 「10월 14일」 / 「수요일 · 1건」 두 줄로 나눈다. */
+const commentDayParts = (day: string, count: number): { title: string; sub: string } => {
   const date = new Date(`${day}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return `${day} · ${count}건`;
+  if (Number.isNaN(date.getTime())) return { title: day, sub: `${count}건` };
   const [, month, dateOfMonth] = day.split('-');
-  return `${Number(month)}월 ${Number(dateOfMonth)}일 / ${COMMENT_WEEKDAYS[date.getUTCDay()]} · ${count}건`;
+  return { title: `${Number(month)}월 ${Number(dateOfMonth)}일`, sub: `${COMMENT_WEEKDAYS[date.getUTCDay()]} · ${count}건` };
 };
+const commentMonthLabel = (month: string): string => `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월`;
 
 function CommentsTab({ studentId }: { studentId: number }) {
   const queryClient = useQueryClient();
@@ -282,23 +302,24 @@ function CommentsTab({ studentId }: { studentId: number }) {
   const [lessonId, setLessonId] = useState('');
   const [body, setBody] = useState('');
   const [writeError, setWriteError] = useState<string | null>(null);
-  // 두 projection의 본문은 섞어 저장하지 않는다. 이 화면에서만 KST 활동 월을 합친다.
+  // 두 projection의 본문은 섞어 저장하지 않는다. 이 화면에서만 달을 합친다.
+  // 10/14 PPTX p7: 관리자 코멘트는 남긴 날(KST, 서버 집계), 강사 특이사항은 그 수업일(onDate)에 쌓는다(S5a 2026-10-16).
   const months = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of hub.data?.comments.months ?? []) counts.set(item.month, item.total);
     for (const item of privateNotes.data?.items ?? []) {
-      const month = kstDateTime(item.updatedAt)?.slice(0, 7);
-      if (month) counts.set(month, (counts.get(month) ?? 0) + 1);
+      const month = item.onDate.slice(0, 7);
+      counts.set(month, (counts.get(month) ?? 0) + 1);
     }
     return [...counts].map(([month, total]) => ({ month, total })).sort((a, b) => b.month.localeCompare(a.month));
   }, [hub.data, privateNotes.data]);
   const comments = useStudentHubSection(studentId, 'comments', { enabled: hub.isSuccess, commentsMonth: chosenMonth ?? undefined });
-  const privateThisMonth = privateNotes.data?.items.filter(item => !chosenMonth || kstDateTime(item.updatedAt)?.startsWith(chosenMonth)) ?? [];
+  const privateThisMonth = privateNotes.data?.items.filter(item => !chosenMonth || item.onDate.startsWith(chosenMonth)) ?? [];
   const noteCount = chosenMonth ? hub.data?.comments.months.find(item => item.month === chosenMonth)?.total ?? 0 : hub.data?.comments.allTotal ?? 0;
   const monthCount = noteCount + privateThisMonth.length;
   const timeline = useMemo(() => {
     const lessonLabels = new Map((hub.data?.commentLessons ?? []).map(lesson => [lesson.serId,
-      commentLessonLabel(lesson)]));
+      commentSubjectLabel(lesson)]));
     const lessonLabel = (serId: number) => lessonLabels.get(serId) ?? '수업';
     const admin: CommentTimelineItem[] = (comments.data?.pages.flatMap(page => page.comments.items) ?? []).map(item => ({
       key: `admin:${item.id}`, origin: 'admin', author: item.authorName ?? `직원 #${item.authorId}`,
@@ -307,11 +328,11 @@ function CommentsTab({ studentId }: { studentId: number }) {
     }));
     const teacher: CommentTimelineItem[] = privateThisMonth.map(item => ({
       key: `teacher:${item.id}`, origin: 'teacher', author: item.authorName, at: item.updatedAt,
-      day: kstDateTime(item.updatedAt)?.slice(0, 10) ?? '', body: item.body,
-      lesson: `수업일 ${item.onDate} · ${lessonLabel(item.serId)}`,
+      day: item.onDate, body: item.body, lesson: lessonLabel(item.serId),
     }));
     const visible = category === 'admin' ? admin : category === 'teacher' ? teacher : [...admin, ...teacher];
-    visible.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.key.localeCompare(a.key));
+    // 날짜 묶음이 먼저다 — 강사 특이사항은 작성 시각과 묶음 날짜(수업일)가 다를 수 있다
+    visible.sort((a, b) => b.day.localeCompare(a.day) || Date.parse(b.at) - Date.parse(a.at) || b.key.localeCompare(a.key));
     const grouped = new Map<string, CommentTimelineItem[]>();
     for (const item of visible) grouped.set(item.day, [...(grouped.get(item.day) ?? []), item]);
     return [...grouped];
@@ -337,49 +358,63 @@ function CommentsTab({ studentId }: { studentId: number }) {
       onError: error => setWriteError(apiMessage(error)),
     });
   };
+  const allCount = (hub.data?.comments.allTotal ?? 0) + (privateNotes.data?.items.length ?? 0);
   return <div className="space-y-4">
-    <Panel title="코멘트 추가" sub="관리자·매니저의 인수인계입니다. 저장 후 수정·삭제할 수 없으며 학부모 전달 문서에는 포함되지 않습니다.">
+    {/* 10/14 PPTX p7 ① 「코멘트 남기기」 — 본문 → 연결 수업 · 글자 수 · 단추 한 줄 (S5a 2026-10-16) */}
+    <Panel title="코멘트 남기기" sub="담당 강사의 수업 안내 학생 카드에 함께 보입니다 · 학부모에게는 나가지 않습니다 · 고치기·지우기 없이 날짜순으로 쌓입니다">
       <form className="space-y-3" onSubmit={event => { event.preventDefault(); submit(); }}>
-        <div><Label htmlFor="student-comment-lesson">연결 수업</Label>
-          <Select id="student-comment-lesson" value={lessonId} disabled={add.isPending} onChange={event => setLessonId(event.target.value)}>
-            <option value="">학생 공통</option>
-            {lessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.label}</option>)}
-          </Select>
-        </div>
-        <div><Label htmlFor="student-comment-body" hint={`${body.length} / 500`}>코멘트 *</Label>
-          <Textarea id="student-comment-body" value={body} maxLength={500} disabled={add.isPending}
-            onChange={event => setBody(event.target.value)} placeholder="담당 강사에게 남길 내용을 입력하세요" />
+        <label htmlFor="student-comment-body" className="sr-only">코멘트 내용</label>
+        <Textarea id="student-comment-body" value={body} maxLength={500} disabled={add.isPending}
+          onChange={event => setBody(event.target.value)} placeholder="예) 10/2 숙제 미제출 건 어머님과 통화 — 화·금 수업 전날 숙제 확인 문자를 보내기로 함" />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 공용 Select 는 늘 w-full 이라 폭은 감싼 칸이 정한다(너비 덮어쓰기 금지 — CODEX §5-18) */}
+          <div className="min-w-0 flex-1 sm:max-w-md">
+            <Select id="student-comment-lesson" aria-label="연결 수업" value={lessonId} disabled={add.isPending}
+              onChange={event => setLessonId(event.target.value)}>
+              <option value="">학생 공통 — 수업 연결 없음</option>
+              {lessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.label}</option>)}
+            </Select>
+          </div>
+          <span className="text-[12px] tabular-nums text-fg-subtle">{body.length}/500</span>
+          <Button type="submit" size="sm" className="ml-auto" disabled={!body.trim() || add.isPending}>{add.isPending ? '저장 중…' : '코멘트 남기기'}</Button>
         </div>
         {writeError ? <Banner tone="danger">{writeError}</Banner> : null}
-        <Button type="submit" size="sm" disabled={!body.trim() || add.isPending}>{add.isPending ? '저장 중…' : '코멘트 남기기'}</Button>
       </form>
     </Panel>
-    <Panel title={hub.isSuccess && privateNotes.isSuccess ? `코멘트 ${monthCount}건` : '코멘트'}
-      sub="작성·수정 KST 날짜별 기록입니다. 강사 특이사항의 수업일은 별도로 표시합니다.">
+    <Panel title={hub.isSuccess && privateNotes.isSuccess ? `코멘트 ${monthCount}건` : '코멘트'} wrapRight
+      sub="관리자 코멘트와 강사 특이사항을 날짜순으로 쌓아 달 · 날짜로 묶었습니다. 달을 누르면 그 달만 봅니다. 학부모 전달 문서에는 포함되지 않습니다."
+      right={<Segmented<CommentCategory> ariaLabel="코멘트 출처" value={category} onChange={setCategory}
+        options={[{ value: 'all', label: '전체' }, { value: 'admin', label: '관리자 코멘트' }, { value: 'teacher', label: '강사 특이사항' }]} />}>
       {hub.isPending || privateNotes.isPending ? <p className="text-[12px] text-fg-subtle">불러오는 중…</p> : null}
       {hub.isError ? <Banner tone="warning" title="코멘트 월 정보를 불러오지 못했습니다"><Button size="sm" onClick={() => void hub.refetch()}>다시 시도</Button></Banner> : null}
       {privateNotes.isError ? <Banner tone="warning" title="강사 특이사항을 불러오지 못했습니다"><Button size="sm" onClick={() => void privateNotes.refetch()}>다시 시도</Button></Banner> : null}
-      {months.length ? <div className="mb-3 overflow-x-auto"><Tabs<string> ariaLabel="코멘트 월" value={chosenMonth ?? 'all'}
-        onChange={value => setChosenMonth(value === 'all' ? null : value)}
-        options={[{ value: 'all', label: `전체 (${(hub.data?.comments.allTotal ?? 0) + (privateNotes.data?.items.length ?? 0)}건)` },
-          ...months.map(item => ({ value: item.month, label: `${item.month} (${item.total}건)` }))]} className="min-w-max [&>button]:min-h-11" /></div> : null}
-      <Segmented<CommentCategory> ariaLabel="코멘트 출처" value={category} onChange={setCategory}
-        options={[{ value: 'all', label: '전체' }, { value: 'admin', label: '관리자 인수인계' }, { value: 'teacher', label: '강사 특이사항' }]} />
+      {months.length ? <ChipRow<string> ariaLabel="코멘트 달" pressedTone="ink" className="mb-3" value={chosenMonth ?? ''}
+        onChange={value => setChosenMonth(value || null)} allLabel="전체" allCount={allCount}
+        options={months.map(item => ({ value: item.month, label: commentMonthLabel(item.month), count: item.total }))} /> : null}
       {comments.isPending && hub.isSuccess ? <p className="mt-3 text-[12px] text-fg-subtle">코멘트를 불러오는 중…</p> : null}
       {comments.isError ? <Banner tone="warning" title="코멘트를 불러오지 못했습니다"><Button size="sm" onClick={() => void comments.refetch()}>다시 시도</Button></Banner> : null}
-      {comments.isSuccess && (privateNotes.isSuccess || privateNotes.isError) ? timeline.length ? <div className="mt-4 space-y-5">{[...monthTimeline].map(([month, days]) => <section key={month}>
-        <h3 className="mb-3 text-[13px] font-bold">{month.slice(0, 4)}년 {Number(month.slice(5))}월 {months.find(item => item.month === month)?.total ?? days.reduce((total, [, items]) => total + items.length, 0)}건</h3>
-        <div className="space-y-4">{days.map(([day, items]) => <section key={day}>
-          <h4 className="mb-2 text-[12px] font-bold">{commentDayLabel(day, items.length)}</h4>
-          <ul className="space-y-2">{items.map(item => <li key={item.key} className="rounded-lg border border-line px-3 py-3">
-          <div className="flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle">
-            <Chip>{item.origin === 'admin' ? '관리자 인수인계' : '강사 특이사항'}</Chip>
-            <b className="text-fg">{item.author}</b><span>{kstDateTime(item.at) ?? item.at}</span>
-            {item.lesson ? <Chip>{item.lesson}</Chip> : null}
-          </div>
-          <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-6">{item.body}</p>
-          </li>)}</ul>
-        </section>)}</div>
+      {comments.isSuccess && (privateNotes.isSuccess || privateNotes.isError) ? timeline.length ? <div className="mt-4 space-y-6">{[...monthTimeline].map(([month, days]) => <section key={month}>
+        <h3 className="mb-3 flex items-center gap-2 border-b border-line pb-2 text-[15px] font-bold">{commentMonthLabel(month)}{' '}
+          <Chip size="compact">{`${months.find(item => item.month === month)?.total ?? days.reduce((total, [, items]) => total + items.length, 0)}건`}</Chip></h3>
+        <div className="space-y-4">{days.map(([day, items]) => {
+          const head = commentDayParts(day, items.length);
+          return <section key={day} className="grid grid-cols-1 gap-2 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-4">
+            <div className="sm:border-r sm:border-line sm:pr-3">
+              <h4 className="text-[14px] font-bold">{head.title}</h4>
+              <p className="mt-0.5 text-[12px] text-fg-subtle">{head.sub}</p>
+            </div>
+            <ul className="space-y-2">{items.map(item => <li key={item.key} className="rounded-lg border border-line px-3 py-3">
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-fg-subtle">
+                <Chip tone={item.origin === 'admin' ? 'info' : 'neutral'}>{item.origin === 'admin' ? '관리자 코멘트' : '강사 특이사항'}</Chip>
+                <b className="text-fg">{item.author}</b>
+                {item.origin === 'admin' ? <span className="tabular-nums">{kstDateTime(item.at)?.slice(11, 16) ?? item.at}</span> : null}
+                {item.lesson ? <Chip>{item.lesson}</Chip> : null}
+                {item.origin === 'teacher' ? <span className="ml-auto">수업 뒤 작성 · {kstDateTime(item.at) ?? item.at}</span> : null}
+              </div>
+              <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-6">{item.body}</p>
+            </li>)}</ul>
+          </section>;
+        })}</div>
       </section>)}</div> : <p className="mt-3 text-[12px] text-fg-subtle">선택한 기간과 출처에 표시할 코멘트가 없습니다.</p> : null}
       {comments.hasNextPage && category !== 'teacher' ? <Button className="mt-3" size="sm" disabled={comments.isFetchingNextPage}
         onClick={() => void comments.fetchNextPage()}>{comments.isFetchingNextPage ? '불러오는 중…' : '코멘트 더 보기'}</Button> : null}
@@ -447,31 +482,41 @@ export function StudentDetail({ studentId, initialTab = 'overview', initialCalen
     setTab(next);
     router.replace(`/students/${studentId}?tab=${next}`, { scroll: false });
   };
-  return <QueryState query={query}>{data => <div className="flex flex-col gap-4">
-    <PageHeader title={data.label} sub={[data.school, data.grade, `등록일 (DB 생성) ${kstDateTime(data.createdAt)?.slice(0, 10) ?? '미상'}`].filter(Boolean).join(' · ')} right={<LinkButton href="/students" size="sm">학생 목록</LinkButton>} />
+  return <QueryState query={query}>{data => {
+    // 10/14 PPTX p3: 머리 줄 「학교 · 학년 · YYYY-MM-DD 등록」. 날짜는 STU.created_at(학생 DB 생성일, KST)이며
+    // 기존 등록 시작일(startedOn)과 다른 값이다 — 두 값의 구분은 프로필 탭이 함께 보인다(S5a 2026-10-16).
+    const registered = kstDateTime(data.createdAt)?.slice(0, 10);
+    // 탭 아랫줄 숫자는 모두 서버 응답(hub.nextActions · reports · comments · read 집계)이다. 화면은 낱말만 붙인다(D-R37).
+    const action = (key: StudentHub['nextActions'][number]['key']) => hub.data?.nextActions.find(item => item.key === key)?.count;
+    const tabSub = (value: StudentHubTab): string | undefined => {
+      const hubData = hub.data;
+      switch (value) {
+        case 'overview': return hubData ? `할 일 ${hubData.nextActions.filter(item => item.count > 0).length}건` : undefined;
+        case 'assignment': return hubData ? `안내 ${action('guides') ?? 0} · 교재 ${action('books') ?? 0}` : undefined;
+        case 'schedule': return hubData ? `주·월 · 예정 ${action('schedule') ?? 0}회` : '주·월';
+        case 'history': return `수강 ${data.enrollmentTotal}건`;
+        case 'reports': return hubData ? `${hubData.reports.total}건` : undefined;
+        case 'books': return hubData ? `${action('books') ?? 0}종 사용 중` : undefined;
+        case 'comments': return hubData ? `${hubData.comments.allTotal + hubData.privateNoteCount}건 · 달별` : undefined;
+        case 'consulting': return hubData ? `${action('consulting') ?? 0}건 진행` : undefined;
+        case 'profile': return `보호자 ${data.guardianTotal}명`;
+        case 'billing': return hubData ? `처리 ${action('billing') ?? 0}건` : undefined;
+      }
+    };
+    return <div className="flex flex-col gap-4">
+    <PageHeader title={data.label} sub={[data.school, data.grade, registered ? `${registered} 등록` : '등록일 미상'].filter(Boolean).join(' · ')} right={<LinkButton href="/students" size="sm">학생 목록</LinkButton>} />
     {hub.isSuccess ? <TeacherLinks teachers={hub.data.teachers} /> : null}
+    {/* 10/14 PPTX p3 ②: 카드형 탭 10개는 학생 목록·본문 위 전체 폭에 놓고 모서리 숫자 동그라미 없이 아랫줄에만 숫자를 둔다 */}
+    <TabCards<StudentHubTab> label="학생 허브 보기" value={tab} onChange={selectTab}
+      options={STUDENT_HUB_TABS.map(option => ({ ...option, sub: tabSub(option.value) }))} />
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start"><QueryState query={meta} isEmpty={value => value.students.length === 0} empty="표시할 학생이 없습니다.">{value => <StudentRail data={value} currentId={data.id} tab={tab} />}</QueryState></aside>
       <main className="min-w-0 space-y-4">
-        <TabCards<StudentHubTab> label="학생 허브 보기" value={tab} onChange={selectTab} options={STUDENT_HUB_TABS.map(option => {
-          const action = (key: StudentHub['nextActions'][number]['key']) => hub.data?.nextActions.find(item => item.key === key)?.count;
-          const details: Partial<Record<StudentHubTab, { sub?: string; badge?: number }>> = {
-            assignment: { sub: '확인 필요 안내', badge: action('guides') },
-            schedule: { sub: '예정 수업', badge: action('schedule') },
-            history: { sub: '기존 감사', badge: data.historyTotal },
-            reports: { sub: '리포트', badge: hub.data?.reports.total },
-            books: { sub: '사용 중 교재', badge: action('books') },
-            comments: { sub: '월별 기록', badge: hub.data ? hub.data.comments.allTotal + hub.data.privateNoteCount : undefined },
-            consulting: { sub: '진행 중', badge: action('consulting') },
-            billing: { sub: '청구 내역', badge: hub.data?.invoices.total },
-          };
-          const detail = details[option.value];
-          const unit = option.value === 'schedule' ? '회' : option.value === 'books' ? '종' : '건';
-          return { ...option, ...detail, sub: detail?.badge === undefined ? detail?.sub : `${detail.sub} ${detail.badge}${unit}` };
-        })} />
+        {/* 10/14 PPTX p4: 이어서 할 일 → 담당 강사 패널 → 최신 수업 안내 순서 */}
         {tab === 'overview' ? <>
+          <HubNextActions studentId={data.id} />
           {hub.isSuccess ? <TeacherPanel teachers={hub.data.teachers} /> : null}
-          <HubNextActions studentId={data.id} /><GuideTab studentId={data.id} />
+          <GuideTab studentId={data.id} />
         </> : null}
         {tab === 'assignment' ? <GuideTab studentId={data.id} assignment /> : null}
         {tab === 'schedule' ? <StudentScheduleTab studentId={data.id} meta={meta.data} initialView={initialCalendarView}
@@ -493,5 +538,6 @@ export function StudentDetail({ studentId, initialTab = 'overview', initialCalen
         {tab === 'billing' ? <InvoicesTab studentId={data.id} enrollments={data.enrollments} enrollmentTotal={data.enrollmentTotal} /> : null}
       </main>
     </div>
-  </div>}</QueryState>;
+  </div>;
+  }}</QueryState>;
 }

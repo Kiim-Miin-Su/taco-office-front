@@ -8,14 +8,20 @@
 import type { ReactNode } from 'react';
 import { cn } from './cn';
 
-export function Panel({ title, sub, right, children, className }: {
+export function Panel({ title, sub, right, children, className, wrapRight = false }: {
   title?: ReactNode; sub?: ReactNode; right?: ReactNode; children?: ReactNode; className?: string;
+  /**
+   * 넓은 오른쪽 슬롯(세그먼트 필터 등)이 좁은 폭에서 제목·설명을 한 낱말 폭으로 누르지 않게 다음 줄로 내린다.
+   * 기본 false — 기존 패널 소비처의 배치는 바꾸지 않는다(S5a 2026-10-16, 390px 실측).
+   */
+  wrapRight?: boolean;
 }) {
   return (
     <section className={cn('rounded-xl border border-line bg-card p-4', className)}>
       {(title || right) && (
-        <header className="mb-3 flex items-start justify-between gap-3">
-          <div>
+        <header className={cn('mb-3 flex items-start justify-between gap-3', wrapRight && 'flex-wrap')}
+          data-wrap-right={wrapRight ? 'true' : undefined}>
+          <div className={wrapRight ? 'min-w-0 flex-1 basis-60' : undefined}>
             {title ? <h2 className="text-[13px] font-bold text-fg">{title}</h2> : null}
             {sub ? <p className="mt-0.5 text-[12px] text-fg-subtle">{sub}</p> : null}
           </div>

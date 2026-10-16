@@ -58,7 +58,7 @@ function statusLabel(occ: Occurrence): string {
 }
 
 /** 리포트 상태 낱말 — 줄 배지와 오른쪽 「색이 뜻하는 것」이 이 한 함수를 쓴다(두 표로 두면 낱말이 갈린다) */
-function repStateLabel(state: string): string {
+export function repStateLabel(state: string): string {
   if (state === 'plan') return '수업 예정';
   if (state === 'none') return '리포트 미작성';
   if (state === 'draft') return '리포트 작성 중';
@@ -182,7 +182,8 @@ function CalendarLessonButton({ occ, lookup, onOpen, compact = false, perspectiv
         <span className="shrink-0 text-[12px] font-bold">{hhmm(occ.startMin)}</span>
         <span className={cn('min-w-0 flex-1 truncate text-[12px] font-bold', canceled && 'line-through')}>{subject}</span>
       </span>
-      {(!compact || perspective === 'student') ? <span className="mt-0.5 block truncate text-[12px] opacity-80">{detail}</span> : null}
+      {/* 10/14 PPTX p6: 월간 칸은 강사·학생 시점 모두 「시각 과목」만 — 강사·대면·상태는 주간 칸과 접근 이름이 맡는다(S5a 2026-10-16) */}
+      {!compact ? <span className="mt-0.5 block truncate text-[12px] opacity-80">{detail}</span> : null}
     </button>
   );
 }

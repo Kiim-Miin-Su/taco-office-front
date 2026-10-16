@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 import type { ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -214,12 +214,12 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
   it('개요의 코멘트 건수는 본문 없는 서버 집계로 표시하고 강사별 화면에 연결한다', async () => {
     const view = render(<StudentDetail studentId={21} />, setup());
     await view.findByRole('heading', { name: '담당 강사 1명' });
-    expect(view.getByRole('tab', { name: /코멘트/ }).textContent).toContain('월별 기록 4건');
+    expect(view.getByRole('tab', { name: /코멘트/ }).textContent).toContain('4건 · 달별');
     expect(requests.some(request => request.url === '/students/21/private-notes')).toBe(false);
-    expect(view.getByRole('link', { name: '강사A · Writing ›' }).getAttribute('href')).toBe('/staff/7');
-    expect(view.getByRole('link', { name: '선생님 홈' }).getAttribute('href')).toBe('/staff/7');
-    expect(view.getByRole('link', { name: '시간표' }).getAttribute('href')).toBe('/staff/7?tab=calendar');
-    expect(view.getByRole('link', { name: '수업 안내' }).getAttribute('href')).toBe('/staff/7?tab=guides');
+    expect(view.getByRole('link', { name: '강사A Writing ›' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('link', { name: '강사 홈' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('link', { name: '강사 캘린더' }).getAttribute('href')).toBe('/staff/7?tab=calendar');
+    expect(view.getByRole('link', { name: '강사 수업 안내' }).getAttribute('href')).toBe('/staff/7?tab=guides');
   });
 
   it('실제 수업 담당자가 매니저이면 서버 역할 낱말과 과목을 함께 표시한다', async () => {
@@ -233,15 +233,15 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     };
     const view = render(<StudentDetail studentId={21} />, setup());
     await view.findByRole('heading', { name: '담당 강사 1명' });
-    expect(view.getByRole('link', { name: '매니저A 매니저 · Writing ›' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('link', { name: '매니저A 매니저 Writing ›' }).getAttribute('href')).toBe('/staff/7');
   });
 
   it('최종 요구 순서의 10탭과 좌측 학생 전환을 제공하고 현재 탭을 URL에 보존한다', async () => {
     const view = render(<StudentDetail studentId={21} />, setup());
     await view.findByRole('heading', { name: student.label });
-    expect(view.getByText(/학교A · G8 · 등록일 \(DB 생성\) 2026-09-30/)).toBeTruthy();
+    expect(view.getByText('학교A · G8 · 2026-09-30 등록')).toBeTruthy();
     expect(STUDENT_HUB_TABS.map(tab => tab.label)).toEqual(['안내 한눈에', '안내/교재 배정', '시간표', '수업 기록', '리포트', '교재', '코멘트', '컨설팅', '프로필', '수강/청구']);
-    expect(view.getByRole('tab', { name: '안내 한눈에' }).getAttribute('aria-selected')).toBe('true');
+    expect(view.getByRole('tab', { name: /^안내 한눈에/ }).getAttribute('aria-selected')).toBe('true');
     await view.findByText('2회 예정');
     await view.findByText('학생A 안내 본문');
     expect(view.getByText('안내 1건')).toBeTruthy();
@@ -266,7 +266,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.queryByText('학생 #21')).toBeNull();
     expect(view.getByRole('heading', { name: '기존 감사 51건' })).toBeTruthy();
     fireEvent.click(view.getByRole('tab', { name: /시간표/ }));
-    expect(view.getByRole('link', { name: '전체 시간표' }).getAttribute('href')).toContain('/schedule?studentId=21&date=');
+    expect(view.getByRole('link', { name: '전체 스케줄에서 보기' }).getAttribute('href')).toContain('/schedule?studentId=21&date=');
     await waitFor(() => expect(requests.some(request => request.url === '/schedule/occurrences')).toBe(true));
     expect(requests.some(request => request.url === '/schedule/holidays')).toBe(true);
     expect(requests.every(request => request.method === 'get')).toBe(true);
@@ -284,7 +284,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     await waitFor(() => expect(requests.some(request => request.params?.reportsCursor === 'reports_next')).toBe(true));
     fireEvent.click(view.getByRole('tab', { name: /코멘트/ }));
     await view.findByText('학생 코멘트');
-    expect(view.getByText(/저장 후 수정·삭제할 수 없으며 학부모 전달 문서에는 포함되지 않습니다/)).toBeTruthy();
+    expect(view.getByText(/고치기·지우기 없이 날짜순으로 쌓입니다/)).toBeTruthy();
     expect(view.getAllByText('강사 특이사항').length).toBeGreaterThan(0);
     fireEvent.click(view.getByRole('button', { name: '코멘트 더 보기' }));
     await view.findByText('이전 코멘트');
@@ -308,8 +308,7 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
 
   it('담당 강사 링크와 주·월 학생 달력은 서버 회차·공휴일을 표시하고 URL로 이어진다', async () => {
     const view = render(<StudentDetail studentId={21} initialTab="schedule" initialCalendarAnchor="2026-10-07" />, setup());
-    await view.findByRole('heading', { name: '담당 강사 1명' });
-    expect(view.getByRole('link', { name: '강사A · Writing ›' }).getAttribute('href')).toBe('/staff/7');
+    expect((await view.findByRole('link', { name: '강사A Writing ›' })).getAttribute('href')).toBe('/staff/7');
     expect(view.getByRole('tab', { name: /시간표/ }).getAttribute('aria-selected')).toBe('true');
     const lesson = await view.findByRole('button', { name: /Writing.*강사A.*비대면/ });
     expect(view.getByText('한글날')).toBeTruthy();
@@ -327,24 +326,25 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
   it('코멘트는 KST 월·출처로 좁히고 기존 append-only API 저장 뒤 재조회한다', async () => {
     const view = render(<StudentDetail studentId={21} initialTab="comments" />, setup());
     await view.findByText('학생 코멘트');
-    expect(view.getAllByText('수업 · Writing').length).toBeGreaterThan(0);
+    expect(view.getAllByText('Writing').length).toBeGreaterThan(0);
     expect(view.queryByText(/수업 #4/)).toBeNull();
     expect(view.getByRole('heading', { name: '코멘트 4건' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '2026년 10월 3건' })).toBeTruthy();
-    expect(view.getByRole('heading', { name: '10월 7일 / 수요일 · 1건' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '10월 7일' })).toBeTruthy();
+    expect(view.getByText('수요일 · 2건')).toBeTruthy();
     expect(view.getByText('관리자가 확인할 학생 특이사항')).toBeTruthy();
-    expect(view.getByRole('button', { name: '전체 (4건)' }).getAttribute('aria-pressed')).toBe('true');
+    expect(view.getByRole('button', { name: '전체 4' }).getAttribute('aria-pressed')).toBe('true');
     expect(requests.some(request => request.url === '/students/21/hub' && request.params?.commentsMonth === undefined)).toBe(true);
-    expect(view.getByRole('button', { name: '2026-10 (3건)' })).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '2026-09 (1건)' }));
+    expect(view.getByRole('button', { name: '2026년 10월 3' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '2026년 9월 1' }));
     await view.findByText('9월 코멘트');
     expect(view.getByRole('heading', { name: '2026년 9월 1건' })).toBeTruthy();
     expect(requests.some(request => request.url === '/students/21/hub' && request.params?.commentsMonth === '2026-09')).toBe(true);
     expect(view.queryByText('관리자가 확인할 학생 특이사항')).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: '전체 (4건)' }));
+    fireEvent.click(view.getByRole('button', { name: '전체 4' }));
     await view.findByText('관리자가 확인할 학생 특이사항');
     expect(view.getByRole('heading', { name: '코멘트 4건' })).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '2026-10 (3건)' }));
+    fireEvent.click(view.getByRole('button', { name: '2026년 10월 3' }));
     await view.findByText('학생 코멘트');
     fireEvent.click(view.getByRole('button', { name: '강사 특이사항' }));
     expect(view.queryByText('학생 코멘트')).toBeNull();
@@ -352,14 +352,14 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     fireEvent.click(view.getByRole('button', { name: '전체' }));
     expect(view.getByRole('option', { name: /예전 강사.*2026-07-10–2026-07-10.*종료/ }).getAttribute('value')).toBe('3');
     fireEvent.change(view.getByLabelText('연결 수업'), { target: { value: '3' } });
-    fireEvent.change(view.getByLabelText('코멘트 *'), { target: { value: '새 인수인계' } });
+    fireEvent.change(view.getByLabelText('코멘트 내용'), { target: { value: '새 인수인계' } });
     fireEvent.click(view.getByRole('button', { name: '코멘트 남기기' }));
     await waitFor(() => expect(requests.find(request => request.url === '/schedule/tracking/notes')?.method).toBe('post'));
     expect(JSON.parse(requests.find(request => request.url === '/schedule/tracking/notes')!.data as string)).toEqual({
       studentId: 21, serId: 3, body: '새 인수인계',
     });
     await view.findByText('새 인수인계');
-    expect(view.getByText('수업 · Math')).toBeTruthy();
+    expect(view.getByText('Math')).toBeTruthy();
     expect(view.queryByRole('button', { name: /수정|삭제/ })).toBeNull();
   });
 
@@ -384,6 +384,86 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByText('잘못된 학생 주소입니다.')).toBeTruthy();
     await act(async () => {});
     expect(requests).toHaveLength(0);
+  });
+});
+
+/**
+ * S5a(2026-10-16) — 10/14 전달 PPTX 「수정본」 이미지(p3·p4·p6·p7)와 화면 낱말·배치를 1:1로 맞춘 회귀.
+ * 숫자는 모두 서버 응답(hub·read)에서 오고, 이 파일은 표시 위치·낱말만 고정한다.
+ */
+describe('10/14 PPTX 수정본 화면 정합 (S5a)', () => {
+  it('p3 머리 줄·담당 강사 줄·전체 폭 카드형 탭 10개와 탭 아랫줄 서버 숫자를 수정본 낱말로 보인다', async () => {
+    const view = render(<StudentDetail studentId={21} />, setup());
+    await view.findByRole('heading', { name: student.label });
+    expect(view.getByText('학교A · G8 · 2026-09-30 등록')).toBeTruthy();
+    expect(view.queryByText(/DB 생성/)).toBeNull();
+    await view.findByRole('link', { name: '강사A Writing ›' });
+    expect(view.getByRole('link', { name: '강사A Writing ›' }).getAttribute('href')).toBe('/staff/7');
+    const tablist = view.getByRole('tablist', { name: '학생 허브 보기' });
+    await waitFor(() => expect(view.getByRole('tab', { name: /^안내 한눈에/ }).textContent).toBe('안내 한눈에할 일 5건'));
+    expect(view.getAllByRole('tab').map(tab => tab.textContent)).toEqual([
+      '안내 한눈에할 일 5건', '안내/교재 배정안내 1 · 교재 1', '시간표주·월 · 예정 2회', '수업 기록수강 1건', '리포트2건',
+      '교재1종 사용 중', '코멘트4건 · 달별', '컨설팅0건 진행', '프로필보호자 1명', '수강/청구처리 1건',
+    ]);
+    // 수정본 탭에는 모서리 숫자 동그라미가 없다 — 숫자는 아랫줄 한 곳에만 둔다
+    expect(tablist.querySelectorAll('span[aria-hidden]')).toHaveLength(0);
+    // 수정본은 탭 줄이 학생 목록·본문 위 전체 폭에 놓인다
+    const rail = view.getByRole('heading', { name: /^학생 \d+명$/ });
+    expect(tablist.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(view.queryByText(/학생 #21/)).toBeNull();
+  });
+
+  it('p4 안내 한눈에는 이어서 할 일 다음에 담당 강사 패널과 강사 홈·캘린더·수업 안내 바로가기를 보인다', async () => {
+    const view = render(<StudentDetail studentId={21} />, setup());
+    const panel = await view.findByRole('heading', { name: '담당 강사 1명' });
+    const next = view.getByRole('heading', { name: '이어서 할 일' });
+    expect(next.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(view.getByText('지금 이 학생이 듣는 수업과 담당 강사입니다. 이름을 누르면 강사 화면으로 갑니다.')).toBeTruthy();
+    expect(view.getByText('수업 1개')).toBeTruthy();
+    expect(view.getByText(/매주 수요일 16:00–17:00/)).toBeTruthy();
+    expect(view.getByText('비대면')).toBeTruthy();
+    expect(view.getByText('2026-09-01부터')).toBeTruthy();
+    expect(view.getByRole('link', { name: '강사 홈' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('link', { name: '강사 캘린더' }).getAttribute('href')).toBe('/staff/7?tab=calendar');
+    expect(view.getByRole('link', { name: '강사 수업 안내' }).getAttribute('href')).toBe('/staff/7?tab=guides');
+    expect(view.queryByRole('link', { name: '선생님 홈' })).toBeNull();
+  });
+
+  it('p6 시간표 탭은 주간/월간·이전·오늘·다음 순서와 「전체 스케줄에서 보기」 링크를 쓰고 월 칸은 시각·과목만 보인다', async () => {
+    const view = render(<StudentDetail studentId={21} initialTab="schedule" initialCalendarAnchor="2026-10-07" />, setup());
+    const all = await view.findByRole('link', { name: '전체 스케줄에서 보기' });
+    expect(all.getAttribute('href')).toBe('/schedule?studentId=21&date=2026-10-07');
+    const moves = view.getByRole('group', { name: '기간 이동' });
+    expect([...moves.querySelectorAll('button')].map(button => button.textContent)).toEqual(['이전', '오늘', '다음']);
+    await view.findByRole('button', { name: /Writing.*강사A.*비대면/ });
+    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    const monthLesson = await view.findByRole('button', { name: /Writing.*강사A.*비대면/ });
+    expect(monthLesson.textContent).toBe('16:00Writing');
+  });
+
+  it('p7 코멘트 탭은 바로 남기기·달 칩·달→날짜 묶음을 수정본 낱말로 보이고 강사 특이사항은 수업일에 쌓는다', async () => {
+    const view = render(<StudentDetail studentId={21} initialTab="comments" />, setup());
+    await view.findByText('학생 코멘트');
+    expect(view.getByRole('heading', { name: '코멘트 남기기' })).toBeTruthy();
+    expect(view.getByText('담당 강사의 수업 안내 학생 카드에 함께 보입니다 · 학부모에게는 나가지 않습니다 · 고치기·지우기 없이 날짜순으로 쌓입니다')).toBeTruthy();
+    expect(view.getByPlaceholderText('예) 10/2 숙제 미제출 건 어머님과 통화 — 화·금 수업 전날 숙제 확인 문자를 보내기로 함')).toBeTruthy();
+    expect(view.getByRole('option', { name: '학생 공통 — 수업 연결 없음' })).toBeTruthy();
+    expect(view.getByText('0/500')).toBeTruthy();
+    expect(view.getByText('관리자 코멘트와 강사 특이사항을 날짜순으로 쌓아 달 · 날짜로 묶었습니다. 달을 누르면 그 달만 봅니다. 학부모 전달 문서에는 포함되지 않습니다.')).toBeTruthy();
+    const months = view.getByRole('group', { name: '코멘트 달' });
+    expect([...months.querySelectorAll('button')].map(button => button.textContent)).toEqual(['전체 4', '2026년 10월 3', '2026년 9월 1']);
+    expect(view.getByRole('button', { name: '관리자 코멘트' })).toBeTruthy();
+    // 390px에서 출처 필터가 제목·설명을 한 낱말 폭으로 누르지 않게 목록 머리는 줄바꿈을 허용한다(S5a 실측)
+    expect((view.getByRole('group', { name: '코멘트 출처' }).closest('header') as HTMLElement).dataset.wrapRight).toBe('true');
+    expect(view.queryByText('관리자 인수인계')).toBeNull();
+    expect(view.getByRole('heading', { name: '10월 7일' })).toBeTruthy();
+    expect(view.getByText('수요일 · 2건')).toBeTruthy();
+    expect(view.getByText('수업 뒤 작성 · 2026-10-08 10:00')).toBeTruthy();
+    expect(view.getAllByText('Writing').length).toBeGreaterThan(0);
+    expect(view.queryByText(/수업일 2026-10-07/)).toBeNull();
+    fireEvent.click(within(months).getByRole('button', { name: '2026년 9월 1' }));
+    await view.findByText('9월 코멘트');
+    expect(view.queryByText('관리자가 확인할 학생 특이사항')).toBeNull();
   });
 });
 
