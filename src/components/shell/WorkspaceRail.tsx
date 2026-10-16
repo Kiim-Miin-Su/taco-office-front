@@ -79,7 +79,7 @@ export function WorkspaceRail({ approvals, unread, onOpen, activePane = null }: 
         const inside = (
           <>
             <Icon size={16} aria-hidden />
-            <span className="text-[12px] font-bold leading-tight">{label}</span>
+            <span className="max-w-full text-center text-[12px] font-bold leading-tight">{label}</span>
             {count > 0 ? (
               <span className="absolute right-0.5 top-0 rounded-full bg-red px-1 text-[12px] font-bold text-white">{count}</span>
             ) : null}

@@ -15,6 +15,9 @@ html,
 body {
   padding: 0;
   margin: 0;
+  /* 10/14 전달본: 한국어 단어는 띄어쓰기에서 접고, 긴 단일 단어만 칸 안에서 접는다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--f-sans);

@@ -155,7 +155,9 @@ it('긴 URL/HTML 모양 본문은 제한된 안내 셀에서 평문으로 표시
   const { view, calls } = setup(me, { ...initial, body });
   const text = await view.findByText(body);
   expect(text.closest('td')).not.toBeNull();
-  expect(text.className).toContain('[overflow-wrap:anywhere]');
+  expect(text.className).toContain('break-words');
+  expect(view.container.querySelector('table')?.parentElement?.parentElement?.className).toContain('overflow-x-auto');
+  expect(view.container.querySelector('table')?.parentElement?.className).toContain('min-w-[1000px]');
   expect(text.className).toContain('max-w-md');
   expect(text.querySelector('img,a')).toBeNull();
   expect(calls.filter((c) => c.method === 'post')).toHaveLength(0);

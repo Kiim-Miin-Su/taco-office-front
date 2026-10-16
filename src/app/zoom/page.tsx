@@ -189,7 +189,9 @@ export default function ZoomAccountsPage() {
         </Panel>
 
         <Panel title={`계정 ${board?.accounts.length ?? 0}개`} sub="끄면 새 배정에서 빠집니다. 이미 붙은 회차는 그대로 둡니다">
-          <Table columns={cols} rows={board?.accounts ?? []} rowKey={(r) => r.id} empty="줌 계정이 없습니다" />
+          <div className="overflow-x-auto">
+            <Table columns={cols} rows={board?.accounts ?? []} rowKey={(r) => r.id} empty="줌 계정이 없습니다" className="min-w-[1030px]" />
+          </div>
           {shownUrl !== null ? (
             <p className="mt-2 break-all rounded bg-inset px-2 py-1.5 text-[12px] text-fg-2">
               {board?.accounts.find((a) => a.id === shownUrl)?.joinUrl ?? '—'}

@@ -522,7 +522,9 @@ export default function OpsPage() {
                 </div>
                 {/* 원문 §59 「주간」 일곱 칸 카드판(g6 59-2)은 아직 표다 — 카드의 시각 칸이 정해지지 않았고(N-29 는 메모만), 컷에 없는
                     성과(비용 · 등록당)를 어디에 둘지가 함께 정해져야 한다. 메모 한 줄은 활동 이름 아래에 선다(N-29 ②) */}
-                <Table columns={mktCols} rows={mktRows} rowKey={(r) => r.id} empty="이 기간에는 활동이 없습니다" />
+                <div className="overflow-x-auto">
+                  <Table columns={mktCols} rows={mktRows} rowKey={(r) => r.id} empty="이 기간에는 활동이 없습니다" className="min-w-[1040px]" />
+                </div>
                 {d && !d.canSeeAmounts ? (
                   <Banner tone="warning" className="mt-3">집행 비용과 등록당 비용은 <b>대표만</b> 봅니다.</Banner>
                 ) : null}
@@ -551,9 +553,11 @@ export default function OpsPage() {
                   <span className="ml-2 text-[12px] text-fg-2">대표는 기한을 봅니다 · 지나면 붉게 나옵니다</span>
                 </Banner>
                 {/* 원문 §62 — 지난 줄은 분홍 바탕이다 (62-2). 판정은 서버의 overdueDays */}
-                <Table columns={dueCols} rows={d?.planDues ?? []} rowKey={(r) => r.key}
-                  rowClassName={(r) => (r.overdueDays > 0 ? 'bg-red/5' : undefined)}
-                  empty="기한이 걸린 기획이 없습니다" />
+                <div className="overflow-x-auto">
+                  <Table columns={dueCols} rows={d?.planDues ?? []} rowKey={(r) => r.key} className="min-w-[940px]"
+                    rowClassName={(r) => (r.overdueDays > 0 ? 'bg-red/5' : undefined)}
+                    empty="기한이 걸린 기획이 없습니다" />
+                </div>
               </>
             ) : (
               <>
@@ -637,8 +641,10 @@ export default function OpsPage() {
             ))}
             <p className="mb-2 text-[12px] text-fg-subtle">카드를 누르면 담당 · 단계 · 조치 · 결과를 적습니다</p>
             {cplTab === 'history' ? (
-              <Table columns={cplHistoryCols} rows={d?.complaints ?? []} rowKey={(r) => r.id} empty="이 기간에는 컴플레인이 없습니다"
-                onRowClick={(r) => toggleCplHist(r.id)} />
+              <div className="overflow-x-auto">
+                <Table columns={cplHistoryCols} rows={d?.complaints ?? []} rowKey={(r) => r.id} empty="이 기간에는 컴플레인이 없습니다"
+                  className="min-w-[980px]" onRowClick={(r) => toggleCplHist(r.id)} />
+              </div>
             ) : (
             <Board numbered accent countStyle="big" columns={cplCols} itemKey={(c) => c.id}
               cardClassName={(c) => (c.overdueDays > 0 ? OVERDUE_CARD : undefined)} renderCard={(c) => (

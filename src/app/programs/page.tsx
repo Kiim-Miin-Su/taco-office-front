@@ -261,7 +261,9 @@ export default function ProgramsPage() {
             ) : null}
 
             <Panel title={`프로그램 ${q.data?.kinds.length ?? 0}종`} sub="리포트 표시가 붙은 프로그램만 리포트 작성·차감 대상입니다">
-              <Table columns={kindCols} rows={q.data?.kinds ?? []} rowKey={(r) => r.key} empty="프로그램이 없습니다" />
+              <div className="overflow-x-auto">
+                <Table columns={kindCols} rows={q.data?.kinds ?? []} rowKey={(r) => r.key} empty="프로그램이 없습니다" className="min-w-[860px]" />
+              </div>
             </Panel>
           </>
         ) : (
@@ -319,7 +321,9 @@ export default function ProgramsPage() {
             ) : null}
 
             <Panel title={`과목 ${q.data?.subs.length ?? 0}종`} sub="끄면 새 수업에서 고를 수 없습니다. 이미 도는 수업은 그대로 둡니다">
-              <Table columns={subCols} rows={q.data?.subs ?? []} rowKey={(r) => r.key} empty="과목이 없습니다" />
+              <div className="overflow-x-auto">
+                <Table columns={subCols} rows={q.data?.subs ?? []} rowKey={(r) => r.key} empty="과목이 없습니다" className="min-w-[980px]" />
+              </div>
             </Panel>
           </>
         )}

@@ -377,7 +377,7 @@ export function GuidesTodo({ data }: { data: Guides }) {
       head: '안내',
       cell: (row) =>
         row.kind === 'guide' ? (
-          <span className="line-clamp-2 min-w-0 max-w-md text-fg-subtle [overflow-wrap:anywhere]">{row.guide.body ?? '아직 쓰지 않았습니다'}</span>
+          <span className="line-clamp-2 min-w-0 max-w-md break-words text-fg-subtle">{row.guide.body ?? '아직 쓰지 않았습니다'}</span>
         ) : (
           // 원문 §43 안내 칸 「안내 없음」 그대로
           <span className="text-[13px] text-fg">안내 없음</span>
@@ -485,8 +485,11 @@ export function GuidesTodo({ data }: { data: Guides }) {
           </span>
         </Banner>
         <Panel className="mt-2">
-          <Table columns={guideColumns} rows={onceRows} rowKey={(row) => row.key} empty="처리할 한 번 안내가 없습니다."
-            rowClassName={(row) => URGENT_ROW[(row.kind === 'guide' ? row.guide.deadline : row.missing.deadline)?.urgency ?? 'none']} />
+          <div className="overflow-x-auto">
+            <Table columns={guideColumns} rows={onceRows} rowKey={(row) => row.key} empty="처리할 한 번 안내가 없습니다."
+              className="min-w-[1000px]"
+              rowClassName={(row) => URGENT_ROW[(row.kind === 'guide' ? row.guide.deadline : row.missing.deadline)?.urgency ?? 'none']} />
+          </div>
         </Panel>
       </section>
 
