@@ -1,0 +1,4 @@
+interface:
+  display_name: "TACO Query·세션 상태"
+  short_description: "생성 타입과 공용 Axios를 사용해 캐시·세션·낙관 갱신을 검증"
+  default_prompt: "$taco-query-state 스킬로 현재 요청의 범위와 기존 구현을 확인하고 필요한 작업 및 검증 결과를 정리해줘."
