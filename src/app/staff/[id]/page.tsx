@@ -11,7 +11,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { components } from '@/api/schema';
 import { api, apiMessage } from '@/api/client';
-import { sessionQueryKey, useMeta, useOccurrences, useReplySuggestion, useScheduleHolidays } from '@/api/queries';
+import { qk, sessionQueryKey, useMeta, useOccurrences, useReplySuggestion, useScheduleHolidays } from '@/api/queries';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Input, LinkButton, PageHeader, Panel, QueryState, Segmented, TabCards } from '@/components/ui';
@@ -279,7 +279,7 @@ export default function StaffDetailPage() {
   const unavailableTo = addDays(unavailableFrom, 13);
   const calendarRange = boundsOf(calendarView, calendarAnchor);
   const detail = useInfiniteQuery<Detail, Error, { pages: Detail[] }, readonly unknown[], string | null>({
-    queryKey: sessionQueryKey(['staff-directory', 'detail', id ?? 0] as const, viewerId),
+    queryKey: sessionQueryKey(qk.staffDirectoryDetail(id ?? 0), viewerId),
     queryFn: async ({ pageParam }) => (await api.get<Detail>(`/drawer/staff-directory/${id}`, { params: pageParam ? { cursor: pageParam } : {} })).data,
     initialPageParam: null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,

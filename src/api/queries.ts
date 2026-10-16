@@ -392,6 +392,13 @@ export const qk = {
   scheduleHistory: (beforeId?: number) => ['schedule', 'history', beforeId ?? 'latest'] as const,
   /** §76 권한 표 · 창 부제 · 역할 설명 줄 (N-98) — 권한 창과 옛 `/permissions` 가 같은 키를 읽는다 */
   permissions: ['permissions'] as const,
+  /**
+   * `/staff` 강사 목록 — 쪽·상태·검색이 키에 든다. 상세(`staffDirectoryDetail`)·대상 강사 탭 질의와 같은 `['staff-directory']` 갈래이며,
+   * 구성원 쓰기(서랍 「+ 구성원」·수정)가 `family.staffDirectory` 로 함께 버린다.
+   */
+  staffDirectoryList: (page: number, state: string, search: string) => ['staff-directory', 'list', page, state, search] as const,
+  /** `/staff/{id}` 상세 — 위와 같은 갈래다. 대상 강사 탭 질의(`target-*`·`unavailable`)는 페이지가 같은 앞자락으로 직접 둔다 */
+  staffDirectoryDetail: (id: number) => ['staff-directory', 'detail', id] as const,
 };
 
 type ViewerId = number | 'anonymous';
@@ -446,6 +453,8 @@ export const family = {
   seriesCounts: ['schedule', 'series-counts'] as const,
   scheduleHistory: ['schedule', 'history'] as const,
   guardians: ['guardians'] as const,
+  /** `/staff` 목록·상세·대상 강사 탭 질의 전부 (`qk.staffDirectoryList` · `qk.staffDirectoryDetail`) */
+  staffDirectory: ['staff-directory'] as const,
 };
 
 /**
@@ -2945,6 +2954,7 @@ export function usePermissionTable(enabled = true): UseQueryResult<PermissionTab
  * §17 「+ 구성원」 (C97 · D-41 · W10) — 강사·매니저 계정 한 사람. 아이디 · 임시 비밀번호는 매니저가 적고,
  * 비밀번호는 보내기만 하고 응답에는 없다(해시만 남는다). 응답은 만든 줄이다.
  * 서랍(구성원 칸)과 `/meta`(담당·강사 고르기)가 새 사람을 알아야 한다 — 둘 다 버린다.
+ * `/staff` 목록·상세(`family.staffDirectory`)도 같은 사람 표를 읽으므로 함께 버린다.
  */
 export function useCreateMember(): UseMutationResult<Member, unknown, StaffCreate> {
   const qc = useQueryClient();
@@ -2953,18 +2963,20 @@ export function useCreateMember(): UseMutationResult<Member, unknown, StaffCreat
     mutationFn: async (body) => (await api.post<Member>('/drawer/staff', body)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: family.drawer });
+      void qc.invalidateQueries({ queryKey: family.staffDirectory });
       void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
     },
   });
 }
 
-/* ── W8 §17 사용자 표 CRUD — 줄 단추(수정 · 비밀번호 초기화 · 사용 중지 · 삭제). 서랍과 /meta(담당·강사 고르기)가 같이 바뀐다 ── */
+/* ── W8 §17 사용자 표 CRUD — 줄 단추(수정 · 비밀번호 초기화 · 사용 중지 · 삭제). 서랍 · /staff 목록·상세 · /meta(담당·강사 고르기)가 같이 바뀐다 ── */
 
 function useInvalidateMembers() {
   const qc = useQueryClient();
   const viewerId = useViewerId();
   return () => {
     void qc.invalidateQueries({ queryKey: family.drawer });
+    void qc.invalidateQueries({ queryKey: family.staffDirectory });
     void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.meta, viewerId) });
   };
 }

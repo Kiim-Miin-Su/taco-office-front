@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import type { components } from '@/api/schema';
 import { api, apiMessage, getSessionGeneration } from '@/api/client';
-import { sessionQueryKey } from '@/api/queries';
+import { qk, sessionQueryKey } from '@/api/queries';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Checkbox, Chip, Input, Label, LinkButton, PageHeader, Panel, Select, Table, type Column } from '@/components/ui';
@@ -44,7 +44,7 @@ export default function StaffDirectoryPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Map<number, Row>>(new Map());
   const [result, setResult] = useState<string | null>(null);
-  const key = sessionQueryKey(['staff-directory', 'list', page, state, search] as const, viewerId);
+  const key = sessionQueryKey(qk.staffDirectoryList(page, state, search), viewerId);
   // 상세도 staff-directory 앞자락을 쓴다. 낙관 변경은 현재 사용자의 목록에만 적용한다.
   const listQueries = { predicate: (query: { queryKey: readonly unknown[] }) =>
     query.queryKey[0] === 'staff-directory' && query.queryKey[1] === 'list' && query.queryKey.at(-1) === viewerId };

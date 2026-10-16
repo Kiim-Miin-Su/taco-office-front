@@ -170,6 +170,9 @@ const SAMPLE: Record<string, readonly unknown[]> = {
   invoiceDraft: qk.invoiceDraft({ studentId: 3, yearMonth: '2026-09', invType: 'tuition' }),
   scheduleHistory: qk.scheduleHistory(120),
   materialRequests: qk.materialRequests('received'),
+  // `/staff` 목록·상세 — staff-directory 갈래 안에 산다. 서랍 구성원 쓰기가 family.staffDirectory 를 버리면 둘 다 다시 온다
+  staffDirectoryList: qk.staffDirectoryList(1, 'all', ''),
+  staffDirectoryDetail: qk.staffDirectoryDetail(7),
 };
 
 /** 인자를 안 받는 상수 키 중 갈래 앞자락을 가진 것 — 이것도 「걸리는 키」로 센다 */
