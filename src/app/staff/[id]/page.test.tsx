@@ -33,12 +33,16 @@ type OccurrenceList = components['schemas']['OccurrenceListDto'];
 type Meta = components['schemas']['MetaDto'];
 
 const detail: Detail = {
-  profile: { id: 7, name: '김강사', englishName: 'Kim', title: '영어', active: true, hiredOn: '2026-01-02', createdAt: '2026-01-01T09:00:00+09:00', email: 'teacher@example.com', phone: '010-0000-0000', timezone: 'Asia/Seoul' },
+  profile: { id: 7, name: '김강사', englishName: 'Kim', title: '영어', active: true, hiredOn: '2026-01-02',
+    birthOn: '1990-01-02', englishOnly: true, teachingKindCount: 2,
+    teachingKinds: [{ key: 'class', name: '수업' }, { key: 'study', name: '자습' }],
+    education: [{ school: '검증 학교', major: '수학', degree: '학사', status: '졸업' }],
+    createdAt: '2026-01-01T09:00:00+09:00', email: 'teacher@example.com', phone: '010-0000-0000', timezone: 'Asia/Seoul' },
   wageAccess: true,
   wages: [{ id: 1, fromDate: '2026-01-01', rate: 45000, reason: '입사', approvedByName: '관리자', createdAt: '2026-01-01T09:00:00+09:00' }],
   payouts: [{ id: 2, yearMonth: '2026-09', state: 'confirmed', net: 900000, confirmedByName: '관리자', confirmedAt: '2026-10-02T09:00:00+09:00' }],
-  assignments: [{ id: 3, kindName: '1대1 수업', subjectName: '영어', studentNames: ['학생A'], fromDate: '2026-01-01', toDate: null }],
-  reports: [{ id: 4, onDate: '2026-09-30', kindName: '1대1 수업', subjectName: '영어', studentNames: ['학생A'] }],
+  assignments: [{ id: 3, kindName: '1대1 수업', subjectName: '영어', studentNames: ['학생A'], students: [{ id: 31, name: '학생A' }], fromDate: '2026-01-01', toDate: null }],
+  reports: [{ id: 4, onDate: '2026-09-30', kindName: '1대1 수업', subjectName: '영어', studentNames: ['학생A'], students: [{ id: 31, name: '학생A' }] }],
   audit: [{ id: 5, action: 'update', actionLabel: '정보 수정', actorName: '관리자', at: '2026-09-20T09:00:00+09:00', changes: [{ field: '직함', before: '수학', after: '영어' }], privateFields: [] }],
   nextCursor: null,
 };
@@ -167,6 +171,9 @@ it('실제 관리자 actor와 대상 강사를 분리하고 8탭을 한 허브�
     '히스토리정산·변경', '건의 사항답변', '들어온 것8종 모음',
   ]);
   expect(view.getByText('현재 배정 수업·학생')).toBeTruthy();
+  expect(view.getByText('수업 프로필')).toBeTruthy();
+  expect(view.getByText('수업 · 자습')).toBeTruthy();
+  expect(view.getByRole('link', { name: '학생A' }).getAttribute('href')).toBe('/students/31');
   expect(view.getByText('현재 설정·보낸 신청 이력')).toBeTruthy();
 });
 
@@ -178,12 +185,45 @@ it('리포트와 히스토리는 생성 projection만 표시하고 teacher 본�
   nav.tab = 'reports';
   view.rerender(<QueryClientProvider client={clients[0]}><StaffDetailPage /></QueryClientProvider>);
   expect(await view.findByText('작성된 수업 리포트')).toBeTruthy();
+  expect(view.getByRole('link', { name: '학생A' }).getAttribute('href')).toBe('/students/31');
   nav.tab = 'history';
   view.rerender(<QueryClientProvider client={clients[0]}><StaffDetailPage /></QueryClientProvider>);
   expect(await view.findByText('정보 변경 감사 이력')).toBeTruthy();
   const urls = vi.mocked(api.get).mock.calls.map(([url]) => String(url));
   expect(urls).toEqual(['/drawer/staff-directory/7', '/drawer/staff-directory/7/home', '/drawer/staff-directory/7/history']);
   expect(urls.some((url) => url.startsWith('/teacher/'))).toBe(false);
+});
+
+it.each([
+  ['home', '현재 배정 수업·학생'],
+  ['reports', '작성된 수업 리포트'],
+  ['guides', '대상 강사 수업 안내'],
+])('%s의 동명이인 학생 이름은 각 학생 ID의 상세 링크를 유지한다', async (tab, heading) => {
+  nav.tab = tab;
+  // 같은 표시 이름을 가진 두 학생도 이름으로 합치거나 첫 학생 ID로 이동하면 안 된다.
+  const students = [{ id: 31, name: '김민준' }, { id: 47, name: '김민준' }];
+  const duplicateDetail: Detail = {
+    ...detail,
+    assignments: [{ ...detail.assignments[0], students, studentNames: students.map((student) => student.name) }],
+    reports: [{ ...detail.reports[0], students, studentNames: students.map((student) => student.name) }],
+  };
+  const duplicateGuides: TeacherGuides = {
+    ...guides,
+    students: students.map((student) => ({ ...guides.students[0], studentId: student.id, name: student.name })),
+  };
+  const view = setup(async (url) => {
+    if (url === '/drawer/staff-directory/7') {
+      return { data: duplicateDetail };
+    }
+    if (url === '/drawer/staff-directory/7/guides') {
+      return { data: duplicateGuides };
+    }
+    return { data: responseFor(url) };
+  });
+
+  await view.findByText(heading);
+  expect(view.getAllByRole('link', { name: /^김민준$/ }).map((link) => link.getAttribute('href')))
+    .toEqual(['/students/31', '/students/47']);
 });
 
 it('히스토리는 대상 강사의 서버 KST 전월 수업·정산 projection을 표시한다', async () => {

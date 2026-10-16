@@ -21,10 +21,11 @@ import { Banner, Button, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { PhoneInput, composePhone, type PhoneValue } from '../account/PhoneInput';
 import { apiMessage } from '@/api/client';
 import { useCreateMember } from '@/api/queries';
-import type { Member, PhoneCountry, StaffCreate, TzGroup } from '@/api/types';
+import type { KindRow, Member, PhoneCountry, StaffCreate, TzGroup } from '@/api/types';
 import { ROLES } from '@/lib/roles';
 import { todayKst } from '@/lib/calendar';
 import { MemberHandoverBox, type MemberHandover } from './MemberRowActions';
+import { StaffDateParts, StaffTeachingFields, englishValueOf, type EducationRow, type EnglishChoice, type TeachingKindKey } from './StaffTeachingFields';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 /** 서버 `STAFF_CREATE_ROLES`과 같은 역할 — CEO만 제외한다. 이름은 `ROLES` 표에서 재사용한다. */
@@ -33,6 +34,7 @@ const PICKABLE = STAFF_PICKABLE_ROLES;
 
 export interface MemberCreateButtonProps {
   tzGroups: TzGroup[];
+  kinds?: KindRow[];
   /** 관리자 화면의 시간대 — 시간대 기본값 */
   tz: string;
   /**
@@ -51,7 +53,7 @@ export interface MemberCreateButtonProps {
 const NO_COUNTRIES: PhoneCountry[] = [];
 
 export function MemberCreateButton({
-  tzGroups, tz, canWage, phoneCountries = NO_COUNTRIES, loginIdRule, tempPasswordRule, onDone,
+  tzGroups, kinds = [], tz, canWage, phoneCountries = NO_COUNTRIES, loginIdRule, tempPasswordRule, onDone,
 }: MemberCreateButtonProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -65,6 +67,10 @@ export function MemberCreateButton({
   const [memberTz, setMemberTz] = useState(tz);
   const [phone, setPhone] = useState<PhoneValue>({ country: '', local: '' });
   const [hiredOn, setHiredOn] = useState(todayKst());
+  const [birthOn, setBirthOn] = useState('');
+  const [englishOnly, setEnglishOnly] = useState<EnglishChoice>('unknown');
+  const [selectedKinds, setSelectedKinds] = useState<TeachingKindKey[]>([]);
+  const [education, setEducation] = useState<EducationRow[]>([]);
   const [wageRate, setWageRate] = useState('');
   const [err, setErr] = useState<string | null>(null);
   /** 만든 뒤의 넘겨줄 정보 — 창을 닫으면 사라진다(다시 볼 수 없다 · 잊었으면 「비밀번호 초기화」) */
@@ -73,20 +79,31 @@ export function MemberCreateButton({
   // 열 때와 닫을 때 모두 비운다 — 적은 임시 비밀번호가 닫힌 창에 남지 않게
   useEffect(() => {
     setName(''); setLoginId(''); setPassword(''); setEmail(''); setRole('teacher'); setTitle(''); setMemberTz(tz);
-    setPhone({ country: '', local: '' }); setHiredOn(todayKst()); setWageRate(''); setErr(null); setMade(null);
+    setPhone({ country: '', local: '' }); setHiredOn(todayKst()); setBirthOn(''); setEnglishOnly('unknown');
+    setSelectedKinds([]); setEducation([]); setWageRate(''); setErr(null); setMade(null);
   }, [open, tz]);
 
   const pending = write.isPending;
   const phoneText = composePhone(phone, phoneCountries);
   const rate = wageRate.trim() === '' ? null : Number(wageRate);
   const rateOk = rate === null || (Number.isInteger(rate) && rate >= 1000);
+  const teacherProfile = role === 'teacher';
   // 최종 판정은 서버다 — 아이디 규칙(띄어쓰기 · 길이 · 겹침) · 임시 비밀번호 규칙은 서버가 문장과 함께 막는다(W10)
-  const canSubmit = name.trim().length > 0 && loginId.trim().length > 0 && password.length > 0 && ISO.test(hiredOn) && rateOk && !pending;
+  const birthOk = !teacherProfile || !birthOn || (ISO.test(birthOn) && birthOn < todayKst() && birthOn < hiredOn);
+  const educationOk = !teacherProfile || (education.length <= 5 && education.every((row) => row.school.trim().length > 0));
+  const canSubmit = name.trim().length > 0 && loginId.trim().length > 0 && password.length > 0
+    && ISO.test(hiredOn) && birthOk && educationOk && rateOk && !pending;
 
   const submit = () => {
     if (!canSubmit) return;
     const payload: StaffCreate = {
       name: name.trim(), loginId: loginId.trim(), password, role, hiredOn,
+      ...(teacherProfile ? {
+        ...(birthOn ? { birthOn } : {}), englishOnly: englishValueOf(englishOnly),
+        teachingKindKeys: selectedKinds,
+        education: education.map((row) => ({ school: row.school.trim(), major: row.major.trim() || null,
+          degree: row.degree.trim() || null, status: row.status.trim() || null })),
+      } : {}),
       // 이메일은 선택이다 — 비우면 보내지 않는다(첫 설정 때 본인이 적고 확인한다)
       ...(email.trim() ? { email: email.trim() } : {}),
       ...(title.trim() ? { title: title.trim() } : {}),
@@ -183,10 +200,19 @@ export function MemberCreateButton({
               </Select>
             </div>
             <div>
-              <Label htmlFor={`${id}-hired`} hint="불가 시간 2주 회차의 기산점">입사일</Label>
-              <Input id={`${id}-hired`} type="date" value={hiredOn} onChange={(e) => setHiredOn(e.target.value)} disabled={pending} />
+              <StaffDateParts id={`${id}-hired`} label="입사일" value={hiredOn} onChange={setHiredOn} disabled={pending} />
+              <p className="mt-1 text-[12px] text-fg-subtle">불가 시간 2주 회차의 기산점</p>
             </div>
           </div>
+          {teacherProfile ? (
+            <>
+              <StaffTeachingFields id={id} kinds={kinds} birthOn={birthOn} onBirthOn={setBirthOn}
+                englishOnly={englishOnly} onEnglishOnly={setEnglishOnly} selectedKinds={selectedKinds} onKinds={setSelectedKinds}
+                education={education} onEducation={setEducation} disabled={pending} />
+              {!birthOk ? <Banner tone="danger">생년월일은 오늘과 입사일 이전이어야 합니다.</Banner> : null}
+              {!educationOk ? <Banner tone="danger">학력은 최대 5개이며 각 학교를 적어 주세요.</Banner> : null}
+            </>
+          ) : null}
           {/* 시급 칸은 시급을 다룰 수 있는 사람에게만 — 서버도 같은 질문을 한다(403 WAGE_SET_FORBIDDEN · S4) */}
           {canWage ? (
             <div>

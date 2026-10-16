@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
-import type { Member, MemberGroup, TzGroup } from '@/api/types';
+import type { KindRow, Member, MemberGroup, TzGroup } from '@/api/types';
 import { Dialog } from '@/components/ui';
 import { MembersPane } from './panes';
 
@@ -19,6 +19,12 @@ const member: Member = {
   wageRate: 50000, wageable: true, wageFrom: '2026-03-02',
 };
 const tzGroups: TzGroup[] = [{ id: 1, name: '서울', tz: 'Asia/Seoul' }];
+const kinds: KindRow[] = [
+  { key: 'class', name: '수업', color: '#000000', cap: 1, grp: 'lesson', grpLabel: '수업', rep: true },
+  { key: 'mock', name: '모의고사', color: '#000000', cap: 1, grp: 'lesson', grpLabel: '수업', rep: true },
+  { key: 'study', name: '자습', color: '#000000', cap: 1, grp: 'lesson', grpLabel: '수업', rep: false },
+  { key: 'gpa', name: 'GPA', color: '#000000', cap: 1, grp: 'lesson', grpLabel: '수업', rep: false },
+];
 const groups = (value = member): MemberGroup[] => [{ role: 'teacher', label: '강사', count: 1, members: [value] }];
 const clients: QueryClient[] = [];
 afterEach(() => { cleanup(); clients.splice(0).forEach((client) => client.clear()); vi.restoreAllMocks(); });
@@ -29,7 +35,7 @@ function paint(value = member, inDrawer = false) {
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>
     {inDrawer ? <Dialog open onClose={() => {}} title="구성원 서랍">{children}</Dialog> : children}
   </QueryClientProvider>;
-  const view = render(<MembersPane groups={groups(value)} tzGroups={tzGroups} tz="Asia/Seoul" />, { wrapper });
+  const view = render(<MembersPane groups={groups(value)} tzGroups={tzGroups} kinds={kinds} tz="Asia/Seoul" />, { wrapper });
   const row = view.getByText(value.name).closest('li')!;
   return { view, row };
 }
@@ -48,6 +54,16 @@ it('한 번 클릭은 상세를 열지 않고, 행을 두 번 클릭하면 기�
   expect(within(detail).getByRole('button', { name: '수정' })).toBeTruthy();
   expect(within(detail).queryByText(/50,000/)).toBeNull(); // canWage를 받지 않은 상세에는 급여를 새로 노출하지 않는다.
   expect(patch).not.toHaveBeenCalled();
+});
+
+it('서버가 프로필 열람을 허용하지 않은 서랍에서는 생년월일과 학력을 표시하지 않는다', () => {
+  const hidden: Member = { ...member, canViewStaffProfile: false, birthOn: '1990-01-01',
+    education: [{ school: '비공개 학교', major: null, degree: null, status: null }] };
+  const { view, row } = paint(hidden);
+  fireEvent.doubleClick(row);
+  const detail = view.getByRole('dialog', { name: '구성원 검증 · 상세' });
+  expect(within(detail).queryByText('1990-01-01')).toBeNull();
+  expect(within(detail).queryByText('비공개 학교')).toBeNull();
 });
 
 it.each(['Enter', ' '])('%s로 상세를 열고 Esc로 닫으면 열었던 행으로 초점을 돌려준다', (key) => {
@@ -134,7 +150,7 @@ function paintEdit(value = member) {
   const { view, row } = paint(value);
   fireEvent.click(within(row).getByRole('button', { name: '수정' }));
   const edit = view.getByRole('dialog', { name: `${value.name} · 수정` });
-  const refresh = (next: Member) => view.rerender(<MembersPane groups={groups(next)} tzGroups={tzGroups} tz="Asia/Seoul" />);
+  const refresh = (next: Member) => view.rerender(<MembersPane groups={groups(next)} tzGroups={tzGroups} kinds={kinds} tz="Asia/Seoul" />);
   return { view, row, edit, refresh };
 }
 
@@ -221,6 +237,34 @@ it('초안이 원격 최신 값과 같아졌으면 해당 칸을 재전송하지
   refresh({ ...member, title: '같은 변경' });
   expect((within(edit).getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true);
   expect(within(edit).queryByText(/같은 항목이 다른 곳에서 변경/)).toBeNull();
+});
+
+it('가능 수업 유형은 GPA를 제외하고 영어 전용·학력 변경만 PATCH한다', async () => {
+  const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: member });
+  const { edit } = paintEdit();
+  expect(within(edit).queryByRole('button', { name: 'GPA' })).toBeNull();
+  fireEvent.change(within(edit).getByLabelText('영어 전용 수업'), { target: { value: 'yes' } });
+  fireEvent.click(within(edit).getByRole('button', { name: '모의고사' }));
+  fireEvent.click(within(edit).getByRole('button', { name: '+ 학력 추가' }));
+  fireEvent.change(within(edit).getByLabelText('학교'), { target: { value: '검증 학교' } });
+  fireEvent.click(within(edit).getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledWith('/drawer/staff/7', {
+    englishOnly: true, teachingKindKeys: ['mock'],
+    education: [{ school: '검증 학교', major: null, degree: null, status: null }],
+  }));
+});
+
+it('강사에서 매니저로 역할 변경 시 숨긴 강사 프로필 초안을 PATCH하지 않는다', async () => {
+  const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { ...member, role: 'manager' } });
+  const { edit } = paintEdit({ ...member, canChangeRole: true });
+  fireEvent.change(within(edit).getByLabelText('영어 전용 수업'), { target: { value: 'yes' } });
+  fireEvent.click(within(edit).getByRole('button', { name: '+ 학력 추가' }));
+  const roles = within(edit).getByRole('group', { name: '역할' });
+  fireEvent.click(within(roles).getByRole('button', { name: '매니저' }));
+  expect(within(edit).queryByLabelText('영어 전용 수업')).toBeNull();
+  expect(within(edit).queryByRole('button', { name: '+ 학력 추가' })).toBeNull();
+  fireEvent.click(within(edit).getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(patch).toHaveBeenCalledWith('/drawer/staff/7', { role: 'manager' }));
 });
 
 it('서버 저장 오류와 초안은 동일 값 재조회가 와도 사라지지 않는다', async () => {

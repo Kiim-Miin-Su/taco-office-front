@@ -20,9 +20,11 @@ import { Banner, Button, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { PhoneInput, composePhone, samePhone, splitPhone, type PhoneValue } from '../account/PhoneInput';
 import { apiMessage } from '@/api/client';
 import { useDeleteMember, useResetMemberPassword, useSetMemberActive, useUpdateMember } from '@/api/queries';
-import type { Member, PhoneCountry, StaffPatch, StaffPermsPatch, TzGroup } from '@/api/types';
+import type { KindRow, Member, PhoneCountry, StaffPatch, StaffPermsPatch, TzGroup } from '@/api/types';
 import { ROLES } from '@/lib/roles';
 import { STAFF_PICKABLE_ROLES } from './MemberCreateDialog';
+import { StaffDateParts, StaffTeachingFields, englishChoiceOf, englishValueOf, teachingKindKeys, type EducationRow, type EnglishChoice, type TeachingKindKey } from './StaffTeachingFields';
+import { todayKst } from '@/lib/calendar';
 
 /** 넘겨줄 정보 — 아이디는 서버 응답(그 줄), 비밀번호는 매니저가 적은 값(W10) */
 export interface MemberHandover { loginId: string; password: string }
@@ -69,6 +71,16 @@ export function MemberHandoverBox({ loginId, password }: MemberHandover) {
 type Draft = { name: string; loginId: string; email: string; phone: PhoneValue; title: string; tz: string; role: string; hiredOn: string };
 /** 보낼 모양 — 휴대폰은 글 하나(국내는 적은 그대로 · 해외는 「+국가번호 번호」 · N-103) */
 type Flat = Omit<Draft, 'phone'> & { phone: string };
+type TeachingDraft = { birthOn: string; englishOnly: EnglishChoice; selectedKinds: TeachingKindKey[]; education: EducationRow[] };
+const teachingOf = (member: Member): TeachingDraft => ({
+  birthOn: member.birthOn ?? '', englishOnly: englishChoiceOf(member.englishOnly),
+  selectedKinds: (member.teachingKinds ?? []).map((kind) => kind.key)
+    .filter((key): key is TeachingKindKey => teachingKindKeys.includes(key as TeachingKindKey)),
+  education: (member.education ?? []).map((row) => ({ school: row.school, major: row.major ?? '', degree: row.degree ?? '', status: row.status ?? '' })),
+});
+const normalizedEducation = (rows: EducationRow[]) => rows.map((row) => ({
+  school: row.school.trim(), major: row.major.trim() || null, degree: row.degree.trim() || null, status: row.status.trim() || null,
+}));
 
 /** 비교용 모양 — 앞뒤 공백 없이. 아이디는 적은 모양 그대로(대소문자만 바꾸는 것도 수정이다) · 이메일은 소문자(서버 저장 규칙과 같다) */
 const tidy = (d: Draft, countries: readonly PhoneCountry[]): Flat => ({
@@ -95,8 +107,8 @@ const PERM_CHOICES: Array<{ value: PermChoice; label: string }> = [
  * 권한 예외 다섯 칸은 서버의 `canEditPerms`(대표 · 자기 줄 아님)가 있을 때만 선다(N-68) — 바뀐 칸만 `perms` 로 보내고,
  * 올릴 수 없는 권한(보는 이에게 없는 것)은 서버가 403 으로 막고 그 말을 그대로 띄운다.
  */
-export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COUNTRIES, loginIdRule }: {
-  member: Member; tzGroups: TzGroup[]; tz: string; phoneCountries?: readonly PhoneCountry[]; loginIdRule?: string;
+export function MemberEditButton({ member, tzGroups, kinds = [], tz, phoneCountries = NO_COUNTRIES, loginIdRule }: {
+  member: Member; tzGroups: TzGroup[]; kinds?: KindRow[]; tz: string; phoneCountries?: readonly PhoneCountry[]; loginIdRule?: string;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -106,6 +118,8 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
     title: member.title ?? '', tz: member.tz ?? tz, role: member.role, hiredOn: member.hiredOn ?? '',
   }), [member, tz, phoneCountries]);
   const [draft, setDraft] = useState<Draft>(initial);
+  const initialTeaching = useMemo(() => teachingOf(member), [member]);
+  const [teaching, setTeaching] = useState<TeachingDraft>(initialTeaching);
   const [err, setErr] = useState<string | null>(null);
   /** 권한 예외 — 서버가 준 다섯 줄(`member.perms`)의 지금 값에서 연다 */
   const permRows = useMemo(() => (member.canEditPerms ? member.perms ?? [] : []), [member]);
@@ -113,11 +127,11 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
     () => Object.fromEntries(permRows.map((p) => [p.key, permChoice(p.override)])), [permRows],
   );
   const [perms, setPerms] = useState<Record<string, PermChoice>>(initialPerms);
-  const [snapshot, setSnapshot] = useState(() => ({ id: member.id, draft: initial, perms: initialPerms }));
+  const [snapshot, setSnapshot] = useState(() => ({ id: member.id, draft: initial, teaching: initialTeaching, perms: initialPerms }));
   // 재조회 값은 현재 서버 상태다. 열린 폼의 초안/비교 기준은 열기 이벤트에서만 바꾼다.
   const beginEdit = () => {
-    setSnapshot({ id: member.id, draft: initial, perms: initialPerms });
-    setDraft(initial); setPerms(initialPerms); setErr(null); setOpen(true);
+    setSnapshot({ id: member.id, draft: initial, teaching: initialTeaching, perms: initialPerms });
+    setDraft(initial); setTeaching(initialTeaching); setPerms(initialPerms); setErr(null); setOpen(true);
   };
 
   const set = (key: Exclude<keyof Draft, 'phone'>) => (value: string) => setDraft((d) => ({ ...d, [key]: value }));
@@ -128,6 +142,7 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
   const body: Record<string, string> = {};
   let conflict = member.id !== snapshot.id;
   const remoteChanged = conflict || (Object.keys(current) as Array<keyof Flat>).some(key => !sameField(key, current[key], before[key]))
+    || JSON.stringify(initialTeaching) !== JSON.stringify(snapshot.teaching)
     || permRows.some(p => initialPerms[p.key] !== (snapshot.perms[p.key] ?? 'role'));
   for (const key of Object.keys(after) as Array<keyof Flat>) {
     if (key === 'role' && !member.canChangeRole) continue;
@@ -149,15 +164,37 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
     }
   }
   const permsChanged = Object.keys(permsBody).length > 0;
+  const profileBody: Partial<StaffPatch> = {};
+  // 이 역할은 세션 권한이 아닌 수정 대상의 저장 유형이다. 비강사 초안에 강사 프로필을 싣지 않는다.
+  const { role: targetRole } = draft;
+  const teacherProfile = targetRole === 'teacher';
+  const profileFields = ['birthOn', 'englishOnly', 'selectedKinds', 'education'] as const;
+  for (const key of teacherProfile ? profileFields : []) {
+    const next = key === 'education' ? normalizedEducation(teaching.education)
+      : key === 'selectedKinds' ? [...teaching.selectedKinds].sort() : teaching[key];
+    const prior = key === 'education' ? normalizedEducation(snapshot.teaching.education)
+      : key === 'selectedKinds' ? [...snapshot.teaching.selectedKinds].sort() : snapshot.teaching[key];
+    const remote = key === 'education' ? normalizedEducation(initialTeaching.education)
+      : key === 'selectedKinds' ? [...initialTeaching.selectedKinds].sort() : initialTeaching[key];
+    if (JSON.stringify(next) === JSON.stringify(prior) || JSON.stringify(next) === JSON.stringify(remote)) continue;
+    if (JSON.stringify(remote) !== JSON.stringify(prior)) conflict = true;
+    if (key === 'birthOn') profileBody.birthOn = teaching.birthOn || null;
+    if (key === 'englishOnly') profileBody.englishOnly = englishValueOf(teaching.englishOnly);
+    if (key === 'selectedKinds') profileBody.teachingKindKeys = teaching.selectedKinds;
+    if (key === 'education') profileBody.education = normalizedEducation(teaching.education);
+  }
+  const birthOk = !teacherProfile || !teaching.birthOn || (teaching.birthOn < todayKst() && teaching.birthOn < (draft.hiredOn || todayKst()));
+  const educationOk = !teacherProfile || (teaching.education.length <= 5 && teaching.education.every((row) => row.school.trim().length > 0));
   // N-104 — 연락처(이메일 · 휴대폰)가 바뀌면 서버가 첫 설정을 다시 건다. 아이디는 연락처가 아니다(W10)
   const contactChanged = 'email' in body || 'phone' in body;
   const pending = write.isPending;
-  const canSubmit = member.canEdit && !conflict && (Object.keys(body).length > 0 || permsChanged) && after.name.length > 0 && after.loginId.length > 0 && !pending;
+  const canSubmit = member.canEdit && !conflict && (Object.keys(body).length > 0 || permsChanged || Object.keys(profileBody).length > 0)
+    && after.name.length > 0 && after.loginId.length > 0 && birthOk && educationOk && !pending;
 
   const submit = () => {
     if (!canSubmit) return;
     setErr(null);
-    write.mutate({ id: member.id, body: { ...body, ...(permsChanged ? { perms: permsBody } : {}) } as StaffPatch }, {
+    write.mutate({ id: member.id, body: { ...body, ...profileBody, ...(permsChanged ? { perms: permsBody } : {}) } as StaffPatch }, {
       onSuccess: () => setOpen(false),
       onError: (e) => setErr(apiMessage(e)),
     });
@@ -228,10 +265,20 @@ export function MemberEditButton({ member, tzGroups, tz, phoneCountries = NO_COU
               </Select>
             </div>
             <div>
-              <Label htmlFor={`${id}-hired`}>입사일</Label>
-              <Input id={`${id}-hired`} type="date" value={draft.hiredOn} onChange={(e) => set('hiredOn')(e.target.value)} disabled={pending} />
+              <StaffDateParts key={`${member.id}:${snapshot.draft.hiredOn}`} id={`${id}-hired`} label="입사일" value={draft.hiredOn} onChange={set('hiredOn')} disabled={pending} />
             </div>
           </div>
+          {teacherProfile ? (
+            <>
+              <StaffTeachingFields key={`${member.id}:${snapshot.teaching.birthOn}`} id={id} kinds={kinds}
+                birthOn={teaching.birthOn} onBirthOn={(birthOn) => setTeaching((current) => ({ ...current, birthOn }))}
+                englishOnly={teaching.englishOnly} onEnglishOnly={(englishOnly) => setTeaching((current) => ({ ...current, englishOnly }))}
+                selectedKinds={teaching.selectedKinds} onKinds={(selectedKinds) => setTeaching((current) => ({ ...current, selectedKinds }))}
+                education={teaching.education} onEducation={(education) => setTeaching((current) => ({ ...current, education }))} disabled={pending} />
+              {!birthOk ? <Banner tone="danger">생년월일은 오늘과 입사일 이전이어야 합니다.</Banner> : null}
+              {!educationOk ? <Banner tone="danger">학력은 최대 5개이며 각 학교를 적어 주세요.</Banner> : null}
+            </>
+          ) : null}
           {permRows.length > 0 ? (
             <fieldset className="rounded-xl border border-line p-3">
               <legend className="px-1 text-[12px] font-bold text-fg">사람별 권한 예외</legend>
@@ -414,8 +461,8 @@ function MemberDeleteButton({ member }: { member: Member }) {
 const NO_COUNTRIES: readonly PhoneCountry[] = [];
 
 /** 줄 단추 묶음 — 좁은 화면에서는 줄 아래로 내려가 한 줄을 다 쓴다 */
-export function MemberRowActions({ member, tzGroups, tz, phoneCountries = NO_COUNTRIES, loginIdRule, tempPasswordRule }: {
-  member: Member; tzGroups: TzGroup[]; tz: string;
+export function MemberRowActions({ member, tzGroups, kinds = [], tz, phoneCountries = NO_COUNTRIES, loginIdRule, tempPasswordRule }: {
+  member: Member; tzGroups: TzGroup[]; kinds?: KindRow[]; tz: string;
   /** 휴대폰 국가번호 목록 — 서버 `DrawerDto.phoneCountries`(N-103). 없으면 번호 칸만 선다 */
   phoneCountries?: readonly PhoneCountry[];
   /** 아이디 · 임시 비밀번호 규칙 문장 — 서버 `DrawerDto.loginIdRule` · `tempPasswordRule`(W10 · D-R18) */
@@ -425,7 +472,7 @@ export function MemberRowActions({ member, tzGroups, tz, phoneCountries = NO_COU
   if (!member.canEdit && !member.canResetPassword && !member.canToggleActive && !member.canDelete) return null;
   return (
     <div className="flex w-full flex-wrap justify-end gap-1 sm:w-auto">
-      {member.canEdit ? <MemberEditButton member={member} tzGroups={tzGroups} tz={tz} phoneCountries={phoneCountries} loginIdRule={loginIdRule} /> : null}
+      {member.canEdit ? <MemberEditButton member={member} tzGroups={tzGroups} kinds={kinds} tz={tz} phoneCountries={phoneCountries} loginIdRule={loginIdRule} /> : null}
       {member.canResetPassword ? <MemberResetButton member={member} tempPasswordRule={tempPasswordRule} /> : null}
       {member.canToggleActive ? <MemberActiveButton member={member} /> : null}
       {member.canDelete ? <MemberDeleteButton member={member} /> : null}

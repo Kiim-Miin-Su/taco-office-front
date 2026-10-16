@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Member, MemberGroup, TzGroup, WageHistory } from '@/api/types';
+import { todayKst } from '@/lib/calendar';
 import { MembersPane } from './panes';
 
 /**
@@ -43,6 +44,31 @@ const row = (view: ReturnType<typeof render>, name: string) =>
   [...view.container.querySelectorAll('li')].find((li) => li.textContent?.startsWith(name))!;
 
 describe('§17 구성원 (C97)', () => {
+  it('강사 생년월일이 오늘 또는 입사일과 같으면 등록 단추를 막는다', () => {
+    const { view } = paint({ canAddMember: true });
+    fireEvent.click(view.getByRole('button', { name: '+ 구성원' }));
+    const dialog = within(view.getByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('이름'), { target: { value: '경계 강사' } });
+    fireEvent.change(dialog.getByLabelText('아이디'), { target: { value: 'boundary-teacher' } });
+    fireEvent.change(dialog.getByLabelText('임시 비밀번호'), { target: { value: 'Test-password-1014' } });
+    const make = dialog.getByRole('button', { name: '만들기' }) as HTMLButtonElement;
+    const setDate = (label: string, date: string) => {
+      const [year, month, day] = date.split('-');
+      fireEvent.change(dialog.getByLabelText(`${label} 년`), { target: { value: year } });
+      fireEvent.change(dialog.getByLabelText(`${label} 월`), { target: { value: month } });
+      fireEvent.change(dialog.getByLabelText(`${label} 일`), { target: { value: day } });
+    };
+    expect(make.disabled).toBe(false);
+    setDate('생년월일', todayKst());
+    expect(make.disabled).toBe(true);
+    expect(dialog.getByText('생년월일은 오늘과 입사일 이전이어야 합니다.')).toBeTruthy();
+    setDate('생년월일', '1990-01-01');
+    setDate('입사일', '1990-01-01');
+    expect(make.disabled).toBe(true);
+    setDate('입사일', '1991-01-01');
+    expect(make.disabled).toBe(false);
+  });
+
   it('플래그가 없으면 「+ 구성원」도 시급도 「시급 수정」도 없다 — 강사가 보는 서랍', () => {
     const { view } = paint();
     expect(view.queryByRole('button', { name: '+ 구성원' })).toBeNull();
@@ -72,7 +98,12 @@ describe('§17 구성원 (C97)', () => {
     const roles = within(dialog).getByRole('group', { name: '역할' });
     expect([...roles.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['강사', '매니저', '관리자']);
     expect(within(roles).queryByRole('button', { name: '대표' })).toBeNull();
+    // 강사에서 관리자 초안으로 바꾸면 남은 학력 입력은 숨겨지고 저장 본문에도 실리지 않는다.
+    fireEvent.click(within(dialog).getByRole('button', { name: '+ 학력 추가' }));
     fireEvent.click(within(roles).getByRole('button', { name: '관리자' }));
+    expect(within(dialog).queryByLabelText('생년월일 년')).toBeNull();
+    expect(within(dialog).queryByLabelText('영어 전용 수업')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: '+ 학력 추가' })).toBeNull();
     const make = within(dialog).getByRole('button', { name: '만들기' }) as HTMLButtonElement;
     expect(make.disabled).toBe(true);
     fireEvent.change(within(dialog).getByLabelText('이름'), { target: { value: ' 박수진 ' } });
@@ -85,7 +116,9 @@ describe('§17 구성원 (C97)', () => {
     fireEvent.change(within(dialog).getByLabelText('이메일 (선택)'), { target: { value: 'Park@t.kr' } });
     fireEvent.change(within(dialog).getByLabelText('시간대'), { target: { value: 'America/New_York' } });
     fireEvent.change(within(dialog).getByLabelText('직함'), { target: { value: '영어' } });
-    fireEvent.change(within(dialog).getByLabelText('입사일'), { target: { value: '2026-08-20' } });
+    fireEvent.change(within(dialog).getByLabelText('입사일 년'), { target: { value: '2026' } });
+    fireEvent.change(within(dialog).getByLabelText('입사일 월'), { target: { value: '08' } });
+    fireEvent.change(within(dialog).getByLabelText('입사일 일'), { target: { value: '20' } });
     fireEvent.change(within(dialog).getByLabelText('기본 시급 (선택)'), { target: { value: '42000' } });
     fireEvent.click(make);
     await waitFor(() => expect(post).toHaveBeenCalledWith('/drawer/staff', {

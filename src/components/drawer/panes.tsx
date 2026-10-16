@@ -794,9 +794,9 @@ function useMinuteTick(): number {
  * 이 줄의 「지금 시각」만 바꾼다 — 관리자 화면은 서울 고정 그대로다(W11 원문 재대조).
  */
 export function MembersPane({
-  groups, tzGroups, tz, canAddMember = false, canWage = false, phoneCountries, loginIdRule, tempPasswordRule,
+  groups, tzGroups, kinds = [], tz, canAddMember = false, canWage = false, phoneCountries, loginIdRule, tempPasswordRule,
 }: {
-  groups: MemberGroup[]; tzGroups: TzGroup[]; tz: string;
+  groups: MemberGroup[]; tzGroups: TzGroup[]; kinds?: KindRow[]; tz: string;
   /** 「+ 구성원」이 서는가 — 서버 `DrawerDto.canAddMember` (C97 · D-R39: 화면은 role 을 보지 않는다) */
   canAddMember?: boolean;
   /** 시급 줄·「시급 수정」이 서는가 — 서버 `DrawerDto.canWage`. 어느 줄에 서는지는 `member.wageable` 이 가른다 */
@@ -838,7 +838,7 @@ export function MembersPane({
       {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
       {canAddMember ? (
         <div className="mb-3 flex justify-end">
-          <MemberCreateButton tzGroups={tzGroups} tz={tz} canWage={canWage} phoneCountries={phoneCountries}
+          <MemberCreateButton tzGroups={tzGroups} kinds={kinds} tz={tz} canWage={canWage} phoneCountries={phoneCountries}
             loginIdRule={loginIdRule} tempPasswordRule={tempPasswordRule} />
         </div>
       ) : null}
@@ -879,6 +879,7 @@ export function MembersPane({
                 <span className="text-[12px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
                 {/* 직함은 컷의 묶음 이름이 있던 자리다 — 묶음으로 못 옮기는 대신 줄에 남긴다 */}
                 {m.title ? <Chip size="compact" tone="neutral">{m.title}</Chip> : null}
+                {m.canViewStaffProfile ? <span className="text-[12px] text-fg-subtle">입사 {m.hiredOn ?? '미등록'} · 영어 전용 {m.englishOnly === null ? '미확인' : m.englishOnly ? '가능' : '불가능'} · 가능 수업 유형 {m.teachingKinds?.length ?? 0}개</span> : null}
                 {/* W8 — 계정 상태는 서버 값 그대로: 첫 설정을 안 끝낸 계정 · 사용 중지된 계정 */}
                 {m.mustChangeCredentials ? <Chip size="compact" tone="warning">첫 설정 전</Chip> : null}
                 {m.active ? null : <Chip size="compact" tone="danger">사용 중지</Chip>}
@@ -900,7 +901,7 @@ export function MembersPane({
                 ) : null}
                 <span className="ml-auto text-[12px] tabular-nums text-fg-2">{localHhmm(m.tz ?? tz, now)}</span>
                 {/* 수정 · 비밀번호 초기화 · 사용 중지 · 삭제 — 서는지는 줄마다 서버 플래그가 가른다 (W8 · D-R39) */}
-                <MemberRowActions member={m} tzGroups={tzGroups} tz={tz} phoneCountries={phoneCountries}
+                <MemberRowActions member={m} tzGroups={tzGroups} kinds={kinds} tz={tz} phoneCountries={phoneCountries}
                   loginIdRule={loginIdRule} tempPasswordRule={tempPasswordRule} />
               </li>
             ))}
@@ -911,7 +912,7 @@ export function MembersPane({
 
       {selectedMember ? <Dialog open onClose={() => setSelectedMemberId(null)} title={`${selectedMember.name} · 상세`} closeX width={560}
         footer={<>
-          {selectedMember.canEdit ? <MemberEditButton member={selectedMember} tzGroups={tzGroups} tz={tz}
+          {selectedMember.canEdit ? <MemberEditButton member={selectedMember} tzGroups={tzGroups} kinds={kinds} tz={tz}
             phoneCountries={phoneCountries} loginIdRule={loginIdRule} /> : null}
           <Button variant="ghost" onClick={() => setSelectedMemberId(null)}>닫기</Button>
         </>}>
@@ -923,6 +924,14 @@ export function MembersPane({
           <dt>이메일</dt><dd>{selectedMember.email || '—'}</dd>
           <dt>휴대폰</dt><dd>{selectedMember.phone || '—'}</dd>
           <dt>입사일</dt><dd>{selectedMember.hiredOn || '—'}</dd>
+          {selectedMember.canViewStaffProfile ? <>
+            <dt>생년월일</dt><dd>{selectedMember.birthOn || '—'}</dd>
+            <dt>영어 전용 수업</dt><dd>{selectedMember.englishOnly === null ? '미확인' : selectedMember.englishOnly ? '가능' : '불가능'}</dd>
+            <dt>가능 수업 유형</dt><dd>{selectedMember.teachingKinds?.map((kind) => kind.name).join(' · ') || '미등록'}</dd>
+            <dt>학력 요약</dt><dd>{selectedMember.education?.length ? selectedMember.education.map((row, index) => <div key={`${row.school}:${index}`}>
+              {row.school}{row.major ? ` · ${row.major}` : ''}{row.degree ? ` · ${row.degree}` : ''}{row.status ? ` · ${row.status}` : ''}
+            </div>) : '미등록'}</dd>
+          </> : null}
           <dt>시간대</dt><dd>{tzName(selectedMember.tz ?? tz)}</dd>
           <dt>상태</dt><dd>{selectedMember.active ? '사용 중' : '사용 중지'}{selectedMember.mustChangeCredentials ? ' · 첫 설정 전' : ''}</dd>
           {canWage && selectedMember.wageable && selectedMember.wageRate != null ? <>

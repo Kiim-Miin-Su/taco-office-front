@@ -18,8 +18,8 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 
 type Row = components['schemas']['StaffDirectoryRowDto'];
 const rows: Row[] = [
-  { id: 1, name: '김강사', englishName: 'Kim', title: '강사', active: true, hiredOn: null, createdAt: '2026-09-30T10:00:00+09:00' },
-  { id: 2, name: '이강사', englishName: 'Lee', title: '강사', active: true, hiredOn: null, createdAt: '2026-09-29T10:00:00+09:00' },
+  { id: 1, name: '김강사', englishName: 'Kim', title: '강사', active: true, hiredOn: null, englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-30T10:00:00+09:00' },
+  { id: 2, name: '이강사', englishName: 'Lee', title: '강사', active: true, hiredOn: null, englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-29T10:00:00+09:00' },
 ];
 const clients: QueryClient[] = [];
 

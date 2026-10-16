@@ -147,6 +147,8 @@ export default function StaffDirectoryPage() {
     { key: 'title', head: '직함', cell: (row) => row.title ?? '—' },
     { key: 'status', head: '상태', cell: (row) => <Chip tone={row.active ? 'success' : 'neutral'}>{row.active ? '사용 중' : '사용 중지'}</Chip> },
     { key: 'hired', head: '입사일', cell: (row) => row.hiredOn ?? '—' },
+    { key: 'englishOnly', head: '영어 전용 수업', cell: (row) => row.englishOnly === null ? '미확인' : row.englishOnly ? '가능' : '불가능' },
+    { key: 'teachingKinds', head: '가능 수업 유형', cell: (row) => `${row.teachingKindCount}개` },
     { key: 'registered', head: '등록일', cell: (row) => row.createdAt.replace('T', ' ').slice(0, 16) },
   ];
 
@@ -175,7 +177,7 @@ export default function StaffDirectoryPage() {
       </div>
       {result ? <Banner tone={result.includes('실패') ? 'warning' : 'success'} className="mb-3">{result}</Banner> : null}
       {listing.isError ? <Banner tone="danger" className="mb-3">{apiMessage(listing.error)}</Banner> : null}
-      <div className="overflow-x-auto"><Table columns={columns} rows={rows} rowKey={(row) => row.id}
+      <div className="overflow-x-auto"><Table columns={columns} rows={rows} rowKey={(row) => row.id} className="min-w-[620px]"
         onRowClick={(row) => router.push(`/staff/${row.id}`)} empty={listing.isLoading ? '강사를 불러오는 중…' : '조건에 맞는 강사가 없습니다'} />
       </div>
       <nav aria-label="강사 목록 페이지" className="mt-4 flex flex-wrap gap-1">

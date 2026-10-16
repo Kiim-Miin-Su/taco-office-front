@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import type { components } from '@/api/schema';
 import { api, apiMessage } from '@/api/client';
 import { sessionQueryKey, useMeta, useOccurrences, useReplySuggestion, useScheduleHolidays } from '@/api/queries';
@@ -30,20 +31,49 @@ type StaffTeacherInbox = components['schemas']['StaffTeacherInboxDto'];
 const STAFF_TABS = ['home', 'calendar', 'unavailable', 'reports', 'guides', 'history', 'suggestions', 'inbox'] as const;
 type StaffTab = typeof STAFF_TABS[number];
 const at = (value: string) => value.replace('T', ' ').slice(0, 16);
+const tenure = (on: string | null) => {
+  if (!on || on > todayKst()) return null;
+  const [year, month, day] = on.split('-').map(Number);
+  const [nowYear, nowMonth, nowDay] = todayKst().split('-').map(Number);
+  const months = (nowYear - year) * 12 + nowMonth - month - (nowDay < day ? 1 : 0);
+  return `${Math.floor(months / 12)}년 ${months % 12}개월`;
+};
+const fullAge = (birth: string | null) => {
+  if (!birth || birth > todayKst()) return null;
+  const [year, month, day] = birth.split('-').map(Number);
+  const [nowYear, nowMonth, nowDay] = todayKst().split('-').map(Number);
+  return nowYear - year - (nowMonth < month || (nowMonth === month && nowDay < day) ? 1 : 0);
+};
+const studentLinks = (students: Array<{ id: number; name: string }>) => students.length
+  ? students.map((student, index) => <span key={student.id}>{index > 0 ? ' · ' : ''}<Link className="text-accent hover:underline" href={`/students/${student.id}`}>{student.name}</Link></span>)
+  : '학생 없음';
 
 function Profile({ data }: { data: Detail }) {
-  return <Panel title="기본 정보" sub={`등록 ${at(data.profile.createdAt)}`}>
+  return <div className="space-y-4"><Panel title="기본 정보" sub={`등록 ${at(data.profile.createdAt)}`}>
     <dl className="grid gap-x-6 gap-y-3 text-[12px] sm:grid-cols-2 lg:grid-cols-3">
       <div><dt className="text-fg-subtle">한글 이름</dt><dd className="mt-1 font-bold">{data.profile.name}</dd></div>
       <div><dt className="text-fg-subtle">영문명</dt><dd className="mt-1">{data.profile.englishName ?? '미등록'}</dd></div>
       <div><dt className="text-fg-subtle">상태</dt><dd className="mt-1"><Chip tone={data.profile.active ? 'success' : 'neutral'}>{data.profile.active ? '사용 중' : '사용 중지'}</Chip></dd></div>
       <div><dt className="text-fg-subtle">직함</dt><dd className="mt-1">{data.profile.title ?? '—'}</dd></div>
-      <div><dt className="text-fg-subtle">입사일</dt><dd className="mt-1">{data.profile.hiredOn ?? '—'}</dd></div>
+      <div><dt className="text-fg-subtle">입사일 · 근속</dt><dd className="mt-1">{data.profile.hiredOn ?? '—'}{tenure(data.profile.hiredOn) ? ` · ${tenure(data.profile.hiredOn)}` : ''}</dd></div>
+      <div><dt className="text-fg-subtle">생년월일 · 만 나이</dt><dd className="mt-1">{data.profile.birthOn ?? '—'}{fullAge(data.profile.birthOn) !== null ? ` · 만 ${fullAge(data.profile.birthOn)}세` : ''}</dd></div>
       <div><dt className="text-fg-subtle">시간대</dt><dd className="mt-1">{data.profile.timezone ?? '—'}</dd></div>
       <div><dt className="text-fg-subtle">연락처</dt><dd className="mt-1">{data.profile.phone ?? '—'}</dd></div>
       <div><dt className="text-fg-subtle">이메일</dt><dd className="mt-1">{data.profile.email ?? '—'}</dd></div>
     </dl>
-  </Panel>;
+  </Panel>
+    <Panel title="수업 프로필" sub="가능 수업 유형은 과목(SUBJECT)과 별도로 관리합니다">
+      <dl className="grid gap-3 text-[12px] sm:grid-cols-2">
+        <div><dt className="text-fg-subtle">영어 전용 수업</dt><dd className="mt-1">{data.profile.englishOnly === null ? '미확인' : data.profile.englishOnly ? '가능' : '불가능'}</dd></div>
+        <div><dt className="text-fg-subtle">가능 수업 유형</dt><dd className="mt-1">{data.profile.teachingKinds.map((kind) => kind.name).join(' · ') || '미등록'}</dd></div>
+      </dl>
+      <div className="mt-4 text-[12px]"><b>학력 요약</b>
+        {data.profile.education.length ? <ul className="mt-2 divide-y divide-line">{data.profile.education.map((row, index) => <li key={`${row.school}:${index}`} className="py-2">
+          {row.school}{row.major ? ` · ${row.major}` : ''}{row.degree ? ` · ${row.degree}` : ''}{row.status ? ` · ${row.status}` : ''}
+        </li>)}</ul> : <p className="mt-1 text-fg-subtle">등록된 학력이 없습니다.</p>}
+      </div>
+    </Panel>
+  </div>;
 }
 
 function Assignments({ data, calendar = false }: { data: Detail; calendar?: boolean }) {
@@ -53,7 +83,7 @@ function Assignments({ data, calendar = false }: { data: Detail; calendar?: bool
     {data.assignments.length === 0 ? <p className="text-[12px] text-fg-subtle">현재 배정된 수업이 없습니다.</p>
       : <ul className="divide-y divide-line">{data.assignments.map((assignment) => <li key={assignment.id} className="py-2 text-[12px]">
         <b>{assignment.kindName}{assignment.subjectName ? ` · ${assignment.subjectName}` : ''}</b>
-        <span className="ml-2 text-fg-subtle">{assignment.fromDate}~{assignment.toDate ?? '현재'} · {assignment.studentNames.join(' · ') || '학생 없음'}</span>
+        <span className="ml-2 text-fg-subtle">{assignment.fromDate}~{assignment.toDate ?? '현재'} · {studentLinks(assignment.students)}</span>
       </li>)}</ul>}
   </Panel>;
 }
@@ -63,7 +93,7 @@ function Reports({ data }: { data: Detail }) {
     {data.reports.length === 0 ? <p className="text-[12px] text-fg-subtle">작성된 수업 리포트가 없습니다.</p>
       : <ul className="divide-y divide-line">{data.reports.map((report) => <li key={report.id} className="py-2 text-[12px]">
         <b>{report.onDate} · {report.kindName}{report.subjectName ? ` · ${report.subjectName}` : ''}</b>
-        <span className="ml-2 text-fg-subtle">{report.studentNames.join(' · ') || '학생 없음'}</span>
+        <span className="ml-2 text-fg-subtle">{studentLinks(report.students)}</span>
       </li>)}</ul>}
   </Panel>;
 }
@@ -185,7 +215,8 @@ function TargetGuides({ data }: { data: TeacherGuides }) {
   return <Panel title="대상 강사 수업 안내" sub={`${data.weekFrom}~${data.weekTo} · 같은 강사 준비정보 projection`}>
     {data.students.length === 0 ? <p className="text-[12px] text-fg-subtle">이 주에 담당 학생이 없습니다.</p>
       : <div className="grid gap-3 lg:grid-cols-2">{data.students.map((student) => <article key={student.studentId} className="rounded-xl border border-line bg-inset p-4 text-[12px]">
-        <div className="flex flex-wrap items-center gap-2"><b className="text-[14px]">{student.name}</b><Chip>{student.weekCount}회</Chip></div>
+        <div className="flex flex-wrap items-center gap-2"><Link className="text-[14px] font-bold text-accent hover:underline" href={`/students/${student.studentId}`}>{student.name}</Link><Chip>{student.weekCount}회</Chip></div>
+        <Link className="mt-1 inline-block text-accent hover:underline" href={`/students/${student.studentId}?tab=comments`}>학생 코멘트 ›</Link>
         <p className="mt-2 text-fg-2">{student.school ?? '학교 미등록'} · {student.grade ?? '학년 미등록'} · {student.guidance ?? '지도 강도 미등록'}</p>
         <p className="mt-2 text-fg-subtle">교재 {student.books.length}권 · 진단 {student.diag ? '있음' : '없음'} · 인수인계 {student.notes.length}건</p>
         {student.books.length ? <ul className="mt-2 border-t border-line pt-2">{student.books.map((book) => <li key={book.issueId}>{book.title} · {book.stateLabel}</li>)}</ul> : null}
