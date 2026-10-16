@@ -148,7 +148,8 @@ export default function StaffDirectoryPage() {
     { key: 'status', head: '상태', cell: (row) => <Chip tone={row.active ? 'success' : 'neutral'}>{row.active ? '사용 중' : '사용 중지'}</Chip> },
     { key: 'hired', head: '입사일', cell: (row) => row.hiredOn ?? '—' },
     { key: 'englishOnly', head: '영어 전용 수업', cell: (row) => row.englishOnly === null ? '미확인' : row.englishOnly ? '가능' : '불가능' },
-    { key: 'teachingKinds', head: '가능 수업 유형', cell: (row) => `${row.teachingKindCount}개` },
+    // p8 결정(2026-10-16) — 실제 과목(SUB) 수. 127 수업 유형 수는 이전 입력이라 목록에 세우지 않는다
+    { key: 'teachingSubjects', head: '가능 과목', cell: (row) => `${row.teachingSubjectCount}개` },
     { key: 'registered', head: '등록일', cell: (row) => row.createdAt.replace('T', ' ').slice(0, 16) },
   ];
 

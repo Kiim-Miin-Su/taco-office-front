@@ -102,7 +102,7 @@ describe('§17 구성원 (C97)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '+ 학력 추가' }));
     fireEvent.click(within(roles).getByRole('button', { name: '관리자' }));
     expect(within(dialog).queryByLabelText('생년월일 년')).toBeNull();
-    expect(within(dialog).queryByLabelText('영어 전용 수업')).toBeNull();
+    expect(within(dialog).queryByRole('group', { name: '100% 영어 수업' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: '+ 학력 추가' })).toBeNull();
     const make = within(dialog).getByRole('button', { name: '만들기' }) as HTMLButtonElement;
     expect(make.disabled).toBe(true);

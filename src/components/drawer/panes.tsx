@@ -34,6 +34,7 @@ import { REQ_TYPE_LABEL, ROLE_BAR, ROLE_TEXT } from '@/lib/roles';
 import { won } from '@/lib/money';
 import { occurrenceTargetValue, parseOccurrenceTarget, type ChangeReqDraft, type ChreqType } from './change-request';
 import { MemberCreateButton } from './MemberCreateDialog';
+import { NO_TEACHING_OPTIONS, type TeachingOptions } from './StaffTeachingFields';
 import { MemberEditButton, MemberRowActions } from './MemberRowActions';
 import { WageChangeButton } from './WageChangeDialog';
 import { TodoCreateDialog } from './TodoCreateDialog';
@@ -794,9 +795,9 @@ function useMinuteTick(): number {
  * 이 줄의 「지금 시각」만 바꾼다 — 관리자 화면은 서울 고정 그대로다(W11 원문 재대조).
  */
 export function MembersPane({
-  groups, tzGroups, kinds = [], tz, canAddMember = false, canWage = false, phoneCountries, loginIdRule, tempPasswordRule,
+  groups, tzGroups, teaching = NO_TEACHING_OPTIONS, tz, canAddMember = false, canWage = false, phoneCountries, loginIdRule, tempPasswordRule,
 }: {
-  groups: MemberGroup[]; tzGroups: TzGroup[]; kinds?: KindRow[]; tz: string;
+  groups: MemberGroup[]; tzGroups: TzGroup[]; teaching?: TeachingOptions; tz: string;
   /** 「+ 구성원」이 서는가 — 서버 `DrawerDto.canAddMember` (C97 · D-R39: 화면은 role 을 보지 않는다) */
   canAddMember?: boolean;
   /** 시급 줄·「시급 수정」이 서는가 — 서버 `DrawerDto.canWage`. 어느 줄에 서는지는 `member.wageable` 이 가른다 */
@@ -838,7 +839,7 @@ export function MembersPane({
       {/* §17 「+ 구성원」 — 서는지는 서버가 정한다 (C97 · D-41) */}
       {canAddMember ? (
         <div className="mb-3 flex justify-end">
-          <MemberCreateButton tzGroups={tzGroups} kinds={kinds} tz={tz} canWage={canWage} phoneCountries={phoneCountries}
+          <MemberCreateButton tzGroups={tzGroups} teaching={teaching} tz={tz} canWage={canWage} phoneCountries={phoneCountries}
             loginIdRule={loginIdRule} tempPasswordRule={tempPasswordRule} />
         </div>
       ) : null}
@@ -879,7 +880,14 @@ export function MembersPane({
                 <span className="text-[12px] text-fg-subtle">{tzName(m.tz ?? tz)}</span>
                 {/* 직함은 컷의 묶음 이름이 있던 자리다 — 묶음으로 못 옮기는 대신 줄에 남긴다 */}
                 {m.title ? <Chip size="compact" tone="neutral">{m.title}</Chip> : null}
-                {m.canViewStaffProfile ? <span className="text-[12px] text-fg-subtle">입사 {m.hiredOn ?? '미등록'} · 영어 전용 {m.englishOnly === null ? '미확인' : m.englishOnly ? '가능' : '불가능'} · 가능 수업 유형 {m.teachingKinds?.length ?? 0}개</span> : null}
+                {/* 10/14 PPTX p9 목록 줄 — 「입사 날짜」 · 「100% 영어」 · 「과목 N」 칩(값이 있을 때만 · p8 결정 2026-10-16). 열람 허용은 서버 canViewStaffProfile */}
+                {m.canViewStaffProfile ? <>
+                  <span className="text-[12px] text-fg-subtle">입사 {m.hiredOn ?? '미등록'}</span>
+                  {m.englishOnly === true ? <Chip size="compact" tone="success">100% 영어</Chip> : null}
+                  {m.englishOnly === false ? <Chip size="compact" tone="neutral">100% 영어 불가</Chip> : null}
+                  {m.teachingSubjects?.length ? <Chip size="compact" tone="info">{`과목 ${m.teachingSubjects.length}`}</Chip>
+                    : m.teachingKinds?.length ? <Chip size="compact" tone="neutral">{`이전 유형 ${m.teachingKinds.length}`}</Chip> : null}
+                </> : null}
                 {/* W8 — 계정 상태는 서버 값 그대로: 첫 설정을 안 끝낸 계정 · 사용 중지된 계정 */}
                 {m.mustChangeCredentials ? <Chip size="compact" tone="warning">첫 설정 전</Chip> : null}
                 {m.active ? null : <Chip size="compact" tone="danger">사용 중지</Chip>}
@@ -901,7 +909,7 @@ export function MembersPane({
                 ) : null}
                 <span className="ml-auto text-[12px] tabular-nums text-fg-2">{localHhmm(m.tz ?? tz, now)}</span>
                 {/* 수정 · 비밀번호 초기화 · 사용 중지 · 삭제 — 서는지는 줄마다 서버 플래그가 가른다 (W8 · D-R39) */}
-                <MemberRowActions member={m} tzGroups={tzGroups} kinds={kinds} tz={tz} phoneCountries={phoneCountries}
+                <MemberRowActions member={m} tzGroups={tzGroups} teaching={teaching} tz={tz} phoneCountries={phoneCountries}
                   loginIdRule={loginIdRule} tempPasswordRule={tempPasswordRule} />
               </li>
             ))}
@@ -912,7 +920,7 @@ export function MembersPane({
 
       {selectedMember ? <Dialog open onClose={() => setSelectedMemberId(null)} title={`${selectedMember.name} · 상세`} closeX width={560}
         footer={<>
-          {selectedMember.canEdit ? <MemberEditButton member={selectedMember} tzGroups={tzGroups} kinds={kinds} tz={tz}
+          {selectedMember.canEdit ? <MemberEditButton member={selectedMember} tzGroups={tzGroups} teaching={teaching} tz={tz}
             phoneCountries={phoneCountries} loginIdRule={loginIdRule} /> : null}
           <Button variant="ghost" onClick={() => setSelectedMemberId(null)}>닫기</Button>
         </>}>
@@ -924,18 +932,19 @@ export function MembersPane({
           <dt>이메일</dt><dd>{selectedMember.email || '—'}</dd>
           <dt>휴대폰</dt><dd>{selectedMember.phone || '—'}</dd>
           <dt>입사일</dt><dd>{selectedMember.hiredOn || '—'}</dd>
-          {selectedMember.canViewStaffProfile ? <>
-            <dt>생년월일</dt><dd>{selectedMember.birthOn || '—'}</dd>
-            <dt>영어 전용 수업</dt><dd>{selectedMember.englishOnly === null ? '미확인' : selectedMember.englishOnly ? '가능' : '불가능'}</dd>
-            <dt>가능 수업 유형</dt><dd>{selectedMember.teachingKinds?.map((kind) => kind.name).join(' · ') || '미등록'}</dd>
-            <dt>학력 요약</dt><dd>{selectedMember.education?.length ? selectedMember.education.map((row, index) => <div key={`${row.school}:${index}`}>
-              {row.school}{row.major ? ` · ${row.major}` : ''}{row.degree ? ` · ${row.degree}` : ''}{row.status ? ` · ${row.status}` : ''}
-            </div>) : '미등록'}</dd>
-          </> : null}
           <dt>시간대</dt><dd>{tzName(selectedMember.tz ?? tz)}</dd>
           <dt>상태</dt><dd>{selectedMember.active ? '사용 중' : '사용 중지'}{selectedMember.mustChangeCredentials ? ' · 첫 설정 전' : ''}</dd>
           {canWage && selectedMember.wageable && selectedMember.wageRate != null ? <>
             <dt>시급</dt><dd>{won(selectedMember.wageRate)}{selectedMember.wageFrom ? ` · ${selectedMember.wageFrom} 부터` : ''}</dd>
+          </> : null}
+          {/* 10/14 PPTX p9 상세 창 — 강사 정보 넷은 기본 정보 뒤에 생년월일 → 100% 영어 수업 → 가능 과목 → 학력 순서 */}
+          {selectedMember.canViewStaffProfile ? <>
+            <dt>생년월일</dt><dd>{selectedMember.birthOn || '—'}</dd>
+            <dt>100% 영어 수업</dt><dd>{selectedMember.englishOnly === null ? '미확인' : selectedMember.englishOnly ? '가능' : '불가'}</dd>
+            <dt>가능 과목</dt><dd>{selectedMember.teachingSubjects?.map((subject) => subject.name).join(' · ')
+              || (selectedMember.teachingKinds?.length ? `이전 입력(수업 유형): ${selectedMember.teachingKinds.map((kind) => kind.name).join(' · ')}` : '미등록')}</dd>
+            <dt>학력</dt><dd>{selectedMember.education?.length ? selectedMember.education.map((row) =>
+              `${[row.school, row.major, row.degree].filter(Boolean).join(' ')}${row.status ? `(${row.status})` : ''}`).join(' / ') : '미등록'}</dd>
           </> : null}
         </dl>
       </Dialog> : null}

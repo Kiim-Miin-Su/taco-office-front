@@ -21,11 +21,11 @@ import { Banner, Button, Dialog, Input, Label, Segmented, Select } from '../ui';
 import { PhoneInput, composePhone, type PhoneValue } from '../account/PhoneInput';
 import { apiMessage } from '@/api/client';
 import { useCreateMember } from '@/api/queries';
-import type { KindRow, Member, PhoneCountry, StaffCreate, TzGroup } from '@/api/types';
+import type { Member, PhoneCountry, StaffCreate, TzGroup } from '@/api/types';
 import { ROLES } from '@/lib/roles';
 import { todayKst } from '@/lib/calendar';
 import { MemberHandoverBox, type MemberHandover } from './MemberRowActions';
-import { StaffDateParts, StaffTeachingFields, englishValueOf, type EducationRow, type EnglishChoice, type TeachingKindKey } from './StaffTeachingFields';
+import { NO_TEACHING_OPTIONS, StaffDateParts, StaffTeachingFields, englishValueOf, type EducationRow, type EnglishChoice, type TeachingOptions } from './StaffTeachingFields';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 /** 서버 `STAFF_CREATE_ROLES`과 같은 역할 — CEO만 제외한다. 이름은 `ROLES` 표에서 재사용한다. */
@@ -34,7 +34,8 @@ const PICKABLE = STAFF_PICKABLE_ROLES;
 
 export interface MemberCreateButtonProps {
   tzGroups: TzGroup[];
-  kinds?: KindRow[];
+  /** 가능 과목 묶음·학력 코드표 — 서버 DrawerDto(p8 결정 2026-10-16). 없으면 칩·선택지가 비어 선다 */
+  teaching?: TeachingOptions;
   /** 관리자 화면의 시간대 — 시간대 기본값 */
   tz: string;
   /**
@@ -53,7 +54,7 @@ export interface MemberCreateButtonProps {
 const NO_COUNTRIES: PhoneCountry[] = [];
 
 export function MemberCreateButton({
-  tzGroups, kinds = [], tz, canWage, phoneCountries = NO_COUNTRIES, loginIdRule, tempPasswordRule, onDone,
+  tzGroups, teaching = NO_TEACHING_OPTIONS, tz, canWage, phoneCountries = NO_COUNTRIES, loginIdRule, tempPasswordRule, onDone,
 }: MemberCreateButtonProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -69,7 +70,7 @@ export function MemberCreateButton({
   const [hiredOn, setHiredOn] = useState(todayKst());
   const [birthOn, setBirthOn] = useState('');
   const [englishOnly, setEnglishOnly] = useState<EnglishChoice>('unknown');
-  const [selectedKinds, setSelectedKinds] = useState<TeachingKindKey[]>([]);
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [education, setEducation] = useState<EducationRow[]>([]);
   const [wageRate, setWageRate] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -80,7 +81,7 @@ export function MemberCreateButton({
   useEffect(() => {
     setName(''); setLoginId(''); setPassword(''); setEmail(''); setRole('teacher'); setTitle(''); setMemberTz(tz);
     setPhone({ country: '', local: '' }); setHiredOn(todayKst()); setBirthOn(''); setEnglishOnly('unknown');
-    setSelectedKinds([]); setEducation([]); setWageRate(''); setErr(null); setMade(null);
+    setSelectedSubjects([]); setEducation([]); setWageRate(''); setErr(null); setMade(null);
   }, [open, tz]);
 
   const pending = write.isPending;
@@ -100,7 +101,7 @@ export function MemberCreateButton({
       name: name.trim(), loginId: loginId.trim(), password, role, hiredOn,
       ...(teacherProfile ? {
         ...(birthOn ? { birthOn } : {}), englishOnly: englishValueOf(englishOnly),
-        teachingKindKeys: selectedKinds,
+        teachingSubjectKeys: selectedSubjects,
         education: education.map((row) => ({ school: row.school.trim(), major: row.major.trim() || null,
           degree: row.degree.trim() || null, status: row.status.trim() || null })),
       } : {}),
@@ -201,13 +202,13 @@ export function MemberCreateButton({
             </div>
             <div>
               <StaffDateParts id={`${id}-hired`} label="입사일" value={hiredOn} onChange={setHiredOn} disabled={pending} />
-              <p className="mt-1 text-[12px] text-fg-subtle">불가 시간 2주 회차의 기산점</p>
+              <p className="mt-1 text-[12px] text-fg-subtle">지난 날짜도 됩니다 · 불가 시간 2주 회차의 기산점</p>
             </div>
           </div>
           {teacherProfile ? (
             <>
-              <StaffTeachingFields id={id} kinds={kinds} birthOn={birthOn} onBirthOn={setBirthOn}
-                englishOnly={englishOnly} onEnglishOnly={setEnglishOnly} selectedKinds={selectedKinds} onKinds={setSelectedKinds}
+              <StaffTeachingFields id={id} options={teaching} birthOn={birthOn} onBirthOn={setBirthOn}
+                englishOnly={englishOnly} onEnglishOnly={setEnglishOnly} selectedSubjects={selectedSubjects} onSubjects={setSelectedSubjects}
                 education={education} onEducation={setEducation} disabled={pending} />
               {!birthOk ? <Banner tone="danger">생년월일은 오늘과 입사일 이전이어야 합니다.</Banner> : null}
               {!educationOk ? <Banner tone="danger">학력은 최대 5개이며 각 학교를 적어 주세요.</Banner> : null}
@@ -220,6 +221,11 @@ export function MemberCreateButton({
               <Input id={`${id}-wage`} type="number" min={1000} step={1000} inputMode="numeric" value={wageRate} onChange={(e) => setWageRate(e.target.value)} disabled={pending} placeholder="40000" />
             </div>
           ) : null}
+          {/* 10/14 PPTX p8 ⑥ 저장 전 안내 — 입사일은 적은 날짜 그대로, 시급은 입사일(지났으면 오늘)부터(서버 insertWage 규칙과 같은 문장 · 소급 없음) */}
+          {ISO.test(hiredOn) ? <p className="rounded-lg bg-inset px-3 py-2 text-[12px] font-bold text-fg-2">
+            입사일 {hiredOn}은 그대로 저장됩니다{canWage && rate !== null && rateOk
+              ? ` · 시급은 ${hiredOn > todayKst() ? `입사일(${hiredOn})` : `오늘(${todayKst()})`}부터 붙습니다 (소급 없음)` : ''}
+          </p> : null}
           {err ? <Banner tone="danger">{err}</Banner> : null}
           <p className="text-[12px] text-fg-subtle">만들면 넘겨줄 아이디와 임시 비밀번호를 한 번 보여 드립니다 — 창을 닫으면 비밀번호는 다시 볼 수 없습니다.</p>
         </div>

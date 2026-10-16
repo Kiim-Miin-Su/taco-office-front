@@ -13,7 +13,7 @@ describe('강사 Excel용 CSV', () => {
   it('한글 BOM·CRLF와 따옴표/개행 이스케이프, 수식 시작 문자를 처리한다', () => {
     const row: Row = {
       id: 9, name: '=SUM(1,2)', englishName: '  +HACK', title: '강사 "가"\nA', active: true,
-      hiredOn: '2026-09-30', englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-30T12:00:00+09:00',
+      hiredOn: '2026-09-30', englishOnly: null, teachingKindCount: 0, teachingSubjectCount: 0, createdAt: '2026-09-30T12:00:00+09:00',
     };
     const csv = staffDirectoryCsv([row]);
     expect(csv.startsWith('\uFEFF')).toBe(true);
@@ -26,7 +26,7 @@ describe('강사 Excel용 CSV', () => {
   it('API 행에 부가 민감값이 실수로 붙어도 허용한 열만 내보낸다', () => {
     const row = {
       id: 1, name: '김강사', englishName: null, title: null, active: false,
-      hiredOn: null, englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-30T12:00:00+09:00',
+      hiredOn: null, englishOnly: null, teachingKindCount: 0, teachingSubjectCount: 0, createdAt: '2026-09-30T12:00:00+09:00',
       email: 'private@example.test', phone: '01012345678', bankAccount: '123-123', wageRate: 45000,
     } as Row;
     const csv = staffDirectoryCsv([row]);
@@ -36,7 +36,7 @@ describe('강사 Excel용 CSV', () => {
 
   it('탭과 개행 뒤 수식 문자열을 셀 텍스트로 고정한다', () => {
     const base: Row = { id: 2, name: '\t=1+1', englishName: '\r@SUM(A1)', title: null, active: true, hiredOn: null,
-      englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-30' };
+      englishOnly: null, teachingKindCount: 0, teachingSubjectCount: 0, createdAt: '2026-09-30' };
     const csv = staffDirectoryCsv([base]);
     expect(csv).toContain('"\'\t=1+1"');
     expect(csv).toContain('"\'\r@SUM(A1)"');

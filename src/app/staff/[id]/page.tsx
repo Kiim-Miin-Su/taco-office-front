@@ -15,7 +15,7 @@ import { qk, sessionQueryKey, useMeta, useOccurrences, useReplySuggestion, useSc
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { Banner, Button, Chip, Input, LinkButton, PageHeader, Panel, QueryState, Segmented, TabCards } from '@/components/ui';
-import { TeacherCalendarGrid } from '@/components/cal/TeacherSchedule';
+import { TeacherCalendarGrid, repStateLabel } from '@/components/cal/TeacherSchedule';
 import { addDays, boundsOf, hhmm, label, step, todayKst } from '@/lib/calendar';
 import { won } from '@/lib/money';
 import { positiveQueryId, queryEnum, queryIsoDate } from '@/lib/url-state';
@@ -55,23 +55,34 @@ function Profile({ data }: { data: Detail }) {
       <div><dt className="text-fg-subtle">영문명</dt><dd className="mt-1">{data.profile.englishName ?? '미등록'}</dd></div>
       <div><dt className="text-fg-subtle">상태</dt><dd className="mt-1"><Chip tone={data.profile.active ? 'success' : 'neutral'}>{data.profile.active ? '사용 중' : '사용 중지'}</Chip></dd></div>
       <div><dt className="text-fg-subtle">직함</dt><dd className="mt-1">{data.profile.title ?? '—'}</dd></div>
-      <div><dt className="text-fg-subtle">입사일 · 근속</dt><dd className="mt-1">{data.profile.hiredOn ?? '—'}{tenure(data.profile.hiredOn) ? ` · ${tenure(data.profile.hiredOn)}` : ''}</dd></div>
-      <div><dt className="text-fg-subtle">생년월일 · 만 나이</dt><dd className="mt-1">{data.profile.birthOn ?? '—'}{fullAge(data.profile.birthOn) !== null ? ` · 만 ${fullAge(data.profile.birthOn)}세` : ''}</dd></div>
+      {/* 10/14 PPTX p10 ①: 「입사일」 칸에 날짜 · 근속 N년 N개월 */}
+      <div><dt className="text-fg-subtle">입사일</dt><dd className="mt-1">{data.profile.hiredOn ?? '—'}{tenure(data.profile.hiredOn) ? ` · 근속 ${tenure(data.profile.hiredOn)}` : ''}</dd></div>
       <div><dt className="text-fg-subtle">시간대</dt><dd className="mt-1">{data.profile.timezone ?? '—'}</dd></div>
       <div><dt className="text-fg-subtle">연락처</dt><dd className="mt-1">{data.profile.phone ?? '—'}</dd></div>
       <div><dt className="text-fg-subtle">이메일</dt><dd className="mt-1">{data.profile.email ?? '—'}</dd></div>
+      {/* 10/14 PPTX p10 ②: 「생년월일」 칸에 날짜 · 만 N세 */}
+      <div><dt className="text-fg-subtle">생년월일</dt><dd className="mt-1">{data.profile.birthOn ?? '—'}{fullAge(data.profile.birthOn) !== null ? ` · 만 ${fullAge(data.profile.birthOn)}세` : ''}</dd></div>
     </dl>
   </Panel>
-    <Panel title="수업 프로필" sub="가능 수업 유형은 과목(SUBJECT)과 별도로 관리합니다">
-      <dl className="grid gap-3 text-[12px] sm:grid-cols-2">
-        <div><dt className="text-fg-subtle">영어 전용 수업</dt><dd className="mt-1">{data.profile.englishOnly === null ? '미확인' : data.profile.englishOnly ? '가능' : '불가능'}</dd></div>
-        <div><dt className="text-fg-subtle">가능 수업 유형</dt><dd className="mt-1">{data.profile.teachingKinds.map((kind) => kind.name).join(' · ') || '미등록'}</dd></div>
+    {/* 10/14 PPTX p10 ③ 「강사 프로필」 — 가능 과목은 실제 과목(SUB) 칩(p8 결정 2026-10-16). 127 수업 유형은 과목이 없을 때만 이전 입력으로 알린다 */}
+    <Panel title="강사 프로필" sub="학력 · 100% 영어 수업 · 가능 과목 — 구성원 「수정」에서 고칩니다. 가능 과목은 수업 배정 때 참고합니다.">
+      <dl className="grid gap-4 text-[12px] sm:grid-cols-2">
+        <div><dt className="text-fg-subtle">100% 영어 수업</dt><dd className="mt-1">
+          <Chip size="compact" tone={data.profile.englishOnly ? 'success' : 'neutral'}>{data.profile.englishOnly === null ? '미확인' : data.profile.englishOnly ? '가능' : '불가'}</Chip>
+        </dd></div>
+        <div><dt className="text-fg-subtle">가능 과목 {data.profile.teachingSubjects.length}개</dt><dd className="mt-1 flex flex-wrap gap-1.5">
+          {data.profile.teachingSubjects.length
+            ? data.profile.teachingSubjects.map((subject) => <Chip key={subject.key} size="compact" tone="info">{subject.name}</Chip>)
+            : data.profile.teachingKinds.length
+              ? <span className="text-fg-subtle">{`이전 입력(수업 유형): ${data.profile.teachingKinds.map((kind) => kind.name).join(' · ')}`}</span>
+              : <span className="text-fg-subtle">미등록</span>}
+        </dd></div>
+        <div className="sm:col-span-2"><dt className="text-fg-subtle">학력</dt><dd className="mt-1">
+          {data.profile.education.length ? <ul className="space-y-1">{data.profile.education.map((row, index) => <li key={`${row.school}:${index}`}>
+            <b>{row.school}</b>{row.major || row.degree ? ` · ${[row.major, row.degree].filter(Boolean).join(' ')}` : ''}{row.status ? ` · ${row.status}` : ''}
+          </li>)}</ul> : <p className="text-fg-subtle">등록된 학력이 없습니다.</p>}
+        </dd></div>
       </dl>
-      <div className="mt-4 text-[12px]"><b>학력 요약</b>
-        {data.profile.education.length ? <ul className="mt-2 divide-y divide-line">{data.profile.education.map((row, index) => <li key={`${row.school}:${index}`} className="py-2">
-          {row.school}{row.major ? ` · ${row.major}` : ''}{row.degree ? ` · ${row.degree}` : ''}{row.status ? ` · ${row.status}` : ''}
-        </li>)}</ul> : <p className="mt-1 text-fg-subtle">등록된 학력이 없습니다.</p>}
-      </div>
     </Panel>
   </div>;
 }
@@ -142,7 +153,8 @@ function TargetHome({ data }: { data: TeacherHome }) {
       {lessons.length === 0 ? <p className="text-[12px] text-fg-subtle">앞으로 7일 동안 배정된 수업이 없습니다.</p>
         : <ul className="divide-y divide-line">{lessons.map((lesson) => <li key={`${lesson.serId}:${lesson.onDate}`} className="flex flex-wrap gap-x-3 gap-y-1 py-3 text-[12px]">
           <b>{lesson.date} · {hhmm(lesson.startMin)}–{hhmm(lesson.startMin + lesson.durMin)}</b>
-          <span>{lesson.students ?? '학생 미배정'} · {lesson.mode === 'online' ? '비대면' : '대면'} · {lesson.repState}</span>
+          {/* 상태 낱말은 달력과 같은 repStateLabel 한 곳 — 코드값(none·plan)을 그대로 쓰지 않는다(S5a 2026-10-16) */}
+          <span>{lesson.students ?? '학생 미배정'} · {lesson.mode === 'online' ? '비대면' : '대면'} · {lesson.canceled ? lesson.cancelKindLabel ? `휴강 · ${lesson.cancelKindLabel}` : '수업 취소' : repStateLabel(lesson.repState)}</span>
         </li>)}</ul>}
     </Panel>
     <Panel title="현재 설정·보낸 신청 이력" sub="시급 값은 실제 관리자 권한과 비공개 설정을 통과한 경우만 표시합니다.">
@@ -212,11 +224,12 @@ function TargetInbox({ data, onGo }: { data: StaffTeacherInbox; onGo: (go: strin
 }
 
 function TargetGuides({ data }: { data: TeacherGuides }) {
-  return <Panel title="대상 강사 수업 안내" sub={`${data.weekFrom}~${data.weekTo} · 같은 강사 준비정보 projection`}>
+  return <Panel title="대상 강사 수업 안내" sub={`${data.weekFrom}~${data.weekTo} · 강사 화면과 같은 수업 준비 정보`}>
     {data.students.length === 0 ? <p className="text-[12px] text-fg-subtle">이 주에 담당 학생이 없습니다.</p>
       : <div className="grid gap-3 lg:grid-cols-2">{data.students.map((student) => <article key={student.studentId} className="rounded-xl border border-line bg-inset p-4 text-[12px]">
-        <div className="flex flex-wrap items-center gap-2"><Link className="text-[14px] font-bold text-accent hover:underline" href={`/students/${student.studentId}`}>{student.name}</Link><Chip>{student.weekCount}회</Chip></div>
-        <Link className="mt-1 inline-block text-accent hover:underline" href={`/students/${student.studentId}?tab=comments`}>학생 코멘트 ›</Link>
+        {/* 10/14 PPTX p5: 카드 머리 한 줄 — 학생 이름(학생 화면) · 회수 … 오른쪽 끝 「학생 코멘트 ›」 */}
+        <div className="flex flex-wrap items-center gap-2"><Link className="text-[14px] font-bold text-accent hover:underline" href={`/students/${student.studentId}`}>{student.name}</Link><Chip>{student.weekCount}회</Chip>
+          <Link className="ml-auto font-bold text-fg-2 hover:underline" href={`/students/${student.studentId}?tab=comments`}>학생 코멘트 ›</Link></div>
         <p className="mt-2 text-fg-2">{student.school ?? '학교 미등록'} · {student.grade ?? '학년 미등록'} · {student.guidance ?? '지도 강도 미등록'}</p>
         <p className="mt-2 text-fg-subtle">교재 {student.books.length}권 · 진단 {student.diag ? '있음' : '없음'} · 인수인계 {student.notes.length}건</p>
         {student.books.length ? <ul className="mt-2 border-t border-line pt-2">{student.books.map((book) => <li key={book.issueId}>{book.title} · {book.stateLabel}</li>)}</ul> : null}

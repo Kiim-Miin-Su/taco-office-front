@@ -275,7 +275,8 @@ export function AppDrawer({ open, onClose, pane, onPaneChange }: {
             />
           ) : null}
           {pane === 'members' ? (
-            <MembersPane groups={data.memberGroups} tzGroups={data.tzGroups} kinds={data.kinds} tz={data.tz}
+            <MembersPane groups={data.memberGroups} tzGroups={data.tzGroups} tz={data.tz}
+              teaching={{ subjectGroups: data.teachingSubjectGroups, degrees: data.educationDegrees, statuses: data.educationStatuses }}
               canAddMember={data.canAddMember} canWage={data.canWage} phoneCountries={data.phoneCountries}
               loginIdRule={data.loginIdRule} tempPasswordRule={data.tempPasswordRule} />
           ) : null}

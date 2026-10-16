@@ -34,8 +34,9 @@ type Meta = components['schemas']['MetaDto'];
 
 const detail: Detail = {
   profile: { id: 7, name: '김강사', englishName: 'Kim', title: '영어', active: true, hiredOn: '2026-01-02',
-    birthOn: '1990-01-02', englishOnly: true, teachingKindCount: 2,
-    teachingKinds: [{ key: 'class', name: '수업' }, { key: 'study', name: '자습' }],
+    birthOn: '1990-01-02', englishOnly: true, teachingKindCount: 0, teachingSubjectCount: 2, teachingKinds: [],
+    teachingSubjects: [{ key: 'map-read', name: 'MAP Reading', kindKey: 'class', kindName: '수업' },
+      { key: 'study-room', name: '학습실', kindKey: 'study', kindName: '자습' }],
     education: [{ school: '검증 학교', major: '수학', degree: '학사', status: '졸업' }],
     createdAt: '2026-01-01T09:00:00+09:00', email: 'teacher@example.com', phone: '010-0000-0000', timezone: 'Asia/Seoul' },
   wageAccess: true,
@@ -47,7 +48,9 @@ const detail: Detail = {
   nextCursor: null,
 };
 const home: TeacherHome = {
-  todayDate: '2026-10-09', today: [], upcoming: [], todaySummary: { lessons: 0, minutes: 0 }, week: { lessons: 0, minutes: 0, unwritten: 0 },
+  todayDate: '2026-10-09', today: [], upcoming: [{ serId: 41, onDate: '2026-10-10', date: '2026-10-10', startMin: 600, durMin: 60,
+    kindKey: 'class', subKey: 'writing', mode: 'offline', title: null, roomName: null, roomBranch: null, zaccLabel: null,
+    students: '학생A', canceled: false, cancelKindLabel: null, repState: 'plan' }], todaySummary: { lessons: 0, minutes: 0 }, week: { lessons: 0, minutes: 0, unwritten: 0 },
   todo: { unwrittenReports: 1, waitingApprovals: 2, openChangeRequests: 3, openStaffRequests: 4, openBookChanges: 5 },
   settings: {
     name: '김강사', timezone: 'Asia/Seoul', wageRate: 45000, wageFrom: '2026-01-01', timezones: [],
@@ -171,8 +174,8 @@ it('실제 관리자 actor와 대상 강사를 분리하고 8탭을 한 허브�
     '히스토리정산·변경', '건의 사항답변', '들어온 것8종 모음',
   ]);
   expect(view.getByText('현재 배정 수업·학생')).toBeTruthy();
-  expect(view.getByText('수업 프로필')).toBeTruthy();
-  expect(view.getByText('수업 · 자습')).toBeTruthy();
+  expect(view.getByRole('heading', { name: '강사 프로필' })).toBeTruthy();
+  expect(view.getByText('가능 과목 2개')).toBeTruthy();
   expect(view.getByRole('link', { name: '학생A' }).getAttribute('href')).toBe('/students/31');
   expect(view.getByText('현재 설정·보낸 신청 이력')).toBeTruthy();
 });
@@ -298,4 +301,25 @@ it('건의 답변은 기존 운영 writer로 저장한 뒤 대상 projection을 
   await waitFor(() => expect(patch).toHaveBeenCalledWith('/ops/suggestions/81/reply', { reply: '확인 후 수업 시간을 다시 안내드리겠습니다.' }));
   await waitFor(() => expect(vi.mocked(api.get).mock.calls.filter(([url]) => String(url) === '/drawer/staff-directory/7/suggestions').length).toBeGreaterThan(1));
   expect(vi.mocked(api.get).mock.calls.some(([url]) => String(url).startsWith('/teacher/'))).toBe(false);
+});
+
+/** S5a(2026-10-16) — 10/14 PPTX p10 「수정본」 강사 홈 낱말·배치 회귀와 홈 탭 리포트 상태 코드 노출 교정. */
+it('S5a p10 강사 홈은 입사일·근속, 생년월일·만 나이와 강사 프로필을 수정본 낱말로 보이고 상태 코드를 그대로 쓰지 않는다', async () => {
+  const view = setup();
+  await view.findByText('오늘·다가오는 7일 수업');
+  const terms = [...view.container.querySelectorAll('dt')].map((dt) => dt.textContent);
+  expect(terms).toEqual(expect.arrayContaining(['입사일', '생년월일', '100% 영어 수업', '가능 과목 2개', '학력']));
+  expect(terms).not.toContain('입사일 · 근속');
+  expect(view.getByText(/^2026-01-02 · 근속 \d+년 \d+개월$/)).toBeTruthy();
+  expect(view.getByText(/^1990-01-02 · 만 \d+세$/)).toBeTruthy();
+  expect(view.getByRole('heading', { name: '강사 프로필' })).toBeTruthy();
+  expect(view.getByText('학력 · 100% 영어 수업 · 가능 과목 — 구성원 「수정」에서 고칩니다. 가능 과목은 수업 배정 때 참고합니다.')).toBeTruthy();
+  expect(view.queryByText(/SUBJECT/)).toBeNull();
+  expect(view.getByText('가능')).toBeTruthy();
+  // p8 결정(2026-10-16): 수정본 p10처럼 실제 과목 칩이다 — 종류 이름 칩이 아니다
+  expect(view.getByText('MAP Reading')).toBeTruthy();
+  expect(view.getByText('학습실')).toBeTruthy();
+  expect(view.getByText('검증 학교').closest('li')?.textContent).toBe('검증 학교 · 수학 학사 · 졸업');
+  expect(view.getByText(/학생A · 대면 · 수업 예정/)).toBeTruthy();
+  expect(view.queryByText(/· plan$/)).toBeNull();
 });

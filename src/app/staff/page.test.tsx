@@ -18,8 +18,8 @@ vi.mock('@/components/shell/RequireAuth', () => ({ RequireAuth: ({ children }: {
 
 type Row = components['schemas']['StaffDirectoryRowDto'];
 const rows: Row[] = [
-  { id: 1, name: '김강사', englishName: 'Kim', title: '강사', active: true, hiredOn: null, englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-30T10:00:00+09:00' },
-  { id: 2, name: '이강사', englishName: 'Lee', title: '강사', active: true, hiredOn: null, englishOnly: null, teachingKindCount: 0, createdAt: '2026-09-29T10:00:00+09:00' },
+  { id: 1, name: '김강사', englishName: 'Kim', title: '강사', active: true, hiredOn: null, englishOnly: null, teachingKindCount: 0, teachingSubjectCount: 0, createdAt: '2026-09-30T10:00:00+09:00' },
+  { id: 2, name: '이강사', englishName: 'Lee', title: '강사', active: true, hiredOn: null, englishOnly: null, teachingKindCount: 0, teachingSubjectCount: 0, createdAt: '2026-09-29T10:00:00+09:00' },
 ];
 const clients: QueryClient[] = [];
 
@@ -41,6 +41,14 @@ afterEach(() => {
 });
 
 describe('강사 목록 선택', () => {
+  it('p8 결정(2026-10-16) — 목록의 가능 과목 칸은 서버 과목 수를 그대로 쓴다', async () => {
+    const view = setup([{ ...rows[0], teachingKindCount: 2, teachingSubjectCount: 3 }]);
+    await view.findByRole('checkbox', { name: '김강사 선택' });
+    expect(view.getByRole('columnheader', { name: '가능 과목' })).toBeTruthy();
+    expect(view.queryByRole('columnheader', { name: '가능 수업 유형' })).toBeNull();
+    expect(view.getByRole('cell', { name: '3개' })).toBeTruthy();
+  });
+
   it('개별 체크박스를 누르면 선택되고 다시 누르면 해제된다', async () => {
     const view = setup();
     const box = await view.findByRole('checkbox', { name: '김강사 선택' }) as HTMLInputElement;
