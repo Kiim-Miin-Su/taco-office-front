@@ -34,6 +34,7 @@ vi.mock('@/store/useSession', () => {
 });
 
 import OnboardingPage from './page';
+import { fallbackRouteFor } from '@/components/shell/navigation';
 import { ApiError } from '@/api/client';
 
 const RULE = '비밀번호는 8자 이상 · 영문과 숫자를 함께 · 초기 비밀번호와 지금 비밀번호는 쓸 수 없습니다';
@@ -124,7 +125,44 @@ describe('첫 설정 화면', () => {
     });
     expect(h.clear).toHaveBeenCalledOnce();
     expect(h.clear.mock.invocationCallOrder[0]).toBeLessThan(h.signIn.mock.invocationCallOrder[0]);
-    expect(h.replace).toHaveBeenCalledWith('/schedule');
+    // 착지는 로그인과 같은 한 규칙(navigation.fallbackRouteFor)이다 — 화면이 역할 낱말로 갈래를 따로 두지 않는다
+    expect(h.replace).toHaveBeenCalledWith(fallbackRouteFor(user));
+  });
+
+  it('세 가지 모두 필요 · 건너뛰기 없음 — 1·2·3 단계 상태가 진행을 따라 바뀐다 (AUTH-INIT-02 · D7)', async () => {
+    h.post.mockImplementation(async (url: string, body: { channel?: string }) => {
+      if (url === '/auth/onboarding/codes' && body.channel === 'sms') {
+        throw new ApiError('SEND_FAILED', '문자로 코드를 보내지 못했습니다 — 잠시 뒤 다시 받아 주세요', 502);
+      }
+      if (url === '/auth/onboarding/codes') return sent('email');
+      throw new ApiError('PASSWORD_RULE', RULE, 400);
+    });
+    const view = mount();
+    await waitFor(() => expect(view.getByText(RULE)).toBeTruthy());
+    expect(view.getByText('세 가지를 모두 마쳐야 업무 화면이 열립니다 · 건너뛸 수 없습니다')).toBeTruthy();
+    const steps = () => within(view.getByRole('list', { name: '필수 단계' })).getAllByRole('listitem').map((li) => li.textContent);
+    expect(steps()).toEqual(['1이메일 인증코드 받기 전', '2휴대폰 인증코드 받기 전', '3새 비밀번호입력 전']);
+    // 건너뛰기 · 나중에 하기 단추는 없다
+    expect(view.queryByRole('button', { name: /건너|나중/ })).toBeNull();
+
+    type(view, '이메일', 'kim@tnacademy.kr');
+    fireEvent.click(view.getByRole('button', { name: '메일로 코드 받기' }));
+    await waitFor(() => expect(steps()[0]).toMatch(/^1이메일 인증코드 보냄 · \d+초$/));
+    type(view, '이메일 인증 코드', '111111');
+    expect(steps()[0]).toBe('1이메일 인증코드 적음');
+
+    type(view, '휴대폰', '01012345678');
+    fireEvent.click(view.getByRole('button', { name: '문자로 코드 받기' }));
+    await waitFor(() => expect(steps()[1]).toBe('2휴대폰 인증발송 실패'));
+
+    type(view, '새 비밀번호', 'short');
+    type(view, '새 비밀번호 확인', 'short');
+    expect(steps()[2]).toBe('3새 비밀번호입력됨');
+    fireEvent.click(view.getByRole('button', { name: '설정 마치기' }));
+    await waitFor(() => expect(steps()[2]).toBe('3새 비밀번호규칙 확인'));
+    // 거절은 저장 0 — 카드 아래 띠가 그렇게 말하고, 세션은 그대로다
+    expect(view.getByText('설정을 마치지 못했습니다 — 저장된 것은 없습니다')).toBeTruthy();
+    expect(h.signIn).not.toHaveBeenCalled();
   });
 
   it('해외 번호는 국가번호를 골라 「+국가번호 번호」로 보낸다 — 나라 이름은 서버 목록 그대로 · 기본은 첫 줄(국내) (N-103)', async () => {
