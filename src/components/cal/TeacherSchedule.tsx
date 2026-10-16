@@ -156,20 +156,24 @@ function scheduleHref(view: TeacherCalendarView, anchor: string, occ?: Pick<Occu
   return `/schedule?${params.toString()}`;
 }
 
-function CalendarLessonButton({ occ, lookup, onOpen, compact = false }: {
+function CalendarLessonButton({ occ, lookup, onOpen, compact = false, perspective = 'teacher' }: {
   occ: Occurrence;
   lookup: Lookup;
   onOpen: (occ: Occurrence) => void;
   compact?: boolean;
+  perspective?: 'teacher' | 'student';
 }) {
   const canceled = occ.canceled || occ.attendance?.countsForPay === false;
   const look = STATUS_LOOK[canceled ? 'na' : occ.repState] ?? STATUS_LOOK.na;
   const subject = (occ.subKey ? lookup.subjects.get(occ.subKey) : undefined)
     ?? occ.title ?? lookup.kinds.get(occ.kindKey) ?? '수업';
   const students = occ.students.filter((student) => !student.droppedOnce).map((student) => student.name).join(' · ');
+  const person = perspective === 'student' ? occ.teacherName ?? '강사 미정' : students || '학생 미정';
+  const detail = perspective === 'student' ? `${person} · ${occ.mode === 'online' ? '비대면' : '대면'} · ${statusLabel(occ)}`
+    : `${person} · ${statusLabel(occ)}`;
   return (
     <button type="button" onClick={() => onOpen(occ)}
-      aria-label={`${label(occ.date)} ${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subject} · ${students || '학생 미정'} · ${statusLabel(occ)}`}
+      aria-label={`${label(occ.date)} ${hhmm(occ.startMin)}–${hhmm(occ.endMin)} ${subject} · ${detail}`}
       className={cn(
         'min-h-11 w-full rounded-lg border px-2 py-2 text-left transition-colors hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue',
         look,
@@ -178,18 +182,19 @@ function CalendarLessonButton({ occ, lookup, onOpen, compact = false }: {
         <span className="shrink-0 text-[12px] font-bold">{hhmm(occ.startMin)}</span>
         <span className={cn('min-w-0 flex-1 truncate text-[12px] font-bold', canceled && 'line-through')}>{subject}</span>
       </span>
-      {!compact ? <span className="mt-0.5 block truncate text-[12px] opacity-80">{students || '학생 미정'} · {statusLabel(occ)}</span> : null}
+      {(!compact || perspective === 'student') ? <span className="mt-0.5 block truncate text-[12px] opacity-80">{detail}</span> : null}
     </button>
   );
 }
 
-function TeacherWeekCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPickDay }: {
+function TeacherWeekCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPickDay, perspective }: {
   anchor: string;
   items: readonly Occurrence[];
   holidaysOn: ReadonlyMap<string, string[]>;
   lookup: Lookup;
   onOpen: (occ: Occurrence) => void;
   onPickDay: (date: string) => void;
+  perspective?: 'teacher' | 'student';
 }) {
   const days = weekDays(anchor);
   const grouped = new Map(byDate(items));
@@ -210,7 +215,7 @@ function TeacherWeekCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPick
               </button>
               {lessons.length ? (
                 <ul className="flex flex-col gap-1.5 p-2">
-                  {lessons.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} /></li>)}
+                  {lessons.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} perspective={perspective} /></li>)}
                 </ul>
               ) : <p className="p-3 text-[12px] text-fg-subtle">수업 없음</p>}
             </article>
@@ -221,13 +226,14 @@ function TeacherWeekCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPick
   );
 }
 
-function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPickDay }: {
+function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPickDay, perspective }: {
   anchor: string;
   items: readonly Occurrence[];
   holidaysOn: ReadonlyMap<string, string[]>;
   lookup: Lookup;
   onOpen: (occ: Occurrence) => void;
   onPickDay: (date: string) => void;
+  perspective?: 'teacher' | 'student';
 }) {
   const days = monthGrid(anchor);
   const grouped = new Map(byDate(items));
@@ -251,7 +257,7 @@ function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPic
                 <span className="mt-0.5 flex flex-wrap gap-1"><HolidayChips names={holidaysOn.get(date)} /></span>
               </button>
               <ul className="mt-1 flex flex-col gap-1">
-                {shown.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} compact /></li>)}
+                {shown.map((occ) => <li key={occurrenceKey(occ)}><CalendarLessonButton occ={occ} lookup={lookup} onOpen={onOpen} perspective={perspective} compact /></li>)}
               </ul>
               {more > 0 ? (
                 <button type="button" className="mt-1 min-h-11 w-full rounded-md text-[12px] font-bold text-blue hover:bg-blue/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue"
@@ -271,7 +277,7 @@ function TeacherMonthCalendar({ anchor, items, holidaysOn, lookup, onOpen, onPic
  * 이 공용 경계를 바꾸면 관리자 강사 8탭, 생성 DTO/OpenAPI, 두 수정사항 대조표와 portfolio를 함께 갱신한다.
  */
 export function TeacherCalendarGrid({
-  view, anchor, items, meta, holidays, onOpen, onPickDay,
+  view, anchor, items, meta, holidays, onOpen, onPickDay, perspective = 'teacher',
 }: {
   view: 'week' | 'month';
   anchor: string;
@@ -280,6 +286,7 @@ export function TeacherCalendarGrid({
   holidays: readonly { date: string; name: string }[];
   onOpen: (occ: Occurrence) => void;
   onPickDay: (date: string) => void;
+  perspective?: 'teacher' | 'student';
 }) {
   const lookup = useMemo(() => lookups(meta), [meta]);
   const holidaysOn = useMemo(() => {
@@ -288,8 +295,8 @@ export function TeacherCalendarGrid({
     return map;
   }, [holidays]);
   return view === 'week'
-    ? <TeacherWeekCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup} onOpen={onOpen} onPickDay={onPickDay} />
-    : <TeacherMonthCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup} onOpen={onOpen} onPickDay={onPickDay} />;
+    ? <TeacherWeekCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup} onOpen={onOpen} onPickDay={onPickDay} perspective={perspective} />
+    : <TeacherMonthCalendar anchor={anchor} items={items} holidaysOn={holidaysOn} lookup={lookup} onOpen={onOpen} onPickDay={onPickDay} perspective={perspective} />;
 }
 
 export function TeacherSchedule() {

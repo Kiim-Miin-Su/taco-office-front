@@ -47,7 +47,13 @@ const guide = {
 const guideStudents = { items: [{ studentId: 21, studentName: '학생A', grade: 'G8', guidance: null, lang: null, guideCount: 1,
   latestGuide: guide, books: [{ issueId: 8, libId: 9, versId: 10, code: 'BK-1', title: 'Writing Book', edition: '2판', seTe: null, subKey: 'writing', level: null }], diagnostic: null, scores: null }] };
 const hub: StudentHub = {
-  studentId: 21, canSeeAmounts: false,
+  studentId: 21, canSeeAmounts: false, privateNoteCount: 1,
+  teachers: [{ staffId: 7, name: '강사A', roleLabel: null, lessons: [{ serId: 4, kindName: '수업', subjectName: 'Writing',
+    ruleLabel: '매주 수요일', startMin: 960, endMin: 1020, mode: 'online', fromDate: '2026-09-01', toDate: null }] }],
+  commentLessons: [
+    { serId: 4, teacherName: '강사A', kindName: '수업', subjectName: 'Writing', fromDate: '2026-09-01', toDate: null, ended: false },
+    { serId: 3, teacherName: '예전 강사', kindName: '수업', subjectName: 'Math', fromDate: '2026-07-10', toDate: '2026-07-10', ended: true },
+  ],
   nextActions: [
     { key: 'schedule', label: '스케줄', count: 2, stateLabel: '2회 예정', href: '/schedule?studentId=21' },
     { key: 'billing', label: '회계', count: 1, stateLabel: '1건 처리 중', href: '/students/21?tab=billing' },
@@ -57,7 +63,8 @@ const hub: StudentHub = {
     { key: 'lead', label: '상담 카드', count: 1, stateLabel: '1건 연결', href: '/intake' },
   ],
   reports: { total: 2, nextCursor: 'reports_next', items: [{ id: 51, onDate: '2026-10-07', kindName: '수업', subjectName: 'Writing', teacherName: '강사A', state: 'wait', stateLabel: '승인 대기', submittedAt: '2026-10-07T01:00:00Z' }] },
-  comments: { total: 2, nextCursor: 'comments_next', items: [{ id: 61, serId: 4, authorId: 3, authorName: '매니저', body: '학생 코멘트', createdAt: '2026-10-07T01:00:00Z' }] },
+  comments: { total: 2, allTotal: 3, months: [{ month: '2026-10', total: 2 }, { month: '2026-09', total: 1 }], nextCursor: 'comments_next',
+    items: [{ id: 61, serId: 4, authorId: 3, authorName: '매니저', body: '학생 코멘트', createdAt: '2026-10-07T01:00:00Z' }] },
   invoices: { total: 2, nextCursor: 'invoices_next', items: [{ id: 71, yearMonth: '2026-10', invType: 'tuition', invTypeLabel: '수업료 청구', title: '10월 수업료', state: 'partial', stateLabel: '일부 납부', dueOn: '2026-10-10', amount: null, paidAmount: null, remainingAmount: null }] },
 };
 const privateNotes = { studentId: 21, items: [{ id: 81, studentId: 21, studentName: '학생A', serId: 4,
@@ -66,24 +73,41 @@ const privateNotes = { studentId: 21, items: [{ id: 81, studentId: 21, studentNa
 const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let requests: InternalAxiosRequestConfig[];
+let addedNote: { id: number; serId: number | null; authorId: number; authorName: string; body: string; createdAt: string } | null;
 
 beforeEach(() => {
   requests = [];
+  addedNote = null;
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   useSession.getState().signIn('unit-fixture', me);
   api.defaults.adapter = async config => {
     requests.push(config);
+    if (config.url === '/schedule/tracking/notes' && config.method === 'post') {
+      const body = JSON.parse(config.data as string) as { studentId: number; serId?: number; body: string };
+      addedNote = { id: 62, serId: body.serId ?? null, authorId: 3, authorName: '매니저', body: body.body,
+        createdAt: '2026-10-14T01:00:00Z' };
+      return { config, status: 201, statusText: 'Created', headers: {}, data: addedNote };
+    }
     const nextHub = config.params?.reportsCursor ? { ...hub, reports: { total: 2, nextCursor: null, items: [{ ...hub.reports.items[0], id: 50, onDate: '2026-10-06' }] } }
-      : config.params?.commentsCursor ? { ...hub, comments: { total: 2, nextCursor: null, items: [{ ...hub.comments.items[0], id: 60, body: '이전 코멘트' }] } }
+      : config.params?.commentsCursor ? { ...hub, comments: { ...hub.comments, nextCursor: null, items: [{ ...hub.comments.items[0], id: 60, serId: 999, body: '이전 코멘트' }] } }
         : config.params?.invoicesCursor ? { ...hub, invoices: { total: 2, nextCursor: null, items: [{ ...hub.invoices.items[0], id: 70, yearMonth: '2026-09' }] } } : hub;
+    const selectedHub = config.params?.commentsMonth === '2026-09' ? { ...nextHub, comments: { ...nextHub.comments,
+      total: 1, nextCursor: null, items: [{ ...hub.comments.items[0], id: 59, body: '9월 코멘트', createdAt: '2026-09-30T14:59:00Z' }] } }
+      : addedNote && !config.params?.commentsCursor ? { ...nextHub, comments: { ...nextHub.comments,
+        total: 3, allTotal: 4, months: [{ month: '2026-10', total: 3 }, { month: '2026-09', total: 1 }],
+        items: [addedNote, ...nextHub.comments.items] } } : nextHub;
     const data = config.url === '/students' ? { ...directory, page: config.params?.page ?? 1 }
       : config.url === '/meta' ? meta
         : config.url === '/guides/students' ? guideStudents
           : config.url === '/schedule/students/21/books' ? { studentId: 21, bookCount: 1, label: null }
             : config.url === '/consulting/students' ? { items: [] }
-              : config.url === '/students/21/hub' ? nextHub
-                : config.url === '/students/21/private-notes' ? privateNotes : detail;
+              : config.url === '/students/21/hub' ? selectedHub
+                : config.url === '/students/21/private-notes' ? privateNotes
+                  : config.url === '/schedule/occurrences' ? { items: [{ serId: 4, date: '2026-10-07', onDate: '2026-10-07',
+                    startMin: 960, endMin: 1020, kindKey: 'lesson', subKey: 'writing', title: 'Writing', teacherId: 7,
+                    teacherName: '강사A', mode: 'online', canceled: false, repState: 'plan', students: [{ id: 21, name: '학생A', droppedOnce: false }] }] }
+                    : config.url === '/schedule/holidays' ? { items: [{ date: '2026-10-09', name: '한글날' }] } : detail;
     return { config, status: 200, statusText: 'OK', headers: {}, data };
   };
 });
@@ -187,20 +211,48 @@ describe('학생 목록과 생성 계약', () => {
 });
 
 describe('학생 상세 — 현재 사실과 제한된 기록', () => {
+  it('개요의 코멘트 건수는 본문 없는 서버 집계로 표시하고 강사별 화면에 연결한다', async () => {
+    const view = render(<StudentDetail studentId={21} />, setup());
+    await view.findByRole('heading', { name: '담당 강사 1명' });
+    expect(view.getByRole('tab', { name: /코멘트/ }).textContent).toContain('월별 기록 4건');
+    expect(requests.some(request => request.url === '/students/21/private-notes')).toBe(false);
+    expect(view.getByRole('link', { name: '강사A · Writing ›' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('link', { name: '선생님 홈' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('link', { name: '시간표' }).getAttribute('href')).toBe('/staff/7?tab=calendar');
+    expect(view.getByRole('link', { name: '수업 안내' }).getAttribute('href')).toBe('/staff/7?tab=guides');
+  });
+
+  it('실제 수업 담당자가 매니저이면 서버 역할 낱말과 과목을 함께 표시한다', async () => {
+    const adapter = api.defaults.adapter;
+    if (typeof adapter !== 'function') throw new Error('테스트 HTTP adapter가 없다');
+    api.defaults.adapter = async config => {
+      const response = await adapter(config);
+      return config.url === '/students/21/hub'
+        ? { ...response, data: { ...hub, teachers: [{ ...hub.teachers[0], name: '매니저A', roleLabel: '매니저' }] } }
+        : response;
+    };
+    const view = render(<StudentDetail studentId={21} />, setup());
+    await view.findByRole('heading', { name: '담당 강사 1명' });
+    expect(view.getByRole('link', { name: '매니저A 매니저 · Writing ›' }).getAttribute('href')).toBe('/staff/7');
+  });
+
   it('최종 요구 순서의 10탭과 좌측 학생 전환을 제공하고 현재 탭을 URL에 보존한다', async () => {
     const view = render(<StudentDetail studentId={21} />, setup());
     await view.findByRole('heading', { name: student.label });
+    expect(view.getByText(/학교A · G8 · 등록일 \(DB 생성\) 2026-09-30/)).toBeTruthy();
     expect(STUDENT_HUB_TABS.map(tab => tab.label)).toEqual(['안내 한눈에', '안내/교재 배정', '시간표', '수업 기록', '리포트', '교재', '코멘트', '컨설팅', '프로필', '수강/청구']);
-    expect(view.getByRole('button', { name: '안내 한눈에' }).getAttribute('aria-pressed')).toBe('true');
+    expect(view.getByRole('tab', { name: '안내 한눈에' }).getAttribute('aria-selected')).toBe('true');
     await view.findByText('2회 예정');
     await view.findByText('학생A 안내 본문');
+    expect(view.getByText('안내 1건')).toBeTruthy();
+    expect(view.queryByText(/학생 #21/)).toBeNull();
     expect(view.getByRole('link', { name: '수업 안내 수정' }).getAttribute('href'))
       .toBe('/guides?tab=students&studentId=21');
-    fireEvent.click(view.getByRole('button', { name: '안내/교재 배정' }));
+    fireEvent.click(view.getByRole('tab', { name: /안내\/교재 배정/ }));
     expect(view.getByRole('link', { name: '교재 배정 업무 열기' }).getAttribute('href'))
       .toBe('/books?tab=tracking&studentId=21&create=issue');
     expect(view.getByRole('link', { name: /학생B · G9/ }).getAttribute('href')).toBe('/students/22?tab=assignment');
-    fireEvent.click(view.getByRole('button', { name: '수업 기록' }));
+    fireEvent.click(view.getByRole('tab', { name: /수업 기록/ }));
     expect(replace).toHaveBeenLastCalledWith('/students/21?tab=history', { scroll: false });
     await view.findByText('관리자가 확인할 학생 특이사항');
     expect(view.getByText('강사 특이사항 1건')).toBeTruthy();
@@ -210,12 +262,13 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     expect(view.getByText('담당자B (#8)')).toBeTruthy();
     expect(view.getByText('2026-09-30 10:00')).toBeTruthy();
     expect(view.getByText('퇴원 처리')).toBeTruthy();
-    expect(view.getByText('기존 감사 51건')).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '시간표' }));
-    expect(view.getByRole('link', { name: '학생 시간표 열기' }).getAttribute('href')).toBe('/schedule?studentId=21');
-    expect(requests.map(request => request.url).sort()).toEqual([
-      '/guides/students', '/meta', '/students/21', '/students/21/hub', '/students/21/private-notes',
-    ].sort());
+    expect(view.getByRole('cell', { name: '학생' })).toBeTruthy();
+    expect(view.queryByText('학생 #21')).toBeNull();
+    expect(view.getByRole('heading', { name: '기존 감사 51건' })).toBeTruthy();
+    fireEvent.click(view.getByRole('tab', { name: /시간표/ }));
+    expect(view.getByRole('link', { name: '전체 시간표' }).getAttribute('href')).toContain('/schedule?studentId=21&date=');
+    await waitFor(() => expect(requests.some(request => request.url === '/schedule/occurrences')).toBe(true));
+    expect(requests.some(request => request.url === '/schedule/holidays')).toBe(true);
     expect(requests.every(request => request.method === 'get')).toBe(true);
   });
 
@@ -224,30 +277,98 @@ describe('학생 상세 — 현재 사실과 제한된 기록', () => {
     await view.findByText('학생A 안내 본문');
     expect(requests.some(request => request.url === '/schedule/students/21/books')).toBe(false);
     expect(requests.some(request => request.url === '/consulting/students')).toBe(false);
-    fireEvent.click(view.getByRole('button', { name: '리포트' }));
+    fireEvent.click(view.getByRole('tab', { name: /리포트/ }));
     await view.findByText('리포트 2건');
-    expect(view.getByText('승인 대기')).toBeTruthy();
+    expect((await view.findAllByText('승인 대기')).length).toBeGreaterThan(0);
     fireEvent.click(view.getByRole('button', { name: '리포트 더 보기' }));
     await waitFor(() => expect(requests.some(request => request.params?.reportsCursor === 'reports_next')).toBe(true));
-    fireEvent.click(view.getByRole('button', { name: '코멘트' }));
+    fireEvent.click(view.getByRole('tab', { name: /코멘트/ }));
     await view.findByText('학생 코멘트');
-    expect(view.getByText('관리자·매니저가 남기고 담당 강사와 공유하는 인수인계 코멘트입니다. 학부모 전달 문서에는 포함되지 않습니다.')).toBeTruthy();
+    expect(view.getByText(/저장 후 수정·삭제할 수 없으며 학부모 전달 문서에는 포함되지 않습니다/)).toBeTruthy();
+    expect(view.getAllByText('강사 특이사항').length).toBeGreaterThan(0);
     fireEvent.click(view.getByRole('button', { name: '코멘트 더 보기' }));
     await view.findByText('이전 코멘트');
+    expect(view.queryByText('수업 #999')).toBeNull();
+    expect(view.getByText('수업')).toBeTruthy();
     expect(requests.some(request => request.params?.commentsCursor === 'comments_next')).toBe(true);
-    fireEvent.click(view.getByRole('button', { name: '교재' }));
+    fireEvent.click(view.getByRole('tab', { name: /^교재 / }));
     await view.findByText('Writing Book');
     expect(requests.filter(request => request.url === '/schedule/students/21/books')).toHaveLength(1);
-    fireEvent.click(view.getByRole('button', { name: '컨설팅' }));
+    fireEvent.click(view.getByRole('tab', { name: /컨설팅/ }));
     await view.findByText('볼 수 있는 이 학생의 컨설팅이 없습니다.');
     expect(requests.filter(request => request.url === '/consulting/students')).toHaveLength(1);
-    fireEvent.click(view.getByRole('button', { name: '수강/청구' }));
+    fireEvent.click(view.getByRole('tab', { name: /수강\/청구/ }));
     await view.findByText('학생별 청구 2건');
     expect(view.getByText('금액 비공개')).toBeTruthy();
     expect(view.queryByRole('link', { name: '회계 업무 열기' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '청구 더 보기' }));
     await waitFor(() => expect(requests.some(request => request.params?.invoicesCursor === 'invoices_next')).toBe(true));
     expect(requests.every(request => ['get', undefined].includes(request.method))).toBe(true);
+  });
+
+  it('담당 강사 링크와 주·월 학생 달력은 서버 회차·공휴일을 표시하고 URL로 이어진다', async () => {
+    const view = render(<StudentDetail studentId={21} initialTab="schedule" initialCalendarAnchor="2026-10-07" />, setup());
+    await view.findByRole('heading', { name: '담당 강사 1명' });
+    expect(view.getByRole('link', { name: '강사A · Writing ›' }).getAttribute('href')).toBe('/staff/7');
+    expect(view.getByRole('tab', { name: /시간표/ }).getAttribute('aria-selected')).toBe('true');
+    const lesson = await view.findByRole('button', { name: /Writing.*강사A.*비대면/ });
+    expect(view.getByText('한글날')).toBeTruthy();
+    expect(requests.find(request => request.url === '/schedule/occurrences')?.params).toMatchObject({
+      studentId: 21, from: '2026-10-05', to: '2026-10-11',
+    });
+    fireEvent.click(lesson);
+    expect(push).toHaveBeenCalledWith('/schedule?studentId=21&serId=4&onDate=2026-10-07&date=2026-10-07');
+    fireEvent.click(view.getByRole('button', { name: '월간' }));
+    expect(replace).toHaveBeenLastCalledWith('/students/21?tab=schedule&view=month&anchor=2026-10-07', { scroll: false });
+    await waitFor(() => expect(requests.some(request => request.url === '/schedule/occurrences'
+      && request.params?.from === '2026-09-28' && request.params?.to === '2026-11-01')).toBe(true));
+  });
+
+  it('코멘트는 KST 월·출처로 좁히고 기존 append-only API 저장 뒤 재조회한다', async () => {
+    const view = render(<StudentDetail studentId={21} initialTab="comments" />, setup());
+    await view.findByText('학생 코멘트');
+    expect(view.getAllByText('수업 · Writing').length).toBeGreaterThan(0);
+    expect(view.queryByText(/수업 #4/)).toBeNull();
+    expect(view.getByRole('heading', { name: '코멘트 4건' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '2026년 10월 3건' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '10월 7일 / 수요일 · 1건' })).toBeTruthy();
+    expect(view.getByText('관리자가 확인할 학생 특이사항')).toBeTruthy();
+    expect(view.getByRole('button', { name: '전체 (4건)' }).getAttribute('aria-pressed')).toBe('true');
+    expect(requests.some(request => request.url === '/students/21/hub' && request.params?.commentsMonth === undefined)).toBe(true);
+    expect(view.getByRole('button', { name: '2026-10 (3건)' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '2026-09 (1건)' }));
+    await view.findByText('9월 코멘트');
+    expect(view.getByRole('heading', { name: '2026년 9월 1건' })).toBeTruthy();
+    expect(requests.some(request => request.url === '/students/21/hub' && request.params?.commentsMonth === '2026-09')).toBe(true);
+    expect(view.queryByText('관리자가 확인할 학생 특이사항')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '전체 (4건)' }));
+    await view.findByText('관리자가 확인할 학생 특이사항');
+    expect(view.getByRole('heading', { name: '코멘트 4건' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '2026-10 (3건)' }));
+    await view.findByText('학생 코멘트');
+    fireEvent.click(view.getByRole('button', { name: '강사 특이사항' }));
+    expect(view.queryByText('학생 코멘트')).toBeNull();
+    expect(view.getByText('관리자가 확인할 학생 특이사항')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '전체' }));
+    expect(view.getByRole('option', { name: /예전 강사.*2026-07-10–2026-07-10.*종료/ }).getAttribute('value')).toBe('3');
+    fireEvent.change(view.getByLabelText('연결 수업'), { target: { value: '3' } });
+    fireEvent.change(view.getByLabelText('코멘트 *'), { target: { value: '새 인수인계' } });
+    fireEvent.click(view.getByRole('button', { name: '코멘트 남기기' }));
+    await waitFor(() => expect(requests.find(request => request.url === '/schedule/tracking/notes')?.method).toBe('post'));
+    expect(JSON.parse(requests.find(request => request.url === '/schedule/tracking/notes')!.data as string)).toEqual({
+      studentId: 21, serId: 3, body: '새 인수인계',
+    });
+    await view.findByText('새 인수인계');
+    expect(view.getByText('수업 · Math')).toBeTruthy();
+    expect(view.queryByRole('button', { name: /수정|삭제/ })).toBeNull();
+  });
+
+  it('학생 상세 권한이 없으면 허브·비공개 메모를 조회하지 않는다', async () => {
+    useSession.getState().setMe({ ...me, canAdminPage: false, canCrudAll: false });
+    const view = render(<StudentDetail studentId={21} initialTab="comments" />, setup());
+    expect(view.getByText('학생 상세를 조회할 권한이 없습니다.')).toBeTruthy();
+    await act(async () => {});
+    expect(requests).toHaveLength(0);
   });
 
   it('404는 빈 학생 성공이나 무한 로딩 대신 목록 복귀를 제공한다', async () => {

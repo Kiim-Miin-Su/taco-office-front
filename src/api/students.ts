@@ -57,7 +57,7 @@ export const studentKeys = {
   list: (params: StudentListQuery) => ['students', 'list', params] as const,
   detail: (id: number | null) => ['students', 'detail', id] as const,
   hub: (id: number | null) => ['students', 'hub', id] as const,
-  hubSection: (id: number | null, section: StudentHubSection) => ['students', 'hub', id, section] as const,
+  hubSection: (id: number | null, section: StudentHubSection, commentsMonth?: string) => ['students', 'hub', id, section, commentsMonth] as const,
   privateNotes: (id: number | null) => ['students', 'private-notes', id] as const,
   kinderMarker: (id: number | null) => ['students', 'kinder-marker', id] as const,
   registrationOptions: ['students', 'registration-options'] as const,
@@ -189,15 +189,18 @@ export function useCreateStudentKinderMarker() {
   });
 }
 
-export function useStudentHubSection(id: number | null, section: StudentHubSection, enabled = true) {
+export function useStudentHubSection(
+  id: number | null, section: StudentHubSection, { enabled = true, commentsMonth }: { enabled?: boolean; commentsMonth?: string } = {},
+) {
   const viewerId = useSession(state => state.me?.id ?? 'anonymous');
   const allowed = useStudentReadAllowed();
   return useInfiniteQuery({
-    queryKey: sessionQueryKey(studentKeys.hubSection(id, section), viewerId),
+    queryKey: sessionQueryKey(studentKeys.hubSection(id, section, section === 'comments' ? commentsMonth : undefined), viewerId),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
-      const params = pageParam ? section === 'reports' ? { reportsCursor: pageParam }
-        : section === 'comments' ? { commentsCursor: pageParam } : { invoicesCursor: pageParam } : undefined;
+      const cursor = pageParam ? section === 'reports' ? { reportsCursor: pageParam }
+        : section === 'comments' ? { commentsCursor: pageParam } : { invoicesCursor: pageParam } : {};
+      const params = { ...cursor, ...(section === 'comments' && commentsMonth ? { commentsMonth } : {}) };
       return (await api.get<StudentHub>(`/students/${id}/hub`, { params, signal })).data;
     },
     getNextPageParam: lastPage => lastPage[section].nextCursor ?? undefined,

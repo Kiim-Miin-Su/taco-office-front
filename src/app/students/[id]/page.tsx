@@ -8,11 +8,15 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/shell/AppShell';
 import { RequireAuth } from '@/components/shell/RequireAuth';
 import { StudentDetail, studentHubTabFromQuery } from '@/components/students/StudentDetail';
+import { queryEnum, queryIsoDate } from '@/lib/url-state';
 
 export default function StudentPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const studentId = /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : null;
   const tab = studentHubTabFromQuery(searchParams.get('tab'));
-  return <RequireAuth><AppShell><StudentDetail key={id} studentId={studentId} initialTab={tab} /></AppShell></RequireAuth>;
+  const calendarView = queryEnum(searchParams.get('view'), ['week', 'month'] as const) ?? 'week';
+  const calendarAnchor = queryIsoDate(searchParams.get('anchor')) ?? undefined;
+  return <RequireAuth><AppShell><StudentDetail key={id} studentId={studentId} initialTab={tab}
+    initialCalendarView={calendarView} initialCalendarAnchor={calendarAnchor} /></AppShell></RequireAuth>;
 }
