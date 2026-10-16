@@ -284,6 +284,53 @@ describe('계정 절 — 휴대폰 · 이메일 새 수신처 인증 (D6)', () =
     expect(within(d).queryByRole('group', { name: '휴대폰 번호 바꾸기' })).toBeNull();
   });
 
+  it('키보드 초점이 body 로 빠지지 않는다 — 열면 새 받는 곳 칸, 보내는 중·초읽기는 그 단추(aria-disabled), 저장 거절은 거절된 칸 (S4)', async () => {
+    let change: Reply = fail(409, 'CODE_MISMATCH', '휴대폰 코드가 맞지 않습니다 — 4번 더 시도할 수 있습니다');
+    const { dialog } = mount(teacher, profileOf(), {
+      'POST /auth/profile/contact-codes': sentTo('sms', '010-****-5678'),
+      'POST /auth/profile/contact-change': () => change,
+    });
+    await waitFor(() => expect(within(dialog()).getByRole('button', { name: '휴대폰 변경' })).toBeTruthy());
+    fireEvent.click(within(dialog()).getByRole('button', { name: '휴대폰 변경' }));
+    const panel = within(dialog()).getByRole('group', { name: '휴대폰 번호 바꾸기' });
+    // 연 단추는 패널로 바뀌어 사라진다 — 초점은 패널의 첫 입력 칸으로 들어간다
+    expect(document.activeElement).toBe(within(panel).getByLabelText('새 번호'));
+
+    type(within(panel).getByLabelText('새 번호'), '010-1234-5678');
+    const send = within(panel).getByRole('button', { name: '문자로 코드 받기' });
+    send.focus();
+    fireEvent.click(send);
+    // 실제 브라우저는 disabled 가 된 단추의 초점을 body 로 버린다 — 보내는 동안 · 초읽기 동안은 aria-disabled 로만 잠근다
+    expect(send.hasAttribute('disabled')).toBe(false);
+    expect(send.getAttribute('aria-disabled')).toBe('true');
+    await waitFor(() => expect(within(panel).getByText('보낸 곳 010-****-5678 · 10분 안에 적어 주세요')).toBeTruthy());
+    expect(send.textContent).toMatch(/다시 받기 \(\d+초\)/);
+    expect(send.hasAttribute('disabled')).toBe(false);
+    expect(send.getAttribute('aria-disabled')).toBe('true');
+    // 초읽기 중 눌러도 다시 보내지 않는다
+    fireEvent.click(send);
+    expect(calls.filter((c) => c.key === 'POST /auth/profile/contact-codes')).toHaveLength(1);
+
+    type(within(panel).getByLabelText('인증 코드'), '111111');
+    type(within(panel).getByLabelText('지금 비밀번호'), 'taco1234!');
+    const save = within(panel).getByRole('button', { name: '인증하고 저장' });
+    save.focus();
+    fireEvent.click(save);
+    await waitFor(() => expect(document.activeElement).toBe(within(panel).getByLabelText('인증 코드')));
+
+    change = fail(409, 'CURRENT_PASSWORD_MISMATCH', '지금 비밀번호가 맞지 않습니다 — 3번 더 시도할 수 있습니다');
+    save.focus();
+    fireEvent.click(save);
+    await waitFor(() => expect(document.activeElement).toBe(within(panel).getByLabelText('지금 비밀번호')));
+  });
+
+  it('이름 패널을 열면 초점은 이름 칸이다 — 연 단추가 사라져도 키보드 위치를 잃지 않는다 (S4)', async () => {
+    const { dialog } = mount(teacher, profileOf());
+    await waitFor(() => expect(within(dialog()).getByRole('button', { name: '이름 수정' })).toBeTruthy());
+    fireEvent.click(within(dialog()).getByRole('button', { name: '이름 수정' }));
+    expect(document.activeElement).toBe(within(dialog()).getByLabelText('이름'));
+  });
+
   it('받는 곳을 바꾸면 보낸 코드는 쓸 수 없다 — 코드 칸이 다시 잠긴다', async () => {
     const { dialog } = mount(teacher, profileOf(), { 'POST /auth/profile/contact-codes': sentTo('sms', '010-****-5678') });
     await waitFor(() => expect(within(dialog()).getByRole('button', { name: '휴대폰 변경' })).toBeTruthy());

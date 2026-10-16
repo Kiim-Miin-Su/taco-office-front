@@ -57,9 +57,16 @@ export function CodeRequestButton({ spec, left, busy, disabled, onSend, error, n
   devCode?: string;
 }) {
   const label = left > 0 ? `다시 받기 (${left}초)` : `${spec?.label ?? ''}로 코드 받기`;
+  // 보내는 중 · 다시 받기 초읽기는 aria-disabled 로만 잠근다 — 누른 단추가 disabled 가 되면 브라우저가 초점을 body 로 버려
+  // 키보드 · 화면 낭독기 사용자가 제자리를 잃는다(S4 실브라우저 2026-10-16). 준비 안 됨 · 받을 곳 없음 · 다른 일 진행 중은 그대로 disabled.
+  const waiting = busy || left > 0;
   return (
     <div className="mt-2">
-      <Button size="sm" className="w-full sm:w-auto" disabled={!spec?.ready || left > 0 || disabled} onClick={onSend}>
+      <Button
+        size="sm" className="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-40 sm:w-auto"
+        disabled={!spec?.ready || (disabled && !busy)} aria-disabled={waiting || undefined}
+        onClick={waiting ? undefined : onSend}
+      >
         {busy ? '보내는 중…' : label}
       </Button>
       {error ? <p role="alert" className="mt-1 text-[12px] font-bold text-red">{error}</p> : null}

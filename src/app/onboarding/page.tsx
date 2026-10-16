@@ -5,7 +5,7 @@
  */
 
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api, apiMessage, ApiError } from '@/api/client';
@@ -84,6 +84,11 @@ export default function OnboardingPage() {
   const [busy, setBusy] = useState<Channel | 'complete' | 'logout' | null>(null);
   const countries = info.data?.phoneCountries ?? [];
   const phoneText = composePhone(phone, countries);
+  // 마치기 거절 뒤 초점이 body 로 빠졌으면(보내는 동안 잠긴 단추에서 브라우저가 버린다) 마치기 단추로 돌린다 — 칸에 있던 초점은 그대로 둔다(S4)
+  useEffect(() => {
+    if (busy !== null || err?.at !== 'complete' || document.activeElement !== document.body) return;
+    document.getElementById('ob-submit')?.focus();
+  }, [busy, err]);
 
   async function sendCode(channel: Channel, target: string) {
     setBusy(channel);
@@ -237,11 +242,14 @@ export default function OnboardingPage() {
         </QueryState>
 
         {/* 마치기는 서버가 한 transaction 으로 저장한다 — 거절이면 아무것도 저장되지 않았다(D7 「저장 0」) */}
+        {/* role=alert — 화면 낭독기가 거절을 바로 읽는다(띠 부품은 역할을 싣지 않는다) */}
         {err?.at === 'complete' ? (
-          <Banner tone="danger" className="mt-4" title="설정을 마치지 못했습니다 — 저장된 것은 없습니다">{err.text}</Banner>
+          <div role="alert" className="mt-4">
+            <Banner tone="danger" title="설정을 마치지 못했습니다 — 저장된 것은 없습니다">{err.text}</Banner>
+          </div>
         ) : null}
 
-        <Button type="submit" variant="primary" disabled={busy !== null || !info.data} className="mt-5 w-full">
+        <Button id="ob-submit" type="submit" variant="primary" disabled={busy !== null || !info.data} className="mt-5 w-full">
           {busy === 'complete' ? '저장하는 중…' : '설정 마치기'}
         </Button>
         <Button variant="ghost" disabled={busy === 'logout'} className="mt-2 w-full" onClick={() => void logout()}>

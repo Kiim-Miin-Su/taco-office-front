@@ -14,7 +14,7 @@
  *   나머지는 [인증하고 저장] 아래 (QA 0926 UX-1 · D6). 어느 칸인지는 서버 오류 코드로만 고른다(문장을 읽어 판정하지 않는다).
  */
 'use client';
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, apiMessage, ApiError } from '@/api/client';
 import { useUpdateProfile } from '@/api/queries';
@@ -51,8 +51,11 @@ function Verified({ ok }: { ok: boolean }) {
 
 function PanelFrame({ title, children }: { title: string; children: ReactNode }) {
   const titleId = useId();
+  const ref = useRef<HTMLDivElement>(null);
+  // 패널을 연 단추는 패널로 바뀌어 사라진다 — 초점을 첫 입력 칸으로 옮겨 키보드 · 화면 낭독기 위치가 body 로 빠지지 않게 한다(S4)
+  useEffect(() => { ref.current?.querySelector<HTMLInputElement>('input:not([disabled])')?.focus(); }, []);
   return (
-    <div role="group" aria-labelledby={titleId} className="flex flex-col gap-3 border-b border-line bg-inset px-3 py-3 last:border-b-0">
+    <div ref={ref} role="group" aria-labelledby={titleId} className="flex flex-col gap-3 border-b border-line bg-inset px-3 py-3 last:border-b-0">
       <h4 id={titleId} className="text-[13px] font-bold text-fg">{title}</h4>
       {children}
     </div>
@@ -181,6 +184,11 @@ function ContactPanel({ channel, profile, resend, onCancel, onSaved }: {
 
   const codeError = err?.at === 'code' ? err.text : null;
   const passwordError = err?.at === 'password' ? err.text : null;
+  // 저장 거절 뒤 초점은 거절된 칸으로 — 보내는 동안 잠긴 단추에서 브라우저가 초점을 body 로 버린다(S4). 코드 받기 거절은 그 단추가 초점을 지킨다
+  useEffect(() => {
+    if (busy !== null || !err || err.at === 'send') return;
+    document.getElementById(err.at === 'save' ? `${id}-save` : `${id}-${err.at}`)?.focus();
+  }, [busy, err, id]);
   return (
     <PanelFrame title={sms ? '휴대폰 번호 바꾸기' : '이메일 바꾸기'}>
       <p className="break-all text-[12px] text-fg-2">
@@ -232,7 +240,10 @@ function ContactPanel({ channel, profile, resend, onCancel, onSaved }: {
       <div className="flex flex-col items-end gap-1">
         <span className="flex gap-2">
           <Button size="sm" disabled={busy === 'save'} onClick={onCancel}>취소</Button>
-          <Button size="sm" variant="primary" disabled={!active || !code.trim() || !password || busy !== null} onClick={() => void save()}>
+          <Button
+            id={`${id}-save`} size="sm" variant="primary" disabled={!active || !code.trim() || !password || busy !== null}
+            onClick={() => void save()}
+          >
             {busy === 'save' ? '저장하는 중…' : '인증하고 저장'}
           </Button>
         </span>
