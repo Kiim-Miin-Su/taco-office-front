@@ -291,18 +291,42 @@ export function ReportEditor({ detail, subject }: { detail: ReportDetail; subjec
  * 학부모에게 나가는 전문(§50). PNG 파일 이름은 서버가 정한다 (D-R33).
  * `teacherName`·`accent`(과목색)는 부르는 쪽이 리포트에서 그대로 넘긴다 — 본문 문자열(서버 descriptor)은 바뀌지 않는다.
  */
-export type ReportPreviewProps = ReportExportContent & {
+/** 학부모 문서 한 장 안의 수업 한 블록 — 일별은 하나, 주간 묶음(p7 결정 2026-10-16)은 수업 수만큼 */
+export interface ReportPreviewBlock {
+  key: string;
+  date: string;
+  subject: string;
+  timeLabel: string;
   teacherName?: string | null;
   accent?: string | null;
+  fields: ReportExportContent['fields'];
+  body: ReportExportContent['body'];
+}
+
+type ReportPreviewSingle = ReportExportContent & {
+  teacherName?: string | null;
+  accent?: string | null;
+  blocks?: undefined;
+  closing?: undefined;
+};
+/** 주간 묶음 — 같은 문서 머리·같은 수업 블록을 여러 번 그리고 끝에 서버 낱말의 마무리 칸(「총평」)을 둔다. 새 렌더러를 만들지 않는다 */
+type ReportPreviewMulti = Pick<ReportExportContent, 'studentName' | 'grade'> & {
+  blocks: ReportPreviewBlock[];
+  closing?: { label: string; text: string } | null;
+};
+
+export type ReportPreviewProps = (ReportPreviewSingle | ReportPreviewMulti) & {
   /** 「리포트 전문」 창처럼 문서만 싣는 자리 — 바깥 패널 머리(「학부모가 받는 화면」) 없이 문서 한 장만 그린다 (원문 §50) */
   bare?: boolean;
 };
 
-export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(function ReportPreview(
-  { studentName, grade, date, subject, timeLabel, fields, body, teacherName, accent, bare = false },
-  ref,
-) {
-  const color = accent ?? 'var(--blue)';
+export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(function ReportPreview(props, ref) {
+  const { studentName, grade, bare = false } = props;
+  const blocks: ReportPreviewBlock[] = props.blocks ?? [{
+    key: 'lesson', date: props.date, subject: props.subject, timeLabel: props.timeLabel,
+    teacherName: props.teacherName, accent: props.accent, fields: props.fields, body: props.body,
+  }];
+  const closing = props.blocks ? props.closing : null;
   const sheet = (
       <div ref={ref} data-testid="report-document" className="overflow-hidden rounded-lg border border-line-2 bg-card">
         {/* 원문 §50 머리 — 흰 바탕 · 이름(크게) + 학년 · 오른쪽 「TN ACADEMY」 · 아래 굵은 선 (g5 50-03) */}
@@ -314,24 +338,35 @@ export const ReportPreview = forwardRef<HTMLDivElement, ReportPreviewProps>(func
           </div>
           <span className="shrink-0 text-[12px] font-bold tracking-[0.2em] text-fg">TN ACADEMY</span>
         </header>
-        <div className="p-4">
-          {/* 수업 한 블록 — 연한 바탕 + 과목색 왼쪽 막대, 수업 줄에 강사 이름, 칸은 2열 (g5 50-04 · 50-05) */}
-          <div data-testid="report-lesson-block" className="rounded-lg border-l-4 bg-inset p-3" style={{ borderLeftColor: color }}>
-            <div className="flex flex-wrap items-center gap-2 text-[12px]">
-              <span className="font-bold text-fg">{longDateLabel(date)}</span>
-              <span className="font-bold" style={{ color: readableAccentColor(color) }}>{subject}</span>
-              <span className="rounded bg-card px-1.5 py-0.5 text-fg-subtle">{timeLabel}</span>
-              {teacherName ? <b className="text-fg">{teacherName}</b> : null}
+        <div className="space-y-3 p-4">
+          {blocks.map((block) => {
+            const color = block.accent ?? 'var(--blue)';
+            return (
+              /* 수업 한 블록 — 연한 바탕 + 과목색 왼쪽 막대, 수업 줄에 강사 이름, 칸은 2열 (g5 50-04 · 50-05) */
+              <div key={block.key} data-testid="report-lesson-block" className="rounded-lg border-l-4 bg-inset p-3" style={{ borderLeftColor: color }}>
+                <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                  <span className="font-bold text-fg">{longDateLabel(block.date)}</span>
+                  <span className="font-bold" style={{ color: readableAccentColor(color) }}>{block.subject}</span>
+                  <span className="rounded bg-card px-1.5 py-0.5 text-fg-subtle">{block.timeLabel}</span>
+                  {block.teacherName ? <b className="text-fg">{block.teacherName}</b> : null}
+                </div>
+                <dl className="mt-3 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5">
+                  {block.fields.map((field) => (
+                    <Fragment key={field.key}>
+                      <dt className="text-[12px] font-bold text-fg-subtle">{field.label.replace(/^(?:[①②③④⑤⑥⑦]|\d+\.)\s*/, '')}</dt>
+                      <dd className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-fg">{block.body[field.key] || '—'}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
+          {closing ? (
+            <div data-testid="report-closing-block" className="rounded-lg border border-line p-3">
+              <p className="text-[12px] font-bold text-fg-subtle">{closing.label}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-fg">{closing.text}</p>
             </div>
-            <dl className="mt-3 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5">
-              {fields.map((field) => (
-                <Fragment key={field.key}>
-                  <dt className="text-[12px] font-bold text-fg-subtle">{field.label.replace(/^(?:[①②③④⑤⑥⑦]|\d+\.)\s*/, '')}</dt>
-                  <dd className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-fg">{body[field.key] || '—'}</dd>
-                </Fragment>
-              ))}
-            </dl>
-          </div>
+          ) : null}
         </div>
       </div>
   );

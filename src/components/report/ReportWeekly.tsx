@@ -15,6 +15,7 @@ import { addDays, todayKst } from '@/lib/calendar';
 import { reportTimeLabel } from '@/lib/report-export';
 import { GuardianSendDialog } from '../guardians/GuardianSendDialog';
 import { Banner, Button, Chip, CountedTextarea, Label } from '../ui';
+import { WeeklyReportExportDialog } from './WeeklyReportExportDialog';
 
 /**
  * 원문 §47 은 탭 머리 「주간 트래킹 · N명 남음」까지만 보여 준다 — 본문은 N-54 채택(그 주 쓴 리포트를 읽을 때 모으고
@@ -27,6 +28,8 @@ export function ReportWeekly({ onOpenReport }: {
   const [weekOf, setWeekOf] = useState<string | undefined>(undefined);
   const query = useReportWeekly(weekOf);
   const [sending, setSending] = useState<WeeklyBundle | null>(null);
+  /** 학부모 주간 전문·PNG(p7 결정 2026-10-16) — 서버가 pngFileName 을 준 묶음만 연다 */
+  const [exporting, setExporting] = useState<number | null>(null);
   const data = query.data;
 
   return (
@@ -56,10 +59,16 @@ export function ReportWeekly({ onOpenReport }: {
         <div data-testid="weekly-cards" className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           {data.bundles.map((bundle) => (
             <BundleCard key={bundle.studentId} bundle={bundle} weekOf={data.weekOf}
-              onOpenReport={onOpenReport} onSend={() => setSending(bundle)} />
+              onOpenReport={onOpenReport} onSend={() => setSending(bundle)} onExport={() => setExporting(bundle.studentId)} />
           ))}
         </div>
       ) : null}
+
+      {(() => {
+        // 열어 둔 동안 서버 값이 바뀌면(총평 저장·발송) 최신 묶음으로 다시 그린다 — 못 내보내게 되면 창을 닫는다
+        const target = data?.bundles.find((item) => item.studentId === exporting && item.pngFileName !== null);
+        return data && target ? <WeeklyReportExportDialog bundle={target} list={data} onClose={() => setExporting(null)} /> : null;
+      })()}
 
       {sending && sending.wrepId !== null && sending.plainText ? (
         <GuardianSendDialog
@@ -76,11 +85,12 @@ export function ReportWeekly({ onOpenReport }: {
   );
 }
 
-function BundleCard({ bundle, weekOf, onOpenReport, onSend }: {
+function BundleCard({ bundle, weekOf, onOpenReport, onSend, onExport }: {
   bundle: WeeklyBundle;
   weekOf: string;
   onOpenReport?: (lesson: WeeklyLesson, studentId: number) => void;
   onSend: () => void;
+  onExport: () => void;
 }) {
   const id = useId();
   const save = useReportWeeklySummary();
@@ -145,6 +155,8 @@ function BundleCard({ bundle, weekOf, onOpenReport, onSend }: {
             {save.isPending ? '저장 중…' : '총평 저장'}
           </Button>
         ) : null}
+        {/* 학부모 주간 전문·PNG — 서는지는 서버의 pngFileName(보낼 본문과 같은 판정 · D-R39) */}
+        {bundle.pngFileName ? <Button disabled={dirty} title={dirty ? '총평을 먼저 저장해 주세요' : undefined} onClick={onExport}>전문 보기</Button> : null}
         <Button variant="primary" disabled={!bundle.canSend || dirty} title={dirty ? '총평을 먼저 저장해 주세요' : bundle.sendBlockedReason ?? undefined}
           onClick={onSend}>
           보호자에게 보내기

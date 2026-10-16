@@ -1,6 +1,6 @@
 /** @file-guide
- * 목적: B1014-04 학부모 일별 리포트의 실제 브라우저 PNG 바이트에서 내부 메모가 빠지는지 회귀 검증한다.
- * 책임/재사용: 제품의 ReportExportPanel → downloadReportPng → html-to-image 경로를 묶고, 독립 Chrome과 임시 localhost만 쓴다.
+ * 목적: B1014-04 학부모 일별·주간 리포트의 실제 브라우저 PNG 바이트에서 내부 메모가 빠지는지 회귀 검증한다(주간은 p7 결정 2026-10-16).
+ * 책임/재사용: 제품의 ReportExportPanel·WeeklyReportExportDialog → downloadReportPng → html-to-image 경로를 묶고, 독립 Chrome과 임시 localhost만 쓴다.
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 
@@ -69,6 +69,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { ReportExportPanel } from '@/components/report/ReportExportPanel';
+import { WeeklyReportExportDialog } from '@/components/report/WeeklyReportExportDialog';
 
 const dbFixture = window.__reportHttpFixture || null;
 const adminCanary = dbFixture?.adminNote ?? 'B1014관리자비공개메모CANARY';
@@ -121,6 +122,52 @@ window.captureReport = async (variant) => {
   if (!window.__downloadedPng) throw new Error(document.body.textContent || 'PNG 렌더 실패');
   return {
     png: window.__downloadedPng,
+    privateVisibleOutsidePreview: privateNotes && document.getElementById('private-notes').textContent.includes(adminCanary)
+      && document.getElementById('private-notes').textContent.includes(teacherCanary),
+    previewContainsPrivate: preview.textContent.includes(adminCanary) || preview.textContent.includes(teacherCanary),
+  };
+};
+
+// p7 결정(2026-10-16) 「주간 PNG 새로 구현」 — 같은 ReportPreview·downloadReportPng 경로의 주간 묶음 한 장
+const weeklyFields = staticBase.fields;
+const weeklyBundle = {
+  studentId: 4, studentName: '검증학생', grade: '고2', wrepId: 9, legacy: false,
+  summary: { text: '이번 주 공개 총평', byId: 1, byName: '관리자', at: '2026-08-08T10:00:00+09:00' },
+  lessons: [
+    { repId: 11, serId: 2, onDate: '2026-08-04', date: '2026-08-04', startMin: 600, endMin: 660, subjectName: '수학',
+      teacherName: '강사', state: 'ok', stateLabel: '승인 완료', written: true, approved: true,
+      body: { content: '공개 수업 내용', progress: '42p', homework: '43p' } },
+    { repId: 12, serId: 2, onDate: '2026-08-06', date: '2026-08-06', startMin: 600, endMin: 660, subjectName: '수학',
+      teacherName: '강사', state: 'ok', stateLabel: '승인 완료', written: true, approved: true,
+      body: { content: '둘째 공개 수업', progress: '44p', homework: '45p' } },
+  ],
+  lessonCount: 2, approvedCount: 2, canWriteSummary: true, summaryBlockedReason: null,
+  canSend: true, sendBlockedReason: null, plainText: '서버가 모은 주간 공개 본문', subject: '검증학생 학생 주간 리포트',
+  pngFileName: 'b1014-weekly-canary.png', sentAt: null, attemptCount: 0, lastAttemptAt: null,
+};
+window.captureWeekly = async (variant) => {
+  window.__downloadedPng = null;
+  const privateNotes = variant === 'private';
+  const bundle = variant === 'public' ? { ...weeklyBundle, summary: { ...weeklyBundle.summary, text: '이번 주 공개 총평 변경' } } : weeklyBundle;
+  flushSync(() => root.render(React.createElement(React.Fragment, null,
+    privateNotes ? React.createElement('aside', { id: 'private-notes' }, adminCanary, teacherCanary) : null,
+    React.createElement(WeeklyReportExportDialog, {
+      bundle, list: { label: '08-03 ~ 08-09', fields: weeklyFields, summaryLabel: '총평' }, onClose: () => {},
+    }),
+  )));
+  const preview = document.querySelector('[data-testid="report-document"]');
+  const button = Array.from(document.querySelectorAll('button')).find((item) => item.textContent.includes('PNG로 저장'));
+  if (!preview || !button) throw new Error('학부모 주간 PNG 화면을 찾지 못했습니다: ' +
+    JSON.stringify({ html: document.body.innerHTML.slice(0, 500), errors: window.__consoleErrors, error: window.__entryError }));
+  button.click();
+  for (let i = 0; i < 200 && !window.__downloadedPng; i += 1) {
+    await new Promise((done) => setTimeout(done, 25));
+  }
+  if (!window.__downloadedPng) throw new Error(document.body.textContent || '주간 PNG 렌더 실패');
+  return {
+    png: window.__downloadedPng,
+    blocks: preview.querySelectorAll('[data-testid="report-lesson-block"]').length,
+    closing: preview.querySelector('[data-testid="report-closing-block"]')?.textContent ?? null,
     privateVisibleOutsidePreview: privateNotes && document.getElementById('private-notes').textContent.includes(adminCanary)
       && document.getElementById('private-notes').textContent.includes(teacherCanary),
     previewContainsPrivate: preview.textContent.includes(adminCanary) || preview.textContent.includes(teacherCanary),
@@ -206,7 +253,7 @@ function decodePng(dataUrl) {
   return { bytes, width, height, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
 
-test('B1014-04: 실제 일별 PNG는 보이는 관리자·강사 비공개 메모의 영향을 받지 않고 공개 본문 변경은 반영한다',
+test('B1014-04: 실제 일별·주간 PNG는 보이는 관리자·강사 비공개 메모의 영향을 받지 않고 공개 본문 변경은 반영한다',
   { timeout: 180_000 }, async () => {
     const httpFixture = await databaseHttpFixture();
     const built = await build({
@@ -279,6 +326,25 @@ test('B1014-04: 실제 일별 PNG는 보이는 관리자·강사 비공개 메�
       // 시각 검수가 필요할 때만 합성 공개 리포트 PNG를 지정한 로컬 경로에 남긴다.
       if (process.env.B1014_PNG_ARTIFACT) {
         await writeFile(process.env.B1014_PNG_ARTIFACT, basePng.bytes);
+      }
+
+      // p7 결정(2026-10-16) — 주간 묶음 PNG도 같은 경로·같은 비공개 경계
+      const weeklyBase = await evaluate(session, "window.captureWeekly('baseline')");
+      const weeklyPrivate = await evaluate(session, "window.captureWeekly('private')");
+      const weeklyPublic = await evaluate(session, "window.captureWeekly('public')");
+      assert.equal(weeklyBase.blocks, 2, '주간 PNG에 수업 블록 2개');
+      assert.equal(weeklyBase.closing, '총평이번 주 공개 총평', '주간 PNG 끝 칸은 서버 낱말의 총평');
+      assert.equal(weeklyPrivate.privateVisibleOutsidePreview, true, '주간: 두 비공개 canary가 페이지에는 실제로 보인다');
+      assert.equal(weeklyPrivate.previewContainsPrivate, false, '주간: PNG 대상 DOM에는 비공개 canary가 없다');
+      const weeklyBasePng = decodePng(weeklyBase.png);
+      const weeklyPrivatePng = decodePng(weeklyPrivate.png);
+      const weeklyChangedPng = decodePng(weeklyPublic.png);
+      assert.equal(weeklyPrivatePng.sha256, weeklyBasePng.sha256, '주간: 비공개 canary는 실제 PNG 바이트를 바꾸지 않는다');
+      assert.notEqual(weeklyChangedPng.sha256, weeklyBasePng.sha256, '주간: 총평 변경은 실제 PNG 픽셀을 바꾼다');
+      assert.ok(weeklyBasePng.height > basePng.height, '주간 PNG는 수업 두 블록과 총평으로 일별보다 길다');
+      process.stdout.write(`weekly PNG PASS: ${weeklyBasePng.width}x${weeklyBasePng.height}, sha256=${weeklyBasePng.sha256}, private same, summary changed\n`);
+      if (process.env.B1014_WEEKLY_PNG_ARTIFACT) {
+        await writeFile(process.env.B1014_WEEKLY_PNG_ARTIFACT, weeklyBasePng.bytes);
       }
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.message : String(error)}${chromeError ? `; Chrome: ${chromeError.slice(0, 1000)}` : ''}`);
