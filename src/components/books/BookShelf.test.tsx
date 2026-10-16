@@ -5,11 +5,14 @@
  */
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Book, Books, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { BookShelf } from './BookShelf';
+
+const sdkUpload = vi.hoisted(() => vi.fn());
+vi.mock('@vercel/blob/client', () => ({ uploadPresigned: sdkUpload }));
 
 const me = {
   id: 2,
@@ -32,11 +35,13 @@ let mutation: { url?: string; method?: string; body?: unknown } = {};
 let gets: Array<Record<string, unknown>> = [];
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   cleanup();
   api.defaults.adapter = original;
   useSession.getState().signOut();
   mutation = {};
   gets = [];
+  sdkUpload.mockReset();
 });
 
 const book = (over: Partial<Book>): Book => ({
@@ -95,7 +100,8 @@ const SHELF: Books = {
   ],
   gradeCounts: grades.map((key, grade) => ({ key, label: key, grade, count: grade < 2 ? 0 : 3 })),
   examTags: [{ key: 'sat', label: 'SAT' }, { key: 'map', label: 'MAP' }, { key: 'isee_ssat', label: 'ISEE / SSAT' }],
-  versionUploadMaxBytes: 3_000_000,
+  versionUploadMaxBytes: 2_000_000_000,
+  versionFileMaxBytes: 1_000_000_000,
 };
 
 function setup(shelf: (params: Record<string, unknown>) => Books = () => SHELF) {
@@ -103,6 +109,10 @@ function setup(shelf: (params: Record<string, unknown>) => Books = () => SHELF) 
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string; params?: Record<string, unknown> }) => {
     if (config.method !== 'get') {
       mutation = { url: config.url, method: config.method, body: JSON.parse(config.data ?? '{}') };
+      if (config.url === '/files/book-pdf-upload') {
+        const kind = (mutation.body as { kind: string }).kind;
+        return { config, status: 201, statusText: 'Created', headers: {}, data: { uploadId: `upload-${kind}`, pathname: `books/qa/${kind}.pdf`, uploadUrl: `https://blob.test/${kind}` } };
+      }
       return { config, status: 201, statusText: 'Created', headers: {}, data: { id: 9, code: 'NEW', title: '신규 교재' } };
     }
     if (config.url === '/books') {
@@ -272,7 +282,8 @@ it('과목을 바꾸면 소분류가 비워진다 — 다른 과목의 소분류
   expect(view.getByLabelText('소분류')).toHaveProperty('disabled', true);
 });
 
-it('등록 창의 첫 판 · SE/TE 파일은 교재와 한 요청으로 간다 (N-61)', async () => {
+it('등록 창의 첫 판 · SE/TE PDF는 직접 전송 후 업로드 ID로 판에 연결한다', async () => {
+  sdkUpload.mockResolvedValue(undefined);
   const view = setup();
   fireEvent.click(await view.findByRole('button', { name: '+ 교재' }));
   fireEvent.change(view.getByLabelText('코드'), { target: { value: 'NEW' } });
@@ -286,28 +297,58 @@ it('등록 창의 첫 판 · SE/TE 파일은 교재와 한 요청으로 간다 (
   fireEvent.change(view.getByLabelText('판 이름'), { target: { value: 'v2026.09' } });
   fireEvent.change(view.getByLabelText('언제부터'), { target: { value: '2026-09-01' } });
   fireEvent.click(view.getByRole('button', { name: '저장' }));
+  // SDK의 비동기 응답 전에 다시 눌러도 첫 판 writer는 한 번만 실행된다.
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
   await waitFor(() => expect(mutation.url).toBe('/books'));
+  expect(sdkUpload).toHaveBeenCalledTimes(2);
   expect(mutation.body).toEqual({
     code: 'NEW', title: '신규 교재',
     firstVersion: {
       edition: 'v2026.09', fromDate: '2026-09-01',
-      seFile: { kind: 'lib-se', name: '학생용.pdf', base64: btoa('SE') },
-      teFile: { kind: 'lib-te', name: '교사용.pdf', base64: btoa('TE') },
+      seUploadId: 'upload-lib-se',
+      teUploadId: 'upload-lib-te',
     },
   });
 });
 
-it('첫 판 SE+TE 합계가 서버 상한을 넘으면 요청 전에 막는다 (N-61)', async () => {
+it('1GB를 넘는 PDF는 업로드 의도 요청 전에 막는다', async () => {
   const view = setup();
   fireEvent.click(await view.findByRole('button', { name: '+ 교재' }));
   fireEvent.change(view.getByLabelText('코드'), { target: { value: 'NEW' } });
   fireEvent.change(view.getByLabelText('교재명'), { target: { value: '신규 교재' } });
   fireEvent.change(view.getByLabelText('판 이름'), { target: { value: 'v1' } });
-  const big = (name: string) => ({ name, size: 2_000_000, arrayBuffer: async () => new ArrayBuffer(0) }) as File;
+  const big = (name: string) => ({ name, size: 1_000_000_001, arrayBuffer: async () => new ArrayBuffer(0) }) as File;
   fireEvent.change(view.getByLabelText('학생용 SE 파일'), { target: { files: [big('se.pdf')] } });
   fireEvent.change(view.getByLabelText('교사용 TE 파일'), { target: { files: [big('te.pdf')] } });
-  expect(view.getByText(/SE·TE 파일 합계는 3MB/)).toBeTruthy();
+  expect(view.getByText(/파일당 1GB까지/)).toBeTruthy();
   expect(view.getByRole('button', { name: '저장' })).toHaveProperty('disabled', true);
+});
+
+it('업로드 진행률과 취소를 표시하고 취소된 전송은 교재 writer로 연결하지 않는다', async () => {
+  sdkUpload.mockImplementation((_pathname: string, _file: File, options: {
+    abortSignal: AbortSignal; onUploadProgress: (event: { loaded: number; total: number; percentage: number }) => void;
+  }) => new Promise((_resolve, reject) => {
+    options.onUploadProgress({ loaded: 1, total: 2, percentage: 50 });
+    options.abortSignal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+  }));
+  const view = setup();
+  fireEvent.click(await view.findByRole('button', { name: '+ 교재' }));
+  fireEvent.change(view.getByLabelText('코드'), { target: { value: 'NEW' } });
+  fireEvent.change(view.getByLabelText('교재명'), { target: { value: '전송 취소 교재' } });
+  fireEvent.change(view.getByLabelText('판 이름'), { target: { value: 'v1' } });
+  fireEvent.change(view.getByLabelText('학생용 SE 파일'), { target: { files: [{ name: 'SE.pdf', size: 2 } as File] } });
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  const progress = await view.findByRole('progressbar', { name: 'SE PDF 업로드 진행률' });
+  await waitFor(() => expect(progress).toHaveProperty('value', 50));
+  expect(view.getByRole('button', { name: '취소' })).toHaveProperty('disabled', true);
+  fireEvent.click(view.getByRole('button', { name: 'PDF 전송 취소' }));
+  await view.findByText('PDF 업로드를 취소했습니다.');
+  expect(mutation.url).toBe('/files/book-pdf-upload');
+  expect(view.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false);
+  sdkUpload.mockResolvedValueOnce(undefined);
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  await waitFor(() => expect(mutation.url).toBe('/books'));
+  expect(sdkUpload).toHaveBeenCalledTimes(2);
 });
 
 it('교재 수정은 바꾼 칸만 보낸다 — 비운 칸은 null, 과목을 바꾸면 소분류 비움도 함께 (N-47)', async () => {

@@ -5,11 +5,14 @@
  */
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import type { Book, BookHistoryRow, Me } from '@/api/types';
 import { useSession } from '@/store/useSession';
 import { BookHistory, BookVersionAdder, BookVersionBadge } from './BookVersions';
+
+const sdkUpload = vi.hoisted(() => vi.fn());
+vi.mock('@vercel/blob/client', () => ({ uploadPresigned: sdkUpload }));
 
 const me: Me = {
   id: 1,
@@ -77,11 +80,13 @@ const originalAdapter = api.defaults.adapter;
 const clients: QueryClient[] = [];
 let patched: string | null = null;
 afterEach(() => {
+  vi.unstubAllGlobals();
   cleanup();
   clients.splice(0).forEach((c) => c.clear());
   api.defaults.adapter = originalAdapter;
   useSession.getState().signOut();
   patched = null;
+  sdkUpload.mockReset();
 });
 
 const historyBoard = {
@@ -155,12 +160,16 @@ it('판이 없으면 「판 없음」이고 ⇧ 도 없다', () => {
   expect(view.container.querySelectorAll('button')).toHaveLength(0);
 });
 
-it('판 올리기는 파일을 따로 저장하지 않고 판 요청 한 번에 넣는다', async () => {
+it('판 올리기는 비공개 PDF 전송 후 그 업로드 ID로 연결한다', async () => {
+  sdkUpload.mockResolvedValue(undefined);
   const posts: Array<{ url: string; body: Record<string, unknown> }> = [];
   useSession.getState().signIn('fixture', me);
   api.defaults.adapter = (async (config: { url?: string; method?: string; data?: string }) => {
     if (config.method === 'post') {
       posts.push({ url: config.url ?? '', body: JSON.parse(config.data ?? '{}') as Record<string, unknown> });
+      if (config.url === '/files/book-pdf-upload') {
+        return { config, status: 201, statusText: 'Created', headers: {}, data: { uploadId: 'upload-se', pathname: 'books/qa/se.pdf', uploadUrl: 'https://blob.test/se' } };
+      }
     }
     return { config, status: 201, statusText: 'Created', headers: {}, data: { id: 31 } };
   }) as never;
@@ -170,22 +179,26 @@ it('판 올리기는 파일을 따로 저장하지 않고 판 요청 한 번에 
   clients.push(client);
   const view = render(
     <QueryClientProvider client={client}>
-      <BookVersionAdder book={base} maxBytes={3_000_000} onClose={() => undefined} />
+      <BookVersionAdder book={base} maxBytes={2_000_000_000} maxFileBytes={1_000_000_000} onClose={() => undefined} />
     </QueryClientProvider>,
   );
   const file = {
     name: '학생용.pdf',
+    size: 2,
     arrayBuffer: async () => new TextEncoder().encode('SE').buffer,
   } as File;
   fireEvent.change(view.getByLabelText('학생용 SE 파일'), { target: { files: [file] } });
   fireEvent.change(view.getByLabelText('판 이름'), { target: { value: 'v2026.09' } });
   fireEvent.click(view.getByRole('button', { name: '올리기' }));
+  fireEvent.click(view.getByRole('button', { name: '올리기' }));
 
-  await waitFor(() => expect(posts).toHaveLength(1));
-  expect(posts[0].url).toBe('/books/3/versions');
-  expect(posts[0].body).toMatchObject({
+  await waitFor(() => expect(posts).toHaveLength(2));
+  expect(posts[0].url).toBe('/files/book-pdf-upload');
+  expect(sdkUpload).toHaveBeenCalledTimes(1);
+  expect(posts[1].url).toBe('/books/3/versions');
+  expect(posts[1].body).toMatchObject({
     edition: 'v2026.09',
-    seFile: { kind: 'lib-se', name: '학생용.pdf' },
+    seUploadId: 'upload-se',
   });
 });
 

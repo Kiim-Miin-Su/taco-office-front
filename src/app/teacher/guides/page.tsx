@@ -35,6 +35,7 @@ import { HandoverNoteList } from '@/components/lesson/HandoverNotes';
 import { bookLevelPresentation } from '@/lib/book-presentation';
 import { MaterialRequestDraft } from '@/components/materials/MaterialRequests';
 import { useSession } from '@/store/useSession';
+import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 
 const addDays = (iso: string, n: number): string => {
   const d = new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000);
@@ -126,6 +127,12 @@ function BookCard({
         <div className="text-[12px] text-fg-subtle">
           {code} · {issuedOn ? `${issuedOn}부터` : '배부 전'}{done && returnedOn ? ` ~ ${returnedOn} 회수` : ''}
         </div>
+        {book.seFileId || book.teFileId ? (
+          <div className="mt-1 flex items-center gap-1" aria-label={`${title} 교재 PDF`}>
+            {book.seFileId ? <FileDownloadButton id={book.seFileId} label="SE" variant="badge" itemTitle={title} /> : null}
+            {book.teFileId ? <FileDownloadButton id={book.teFileId} label="TE" variant="badge" tone="violet" itemTitle={title} /> : null}
+          </div>
+        ) : null}
         {/* 재배부 계보 — 서버 id 둘을 형제 줄과 잇는다 · 없으면 줄 자체가 없다 */}
         {from || to ? (
           <div className="text-[12px] text-fg-subtle" data-book-lineage>

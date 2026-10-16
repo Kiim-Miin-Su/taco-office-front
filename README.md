@@ -13,6 +13,8 @@ TACO ERP 화면 — **Next.js 15 · CSS Modules + Tailwind · Vercel**
 
 **백엔드와는 독립 레포다** (D-R42). 공유하는 것은 코드가 아니라 `openapi.json` 한 장이다.
 
+교재 SE/TE의 새 PDF는 관리자 서가에서 공식 Blob SDK의 multipart로 직접 전송한 뒤 업로드 ID를 판에 연결합니다. 새 Back의 서버 한도는 파일당 1GB(1,000,000,000 bytes), SE+TE 합계 2GB이며 진행률·취소·재시도를 제공합니다. 구형 Back의 한도는 50MB로 안내합니다. 현재 담당 강사는 `/teacher/guides`에서 배부 완료된 정확한 판의 SE/TE를 내려받습니다. 비공개 Blob은 권한 확인 후 2분 서명 URL의 네이티브 다운로드로 넘겨 전체 파일을 JS 메모리에 담지 않습니다. 브라우저에 따라 UUID 파일명으로 저장될 수 있으며 원본 이름은 메타데이터에 보존합니다. 기존 DB 파일은 인증 API 다운로드를 유지하며 새 다운로드 경로가 없는 구형 Back에는 기존 경로로 돌아갑니다. 로컬 회귀·타입·lint·빌드는 통과했으며 실제 1GB 전송·원격 DB126 적용·배포는 별도 승인·검증 대상입니다. [1GB 기능 원장](../docs/sprint/TBO-55/features/BOOK-PDF-1GB-2026-10-13.md)을 확인합니다.
+
 ---
 
 ## 시작

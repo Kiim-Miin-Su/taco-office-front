@@ -14,14 +14,15 @@
  * §40 이력에는 **쓰는 자리가 없다.** 배부·업로드·교체·안내가 남긴 것을 읽기만 한다.
  */
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Banner, Button, Chip, ChipButton, Input, Label, Panel, Segmented, cn } from '@/components/ui';
 import { SearchField } from '@/components/ui/SearchField';
 import { apiMessage } from '@/api/client';
 import { useAddBookVersion, useBookHistory, useBookHolders, useUseBookVersion } from '@/api/queries';
 import type { Book, BookHistoryQuery, BookVersion } from '@/api/types';
 import { longDateLabel, todayKst } from '@/lib/calendar';
-import { fileSelectionIssue, fileUploadBody } from '@/lib/file-upload';
+import { bookPdfFileLimitLabel, bookPdfSelectionIssue, LEGACY_BOOK_PDF_MAX_BYTES } from '@/lib/file-upload';
+import { BookPdfTransferProgress, useBookPdfTransfer } from './BookPdfTransfer';
 
 type BookHistoryAction = NonNullable<BookHistoryQuery['action']>;
 const BOOK_HISTORY_ACTIONS = [
@@ -107,7 +108,9 @@ export function BookVersionBadge({ book }: { book: Book }) {
  * (배부는 받은 판에 묶인다 — 이미 준 책은 새 판을 올려도 그대로다). 올린 판이 아직 지금 판이 아니면(「언제부터」가 뒤) 창을 닫지 않고
  * 「지금부터 바꿀지」를 그 자리에서 고른다. 바꾸는 쓰기는 서가 카드의 판 단추와 같은 것(`PATCH versions/:id/use`)이다.
  */
-export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxBytes: number; onClose: () => void }) {
+export function BookVersionAdder({ book, maxBytes, maxFileBytes = LEGACY_BOOK_PDF_MAX_BYTES, onClose }: {
+  book: Book; maxBytes: number; maxFileBytes?: number; onClose: () => void;
+}) {
   const add = useAddBookVersion();
   const use = useUseBookVersion();
   const holders = useBookHolders(book.id);
@@ -117,7 +120,11 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
   const [edition, setEdition] = useState('');
   const [seFile, setSeFile] = useState<File | null>(null);
   const [teFile, setTeFile] = useState<File | null>(null);
-  const fileIssue = fileSelectionIssue([seFile, teFile], maxBytes);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploadingRef = useRef(false);
+  const [uploading, setUploading] = useState(false);
+  const transfer = useBookPdfTransfer(maxFileBytes);
+  const fileIssue = bookPdfSelectionIssue([seFile, teFile], maxBytes, maxFileBytes);
   // 「언제부터 쓰는가」가 없으면 올린 판이 곧바로 지금 판이 되어 ⇧ 가 뜰 일이 없다 —
   // 그러면 원본 §39 의 「판 버튼을 눌러 바꿉니다」 갈래가 화면에서 닿지 않는다
   const [fromDate, setFromDate] = useState('');
@@ -131,21 +138,23 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="v-ed">판 이름</Label>
-          <Input id="v-ed" value={edition} onChange={(e) => setEdition(e.target.value)} placeholder="v2026.08" />
+          <Input id="v-ed" value={edition} disabled={uploading} onChange={(e) => setEdition(e.target.value)} placeholder="v2026.08" />
         </div>
         <div>
           <Label htmlFor="v-from">언제부터</Label>
-          <Input id="v-from" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <Input id="v-from" type="date" value={fromDate} disabled={uploading} onChange={(e) => setFromDate(e.target.value)} />
         </div>
         <div>
           <Label htmlFor="v-se">학생용 SE 파일</Label>
-          <Input id="v-se" type="file" onChange={(event) => setSeFile(event.currentTarget.files?.[0] ?? null)} />
+          <Input id="v-se" type="file" disabled={uploading} accept="application/pdf,.pdf" onChange={(event) => setSeFile(event.currentTarget.files?.[0] ?? null)} />
         </div>
         <div>
           <Label htmlFor="v-te">교사용 TE 파일</Label>
-          <Input id="v-te" type="file" onChange={(event) => setTeFile(event.currentTarget.files?.[0] ?? null)} />
+          <Input id="v-te" type="file" disabled={uploading} accept="application/pdf,.pdf" onChange={(event) => setTeFile(event.currentTarget.files?.[0] ?? null)} />
         </div>
       </div>
+      <p className="mt-2 text-[12px] text-fg-subtle">PDF 파일당 {bookPdfFileLimitLabel(maxFileBytes)} · 파일 전송 후 판을 저장합니다.</p>
+      <BookPdfTransferProgress progress={transfer.progress} onCancel={transfer.cancel} />
       <section className="mt-3 rounded-lg border border-line px-3 py-2" aria-label="기존 배부자">
         <p className="text-[12px] font-bold text-fg">
           기존 배부자 {holders.isLoading ? '…' : `${holderRows.length}명`}
@@ -167,9 +176,9 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
           {fileIssue}
         </Banner>
       ) : null}
-      {add.isError ? (
+      {uploadError || add.isError ? (
         <Banner tone="danger" className="mt-3">
-          {apiMessage(add.error)}
+          {uploadError ?? apiMessage(add.error)}
         </Banner>
       ) : null}
       {use.isError ? (
@@ -189,26 +198,39 @@ export function BookVersionAdder({ book, maxBytes, onClose }: { book: Book; maxB
         </div>
       ) : null}
       <div className={cn('mt-3 flex justify-end gap-2', added ? 'hidden' : '')}>
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="secondary" disabled={uploading} onClick={onClose}>
           취소
         </Button>
         <Button
-          disabled={add.isPending || edition.trim() === '' || fileIssue !== null}
+          disabled={uploading || add.isPending || edition.trim() === '' || fileIssue !== null}
           onClick={() =>
             void (async () => {
+              if (uploadingRef.current || edition.trim() === '' || fileIssue) {
+                return;
+              }
+              uploadingRef.current = true;
+              setUploading(true);
               try {
+                setUploadError(null);
                 const made = await add.mutateAsync({
                   libId: book.id,
                   edition: edition.trim(),
-                  ...(seFile ? { seFile: await fileUploadBody(seFile, 'lib-se') } : {}),
-                  ...(teFile ? { teFile: await fileUploadBody(teFile, 'lib-te') } : {}),
+                  ...(seFile ? { seUploadId: await transfer.upload(seFile, 'lib-se') } : {}),
+                  ...(teFile ? { teUploadId: await transfer.upload(teFile, 'lib-te') } : {}),
                   ...(fromDate ? { fromDate } : {}),
                 });
                 // 이미 지금 판이면(오늘부터) 고를 것이 없다 — 닫는다. 아직이면 그 자리에서 바꿀지 고른다 (E-53)
-                if (made?.inUse) onClose();
-                else setAdded(made);
-              } catch {
-                /* mutation 상태의 공용 오류 문구를 표시한다 */
+                if (made?.inUse) {
+                  onClose();
+                } else {
+                  setAdded(made);
+                }
+              } catch (cause) {
+                setUploadError(apiMessage(cause));
+              } finally {
+                uploadingRef.current = false;
+                setUploading(false);
+                transfer.finish();
               }
             })()
           }

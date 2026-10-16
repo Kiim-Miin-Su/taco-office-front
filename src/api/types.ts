@@ -474,6 +474,9 @@ export type ZoomAssignResult = S['ZoomAssignResultDto'];
 /* ══ 올린 파일 — Neon 안에 둔다 (대표 결정 2026-09-12 · D6 · A-D4) ══ */
 export type FileRef = S['FileRefDto'];
 export type FileUpload = S['FileUploadDto'];
+export type BookPdfUploadIntent = S['BookPdfUploadIntentDto'];
+export type BookPdfUploadUrl = S['BookPdfUploadUrlDto'];
+export type FileDownloadTarget = S['FileDownloadTargetDto'];
 export type GpaStudent = S['GpaStudentDto'];
 export type GpaUse = S['GpaUseDto'];
 export type ConsultingSession = S['ConsultingSessionDto'];

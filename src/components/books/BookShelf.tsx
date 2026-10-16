@@ -4,7 +4,7 @@
  * 검증/작업 지침: docs/contracts/FILE-GUIDE.md · docs/AGENT.md · docs/CLAUDE.md
  */
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiMessage } from '@/api/client';
 import { useBookShelf, useCreateBook, useMeta, usePatchBook } from '@/api/queries';
 import type { Book, BookPatch, BookShelfQuery, BookWrite, Books } from '@/api/types';
@@ -12,9 +12,11 @@ import { FileDownloadButton } from '@/components/files/FileDownloadButton';
 import { Banner, Button, Chip, ChipButton, Input, Label, Panel, QueryState, Select, cn } from '@/components/ui';
 import { bookExamTagTone, bookLevelPresentation, bookLevelUiLabel, bookSubjectColor } from '@/lib/book-presentation';
 import { educationGradeOption } from '@/lib/education-grades';
-import { fileSelectionIssue, fileUploadBody } from '@/lib/file-upload';
+import { bookPdfFileLimitLabel, bookPdfSelectionIssue, LEGACY_BOOK_PDF_MAX_BYTES } from '@/lib/file-upload';
 import { readableAccentColor } from '@/lib/tokens';
+import { useSession } from '@/store/useSession';
 import { BookVersionAdder, BookVersionBadge } from './BookVersions';
+import { BookPdfTransferProgress, useBookPdfTransfer } from './BookPdfTransfer';
 
 /**
  * 편집 창 — §39 두 층 분류(N-47)는 코드표 값을 **고른다**(과목 → 소분류 · 레벨 · 학년 범위 · 시험 태그).
@@ -108,14 +110,23 @@ export function BookShelf({
   const [version, setVersion] = useState<Book | null>(null);
   const [seFile, setSeFile] = useState<File | null>(null);
   const [teFile, setTeFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const maxFileBytes = q.data?.versionFileMaxBytes ?? LEGACY_BOOK_PDF_MAX_BYTES;
+  const transfer = useBookPdfTransfer(maxFileBytes);
+  const canDownloadCatalogPdf = useSession((state) => state.me?.canGpaPack === true);
   const openCreate = () => {
+    if (savingRef.current) {
+      return;
+    }
     setEditing(null);
     setSeFile(null);
     setTeFile(null);
     setForm(EMPTY);
   };
   useEffect(() => {
-    if (createRequest > 0) {
+    if (createRequest > 0 && !savingRef.current) {
       setEditing(null);
       setSeFile(null);
       setTeFile(null);
@@ -192,6 +203,9 @@ export function BookShelf({
   };
   const categoriesOf = (key: string) => q.data?.subjects.find((s) => s.key === key)?.categories ?? [];
   const openEdit = (b: Book) => {
+    if (savingRef.current) {
+      return;
+    }
     setEditing(b);
     setForm(formOf(b));
   };
@@ -205,44 +219,54 @@ export function BookShelf({
   // 첫 판(N-61) — 판 이름을 적어야 파일 · 언제부터가 함께 올라간다(이름을 지어 넣지 않는다)
   const firstVersionOpen = !editing && Boolean(form && (form.edition.trim() || form.fromDate || seFile || teFile));
   const firstVersionIssue = firstVersionOpen && !form?.edition.trim() ? '판 이름을 적어야 첫 판 · 파일이 함께 올라갑니다' : null;
-  const fileIssue = !editing ? fileSelectionIssue([seFile, teFile], q.data?.versionUploadMaxBytes ?? Number.POSITIVE_INFINITY) : null;
+  const fileIssue = !editing ? bookPdfSelectionIssue([seFile, teFile], q.data?.versionUploadMaxBytes ?? Number.POSITIVE_INFINITY, maxFileBytes) : null;
   const save = async () => {
-    if (!form) return;
-    const next = valuesOf(form);
-    if (editing) {
-      // PATCH 는 **바꾼 칸만** 보낸다 — 원장(log)의 앞뒤가 실제로 바뀐 칸만 되게(생략은 보존 · null 은 비움)
-      const before = valuesOf(formOf(editing));
-      const changed = Object.fromEntries(
-        Object.entries(next).filter(([key, value]) => before[key as keyof typeof before] !== value),
-      ) as BookPatch;
-      if (Object.keys(changed).length === 0) return done();
-      patch.mutate({ id: editing.id, ...changed }, { onSuccess: done });
+    if (!form || savingRef.current || firstVersionIssue || fileIssue) {
       return;
     }
-    const body: BookWrite = {
-      code: next.code, title: next.title,
-      ...(next.pages != null ? { pages: next.pages } : {}),
-      ...(next.subKey ? { subKey: next.subKey } : {}),
-      ...(next.bookSubjectKey ? { bookSubjectKey: next.bookSubjectKey } : {}),
-      ...(next.bookCategoryKey ? { bookCategoryKey: next.bookCategoryKey } : {}),
-      ...(next.bookLevel ? { bookLevel: next.bookLevel } : {}),
-      ...(next.gradeFrom != null ? { gradeFrom: next.gradeFrom } : {}),
-      ...(next.gradeTo != null ? { gradeTo: next.gradeTo } : {}),
-      ...(next.examTag ? { examTag: next.examTag } : {}),
-    };
+    savingRef.current = true;
+    setSaving(true);
+    setUploadError(null);
     try {
+      const next = valuesOf(form);
+      if (editing) {
+        // PATCH 는 **바꾼 칸만** 보낸다 — 원장(log)의 앞뒤가 실제로 바뀐 칸만 되게(생략은 보존 · null 은 비움)
+        const before = valuesOf(formOf(editing));
+        const changed = Object.fromEntries(
+          Object.entries(next).filter(([key, value]) => before[key as keyof typeof before] !== value),
+        ) as BookPatch;
+        if (Object.keys(changed).length === 0) return done();
+        await patch.mutateAsync({ id: editing.id, ...changed });
+        done();
+        return;
+      }
+      const body: BookWrite = {
+        code: next.code, title: next.title,
+        ...(next.pages != null ? { pages: next.pages } : {}),
+        ...(next.subKey ? { subKey: next.subKey } : {}),
+        ...(next.bookSubjectKey ? { bookSubjectKey: next.bookSubjectKey } : {}),
+        ...(next.bookCategoryKey ? { bookCategoryKey: next.bookCategoryKey } : {}),
+        ...(next.bookLevel ? { bookLevel: next.bookLevel } : {}),
+        ...(next.gradeFrom != null ? { gradeFrom: next.gradeFrom } : {}),
+        ...(next.gradeTo != null ? { gradeTo: next.gradeTo } : {}),
+        ...(next.examTag ? { examTag: next.examTag } : {}),
+      };
       if (form.edition.trim()) {
         body.firstVersion = {
           edition: form.edition.trim(),
           ...(form.fromDate ? { fromDate: form.fromDate } : {}),
-          ...(seFile ? { seFile: await fileUploadBody(seFile, 'lib-se') } : {}),
-          ...(teFile ? { teFile: await fileUploadBody(teFile, 'lib-te') } : {}),
+          ...(seFile ? { seUploadId: await transfer.upload(seFile, 'lib-se') } : {}),
+          ...(teFile ? { teUploadId: await transfer.upload(teFile, 'lib-te') } : {}),
         };
       }
       await create.mutateAsync(body);
       done();
-    } catch {
-      /* mutation 상태의 공용 오류 문구를 표시한다 */
+    } catch (cause) {
+      setUploadError(apiMessage(cause));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+      transfer.finish();
     }
   };
   const error = create.error ?? patch.error;
@@ -346,6 +370,7 @@ export function BookShelf({
       ) : null}
       {form ? (
         <Panel title={editing ? `교재 수정 — ${editing.title}` : '교재 등록'}>
+          <fieldset disabled={saving} className="contents">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <Label htmlFor="book-code">코드</Label>
@@ -468,13 +493,14 @@ export function BookShelf({
                 </div>
                 <div>
                   <Label htmlFor="book-se">학생용 SE 파일</Label>
-                  <Input id="book-se" type="file" onChange={(event) => setSeFile(event.currentTarget.files?.[0] ?? null)} />
+                  <Input id="book-se" type="file" accept="application/pdf,.pdf" onChange={(event) => setSeFile(event.currentTarget.files?.[0] ?? null)} />
                 </div>
                 <div>
                   <Label htmlFor="book-te">교사용 TE 파일</Label>
-                  <Input id="book-te" type="file" onChange={(event) => setTeFile(event.currentTarget.files?.[0] ?? null)} />
+                  <Input id="book-te" type="file" accept="application/pdf,.pdf" onChange={(event) => setTeFile(event.currentTarget.files?.[0] ?? null)} />
                 </div>
               </div>
+              <p className="mt-2 text-[12px] text-fg-subtle">PDF 파일당 {bookPdfFileLimitLabel(maxFileBytes)} · 파일 전송 후 교재를 저장합니다.</p>
               {(firstVersionIssue ?? fileIssue) ? (
                 <Banner tone="warning" className="mt-3">
                   {firstVersionIssue ?? fileIssue}
@@ -482,17 +508,19 @@ export function BookShelf({
               ) : null}
             </fieldset>
           ) : null}
-          {error ? (
+          </fieldset>
+          <BookPdfTransferProgress progress={transfer.progress} onCancel={transfer.cancel} />
+          {uploadError || error ? (
             <Banner className="mt-3" tone="danger">
-              {apiMessage(error)}
+              {uploadError ?? apiMessage(error)}
             </Banner>
           ) : null}
           <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" onClick={done}>
+            <Button variant="secondary" disabled={saving} onClick={done}>
               취소
             </Button>
             <Button
-              disabled={!form.code.trim() || !form.title.trim() || create.isPending || patch.isPending
+              disabled={!form.code.trim() || !form.title.trim() || saving || create.isPending || patch.isPending
                 || firstVersionIssue !== null || fileIssue !== null}
               onClick={() => void save()}
             >
@@ -502,7 +530,7 @@ export function BookShelf({
         </Panel>
       ) : null}
       {version && q.data ? (
-        <BookVersionAdder book={version} maxBytes={q.data.versionUploadMaxBytes} onClose={() => setVersion(null)} />
+        <BookVersionAdder book={version} maxBytes={q.data.versionUploadMaxBytes} maxFileBytes={maxFileBytes} onClose={() => setVersion(null)} />
       ) : null}
       <QueryState query={q} empty={filtered ? '고른 칩에 맞는 교재가 없습니다' : '등록된 교재가 없습니다'} isEmpty={(d) => d.items.length === 0}>
         {() => (
@@ -566,10 +594,12 @@ export function BookShelf({
                             {/* 원문 §39 카드 아래 줄 — 왼쪽 코드 · 오른쪽 작은 SE/TE 배지(누르면 내려받기) (g4 §39-5 · wave 6) */}
                             <div data-book-file-line className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-line pt-2">
                               <span data-book-code className="font-mono text-[12px] text-fg-subtle">{b.code}</span>
-                              <span className="inline-flex items-center gap-1">
-                                <FileDownloadButton id={b.seFileId} label="SE" variant="badge" itemTitle={b.title} />
-                                <FileDownloadButton id={b.teFileId} label="TE" variant="badge" tone="violet" itemTitle={b.title} />
-                              </span>
+                              {canDownloadCatalogPdf ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <FileDownloadButton id={b.seFileId} label="SE" variant="badge" itemTitle={b.title} />
+                                  <FileDownloadButton id={b.teFileId} label="TE" variant="badge" tone="violet" itemTitle={b.title} />
+                                </span>
+                              ) : null}
                             </div>
                           </div>
                           <div className="flex w-12 flex-col border-l border-line">

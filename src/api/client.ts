@@ -74,6 +74,14 @@ export const setAccessToken = (t: string | null) => {
   invalidateSessionRequests();
 };
 
+/** SDK의 동일 API 서명 발급 경로에만 사용한다. 업로드 의도는 먼저 공용 Axios의 인증·재발급을 통과한다. */
+export function getApiUploadHeaders(): Record<string, string> {
+  if (!accessToken) {
+    throw new ApiError('SESSION_REQUIRED', '로그인 상태를 확인한 뒤 PDF 업로드를 다시 시도해 주세요.', 401);
+  }
+  return { Authorization: `Bearer ${accessToken}` };
+}
+
 type Retryable = AxiosRequestConfig & { _retried?: boolean; _sessionGeneration?: number; _diagnostic?: RequestDiagnostic };
 const authPaths = new Set(['/auth/login', '/auth/refresh', '/auth/logout']);
 const isAuthAction = (url?: string) => authPaths.has((url ?? '').split('?')[0]);

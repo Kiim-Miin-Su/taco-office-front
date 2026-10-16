@@ -48,7 +48,7 @@ export function FileDownloadButton({
           title={error ?? (busy ? `${label} 받는 중…` : `${label} 파일 내려받기`)}
           onClick={run}
           className={cn(
-            'inline-flex h-5 min-w-7 items-center justify-center rounded px-1.5 text-[12px] font-black text-white',
+            'inline-flex h-11 min-w-11 items-center justify-center rounded px-1.5 text-[12px] font-black text-white sm:h-5 sm:min-w-7',
             'transition-opacity disabled:cursor-wait',
             'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg',
             BADGE_TONE[tone],

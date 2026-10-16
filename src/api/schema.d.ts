@@ -881,6 +881,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/files/book-pdf-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 신규 교재 PDF의 비공개 Blob 업로드 의도·경로 발급
+         * @description 파일당 1GB. 본문은 API를 거치지 않으며 대용량은 정식 SDK의 multipart 발급 경로를 사용한다.
+         */
+        post: operations["FilesController_bookPdfUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/book-pdf-presigned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 현재 사용자의 미사용 PDF 의도에 정식 SDK multipart 서명 발급
+         * @description Bearer 인증·현재 권한과 의도 소유자·유효기간·정확한 경로·최대 bytes를 확인한다. 완료 여부는 기존 판 저장에서 HEAD·PDF 서명을 다시 검사한다.
+         */
+        post: operations["FilesController_bookPdfPresigned"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files": {
         parameters: {
             query?: never;
@@ -895,6 +935,23 @@ export interface paths {
          * @description 원본 파일 3MB까지. base64 JSON·Vercel 요청 한도 안에서 실제로 통과하는 값이며, 더 크면 FILE_TOO_LARGE로 거절한다.
          */
         post: operations["FilesController_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/{id}/download-target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 현재 권한을 확인해 DB 파일 또는 짧게 유효한 비공개 PDF URL을 돌려준다 */
+        get: operations["FilesController_downloadTarget"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3225,7 +3282,7 @@ export interface paths {
         put?: never;
         /**
          * 새 판 올리기 (§39)
-         * @description SE/TE 파일 본문, 판, 이력(교재 업로드)이 한 트랜잭션에서 함께 저장된다. SE+TE 원본 합계는 3MB까지다.
+         * @description 기존 base64 본문은 SE+TE 합계 3MB, 신규 비공개 Blob PDF는 각각 1GB·합계 2GB 이내의 업로드 의도 ID와 판을 같은 DB 트랜잭션에 연결한다.
          */
         post: operations["BooksController_addVersion"];
         delete?: never;
@@ -6822,7 +6879,7 @@ export interface components {
             mime: string;
             /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
             bytes: number;
-            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
+            /** @description 인증과 권한 확인을 거치는 파일 API 주소. 실제 다운로드 방식은 파일 저장소에 따라 다르다 */
             url: string;
             uploaderName?: string | null;
             uploadedAt: string;
@@ -7055,6 +7112,46 @@ export interface components {
             /** @description 화면이 읽은 ReportDetailDto.version */
             expectedVersion: number;
         };
+        BookPdfUploadIntentDto: {
+            /** @enum {string} */
+            kind: "lib-se" | "lib-te";
+            name: string;
+            bytes: number;
+        };
+        BookPdfUploadUrlDto: {
+            uploadId: string;
+            /** @description 서버가 선택한 정확한 Blob 경로. SDK 업로드에서도 이 경로를 그대로 사용한다. */
+            pathname: string;
+            /** @description 구형 클라이언트 호환용 단일 PUT URL. 2시간 유효하며 대용량은 multipart를 사용한다. */
+            uploadUrl: string;
+        };
+        BookPdfPresignedPayloadDto: {
+            pathname: string;
+            /**
+             * Format: uuid
+             * @description 현재 사용자의 미사용 PDF uploadId
+             */
+            clientPayload: string;
+            /** @description 정식 SDK의 multipart 선택 */
+            multipart: boolean;
+        };
+        BookPdfPresignedRequestDto: {
+            /** @enum {string} */
+            type: "blob.generate-presigned-url";
+            payload: components["schemas"]["BookPdfPresignedPayloadDto"];
+        };
+        BookPdfPresignedUrlPayloadDto: {
+            delegationToken: string;
+            signature: string;
+            params: {
+                [key: string]: string;
+            };
+        };
+        BookPdfPresignedResultDto: {
+            /** @enum {string} */
+            type: "blob.generate-presigned-url";
+            presignedUrlPayload: components["schemas"]["BookPdfPresignedUrlPayloadDto"];
+        };
         FileUploadDto: {
             /**
              * @description 어디에 쓰이는 파일인가 — 열람 권한이 여기서 갈린다
@@ -7065,6 +7162,12 @@ export interface components {
             name: string;
             /** @description base64 본문 (data URL 접두사는 붙여도 되고 안 붙여도 된다) */
             base64: string;
+        };
+        FileDownloadTargetDto: {
+            /** @enum {string} */
+            storage: "database" | "blob";
+            url?: string;
+            name: string;
         };
         BookSaleFeePolicySnapshotDto: {
             id: number;
@@ -11004,7 +11107,9 @@ export interface components {
             newerBooks: components["schemas"]["BookNoticeDto"][];
             /** @description TE 파일이 없는 교재 — 머리 띠의 이름들(서가 전체 기준 · noFileCount 와 같은 줄) */
             noTeBooks: components["schemas"]["BookNoticeDto"][];
-            /** @description 새 판 SE+TE 원본 파일 합계 상한. 화면은 이 서버 값을 그대로 쓴다 */
+            /** @description 새 판 비공개 PDF 한 파일의 상한. 1GB = 1,000,000,000 bytes. 구형 서버에는 이 필드가 없다. */
+            versionFileMaxBytes?: number;
+            /** @description 새 판 SE+TE 비공개 PDF 합계 상한. 각 PDF는 1GB 이하이며 판 합계는 2GB다. */
             versionUploadMaxBytes: number;
         };
         BookVersionCreateDto: {
@@ -11017,6 +11122,10 @@ export interface components {
             seFile?: components["schemas"]["FileUploadDto"];
             /** @description 이 판과 같은 트랜잭션에 저장할 TE 파일 */
             teFile?: components["schemas"]["FileUploadDto"];
+            /** @description 서버가 발급한 비공개 SE PDF 업로드 ID */
+            seUploadId?: string;
+            /** @description 서버가 발급한 비공개 TE PDF 업로드 ID */
+            teUploadId?: string;
             /**
              * Format: date
              * @description 이 판을 언제부터 쓰는가 — 비우면 오늘부터
@@ -12859,6 +12968,10 @@ export interface components {
         };
         TeacherGuideBookDto: {
             issueId: number;
+            /** @description 현재 내게 배정·배부 완료된 판의 SE 파일 */
+            seFileId?: number | null;
+            /** @description 현재 내게 배정·배부 완료된 판의 TE 파일 */
+            teFileId?: number | null;
             code: string;
             title: string;
             subKey?: string | null;
@@ -15392,7 +15505,7 @@ export interface components {
             mime: string;
             /** @description 바이트 수 — 표가 실제 길이와 같은지 지킨다 */
             bytes: number;
-            /** @description 내려받는 자리. `/files/{id}` 면 Neon, `https://` 면 레거시 외부 저장소다 */
+            /** @description 인증과 권한 확인을 거치는 파일 API 주소. 실제 다운로드 방식은 파일 저장소에 따라 다르다 */
             url: string;
             uploaderName?: string | null;
             uploadedAt: string;
@@ -19363,6 +19476,161 @@ export interface operations {
             };
         };
     };
+    FilesController_bookPdfUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPdfUploadIntentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPdfUploadUrlDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    FilesController_bookPdfPresigned: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPdfPresignedRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookPdfPresignedResultDto"];
+                };
+            };
+            /** @description BOOK_PDF_MISMATCH | BOOK_PDF_UPLOAD_REQUEST_INVALID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description BOOK_PDF_UPLOAD_NOT_FOUND — 소유자 또는 경로 불일치 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description BOOK_PDF_UPLOAD_EXPIRED — 소비 완료 또는 만료 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description BOOK_PDF_MULTIPART_NOT_CONFIGURED — 발급 설정 누락 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     FilesController_upload: {
         parameters: {
             query?: never;
@@ -19435,6 +19703,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    FilesController_downloadTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadTargetDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description code FILE_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
             };
             /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
             500: {
@@ -28307,7 +28648,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description code FILE_TOO_LARGE | BOOK_FILES_TOO_LARGE — 첫 판 SE+TE 합계 3MB */
+            /** @description 기존 base64 파일 합계 3MB, 비공개 PDF는 각각 1GB·SE+TE 합계 2GB */
             413: {
                 headers: {
                     [name: string]: unknown;
