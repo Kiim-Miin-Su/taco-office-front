@@ -9,10 +9,12 @@
  * 전에는 홈이 이 자리에 이번 주 요약을, 캘린더가 「서울 · KST (UTC+9) 기준」을 **글자로 박아** 적었다 —
  * 해외 강사(staff.tz)에게도 서울 시각을 보였다. 시각은 서버가 준 IANA 이름으로만 계산하고 낱말(tzLabel)도 서버 것이다.
  * 시간대를 아직 못 받았으면 시각을 지어내지 않고 비워 둔다(머리줄과 같은 규칙).
+ * 시각은 마이 페이지를 여는 단추다(강사 PPTX p31 ① · AUTH-SELF-01 D3) — 지금 화면의 질의는 두고 `?mypage=1` 만 더한다.
  */
 'use client';
 import { useEffect, useState } from 'react';
 import { useTeacherShell } from '@/api/queries';
+import { useMyPageUrl } from '@/components/account/my-page-url';
 import { hours } from './format';
 import { useTeacherSurface } from './teacher-surface';
 
@@ -59,6 +61,7 @@ export function TeacherTodayHero({ date, lessons, minutes }: {
   minutes: number | null;
 }) {
   const { time, tzLabel } = useTeacherClock();
+  const myPage = useMyPageUrl();
   const day = Number(date.slice(8, 10));
   const dow = DOW_LONG[new Date(`${date}T00:00:00Z`).getUTCDay()] ?? '';
   return (
@@ -76,10 +79,14 @@ export function TeacherTodayHero({ date, lessons, minutes }: {
         </p>
       </div>
       {time ? (
-        <div data-teacher-clock="" className="ml-auto text-right">
-          <p className="text-[24px] font-bold leading-none tabular-nums">{time}</p>
-          {tzLabel ? <p className="mt-1.5 text-[12px] text-line-2">{tzLabel} 기준</p> : null}
-        </div>
+        <button
+          type="button" data-teacher-clock="" onClick={myPage.show} aria-haspopup="dialog" title="마이 페이지"
+          className="ml-auto rounded-lg px-2 py-1 text-right hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <span className="sr-only">마이 페이지 — </span>
+          <span className="block text-[24px] font-bold leading-none tabular-nums">{time}</span>
+          {tzLabel ? <span className="mt-1.5 block text-[12px] text-line-2">{tzLabel} 기준</span> : null}
+        </button>
       ) : null}
     </header>
   );

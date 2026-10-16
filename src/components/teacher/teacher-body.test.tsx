@@ -17,7 +17,7 @@ import { useSession } from '@/store/useSession';
 import { AppShell } from '@/components/shell/AppShell';
 import { ScreenHeader } from './ScreenHeader';
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/teacher/suggestions', useRouter: () => ({ replace: vi.fn(), back: vi.fn(), push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/teacher/suggestions', useRouter: () => ({ replace: vi.fn(), back: vi.fn(), push: vi.fn() }) }));
 vi.mock('@/api/client', () => ({ api: { post: vi.fn() }, setAccessToken: vi.fn() }));
 vi.mock('@/api/queries', () => ({
   useDrawer: () => ({ data: undefined }),

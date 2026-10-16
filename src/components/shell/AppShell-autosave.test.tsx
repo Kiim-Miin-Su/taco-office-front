@@ -13,7 +13,7 @@ import { useSession } from '@/store/useSession';
 import { AppShell } from './AppShell';
 
 const mocks = vi.hoisted(() => ({ drawer: vi.fn(), unwritten: vi.fn(), scheduleWrite: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/reports', useRouter: () => ({ back: vi.fn(), replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/reports', useRouter: () => ({ back: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@/api/client', () => ({ api: { post: vi.fn() }, setAccessToken: vi.fn() }));
 // 셸이 부르는 나머지 조회 훅은 진짜를 쓰되 꺼진 채(창을 열 때만 읽는다) — 이 시험은 머리줄 한 자리만 본다
 vi.mock('@/api/queries', async (importOriginal) => ({

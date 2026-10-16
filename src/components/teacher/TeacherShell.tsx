@@ -20,10 +20,13 @@ import { TeacherHeader } from './TeacherHeader';
 import { TeacherMenuPanel } from './TeacherMenuPanel';
 import { TeacherNotiDrawer } from './TeacherNotiDrawer';
 
-export function TeacherShell({ pathname, me, onLogout, children }: {
+export function TeacherShell({ pathname, me, onLogout, myPageHref, onOpenMyPage, children }: {
   pathname: string | null;
   me: Me | null;
   onLogout: () => void;
+  /** 지금 화면 위에 마이 페이지를 여는 주소(`?mypage=1`) — 열림은 AppShell 이 URL 로 소유한다 (AUTH-SELF-01) */
+  myPageHref: string;
+  onOpenMyPage: () => void;
   /** 본문(main) — 여백·스크롤은 AppShell 이 정한다 */
   children: ReactNode;
 }) {
@@ -59,7 +62,7 @@ export function TeacherShell({ pathname, me, onLogout, children }: {
         <TeacherMenuPanel
           id={menuId} items={items} activeHref={activeHref} me={me}
           tzLabel={shell?.tzLabel} wageRate={shell?.wageRate}
-          badges={{ reports: unwritten?.total ?? 0 }}
+          badges={{ reports: unwritten?.total ?? 0 }} myPageHref={myPageHref}
           onClose={() => close(true)} onNavigate={() => close(false)}
         />
       ) : null}
@@ -69,7 +72,7 @@ export function TeacherShell({ pathname, me, onLogout, children }: {
           tzLabel={shell?.tzLabel} wageRate={shell?.wageRate}
           unread={shell?.unread ?? 0} notiOpen={notiOpen} onOpenNotis={shell ? () => setNotiOpen(true) : undefined}
           menuOpen={open} menuId={menuId} toggleId={toggleId}
-          onToggleMenu={() => (open ? close(false) : setOpenOn(here))} onLogout={onLogout}
+          onToggleMenu={() => (open ? close(false) : setOpenOn(here))} onLogout={onLogout} onOpenMyPage={onOpenMyPage}
         />
         {children}
       </div>

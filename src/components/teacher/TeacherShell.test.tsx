@@ -52,9 +52,13 @@ const teacher: Me = {
   canGpaPack: false,
 };
 
+// 마이 페이지 질의(`?mypage=1`)는 AppShell 이 URL 에서 만들어 넘긴다 — 이 파일은 받은 주소 · 동작을 잇는지만 본다
+const myPage = vi.hoisted(() => ({ open: vi.fn() }));
+const myPageHrefOf = (pathname: string | null) => `${pathname ?? '/'}?mypage=1`;
+
 function shell(pathname: string | null = '/teacher', onLogout = vi.fn()) {
   const view = render(
-    <TeacherShell pathname={pathname} me={teacher} onLogout={onLogout}>
+    <TeacherShell pathname={pathname} me={teacher} onLogout={onLogout} myPageHref={myPageHrefOf(pathname)} onOpenMyPage={myPage.open}>
       <main><h1>본문</h1><button type="button">본문 단추</button></main>
     </TeacherShell>,
   );
@@ -191,7 +195,7 @@ describe('포커스·닫기 — 키보드로 열고 닫을 수 있다', () => {
     fireEvent.click(toggle());
     expect(view.getByRole('navigation', { name: '주 메뉴' })).toBeTruthy();
     view.rerender(
-      <TeacherShell pathname="/reports" me={teacher} onLogout={onLogout}>
+      <TeacherShell pathname="/reports" me={teacher} onLogout={onLogout} myPageHref={myPageHrefOf('/reports')} onOpenMyPage={myPage.open}>
         <main><h1>본문</h1></main>
       </TeacherShell>,
     );
@@ -271,15 +275,34 @@ describe('강사 덱 머리줄 오른쪽 — 시간대 · 시급 · 이름·역�
     expect(shellQ.read).toHaveBeenCalledWith({ all: true });
   });
 
-  it('메뉴 사용자 칸 — 이름 · 역할 · 마이 페이지(홈 내 설정) · 시간대 · 시급, 로고는 TN Academy 줄과 함께', () => {
+  it('메뉴 사용자 칸 — 이름 · 역할 · 마이 페이지(지금 화면 위 대화상자) · 시간대 · 시급, 로고는 TN Academy 줄과 함께', () => {
     const { view, toggle } = shell('/teacher/history');
     fireEvent.click(toggle());
     const nav = view.getByRole('navigation', { name: '주 메뉴' });
     expect(within(nav).getByText('TN Academy')).toBeTruthy();
+    // 강사 PPTX p5·p103 「이름 · 마이 페이지 ›」 — 새 라우트가 아니라 지금 화면의 `?mypage=1` 대화상자다 (AUTH-SELF-01 · D3)
     const my = within(nav).getByRole('link', { name: /마이 페이지/ });
-    expect(my.getAttribute('href')).toBe('/teacher#my-settings');
+    expect(my.getAttribute('href')).toBe('/teacher/history?mypage=1');
     expect(within(nav).getByText('시간대').nextElementSibling?.textContent).toBe('Seoul · UTC+9');
     expect(within(nav).getByText('시급').nextElementSibling?.textContent).toBe('₩45,000');
+    // 누르면 패널이 닫히고 초점은 ☰ 로 돌아간다 — 대화상자를 닫으면 그 자리로 돌아온다
+    fireEvent.click(my);
+    expect(view.queryByRole('navigation', { name: '주 메뉴' })).toBeNull();
+    expect(document.activeElement).toBe(toggle());
+  });
+
+  it('머리줄 시간대 · 시급 · 이름은 한 단추 묶음이고 마이 페이지를 연다 (강사 PPTX p98 · D3)', () => {
+    const { view } = shell('/teacher');
+    const header = view.getByRole('banner');
+    const open = within(header).getByRole('button', { name: /^마이 페이지/ });
+    expect(open.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(within(open).getByText('Seoul · UTC+9')).toBeTruthy();
+    expect(within(open).getByText('₩45,000/시간')).toBeTruthy();
+    expect(within(open).getByText('김재훈')).toBeTruthy();
+    fireEvent.click(open);
+    expect(myPage.open).toHaveBeenCalledOnce();
+    // 로그아웃 · 🔔 는 묶음 밖이다
+    expect(within(open).queryByText('로그아웃')).toBeNull();
   });
 });
 
