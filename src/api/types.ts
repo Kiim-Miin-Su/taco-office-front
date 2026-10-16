@@ -640,6 +640,10 @@ export type WageWrite = S['WageWriteDto'];
 export type MemberGroup = S['MemberGroupDto'];
 export type TzGroup = S['TzGroupDto'];
 export type KindRow = S['KindRowDto'];
+/** 구성원 강사 정보 — 가능 과목(p8 결정 2026-10-16) */
+export type StaffTeachingSubject = S['StaffTeachingSubjectDto'];
+export type StaffTeachingSubjectGroup = S['StaffTeachingSubjectGroupDto'];
+export type StaffTeachingKind = S['StaffTeachingKindDto'];
 export type ChangeReq = S['ChangeReqDto'];
 /** §20 「최근 변경 이력」 (W11 A' 후속) — 스케줄 쓰기 감사 줄 한 줄 = 누가 · 언제 · 앞 → 뒤 · 무엇을(서버 문장) */
 export type ScheduleHistory = S['ScheduleHistoryDto'];

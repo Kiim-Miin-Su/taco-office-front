@@ -7040,6 +7040,11 @@ export interface components {
             /** @description 보호자 × 채널 시도 수(원장 줄 수) */
             attemptCount: number;
             lastAttemptAt: string | null;
+            /**
+             * @description 학부모 주간 PNG 파일 이름(p7 결정 2026-10-16) — plainText 와 같은 판정이라 보낼 수 있는 묶음에만 싣는다. 화면은 이 이름을 그대로 쓴다
+             * @example 20261012-20261018_권시우_G9_주간리포트.png
+             */
+            pngFileName: string | null;
         };
         WeeklyBundleListDto: {
             /**
@@ -7059,6 +7064,10 @@ export interface components {
             /** @description 아직 보호자에게 나가지 않은 묶음 수 — 탭 배지 */
             remaining: number;
             bundles: components["schemas"]["WeeklyBundleDto"][];
+            /** @description 주간 PNG의 수업 칸 이름 — 보낼 본문(reportPlainText)과 같은 표(D-R18) */
+            fields: components["schemas"]["ReportFieldDto"][];
+            /** @description 주간 묶음 끝 칸 이름 — 보낼 본문과 PNG가 같은 낱말(「총평」) */
+            summaryLabel: string;
         };
         WeeklySummaryWriteDto: {
             studentId: number;
@@ -14065,6 +14074,13 @@ export interface components {
             key: "class" | "mock" | "study";
             name: string;
         };
+        StaffTeachingSubjectDto: {
+            key: string;
+            name: string;
+            /** @enum {string} */
+            kindKey: "class" | "mock" | "study";
+            kindName: string;
+        };
         StaffEducationSummaryDto: {
             school: string;
             major: string | null;
@@ -14114,7 +14130,10 @@ export interface components {
             birthOn?: string | null;
             /** @description 영어 전용 수업 가능: true/false/null(미확인) */
             englishOnly?: boolean | null;
+            /** @description migration 127 시절 가능 수업 유형 — 읽기 전용 이전 입력. 새 입력은 teachingSubjects(p8 결정 2026-10-16) */
             teachingKinds?: components["schemas"]["StaffTeachingKindDto"][];
+            /** @description 가능 과목(SUB) — 수업·모의수업·자습 묶음 차례(KIND sort → SUB sort). GPA 제외 */
+            teachingSubjects?: components["schemas"]["StaffTeachingSubjectDto"][];
             education?: components["schemas"]["StaffEducationSummaryDto"][];
             /** @description 「수정」 — 보는 이가 매니저 이상이고 이 줄이 강사·매니저일 때만 (대표·관리자 줄은 이 길로 못 고친다) */
             canEdit?: boolean;
@@ -14200,6 +14219,16 @@ export interface components {
             now: number;
             items: components["schemas"]["WorkSummaryItemDto"][];
         };
+        StaffTeachingSubjectOptionDto: {
+            key: string;
+            name: string;
+        };
+        StaffTeachingSubjectGroupDto: {
+            /** @enum {string} */
+            kindKey: "class" | "mock" | "study";
+            kindName: string;
+            subjects: components["schemas"]["StaffTeachingSubjectOptionDto"][];
+        };
         MyExpenseSummaryDto: {
             /** @description 내가 신청자인 지출 전부 */
             total: number;
@@ -14249,6 +14278,12 @@ export interface components {
             loginIdRule: string;
             /** @description §17 구성원 만들기 · 비밀번호 초기화의 임시 비밀번호 규칙 문장 — 화면은 그대로 적는다(W10 · D-R18) */
             tempPasswordRule: string;
+            /** @description 구성원 창 「가능 과목」 선택지 — 수업·모의수업·자습 묶음, 사용 중 과목만(p8 결정 2026-10-16) */
+            teachingSubjectGroups: components["schemas"]["StaffTeachingSubjectGroupDto"][];
+            /** @description 학력 학위 드롭다운 코드표 — 전문학사·학사·석사·박사·기타 */
+            educationDegrees: string[];
+            /** @description 학력 상태 드롭다운 코드표 — 재학·휴학·수료·졸업·중퇴 */
+            educationStatuses: string[];
             /** @description 요청함의 「내 지출 신청」 머리 수 — 본인 것만 (N-52) */
             myExpenses: components["schemas"]["MyExpenseSummaryDto"];
         };
@@ -14261,8 +14296,10 @@ export interface components {
             active: boolean;
             hiredOn: string | null;
             englishOnly: boolean | null;
-            /** @description 가능 수업 유형 수. SUBJECT 과목과 별개이며 GPA는 제외한다 */
+            /** @description migration 127 시절 가능 수업 유형 수(읽기 전용 이전 입력) */
             teachingKindCount: number;
+            /** @description 가능 과목 수(p8 결정 2026-10-16) — 수업·모의수업·자습 과목. GPA 제외 */
+            teachingSubjectCount: number;
             /** @description KST ISO timestamp. 최신 등록 순 정렬 기준은 DB created_at DESC, id DESC */
             createdAt: string;
         };
@@ -14281,15 +14318,19 @@ export interface components {
             active: boolean;
             hiredOn: string | null;
             englishOnly: boolean | null;
-            /** @description 가능 수업 유형 수. SUBJECT 과목과 별개이며 GPA는 제외한다 */
+            /** @description migration 127 시절 가능 수업 유형 수(읽기 전용 이전 입력) */
             teachingKindCount: number;
+            /** @description 가능 과목 수(p8 결정 2026-10-16) — 수업·모의수업·자습 과목. GPA 제외 */
+            teachingSubjectCount: number;
             /** @description KST ISO timestamp. 최신 등록 순 정렬 기준은 DB created_at DESC, id DESC */
             createdAt: string;
             email: string | null;
             phone: string | null;
             timezone: string | null;
             birthOn: string | null;
+            /** @description migration 127 시절 가능 수업 유형 — 읽기 전용 이전 입력 */
             teachingKinds: components["schemas"]["StaffTeachingKindDto"][];
+            teachingSubjects: components["schemas"]["StaffTeachingSubjectDto"][];
             education: components["schemas"]["StaffEducationSummaryDto"][];
         };
         StaffDirectoryWageDto: {
@@ -14413,7 +14454,9 @@ export interface components {
         StaffEducationSummaryInputDto: {
             school: string;
             major?: string | null;
+            /** @description 학위 — 서랍 educationDegrees 코드표 값. 이미 저장된 옛 자유 입력 값만 그대로 다시 보낼 수 있다(그 밖 400 STAFF_EDUCATION_CODE) */
             degree?: string | null;
+            /** @description 상태 — 서랍 educationStatuses 코드표 값. 옛 자유 입력 값 규칙은 학위와 같다 */
             status?: string | null;
         };
         StaffCreateDto: {
@@ -14456,8 +14499,8 @@ export interface components {
             birthOn?: string;
             /** @description 영어 전용 수업 가능: true/false/null(미확인) */
             englishOnly?: boolean | null;
-            /** @description 가능 수업 유형. KIND의 class/mock/study만 허용, GPA와 SUBJECT는 제외 */
-            teachingKindKeys?: ("class" | "mock" | "study")[];
+            /** @description 가능 과목 SUB key(p8 결정 2026-10-16) — 수업·모의수업·자습의 사용 중 과목만. 그 밖은 400 STAFF_TEACHING_SUBJECT */
+            teachingSubjectKeys?: string[];
             /** @description 학력 요약 최대 5행. 보낸 배열 전체가 저장된다 */
             education?: components["schemas"]["StaffEducationSummaryInputDto"][];
             /** @description 기본 시급(원/시간) — 적으면 입사일(또는 오늘)부터의 WAGE 한 줄이 같은 트랜잭션에 선다 · 소급 없음 */
@@ -14507,8 +14550,8 @@ export interface components {
             birthOn?: string | null;
             /** @description 영어 전용 수업 가능: true/false/null(미확인) */
             englishOnly?: boolean | null;
-            /** @description 가능 수업 유형 전체 대체. class/mock/study만 허용 */
-            teachingKindKeys?: ("class" | "mock" | "study")[];
+            /** @description 가능 과목 SUB key 전체 대체(p8 결정 2026-10-16). 꺼 둔 과목은 이미 가진 강사만 다시 보낼 수 있다 */
+            teachingSubjectKeys?: string[];
             /** @description 학력 요약 전체 대체. 최대 5행 */
             education?: components["schemas"]["StaffEducationSummaryInputDto"][];
             /** @description 권한 예외 다섯 칸(N-68) — 대표 판정으로만(403 PERM_OVERRIDE_FORBIDDEN) · 자기 줄은 403 SELF_ROLE · 대표·관리자 줄은 403 STAFF_PROTECTED · 보는 사람이 없는 권한은 켤 수 없다(403 PERM_GRANT_FORBIDDEN). 바뀐 값은 다음 요청부터 그 사람의 판정에 쓰인다 */
