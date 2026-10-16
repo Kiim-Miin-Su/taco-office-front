@@ -17,6 +17,7 @@ import {
   // W11 D — 옛 로컬 훅 파일(intake · ops · accounting)에서 옮긴 쓰기 훅
   useAddPlanTask, useBookLeadAppt, useCreateMarketing, useDeleteLeadAppt, useExtendLeadHold, useSaveLeadAppt, useSaveLeadPlan, useScheduleLeadAppts,
   useSetAcctPrivacy, useWriteBonusRule,
+  useCreateSettingRequest,
 } from './queries';
 
 /**
@@ -45,6 +46,20 @@ it.each(['create', 'patch'] as const)('줌 계정 %s 뒤 사용자별 계정 후
     });
     for (const key of keys) expect(client.getQueryState(sessionQueryKey(key, viewerId))?.isInvalidated).toBe(true);
   } finally { view.unmount(); client.clear(); post.mockRestore(); patch.mockRestore(); }
+});
+
+it('시간대 · 시급 변경 요청 뒤 강사 홈과 머리줄(시간대·시급 칸)을 함께 다시 읽는다 — 마이 페이지 진입 칸도 같은 값을 본다', async () => {
+  const client = new QueryClient();
+  const viewerId = useSession.getState().me?.id ?? 'anonymous';
+  const keys = [qk.teacherHome, qk.teacherShell];
+  keys.forEach((key) => client.setQueryData(sessionQueryKey(key, viewerId), { marker: '요청 전' }));
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {} });
+  const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
+  const view = renderHook(() => useCreateSettingRequest(), { wrapper });
+  try {
+    await act(async () => { await view.result.current.mutateAsync({ reqType: 'tz_change', timezone: 'America/New_York' }); });
+    for (const key of keys) expect(client.getQueryState(sessionQueryKey(key, viewerId))?.isInvalidated).toBe(true);
+  } finally { view.unmount(); client.clear(); post.mockRestore(); }
 });
 
 it('활성 상태 저장 뒤 열려 있는 meta 소비자가 새 후보를 받아 표시한다', async () => {
@@ -184,6 +199,8 @@ const CONST_SAMPLE: readonly (readonly unknown[])[] = [
   qk.teacherHome,
   // 강사 머리줄(시간대·시급·내 알림) — 읽음 처리가 이 갈래만 다시 읽는다
   qk.teacherShell,
+  // 본인 마이 페이지 프로필(AUTH-SELF-01) — 이름 저장이 이 키를 응답으로 바꾼다
+  qk.authProfile,
   // 강사 월기록 — 서버 KST 직전 달 하나만 읽는 상수 키 (BOC-09D-01)
   qk.teacherHistory,
   qk.receivedGuides,
