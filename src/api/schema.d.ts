@@ -132,6 +132,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/onboarding/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 채널 하나 인증하기 — 코드를 받은 이메일 또는 휴대폰과 그 코드
+         * @description 맞으면 그 주소 · 번호가 계정에 적히고 이번 첫 설정의 증거로 남는다(같은 채널의 다른 열린 코드는 닫는다). 두 인증 칸 · 잠금은 마치기가 새 비밀번호와 함께 바꾼다. 응답은 갱신된 첫 설정 안내다.
+         */
+        post: operations["OnboardingController_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/onboarding/complete": {
         parameters: {
             query?: never;
@@ -142,8 +162,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 첫 설정 마치기 — 확인한 이메일 · 휴대폰과 두 코드 · 새 비밀번호를 한 번에(아이디는 그대로)
-         * @description 성공하면 로그인과 같다: Access 는 본문, Refresh 는 httpOnly 쿠키. 그 전에 발급된 이 계정의 토큰은 모두 401 이 된다.
+         * 첫 설정 마치기 — 새 비밀번호(아이디는 그대로 · 이메일 · 휴대폰은 「인증하기」가 이미 증명했다)
+         * @description 이번 첫 설정의 두 인증 증거를 다시 확인한 뒤 두 인증 · 잠금 해제 · 새 비밀번호를 한 transaction 으로 저장한다. 성공하면 로그인과 같다: Access 는 본문, Refresh 는 httpOnly 쿠키. 그 전에 발급된 이 계정의 토큰은 모두 401 이 된다.
          */
         post: operations["OnboardingController_complete"];
         delete?: never;
@@ -5581,6 +5601,12 @@ export interface components {
             channels: components["schemas"]["OnboardingChannelDto"][];
             /** @description 휴대폰 국가번호 목록 — 첫 줄이 대한민국(기본값) */
             phoneCountries: components["schemas"]["PhoneCountryDto"][];
+            /** @description 이번 첫 설정에서 인증을 마친 이메일(가린 모양) — 「이메일 인증하기」 전이면 null */
+            emailVerifiedMasked: string | null;
+            /** @description 이번 첫 설정에서 인증을 마친 휴대폰(가린 모양) — 「휴대폰 번호 인증하기」 전이면 null */
+            phoneVerifiedMasked: string | null;
+            /** @description 「설정 마치기」를 아직 못 하는 까닭(남은 인증) — 없으면 null. 마치기의 409 CONTACT_NOT_VERIFIED 와 같은 문장이다 */
+            completeBlockedReason: string | null;
         };
         OnboardingCodeRequestDto: {
             /**
@@ -5609,32 +5635,29 @@ export interface components {
             /** @description 개발용 — 운영이 아니고 서버의 AUTH_CODE_DEV_ECHO=on 이며 발송 설정이 없을 때만 실린다. 운영 응답에는 절대 없다 */
             devCode?: string;
         };
-        OnboardingCompleteDto: {
+        OnboardingVerifyDto: {
             /**
-             * @description 확인한 이메일 — 코드를 받은 주소. 연락 · 비밀번호 찾기에 쓴다(아이디가 아니다 · W10)
+             * @description email = 이메일 인증 · sms = 휴대폰 번호 인증
+             * @enum {string}
+             */
+            channel: "email" | "sms";
+            /**
+             * @description 코드를 받은 이메일 주소 또는 휴대폰 번호 — 해외 번호는 `+국가번호 번호`(N-103)
              * @example kim@tnacademy.kr
              */
-            email: string;
+            target: string;
+            /**
+             * @description 받은 코드 여섯 자리
+             * @example 123456
+             */
+            code: string;
+        };
+        OnboardingCompleteDto: {
             /**
              * @description 새 비밀번호 — 규칙은 GET /auth/onboarding 의 passwordRule
              * @example ********
              */
             password: string;
-            /**
-             * @description 휴대폰 번호 — 코드를 받은 번호. 해외 번호는 `+국가번호 번호`(N-103 · 나라는 phoneCountries)
-             * @example 010-1234-5678
-             */
-            phone: string;
-            /**
-             * @description 이메일로 받은 코드
-             * @example 123456
-             */
-            emailCode: string;
-            /**
-             * @description 휴대폰으로 받은 코드
-             * @example 123456
-             */
-            phoneCode: string;
         };
         PasswordResetInfoDto: {
             /** @description 비밀번호 규칙 문장 — 화면은 이 문장을 그대로 적는다(첫 설정과 같은 문장) */
@@ -16492,7 +16515,7 @@ export interface operations {
             };
         };
     };
-    OnboardingController_complete: {
+    OnboardingController_verify: {
         parameters: {
             query?: never;
             header?: never;
@@ -16501,7 +16524,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OnboardingCompleteDto"];
+                "application/json": components["schemas"]["OnboardingVerifyDto"];
             };
         };
         responses: {
@@ -16510,10 +16533,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginResultDto"];
+                    "application/json": components["schemas"]["OnboardingInfoDto"];
                 };
             };
-            /** @description BAD_REQUEST(입력 모양) · INVALID_EMAIL · INVALID_PHONE · PASSWORD_RULE(규칙 문장 그대로) */
+            /** @description BAD_REQUEST(입력 모양 · 코드 여섯 자리) · INVALID_EMAIL · INVALID_PHONE */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16549,7 +16572,93 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorDto"];
                 };
             };
-            /** @description ONBOARDING_NOT_REQUIRED(이미 첫 설정을 마친 계정) · SAME_AS_CURRENT · EMAIL_TAKEN · CODE_NOT_REQUESTED · CODE_EXPIRED · CODE_LOCKED · CODE_MISMATCH(틀린 횟수는 남는다) */
+            /** @description ONBOARDING_NOT_REQUIRED(이미 첫 설정을 마친 계정) · EMAIL_TAKEN · CODE_NOT_REQUESTED · CODE_EXPIRED · CODE_LOCKED · CODE_MISMATCH(틀린 횟수는 남는다) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description AUTH_CODE_SECRET_MISSING — 운영 코드 비밀 값 없음(N-105) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    OnboardingController_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingCompleteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResultDto"];
+                };
+            };
+            /** @description BAD_REQUEST(입력 모양) · PASSWORD_RULE(규칙 문장 그대로) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description UNAUTHORIZED: 로그인이 필요하다(첫 설정도 Access 토큰으로만 연다). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description 공용 오류 형식. 해당 endpoint의 입력·권한·자원·DB 검증에 따라 반환될 수 있다. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+            /** @description ONBOARDING_NOT_REQUIRED(이미 첫 설정을 마친 계정) · CONTACT_NOT_VERIFIED(남은 인증 — 안내의 completeBlockedReason 과 같은 문장 · 저장 0) · SAME_AS_CURRENT */
             409: {
                 headers: {
                     [name: string]: unknown;

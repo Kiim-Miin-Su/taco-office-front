@@ -5,12 +5,12 @@
  */
 
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api, apiMessage, ApiError } from '@/api/client';
 import { clearSessionQueries } from '@/api/session-cache';
-import { useOnboardingInfo } from '@/api/queries';
+import { useOnboardingInfo, useVerifyOnboardingContact } from '@/api/queries';
 import { useSession } from '@/store/useSession';
 import { Banner, Button, Input, Label, Logo, QueryState, cn } from '@/components/ui';
 import { fallbackRouteFor } from '@/components/shell/navigation';
@@ -28,23 +28,36 @@ import type { LoginResult, OnboardingCodeRequest, OnboardingCodeResult, Onboardi
  * 강사도 쓰는 화면이라 휴대폰(393×852)부터 맞추고 넓은 화면에서는 가운데 카드로 둔다.
  * 규칙 문장 · 채널 이름 · 못 보내는 까닭 · 거절 문장 · 휴대폰 국가번호 목록(N-103)은 서버가 준다 — 화면이 규칙을 따로 적지 않는다.
  * 코드 받기 줄과 국가번호 칸은 비밀번호 찾기(N-101)와 같은 부품이다(components/account).
+ *
+ * 채널마다 인증하기 (사용자 지시 2026-10-19 「이메일 인증하기와 휴대폰 번호 인증하기 버튼이 있어야 함」) — 코드를 적고
+ * 「이메일 인증하기」·「휴대폰 번호 인증하기」를 누르면 그 자리에서 맞는지 답하고, 맞은 채널은 서버가 이번 차례의 증거로 기억한다
+ * (새로 고쳐도 「인증 완료」가 남는다). 「설정 마치기」는 새 비밀번호만 보내고, 못 하는 까닭은 서버 문장 그대로 단추 위에 선다.
  */
 type Channel = CodeChannel;
+type VerifyAt = `verify-${Channel}`;
 
 /*
  * AUTH-INIT-02(사용자 결정 2026-10-16) — 모든 역할이 세 가지(이메일 인증 · 휴대폰 인증 · 새 비밀번호)를 모두 마쳐야 업무 화면이 열린다.
- * 건너뛰기 · 나중에 하기는 없다. 1·2·3 단계 칩은 이 화면이 이미 아는 진행(코드 보냄 · 적음 · 입력)과 서버 거절 코드만 그린다(Figma 색인 D7).
- * 마치기 거절의 코드 오류는 어느 채널인지 응답에 없다 — 칩으로 짐작하지 않고 카드 아래 띠의 서버 문장(칸 이름을 말한다)에 맡긴다.
+ * 건너뛰기 · 나중에 하기는 없다. 1·2·3 단계 칩은 서버의 인증 결과와 이 화면이 아는 진행(코드 보냄 · 적음 · 입력) · 서버 거절 코드만 그린다.
  */
 const LIMIT_CODES: ReadonlySet<string> = new Set(['CODE_TOO_SOON', 'CODE_DAILY_LIMIT', 'CODE_LIMIT']);
 const PASSWORD_CODES: ReadonlySet<string> = new Set(['PASSWORD_RULE', 'SAME_AS_CURRENT', 'PASSWORD_CONFIRM']);
-type StepTone = 'idle' | 'active' | 'error';
+type StepTone = 'idle' | 'active' | 'error' | 'done';
 const STEP_LOOK: Record<StepTone, string> = {
   idle: 'border-line bg-card text-fg-subtle',
   active: 'border-blue/40 bg-blue/5 text-fg-2',
   error: 'border-red/40 bg-red/5 text-red',
+  done: 'border-green/40 bg-green/5 text-green',
 };
-const STEP_MARK: Record<StepTone, string> = { idle: 'bg-fg-2', active: 'bg-blue', error: 'bg-red' };
+const STEP_MARK: Record<StepTone, string> = { idle: 'bg-fg-2', active: 'bg-blue', error: 'bg-red', done: 'bg-green' };
+
+/** 채널별 낱말 — 칸 이름 · 받는 곳 이름 · 인증 단추(사용자 지시 2026-10-19 낱말 그대로) */
+const CHANNEL_WORDS: Record<Channel, { field: string; target: string; verify: string }> = {
+  email: { field: '이메일', target: '주소', verify: '이메일 인증하기' },
+  sms: { field: '휴대폰', target: '번호', verify: '휴대폰 번호 인증하기' },
+};
+/** 코드 칸의 모양만 — 맞는지는 서버가 판정한다 */
+const CODE_SHAPE = /^\d{6}$/;
 
 function Step({ n, title, state }: { n: number; title: string; state: { text: string; tone: StepTone } }) {
   return (
@@ -65,6 +78,7 @@ export default function OnboardingPage() {
   const signIn = useSession((s) => s.signIn);
   const signOut = useSession((s) => s.signOut);
   const info = useOnboardingInfo();
+  const verify = useVerifyOnboardingContact();
 
   const [email, setEmail] = useState('');
   /** 국가번호 + 번호 — 국가번호가 비어 있으면 서버 목록의 첫 줄(국내)이다 */
@@ -74,14 +88,16 @@ export default function OnboardingPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [sent, setSent] = useState<Partial<Record<Channel, OnboardingCodeResult>>>({});
+  /** 인증을 마친 채널을 다른 주소 · 번호로 다시 인증하려고 연 상태 — 화면 초안이다(서버 증거는 새로 인증할 때만 바뀐다) */
+  const [editing, setEditing] = useState<Partial<Record<Channel, boolean>>>({});
   /** 채널별 다시 받기 초읽기 — 서버가 준 resendAfterSeconds 로 센다 */
   const resend = useResendCountdown();
   /*
-   * 거절 문장은 **누른 자리 옆**에 선다 — 코드 받기의 거절은 그 채널 단추 바로 아래, 마치기의 거절은 마치기 단추 위.
-   * 폼 맨 아래 띠 하나만 두면 393px 휴대폰에서 「코드 받기」를 눌렀을 때 화면 밖이라 아무 일도 없던 것처럼 보인다(QA 0926 UX-1).
+   * 거절 문장은 **누른 자리 옆**에 선다 — 코드 받기의 거절은 그 채널 단추 바로 아래, 인증하기의 거절은 인증 단추 아래,
+   * 마치기의 거절은 마치기 단추 위. 폼 맨 아래 띠 하나만 두면 393px 휴대폰에서 누른 자리가 화면 밖이라 아무 일도 없던 것처럼 보인다(QA 0926 UX-1).
    */
-  const [err, setErr] = useState<{ at: Channel | 'complete'; text: string; code?: string } | null>(null);
-  const [busy, setBusy] = useState<Channel | 'complete' | 'logout' | null>(null);
+  const [err, setErr] = useState<{ at: Channel | VerifyAt | 'complete'; text: string; code?: string } | null>(null);
+  const [busy, setBusy] = useState<Channel | VerifyAt | 'complete' | 'logout' | null>(null);
   const countries = info.data?.phoneCountries ?? [];
   const phoneText = composePhone(phone, countries);
   // 마치기 거절 뒤 초점이 body 로 빠졌으면(보내는 동안 잠긴 단추에서 브라우저가 버린다) 마치기 단추로 돌린다 — 칸에 있던 초점은 그대로 둔다(S4)
@@ -105,6 +121,24 @@ export default function OnboardingPage() {
     }
   }
 
+  /** 「이메일 인증하기」·「휴대폰 번호 인증하기」 — 맞으면 서버가 갱신한 안내로 「인증 완료」를 그린다(Query 캐시 · 화면이 세지 않는다) */
+  async function verifyContact(channel: Channel, target: string, code: string) {
+    const at: VerifyAt = `verify-${channel}`;
+    setBusy(at);
+    setErr(null);
+    try {
+      await verify.mutateAsync({ channel, target, code: code.trim() });
+      // 인증에 쓴 코드 칸 · 보낸 줄은 비운다 — 이제 그 채널은 서버가 「인증 완료」로 말한다
+      if (channel === 'email') setEmailCode(''); else setPhoneCode('');
+      setSent((prev) => ({ ...prev, [channel]: undefined }));
+      setEditing((prev) => ({ ...prev, [channel]: false }));
+    } catch (e) {
+      setErr({ at, text: apiMessage(e), code: e instanceof ApiError ? e.code : undefined });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function complete(e: FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -112,7 +146,8 @@ export default function OnboardingPage() {
     if (password !== confirm) { setErr({ at: 'complete', text: '새 비밀번호와 확인이 다릅니다', code: 'PASSWORD_CONFIRM' }); return; }
     setBusy('complete');
     try {
-      const body: OnboardingComplete = { email, password, phone: phoneText, emailCode, phoneCode };
+      // 이메일 · 휴대폰은 「인증하기」가 이미 증명했다 — 마치기는 새 비밀번호만 보낸다(서버가 두 증거를 다시 확인한다)
+      const body: OnboardingComplete = { password };
       const { data } = await api.post<LoginResult>('/auth/onboarding/complete', body);
       // 로그인과 같은 순서 — 옛 세션의 캐시를 버리고 새 토큰 · 새 Me 로 연다(옛 토큰은 서버가 이미 끊었다)
       clearSessionQueries(queryClient);
@@ -121,6 +156,8 @@ export default function OnboardingPage() {
       router.replace(fallbackRouteFor(data.user));
     } catch (e2) {
       setErr({ at: 'complete', text: apiMessage(e2), code: e2 instanceof ApiError ? e2.code : undefined });
+      // 남은 인증 거절이면 안내를 다시 읽는다 — 다른 창 · 관리자 수정으로 증거가 바뀌었을 수 있다(칩과 단추를 서버 값으로 맞춘다)
+      if (e2 instanceof ApiError && e2.code === 'CONTACT_NOT_VERIFIED') void info.refetch();
     } finally {
       setBusy(null);
     }
@@ -134,12 +171,18 @@ export default function OnboardingPage() {
     router.replace('/login');
   }
 
-  /** 코드 단계 칩 — 거절(요청 한도 · 발송 실패 · 그 밖) → 코드 적음 → 코드 보냄(초읽기) → 받기 전 */
+  const verifiedOf = (channel: Channel): string | null =>
+    (channel === 'email' ? info.data?.emailVerifiedMasked : info.data?.phoneVerifiedMasked) ?? null;
+  const showsVerified = (channel: Channel) => verifiedOf(channel) !== null && !editing[channel];
+
+  /** 채널 단계 칩 — 거절(요청 한도 · 발송 실패 · 인증 거절) → 인증 완료(서버) → 코드 적음 → 코드 보냄(초읽기) → 받기 전 */
   function codeStep(channel: Channel): { text: string; tone: StepTone } {
     if (err?.at === channel) {
       const text = err.code && LIMIT_CODES.has(err.code) ? '요청 한도' : err.code === 'SEND_FAILED' ? '발송 실패' : '다시 확인';
       return { text, tone: 'error' };
     }
+    if (err?.at === `verify-${channel}`) return { text: '다시 확인', tone: 'error' };
+    if (showsVerified(channel)) return { text: '인증 완료', tone: 'done' };
     if ((channel === 'email' ? emailCode : phoneCode).trim()) {
       return { text: '코드 적음', tone: 'active' };
     }
@@ -167,13 +210,87 @@ export default function OnboardingPage() {
     );
   }
 
+  /** 채널 하나 — 인증을 마쳤으면 서버가 기억한 받는 곳(가린 모양)을, 아니면 받는 곳 · 코드 받기 · 코드 · 인증하기를 그린다 */
+  function contactBlock(data: OnboardingInfo, channel: Channel) {
+    const words = CHANNEL_WORDS[channel];
+    const id = channel === 'email' ? 'ob-email' : 'ob-phone';
+    const verified = verifiedOf(channel);
+    if (verified !== null && !editing[channel]) {
+      return (
+        <div className="mt-5">
+          <p className="text-[13px] font-bold text-fg">{words.field}</p>
+          <div role="status" className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-green/40 bg-green/5 px-3 py-2">
+            <span className="text-[13px] font-bold text-green">{words.field} 인증 완료</span>
+            <span className="text-[12px] text-fg-2">{verified}</span>
+            <Button
+              size="sm" variant="ghost" className="ml-auto"
+              onClick={() => { setErr(null); setEditing((prev) => ({ ...prev, [channel]: true })); }}
+            >
+              다른 {words.target}로 다시 인증
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    const target = channel === 'email' ? email : phoneText;
+    const code = channel === 'email' ? emailCode : phoneCode;
+    const setCode = channel === 'email' ? setEmailCode : setPhoneCode;
+    const registered = channel === 'email' ? data.emailMasked : data.phoneMasked;
+    const at: VerifyAt = `verify-${channel}`;
+    // 인증하기 — 받는 곳과 여섯 자리가 있어야 연다. 확인하는 동안은 aria-disabled 로만 잠근다(누른 단추가 disabled 가 되면 초점이 body 로 빠진다 · S4)
+    const canVerify = target.trim() !== '' && CODE_SHAPE.test(code.trim());
+    const verifying = busy === at;
+    const submitVerify = () => { if (canVerify && !verifying) void verifyContact(channel, target, code); };
+    const onCodeKey = (e: KeyboardEvent<HTMLInputElement>) => {
+      // 코드 칸의 Enter 는 그 채널의 인증하기다 — 폼(설정 마치기)으로 보내지 않는다
+      if (e.key === 'Enter') { e.preventDefault(); submitVerify(); }
+    };
+    return (
+      <div className="mt-5">
+        <Label htmlFor={id} hint={registered ? `등록된 ${words.target} ${registered}` : undefined}>{words.field}</Label>
+        {channel === 'email' ? (
+          <Input
+            id="ob-email" type="email" value={email} autoComplete="email" inputMode="email"
+            onChange={(e) => setEmail(e.currentTarget.value)}
+          />
+        ) : (
+          /* 해외 번호는 국가번호를 고른다(N-103) — 나라 목록은 서버가 준다 */
+          <PhoneInput id="ob-phone" countries={data.phoneCountries} value={phone} onChange={setPhone} />
+        )}
+        {codeRow(data, channel, target)}
+        <div className="mt-2">
+          <Label htmlFor={`${id}-code`}>{words.field} 인증 코드</Label>
+          <Input
+            id={`${id}-code`} value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+            onChange={(e) => setCode(e.currentTarget.value)} onKeyDown={onCodeKey}
+          />
+          <Button
+            size="sm" variant="primary" className="mt-2 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-40 sm:w-auto"
+            disabled={!canVerify || (busy !== null && !verifying)} aria-disabled={verifying || undefined}
+            onClick={verifying ? undefined : submitVerify}
+          >
+            {verifying ? '확인하는 중…' : words.verify}
+          </Button>
+          {err?.at === at ? <p role="alert" className="mt-1 text-[12px] font-bold text-red">{err.text}</p> : null}
+        </div>
+        {verified !== null ? (
+          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setEditing((prev) => ({ ...prev, [channel]: false }))}>
+            인증한 {words.target} 그대로 두기 ({verified})
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const blockedReason = info.data?.completeBlockedReason ?? null;
+
   return (
     <div className="min-h-screen bg-bg px-4 py-6 sm:grid sm:place-items-center sm:p-6">
       <form onSubmit={complete} className="mx-auto w-full max-w-[420px] rounded-2xl border border-line bg-card p-5 sm:p-6">
         <Logo size={30} />
         <h1 className="mt-3 text-[17px] font-bold text-fg">첫 설정</h1>
         <p className="mt-1 text-[13px] leading-relaxed text-fg-2">
-          처음 로그인하셨습니다 — 휴대폰·이메일을 확인하고 새 비밀번호를 정해야 쓸 수 있습니다
+          처음 로그인하셨습니다 — 이메일 · 휴대폰 번호를 각각 인증하고 새 비밀번호를 정해야 쓸 수 있습니다
         </p>
 
         <div className="mt-3 rounded-xl border border-line bg-inset p-2.5">
@@ -192,35 +309,8 @@ export default function OnboardingPage() {
               {/* 비밀번호 관리자가 새 비밀번호를 이 아이디에 붙여 저장하게 — 보이지 않는 읽기 전용 칸 */}
               <input type="text" name="username" autoComplete="username" value={data.loginId} readOnly hidden />
 
-              <div className="mt-5">
-                <Label htmlFor="ob-email" hint={data.emailMasked ? `등록된 주소 ${data.emailMasked}` : undefined}>이메일</Label>
-                <Input
-                  id="ob-email" type="email" value={email} autoComplete="email" inputMode="email"
-                  onChange={(e) => setEmail(e.currentTarget.value)}
-                />
-                {codeRow(data, 'email', email)}
-                <div className="mt-2">
-                  <Label htmlFor="ob-email-code">이메일 인증 코드</Label>
-                  <Input
-                    id="ob-email-code" value={emailCode} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                    onChange={(e) => setEmailCode(e.currentTarget.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <Label htmlFor="ob-phone" hint={data.phoneMasked ? `등록된 번호 ${data.phoneMasked}` : undefined}>휴대폰</Label>
-                {/* 해외 번호는 국가번호를 고른다(N-103) — 나라 목록은 서버가 준다 */}
-                <PhoneInput id="ob-phone" countries={data.phoneCountries} value={phone} onChange={setPhone} />
-                {codeRow(data, 'sms', phoneText)}
-                <div className="mt-2">
-                  <Label htmlFor="ob-phone-code">휴대폰 인증 코드</Label>
-                  <Input
-                    id="ob-phone-code" value={phoneCode} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                    onChange={(e) => setPhoneCode(e.currentTarget.value)}
-                  />
-                </div>
-              </div>
+              {contactBlock(data, 'email')}
+              {contactBlock(data, 'sms')}
 
               <div className="mt-5">
                 <Label htmlFor="ob-pw">새 비밀번호</Label>
@@ -241,15 +331,21 @@ export default function OnboardingPage() {
           )}
         </QueryState>
 
-        {/* 마치기는 서버가 한 transaction 으로 저장한다 — 거절이면 아무것도 저장되지 않았다(D7 「저장 0」) */}
+        {/* 마치기는 서버가 한 transaction 으로 저장한다 — 거절이면 새 비밀번호는 저장되지 않았다(인증한 이메일 · 휴대폰은 그대로다) */}
         {/* role=alert — 화면 낭독기가 거절을 바로 읽는다(띠 부품은 역할을 싣지 않는다) */}
         {err?.at === 'complete' ? (
           <div role="alert" className="mt-4">
-            <Banner tone="danger" title="설정을 마치지 못했습니다 — 저장된 것은 없습니다">{err.text}</Banner>
+            <Banner tone="danger" title="설정을 마치지 못했습니다 — 새 비밀번호는 저장되지 않았습니다">{err.text}</Banner>
           </div>
         ) : null}
 
-        <Button id="ob-submit" type="submit" variant="primary" disabled={busy !== null || !info.data} className="mt-5 w-full">
+        {/* 아직 못 마치는 까닭은 서버 문장 그대로(마치기의 409 CONTACT_NOT_VERIFIED 와 같은 문장 · D-R39) */}
+        {blockedReason ? <p id="ob-submit-reason" className="mt-4 text-[12px] font-bold text-fg-2">{blockedReason}</p> : null}
+        <Button
+          id="ob-submit" type="submit" variant="primary" className="mt-3 w-full"
+          disabled={busy !== null || !info.data || blockedReason !== null}
+          aria-describedby={blockedReason ? 'ob-submit-reason' : undefined}
+        >
           {busy === 'complete' ? '저장하는 중…' : '설정 마치기'}
         </Button>
         <Button variant="ghost" disabled={busy === 'logout'} className="mt-2 w-full" onClick={() => void logout()}>

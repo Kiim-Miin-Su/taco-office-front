@@ -597,6 +597,8 @@ export type OnboardingChannel = S['OnboardingChannelDto'];
 export type OnboardingCodeRequest = S['OnboardingCodeRequestDto'];
 export type OnboardingCodeResult = S['OnboardingCodeResultDto'];
 export type OnboardingComplete = S['OnboardingCompleteDto'];
+/** 채널 하나 인증하기(2026-10-19) — 응답은 갱신된 OnboardingInfo */
+export type OnboardingVerify = S['OnboardingVerifyDto'];
 /** N-103 휴대폰 국가번호 한 줄 — 목록은 서버(lib/phone)가 준다 · 첫 줄이 국내(대한민국 · `+` 없이 보내는 나라) */
 export type PhoneCountry = S['PhoneCountryDto'];
 /** N-101 비밀번호 찾기 — 로그인 전 화면이 부른다. 코드 받기 응답은 계정 여부와 무관하게 같은 모양이다 */

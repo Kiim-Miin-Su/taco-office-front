@@ -162,6 +162,7 @@ import type {
   OccurrenceDelete,
   OccurrenceList,
   OnboardingInfo,
+  OnboardingVerify,
   PasswordResetInfo,
   Profile,
   ProfileUpdate,
@@ -356,6 +357,8 @@ export const qk = {
   teacherShell: ['teacher', 'shell'] as const,
   /** 본인 마이 페이지 프로필(AUTH-SELF-01) — 모든 역할 · 서버가 본인 고정. 대화상자를 열 때만 읽는다 */
   authProfile: ['auth', 'profile'] as const,
+  /** 첫 설정 안내(W8) — 채널별 인증 결과(2026-10-19)도 이 응답이 싣는다 */
+  authOnboarding: ['auth', 'onboarding'] as const,
   teacherHistory: ['teacher', 'history', 'server-previous-month'] as const,
   teacherPrivateNoteReceipts: ['teacher', 'private-notes', 'receipts'] as const,
   teacherSuggestions: ['teacher', 'suggestions'] as const,
@@ -4120,9 +4123,26 @@ export function useAddLeadDiag(): UseMutationResult<LeadDiagList, unknown, { id:
 export function useOnboardingInfo(enabled = true): UseQueryResult<OnboardingInfo> {
   const viewerId = useViewerId();
   return useQuery({
-    queryKey: sessionQueryKey(['auth', 'onboarding'] as const, viewerId),
+    queryKey: sessionQueryKey(qk.authOnboarding, viewerId),
     queryFn: async () => (await api.get<OnboardingInfo>('/auth/onboarding')).data,
     enabled,
+  });
+}
+
+/**
+ * 채널 하나 인증하기 (사용자 지시 2026-10-19 「이메일 인증하기와 휴대폰 번호 인증하기 버튼」).
+ * 응답이 갱신된 첫 설정 안내라 그 캐시를 그대로 바꾼다 — 「인증 완료」 · 남은 까닭을 화면이 세지 않고 서버 값으로 그린다.
+ */
+export function useVerifyOnboardingContact(): UseMutationResult<OnboardingInfo, unknown, OnboardingVerify> {
+  const qc = useQueryClient();
+  const viewerId = useViewerId();
+  return useMutation({
+    mutationFn: async (body) => (await api.post<OnboardingInfo>('/auth/onboarding/verify', body)).data,
+    onSuccess: (info) => {
+      qc.setQueryData(sessionQueryKey(qk.authOnboarding, viewerId), info);
+      // 인증한 이메일 · 휴대폰이 계정에 적혔다 — 그 값을 보이는 본인 프로필(마이 페이지) 캐시도 버린다
+      void qc.invalidateQueries({ queryKey: sessionQueryKey(qk.authProfile, viewerId) });
+    },
   });
 }
 
